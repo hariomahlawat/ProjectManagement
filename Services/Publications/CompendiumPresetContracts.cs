@@ -1,3 +1,5 @@
+using ProjectManagement.Services.Compendiums;
+
 namespace ProjectManagement.Services.Publications;
 
 public enum CompendiumPresetDiagnosticSeverity
@@ -22,12 +24,40 @@ public sealed record CompendiumPresetSummaryVm(
     string UpdatedByDisplay,
     string RowVersion);
 
+public sealed record CompendiumPresetProjectConfiguration(
+    int ProjectId,
+    int? PrimaryPhotoId = null,
+    double PrimaryFocalX = .5d,
+    double PrimaryFocalY = .5d,
+    CompendiumImageSelectionMode ImageSelectionMode = CompendiumImageSelectionMode.Automatic);
+
 public sealed record CompendiumPresetConfiguration(
     string Title,
     string Subtitle,
     string Edition,
     string? HandlingMarking,
-    IReadOnlyList<int> ProjectIds);
+    IReadOnlyList<CompendiumPresetProjectConfiguration> Projects)
+{
+    public CompendiumPresetConfiguration(
+        string title,
+        string subtitle,
+        string edition,
+        string? handlingMarking,
+        IReadOnlyList<int> projectIds)
+        : this(
+            title,
+            subtitle,
+            edition,
+            handlingMarking,
+            projectIds
+                .Where(projectId => projectId > 0)
+                .Select(projectId => new CompendiumPresetProjectConfiguration(projectId))
+                .ToArray())
+    {
+    }
+
+    public IReadOnlyList<int> ProjectIds => Projects.Select(project => project.ProjectId).ToArray();
+}
 
 public sealed record CompendiumPresetLoadResult(
     CompendiumPresetSummaryVm Preset,

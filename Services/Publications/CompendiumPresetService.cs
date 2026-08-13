@@ -7,6 +7,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.Publications;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Compendiums;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Publications;
@@ -66,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -168,8 +169,19 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 .Select(project => new { project.Id, project.Name })
                 .ToDictionaryAsync(project => project.Id, project => project.Name, cancellationToken);
 
+        var photoRows = savedProjectIds.Length == 0
+            ? Array.Empty<SavedPhotoRow>()
+            : await _db.ProjectPhotos
+                .AsNoTracking()
+                .Where(photo => savedProjectIds.Contains(photo.ProjectId))
+                .Select(photo => new SavedPhotoRow(photo.Id, photo.ProjectId))
+                .ToArrayAsync(cancellationToken);
+        var photoIdsByProject = photoRows
+            .GroupBy(photo => photo.ProjectId)
+            .ToDictionary(group => group.Key, group => group.Select(photo => photo.PhotoId).ToHashSet());
+
         var diagnostics = new List<CompendiumPresetDiagnostic>();
-        var projectIds = new List<int>(orderedItems.Length);
+        var projectConfigurations = new List<CompendiumPresetProjectConfiguration>(orderedItems.Length);
 
         foreach (var item in orderedItems)
         {
@@ -185,7 +197,34 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 continue;
             }
 
-            projectIds.Add(projectId);
+            var mode = ParseImageMode(item.ImageSelectionMode);
+            var primaryPhotoId = item.PrimaryPhotoId;
+            if (mode == CompendiumImageSelectionMode.Explicit)
+            {
+                var availablePhotoIds = photoIdsByProject.GetValueOrDefault(projectId) ?? new HashSet<int>();
+                if (!primaryPhotoId.HasValue || !availablePhotoIds.Contains(primaryPhotoId.Value))
+                {
+                    diagnostics.Add(new CompendiumPresetDiagnostic(
+                        CompendiumPresetDiagnosticSeverity.Warning,
+                        "publicationImageUnavailable",
+                        $"{currentName}'s saved publication image is no longer available. PRISM will resolve the current best project image automatically; review the project before final issue.",
+                        projectId,
+                        currentName));
+                    primaryPhotoId = null;
+                    mode = CompendiumImageSelectionMode.Automatic;
+                }
+            }
+            else
+            {
+                primaryPhotoId = null;
+            }
+
+            projectConfigurations.Add(new CompendiumPresetProjectConfiguration(
+                projectId,
+                primaryPhotoId,
+                ClampFocal(item.PrimaryFocalX),
+                ClampFocal(item.PrimaryFocalY),
+                mode));
 
             if (!string.Equals(currentName, item.ProjectNameSnapshot, StringComparison.Ordinal))
             {
@@ -203,7 +242,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             preset.Subtitle,
             preset.Edition,
             preset.HandlingMarking,
-            projectIds);
+            projectConfigurations);
 
         return new CompendiumPresetLoadResult(
             ToSummary(preset),
@@ -426,7 +465,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 {
                     ProjectId = item.ProjectId,
                     ProjectNameSnapshot = item.ProjectNameSnapshot,
-                    SortOrder = item.SortOrder
+                    SortOrder = item.SortOrder,
+                    PrimaryPhotoId = item.PrimaryPhotoId,
+                    PrimaryFocalX = item.PrimaryFocalX,
+                    PrimaryFocalY = item.PrimaryFocalY,
+                    ImageSelectionMode = item.ImageSelectionMode
                 })
                 .ToList()
         };
@@ -487,23 +530,25 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var requestedIds = configuration.ProjectIds ?? Array.Empty<int>();
         var seen = new HashSet<int>();
-        var projectIds = requestedIds
-            .Where(projectId => projectId > 0 && seen.Add(projectId))
+        var requestedProjects = (configuration.Projects ?? Array.Empty<CompendiumPresetProjectConfiguration>())
+            .Where(project => project.ProjectId > 0 && seen.Add(project.ProjectId))
+            .Take(MaximumProjects + 1)
+            .Select(NormalizeProjectConfiguration)
             .ToArray();
 
-        if (projectIds.Length == 0)
+        if (requestedProjects.Length == 0)
         {
             throw new InvalidOperationException("Select at least one project before saving a Compendium.");
         }
 
-        if (projectIds.Length > MaximumProjects)
+        if (requestedProjects.Length > MaximumProjects)
         {
             throw new InvalidOperationException(
                 $"A saved Compendium may contain at most {MaximumProjects} projects.");
         }
 
+        var projectIds = requestedProjects.Select(project => project.ProjectId).ToArray();
         var projectNames = await _db.Projects
             .AsNoTracking()
             .Where(project => projectIds.Contains(project.Id)
@@ -520,20 +565,56 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 "One or more selected projects are no longer available. Refresh the Compendium before saving.");
         }
 
+        var explicitPhotoIds = requestedProjects
+            .Where(project => project.ImageSelectionMode == CompendiumImageSelectionMode.Explicit
+                              && project.PrimaryPhotoId.HasValue)
+            .Select(project => project.PrimaryPhotoId!.Value)
+            .Distinct()
+            .ToArray();
+        var explicitPhotos = explicitPhotoIds.Length == 0
+            ? new Dictionary<int, SavedPhotoRow>()
+            : await _db.ProjectPhotos
+                .AsNoTracking()
+                .Where(photo => explicitPhotoIds.Contains(photo.Id))
+                .Select(photo => new SavedPhotoRow(photo.Id, photo.ProjectId))
+                .ToDictionaryAsync(photo => photo.PhotoId, cancellationToken);
+
+        foreach (var project in requestedProjects)
+        {
+            if (project.ImageSelectionMode != CompendiumImageSelectionMode.Explicit)
+            {
+                continue;
+            }
+
+            if (!project.PrimaryPhotoId.HasValue
+                || !explicitPhotos.TryGetValue(project.PrimaryPhotoId.Value, out var photo)
+                || photo.ProjectId != project.ProjectId)
+            {
+                throw new InvalidOperationException(
+                    $"The selected publication image for {projectNames[project.ProjectId]} is no longer available. Refresh the project review before saving.");
+            }
+        }
+
         var currentYear = TimeZoneInfo.ConvertTime(
             _clock.UtcNow.ToUniversalTime(),
             TimeZoneHelper.GetIst()).Year;
-        var normalizedConfiguration = NormalizeConfiguration(configuration, projectIds, currentYear);
+        var normalizedConfiguration = NormalizeConfiguration(configuration, requestedProjects, currentYear);
 
-        var rows = projectIds
-            .Select((projectId, sortOrder) => new CompendiumPresetProject
+        var rows = normalizedConfiguration.Projects
+            .Select((project, sortOrder) => new CompendiumPresetProject
             {
-                ProjectId = projectId,
+                ProjectId = project.ProjectId,
                 ProjectNameSnapshot = CleanRequired(
-                    projectNames[projectId],
-                    $"Project {projectId}",
+                    projectNames[project.ProjectId],
+                    $"Project {project.ProjectId}",
                     160),
-                SortOrder = sortOrder
+                SortOrder = sortOrder,
+                PrimaryPhotoId = project.ImageSelectionMode == CompendiumImageSelectionMode.Explicit
+                    ? project.PrimaryPhotoId
+                    : null,
+                PrimaryFocalX = project.PrimaryFocalX,
+                PrimaryFocalY = project.PrimaryFocalY,
+                ImageSelectionMode = project.ImageSelectionMode.ToString()
             })
             .ToList();
 
@@ -542,14 +623,33 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
     private static CompendiumPresetConfiguration NormalizeConfiguration(
         CompendiumPresetConfiguration configuration,
-        IReadOnlyList<int> projectIds,
+        IReadOnlyList<CompendiumPresetProjectConfiguration> projects,
         int currentYear)
         => new(
             CleanRequired(configuration.Title, "SDD Simulators Compendium", 120),
             CleanRequired(configuration.Subtitle, "Detailed Project Reference", 160),
             CleanRequired(configuration.Edition, $"Capability Edition · {currentYear}", 80),
             CleanOptional(configuration.HandlingMarking, 80),
-            projectIds.ToArray());
+            projects.ToArray());
+
+    private static CompendiumPresetProjectConfiguration NormalizeProjectConfiguration(
+        CompendiumPresetProjectConfiguration project)
+    {
+        var mode = Enum.IsDefined(project.ImageSelectionMode)
+            ? project.ImageSelectionMode
+            : CompendiumImageSelectionMode.Automatic;
+        var photoId = mode == CompendiumImageSelectionMode.Explicit && project.PrimaryPhotoId is > 0
+            ? project.PrimaryPhotoId
+            : null;
+
+        return project with
+        {
+            PrimaryPhotoId = photoId,
+            PrimaryFocalX = ClampFocal(project.PrimaryFocalX),
+            PrimaryFocalY = ClampFocal(project.PrimaryFocalY),
+            ImageSelectionMode = mode
+        };
+    }
 
     private static void ApplyConfiguration(
         CompendiumPreset preset,
@@ -689,6 +789,17 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 preset.Id);
         }
     }
+
+    private static CompendiumImageSelectionMode ParseImageMode(string? value)
+        => Enum.TryParse<CompendiumImageSelectionMode>(value, ignoreCase: true, out var parsed)
+           && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumImageSelectionMode.Automatic;
+
+    private static double ClampFocal(double value)
+        => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
+
+    private sealed record SavedPhotoRow(int PhotoId, int ProjectId);
 
     private static string NormalizeUserId(string value)
         => string.IsNullOrWhiteSpace(value)

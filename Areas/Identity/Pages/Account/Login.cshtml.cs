@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Data;
@@ -75,10 +76,18 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
 
                     user.LastLoginUtc = DateTime.UtcNow;
                     user.LoginCount = user.LoginCount + 1;
-                    await _signInManager.UserManager.UpdateAsync(user);
-                    await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                        .LogAsync(AuthenticationEventNames.AuditLoginSuccess, userName: user.UserName, userId: user.Id, http: HttpContext);
+                    var identityUpdate = await _signInManager.UserManager.UpdateAsync(user);
+                    if (!identityUpdate.Succeeded)
+                    {
+                        _logger.LogWarning(
+                            "Login succeeded for {User}, but login metadata could not be updated: {Errors}",
+                            user.UserName,
+                            string.Join("; ", identityUpdate.Errors.Select(error => error.Description)));
+                    }
 
+                    // AuthEvents is the authoritative authentication event stream. Persist it before
+                    // the secondary general-purpose audit entry so an AuditLogs storage problem
+                    // can never turn valid credentials into an HTTP 500 or suppress the sign-in event.
                     _db.AuthEvents.Add(new AuthEvent
                     {
                         UserId = user.Id,
@@ -88,6 +97,11 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                         UserAgent = ua
                     });
                     await _db.SaveChangesAsync();
+
+                    await TryWriteAuthenticationAuditAsync(
+                        AuthenticationEventNames.AuditLoginSuccess,
+                        userName: user.UserName,
+                        userId: user.Id);
                 }
                 if (user is not null && (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl)))
                 {
@@ -108,23 +122,71 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             if (result.IsLockedOut)
             {
                 _logger.LogWarning("Login failed. Account locked out for user: {User}", Input.UserName);
-                await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                    .LogAsync(AuthenticationEventNames.AuditLoginLockedOut, message: Input.UserName, level: "Warning", userName: Input.UserName, http: HttpContext);
+                await TryWriteAuthenticationAuditAsync(
+                    AuthenticationEventNames.AuditLoginLockedOut,
+                    message: Input.UserName,
+                    level: "Warning",
+                    userName: Input.UserName);
             }
             else if (result.IsNotAllowed)
             {
                 _logger.LogWarning("Login failed. Not allowed for user: {User}", Input.UserName);
-                await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                    .LogAsync(AuthenticationEventNames.AuditLoginFailed, message: $"Not allowed for {Input.UserName}", level: "Warning", userName: Input.UserName, http: HttpContext);
+                await TryWriteAuthenticationAuditAsync(
+                    AuthenticationEventNames.AuditLoginFailed,
+                    message: $"Not allowed for {Input.UserName}",
+                    level: "Warning",
+                    userName: Input.UserName);
             }
             else
             {
                 _logger.LogWarning("Login failed. Invalid credentials for user: {User}", Input.UserName);
-                await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                    .LogAsync(AuthenticationEventNames.AuditLoginFailed, message: $"Invalid credentials for {Input.UserName}", level: "Warning", userName: Input.UserName, http: HttpContext);
+                await TryWriteAuthenticationAuditAsync(
+                    AuthenticationEventNames.AuditLoginFailed,
+                    message: $"Invalid credentials for {Input.UserName}",
+                    level: "Warning",
+                    userName: Input.UserName);
             }
 
             return Page();
+        }
+
+        private async Task TryWriteAuthenticationAuditAsync(
+            string action,
+            string? message = null,
+            string level = "Info",
+            string? userId = null,
+            string? userName = null)
+        {
+            try
+            {
+                await HttpContext.RequestServices
+                    .GetRequiredService<IAuditService>()
+                    .LogAsync(
+                        action,
+                        message: message,
+                        level: level,
+                        userId: userId,
+                        userName: userName,
+                        http: HttpContext);
+            }
+            catch (DbUpdateException exception)
+            {
+                // Authentication must remain available even when the secondary AuditLogs store
+                // is temporarily unhealthy. Successful sign-ins are already recorded in AuthEvents.
+                _logger.LogError(
+                    exception,
+                    "Authentication audit persistence failed for action {Action} and user {UserName}. Authentication processing will continue.",
+                    action,
+                    userName);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Unexpected authentication audit failure for action {Action} and user {UserName}. Authentication processing will continue.",
+                    action,
+                    userName);
+            }
         }
     }
 }

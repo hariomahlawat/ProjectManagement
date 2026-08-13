@@ -1,25 +1,36 @@
-PRISM Publications Phase 22 — Validation Results
-Generated: 2026-08-13
+PRISM Publications — Phase 23 validation results
+Compendium Review, Publication Imagery & Readiness
 
+VALIDATED IN THIS ENVIRONMENT
 PASS  node --check wwwroot/js/pages/projects-compendium.js
 PASS  node --test wwwroot/js/projects/publications-compendium-contract.test.js
-      12 tests passed, 0 failed.
-PASS  C# structural source validation
-      15 changed/new C# files checked for balanced braces, parentheses, brackets and lexer end state.
-PASS  Additive persistence static checks
-      CompendiumPresets / CompendiumPresetProjects DbSets, mappings, migration, model snapshot and immutable migration ID are present.
-PASS  Shared preset hardening static checks
-      HoD/Comdt write governance, row-version concurrency, transactional order replacement and PRISM audit actions are present.
-PASS  Selection architecture static checks
-      normal Active/Completed publication candidate scope; proliferation is a filter/fact rather than an authored-Compendium inclusion gate; selected-only export/category grouping is present.
-PASS  Stale-preflight protection static/contracts
-      pending/stale preflight cannot enable current final output.
-PASS  Landing-page user-copy contract
-      old implementation-facing phrases are absent.
+      18 tests passed, 0 failed.
+PASS  Structural delimiter validation across 19 C# files.
+PASS  EF migration discovery metadata present for:
+      - 20261208130000_AddSharedCompendiumPresets
+      - 20261208140000_AddCompendiumPublicationImagery
+PASS  Immutable migration manifest includes 20261208140000_AddCompendiumPublicationImagery.
+PASS  Saved Compendium schema is v2 and includes PrimaryPhotoId, PrimaryFocalX,
+      PrimaryFocalY and ImageSelectionMode.
+PASS  ReviewFingerprint is not persisted in CompendiumPreset or preset contracts.
+PASS  TimeZoneHelper usages in supplied C# files import ProjectManagement.Utilities.
+PASS  Image-quality contract uses the current physical PDF viewport: 198 x 152 pt,
+      180 DPI good / 150 DPI acceptable.
+PASS  Phase 23 readiness contract includes stable missing-photo, low-resolution,
+      review-required and changed-after-review finding codes.
+PASS  CSS review/crop selectors cleaned and JavaScript contract rerun after final edit.
 
-NOT RUN  dotnet build
-NOT RUN  dotnet test
-Reason: the execution environment used to assemble this package does not contain a .NET SDK.
-Run .\tools\Test-PrismPublicationsPhase22.ps1 on the PRISM development workstation; it will perform build/test when dotnet is available.
+NOT EXECUTED HERE
+- dotnet build
+- dotnet test
+- PowerShell wrapper execution
 
-Environment note: PowerShell is also unavailable in the assembly container, so the .ps1 wrapper itself could not be executed here. Its Node/static operations were executed directly as recorded above.
+Reason: this container does not have the .NET SDK or PowerShell installed. The included
+Test-PrismPublicationsPhase23.ps1 runs the same Node checks and then dotnet build/test when
+executed on the Windows development workstation.
+
+RECOMMENDED LOCAL VALIDATION
+Set-ExecutionPolicy -Scope Process Bypass
+.\tools\Test-PrismPublicationsPhase23.ps1
+
+Then perform the runtime checks in README-PHASE23.txt.

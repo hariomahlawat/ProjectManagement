@@ -1,43 +1,35 @@
 using System.Globalization;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
+using ProjectManagement.Services.Publications;
 using ProjectManagement.Utilities;
-using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
-/// Compendium export orchestration. The authored Publications path renders only the selected,
-/// ordered project snapshot. The parameterless overload intentionally retains the historic
-/// automatic proliferation catalogue for legacy integrations/bookmarks.
+/// Compendium export orchestration. Phase 23 renders the same publication-specific photo choice and
+/// focal crop reviewed in the browser, using the shared Publications image pipeline rather than a
+/// separate derivative-loading path. The parameterless overload retains the legacy automatic
+/// proliferation catalogue for existing integrations/bookmarks.
 /// </summary>
 public sealed class CompendiumExportService : ICompendiumExportService
 {
-    private static readonly HashSet<string> SupportedPhotoFormats = new(
-        StringComparer.OrdinalIgnoreCase)
-    {
-        "jpg",
-        "jpeg",
-        "png",
-        "webp"
-    };
-
     private readonly ICompendiumReadService _readService;
-    private readonly IProjectPhotoService _projectPhotoService;
+    private readonly IBrochurePhotoService _photoService;
     private readonly ICompendiumPdfReportBuilder _pdfBuilder;
     private readonly CompendiumPdfOptions _options;
     private readonly ILogger<CompendiumExportService> _logger;
 
     public CompendiumExportService(
         ICompendiumReadService readService,
-        IProjectPhotoService projectPhotoService,
+        IBrochurePhotoService photoService,
         ICompendiumPdfReportBuilder pdfBuilder,
         IOptions<CompendiumPdfOptions> options,
         ILogger<CompendiumExportService> logger)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
-        _projectPhotoService = projectPhotoService ?? throw new ArgumentNullException(nameof(projectPhotoService));
+        _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _pdfBuilder = pdfBuilder ?? throw new ArgumentNullException(nameof(pdfBuilder));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -53,10 +45,11 @@ public sealed class CompendiumExportService : ICompendiumExportService
     {
         request ??= new CompendiumExportRequest();
 
-        var data = request.SelectedProjectIds is { Count: > 0 }
+        var authoredSelections = ResolveSelections(request);
+        var data = authoredSelections.Count > 0
             ? await _readService.GetPublicationAsync(
                 new CompendiumPublicationRequest(
-                    request.SelectedProjectIds,
+                    authoredSelections,
                     request.Title,
                     request.Subtitle,
                     request.Edition),
@@ -69,18 +62,55 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 "The Compendium cannot be generated while publication blockers remain.");
         }
 
+        var renderRequests = data.Groups
+            .SelectMany(group => group.Projects)
+            .Where(project => project.CoverPhotoId.HasValue)
+            .Select(project => new BrochurePhotoRenderRequest(
+                project.ProjectId,
+                project.CoverPhotoId!.Value,
+                project.PrimaryFocalX,
+                project.PrimaryFocalY,
+                CompendiumPublicationImagePolicy.RenderWidthPixels,
+                CompendiumPublicationImagePolicy.RenderHeightPixels))
+            .ToArray();
+
+        IReadOnlyDictionary<int, BrochurePublicationImage> renderedPhotos;
+        try
+        {
+            renderedPhotos = renderRequests.Length == 0
+                ? new Dictionary<int, BrochurePublicationImage>()
+                : await _photoService.RenderAsync(renderRequests, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Compendium publication image preparation failed. The PDF will use missing-photo placeholders where necessary.");
+            renderedPhotos = new Dictionary<int, BrochurePublicationImage>();
+        }
+
         var categories = new List<CompendiumPdfCategorySection>(data.Groups.Count);
         foreach (var group in data.Groups)
         {
             var projects = new List<CompendiumPdfProjectSection>(group.Projects.Count);
             foreach (var project in group.Projects)
             {
-                // ProjectPhotoService uses the request-scoped DbContext. Keep image reads
-                // sequential and deterministic rather than running concurrent EF operations.
-                var photoBytes = await TryLoadPhotoAsync(
-                    project.ProjectId,
-                    project.CoverPhotoId,
-                    cancellationToken);
+                var photoBytes = project.CoverPhotoId.HasValue
+                                 && renderedPhotos.TryGetValue(project.CoverPhotoId.Value, out var rendered)
+                    ? rendered.Content
+                    : null;
+
+                if (project.CoverPhotoId.HasValue && photoBytes is null)
+                {
+                    _logger.LogWarning(
+                        "Compendium publication photo could not be rendered. ProjectId={ProjectId}, PhotoId={PhotoId}.",
+                        project.ProjectId,
+                        project.CoverPhotoId.Value);
+                }
 
                 projects.Add(new CompendiumPdfProjectSection(
                     project.ProjectId,
@@ -135,100 +165,19 @@ public sealed class CompendiumExportService : ICompendiumExportService
             data.Groups.Count);
     }
 
-    private async Task<byte[]?> TryLoadPhotoAsync(
-        int projectId,
-        int? photoId,
-        CancellationToken cancellationToken)
+    private static IReadOnlyList<CompendiumProjectSelection> ResolveSelections(CompendiumExportRequest request)
     {
-        if (!photoId.HasValue)
+        if (request.ProjectSelections is { Count: > 0 })
         {
-            return null;
+            return request.ProjectSelections;
         }
 
-        try
-        {
-            var derivativeKey = string.IsNullOrWhiteSpace(_options.CoverPhotoDerivativeKey)
-                ? "md"
-                : _options.CoverPhotoDerivativeKey.Trim();
-            var preferredFormat = NormalizePhotoFormat(_options.PreferredPhotoFormat);
-
-            if (preferredFormat is not null)
-            {
-                var preferred = await _projectPhotoService.OpenDerivativeAsync(
-                    projectId,
-                    photoId.Value,
-                    derivativeKey,
-                    preferredFormat,
-                    cancellationToken);
-                var preferredBytes = await CopyOpenedPhotoAsync(preferred, cancellationToken);
-                if (preferredBytes is not null)
-                {
-                    return preferredBytes;
-                }
-            }
-
-            var fallback = await _projectPhotoService.OpenDerivativeAsync(
-                projectId,
-                photoId.Value,
-                derivativeKey,
-                preferWebp: false,
-                cancellationToken: cancellationToken);
-            var fallbackBytes = await CopyOpenedPhotoAsync(fallback, cancellationToken);
-            if (fallbackBytes is not null)
-            {
-                return fallbackBytes;
-            }
-
-            if (_options.PreferWebp)
-            {
-                var webp = await _projectPhotoService.OpenDerivativeAsync(
-                    projectId,
-                    photoId.Value,
-                    derivativeKey,
-                    requestedFormat: "webp",
-                    cancellationToken: cancellationToken);
-                var webpBytes = await CopyOpenedPhotoAsync(webp, cancellationToken);
-                if (webpBytes is not null)
-                {
-                    return webpBytes;
-                }
-            }
-
-            _logger.LogWarning(
-                "No usable Compendium photo derivative was found for project {ProjectId}, photo {PhotoId}, derivative {DerivativeKey}.",
-                projectId,
-                photoId.Value,
-                derivativeKey);
-            return null;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogWarning(
-                exception,
-                "Unable to load the Compendium photo for project {ProjectId}, photo {PhotoId}.",
-                projectId,
-                photoId.Value);
-            return null;
-        }
-    }
-
-    private static async Task<byte[]?> CopyOpenedPhotoAsync(
-        (Stream Stream, string ContentType)? opened,
-        CancellationToken cancellationToken)
-    {
-        if (opened is null)
-        {
-            return null;
-        }
-
-        await using var stream = opened.Value.Stream;
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken);
-        return memory.Length == 0 ? null : memory.ToArray();
+        return request.SelectedProjectIds is { Count: > 0 }
+            ? request.SelectedProjectIds
+                .Where(projectId => projectId > 0)
+                .Select(projectId => new CompendiumProjectSelection(projectId))
+                .ToArray()
+            : Array.Empty<CompendiumProjectSelection>();
     }
 
     private static string FormatCost(decimal? value)
@@ -238,17 +187,6 @@ public sealed class CompendiumExportService : ICompendiumExportService
 
     private static string? NormalizeMarking(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? NormalizePhotoFormat(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = value.Trim().TrimStart('.').ToLowerInvariant();
-        return SupportedPhotoFormats.Contains(normalized) ? normalized : null;
-    }
 
     private static string SanitizeFileNamePrefix(string? value)
     {

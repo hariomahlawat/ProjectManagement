@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,21 +15,25 @@ namespace ProjectManagement.Pages.Projects.Publications.Compendium;
 public sealed class IndexModel : PageModel
 {
     private const int MaximumSelectedProjects = 500;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly ICompendiumReadService _readService;
     private readonly ICompendiumExportService _exportService;
     private readonly ICompendiumPresetService _presetService;
+    private readonly IBrochurePhotoService _photoService;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         ICompendiumReadService readService,
         ICompendiumExportService exportService,
         ICompendiumPresetService presetService,
+        IBrochurePhotoService photoService,
         ILogger<IndexModel> logger)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
         _presetService = presetService ?? throw new ArgumentNullException(nameof(presetService));
+        _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -62,10 +67,43 @@ public sealed class IndexModel : PageModel
     public bool CanManagePresets
         => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
 
+    public bool CanMaintainProjectData
+        => User.IsInRole(RoleNames.Admin)
+           || User.IsInRole(RoleNames.HoD)
+           || User.IsInRole(RoleNames.ProjectOffice)
+           || User.IsInRole(RoleNames.ProjectOfficeAlternate);
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         ApplyDefaultSettings();
         await LoadWorkspaceAsync(loadPreset: PresetId is > 0, cancellationToken);
+    }
+
+    public async Task<IActionResult> OnGetPhotoAsync(
+        int projectId,
+        int photoId,
+        string? mode,
+        int v,
+        CancellationToken cancellationToken)
+    {
+        var kind = string.Equals(mode, "source", StringComparison.OrdinalIgnoreCase)
+            ? BrochurePhotoPreviewKind.Source
+            : BrochurePhotoPreviewKind.Thumbnail;
+        var preview = await _photoService.GetPreviewAsync(
+            projectId,
+            photoId,
+            kind,
+            cancellationToken);
+        if (preview is null)
+        {
+            return NotFound();
+        }
+
+        Response.Headers.CacheControl = "private,max-age=86400";
+        Response.Headers["X-PRISM-Publication-Photo-Source"] = preview.SourceVariant;
+        Response.Headers["X-PRISM-Publication-Photo-Size"] = $"{preview.SourceWidth}x{preview.SourceHeight}";
+        Response.Headers["X-PRISM-Publication-Photo-Quality"] = preview.Quality.ToString();
+        return File(preview.Content, preview.ContentType);
     }
 
     public async Task<IActionResult> OnPostPreflightAsync(CancellationToken cancellationToken)
@@ -83,6 +121,22 @@ public sealed class IndexModel : PageModel
             info = data.Preflight.InformationCount,
             categories = data.Preflight.CategoryCount,
             canGenerate = data.Preflight.CanGenerate,
+            reviewed = data.Groups.SelectMany(group => group.Projects).Count(project => project.IsReviewed),
+            projects = data.Groups
+                .SelectMany(group => group.Projects)
+                .OrderBy(project => project.SortOrder)
+                .Select(project => new
+                {
+                    project.ProjectId,
+                    project.ReviewFingerprint,
+                    project.IsReviewed,
+                    project.IsReviewStale,
+                    resolvedPhotoId = project.CoverPhotoId,
+                    imageSelectionMode = project.ImageSelectionMode.ToString().ToLowerInvariant(),
+                    project.EffectiveDpi,
+                    imageQuality = project.ImageQuality.ToString().ToLowerInvariant(),
+                    project.ExplicitPhotoUnavailable
+                }),
             findings = data.Preflight.Findings.Select(finding => new
             {
                 severity = finding.Severity.ToString().ToLowerInvariant(),
@@ -90,6 +144,85 @@ public sealed class IndexModel : PageModel
                 finding.Message,
                 finding.ProjectId,
                 finding.ProjectName
+            })
+        });
+    }
+
+    public async Task<IActionResult> OnPostReviewAsync(
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        NormalizeInput();
+        var selection = ParseSelections().FirstOrDefault(item => item.ProjectId == projectId);
+        if (selection is null)
+        {
+            return JsonError(
+                StatusCodes.Status400BadRequest,
+                "Select this project before reviewing it.");
+        }
+
+        var review = await _readService.GetReviewProjectAsync(selection, cancellationToken);
+        if (review is null)
+        {
+            return JsonError(
+                StatusCodes.Status404NotFound,
+                "The selected project is no longer available for publication.");
+        }
+
+        var returnUrl = Url.Page("/Projects/Publications/Compendium/Index", new { presetId = PresetId })
+                        ?? "/Projects/Publications/Compendium";
+        var completedEditUrl = CanMaintainProjectData
+                               && string.Equals(review.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
+            ? Url.Page("/Projects/CompletedSummary/Edit", new { id = review.ProjectId, returnUrl })
+            : null;
+
+        return new JsonResult(new
+        {
+            review.ProjectId,
+            review.ProjectName,
+            review.LifecycleDisplay,
+            review.ProjectCategoryName,
+            review.TechnicalCategoryName,
+            review.ArmServiceDisplay,
+            review.CompletionDisplay,
+            review.ProliferationAvailability,
+            review.ProliferationCostLakhs,
+            review.ProliferationCostDisplay,
+            review.DescriptionMarkdown,
+            review.ResolvedPhotoId,
+            photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
+            imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
+            review.FocalX,
+            review.FocalY,
+            review.EffectiveDpi,
+            imageQuality = review.ImageQuality.ToString().ToLowerInvariant(),
+            review.ReviewFingerprint,
+            review.IsReviewed,
+            review.IsReviewStale,
+            review.ExplicitPhotoUnavailable,
+            projectUrl = Url.Page("/Projects/Overview", new { id = review.ProjectId }),
+            photosUrl = Url.Page("/Projects/Photos/Index", new { id = review.ProjectId }),
+            completedEditUrl,
+            photos = review.Photos.Select(photo => new
+            {
+                photo.PhotoId,
+                photo.Caption,
+                photo.Width,
+                photo.Height,
+                photo.IsCover,
+                photo.IsLowResolution,
+                photo.Version,
+                photo.IsUsable,
+                photo.SourceVariant,
+                quality = photo.Quality.ToString().ToLowerInvariant(),
+                thumbnailUrl = Url.Page(
+                    "/Projects/Publications/Compendium/Index",
+                    "Photo",
+                    new { projectId = review.ProjectId, photoId = photo.PhotoId, mode = "thumb", v = photo.Version }),
+                previewUrl = Url.Page(
+                    "/Projects/Publications/Compendium/Index",
+                    "Photo",
+                    new { projectId = review.ProjectId, photoId = photo.PhotoId, mode = "source", v = photo.Version })
             })
         });
     }
@@ -266,9 +399,9 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         NormalizeInput();
-        var projectIds = ParseSelectedIds();
+        var selections = ParseSelections();
 
-        if (!ModelState.IsValid || projectIds.Count == 0)
+        if (!ModelState.IsValid || selections.Count == 0)
         {
             ModelState.AddModelError(
                 string.Empty,
@@ -281,11 +414,12 @@ public sealed class IndexModel : PageModel
         {
             var result = await _exportService.GenerateAsync(
                 new CompendiumExportRequest(
-                    Input.HandlingMarking,
-                    projectIds,
-                    Input.Title,
-                    Input.Subtitle,
-                    Input.Edition),
+                    HandlingMarking: Input.HandlingMarking,
+                    SelectedProjectIds: selections.Select(selection => selection.ProjectId).ToArray(),
+                    Title: Input.Title,
+                    Subtitle: Input.Subtitle,
+                    Edition: Input.Edition,
+                    ProjectSelections: selections),
                 cancellationToken);
 
             if (preview)
@@ -338,6 +472,14 @@ public sealed class IndexModel : PageModel
                 Input.Edition = loaded.Configuration.Edition;
                 Input.HandlingMarking = loaded.Configuration.HandlingMarking;
                 Input.SelectedProjectIdsCsv = string.Join(',', loaded.Configuration.ProjectIds);
+                Input.ProjectSelectionsJson = SerializeSelections(
+                    loaded.Configuration.Projects.Select(project => new CompendiumProjectSelection(
+                        project.ProjectId,
+                        project.PrimaryPhotoId,
+                        project.PrimaryFocalX,
+                        project.PrimaryFocalY,
+                        project.ImageSelectionMode,
+                        ReviewFingerprint: null)));
             }
             catch (Exception exception)
             {
@@ -350,14 +492,15 @@ public sealed class IndexModel : PageModel
             ActivePreset = SavedCompendiums.FirstOrDefault(preset => preset.Id == PresetId.Value);
         }
 
-        var projectIds = ParseSelectedIds();
-        if (projectIds.Count == 0)
+        var selections = ParseSelections();
+        if (selections.Count == 0)
         {
             Preflight = CompendiumPreflightDto.Empty with
             {
                 CandidateProjectCount = Projects.Count,
                 SelectedProjectCount = 0,
                 BlockerCount = 1,
+                WarningCount = 0,
                 Findings = new[]
                 {
                     new CompendiumFindingDto(
@@ -398,7 +541,10 @@ public sealed class IndexModel : PageModel
         Input.Subtitle = Clean(Input.Subtitle, 160) ?? "Detailed Project Reference";
         Input.Edition = Clean(Input.Edition, 80) ?? $"Capability Edition · {DateTime.Today.Year}";
         Input.HandlingMarking = Clean(Input.HandlingMarking, 80);
-        Input.SelectedProjectIdsCsv = string.Join(',', ParseSelectedIds());
+
+        var selections = ParseSelections();
+        Input.SelectedProjectIdsCsv = string.Join(',', selections.Select(selection => selection.ProjectId));
+        Input.ProjectSelectionsJson = SerializeSelections(selections);
     }
 
     private IReadOnlyList<int> ParseSelectedIds()
@@ -412,8 +558,70 @@ public sealed class IndexModel : PageModel
             .ToArray();
     }
 
+    private IReadOnlyList<CompendiumProjectSelection> ParseSelections()
+    {
+        var orderedIds = ParseSelectedIds();
+        if (orderedIds.Count == 0)
+        {
+            return Array.Empty<CompendiumProjectSelection>();
+        }
+
+        IReadOnlyList<CompendiumProjectSelectionPayload> payloads;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Input.ProjectSelectionsJson))
+            {
+                payloads = Array.Empty<CompendiumProjectSelectionPayload>();
+            }
+            else
+            {
+                payloads = JsonSerializer.Deserialize<List<CompendiumProjectSelectionPayload>>(
+                               Input.ProjectSelectionsJson,
+                               JsonOptions)
+                           ?? new List<CompendiumProjectSelectionPayload>();
+            }
+        }
+        catch (JsonException)
+        {
+            payloads = Array.Empty<CompendiumProjectSelectionPayload>();
+        }
+
+        var payloadById = payloads
+            .Where(payload => payload.ProjectId > 0)
+            .GroupBy(payload => payload.ProjectId)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        return orderedIds
+            .Select(projectId =>
+            {
+                if (!payloadById.TryGetValue(projectId, out var payload))
+                {
+                    return new CompendiumProjectSelection(projectId);
+                }
+
+                var mode = Enum.TryParse<CompendiumImageSelectionMode>(
+                               payload.ImageSelectionMode,
+                               ignoreCase: true,
+                               out var parsedMode)
+                           && Enum.IsDefined(parsedMode)
+                    ? parsedMode
+                    : CompendiumImageSelectionMode.Automatic;
+
+                return new CompendiumProjectSelection(
+                    projectId,
+                    mode == CompendiumImageSelectionMode.Explicit && payload.PrimaryPhotoId is > 0
+                        ? payload.PrimaryPhotoId
+                        : null,
+                    ClampFocal(payload.FocalX),
+                    ClampFocal(payload.FocalY),
+                    mode,
+                    CleanFingerprint(payload.ReviewFingerprint));
+            })
+            .ToArray();
+    }
+
     private CompendiumPublicationRequest ToPublicationRequest()
-        => new(ParseSelectedIds(), Input.Title, Input.Subtitle, Input.Edition);
+        => new(ParseSelections(), Input.Title, Input.Subtitle, Input.Edition);
 
     private CompendiumPresetConfiguration ToPresetConfiguration()
         => new(
@@ -421,7 +629,14 @@ public sealed class IndexModel : PageModel
             Input.Subtitle,
             Input.Edition,
             Input.HandlingMarking,
-            ParseSelectedIds());
+            ParseSelections()
+                .Select(selection => new CompendiumPresetProjectConfiguration(
+                    selection.ProjectId,
+                    selection.PrimaryPhotoId,
+                    selection.FocalX,
+                    selection.FocalY,
+                    selection.ImageSelectionMode))
+                .ToArray());
 
     private string ActorUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -434,6 +649,33 @@ public sealed class IndexModel : PageModel
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private static string SerializeSelections(IEnumerable<CompendiumProjectSelection> selections)
+        => JsonSerializer.Serialize(
+            selections.Select(selection => new CompendiumProjectSelectionPayload
+            {
+                ProjectId = selection.ProjectId,
+                PrimaryPhotoId = selection.PrimaryPhotoId,
+                FocalX = selection.FocalX,
+                FocalY = selection.FocalY,
+                ImageSelectionMode = selection.ImageSelectionMode.ToString(),
+                ReviewFingerprint = selection.ReviewFingerprint
+            }),
+            JsonOptions);
+
+    private static double ClampFocal(double value)
+        => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
+
+    private static string? CleanFingerprint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var clean = value.Trim();
+        return clean.Length <= 128 ? clean : clean[..128];
+    }
 
     private static string? Clean(string? value, int maximumLength)
     {
@@ -468,5 +710,16 @@ public sealed class IndexModel : PageModel
         public string? HandlingMarking { get; set; }
 
         public string? SelectedProjectIdsCsv { get; set; }
+        public string? ProjectSelectionsJson { get; set; }
+    }
+
+    public sealed class CompendiumProjectSelectionPayload
+    {
+        public int ProjectId { get; set; }
+        public int? PrimaryPhotoId { get; set; }
+        public double FocalX { get; set; } = .5d;
+        public double FocalY { get; set; } = .5d;
+        public string? ImageSelectionMode { get; set; }
+        public string? ReviewFingerprint { get; set; }
     }
 }

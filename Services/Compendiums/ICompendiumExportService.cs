@@ -5,7 +5,8 @@ public sealed record CompendiumExportRequest(
     IReadOnlyList<int>? SelectedProjectIds = null,
     string? Title = null,
     string? Subtitle = null,
-    string? Edition = null);
+    string? Edition = null,
+    IReadOnlyList<CompendiumProjectSelection>? ProjectSelections = null);
 
 public sealed record CompendiumExportResult(
     byte[] Bytes,

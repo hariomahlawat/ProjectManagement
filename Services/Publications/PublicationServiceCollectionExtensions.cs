@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Services.Compendiums;
 using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Services.Publications;
@@ -15,6 +16,7 @@ public static class PublicationServiceCollectionExtensions
         services.AddScoped<IBrochurePublicationService, BrochurePublicationService>();
         services.AddScoped<IBrochurePdfReportBuilder, BrochurePdfReportBuilder>();
         services.AddScoped<IBrochurePresetService, BrochurePresetService>();
+        services.AddSingleton<ICompendiumReadinessPolicy, CompendiumReadinessPolicy>();
         services.AddScoped<ICompendiumPresetService, CompendiumPresetService>();
         services.AddHostedService<PublicationFontWarmupHostedService>();
         services.AddHostedService<PublicationRuntimeValidationHostedService>();

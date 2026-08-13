@@ -98,12 +98,17 @@
           class="compendium-builder-form"
           data-compendium-builder
           data-preflight-url="@Url.Page("/Projects/Publications/Compendium/Index", "Preflight")"
+          data-review-url="@Url.Page("/Projects/Publications/Compendium/Index", "Review")"
+          data-photo-frame-width="@CompendiumPublicationImagePolicy.FrameWidthPoints"
+          data-photo-frame-height="@CompendiumPublicationImagePolicy.FrameHeightPoints"
+          data-can-maintain-project-data="@(Model.CanMaintainProjectData ? "true" : "false")"
           data-save-url="@Url.Page("/Projects/Publications/Compendium/Index", "SavePreset")"
           data-rename-url="@Url.Page("/Projects/Publications/Compendium/Index", "RenamePreset")"
           data-duplicate-url="@Url.Page("/Projects/Publications/Compendium/Index", "DuplicatePreset")"
           data-delete-url="@Url.Page("/Projects/Publications/Compendium/Index", "DeletePreset")">
         @Html.AntiForgeryToken()
         <input asp-for="Input.SelectedProjectIdsCsv" type="hidden" data-selected-project-ids />
+        <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
         <input asp-for="PresetId" type="hidden" data-active-preset-id />
         <input asp-for="ActivePresetRowVersion" type="hidden" data-active-preset-row-version />
 
@@ -124,7 +129,7 @@
                             <span class="publication-step">1</span>
                             <div>
                                 <h2>Publication settings</h2>
-                                <p>Set the identity of this Compendium. Project facts remain live from PRISM.</p>
+                                <p>Set the title and publication details for this Compendium.</p>
                             </div>
                         </div>
                     </header>
@@ -194,7 +199,8 @@
                             <select class="form-select" data-filter-proliferation aria-label="Proliferation status">
                                 <option value="">All proliferation status</option>
                                 <option value="available">Available for proliferation</option>
-                                <option value="other">Not marked available</option>
+                                <option value="notavailable">Not available for proliferation</option>
+                                <option value="notassessed">Availability not assessed</option>
                             </select>
                             <label class="brochure-selected-only">
                                 <input class="form-check-input" type="checkbox" data-filter-selected />
@@ -225,7 +231,7 @@
                                             data-lifecycle="@project.Lifecycle"
                                             data-category="@project.ProjectCategory"
                                             data-technical="@project.TechnicalCategory"
-                                            data-proliferation="@(project.IsAvailableForProliferation ? "available" : "other")">
+                                            data-proliferation="@(project.ProliferationAvailability == true ? "available" : project.ProliferationAvailability == false ? "notavailable" : "notassessed")">
                                             <td>
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -262,31 +268,83 @@
                 </section>
 
                 <section class="publication-panel" id="compendium-review">
-                    <header class="publication-panel__header">
+                    <header class="publication-panel__header compendium-review-header">
                         <div>
                             <span class="publication-step">3</span>
                             <div>
                                 <h2>Review publication</h2>
-                                <p>Inspect the current authoritative information for each selected project.</p>
+                                <p><span data-review-progress>0 of 0 reviewed</span> · inspect the information and image that will be published.</p>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next>Review next</button>
+                        <div class="compendium-review-nav" aria-label="Project review navigation">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-previous title="Previous project"><i class="bi bi-chevron-left"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next-attention>Next requiring attention</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next title="Next project"><i class="bi bi-chevron-right"></i></button>
+                        </div>
                     </header>
                     <div class="publication-panel__body">
                         <div class="compendium-review-empty" data-review-empty>
                             <i class="bi bi-journal-text"></i>
                             <strong>Select projects to begin review.</strong>
+                            <span>The review workspace will show the current PRISM facts and publication photograph for each selected project.</span>
                         </div>
-                        <article class="compendium-review-card" data-review-card hidden>
-                            <div>
-                                <small data-review-ordinal></small>
-                                <h3 data-review-name></h3>
-                                <p data-review-meta></p>
+                        <article class="compendium-review-card compendium-review-card--phase23" data-review-card hidden>
+                            <header class="compendium-review-card__heading">
+                                <div>
+                                    <small data-review-ordinal></small>
+                                    <h3 data-review-name></h3>
+                                    <p data-review-meta></p>
+                                </div>
+                                <span class="compendium-review-state" data-review-state>Review required</span>
+                            </header>
+
+                            <div class="compendium-review-workspace">
+                                <section class="compendium-review-image-panel" aria-label="Publication photograph">
+                                    <div class="compendium-review-image-frame" data-review-image-frame>
+                                        <img alt="" data-review-image hidden />
+                                        <div class="compendium-review-image-empty" data-review-image-empty>
+                                            <i class="bi bi-image"></i>
+                                            <strong>No publication image</strong>
+                                        </div>
+                                    </div>
+                                    <div class="compendium-review-image-meta">
+                                        <div>
+                                            <span class="compendium-image-badge" data-review-image-mode>Automatic</span>
+                                            <span class="compendium-image-badge" data-review-image-quality>Quality pending</span>
+                                        </div>
+                                        <small data-review-image-detail></small>
+                                    </div>
+                                    <div class="compendium-review-image-actions">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop><i class="bi bi-crop"></i> Adjust crop</button>
+                                        <button type="button" class="btn btn-sm btn-link" data-review-use-automatic>Use automatic</button>
+                                    </div>
+                                    <a class="compendium-manage-photos" data-review-manage-photos><i class="bi bi-box-arrow-up-right"></i> Manage project photographs</a>
+                                </section>
+
+                                <section class="compendium-review-information">
+                                    <div class="compendium-review-facts compendium-review-facts--phase23" data-review-facts></div>
+                                    <div class="compendium-review-description">
+                                        <div class="compendium-review-section-heading">
+                                            <strong>Project description</strong>
+                                            <span data-review-description-state></span>
+                                        </div>
+                                        <div class="compendium-review-description-text" data-review-description></div>
+                                    </div>
+                                    <div class="compendium-review-actions">
+                                        <a class="btn btn-sm btn-outline-secondary" data-review-open-project><i class="bi bi-box-arrow-up-right"></i> Open project</a>
+                                        <a class="btn btn-sm btn-outline-secondary" data-review-edit-record hidden><i class="bi bi-pencil"></i> Edit record</a>
+                                    </div>
+                                </section>
                             </div>
-                            <div class="compendium-review-facts" data-review-facts></div>
-                            <div class="compendium-review-actions">
-                                <a class="btn btn-sm btn-outline-secondary" data-review-open-project>Open project</a>
-                            </div>
+
+                            <footer class="compendium-review-footer">
+                                <div>
+                                    <strong data-review-footer-title>Review required</strong>
+                                    <span data-review-footer-copy>Confirm the current project facts and publication image.</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-primary" data-review-mark-reviewed><i class="bi bi-check2-circle"></i> Mark reviewed</button>
+                            </footer>
                         </article>
                     </div>
                 </section>
@@ -297,7 +355,7 @@
                             <span class="publication-step">4</span>
                             <div>
                                 <h2>Publication readiness</h2>
-                                <p>Server preflight for the selected Compendium only.</p>
+                                <p>Check the selected projects for publication completeness and quality.</p>
                             </div>
                         </div>
                         <span class="spinner-border spinner-border-sm d-none" data-preflight-spinner></span>
@@ -311,7 +369,18 @@
                         </div>
                         <div class="compendium-readiness-structure">
                             <strong>Catalogue structure</strong>
-                            <span><b data-ready-categories>0</b> technical categories</span>
+                            <span><b data-ready-reviewed>0</b> reviewed · <b data-ready-categories>0</b> technical categories</span>
+                        </div>
+                        <div class="compendium-finding-toolbar" data-finding-toolbar>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Finding severity">
+                                <button type="button" class="btn btn-outline-secondary active" data-finding-filter="all">All</button>
+                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="blocker">Blockers</button>
+                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="warning">Warnings</button>
+                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="information">Info</button>
+                            </div>
+                            <label class="compendium-current-findings">
+                                <input class="form-check-input" type="checkbox" data-findings-current-only /> Current project only
+                            </label>
                         </div>
                         <div class="compendium-findings" data-ready-findings>
                             <div class="compendium-finding is-blocker">Select at least one project to begin publication preflight.</div>
@@ -337,7 +406,7 @@
                             <span>Select projects from the portfolio.</span>
                         </div>
                     </div>
-                    <p class="compendium-order-note">Technical category sequence follows the first selected project in each category; order within each category is preserved.</p>
+                    <p class="compendium-order-note">Projects are grouped by technical category in the final Compendium.</p>
                 </section>
 
                 <section class="publication-panel compendium-final-card">
@@ -345,7 +414,7 @@
                         <div>
                             <div>
                                 <h2>Final output</h2>
-                                <p>Preview at any technically valid stage; download when ready.</p>
+                                <p>Preview the current publication at any valid stage; download when it is ready for issue.</p>
                             </div>
                         </div>
                     </header>
@@ -379,6 +448,51 @@
             </aside>
         </div>
     </form>
+</div>
+
+<div class="modal fade compendium-photo-modal" id="compendiumPhotoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Publication photograph</h5>
+                    <small data-photo-modal-project></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="compendium-photo-modal-layout">
+                    <section>
+                        <div class="compendium-photo-modal-heading">
+                            <div><strong>Choose image</strong><span>Select the photograph to lock for this Compendium.</span></div>
+                            <button type="button" class="btn btn-sm btn-link" data-photo-use-automatic>Use automatic selection</button>
+                        </div>
+                        <div class="compendium-photo-picker" data-photo-picker></div>
+                    </section>
+                    <section class="compendium-crop-panel">
+                        <div class="compendium-photo-modal-heading">
+                            <div><strong>Publication crop</strong><span>Click the source image to position the focal point inside the Compendium frame.</span></div>
+                            <button type="button" class="btn btn-sm btn-link" data-photo-reset-crop>Centre crop</button>
+                        </div>
+                        <div class="compendium-crop-stage" data-photo-crop-stage>
+                            <img alt="Publication crop source" data-photo-crop-image />
+                            <div class="compendium-crop-frame" data-photo-crop-frame aria-hidden="true"></div>
+                            <span class="compendium-focal-marker" data-photo-focal-marker aria-hidden="true"></span>
+                            <div class="compendium-crop-empty" data-photo-crop-empty hidden>No usable photograph is selected.</div>
+                        </div>
+                        <div class="compendium-crop-status">
+                            <span data-photo-crop-selection></span>
+                            <span data-photo-crop-quality></span>
+                        </div>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-outline-secondary me-auto" data-photo-manage-link><i class="bi bi-images"></i> Manage project photographs</a>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="compendiumDiscardModal" tabindex="-1" aria-hidden="true">

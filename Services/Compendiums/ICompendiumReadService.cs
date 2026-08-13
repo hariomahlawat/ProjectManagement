@@ -13,6 +13,11 @@ public interface ICompendiumReadService
         CancellationToken cancellationToken = default)
         => GetProliferationCompendiumAsync(cancellationToken);
 
+    Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
+        CompendiumProjectSelection selection,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<CompendiumReviewProjectDto?>(null);
+
     Task<CompendiumPdfDataDto> GetProliferationCompendiumAsync(
         CancellationToken cancellationToken = default);
 }

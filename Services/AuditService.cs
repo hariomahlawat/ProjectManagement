@@ -82,7 +82,24 @@ namespace ProjectManagement.Services
             };
 
             _db.AuditLogs.Add(log);
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException exception)
+            {
+                // A failed audit insert must not leave the scoped DbContext carrying an Added
+                // AuditLog. Callers such as authentication may deliberately recover from the
+                // persistence failure and continue using the same request-scoped context.
+                _db.Entry(log).State = EntityState.Detached;
+
+                _logger.LogError(
+                    exception,
+                    "Could not persist audit action {Action} for user {UserId}. The audit entry was detached from the current DbContext before the failure was rethrown.",
+                    action,
+                    userId);
+                throw;
+            }
 
             var actionKind = ErpUsageActionClassifier.Classify(action);
             if (string.IsNullOrWhiteSpace(userId) || actionKind == ErpUsageActionKind.Ignored)

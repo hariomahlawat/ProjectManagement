@@ -2263,3 +2263,139 @@ body.brochure-modal-open { overflow: hidden; }
 @media (max-width:600px){.compendium-filter-toolbar,.compendium-readiness-metrics,.compendium-review-facts{grid-template-columns:1fr}.compendium-preset-row{grid-template-columns:1fr auto}.compendium-preset-row .btn-group{grid-column:1/-1}}
 .compendium-order-item.is-dragging { opacity: .48; background: #f3f7f5; }
 .compendium-order-note { margin: 0; padding: .48rem .58rem; border-top: 1px solid #edf1ef; color: #7a8983; font-size: .53rem; line-height: 1.35; }
+
+/* ========================================================================== */
+/* Compendium 2.0 · Phase 23 review, publication imagery and readiness        */
+/* ========================================================================== */
+.compendium-review-header { align-items:center; }
+.compendium-review-nav { display:flex; align-items:center; gap:.35rem; }
+.compendium-review-nav .btn { white-space:nowrap; }
+.compendium-review-empty > span { max-width:480px; color:#91a09a; font-size:.6rem; text-align:center; line-height:1.45; }
+.compendium-review-card--phase23 { display:grid; gap:.75rem; }
+.compendium-review-card__heading { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; }
+.compendium-review-card__heading > div { min-width:0; }
+.compendium-review-state { flex:0 0 auto; display:inline-flex; align-items:center; min-height:25px; padding:.25rem .55rem; border:1px solid #dce5e1; border-radius:999px; background:#f7faf9; color:#667a72; font-size:.56rem; font-weight:800; white-space:nowrap; }
+.compendium-review-state.is-reviewed { border-color:#c5dfd2; background:#eff8f3; color:#2f7358; }
+.compendium-review-state.is-warning,.compendium-review-state.is-required { border-color:#ead59f; background:#fff8e4; color:#8b6414; }
+.compendium-review-state.is-loading { color:#71817b; }
+.compendium-review-workspace { display:grid; grid-template-columns:minmax(280px,.82fr) minmax(0,1.55fr); gap:.8rem; align-items:start; }
+.compendium-review-image-panel,.compendium-review-information { min-width:0; }
+.compendium-review-image-panel { padding:.65rem; border:1px solid #dfe8e4; border-radius:10px; background:#f8fbfa; }
+.compendium-review-image-frame { position:relative; overflow:hidden; width:100%; aspect-ratio:198/152; border:1px solid #d7e1dd; border-radius:8px; background:#e9efec; }
+.compendium-review-image-frame img { width:100%; height:100%; object-fit:cover; display:block; }
+.compendium-review-image-empty { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:.3rem; color:#879892; text-align:center; }
+.compendium-review-image-empty i { font-size:1.25rem; }
+.compendium-review-image-empty strong { font-size:.66rem; }
+.compendium-review-image-meta { display:grid; gap:.3rem; margin-top:.55rem; }
+.compendium-review-image-meta > div { display:flex; flex-wrap:wrap; gap:.3rem; }
+.compendium-review-image-meta small { color:#778983; font-size:.56rem; line-height:1.4; }
+.compendium-image-badge { display:inline-flex; align-items:center; min-height:22px; padding:.15rem .42rem; border:1px solid #d9e3df; border-radius:999px; background:#fff; color:#62766e; font-size:.53rem; font-weight:700; }
+.compendium-image-badge.is-explicit { border-color:#c7d9ef; background:#f3f7ff; color:#315e9b; }
+.compendium-image-badge.is-automatic { border-color:#d7e3de; background:#f4f8f6; color:#567065; }
+.compendium-image-badge.is-good { border-color:#c9e1d5; background:#f0f9f4; color:#317159; }
+.compendium-image-badge.is-acceptable { border-color:#d8dfb7; background:#fbfbea; color:#6e741f; }
+.compendium-image-badge.is-low { border-color:#ead49c; background:#fff7df; color:#946b10; }
+.compendium-image-badge.is-unknown { color:#778983; }
+.compendium-review-image-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; margin-top:.55rem; }
+.compendium-review-image-actions .btn-link { padding-inline:.2rem; font-size:.59rem; }
+.compendium-manage-photos { display:inline-flex; align-items:center; gap:.25rem; margin-top:.5rem; color:#5e746a; font-size:.57rem; text-decoration:none; }
+.compendium-manage-photos:hover { color:#245c49; text-decoration:underline; }
+.compendium-review-facts--phase23 { margin:0; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.compendium-review-facts--phase23 > div { min-height:57px; }
+.compendium-review-loading { grid-column:1/-1; min-height:86px; display:grid; place-items:center; color:#82918b; }
+.compendium-review-load-error { grid-column:1/-1; padding:.65rem; border:1px solid #efc8cc; border-radius:8px; background:#fff5f6; color:#9b3440; }
+.compendium-review-description { margin-top:.55rem; border:1px solid #e0e8e5; border-radius:9px; background:#fff; }
+.compendium-review-section-heading { display:flex; justify-content:space-between; gap:1rem; padding:.45rem .58rem; border-bottom:1px solid #edf1ef; background:#f8faf9; }
+.compendium-review-section-heading strong { color:#40594f; font-size:.61rem; }
+.compendium-review-section-heading span { color:#83928c; font-size:.53rem; }
+.compendium-review-description-text { max-height:175px; overflow:auto; padding:.6rem; color:#3e514a; font-size:.64rem; line-height:1.5; }
+.compendium-review-missing { color:#986f18; font-style:italic; }
+.compendium-review-loading-line { display:block; width:85%; height:8px; margin:.35rem 0; border-radius:5px; background:#edf2ef; }
+.compendium-review-loading-line + .compendium-review-loading-line { width:63%; }
+.compendium-review-actions { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.55rem; }
+.compendium-review-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.62rem .7rem; border:1px solid #dce7e2; border-radius:9px; background:#f5faf8; }
+.compendium-review-footer > div { display:grid; gap:2px; }
+.compendium-review-footer strong { color:#385449; font-size:.63rem; }
+.compendium-review-footer span { color:#788983; font-size:.56rem; line-height:1.4; }
+
+.compendium-order-copy { min-width:0; display:grid; gap:1px; padding:0; border:0; background:transparent; text-align:left; cursor:pointer; }
+.compendium-order-item.is-active { background:#f3f8f6; box-shadow:inset 3px 0 #286d56; }
+.compendium-order-actions { align-items:center; }
+.compendium-order-state { display:grid; width:20px; height:20px; place-items:center; font-size:.58rem; }
+.compendium-order-state.is-ready { color:#2d7a5c; }
+.compendium-order-state.is-warning { color:#b07a0b; }
+.compendium-order-state.is-blocker { color:#b23b47; }
+.compendium-order-state.is-review { color:#9aa7a2; }
+
+.compendium-finding-toolbar { display:flex; align-items:center; justify-content:space-between; gap:.7rem; margin-top:.65rem; }
+.compendium-finding-toolbar .btn { font-size:.56rem; }
+.compendium-current-findings { display:inline-flex; align-items:center; gap:.35rem; color:#667a72; font-size:.57rem; white-space:nowrap; }
+.compendium-finding { grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.5rem; }
+.compendium-finding__copy { display:grid; gap:2px; min-width:0; }
+.compendium-finding__copy strong { color:inherit; font-size:.59rem; }
+.compendium-finding__copy span { line-height:1.42; }
+.compendium-finding__action { flex:0 0 auto; }
+.compendium-finding__action .btn { white-space:nowrap; font-size:.53rem; }
+.compendium-findings-empty { grid-column:1/-1; display:flex; align-items:center; justify-content:center; gap:.4rem; min-height:58px; padding:.6rem; border:1px dashed #d9e4df; border-radius:8px; color:#7d8f87; font-size:.6rem; }
+.compendium-output-status.is-pending { border-color:#d9e3df; background:#f7faf9; }
+.compendium-output-status.is-warning { border-color:#ead6a3; background:#fff9e8; color:#8c6514; }
+.compendium-output-status.is-blocked { border-color:#edc3c8; background:#fff5f6; color:#9c3540; }
+.compendium-output-status.is-ready { border-color:#c9dfd4; background:#f1f9f5; color:#347057; }
+
+.compendium-photo-modal .modal-header small { display:block; margin-top:2px; color:#778983; font-size:.6rem; }
+.compendium-photo-modal-layout { display:grid; grid-template-columns:minmax(300px,.9fr) minmax(420px,1.25fr); gap:1rem; }
+.compendium-photo-modal-layout > section { min-width:0; }
+.compendium-photo-modal-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; margin-bottom:.5rem; }
+.compendium-photo-modal-heading > div { display:grid; gap:2px; }
+.compendium-photo-modal-heading strong { color:#29483c; font-size:.69rem; }
+.compendium-photo-modal-heading span { color:#7a8b84; font-size:.57rem; }
+.compendium-photo-picker { display:grid; gap:.42rem; max-height:500px; overflow:auto; padding-right:.2rem; }
+.compendium-photo-choice { display:grid; grid-template-columns:82px minmax(0,1fr) auto; gap:.55rem; align-items:center; width:100%; padding:.42rem; border:1px solid #dde6e2; border-radius:9px; background:#fff; color:inherit; text-align:left; transition:border-color .12s ease,background .12s ease,box-shadow .12s ease; }
+.compendium-photo-choice:hover:not(:disabled) { border-color:#a9cabe; background:#f8fbfa; }
+.compendium-photo-choice.is-selected { border-color:#5b8fb9; background:#f4f8ff; box-shadow:0 0 0 1px rgba(55,105,148,.08); }
+.compendium-photo-choice.is-automatic:not(.is-selected) { border-color:#bdd7cd; background:#f5faf8; }
+.compendium-photo-choice:disabled { opacity:.52; cursor:not-allowed; }
+.compendium-photo-choice__image { overflow:hidden; width:82px; aspect-ratio:16/10; border-radius:6px; background:#e8efec; }
+.compendium-photo-choice__image img { width:100%; height:100%; object-fit:cover; display:block; }
+.compendium-photo-choice__copy { min-width:0; display:grid; gap:2px; }
+.compendium-photo-choice__copy strong { overflow:hidden; color:#304b40; font-size:.62rem; text-overflow:ellipsis; white-space:nowrap; }
+.compendium-photo-choice__copy small { color:#7b8b84; font-size:.53rem; }
+.compendium-photo-choice__badges { display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+.compendium-photo-choice__badges span { padding:2px 5px; border-radius:999px; background:#edf4f1; color:#527267; font-size:.48rem; font-weight:700; }
+.compendium-photo-picker-empty { display:grid; place-items:center; gap:.3rem; min-height:170px; padding:1rem; border:1px dashed #d7e2de; border-radius:9px; color:#81928b; text-align:center; }
+.compendium-photo-picker-empty i { font-size:1.25rem; }
+.compendium-photo-picker-empty strong { font-size:.68rem; }
+.compendium-photo-picker-empty span { max-width:300px; font-size:.57rem; }
+.compendium-crop-panel { padding:.65rem; border:1px solid #e0e8e5; border-radius:10px; background:#f8faf9; }
+.compendium-crop-stage { position:relative; display:grid; place-items:center; overflow:hidden; width:100%; min-height:385px; border:1px solid #d8e2de; border-radius:8px; background:#1f2925; cursor:crosshair; user-select:none; }
+.compendium-crop-stage > img { display:block; max-width:100%; max-height:480px; object-fit:contain; }
+.compendium-crop-frame { position:absolute; border:2px solid rgba(255,255,255,.95); box-shadow:0 0 0 9999px rgba(0,0,0,.34),0 0 0 1px rgba(16,42,33,.28); pointer-events:none; }
+.compendium-focal-marker { position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px; border:2px solid #fff; border-radius:50%; background:#d6ad38; box-shadow:0 1px 5px rgba(0,0,0,.4); pointer-events:none; }
+.compendium-focal-marker::before,.compendium-focal-marker::after { content:""; position:absolute; background:#fff; opacity:.85; }
+.compendium-focal-marker::before { left:5px; top:-5px; width:1px; height:20px; }
+.compendium-focal-marker::after { left:-5px; top:5px; width:20px; height:1px; }
+.compendium-crop-empty { position:absolute; inset:0; display:grid; place-items:center; color:#bac6c1; font-size:.65rem; cursor:default; }
+.compendium-crop-status { display:flex; justify-content:space-between; gap:1rem; margin-top:.45rem; color:#70817a; font-size:.55rem; }
+
+@media (max-width:1200px) {
+    .compendium-review-workspace { grid-template-columns:minmax(250px,.9fr) minmax(0,1.3fr); }
+    .compendium-review-facts--phase23 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .compendium-photo-modal-layout { grid-template-columns:1fr; }
+    .compendium-photo-picker { max-height:330px; }
+}
+@media (max-width:900px) {
+    .compendium-review-card__heading,.compendium-review-footer,.compendium-finding-toolbar { align-items:flex-start; flex-direction:column; }
+    .compendium-review-workspace { grid-template-columns:1fr; }
+    .compendium-review-image-panel { max-width:620px; }
+    .compendium-review-nav { flex-wrap:wrap; justify-content:flex-end; }
+    .compendium-crop-stage { min-height:300px; }
+}
+@media (max-width:600px) {
+    .compendium-review-header { align-items:flex-start; }
+    .compendium-review-nav { width:100%; justify-content:flex-start; }
+    .compendium-review-facts--phase23 { grid-template-columns:1fr; }
+    .compendium-finding { grid-template-columns:1fr; }
+    .compendium-photo-choice { grid-template-columns:72px minmax(0,1fr); }
+    .compendium-photo-choice__badges { grid-column:1/-1; flex-direction:row; align-items:center; }
+    .compendium-crop-status { flex-direction:column; gap:.2rem; }
+}

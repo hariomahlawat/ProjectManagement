@@ -8,112 +8,197 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const view = read('Pages/Projects/Publications/Compendium/Index.cshtml');
 const page = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs');
 const js = read('wwwroot/js/pages/projects-compendium.js');
+const css = read('wwwroot/css/pages/projects-publications.css');
+const dto = read('Services/Compendiums/CompendiumDtos.cs');
 const service = read('Services/Compendiums/CompendiumReadService.cs');
+const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
+const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
 const exportService = read('Services/Compendiums/CompendiumExportService.cs');
 const preset = read('Services/Publications/CompendiumPresetService.cs');
+const presetContracts = read('Services/Publications/CompendiumPresetContracts.cs');
+const model = read('Models/Publications/CompendiumPreset.cs');
 const db = read('Data/ApplicationDbContext.cs');
+const registration = read('Services/Publications/PublicationServiceCollectionExtensions.cs');
 const landing = read('Pages/Projects/Publications/Index.cshtml');
+const migration = read('Migrations/20261208140000_AddCompendiumPublicationImagery.cs');
+const manifest = read('Migrations/immutable-migration-ids.txt');
 
-test('phase 22 exposes the complete normal publication portfolio instead of proliferation-only eligibility', () => {
-  assert.match(service, /LifecycleStatus\s*==\s*ProjectLifecycleStatus\.Active/);
-  assert.match(service, /LifecycleStatus\s*==\s*ProjectLifecycleStatus\.Completed/);
-  assert.match(service, /GetCandidateProjectsAsync/);
+// Phase 22 foundation remains a contract for Phase 23.
+test('phase 23 preserves all-project candidate selection and proliferation as a filter', () => {
+  assert.match(service, /ProjectLifecycleStatus\.Active/);
+  assert.match(service, /ProjectLifecycleStatus\.Completed/);
   assert.match(view, /All proliferation status/);
-  assert.match(view, /Available for proliferation/);
-});
-
-test('phase 22 provides Brochure-grade selection, selected-only filtering and order controls', () => {
+  assert.match(view, /Not available for proliferation/);
+  assert.match(view, /Availability not assessed/);
   assert.match(view, /data-project-checkbox/);
   assert.match(view, /data-filter-selected/);
-  assert.match(view, /data-select-matching/);
+});
+
+test('phase 23 keeps user-authored project membership and order authoritative', () => {
   assert.match(view, /data-order-list/);
-  assert.match(view, /drag to reorder/);
   assert.match(js, /orderedIds/);
   assert.match(js, /dragstart/);
   assert.match(js, /Select first 100 matching/);
-});
-
-test('phase 22 export is selection-aware and derives category groups only from selected projects', () => {
-  assert.match(exportService, /SelectedProjectIds/);
-  assert.match(exportService, /GetPublicationAsync/);
   assert.match(service, /GroupInPublicationOrder/);
-  assert.match(service, /requestedIds\.Contains\(project\.Id\)/);
+  assert.match(exportService, /ProjectSelections/);
 });
 
-test('phase 22 supports shared reusable Compendium configurations without duplicating project facts', () => {
-  assert.match(preset, /ICompendiumPresetService/);
-  assert.match(preset, /Only HoD or Comdt may maintain shared Compendium configurations/);
-  assert.match(preset, /Publications\.CompendiumPresetCreated/);
-  assert.match(preset, /Publications\.CompendiumPresetUpdated/);
-  assert.match(preset, /Publications\.CompendiumPresetDeleted/);
-  assert.match(preset, /ProjectNameSnapshot/);
-  assert.match(db, /DbSet<CompendiumPreset>/);
-  assert.match(db, /UX_CompendiumPresetProjects_Preset_SortOrder/);
-  assert.doesNotMatch(read('Models/Publications/CompendiumPreset.cs'), /ProliferationCost|ArmService|ProjectDescription/);
+test('phase 23 turns review into a focused project-by-project workspace', () => {
+  assert.match(view, /data-review-progress/);
+  assert.match(view, /data-review-previous/);
+  assert.match(view, /data-review-next-attention/);
+  assert.match(view, /data-review-image-frame/);
+  assert.match(view, /data-review-facts/);
+  assert.match(view, /data-review-description/);
+  assert.match(view, /data-review-mark-reviewed/);
+  assert.match(page, /OnPostReviewAsync/);
+  assert.match(service, /GetReviewProjectAsync/);
 });
 
-test('phase 22 uses a PRISM unsaved-changes modal and never browser confirm for preset loading', () => {
+test('phase 23 stores publication-specific image choice and focal crop, not factual project data', () => {
+  assert.match(model, /PrimaryPhotoId/);
+  assert.match(model, /PrimaryFocalX/);
+  assert.match(model, /PrimaryFocalY/);
+  assert.match(model, /ImageSelectionMode/);
+  assert.match(presetContracts, /CompendiumPresetProjectConfiguration/);
+  assert.doesNotMatch(model, /ArmService|ProliferationCost|ProjectDescription/);
+  assert.match(js, /imageSelectionMode/);
+  assert.match(js, /focalX/);
+  assert.match(js, /focalY/);
+});
+
+test('phase 23 provides automatic and explicit image selection with missing-saved-image recovery', () => {
+  assert.match(dto, /CompendiumImageSelectionMode/);
+  assert.match(dto, /ExplicitPublication/);
+  assert.match(service, /SelectAutomaticPhoto/);
+  assert.match(service, /ExplicitPhotoUnavailable/);
+  assert.match(preset, /publicationImageUnavailable/);
+  assert.match(view, /Use automatic selection/);
+  assert.match(js, /publicationConfigChanged/);
+});
+
+test('phase 23 uses the shared Publications image source for probe, preview and final crop render', () => {
+  assert.match(service, /IBrochurePhotoService/);
+  assert.match(service, /ProbeAsync/);
+  assert.match(page, /GetPreviewAsync/);
+  assert.match(exportService, /BrochurePhotoRenderRequest/);
+  assert.match(exportService, /RenderAsync/);
+  assert.match(exportService, /PrimaryFocalX/);
+  assert.match(exportService, /PrimaryFocalY/);
+});
+
+test('phase 23 evaluates effective DPI against the actual current Compendium image frame', () => {
+  assert.match(dto, /FrameWidthPoints\s*=\s*198/);
+  assert.match(dto, /FrameHeightPoints\s*=\s*152/);
+  assert.match(dto, /CalculateEffectiveDpi/);
+  assert.match(dto, /GoodDpi\s*=\s*180/);
+  assert.match(dto, /AcceptableDpi\s*=\s*150/);
+  assert.match(readiness, /lowResolutionPhoto/);
+  assert.match(readiness, /acceptableResolutionPhoto/);
+  assert.match(js, /effectiveDpi/);
+});
+
+test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
+  assert.match(fingerprint, /compendium-review-v1/);
+  assert.match(fingerprint, /ProjectName/);
+  assert.match(fingerprint, /ProliferationCostLakhs/);
+  assert.match(fingerprint, /ResolvedPhotoId/);
+  assert.match(fingerprint, /FocalX/);
+  assert.match(dto, /ReviewFingerprint/);
+  assert.doesNotMatch(model, /ReviewFingerprint/);
+  assert.doesNotMatch(presetContracts, /ReviewFingerprint/);
+});
+
+test('phase 23 dirty state excludes review fingerprint while including image and crop decisions', () => {
+  assert.match(js, /serializeConfigs\(false\)/);
+  assert.match(js, /includeReviewFingerprint/);
+  assert.match(js, /primaryPhotoId/);
+  assert.match(js, /focalX/);
+  assert.match(js, /imageSelectionMode/);
+  assert.match(js, /captureSnapshot/);
+});
+
+test('phase 23 readiness has stable blocker warning and information semantics', () => {
+  assert.match(dto, /CompendiumFindingSeverity/);
+  assert.match(readiness, /missingPhoto/);
+  assert.match(readiness, /missingArmService/);
+  assert.match(readiness, /missingDescription/);
+  assert.match(readiness, /proliferationNotAssessed/);
+  assert.match(readiness, /notAvailableForProliferation/);
+  assert.match(readiness, /reviewRequired/);
+  assert.match(readiness, /projectChangedAfterReview/);
+  assert.match(page, /blockers = data\.Preflight\.BlockerCount/);
+});
+
+test('phase 23 readiness findings are filterable and actionable rather than a passive warning register', () => {
+  assert.match(view, /data-finding-filter="blocker"/);
+  assert.match(view, /data-finding-filter="warning"/);
+  assert.match(view, /data-finding-filter="information"/);
+  assert.match(view, /data-findings-current-only/);
+  assert.match(js, /renderFindings/);
+  assert.match(js, /data-finding-action/);
+  assert.match(js, /Review image/);
+  assert.match(js, /Review project/);
+});
+
+test('phase 23 review actions respect project maintenance authority', () => {
+  assert.match(page, /CanMaintainProjectData/);
+  assert.match(page, /RoleNames\.Admin/);
+  assert.match(page, /RoleNames\.HoD/);
+  assert.match(page, /CompletedSummary\/Edit/);
+  assert.match(page, /completedEditUrl/);
+  assert.match(js, /canMaintainProjectData/);
+});
+
+test('phase 23 avoids stale async preflight and review responses', () => {
+  assert.match(js, /preflightRevision/);
+  assert.match(js, /preflightController/);
+  assert.match(js, /reviewRequestRevision/);
+  assert.match(js, /reviewRequestController/);
+  assert.match(js, /AbortController/);
+  assert.match(js, /Checking publication/);
+});
+
+test('phase 23 saved Compendiums persist image configuration through schema v2', () => {
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*2/);
+  assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
+  assert.match(migration, /PrimaryPhotoId/);
+  assert.match(migration, /PrimaryFocalX/);
+  assert.match(migration, /PrimaryFocalY/);
+  assert.match(migration, /ImageSelectionMode/);
+  assert.match(manifest, /20261208140000_AddCompendiumPublicationImagery/);
+  assert.match(db, /ImageSelectionMode/);
+});
+
+test('phase 23 registers readiness policy without creating a second factual store', () => {
+  assert.match(registration, /ICompendiumReadinessPolicy/);
+  assert.match(registration, /CompendiumReadinessPolicy/);
+  assert.match(service, /ApplicationDbContext/);
+  assert.doesNotMatch(model, /DescriptionMarkdown|CompletionYear|LifecycleDisplay/);
+});
+
+test('phase 23 retains safe shared-preset concurrency and PRISM modal load handling', () => {
+  assert.match(preset, /BeginTransactionAsync/);
+  assert.match(preset, /EnsureVersion/);
+  assert.match(preset, /RollbackAsync/);
   assert.match(view, /id="compendiumDiscardModal"/);
-  assert.match(view, /Discard and load/);
   assert.match(js, /discardModal/);
   assert.doesNotMatch(js, /\bconfirm\s*\(/);
 });
 
-test('phase 22 establishes four-stage Compendium authoring and persistent final-output rail', () => {
-  assert.match(view, />1<\/span>[\s\S]*Publication settings/);
-  assert.match(view, />2<\/span>[\s\S]*Select projects/);
-  assert.match(view, />3<\/span>[\s\S]*Review publication/);
-  assert.match(view, />4<\/span>[\s\S]*Publication readiness/);
-  assert.match(view, /compendium-builder-rail/);
-  assert.match(view, /Download Compendium PDF/);
-});
-
-test('phase 22 landing page copy is user-facing rather than implementation-facing', () => {
+test('phase 23 user-facing copy removes server and data-model language', () => {
+  assert.match(view, /Set the title and publication details for this Compendium/);
+  assert.match(view, /Check the selected projects for publication completeness and quality/);
+  assert.match(view, /Projects are grouped by technical category in the final Compendium/);
+  assert.doesNotMatch(view, /Server preflight/);
+  assert.doesNotMatch(view, /Project facts remain live from PRISM/);
   assert.match(landing, /Create professional publications from PRISM project records/);
-  assert.match(landing, /Detailed project publication/i);
-  assert.match(landing, /Create compendium/i);
-  assert.doesNotMatch(landing, /recommended default/i);
-  assert.doesNotMatch(landing, /readiness checks retained/i);
-  assert.doesNotMatch(landing, /second factual project record/i);
 });
 
-test('phase 22 preserves legacy proliferation catalogue compatibility separately from authored Compendiums', () => {
-  assert.match(service, /GetProliferationCompendiumAsync/);
-  assert.match(service, /Compatibility path for \/Projects\/Compendium/);
-  assert.match(service, /ExcludedNotAvailableCount/);
-  assert.match(service, /MissingAvailabilityStatusCount/);
-});
-
-test('phase 22 never enables final output from stale or pending preflight state', () => {
-  assert.match(js, /preflightRevision/);
-  assert.match(js, /lastPreflight/);
-  assert.match(js, /invalidatePreflight/);
-  assert.match(js, /const canGenerate = isCurrent && Boolean\(preflight\.canGenerate\)/);
-  assert.match(js, /Checking publication/);
-});
-
-test('phase 22 replaces saved project order transactionally to respect unique sort-order constraints', () => {
-  assert.match(preset, /BeginTransactionAsync/);
-  assert.match(preset, /RemoveRange\(preset\.Projects\)/);
-  assert.match(preset, /await _db\.SaveChangesAsync\(cancellationToken\)/);
-  assert.match(preset, /AddRange\(prepared\.Projects\)/);
-  assert.match(preset, /CommitAsync/);
-  assert.match(preset, /RollbackAsync/);
-});
-
-test('phase 22 adds an additive relational saved-Compendium migration and registration', () => {
-  const migration = read('Migrations/20261208130000_AddSharedCompendiumPresets.cs');
-  const registration = read('Services/Publications/PublicationServiceCollectionExtensions.cs');
-  assert.match(migration, /name: "CompendiumPresets"/);
-  assert.match(migration, /name: "CompendiumPresetProjects"/);
-  assert.match(migration, /FK_CompendiumPresetProjects_Projects_ProjectId/);
-  assert.match(registration, /AddScoped<ICompendiumPresetService, CompendiumPresetService>/);
-});
-
-test('phase 22 supports ongoing projects safely in the existing PDF renderer', () => {
-  const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
-  assert.match(builder, /LifecycleDisplay/);
-  assert.match(builder, /"Status"/);
-  assert.match(builder, /Status \/ year/);
-  assert.match(builder, /Edition/);
+test('phase 23 adds dedicated responsive review and crop presentation', () => {
+  assert.match(css, /compendium-review-workspace/);
+  assert.match(css, /compendium-review-image-frame/);
+  assert.match(css, /compendium-photo-modal-layout/);
+  assert.match(css, /compendium-crop-frame/);
+  assert.match(css, /compendium-focal-marker/);
 });

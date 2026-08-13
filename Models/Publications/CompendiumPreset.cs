@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 1;
+    public int SettingsSchemaVersion { get; set; } = 2;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -69,4 +69,12 @@ public sealed class CompendiumPresetProject
     public string ProjectNameSnapshot { get; set; } = string.Empty;
 
     public int SortOrder { get; set; }
+
+    public int? PrimaryPhotoId { get; set; }
+
+    public double PrimaryFocalX { get; set; } = .5d;
+    public double PrimaryFocalY { get; set; } = .5d;
+
+    [Required, MaxLength(32)]
+    public string ImageSelectionMode { get; set; } = "Automatic";
 }

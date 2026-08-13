@@ -5370,7 +5370,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(1);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(2);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
@@ -5388,6 +5388,10 @@ namespace ProjectManagement.Migrations
                     b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
                     b.Property<long>("PresetId").HasColumnType("bigint");
+                    b.Property<string>("ImageSelectionMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
+                    b.Property<double>("PrimaryFocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<double>("PrimaryFocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<int?>("PrimaryPhotoId").HasColumnType("integer");
                     b.Property<int?>("ProjectId").HasColumnType("integer");
                     b.Property<string>("ProjectNameSnapshot").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<int>("SortOrder").HasColumnType("integer");
