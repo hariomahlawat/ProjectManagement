@@ -413,6 +413,21 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             ? string.Empty
             : Whitespace.Replace(narrative.Trim(), " ");
 
+    private static string CombineInline(string? heading, string? body)
+    {
+        var cleanHeading = string.IsNullOrWhiteSpace(heading) ? null : heading.Trim();
+        var cleanBody = string.IsNullOrWhiteSpace(body) ? null : body.Trim();
+
+        if (cleanHeading is null)
+        {
+            return cleanBody ?? string.Empty;
+        }
+
+        return cleanBody is null
+            ? cleanHeading
+            : $"{cleanHeading} {cleanBody}";
+    }
+
     public BrochurePrintClosingMeasurement MeasureClosing(
         BrochurePrintMatter? matter,
         string? strapline)
@@ -428,13 +443,15 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                                - (BrochurePrintLayoutMetrics.ClosingVisionHorizontalPaddingPoints * 2f);
         var visionHeadingInnerWidth = visionInnerWidth
                                       - (BrochurePrintLayoutMetrics.ClosingVisionHeadingHorizontalPaddingPoints * 2f);
-        var visionHeadingHeight = MeasureTextHeight(
-                                      "Visionary Horizons & Strategic Objectives",
-                                      BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize,
-                                      visionHeadingInnerWidth,
-                                      1.0f,
-                                      FontWeight.SemiBold)
-                                  + (BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints * 2f);
+        var visionHeadingHeight = string.IsNullOrWhiteSpace(matter.VisionaryHeading)
+            ? 0f
+            : MeasureTextHeight(
+                  matter.VisionaryHeading,
+                  BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize,
+                  visionHeadingInnerWidth,
+                  1.0f,
+                  FontWeight.SemiBold)
+              + (BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints * 2f);
         var visionBodyHeight = MeasureTextHeight(
             matter.VisionaryHorizons,
             BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
@@ -445,11 +462,11 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var visionPanelHeight = (BrochurePrintLayoutMetrics.ClosingVisionBorderPoints * 2f)
                                 + (BrochurePrintLayoutMetrics.ClosingVisionVerticalPaddingPoints * 2f)
                                 + visionHeadingHeight
-                                + 4f
+                                + (visionHeadingHeight > .1f ? 4f : 0f)
                                 + visionBodyHeight;
 
         var newSimulatorInnerWidth = outerWidth - 16f;
-        var newSimulatorText = $"New Simulators. {matter.NewSimulatorsGuidance}".Trim();
+        var newSimulatorText = CombineInline(matter.NewSimulatorsHeading, matter.NewSimulatorsGuidance);
         var newSimulatorHeight = MeasureTextHeight(
             newSimulatorText,
             BrochurePrintLayoutMetrics.ClosingNewSimulatorsFontSize,
@@ -521,11 +538,22 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 manufacturingWidth,
                 BrochurePrintLayoutMetrics.FrontContactLineHeight,
                 FontWeight.SemiBold));
+        var contactBadgeHeight = string.IsNullOrWhiteSpace(matter.ContactsHeading)
+            ? 0f
+            : BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints;
+        var agencyHeadingHeight =
+            string.IsNullOrWhiteSpace(matter.DevelopingAgencyHeading)
+            && string.IsNullOrWhiteSpace(matter.ManufacturingAgencyHeading)
+                ? 0f
+                : BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints;
+        var contactMinimumHeight = 96f
+                                   - (BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints - contactBadgeHeight)
+                                   - (BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints - agencyHeadingHeight);
         var contactBlockHeight = Math.Max(
-            96f,
+            contactMinimumHeight,
             contactBodyHeight
-            + BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints
-            + BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints
+            + contactBadgeHeight
+            + agencyHeadingHeight
             + 15f);
 
         var straplineHeight = Math.Max(
@@ -554,29 +582,45 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 BrochurePrintLayoutMetrics.FrontBodyLineHeight,
                 FontWeight.Regular);
             var procurementHeight = MeasureTextHeight(
-                $"Procurement: {matter.ProcurementGuidance}".Trim(),
+                CombineInline(matter.ProcurementHeading, matter.ProcurementGuidance),
                 Math.Max(BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize, bodyFont - .1f),
                 bodyWidth,
                 1.06f,
                 FontWeight.Regular);
             var bodyHeight = 14f + openingHeight + spacing + futureHeight + spacing + procurementHeight + 12f;
             var fixedHeight = centreBlockHeight + bodyHeight + contactBlockHeight + straplineHeight;
-            var heroHeight = BrochurePrintLayoutMetrics.ReferenceHeightPoints - fixedHeight;
+            var availableHeroHeight = BrochurePrintLayoutMetrics.ReferenceHeightPoints - fixedHeight;
 
-            if (heroHeight < BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints)
+            if (coverStyle == BrochureCoverStyle.Contemporary)
+            {
+                var targetHeroHeight = BrochurePrintLayoutMetrics.FrontContemporaryHeroHeightPoints;
+                if (availableHeroHeight < targetHeroHeight)
+                {
+                    continue;
+                }
+
+                selectedBodyFont = bodyFont;
+                selectedBodyHeight = bodyHeight + (availableHeroHeight - targetHeroHeight);
+                selectedHeroHeight = targetHeroHeight;
+                selectedSpacing = spacing;
+                fits = true;
+                break;
+            }
+
+            if (availableHeroHeight < BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints)
             {
                 continue;
             }
 
             selectedBodyFont = bodyFont;
             selectedBodyHeight = bodyHeight;
-            selectedHeroHeight = Math.Min(heroHeight, BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints);
+            selectedHeroHeight = Math.Min(availableHeroHeight, BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints);
             selectedSpacing = spacing;
             fits = true;
 
-            if (heroHeight > BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints)
+            if (availableHeroHeight > BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints)
             {
-                selectedBodyHeight += heroHeight - BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints;
+                selectedBodyHeight += availableHeroHeight - BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints;
             }
             break;
         }
@@ -597,13 +641,15 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 BrochurePrintLayoutMetrics.FrontBodyLineHeight,
                 FontWeight.Regular);
             var procurementHeight = MeasureTextHeight(
-                $"Procurement: {matter.ProcurementGuidance}".Trim(),
+                CombineInline(matter.ProcurementHeading, matter.ProcurementGuidance),
                 bodyFont,
                 bodyWidth,
                 1.06f,
                 FontWeight.Regular);
             selectedBodyHeight = 14f + openingHeight + 5f + futureHeight + 5f + procurementHeight + 12f;
-            selectedHeroHeight = BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints;
+            selectedHeroHeight = coverStyle == BrochureCoverStyle.Contemporary
+                ? BrochurePrintLayoutMetrics.FrontContemporaryHeroHeightPoints
+                : BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints;
         }
 
         var totalUsed = selectedHeroHeight

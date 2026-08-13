@@ -9,6 +9,7 @@ const css = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'pages', 'projects
 const js = fs.readFileSync(path.join(root, 'wwwroot', 'js', 'pages', 'projects-brochure.js'), 'utf8');
 const renderer = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePdfReportBuilder.cs'), 'utf8');
 const printRenderer = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePrintCompactComposer.cs'), 'utf8');
+const printMetrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
 
 const criticalClasses = [
   'brochure-filter-toolbar',
@@ -173,8 +174,10 @@ test('phase 7 keeps the reference brochure front and final institutional content
   assert.match(view, /Input\.PrintManufacturingAgencyText/);
   assert.match(view, /Input\.PrintVisionaryText/);
   assert.match(view, /Input\.PrintNewSimulatorsText/);
-  assert.match(printRenderer, /Visionary Horizons & Strategic Objectives/);
-  assert.match(printRenderer, /New Simulators\./);
+  assert.match(view, /Input\.PrintVisionaryHeading/);
+  assert.match(view, /Input\.PrintNewSimulatorsHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintVisionaryHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintNewSimulatorsHeading/);
 });
 
 test('phase 7 print compositor uses the reference CropBox dimensions and natural project packing', () => {
@@ -336,8 +339,10 @@ test('phase 16 keeps compact closing matter as a measured two-part institutional
   assert.match(metrics, /ClosingVisionBodyFontSize = 9\.8f/);
   assert.match(metrics, /ClosingVisionHeadingFontSize = 10\.6f/);
   assert.match(metrics, /ClosingSectionSpacingPoints = 5f/);
-  assert.match(printRenderer, /Visionary Horizons & Strategic Objectives/);
-  assert.match(printRenderer, /New Simulators\./);
+  assert.match(view, /Input\.PrintVisionaryHeading/);
+  assert.match(view, /Input\.PrintNewSimulatorsHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintVisionaryHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintNewSimulatorsHeading/);
   assert.match(printRenderer, /ComposeClosingMatter/);
 });
 
@@ -1074,7 +1079,7 @@ test('phase 21.1 cover editor uses full-width line controls with non-destructive
   assert.match(css, /Hidden from cover/);
   assert.match(js, /renderCoverTextUi/);
   assert.match(js, /Front \$\{frontVisible\} visible · Back \$\{backVisible\} visible/);
-  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 3/);
+  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 4/);
   assert.match(visibilityMigration, /ShowFrontCoverKicker/);
   assert.match(visibilityMigration, /ShowBackCoverEdition/);
   assert.match(visibilityMigration, /defaultValue: 3/);
@@ -1110,4 +1115,52 @@ test('phase 21.1 front line visibility is bound into current Cover B approval fi
   assert.match(fingerprint, /context\.ShowFrontCoverDescriptor/);
   assert.match(js, /"Input\.ShowFrontCoverKicker"/);
   assert.match(js, /"Input\.ShowFrontCoverDescriptor"/);
+});
+
+
+test('phase 21.2 Print Compact section labels are editable, suppressible and durable', () => {
+  const preset = fs.readFileSync(path.join(root, 'Models', 'Publications', 'BrochurePreset.cs'), 'utf8');
+  const migration = fs.readFileSync(path.join(root, 'Migrations', '20261208120000_AddBrochureInstitutionalSectionLabels.cs'), 'utf8');
+  const presetService = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+
+  for (const field of [
+    'PrintProcurementHeading',
+    'PrintContactsHeading',
+    'PrintDevelopingAgencyHeading',
+    'PrintManufacturingAgencyHeading',
+    'PrintVisionaryHeading',
+    'PrintNewSimulatorsHeading'
+  ]) {
+    assert.match(view, new RegExp(`asp-for="Input\\.${field}"`));
+    assert.match(js, new RegExp(`"Input\\.${field}"`));
+    assert.match(preset, new RegExp(field));
+    assert.match(presetService, new RegExp(field));
+    assert.match(migration, new RegExp(field));
+  }
+
+  assert.match(view, /Leave a field blank to suppress that label/);
+  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 4/);
+  assert.match(presetService, /CurrentSchemaVersion = 4/);
+});
+
+test('phase 21.2 Print Compact renderer contains no fixed institutional section-label literals', () => {
+  assert.match(printRenderer, /data\.Options\.PrintProcurementHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintContactsHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintDevelopingAgencyHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintManufacturingAgencyHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintVisionaryHeading/);
+  assert.match(printRenderer, /data\.Options\.PrintNewSimulatorsHeading/);
+
+  assert.doesNotMatch(printRenderer, /text\.Span\("Procurement: "\)/);
+  assert.doesNotMatch(printRenderer, /\.Text\("CONTACTS"\)/);
+  assert.doesNotMatch(printRenderer, /\.Text\("Developing Agency"\)/);
+  assert.doesNotMatch(printRenderer, /\.Text\("Manufacturing Agency"\)/);
+  assert.doesNotMatch(printRenderer, /\.Text\("Visionary Horizons & Strategic Objectives"\)/);
+  assert.doesNotMatch(printRenderer, /text\.Span\("New Simulators\. "\)/);
+});
+
+test('phase 21.2 Print Cover B hero frame matches the canonical 1800 by 1055 publication crop', () => {
+  assert.match(printMetrics, /FrontContemporaryHeroRasterWidth = 1800f/);
+  assert.match(printMetrics, /FrontContemporaryHeroRasterHeight = 1055f/);
+  assert.match(printMetrics, /FrontContemporaryHeroHeightPoints\s*=\s*ReferenceWidthPoints \* FrontContemporaryHeroRasterHeight \/ FrontContemporaryHeroRasterWidth/);
 });

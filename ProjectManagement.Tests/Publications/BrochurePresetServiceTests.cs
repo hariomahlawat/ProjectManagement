@@ -46,6 +46,12 @@ public sealed class BrochurePresetServiceTests
         Assert.True(loaded.Configuration.ShowBackCoverKicker);
         Assert.False(loaded.Configuration.ShowBackCoverStrapline);
         Assert.True(loaded.Configuration.ShowBackCoverEdition);
+        Assert.Equal("Procurement & Acquisition:", loaded.Configuration.PrintProcurementHeading);
+        Assert.Equal("POINTS OF CONTACT", loaded.Configuration.PrintContactsHeading);
+        Assert.Equal("Developing Agency / SDD", loaded.Configuration.PrintDevelopingAgencyHeading);
+        Assert.Equal("Manufacturing Agency / 515 ABW", loaded.Configuration.PrintManufacturingAgencyHeading);
+        Assert.Equal("Strategic Outlook", loaded.Configuration.PrintVisionaryHeading);
+        Assert.Equal("New Simulator Requirements.", loaded.Configuration.PrintNewSimulatorsHeading);
         Assert.Empty(loaded.Diagnostics);
 
         // Durable preset contracts intentionally carry no editorial approval authority.
@@ -296,7 +302,13 @@ public sealed class BrochurePresetServiceTests
             BackCoverEdition: "2026",
             ShowBackCoverKicker: true,
             ShowBackCoverStrapline: false,
-            ShowBackCoverEdition: true);
+            ShowBackCoverEdition: true,
+            PrintProcurementHeading: "Procurement & Acquisition:",
+            PrintContactsHeading: "POINTS OF CONTACT",
+            PrintDevelopingAgencyHeading: "Developing Agency / SDD",
+            PrintManufacturingAgencyHeading: "Manufacturing Agency / 515 ABW",
+            PrintVisionaryHeading: "Strategic Outlook",
+            PrintNewSimulatorsHeading: "New Simulator Requirements.");
 
     private static BrochurePresetService CreateService(ApplicationDbContext db, string userId, string role)
     {

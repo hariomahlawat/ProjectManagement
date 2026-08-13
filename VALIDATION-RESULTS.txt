@@ -1,21 +1,20 @@
-PRISM Brochure Phase 21.1 — validation performed in this environment
-=====================================================================
+PRISM Publications Phase 21.2 validation
+========================================
 
 PASS  node --check wwwroot/js/pages/projects-brochure.js
-PASS  Phase 21 / Phase 21.1 focused contract tests: 13 passed, 0 failed
-PASS  Coarse C# brace-balance validation across all changed C# sources
-PASS  New visibility field propagation across Razor -> Input model -> build options -> renderer
-      -> saved preset -> EF model/migration
-PASS  Cover review fingerprint advanced to brochure-cover-review-v3 and binds front kicker /
-      descriptor visibility
-PASS  Renderer gates all five new visibility flags
-PASS  Additive migration ID is present in immutable migration manifest
+PASS  full publications-brochure-contract.test.js on assembled current source
+      Tests: 105 passed, 0 failed
+PASS  Phase 21.2 focused contract tests
+PASS  structural delimiter validation for 14 changed/new C# sources
+PASS  SettingsSchemaVersion model/service/EF snapshot = 4
+PASS  20261208120000_AddBrochureInstitutionalSectionLabels occurs exactly once in immutable migration IDs
+PASS  six editable/suppressible Print section-label fields propagate across UI -> input -> build options -> print matter -> renderer
+PASS  six fields propagate across shared preset contract -> normalization -> EF model -> migration -> load/save/clone
+PASS  no fixed renderer literals remain for Procurement/CONTACTS/agency/Visionary/New Simulators labels
+PASS  Print Cover B physical hero height is derived from canonical 1800 x 1055 crop geometry
+PASS  label removal participates in measured contact/closing geometry (no label-only reserved height)
 
-The complete historical JavaScript contract suite expects several unchanged project files that are
-not shipped in this delta bundle. The included PowerShell validator runs the complete suite from the
-actual PRISM project root after these files are pasted.
-
-NOT RUN HERE
-------------
-dotnet build / dotnet test — .NET SDK is not installed in this execution environment.
-Run tools/Test-PrismPublicationsPhase21_1.ps1 on the development machine before deployment.
+NOT EXECUTED HERE
+-----------------
+dotnet build / dotnet test — .NET SDK is not installed in this environment.
+The supplied Test-PrismPublicationsPhase21_2.ps1 runs both automatically when dotnet is available.

@@ -24,7 +24,13 @@ public static class BrochurePrintPublicationPolicy
         DevelopingAgency: "Simulator Development Division,\nTrimulgherry Post, Secunderabad - 500015. Telangana.\nTele/Fax: 040-27794273 ; 040-27795418\nArmy Intranet Website : http://sdd.army.mil/\nE-mail ID: itsdd1234@gmail.com ; sdd.it@gov.in",
         ManufacturingAgency: "515 Army Base Workshop,\nBangalore-560008. Karnataka.\nTele/Fax: 080-25591567.\nArmy : 460108-6842",
         VisionaryHorizons: "Technological advances are reshaping modern warfare, integrating artificial intelligence, big data, drones, quantum technologies and autonomous systems to enhance efficiency, precision and speed. Contemporary battle strategies rely on UAVs, cyber operations and AI-driven decision support to sharpen intelligence and situational awareness. Future capabilities are centred on AI, robotics, quantum computing, blockchain, machine learning and next-generation communications, enabling autonomous platforms such as drone swarms and robotic vehicles that reduce human risk and improve accuracy. Within this landscape, the Indian Army is actively inducting emerging technologies. The Simulator Development Division is designing next-generation simulators, decision support tools, and testbeds that mirror these capabilities, preparing commanders and soldiers for technology-intensive, multi-domain operations. Ultimately, this proactive digital integration guarantees that frontline forces achieve complete cognitive dominance and tactical superiority long before ever stepping into the actual physical combat zone.",
-        NewSimulatorsGuidance: "In case of requirements of new simulators/ niche technology products, HQ ARTRAC (AI & Simulation) may be approached along with Statement of Case covering detailed requirements. The requirement of simulators/ products may also be proposed during Simulator & Wargame Apex Committee Meeting as and when held.");
+        NewSimulatorsGuidance: "In case of requirements of new simulators/ niche technology products, HQ ARTRAC (AI & Simulation) may be approached along with Statement of Case covering detailed requirements. The requirement of simulators/ products may also be proposed during Simulator & Wargame Apex Committee Meeting as and when held.",
+        ProcurementHeading: "Procurement:",
+        ContactsHeading: "CONTACTS",
+        DevelopingAgencyHeading: "Developing Agency",
+        ManufacturingAgencyHeading: "Manufacturing Agency",
+        VisionaryHeading: "Visionary Horizons & Strategic Objectives",
+        NewSimulatorsHeading: "New Simulators.");
 
     public static BrochurePrintMatter FromOptions(BrochureBuildOptions options)
     {
@@ -37,7 +43,13 @@ public static class BrochurePrintPublicationPolicy
             options.PrintDevelopingAgencyText,
             options.PrintManufacturingAgencyText,
             options.PrintVisionaryText,
-            options.PrintNewSimulatorsText);
+            options.PrintNewSimulatorsText,
+            options.PrintProcurementHeading,
+            options.PrintContactsHeading,
+            options.PrintDevelopingAgencyHeading,
+            options.PrintManufacturingAgencyHeading,
+            options.PrintVisionaryHeading,
+            options.PrintNewSimulatorsHeading);
     }
 
     public static IReadOnlyList<BrochurePreflightIssue> Validate(

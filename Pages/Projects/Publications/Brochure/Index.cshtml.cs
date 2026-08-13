@@ -506,7 +506,13 @@ public sealed class IndexModel : PageModel
                 BackCoverEdition: NullIfWhiteSpace(Input.BackCoverEdition),
                 ShowBackCoverKicker: Input.ShowBackCoverKicker,
                 ShowBackCoverStrapline: Input.ShowBackCoverStrapline,
-                ShowBackCoverEdition: Input.ShowBackCoverEdition);
+                ShowBackCoverEdition: Input.ShowBackCoverEdition,
+                PrintProcurementHeading: NullIfWhiteSpace(Input.PrintProcurementHeading),
+                PrintContactsHeading: NullIfWhiteSpace(Input.PrintContactsHeading),
+                PrintDevelopingAgencyHeading: NullIfWhiteSpace(Input.PrintDevelopingAgencyHeading),
+                PrintManufacturingAgencyHeading: NullIfWhiteSpace(Input.PrintManufacturingAgencyHeading),
+                PrintVisionaryHeading: NullIfWhiteSpace(Input.PrintVisionaryHeading),
+                PrintNewSimulatorsHeading: NullIfWhiteSpace(Input.PrintNewSimulatorsHeading));
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -706,6 +712,12 @@ public sealed class IndexModel : PageModel
             Input.PrintIntroText = string.IsNullOrWhiteSpace(Input.PrintIntroText) ? approved.OpeningNarrative : Input.PrintIntroText;
             Input.PrintFutureText = string.IsNullOrWhiteSpace(Input.PrintFutureText) ? approved.FutureNarrative : Input.PrintFutureText;
             Input.PrintProcurementText = string.IsNullOrWhiteSpace(Input.PrintProcurementText) ? approved.ProcurementGuidance : Input.PrintProcurementText;
+            Input.PrintProcurementHeading ??= approved.ProcurementHeading;
+            Input.PrintContactsHeading ??= approved.ContactsHeading;
+            Input.PrintDevelopingAgencyHeading ??= approved.DevelopingAgencyHeading;
+            Input.PrintManufacturingAgencyHeading ??= approved.ManufacturingAgencyHeading;
+            Input.PrintVisionaryHeading ??= approved.VisionaryHeading;
+            Input.PrintNewSimulatorsHeading ??= approved.NewSimulatorsHeading;
             Input.PrintCentreStatement = string.IsNullOrWhiteSpace(Input.PrintCentreStatement) ? approved.CentreStatement : Input.PrintCentreStatement;
             Input.PrintDevelopingAgencyText = string.IsNullOrWhiteSpace(Input.PrintDevelopingAgencyText) ? approved.DevelopingAgency : Input.PrintDevelopingAgencyText;
             Input.PrintManufacturingAgencyText = string.IsNullOrWhiteSpace(Input.PrintManufacturingAgencyText) ? approved.ManufacturingAgency : Input.PrintManufacturingAgencyText;
@@ -745,6 +757,12 @@ public sealed class IndexModel : PageModel
             PrintIntroText = configuration.PrintIntroText,
             PrintFutureText = configuration.PrintFutureText,
             PrintProcurementText = configuration.PrintProcurementText,
+            PrintProcurementHeading = configuration.PrintProcurementHeading,
+            PrintContactsHeading = configuration.PrintContactsHeading,
+            PrintDevelopingAgencyHeading = configuration.PrintDevelopingAgencyHeading,
+            PrintManufacturingAgencyHeading = configuration.PrintManufacturingAgencyHeading,
+            PrintVisionaryHeading = configuration.PrintVisionaryHeading,
+            PrintNewSimulatorsHeading = configuration.PrintNewSimulatorsHeading,
             PrintCentreStatement = configuration.PrintCentreStatement,
             PrintDevelopingAgencyText = configuration.PrintDevelopingAgencyText,
             PrintManufacturingAgencyText = configuration.PrintManufacturingAgencyText,
@@ -793,6 +811,12 @@ public sealed class IndexModel : PageModel
             PrintIntroText: Input.PrintIntroText,
             PrintFutureText: Input.PrintFutureText,
             PrintProcurementText: Input.PrintProcurementText,
+            PrintProcurementHeading: Input.PrintProcurementHeading,
+            PrintContactsHeading: Input.PrintContactsHeading,
+            PrintDevelopingAgencyHeading: Input.PrintDevelopingAgencyHeading,
+            PrintManufacturingAgencyHeading: Input.PrintManufacturingAgencyHeading,
+            PrintVisionaryHeading: Input.PrintVisionaryHeading,
+            PrintNewSimulatorsHeading: Input.PrintNewSimulatorsHeading,
             PrintCentreStatement: Input.PrintCentreStatement,
             PrintDevelopingAgencyText: Input.PrintDevelopingAgencyText,
             PrintManufacturingAgencyText: Input.PrintManufacturingAgencyText,
@@ -864,6 +888,12 @@ public sealed class IndexModel : PageModel
         Input.PrintIntroText = NormalizeOptional(Input.PrintIntroText, 5000, preserveLineBreaks: true);
         Input.PrintFutureText = NormalizeOptional(Input.PrintFutureText, 3500, preserveLineBreaks: true);
         Input.PrintProcurementText = NormalizeOptional(Input.PrintProcurementText, 3500, preserveLineBreaks: true);
+        Input.PrintProcurementHeading = NormalizeOptional(Input.PrintProcurementHeading, 120);
+        Input.PrintContactsHeading = NormalizeOptional(Input.PrintContactsHeading, 120);
+        Input.PrintDevelopingAgencyHeading = NormalizeOptional(Input.PrintDevelopingAgencyHeading, 120);
+        Input.PrintManufacturingAgencyHeading = NormalizeOptional(Input.PrintManufacturingAgencyHeading, 120);
+        Input.PrintVisionaryHeading = NormalizeOptional(Input.PrintVisionaryHeading, 160);
+        Input.PrintNewSimulatorsHeading = NormalizeOptional(Input.PrintNewSimulatorsHeading, 120);
         Input.PrintCentreStatement = NormalizeOptional(Input.PrintCentreStatement, 1200, preserveLineBreaks: true);
         Input.PrintDevelopingAgencyText = NormalizeOptional(Input.PrintDevelopingAgencyText, 1800, preserveLineBreaks: true);
         Input.PrintManufacturingAgencyText = NormalizeOptional(Input.PrintManufacturingAgencyText, 1200, preserveLineBreaks: true);
@@ -978,7 +1008,13 @@ public sealed class IndexModel : PageModel
             NullIfWhiteSpace(Input.PrintDevelopingAgencyText),
             NullIfWhiteSpace(Input.PrintManufacturingAgencyText),
             NullIfWhiteSpace(Input.PrintVisionaryText),
-            NullIfWhiteSpace(Input.PrintNewSimulatorsText));
+            NullIfWhiteSpace(Input.PrintNewSimulatorsText),
+            NullIfWhiteSpace(Input.PrintProcurementHeading),
+            NullIfWhiteSpace(Input.PrintContactsHeading),
+            NullIfWhiteSpace(Input.PrintDevelopingAgencyHeading),
+            NullIfWhiteSpace(Input.PrintManufacturingAgencyHeading),
+            NullIfWhiteSpace(Input.PrintVisionaryHeading),
+            NullIfWhiteSpace(Input.PrintNewSimulatorsHeading));
 
     private IReadOnlyList<BrochureProjectSelection> ToSelections()
         => Input.Selections
@@ -1289,6 +1325,24 @@ public sealed class IndexModel : PageModel
 
         [StringLength(3500)]
         public string? PrintProcurementText { get; set; }
+
+        [StringLength(120)]
+        public string? PrintProcurementHeading { get; set; }
+
+        [StringLength(120)]
+        public string? PrintContactsHeading { get; set; }
+
+        [StringLength(120)]
+        public string? PrintDevelopingAgencyHeading { get; set; }
+
+        [StringLength(120)]
+        public string? PrintManufacturingAgencyHeading { get; set; }
+
+        [StringLength(160)]
+        public string? PrintVisionaryHeading { get; set; }
+
+        [StringLength(120)]
+        public string? PrintNewSimulatorsHeading { get; set; }
 
         [StringLength(1200)]
         public string? PrintCentreStatement { get; set; }

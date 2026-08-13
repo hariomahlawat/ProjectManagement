@@ -8,7 +8,7 @@ namespace ProjectManagement.Utilities.Reporting;
 /// Original-format hard-copy brochure compositor. Phase 14 consumes adaptive measured geometry:
 /// imagery is anchored upper-right, copy wraps beside it and returns to full width below, image
 /// frames use the same 16:9 geometry as the publication crop pipeline, and Cover A contact headings
-/// reserve an explicit centre lane for the CONTACTS identifier.
+/// reserve an explicit centre lane for the configured contact identifier.
 /// </summary>
 internal static class BrochurePrintCompactComposer
 {
@@ -131,9 +131,12 @@ internal static class BrochurePrintCompactComposer
                                 .LineHeight(1.06f)
                                 .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#FFFFFF" : Ink));
                             text.Justify();
-                            text.Span("Procurement: ")
-                                .Bold()
-                                .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#F1D35D" : "#7A6516");
+                            if (!string.IsNullOrWhiteSpace(data.Options.PrintProcurementHeading))
+                            {
+                                text.Span($"{data.Options.PrintProcurementHeading} ")
+                                    .Bold()
+                                    .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#F1D35D" : "#7A6516");
+                            }
                             text.Span(data.Options.PrintProcurementText ?? string.Empty);
                         });
                     });
@@ -332,33 +335,57 @@ internal static class BrochurePrintCompactComposer
             {
                 column.Spacing(2);
 
-                column.Item().Height(BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints)
-                    .AlignCenter()
-                    .AlignMiddle()
-                    .Background("#E0182D")
-                    .PaddingHorizontal(18)
-                    .PaddingVertical(3)
-                    .Text("CONTACTS")
-                    .FontSize(7.6f)
-                    .Bold()
-                    .AlignCenter()
-                    .FontColor("#F8E34F");
+                if (!string.IsNullOrWhiteSpace(data.Options.PrintContactsHeading))
+                {
+                    column.Item().Height(BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints)
+                        .AlignCenter()
+                        .AlignMiddle()
+                        .Background("#E0182D")
+                        .PaddingHorizontal(18)
+                        .PaddingVertical(3)
+                        .Text(data.Options.PrintContactsHeading)
+                        .FontSize(7.6f)
+                        .Bold()
+                        .AlignCenter()
+                        .FontColor("#F8E34F");
+                }
 
-                column.Item().Height(BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints)
-                    .Row(header =>
-                    {
-                        header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactDevelopingFraction)
-                            .AlignMiddle()
-                            .Text("Developing Agency")
-                            .FontSize(contactFontSize + .45f)
-                            .Bold().Underline().FontColor("#FFF5DB");
-                        header.ConstantItem(12);
-                        header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactManufacturingFraction)
-                            .AlignMiddle()
-                            .Text("Manufacturing Agency")
-                            .FontSize(contactFontSize + .45f)
-                            .Bold().Underline().FontColor("#FFF5DB");
-                    });
+                var hasDevelopingHeading = !string.IsNullOrWhiteSpace(data.Options.PrintDevelopingAgencyHeading);
+                var hasManufacturingHeading = !string.IsNullOrWhiteSpace(data.Options.PrintManufacturingAgencyHeading);
+                if (hasDevelopingHeading || hasManufacturingHeading)
+                {
+                    column.Item().Height(BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints)
+                        .Row(header =>
+                        {
+                            if (hasDevelopingHeading)
+                            {
+                                header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactDevelopingFraction)
+                                    .AlignMiddle()
+                                    .Text(data.Options.PrintDevelopingAgencyHeading!)
+                                    .FontSize(contactFontSize + .45f)
+                                    .Bold().Underline().FontColor("#FFF5DB");
+                            }
+                            else
+                            {
+                                header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactDevelopingFraction);
+                            }
+
+                            header.ConstantItem(12);
+
+                            if (hasManufacturingHeading)
+                            {
+                                header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactManufacturingFraction)
+                                    .AlignMiddle()
+                                    .Text(data.Options.PrintManufacturingAgencyHeading!)
+                                    .FontSize(contactFontSize + .45f)
+                                    .Bold().Underline().FontColor("#FFF5DB");
+                            }
+                            else
+                            {
+                                header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactManufacturingFraction);
+                            }
+                        });
+                }
 
                 column.Item().Row(row =>
                 {
@@ -666,16 +693,19 @@ internal static class BrochurePrintCompactComposer
                 .Column(vision =>
                 {
                     vision.Spacing(4);
-                    vision.Item()
-                        .AlignCenter()
-                        .Background(ClosingNavy)
-                        .PaddingHorizontal(BrochurePrintLayoutMetrics.ClosingVisionHeadingHorizontalPaddingPoints)
-                        .PaddingVertical(BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints)
-                        .Text("Visionary Horizons & Strategic Objectives")
-                        .FontSize(BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize)
-                        .SemiBold()
-                        .AlignCenter()
-                        .FontColor("#FFFFFF");
+                    if (!string.IsNullOrWhiteSpace(data.Options.PrintVisionaryHeading))
+                    {
+                        vision.Item()
+                            .AlignCenter()
+                            .Background(ClosingNavy)
+                            .PaddingHorizontal(BrochurePrintLayoutMetrics.ClosingVisionHeadingHorizontalPaddingPoints)
+                            .PaddingVertical(BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints)
+                            .Text(data.Options.PrintVisionaryHeading)
+                            .FontSize(BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize)
+                            .SemiBold()
+                            .AlignCenter()
+                            .FontColor("#FFFFFF");
+                    }
 
                     vision.Item().Element(text => ComposeNarrativeText(
                         text,
@@ -691,7 +721,10 @@ internal static class BrochurePrintCompactComposer
                 text.DefaultTextStyle(style => style
                     .FontSize(BrochurePrintLayoutMetrics.ClosingNewSimulatorsFontSize)
                     .LineHeight(BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight));
-                text.Span("New Simulators. ").Bold().FontColor("#F4D66E");
+                if (!string.IsNullOrWhiteSpace(data.Options.PrintNewSimulatorsHeading))
+                {
+                    text.Span($"{data.Options.PrintNewSimulatorsHeading} ").Bold().FontColor("#F4D66E");
+                }
                 text.Span(data.Options.PrintNewSimulatorsText ?? string.Empty).SemiBold().FontColor("#FFFFFF");
             });
         });

@@ -20,7 +20,7 @@ public sealed class BrochurePreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 3;
+    public int SettingsSchemaVersion { get; set; } = 4;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -93,6 +93,24 @@ public sealed class BrochurePreset
 
     [MaxLength(3500)]
     public string? PrintProcurementText { get; set; }
+
+    [MaxLength(120)]
+    public string? PrintProcurementHeading { get; set; }
+
+    [MaxLength(120)]
+    public string? PrintContactsHeading { get; set; }
+
+    [MaxLength(120)]
+    public string? PrintDevelopingAgencyHeading { get; set; }
+
+    [MaxLength(120)]
+    public string? PrintManufacturingAgencyHeading { get; set; }
+
+    [MaxLength(160)]
+    public string? PrintVisionaryHeading { get; set; }
+
+    [MaxLength(120)]
+    public string? PrintNewSimulatorsHeading { get; set; }
 
     [MaxLength(1200)]
     public string? PrintCentreStatement { get; set; }

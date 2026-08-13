@@ -541,6 +541,42 @@
                                     Restore approved text
                                 </button>
                             </div>
+
+                            <section class="brochure-print-label-editor" aria-label="Print Compact section labels">
+                                <div class="brochure-print-label-editor__intro">
+                                    <span>
+                                        <strong>Print / Compact section labels</strong>
+                                        <small>Every PRISM-added label on the compact first/final pages is editable. Leave a field blank to suppress that label; punctuation is part of the text.</small>
+                                    </span>
+                                </div>
+                                <div class="brochure-print-label-editor__grid">
+                                    <label class="form-label brochure-field">
+                                        <span>Procurement heading</span>
+                                        <input asp-for="Input.PrintProcurementHeading" class="form-control" maxlength="120" data-brochure-print-matter />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Contacts heading</span>
+                                        <input asp-for="Input.PrintContactsHeading" class="form-control" maxlength="120" data-brochure-print-matter />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Developing Agency heading</span>
+                                        <input asp-for="Input.PrintDevelopingAgencyHeading" class="form-control" maxlength="120" data-brochure-print-matter />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Manufacturing Agency heading</span>
+                                        <input asp-for="Input.PrintManufacturingAgencyHeading" class="form-control" maxlength="120" data-brochure-print-matter />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Visionary section heading</span>
+                                        <input asp-for="Input.PrintVisionaryHeading" class="form-control" maxlength="160" data-brochure-print-matter />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>New Simulators heading</span>
+                                        <input asp-for="Input.PrintNewSimulatorsHeading" class="form-control" maxlength="120" data-brochure-print-matter />
+                                    </label>
+                                </div>
+                            </section>
+
                             <div class="brochure-print-content-grid">
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Centre of Expertise statement</span>

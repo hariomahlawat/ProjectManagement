@@ -120,6 +120,15 @@ public static class BrochurePrintLayoutMetrics
     public const float FrontStraplineHeightPoints = 22f;
     public const float FrontMinimumHeroHeightPoints = 300f;
     public const float FrontMaximumHeroHeightPoints = 338f;
+
+    // Cover B is rendered server-side to a 1800 x 1055 publication crop.
+    // Match the physical QuestPDF frame to that aspect ratio so FitArea never
+    // manufactures an unintentional blank band below the hero.
+    public const float FrontContemporaryHeroRasterWidth = 1800f;
+    public const float FrontContemporaryHeroRasterHeight = 1055f;
+    public const float FrontContemporaryHeroHeightPoints =
+        ReferenceWidthPoints * FrontContemporaryHeroRasterHeight / FrontContemporaryHeroRasterWidth;
+
     public const float FrontInstitutionalCentreOverlayHeightPoints = 44f;
 
     public static float ProjectContentCapacity(bool hasHandlingMarking)

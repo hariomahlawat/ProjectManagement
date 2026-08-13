@@ -77,7 +77,13 @@ public sealed record BrochurePresetConfiguration(
     string? BackCoverEdition = null,
     bool ShowBackCoverKicker = true,
     bool ShowBackCoverStrapline = true,
-    bool ShowBackCoverEdition = true);
+    bool ShowBackCoverEdition = true,
+    string? PrintProcurementHeading = "Procurement:",
+    string? PrintContactsHeading = "CONTACTS",
+    string? PrintDevelopingAgencyHeading = "Developing Agency",
+    string? PrintManufacturingAgencyHeading = "Manufacturing Agency",
+    string? PrintVisionaryHeading = "Visionary Horizons & Strategic Objectives",
+    string? PrintNewSimulatorsHeading = "New Simulators.");
 
 public sealed record BrochurePresetLoadResult(
     BrochurePresetSummaryVm Preset,

@@ -1,40 +1,41 @@
-PRISM Brochure Phase 21.1 — Cover Editor Final Hardening
-=========================================================
+PRISM Brochure Phase 21.2 — Ready-to-paste manifest
+===================================================
 
-Apply on top of Phase 21.
+BASELINE REQUIRED
+-----------------
+Phase 21.1 must already be present.
 
 REPLACE
 -------
 Data/ApplicationDbContext.cs
 Migrations/ApplicationDbContextModelSnapshot.cs
-Migrations/immutable-migration-ids.txt
 Models/Publications/BrochurePreset.cs
 Pages/Projects/Publications/Brochure/Index.cshtml
 Pages/Projects/Publications/Brochure/Index.cshtml.cs
+ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
 Services/Publications/BrochureContracts.cs
 Services/Publications/BrochurePresetContracts.cs
 Services/Publications/BrochurePresetService.cs
-Services/Publications/BrochurePublicationService.cs
-Services/Publications/BrochureReviewFingerprint.cs
-Utilities/Reporting/BrochurePdfReportBuilder.cs
+Services/Publications/BrochurePrintLayoutMetrics.cs
+Services/Publications/BrochurePrintMeasurementService.cs
+Services/Publications/BrochurePrintPublicationPolicy.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
 wwwroot/css/pages/projects-publications.css
 wwwroot/js/pages/projects-brochure.js
 wwwroot/js/projects/publications-brochure-contract.test.js
-ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
-ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
-ProjectManagement.Tests/Publications/BrochureReviewFingerprintTests.cs
+Migrations/immutable-migration-ids.txt
 
 ADD
 ---
-Migrations/20261208113000_AddBrochureCoverVisibilityControls.cs
-tools/Test-PrismPublicationsPhase21_1.ps1
+Migrations/20261208120000_AddBrochureInstitutionalSectionLabels.cs
+ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+tools/Test-PrismPublicationsPhase21_2.ps1
 
-UNCHANGED / DO NOT REPLACE SOLELY FOR THIS PHASE
------------------------------------------------
-The Phase 21 Digital planner, DPI evaluator, About SDD layout, Future Capability page,
-Gallery 2 compositor, Cover B PrimaryLayer fix and Print / Compact compositor are unchanged.
+DO NOT REPLACE FOR THIS PHASE
+-----------------------------
+Services/Publications/BrochurePublicationService.cs
+Services/Publications/BrochureReviewFingerprint.cs
+Utilities/Reporting/BrochurePdfReportBuilder.cs
+Services/Publications/BrochureDigitalPublicationPolicy.cs
 
-DATABASE
---------
-Apply the additive migration through the normal PRISM migration process. It preserves the
-current visible state of existing saved brochures and advances preset schema version 2 -> 3.
+Those components remain on the already-tested Phase 21.1 implementation.

@@ -580,6 +580,12 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.PrintIntroText).HasMaxLength(5000);
                 entity.Property(preset => preset.PrintFutureText).HasMaxLength(3500);
                 entity.Property(preset => preset.PrintProcurementText).HasMaxLength(3500);
+                entity.Property(preset => preset.PrintProcurementHeading).HasMaxLength(120);
+                entity.Property(preset => preset.PrintContactsHeading).HasMaxLength(120);
+                entity.Property(preset => preset.PrintDevelopingAgencyHeading).HasMaxLength(120);
+                entity.Property(preset => preset.PrintManufacturingAgencyHeading).HasMaxLength(120);
+                entity.Property(preset => preset.PrintVisionaryHeading).HasMaxLength(160);
+                entity.Property(preset => preset.PrintNewSimulatorsHeading).HasMaxLength(120);
                 entity.Property(preset => preset.PrintCentreStatement).HasMaxLength(1200);
                 entity.Property(preset => preset.PrintDevelopingAgencyText).HasMaxLength(1800);
                 entity.Property(preset => preset.PrintManufacturingAgencyText).HasMaxLength(1200);
@@ -588,7 +594,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.HandlingMarking).HasMaxLength(80);
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(3).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(4).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
 

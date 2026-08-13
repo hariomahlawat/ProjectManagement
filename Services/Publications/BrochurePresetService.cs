@@ -59,7 +59,7 @@ public interface IBrochurePresetService
 /// </summary>
 public sealed class BrochurePresetService : IBrochurePresetService
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
     private const int MaximumProjects = 100;
 
     private readonly ApplicationDbContext _db;
@@ -253,6 +253,12 @@ public sealed class BrochurePresetService : IBrochurePresetService
             PrintIntroText: preset.PrintIntroText,
             PrintFutureText: preset.PrintFutureText,
             PrintProcurementText: preset.PrintProcurementText,
+            PrintProcurementHeading: preset.PrintProcurementHeading,
+            PrintContactsHeading: preset.PrintContactsHeading,
+            PrintDevelopingAgencyHeading: preset.PrintDevelopingAgencyHeading,
+            PrintManufacturingAgencyHeading: preset.PrintManufacturingAgencyHeading,
+            PrintVisionaryHeading: preset.PrintVisionaryHeading,
+            PrintNewSimulatorsHeading: preset.PrintNewSimulatorsHeading,
             PrintCentreStatement: preset.PrintCentreStatement,
             PrintDevelopingAgencyText: preset.PrintDevelopingAgencyText,
             PrintManufacturingAgencyText: preset.PrintManufacturingAgencyText,
@@ -703,6 +709,12 @@ public sealed class BrochurePresetService : IBrochurePresetService
             PrintIntroText = NormalizeOptional(configuration.PrintIntroText, 5000, preserveLineBreaks: true),
             PrintFutureText = NormalizeOptional(configuration.PrintFutureText, 3500, preserveLineBreaks: true),
             PrintProcurementText = NormalizeOptional(configuration.PrintProcurementText, 3500, preserveLineBreaks: true),
+            PrintProcurementHeading = NormalizeOptional(configuration.PrintProcurementHeading, 120),
+            PrintContactsHeading = NormalizeOptional(configuration.PrintContactsHeading, 120),
+            PrintDevelopingAgencyHeading = NormalizeOptional(configuration.PrintDevelopingAgencyHeading, 120),
+            PrintManufacturingAgencyHeading = NormalizeOptional(configuration.PrintManufacturingAgencyHeading, 120),
+            PrintVisionaryHeading = NormalizeOptional(configuration.PrintVisionaryHeading, 160),
+            PrintNewSimulatorsHeading = NormalizeOptional(configuration.PrintNewSimulatorsHeading, 120),
             PrintCentreStatement = NormalizeOptional(configuration.PrintCentreStatement, 1200, preserveLineBreaks: true),
             PrintDevelopingAgencyText = NormalizeOptional(configuration.PrintDevelopingAgencyText, 1800, preserveLineBreaks: true),
             PrintManufacturingAgencyText = NormalizeOptional(configuration.PrintManufacturingAgencyText, 1200, preserveLineBreaks: true),
@@ -775,6 +787,12 @@ public sealed class BrochurePresetService : IBrochurePresetService
         preset.PrintIntroText = configuration.PrintIntroText;
         preset.PrintFutureText = configuration.PrintFutureText;
         preset.PrintProcurementText = configuration.PrintProcurementText;
+        preset.PrintProcurementHeading = configuration.PrintProcurementHeading;
+        preset.PrintContactsHeading = configuration.PrintContactsHeading;
+        preset.PrintDevelopingAgencyHeading = configuration.PrintDevelopingAgencyHeading;
+        preset.PrintManufacturingAgencyHeading = configuration.PrintManufacturingAgencyHeading;
+        preset.PrintVisionaryHeading = configuration.PrintVisionaryHeading;
+        preset.PrintNewSimulatorsHeading = configuration.PrintNewSimulatorsHeading;
         preset.PrintCentreStatement = configuration.PrintCentreStatement;
         preset.PrintDevelopingAgencyText = configuration.PrintDevelopingAgencyText;
         preset.PrintManufacturingAgencyText = configuration.PrintManufacturingAgencyText;
@@ -837,6 +855,12 @@ public sealed class BrochurePresetService : IBrochurePresetService
             PrintIntroText = source.PrintIntroText,
             PrintFutureText = source.PrintFutureText,
             PrintProcurementText = source.PrintProcurementText,
+            PrintProcurementHeading = source.PrintProcurementHeading,
+            PrintContactsHeading = source.PrintContactsHeading,
+            PrintDevelopingAgencyHeading = source.PrintDevelopingAgencyHeading,
+            PrintManufacturingAgencyHeading = source.PrintManufacturingAgencyHeading,
+            PrintVisionaryHeading = source.PrintVisionaryHeading,
+            PrintNewSimulatorsHeading = source.PrintNewSimulatorsHeading,
             PrintCentreStatement = source.PrintCentreStatement,
             PrintDevelopingAgencyText = source.PrintDevelopingAgencyText,
             PrintManufacturingAgencyText = source.PrintManufacturingAgencyText,

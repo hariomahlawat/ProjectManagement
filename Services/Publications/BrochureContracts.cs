@@ -139,7 +139,13 @@ public sealed record BrochurePrintMatter(
     string? DevelopingAgency,
     string? ManufacturingAgency,
     string? VisionaryHorizons,
-    string? NewSimulatorsGuidance);
+    string? NewSimulatorsGuidance,
+    string? ProcurementHeading = "Procurement:",
+    string? ContactsHeading = "CONTACTS",
+    string? DevelopingAgencyHeading = "Developing Agency",
+    string? ManufacturingAgencyHeading = "Manufacturing Agency",
+    string? VisionaryHeading = "Visionary Horizons & Strategic Objectives",
+    string? NewSimulatorsHeading = "New Simulators.");
 
 public sealed record BrochurePrintPlanningItem(
     int ProjectId,
@@ -470,7 +476,13 @@ public sealed record BrochureBuildOptions(
     bool ShowFrontCoverDescriptor = true,
     bool ShowBackCoverKicker = true,
     bool ShowBackCoverStrapline = true,
-    bool ShowBackCoverEdition = true);
+    bool ShowBackCoverEdition = true,
+    string? PrintProcurementHeading = "Procurement:",
+    string? PrintContactsHeading = "CONTACTS",
+    string? PrintDevelopingAgencyHeading = "Developing Agency",
+    string? PrintManufacturingAgencyHeading = "Manufacturing Agency",
+    string? PrintVisionaryHeading = "Visionary Horizons & Strategic Objectives",
+    string? PrintNewSimulatorsHeading = "New Simulators.");
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,

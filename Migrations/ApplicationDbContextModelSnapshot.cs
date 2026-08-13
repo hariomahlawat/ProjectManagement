@@ -5146,6 +5146,14 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(1200)
                         .HasColumnType("character varying(1200)");
 
+                    b.Property<string>("PrintContactsHeading")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("PrintDevelopingAgencyHeading")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<string>("PrintDevelopingAgencyText")
                         .HasMaxLength(1800)
                         .HasColumnType("character varying(1800)");
@@ -5158,17 +5166,33 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("character varying(5000)");
 
+                    b.Property<string>("PrintManufacturingAgencyHeading")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<string>("PrintManufacturingAgencyText")
                         .HasMaxLength(1200)
                         .HasColumnType("character varying(1200)");
+
+                    b.Property<string>("PrintNewSimulatorsHeading")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<string>("PrintNewSimulatorsText")
                         .HasMaxLength(1800)
                         .HasColumnType("character varying(1800)");
 
+                    b.Property<string>("PrintProcurementHeading")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<string>("PrintProcurementText")
                         .HasMaxLength(3500)
                         .HasColumnType("character varying(3500)");
+
+                    b.Property<string>("PrintVisionaryHeading")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
 
                     b.Property<string>("PrintVisionaryText")
                         .HasMaxLength(4500)
@@ -5187,7 +5211,7 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("SettingsSchemaVersion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasDefaultValue(3);
+                        .HasDefaultValue(4);
 
                     b.Property<bool>("ShowBackCoverEdition")
                         .ValueGeneratedOnAdd()

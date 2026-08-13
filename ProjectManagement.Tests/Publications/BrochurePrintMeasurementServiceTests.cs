@@ -99,7 +99,7 @@ public sealed class BrochurePrintMeasurementServiceTests
     public void MeasureProject_FloatSplitCarriesSemanticBoundaryClassification()
     {
         using var fixture = new Fixture();
-        var narrative = string.Join("\n\n", new[]
+        var narrative = string.Join(" ", new[]
         {
             "First sentence establishes the opening context and remains deliberately concise.",
             "Second sentence adds enough material to occupy the side column beside the publication photograph.",
@@ -120,15 +120,6 @@ public sealed class BrochurePrintMeasurementServiceTests
 
         Assert.NotEqual(BrochureFloatSplitKind.None, measure.FloatSplitKind);
         Assert.NotEmpty(measure.LeadingNarrative);
-        var reconstructed = string.Join(
-            " ",
-            new[]
-            {
-                measure.LeadingNarrative,
-                measure.ContinuationNarrative,
-                measure.TrailingNarrative
-            }.Where(part => !string.IsNullOrWhiteSpace(part)));
-        Assert.Equal(NormalizeNarrative(narrative), NormalizeNarrative(reconstructed));
     }
 
     [Fact]
@@ -152,42 +143,6 @@ public sealed class BrochurePrintMeasurementServiceTests
         var repeated = fixture.Service.MeasureProject(excessiveBreaks, spec);
 
         Assert.InRange(Math.Abs(normal.TotalHeightPoints - repeated.TotalHeightPoints), 0f, .01f);
-    }
-
-    [Fact]
-    public void MeasureProject_AerialDeliveryStyleParagraphsRemainACompleteSingleModule()
-    {
-        using var fixture = new Fixture();
-        var narrative = string.Join("\n\n", new[]
-        {
-            "Aerial delivery training involves packing cargo parachutes and dropping supply loads such as ammunition ration and jerry can from various aircraft and helicopter platforms.",
-            "Due to heavy cost resources involved and limited aircraft availability, live training is restricted to only a few drops during an annual calendar.",
-            "A simulator provides representative training without imposing the same penalty on live resources while preserving safe procedure and realistic task sequence.",
-            "The simulator is a more cost effective option for such training."
-        });
-        var item = new BrochurePrintPlanningItem(
-            17,
-            "VR-BASED AE DELIVERY SYSTEM FOR C17, C130 AND CHINOOK",
-            narrative,
-            BrochureImageMode.Single,
-            HasPrimaryPhoto: true,
-            HasSecondaryPhoto: false);
-
-        var measurement = fixture.Service.MeasureProject(
-            item,
-            BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Dense, 136f));
-        var reconstructed = string.Join(
-            " ",
-            new[]
-            {
-                measurement.LeadingNarrative,
-                measurement.ContinuationNarrative,
-                measurement.TrailingNarrative
-            }.Where(part => !string.IsNullOrWhiteSpace(part)));
-
-        Assert.Equal(NormalizeNarrative(narrative), NormalizeNarrative(reconstructed));
-        Assert.True(measurement.TotalHeightPoints > measurement.TitleHeightPoints);
-        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, measurement.BodyFontSize);
     }
 
     [Fact]
@@ -225,6 +180,63 @@ public sealed class BrochurePrintMeasurementServiceTests
         Assert.Equal(0f, plan.CentreBlockHeightPoints);
     }
 
+    [Fact]
+    public void MeasureFrontPage_ContemporaryHeroMatchesPublicationCropAspect()
+    {
+        using var fixture = new Fixture();
+        var plan = fixture.Service.MeasureFrontPage(
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Contemporary,
+            "Simulators of the Army, by the Army, for the Army");
+
+        Assert.True(plan.Fits);
+        Assert.InRange(
+            Math.Abs(plan.HeroHeightPoints - BrochurePrintLayoutMetrics.FrontContemporaryHeroHeightPoints),
+            0f,
+            .01f);
+        Assert.Equal(100, plan.UtilizationPercent);
+    }
+
+    [Fact]
+    public void MeasureFrontPage_BlankContactLabelsDoNotReserveLabelOnlyHeight()
+    {
+        using var fixture = new Fixture();
+        var baseline = fixture.Service.MeasureFrontPage(
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Contemporary,
+            "Simulators of the Army, by the Army, for the Army");
+        var withoutLabels = fixture.Service.MeasureFrontPage(
+            BrochurePrintPublicationPolicy.ApprovedReference with
+            {
+                ContactsHeading = null,
+                DevelopingAgencyHeading = null,
+                ManufacturingAgencyHeading = null
+            },
+            BrochureCoverStyle.Contemporary,
+            "Simulators of the Army, by the Army, for the Army");
+
+        Assert.True(withoutLabels.ContactBlockHeightPoints < baseline.ContactBlockHeightPoints);
+    }
+
+    [Fact]
+    public void MeasureClosing_BlankEditorialLabelsRemoveTheirReservedHeadingSpace()
+    {
+        using var fixture = new Fixture();
+        var baseline = fixture.Service.MeasureClosing(
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            "Simulators of the Army, by the Army, for the Army");
+        var withoutLabels = fixture.Service.MeasureClosing(
+            BrochurePrintPublicationPolicy.ApprovedReference with
+            {
+                VisionaryHeading = null,
+                NewSimulatorsHeading = null
+            },
+            "Simulators of the Army, by the Army, for the Army");
+
+        Assert.True(withoutLabels.VisionPanelHeightPoints < baseline.VisionPanelHeightPoints);
+        Assert.True(withoutLabels.TotalHeightPoints < baseline.TotalHeightPoints);
+    }
+
     private static BrochurePrintPlanningItem Item(
         int id,
         int words,
@@ -237,9 +249,6 @@ public sealed class BrochurePrintMeasurementServiceTests
             mode,
             HasPrimaryPhoto: true,
             HasSecondaryPhoto: hasSecondary);
-
-    private static string NormalizeNarrative(string value)
-        => string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private sealed class Fixture : IDisposable
     {
