@@ -113,6 +113,11 @@
         <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
         <input asp-for="PresetId" type="hidden" data-active-preset-id />
         <input asp-for="ActivePresetRowVersion" type="hidden" data-active-preset-row-version />
+        <input asp-for="Input.CoverImageMode" type="hidden" data-cover-image-mode />
+        <input asp-for="Input.CoverHeroProjectId" type="hidden" data-cover-hero-project />
+        <input asp-for="Input.CoverHeroPhotoId" type="hidden" data-cover-hero-photo />
+        <input asp-for="Input.CoverFocalX" type="hidden" data-cover-focal-x />
+        <input asp-for="Input.CoverFocalY" type="hidden" data-cover-focal-y />
 
         <script type="application/json" data-compendium-projects>@Html.Raw(JsonSerializer.Serialize(Model.Projects, jsonOptions))</script>
         <script type="application/json" data-compendium-presets>@Html.Raw(JsonSerializer.Serialize(Model.SavedCompendiums, jsonOptions))</script>
@@ -159,6 +164,22 @@
                                 <small>PRISM never assigns a classification automatically.</small>
                             </label>
                         </div>
+                        <div class="compendium-cover-setting" data-cover-setting>
+                            <div class="compendium-cover-preview" data-cover-preview>
+                                <i class="bi bi-image" aria-hidden="true"></i>
+                                <img alt="" data-cover-preview-image hidden />
+                            </div>
+                            <div class="compendium-cover-copy">
+                                <span>Cover imagery</span>
+                                <strong data-cover-status>Automatic hero</strong>
+                                <small data-cover-detail>PRISM uses the strongest available publication image from the selected projects.</small>
+                            </div>
+                            <div class="compendium-cover-actions">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-automatic>Automatic hero</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-none>No imagery</button>
+                            </div>
+                        </div>
+                        <small class="compendium-cover-help">To lock a specific cover hero, open that project in Review and choose <b>Use as cover hero</b>. The selected image and focal point are copied independently into the Compendium cover.</small>
                     </div>
                 </section>
 
@@ -353,6 +374,7 @@
                                     <div class="compendium-review-image-actions">
                                         <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
                                         <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop><i class="bi bi-crop"></i> Adjust crop</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-use-cover><i class="bi bi-card-image"></i> Use as cover hero</button>
                                         <button type="button" class="btn btn-sm btn-link" data-review-use-automatic>Use automatic</button>
                                     </div>
                                     <a class="compendium-manage-photos" data-review-manage-photos><i class="bi bi-box-arrow-up-right"></i> Manage project photographs</a>
@@ -379,7 +401,7 @@
                                     <strong data-review-footer-title>Review required</strong>
                                     <span data-review-footer-copy>Confirm the current project facts and publication image.</span>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-primary" data-review-mark-reviewed><i class="bi bi-check2-circle"></i> Mark reviewed</button>
+                                <button type="button" class="btn btn-sm btn-primary" data-review-mark-reviewed title="Review & next · Ctrl+Enter"><i class="bi bi-check2-circle"></i> Review & next</button>
                             </footer>
                         </article>
                     </div>

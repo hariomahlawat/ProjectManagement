@@ -17,6 +17,13 @@ public enum CompendiumImageSelectionMode
     Explicit = 1
 }
 
+public enum CompendiumCoverImageMode
+{
+    Automatic = 0,
+    Explicit = 1,
+    None = 2
+}
+
 public enum CompendiumImageQuality
 {
     Unknown = 0,
@@ -110,7 +117,11 @@ public sealed record CompendiumReviewProjectDto(
     string ReviewFingerprint,
     bool IsReviewed,
     bool IsReviewStale,
-    bool ExplicitPhotoUnavailable);
+    bool ExplicitPhotoUnavailable)
+{
+    public double ImageFrameWidthPoints { get; init; } = CompendiumPublicationImagePolicy.FrameWidthPoints;
+    public double ImageFrameHeightPoints { get; init; } = CompendiumPublicationImagePolicy.MediumFrameHeightPoints;
+}
 
 public sealed record CompendiumProjectDto(
     int ProjectId,
@@ -239,40 +250,50 @@ public sealed record CompendiumPdfDataDto(
 
 public static class CompendiumPublicationImagePolicy
 {
-    // Phase 24 reviewed project-image viewport. Browser crop, effective-DPI calculation and final
-    // QuestPDF composition use this single geometry contract.
     public const double FrameWidthPoints = 519d;
-    public const double FrameHeightPoints = 214d;
+    public const double LongFrameHeightPoints = 190d;
+    public const double MediumFrameHeightPoints = 240d;
+    public const double ShortFrameHeightPoints = 300d;
+    // Medium aliases preserve the existing browser/bootstrap contract while Phase 24.1 sends
+    // exact per-project geometry with each review payload.
+    public const double FrameHeightPoints = MediumFrameHeightPoints;
     public const int RenderWidthPixels = 1800;
-    public const int RenderHeightPixels = 742;
+    public const int RenderHeightPixels = 832;
     public const int GoodDpi = 180;
     public const int AcceptableDpi = 150;
 
-    public static double TargetAspect => FrameWidthPoints / FrameHeightPoints;
-
-    public static int? CalculateEffectiveDpi(int sourceWidth, int sourceHeight)
+    public static double ResolveFrameHeightPoints(string? descriptionMarkdown)
     {
-        if (sourceWidth <= 0 || sourceHeight <= 0)
-        {
-            return null;
-        }
+        var length = PublicationTextLength(descriptionMarkdown);
+        if (length <= 220) return ShortFrameHeightPoints;
+        if (length <= 1050) return MediumFrameHeightPoints;
+        return LongFrameHeightPoints;
+    }
 
+    public static int ResolveRenderHeightPixels(string? descriptionMarkdown)
+        => (int)Math.Round(RenderWidthPixels * ResolveFrameHeightPoints(descriptionMarkdown) / FrameWidthPoints);
+
+    public static int? CalculateEffectiveDpi(int sourceWidth, int sourceHeight, string? descriptionMarkdown = null)
+    {
+        if (sourceWidth <= 0 || sourceHeight <= 0) return null;
+        var frameHeight = ResolveFrameHeightPoints(descriptionMarkdown);
+        var targetAspect = FrameWidthPoints / frameHeight;
         var sourceAspect = sourceWidth / (double)sourceHeight;
         double cropWidth;
         double cropHeight;
-        if (sourceAspect > TargetAspect)
+        if (sourceAspect > targetAspect)
         {
             cropHeight = sourceHeight;
-            cropWidth = cropHeight * TargetAspect;
+            cropWidth = cropHeight * targetAspect;
         }
         else
         {
             cropWidth = sourceWidth;
-            cropHeight = cropWidth / TargetAspect;
+            cropHeight = cropWidth / targetAspect;
         }
 
         var horizontalDpi = cropWidth / (FrameWidthPoints / 72d);
-        var verticalDpi = cropHeight / (FrameHeightPoints / 72d);
+        var verticalDpi = cropHeight / (frameHeight / 72d);
         return (int)Math.Floor(Math.Min(horizontalDpi, verticalDpi));
     }
 
@@ -287,6 +308,22 @@ public static class CompendiumPublicationImagePolicy
 
     public static string FormatCost(decimal? value)
         => value.HasValue
-            ? value.Value.ToString("0.##", CultureInfo.InvariantCulture)
+            ? $"₹{value.Value.ToString("0.##", CultureInfo.InvariantCulture)} lakh"
             : "Not recorded";
+
+    private static int PublicationTextLength(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? 0
+            : value.Replace("**", string.Empty, StringComparison.Ordinal)
+                .Replace("__", string.Empty, StringComparison.Ordinal)
+                .Trim().Length;
+}
+
+public static class CompendiumCoverImagePolicy
+{
+    public const double FrameWidthPoints = 491d;
+    public const double FrameHeightPoints = 300d;
+    public const int RenderWidthPixels = 1800;
+    public const int RenderHeightPixels = 1100;
+    public static double TargetAspect => FrameWidthPoints / FrameHeightPoints;
 }

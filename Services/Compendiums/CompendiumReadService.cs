@@ -232,7 +232,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
                 : null;
             var effectiveDpi = probe is { IsReady: true }
-                ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height)
+                ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, project.Description)
                 : null;
             var imageQuality = CompendiumPublicationImagePolicy.Classify(effectiveDpi);
             var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
@@ -285,7 +285,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 NormalizeOptional(cost?.Remarks),
                 resolved.ResolvedPhotoId,
                 resolved.PhotoSelectionSource,
-                NormalizeDisplay(project.Description, "Not recorded"),
+                NormalizeOptional(project.Description) ?? string.Empty,
                 assessment.PublicationIssues)
             {
                 LifecycleDisplay = LifecycleDisplay(project.LifecycleStatus),
@@ -307,6 +307,14 @@ public sealed class CompendiumReadService : ICompendiumReadService
         }
 
         var groups = GroupInPublicationOrder(publicationProjects);
+        var projectOrder = publicationProjects.ToDictionary(project => project.ProjectId, project => project.SortOrder);
+        var orderedFindings = findings
+            .OrderByDescending(finding => finding.Severity)
+            .ThenBy(finding => finding.ProjectId.HasValue
+                ? projectOrder.GetValueOrDefault(finding.ProjectId.Value, int.MaxValue)
+                : -1)
+            .ThenBy(finding => finding.Code, StringComparer.Ordinal)
+            .ToArray();
         var readinessProjects = publicationProjects
             .Select(project => new CompendiumProjectReadinessDto(
                 project.ProjectId,
@@ -334,10 +342,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
         {
             CandidateProjectCount = candidateCount,
             SelectedProjectCount = requestedIds.Length,
-            BlockerCount = findings.Count(finding => finding.Severity == CompendiumFindingSeverity.Blocker),
-            WarningCount = findings.Count(finding => finding.Severity == CompendiumFindingSeverity.Warning),
-            InformationCount = findings.Count(finding => finding.Severity == CompendiumFindingSeverity.Information),
-            Findings = findings
+            BlockerCount = orderedFindings.Count(finding => finding.Severity == CompendiumFindingSeverity.Blocker),
+            WarningCount = orderedFindings.Count(finding => finding.Severity == CompendiumFindingSeverity.Warning),
+            InformationCount = orderedFindings.Count(finding => finding.Severity == CompendiumFindingSeverity.Information),
+            Findings = orderedFindings
         };
 
         return CreateResult(generatedAtUtc, request, groups, preflight);
@@ -388,7 +396,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             {
                 var probe = probes.GetValueOrDefault(photo.Id);
                 var dpi = probe is { IsReady: true }
-                    ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height)
+                    ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, project.Description)
                     : null;
                 return new CompendiumReviewPhotoVm(
                     photo.Id,
@@ -408,7 +416,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
             : null;
         var effectiveDpi = selectedProbe is { IsReady: true }
-            ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(selectedProbe.Width, selectedProbe.Height)
+            ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(selectedProbe.Width, selectedProbe.Height, project.Description)
             : null;
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
         var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
@@ -452,7 +460,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             NormalizeDisplay(project.ArmService, "Not recorded"),
             project.LifecycleStatus == ProjectLifecycleStatus.Completed
                 ? completionYear?.ToString(CultureInfo.InvariantCulture) ?? "Not recorded"
-                : "Ongoing",
+                : string.Empty,
             availability,
             cost?.Cost,
             CompendiumPublicationImagePolicy.FormatCost(cost?.Cost),
@@ -468,7 +476,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
             fingerprint,
             assessment.IsReviewed,
             assessment.IsReviewStale,
-            resolved.ExplicitPhotoUnavailable);
+            resolved.ExplicitPhotoUnavailable)
+        {
+            ImageFrameWidthPoints = CompendiumPublicationImagePolicy.FrameWidthPoints,
+            ImageFrameHeightPoints = CompendiumPublicationImagePolicy.ResolveFrameHeightPoints(project.Description)
+        };
     }
 
     public async Task<CompendiumPdfDataDto> GetProliferationCompendiumAsync(

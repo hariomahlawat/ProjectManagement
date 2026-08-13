@@ -89,6 +89,6 @@ public sealed class CompendiumPhase23ContractTests
 
         Assert.False(assessment.IsReviewed);
         Assert.True(assessment.IsReviewStale);
-        Assert.Contains(assessment.Findings, finding => finding.Code == "projectChangedAfterReview");
+        Assert.DoesNotContain(assessment.Findings, finding => finding.Code == "projectChangedAfterReview");
     }
 }

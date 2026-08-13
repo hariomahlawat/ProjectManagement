@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Services.Compendiums;
 using ProjectManagement.Utilities;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -25,7 +26,7 @@ public sealed record CompendiumPdfReportContext(
     bool ShowMissingPhotoPlaceholder)
 {
     public string Edition { get; init; } = string.Empty;
-    public IReadOnlyList<byte[]> CoverImages { get; init; } = Array.Empty<byte[]>();
+    public byte[]? CoverHero { get; init; }
     public CompendiumPagePlan? Plan { get; init; }
 }
 
@@ -114,7 +115,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     switch (planned.Kind)
                     {
                         case CompendiumPageKind.Cover:
-                            ComposeCover(container, title, subtitle, edition, marking, context.CoverImages, crest, sddMark);
+                            ComposeCover(container, title, subtitle, edition, marking, context.CoverHero, crest, sddMark);
                             break;
                         case CompendiumPageKind.Index:
                             ComposeIndexPage(container, planned, title, edition, issuer, marking, footerLogo, plan.IndexPageCount);
@@ -154,7 +155,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string subtitle,
         string edition,
         string? marking,
-        IReadOnlyList<byte[]> coverImages,
+        byte[]? coverHero,
         byte[]? crest,
         byte[]? sddMark)
     {
@@ -210,7 +211,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         .SemiBold()
                         .FontColor(GoldSoft);
 
-                    column.Item().PaddingTop(28).Element(frame => ComposeCoverImageMosaic(frame, coverImages));
+                    column.Item().PaddingTop(28).Element(frame => ComposeCoverHero(frame, coverHero));
                 });
 
                 layers.Layer().AlignTop().Height(6).Background(Gold);
@@ -219,36 +220,22 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         });
     }
 
-    private static void ComposeCoverImageMosaic(IContainer container, IReadOnlyList<byte[]> images)
+    private static void ComposeCoverHero(IContainer container, byte[]? hero)
     {
-        var usable = images.Where(image => image is { Length: > 0 }).Take(3).ToArray();
-        if (usable.Length == 0)
+        if (hero is { Length: > 0 })
         {
-            container.Height(310).Layers(layers =>
-            {
-                layers.PrimaryLayer().Background(Forest900);
-                layers.Layer().AlignTop().Height(3).Background(Gold);
-                layers.Layer().AlignBottom().Height(86).Background(Forest800);
-            });
+            container.Height((float)CompendiumCoverImagePolicy.FrameHeightPoints)
+                .Background(Forest900)
+                .Image(hero)
+                .FitArea();
             return;
         }
 
-        container.Column(column =>
+        container.Height((float)CompendiumCoverImagePolicy.FrameHeightPoints).Layers(layers =>
         {
-            column.Spacing(10);
-            column.Item().Height(214).Background(Forest900).Image(usable[0]).FitArea();
-            if (usable.Length > 1)
-            {
-                column.Item().Row(row =>
-                {
-                    row.RelativeItem().Height(98).Background(Forest900).Image(usable[1]).FitArea();
-                    if (usable.Length > 2)
-                    {
-                        row.ConstantItem(10);
-                        row.RelativeItem().Height(98).Background(Forest900).Image(usable[2]).FitArea();
-                    }
-                });
-            }
+            layers.PrimaryLayer().Background(Forest900);
+            layers.Layer().AlignTop().Height(3).Background(Gold);
+            layers.Layer().AlignBottom().Height(86).Background(Forest800);
         });
     }
 
@@ -370,10 +357,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 column.Item().Element(meta => ComposeProjectMetadata(meta, project));
 
-                if (planned.ProjectLayout == CompendiumProjectLayoutVariant.Photo
+                if (planned.ProjectLayout != CompendiumProjectLayoutVariant.NoPhoto
                     && project.CoverPhoto is { Length: > 0 })
                 {
-                    column.Item().Height(CompendiumLayoutMetrics.ProjectImageHeightPoints)
+                    column.Item().Height(CompendiumLayoutMetrics.ProjectImageHeightPoints(planned.ProjectLayout))
                         .Background(Slate100)
                         .Image(project.CoverPhoto)
                         .FitArea();
@@ -463,7 +450,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             && !string.IsNullOrWhiteSpace(project.ProliferationCostDisplay)
             && !string.Equals(project.ProliferationCostDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(("Indicative cost (₹ lakh)", project.ProliferationCostDisplay));
+            items.Add(("Indicative cost", project.ProliferationCostDisplay));
         }
         if (!string.IsNullOrWhiteSpace(project.CaseFileNumber))
         {
@@ -559,8 +546,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
             if (string.IsNullOrWhiteSpace(markdown))
             {
-                column.Item().Text("Description not recorded.")
+                column.Item().Text("Project description not recorded.")
                     .FontSize(CompendiumLayoutMetrics.ProjectBodyFontSize)
+                    .Italic()
                     .FontColor(Slate500);
                 return;
             }

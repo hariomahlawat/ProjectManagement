@@ -1,41 +1,49 @@
-PRISM Publications — Phase 24
-Compendium Publication Design & Composition Engine
+PRISM Publications — Phase 24.1
+Compendium Review Flow, Readiness Rationalisation & Publication Freeze
 READY-TO-PASTE MANIFEST
 
-Apply this package on top of the current working Phase 23.1 Compendium implementation.
+BASELINE
+--------
+Apply this package on top of the current working Phase 24 Compendium implementation.
 Preserve the folder structure when copying files into the ProjectManagement project root.
 
 ADD
 ---
-Utilities/Reporting/CompendiumLayoutMetrics.cs
-Utilities/Reporting/CompendiumPagePlanner.cs
-Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
-ProjectManagement.Tests/Publications/CompendiumPhase24ContractTests.cs
-tools/Test-PrismPublicationsPhase24.ps1
+Migrations/20261208150000_AddCompendiumCoverHeroControls.cs
+Utilities/Reporting/CompendiumPublicationTextSanitizer.cs
+ProjectManagement.Tests/Publications/CompendiumPhase24_1ContractTests.cs
+tools/Test-PrismPublicationsPhase24_1.ps1
 
 REPLACE
 -------
-Utilities/Reporting/CompendiumPdfReportBuilder.cs
-Services/Compendiums/CompendiumDtos.cs
-Services/Compendiums/CompendiumReadinessPolicy.cs
-Services/Compendiums/ICompendiumExportService.cs
-Services/Compendiums/CompendiumExportService.cs
-Services/Publications/PublicationServiceCollectionExtensions.cs
-Pages/Projects/Publications/Compendium/Index.cshtml
-Pages/Projects/Publications/Compendium/Index.cshtml.cs
-wwwroot/js/pages/projects-compendium.js
-wwwroot/css/pages/projects-publications.css
-wwwroot/js/projects/publications-compendium-contract.test.js
-
-DO NOT REPLACE / DO NOT CHANGE
-------------------------------
-Migrations/20261208130000_AddSharedCompendiumPresets.cs
-Migrations/20261208140000_AddCompendiumPublicationImagery.cs
+Data/ApplicationDbContext.cs
+Migrations/ApplicationDbContextModelSnapshot.cs
 Migrations/immutable-migration-ids.txt
 Models/Publications/CompendiumPreset.cs
-Services/Publications/CompendiumPresetService.cs
+Pages/Projects/Publications/Compendium/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml.cs
+Services/Compendiums/CompendiumDtos.cs
+Services/Compendiums/CompendiumReadinessPolicy.cs
+Services/Compendiums/CompendiumReadService.cs
+Services/Compendiums/ICompendiumExportService.cs
+Services/Compendiums/CompendiumExportService.cs
 Services/Publications/CompendiumPresetContracts.cs
+Services/Publications/CompendiumPresetService.cs
+Utilities/Reporting/CompendiumLayoutMetrics.cs
+Utilities/Reporting/CompendiumPagePlanner.cs
+Utilities/Reporting/CompendiumPdfReportBuilder.cs
+wwwroot/css/pages/projects-publications.css
+wwwroot/js/pages/projects-compendium.js
+wwwroot/js/projects/publications-compendium-contract.test.js
+ProjectManagement.Tests/Publications/CompendiumPhase23ContractTests.cs
+
+DO NOT REMOVE OR RECREATE
+-------------------------
+Migrations/20261208130000_AddSharedCompendiumPresets.cs
+Migrations/20261208140000_AddCompendiumPublicationImagery.cs
+Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
 Services/Compendiums/CompendiumReviewFingerprint.cs
 
-No database migration is required for this phase.
-The prior authentication/audit hardening is independent and is not included here.
+Phase 24.1 advances the Saved Compendium settings schema from v2 to v3 only to persist the new cover-hero publication configuration. It does not create another factual project store.
+
+The prior authentication/audit hardening and the frozen Brochure Builder are independent and are not included in this package.

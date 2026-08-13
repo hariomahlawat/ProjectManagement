@@ -96,12 +96,6 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
                     $"The selected photograph is approximately {acceptableDpi} DPI at publication size. It is usable, but a higher-resolution source would provide more reserve.");
             }
 
-            if (context.ImageSelectionMode == CompendiumImageSelectionMode.Automatic && !isReviewed)
-            {
-                Information(
-                    "automaticImageSelected",
-                    "PRISM selected the current best project photograph automatically. You can lock a different publication image during review.");
-            }
         }
 
         if (string.IsNullOrWhiteSpace(context.ArmService))
@@ -122,14 +116,6 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             issues.Add(CompendiumPublicationIssue.ZeroProliferationCost);
             Warning("zeroCost", "Proliferation cost is zero; verify that this is intentional.");
         }
-        else if (context.ProliferationAvailability is null)
-        {
-            Information("proliferationNotAssessed", "Availability for proliferation has not been assessed.");
-        }
-        else if (context.ProliferationAvailability == false)
-        {
-            Information("notAvailableForProliferation", "The project is recorded as not available for proliferation.");
-        }
 
         if (string.IsNullOrWhiteSpace(context.Description))
         {
@@ -149,18 +135,6 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             Warning("possibleTitleTypo", "Project title may contain “Al” where “AI” was intended.");
         }
 
-        if (isReviewStale)
-        {
-            Warning(
-                "projectChangedAfterReview",
-                "Project facts or publication imagery changed after this project was reviewed. Review the current version again.");
-        }
-        else if (!isReviewed)
-        {
-            Warning(
-                "reviewRequired",
-                "Review the current project information and publication image before final issue.");
-        }
 
         return new CompendiumProjectReadinessAssessment(
             issues,

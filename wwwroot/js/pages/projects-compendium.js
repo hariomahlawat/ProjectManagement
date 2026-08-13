@@ -28,14 +28,25 @@
     const activeSeed = parseJson(form.querySelector("[data-compendium-active-preset]"), {});
     const canManage = Boolean(activeSeed?.canManage);
     const canMaintainProjectData = String(form.dataset.canMaintainProjectData || "").toLowerCase() === "true";
-    const frameWidthPoints = Number(form.dataset.photoFrameWidth || 228) || 228;
-    const frameHeightPoints = Number(form.dataset.photoFrameHeight || 168) || 168;
-    const photoAspect = frameWidthPoints / frameHeightPoints;
+    const frameWidthPoints = Number(form.dataset.photoFrameWidth || 519) || 519;
+    const frameHeightPoints = Number(form.dataset.photoFrameHeight || 240) || 240;
 
     const selectedInput = form.querySelector("[data-selected-project-ids]");
     const selectionsInput = form.querySelector("[data-project-selections]");
     const activeIdInput = form.querySelector("[data-active-preset-id]");
     const activeVersionInput = form.querySelector("[data-active-preset-row-version]");
+    const coverModeInput = form.querySelector("[data-cover-image-mode]");
+    const coverProjectInput = form.querySelector("[data-cover-hero-project]");
+    const coverPhotoInput = form.querySelector("[data-cover-hero-photo]");
+    const coverFocalXInput = form.querySelector("[data-cover-focal-x]");
+    const coverFocalYInput = form.querySelector("[data-cover-focal-y]");
+    const coverState = {
+        imageMode: normalize(coverModeInput?.value) === "explicit" ? "explicit" : normalize(coverModeInput?.value) === "none" ? "none" : "automatic",
+        heroProjectId: Number(coverProjectInput?.value || 0) || null,
+        heroPhotoId: Number(coverPhotoInput?.value || 0) || null,
+        focalX: roundFocal(coverFocalXInput?.value),
+        focalY: roundFocal(coverFocalYInput?.value)
+    };
 
     let activePresetId = Number(activeIdInput?.value || activeSeed?.id || 0) || null;
     let activeRowVersion = String(activeVersionInput?.value || activeSeed?.rowVersion || "");
@@ -132,6 +143,7 @@
     const reviewMarkReviewed = $("[data-review-mark-reviewed]");
     const reviewFooterTitle = $("[data-review-footer-title]");
     const reviewFooterCopy = $("[data-review-footer-copy]");
+    const reviewImageFrame = $("[data-review-image-frame]");
     const reviewImage = $("[data-review-image]");
     const reviewImageEmpty = $("[data-review-image-empty]");
     const reviewImageMode = $("[data-review-image-mode]");
@@ -140,6 +152,14 @@
     const reviewChangeImage = $("[data-review-change-image]");
     const reviewAdjustCrop = $("[data-review-adjust-crop]");
     const reviewUseAutomatic = $("[data-review-use-automatic]");
+    const reviewUseCover = $("[data-review-use-cover]");
+
+    const coverPreview = $("[data-cover-preview]");
+    const coverPreviewImage = $("[data-cover-preview-image]");
+    const coverStatus = $("[data-cover-status]");
+    const coverDetail = $("[data-cover-detail]");
+    const coverAutomatic = $("[data-cover-automatic]");
+    const coverNone = $("[data-cover-none]");
 
     const readySelected = $("[data-ready-selected]");
     const readyBlockers = $("[data-ready-blockers]");
@@ -217,6 +237,11 @@
         if (selectionsInput) selectionsInput.value = JSON.stringify(serializeConfigs(true));
         if (activeIdInput) activeIdInput.value = activePresetId ? String(activePresetId) : "";
         if (activeVersionInput) activeVersionInput.value = activeRowVersion || "";
+        if (coverModeInput) coverModeInput.value = coverState.imageMode === "explicit" ? "Explicit" : coverState.imageMode === "none" ? "None" : "Automatic";
+        if (coverProjectInput) coverProjectInput.value = coverState.imageMode === "explicit" && coverState.heroProjectId ? String(coverState.heroProjectId) : "";
+        if (coverPhotoInput) coverPhotoInput.value = coverState.imageMode === "explicit" && coverState.heroPhotoId ? String(coverState.heroPhotoId) : "";
+        if (coverFocalXInput) coverFocalXInput.value = String(roundFocal(coverState.focalX));
+        if (coverFocalYInput) coverFocalYInput.value = String(roundFocal(coverState.focalY));
     };
 
     const captureSnapshot = () => JSON.stringify({
@@ -224,6 +249,7 @@
         subtitle: String(form.elements["Input.Subtitle"]?.value || "").trim(),
         edition: String(form.elements["Input.Edition"]?.value || "").trim(),
         handlingMarking: String(form.elements["Input.HandlingMarking"]?.value || "").trim(),
+        cover: { imageMode: coverState.imageMode, heroProjectId: coverState.imageMode === "explicit" ? coverState.heroProjectId : null, heroPhotoId: coverState.imageMode === "explicit" ? coverState.heroPhotoId : null, focalX: roundFocal(coverState.focalX), focalY: roundFocal(coverState.focalY) },
         projects: serializeConfigs(false)
     });
     const renderDirty = () => {
@@ -242,6 +268,32 @@
         baselineSnapshot = captureSnapshot();
         renderDirty();
     };
+
+    const photoPreviewUrl = (projectId, photoId) => {
+        const url = new URL(window.location.href); url.search = "";
+        url.searchParams.set("handler", "Photo"); url.searchParams.set("projectId", String(projectId));
+        url.searchParams.set("photoId", String(photoId)); url.searchParams.set("mode", "source"); url.searchParams.set("v", "0");
+        return url.toString();
+    };
+    const automaticCoverCandidate = () => orderedIds.map(id => ({ id, state: stateFor(id) })).filter(item => item.state?.resolvedPhotoId).sort((a, b) => {
+        const rd = Number(Boolean(b.state?.isReviewed)) - Number(Boolean(a.state?.isReviewed)); if (rd) return rd;
+        const rank = value => ({ good: 3, acceptable: 2, low: 1 }[normalize(value)] || 0);
+        const qd = rank(b.state?.imageQuality) - rank(a.state?.imageQuality); return qd || orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id);
+    })[0] || null;
+    const renderCoverSetting = () => {
+        let projectId = null, photoId = null, focalX = coverState.focalX, focalY = coverState.focalY;
+        if (coverState.imageMode === "explicit") { projectId = coverState.heroProjectId; photoId = coverState.heroPhotoId; }
+        else if (coverState.imageMode === "automatic") { const candidate = automaticCoverCandidate(); projectId = candidate?.id || null; photoId = candidate?.state?.resolvedPhotoId || null; if (projectId) { const config = ensureConfig(projectId); focalX = config.focalX; focalY = config.focalY; } }
+        const project = projectId ? projectById.get(Number(projectId)) : null;
+        if (coverStatus) coverStatus.textContent = coverState.imageMode === "none" ? "No imagery" : coverState.imageMode === "explicit" ? `Selected hero · ${project?.projectName || "Project image"}` : "Automatic hero";
+        if (coverDetail) coverDetail.textContent = coverState.imageMode === "none" ? "The cover will use the institutional graphic treatment without project imagery." : coverState.imageMode === "explicit" ? "This hero is independent of project order. Re-select from Review to copy a newer project crop." : "PRISM uses the strongest available reviewed publication image from the selected projects.";
+        if (coverPreviewImage && coverPreview) {
+            if (projectId && photoId) { coverPreviewImage.src = photoPreviewUrl(projectId, photoId); coverPreviewImage.style.objectPosition = `${clamp(focalX) * 100}% ${clamp(focalY) * 100}%`; coverPreviewImage.alt = `${project?.projectName || "Compendium"} cover hero`; coverPreviewImage.hidden = false; coverPreview.classList.add("has-image"); }
+            else { coverPreviewImage.hidden = true; coverPreviewImage.removeAttribute("src"); coverPreview.classList.remove("has-image"); }
+        }
+        coverAutomatic?.classList.toggle("active", coverState.imageMode === "automatic"); coverNone?.classList.toggle("active", coverState.imageMode === "none");
+    };
+    const coverChanged = () => { syncHidden(); renderCoverSetting(); renderDirty(); schedulePreflight(); };
 
     const visibleRows = () => rows.filter(row => !row.hidden);
     const applyFilters = () => {
@@ -288,8 +340,7 @@
         const findings = findingsFor(id);
         if (findings.some(finding => finding.severity === "blocker")) return "blocker";
         if (state.isReviewStale || !state.isReviewed) return "review";
-        if (findings.some(finding => finding.severity === "warning"
-            && !["reviewRequired", "projectChangedAfterReview"].includes(finding.code))) return "warning";
+        if (findings.some(finding => finding.severity === "warning")) return "warning";
         return "ready";
     };
     const orderStateMarkup = id => {
@@ -418,11 +469,11 @@
             ["Lifecycle", review.lifecycleDisplay || "Not recorded"],
             ["Project category", review.projectCategoryName || "Not recorded"],
             ["Technical category", review.technicalCategoryName || "Not recorded"],
-            ["Arm / Service", review.armServiceDisplay || "Not recorded"],
-            ["Completion", review.completionDisplay || "Not applicable"],
-            ["Proliferation", availabilityLabel(review.proliferationAvailability)],
-            ["Indicative cost", review.proliferationCostDisplay || "Not recorded"]
+            ["Arm / Service", review.armServiceDisplay || "Not recorded"]
         ];
+        if (normalize(review.lifecycleDisplay) === "completed" && String(review.completionDisplay || "").trim()) facts.push(["Completed", review.completionDisplay]);
+        if (review.proliferationAvailability !== null && review.proliferationAvailability !== undefined) facts.push(["Proliferation", availabilityLabel(review.proliferationAvailability)]);
+        if (review.proliferationAvailability === true || review.proliferationCostLakhs != null) facts.push(["Indicative cost", review.proliferationCostDisplay || "Not recorded"]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
         if (reviewDescription) reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
         if (reviewDescriptionState) reviewDescriptionState.textContent = String(review.descriptionMarkdown || "").trim() ? "Current PRISM description" : "Missing";
@@ -434,6 +485,7 @@
             if (review.completedEditUrl) reviewEdit.href = review.completedEditUrl;
         }
 
+        if (reviewImageFrame) { const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints; const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints; reviewImageFrame.style.aspectRatio = `${fw} / ${fh}`; }
         const photo = currentReviewPhoto(review);
         if (reviewImage && reviewImageEmpty) {
             if (photo?.previewUrl) {
@@ -464,6 +516,7 @@
         }
         setControlDisabled(reviewChangeImage, false);
         setControlDisabled(reviewAdjustCrop, !photo);
+        setControlDisabled(reviewUseCover, !photo);
         if (reviewUseAutomatic) reviewUseAutomatic.hidden = config.imageSelectionMode !== "explicit";
 
         if (reviewFooterTitle && reviewFooterCopy && reviewMarkReviewed) {
@@ -471,14 +524,16 @@
                 reviewFooterTitle.textContent = "Review again";
                 reviewFooterCopy.textContent = "Project facts or publication imagery changed after the previous review.";
                 setControlDisabled(reviewMarkReviewed, false);
-                reviewMarkReviewed.innerHTML = '<i class="bi bi-check2-circle" aria-hidden="true"></i> Mark reviewed';
+                reviewMarkReviewed.innerHTML = `<i class="bi bi-check2-circle" aria-hidden="true"></i> ${nextUnreviewedId(review.projectId) ? "Review & next" : "Finish review"}`;
+                reviewMarkReviewed.title = nextUnreviewedId(review.projectId) ? "Review & next · Ctrl+Enter" : "Finish review · Ctrl+Enter";
             } else if (!reviewed) {
                 reviewFooterTitle.textContent = "Review required";
                 reviewFooterCopy.textContent = visualState === "blocker"
                     ? "Resolve the publication blocker, then confirm the current project version."
                     : "Confirm the current project facts and publication image before final issue.";
                 setControlDisabled(reviewMarkReviewed, visualState === "blocker");
-                reviewMarkReviewed.innerHTML = '<i class="bi bi-check2-circle" aria-hidden="true"></i> Mark reviewed';
+                reviewMarkReviewed.innerHTML = `<i class="bi bi-check2-circle" aria-hidden="true"></i> ${nextUnreviewedId(review.projectId) ? "Review & next" : "Finish review"}`;
+                reviewMarkReviewed.title = nextUnreviewedId(review.projectId) ? "Review & next · Ctrl+Enter" : "Finish review · Ctrl+Enter";
             } else if (visualState === "warning") {
                 reviewFooterTitle.textContent = "Reviewed with warnings";
                 reviewFooterCopy.textContent = "The current version is reviewed; resolve the remaining publication-quality warning where practical.";
@@ -552,43 +607,25 @@
         loadReview(activeReviewId);
     };
 
-    const attentionPriority = id => {
-        const findings = findingsFor(id);
-        if (findings.some(finding => finding.severity === "blocker")) return 0;
-        if (findings.some(finding => finding.severity === "warning"
-            && !["reviewRequired", "projectChangedAfterReview"].includes(finding.code))) return 1;
-        const state = stateFor(id);
-        if (state?.isReviewStale || hasFinding(id, finding => finding.code === "projectChangedAfterReview")) return 2;
-        if (!state?.isReviewed || hasFinding(id, finding => finding.code === "reviewRequired")) return 3;
-        return Number.POSITIVE_INFINITY;
+    const isReviewedNow = id => { const state = stateFor(id); if (state) return Boolean(state.isReviewed) && !state.isReviewStale; return Boolean(ensureConfig(id).reviewFingerprint); };
+    const nextUnreviewedId = (fromId = activeReviewId, skipCurrent = true) => {
+        if (!orderedIds.length) return null; const currentIndex = Math.max(0, orderedIds.indexOf(Number(fromId)));
+        for (let delta = skipCurrent ? 1 : 0; delta < orderedIds.length + (skipCurrent ? 0 : 1); delta++) { const id = orderedIds[(currentIndex + delta) % orderedIds.length]; if (!isReviewedNow(id)) return id; }
+        return null;
     };
-    const nextAttentionId = () => {
-        if (orderedIds.length <= 1) return null;
-        const currentIndex = Math.max(0, orderedIds.indexOf(Number(activeReviewId)));
-        let bestId = null;
-        let bestPriority = Number.POSITIVE_INFINITY;
-        for (let delta = 1; delta < orderedIds.length; delta++) {
-            const id = orderedIds[(currentIndex + delta) % orderedIds.length];
-            const priority = attentionPriority(id);
-            if (priority < bestPriority) {
-                bestPriority = priority;
-                bestId = id;
-            }
-        }
-        return Number.isFinite(bestPriority) ? bestId : null;
+    const nextWarningId = (fromId = activeReviewId) => {
+        if (!orderedIds.length) return null; const currentIndex = Math.max(0, orderedIds.indexOf(Number(fromId)));
+        for (let delta = 1; delta <= orderedIds.length; delta++) { const id = orderedIds[(currentIndex + delta) % orderedIds.length]; if (findingsFor(id).some(finding => finding.severity === "blocker" || finding.severity === "warning")) return id; }
+        return null;
     };
+    const nextAttentionId = () => nextUnreviewedId(activeReviewId, true) || nextWarningId(activeReviewId);
     const updateReviewNavigation = () => {
-        const canCycle = orderedIds.length > 1;
-        setControlDisabled(reviewPrevious, !canCycle);
-        setControlDisabled(reviewNext, !canCycle);
-        const attentionId = nextAttentionId();
+        const canCycle = orderedIds.length > 1; setControlDisabled(reviewPrevious, !canCycle); setControlDisabled(reviewNext, !canCycle);
+        const hasUnreviewed = orderedIds.some(id => !isReviewedNow(id)); const attentionId = hasUnreviewed ? nextUnreviewedId(activeReviewId, true) : nextWarningId(activeReviewId);
         setControlDisabled(reviewNextAttention, attentionId == null);
-        if (reviewNextAttention) {
-            reviewNextAttention.textContent = orderedIds.length === 0
-                ? "Next requiring attention"
-                : attentionId == null ? "No further attention" : "Next requiring attention";
-        }
+        if (reviewNextAttention) reviewNextAttention.textContent = orderedIds.length === 0 ? "Next requiring attention" : attentionId == null ? "No further attention" : hasUnreviewed ? "Next requiring attention" : "Review warnings";
     };
+
     const goNextAttention = () => {
         const id = nextAttentionId();
         if (!id) return;
@@ -617,16 +654,12 @@
         if (refreshReview && Number(activeReviewId) === Number(id)) scheduleReviewRefresh();
     };
 
+    const activeFrame = () => ({ width: Number(activeReviewData?.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints, height: Number(activeReviewData?.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints });
     const effectiveDpi = photo => {
-        const width = Number(photo?.width || 0), height = Number(photo?.height || 0);
-        if (width <= 0 || height <= 0) return null;
-        const sourceAspect = width / height;
-        let cropWidth, cropHeight;
-        if (sourceAspect > photoAspect) { cropHeight = height; cropWidth = cropHeight * photoAspect; }
-        else { cropWidth = width; cropHeight = cropWidth / photoAspect; }
-        const horizontal = cropWidth / (frameWidthPoints / 72);
-        const vertical = cropHeight / (frameHeightPoints / 72);
-        return Math.floor(Math.min(horizontal, vertical));
+        const width = Number(photo?.width || 0), height = Number(photo?.height || 0); if (!width || !height) return null;
+        const frame = activeFrame(), aspect = frame.width / frame.height, sourceAspect = width / height; let cropWidth, cropHeight;
+        if (sourceAspect > aspect) { cropHeight = height; cropWidth = cropHeight * aspect; } else { cropWidth = width; cropHeight = cropWidth / aspect; }
+        return Math.floor(Math.min(cropWidth / (frame.width / 72), cropHeight / (frame.height / 72)));
     };
     const classifyDpi = dpi => dpi == null ? "unknown" : dpi < 150 ? "low" : dpi < 180 ? "acceptable" : "good";
 
@@ -641,8 +674,9 @@
     const cropForFocal = (sourceWidth, sourceHeight, focalX, focalY) => {
         const sourceAspect = sourceWidth / sourceHeight;
         let cropWidth, cropHeight;
-        if (sourceAspect > photoAspect) { cropHeight = sourceHeight; cropWidth = cropHeight * photoAspect; }
-        else { cropWidth = sourceWidth; cropHeight = cropWidth / photoAspect; }
+        const aspect = activeFrame().width / activeFrame().height;
+        if (sourceAspect > aspect) { cropHeight = sourceHeight; cropWidth = cropHeight * aspect; }
+        else { cropWidth = sourceWidth; cropHeight = cropWidth / aspect; }
         cropWidth = Math.min(cropWidth, sourceWidth); cropHeight = Math.min(cropHeight, sourceHeight);
         const x = Math.max(0, Math.min(sourceWidth-cropWidth, clamp(focalX)*sourceWidth - cropWidth/2));
         const y = Math.max(0, Math.min(sourceHeight-cropHeight, clamp(focalY)*sourceHeight - cropHeight/2));
@@ -750,7 +784,7 @@
         readyFindings.innerHTML = filtered.map((finding, index) => {
             const projectId = Number(finding.projectId || 0) || null;
             const project = projectId ? projectById.get(projectId) : null;
-            const imageAction = ["publicationImageUnavailable","selectedPhotoUnavailable","missingPhoto","lowResolutionPhoto","acceptableResolutionPhoto","automaticImageSelected"].includes(finding.code);
+            const imageAction = ["publicationImageUnavailable","selectedPhotoUnavailable","missingPhoto","lowResolutionPhoto","acceptableResolutionPhoto"].includes(finding.code);
             const reviewAction = ["projectChangedAfterReview","reviewRequired"].includes(finding.code);
             let action = "";
             if (projectId && imageAction) action = `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="image" data-finding-project="${projectId}">Review image</button>`;
@@ -859,6 +893,7 @@
             if (!response.ok) throw new Error(body.message || "Publication readiness could not be refreshed.");
             lastPreflight = body;
             projectStateById = new Map((body.projects || []).map(state => [Number(state.projectId), state]));
+            renderCoverSetting();
             const selectedValue = Number(body.selected ?? orderedIds.length);
             const categoryValue = Number(body.categories ?? 0);
             if (readySelected) readySelected.textContent = String(selectedValue);
@@ -921,7 +956,8 @@
     };
 
     const selectionChanged = () => {
-        syncHidden();
+        if (coverState.imageMode === "explicit" && !orderedIds.includes(Number(coverState.heroProjectId))) { coverState.imageMode = "automatic"; coverState.heroProjectId = null; coverState.heroPhotoId = null; coverState.focalX = 0.5; coverState.focalY = 0.5; }
+        syncHidden(); renderCoverSetting();
         updateCheckboxes();
         renderOrder();
         applyFilters();
@@ -992,18 +1028,16 @@
     reviewPrevious?.addEventListener("click", () => navigateReview(-1));
     reviewNext?.addEventListener("click", () => navigateReview(1));
     reviewNextAttention?.addEventListener("click", goNextAttention);
-    reviewMarkReviewed?.addEventListener("click", () => {
-        if (!activeReviewId || !activeReviewData?.reviewFingerprint) return;
-        ensureConfig(activeReviewId).reviewFingerprint = String(activeReviewData.reviewFingerprint);
-        const current = stateFor(activeReviewId) || { projectId: activeReviewId };
-        projectStateById.set(Number(activeReviewId), { ...current, isReviewed: true, isReviewStale: false });
-        syncHidden();
-        refreshReviewProgress();
-        renderOrder();
-        updateReviewNavigation();
-        renderReviewData({ ...activeReviewData, isReviewed: true, isReviewStale: false });
-        schedulePreflight();
-    });
+    const reviewAndAdvance = () => {
+        if (!activeReviewId || !activeReviewData?.reviewFingerprint || reviewMarkReviewed?.disabled) return;
+        const reviewedId = Number(activeReviewId); ensureConfig(reviewedId).reviewFingerprint = String(activeReviewData.reviewFingerprint);
+        const current = stateFor(reviewedId) || { projectId: reviewedId, reviewFingerprint: activeReviewData.reviewFingerprint };
+        projectStateById.set(reviewedId, { ...current, reviewFingerprint: activeReviewData.reviewFingerprint, isReviewed: true, isReviewStale: false });
+        syncHidden(); refreshReviewProgress(); renderOrder(); const nextId = nextUnreviewedId(reviewedId, true);
+        renderReviewData({ ...activeReviewData, isReviewed: true, isReviewStale: false }); schedulePreflight();
+        if (nextId) { activeReviewId = nextId; window.setTimeout(() => loadReview(nextId), 40); }
+    };
+    reviewMarkReviewed?.addEventListener("click", reviewAndAdvance);
     reviewChangeImage?.addEventListener("click", () => openPhotoEditor(false));
     reviewAdjustCrop?.addEventListener("click", () => openPhotoEditor(true));
     reviewUseAutomatic?.addEventListener("click", () => {
@@ -1012,6 +1046,13 @@
         config.imageSelectionMode = "automatic"; config.primaryPhotoId = null; config.focalX = 0.5; config.focalY = 0.5;
         publicationConfigChanged(activeReviewId);
     });
+
+    reviewUseCover?.addEventListener("click", () => {
+        if (!activeReviewId || !activeReviewData) return; const photo = currentReviewPhoto(activeReviewData); if (!photo) return; const config = ensureConfig(activeReviewId);
+        coverState.imageMode = "explicit"; coverState.heroProjectId = Number(activeReviewId); coverState.heroPhotoId = Number(photo.photoId); coverState.focalX = roundFocal(config.focalX); coverState.focalY = roundFocal(config.focalY); coverChanged();
+    });
+    coverAutomatic?.addEventListener("click", () => { coverState.imageMode = "automatic"; coverState.heroProjectId = null; coverState.heroPhotoId = null; coverState.focalX = 0.5; coverState.focalY = 0.5; coverChanged(); });
+    coverNone?.addEventListener("click", () => { coverState.imageMode = "none"; coverState.heroProjectId = null; coverState.heroPhotoId = null; coverState.focalX = 0.5; coverState.focalY = 0.5; coverChanged(); });
 
     photoPicker?.addEventListener("click", event => {
         const choice = event.target.closest("[data-photo-id]");
@@ -1249,7 +1290,18 @@
         catch (error) { window.alert(error.message); }
     });
 
+    document.addEventListener("keydown", event => {
+        if (!(event.ctrlKey && event.key === "Enter")) return;
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable) return;
+        if (document.querySelector(".modal.show")) return;
+        if (!reviewCard || reviewCard.hidden || !reviewMarkReviewed || reviewMarkReviewed.disabled) return;
+        event.preventDefault();
+        reviewAndAdvance();
+    });
+
     syncHidden();
+    renderCoverSetting();
     updateCheckboxes();
     applyFilters();
     renderOrder();

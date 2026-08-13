@@ -26,6 +26,8 @@ const db = read('Data/ApplicationDbContext.cs');
 const registration = read('Services/Publications/PublicationServiceCollectionExtensions.cs');
 const landing = read('Pages/Projects/Publications/Index.cshtml');
 const migration = read('Migrations/20261208140000_AddCompendiumPublicationImagery.cs');
+const coverMigration = read('Migrations/20261208150000_AddCompendiumCoverHeroControls.cs');
+const sanitizer = read('Utilities/Reporting/CompendiumPublicationTextSanitizer.cs');
 const manifest = read('Migrations/immutable-migration-ids.txt');
 
 // Phase 22 foundation remains a contract for Phase 23.
@@ -94,7 +96,10 @@ test('phase 23 uses the shared Publications image source for probe, preview and 
 
 test('phase 24 evaluates effective DPI against the redesigned reviewed project-image frame', () => {
   assert.match(dto, /FrameWidthPoints\s*=\s*519/);
-  assert.match(dto, /FrameHeightPoints\s*=\s*214/);
+  assert.match(dto, /LongFrameHeightPoints\s*=\s*190/);
+  assert.match(dto, /MediumFrameHeightPoints\s*=\s*240/);
+  assert.match(dto, /ShortFrameHeightPoints\s*=\s*300/);
+  assert.match(dto, /ResolveFrameHeightPoints/);
   assert.match(dto, /CalculateEffectiveDpi/);
   assert.match(dto, /GoodDpi\s*=\s*180/);
   assert.match(dto, /AcceptableDpi\s*=\s*150/);
@@ -123,16 +128,17 @@ test('phase 23 dirty state excludes review fingerprint while including image and
   assert.match(js, /captureSnapshot/);
 });
 
-test('phase 23 readiness has stable blocker warning and information semantics', () => {
+test('phase 24.1 readiness separates workflow review state from publication-quality findings', () => {
   assert.match(dto, /CompendiumFindingSeverity/);
   assert.match(readiness, /missingPhoto/);
   assert.match(readiness, /missingArmService/);
   assert.match(readiness, /missingDescription/);
-  assert.match(readiness, /proliferationNotAssessed/);
-  assert.match(readiness, /notAvailableForProliferation/);
-  assert.match(readiness, /reviewRequired/);
-  assert.match(readiness, /projectChangedAfterReview/);
-  assert.match(page, /blockers = data\.Preflight\.BlockerCount/);
+  assert.doesNotMatch(readiness, /automaticImageSelected/);
+  assert.doesNotMatch(readiness, /proliferationNotAssessed/);
+  assert.doesNotMatch(readiness, /notAvailableForProliferation/);
+  assert.doesNotMatch(readiness, /Warning\(\s*"reviewRequired"/);
+  assert.doesNotMatch(readiness, /Warning\(\s*"projectChangedAfterReview"/);
+  assert.match(page, /reviewed = data\.Groups/);
 });
 
 test('phase 23 readiness findings are filterable and actionable rather than a passive warning register', () => {
@@ -164,14 +170,19 @@ test('phase 23 avoids stale async preflight and review responses', () => {
   assert.match(js, /Checking publication/);
 });
 
-test('phase 23 saved Compendiums persist image configuration through schema v2', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*2/);
+test('phase 24.1 saved Compendiums persist image and cover configuration through schema v3', () => {
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*3/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);
   assert.match(migration, /PrimaryFocalY/);
   assert.match(migration, /ImageSelectionMode/);
   assert.match(manifest, /20261208140000_AddCompendiumPublicationImagery/);
+  assert.match(coverMigration, /Migration\("20261208150000_AddCompendiumCoverHeroControls"\)/);
+  assert.match(coverMigration, /CoverImageMode/);
+  assert.match(manifest, /20261208150000_AddCompendiumCoverHeroControls/);
+  assert.match(model, /CoverHeroPhotoId/);
+  assert.match(presetContracts, /CompendiumCoverConfiguration/);
   assert.match(db, /ImageSelectionMode/);
 });
 
@@ -239,14 +250,13 @@ test('phase 23.1 disables review navigation and output actions with explicit acc
   assert.match(css, /cursor:not-allowed/);
 });
 
-test('phase 23.1 gives next-attention navigation deterministic blocker-warning-review priority', () => {
-  assert.match(js, /const attentionPriority = id =>/);
-  assert.match(js, /severity === "blocker"/);
-  assert.match(js, /reviewRequired", "projectChangedAfterReview"/);
-  assert.match(js, /return 1/);
-  assert.match(js, /return 2/);
-  assert.match(js, /return 3/);
-  assert.match(js, /const nextAttentionId = \(\) =>/);
+test('phase 24.1 makes initial review sequential and keeps warnings as a separate follow-up pass', () => {
+  assert.match(js, /const nextUnreviewedId/);
+  assert.match(js, /const nextWarningId/);
+  assert.match(js, /Review & next/);
+  assert.match(js, /Finish review/);
+  assert.match(js, /Review warnings/);
+  assert.match(js, /reviewAndAdvance/);
 });
 
 test('phase 23.1 presents reviewed project state as Ready Warning or Review required', () => {
@@ -260,9 +270,9 @@ test('phase 23.1 presents reviewed project state as Ready Warning or Review requ
 });
 
 test('phase 23.1 confirms review immediately while retaining server fingerprint verification', () => {
-  assert.match(js, /projectStateById\.set\(Number\(activeReviewId\)/);
+  assert.match(js, /projectStateById\.set\(reviewedId/);
   assert.match(js, /isReviewed: true, isReviewStale: false/);
-  assert.match(js, /ensureConfig\(activeReviewId\)\.reviewFingerprint/);
+  assert.match(js, /ensureConfig\(reviewedId\)\.reviewFingerprint/);
   assert.match(js, /schedulePreflight\(\)/);
 });
 
@@ -287,17 +297,22 @@ test('phase 24 separates physical page planning from QuestPDF composition', () =
   assert.match(builder, /context\.Plan \?\? new CompendiumPagePlanner\(\)\.Plan\(context\)/);
 });
 
-test('phase 24 uses one reviewed photo geometry across browser DPI and final PDF', () => {
+test('phase 24.1 uses content-aware reviewed photo geometry across browser DPI and final PDF', () => {
   assert.match(metrics, /ProjectImageWidthPoints\s*=\s*ContentWidthPoints/);
-  assert.match(metrics, /ProjectImageHeightPoints\s*=\s*214/);
+  assert.match(metrics, /ProjectImageLongHeightPoints\s*=\s*190/);
+  assert.match(metrics, /ProjectImageMediumHeightPoints\s*=\s*240/);
+  assert.match(metrics, /ProjectImageShortHeightPoints\s*=\s*300/);
   assert.match(dto, /FrameWidthPoints\s*=\s*519/);
-  assert.match(dto, /FrameHeightPoints\s*=\s*214/);
-  assert.match(builder, /Height\(CompendiumLayoutMetrics\.ProjectImageHeightPoints\)/);
-  assert.match(view, /data-photo-frame-width="@CompendiumPublicationImagePolicy\.FrameWidthPoints"/);
+  assert.match(dto, /ResolveFrameHeightPoints/);
+  assert.match(builder, /ProjectImageHeightPoints\(planned\.ProjectLayout\)/);
+  assert.match(page, /ImageFrameHeightPoints/);
+  assert.match(js, /reviewImageFrame\.style\.aspectRatio/);
 });
 
 test('phase 24 supports deterministic continuation pages without emergency font shrinking', () => {
-  assert.match(planner, /FirstPageDescriptionBudgetWithPhoto/);
+  assert.match(metrics, /FirstPageDescriptionBudgetPhotoLong/);
+  assert.match(metrics, /FirstPageDescriptionBudgetPhotoMedium/);
+  assert.match(metrics, /FirstPageDescriptionBudgetPhotoShort/);
   assert.match(planner, /ContinuationDescriptionBudget/);
   assert.match(planner, /CompendiumMarkdownChunker\.Split/);
   assert.match(builder, /Project description · continued/);
@@ -351,11 +366,53 @@ test('phase 24 renders review markdown instead of exposing markdown source synta
   assert.match(css, /compendium-review-description-text strong/);
 });
 
-test('phase 24 suppresses routine automatic-image info after the project is reviewed', () => {
-  assert.match(readiness, /ImageSelectionMode == CompendiumImageSelectionMode\.Automatic && !isReviewed/);
+test('phase 24.1 removes routine automatic-image and normal proliferation-state noise from readiness', () => {
+  assert.doesNotMatch(readiness, /automaticImageSelected/);
+  assert.doesNotMatch(readiness, /proliferationNotAssessed/);
+  assert.doesNotMatch(readiness, /notAvailableForProliferation/);
 });
 
 test('phase 24 registers page planning and physical verification services', () => {
   assert.match(registrations, /AddSingleton<ICompendiumPagePlanner, CompendiumPagePlanner>/);
   assert.match(registrations, /AddSingleton<ICompendiumPdfCompositionVerifier, CompendiumPdfCompositionVerifier>/);
+});
+
+
+test('phase 24.1 supports continuous review with Ctrl Enter while avoiding editable controls and modals', () => {
+  assert.match(js, /event\.ctrlKey && event\.key === "Enter"/);
+  assert.match(js, /HTMLTextAreaElement/);
+  assert.match(js, /document\.querySelector\("\.modal\.show"\)/);
+  assert.match(js, /reviewAndAdvance\(\)/);
+});
+
+test('phase 24.1 makes review metadata context-sensitive and cost units explicit', () => {
+  assert.match(js, /normalize\(review\.lifecycleDisplay\) === "completed"/);
+  assert.match(dto, /₹.*lakh/);
+  assert.match(builder, /\("Indicative cost", project\.ProliferationCostDisplay\)/);
+});
+
+test('phase 24.1 replaces the automatic cover mosaic with one controlled hero or graphic fallback', () => {
+  assert.match(view, /data-cover-setting/);
+  assert.match(view, /data-review-use-cover/);
+  assert.match(js, /coverState/);
+  assert.match(js, /Use as cover hero|coverState\.imageMode = "explicit"/);
+  assert.match(exportService, /ResolveCoverHeroAsync/);
+  assert.match(builder, /ComposeCoverHero/);
+  assert.doesNotMatch(builder, /ComposeCoverImageMosaic/);
+});
+
+test('phase 24.1 sanitizes publication text before planning and rendering', () => {
+  assert.match(sanitizer, /UnicodeCategory\.Control/);
+  assert.match(sanitizer, /NormalizationForm\.FormC/);
+  assert.match(exportService, /CompendiumPublicationTextSanitizer\.Sanitize/);
+});
+
+test('phase 24.1 orders readiness findings by severity and publication order', () => {
+  assert.match(service, /OrderByDescending\(finding => finding\.Severity\)/);
+  assert.match(service, /projectOrder\.GetValueOrDefault/);
+  assert.match(service, /Findings = orderedFindings/);
+});
+
+test('phase 24.1 has a content-aware no-JS review-image aspect fallback', () => {
+  assert.match(css, /compendium-review-image-frame[^\n]*aspect-ratio:519\/240/);
 });

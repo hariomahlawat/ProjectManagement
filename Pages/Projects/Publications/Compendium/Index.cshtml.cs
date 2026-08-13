@@ -203,6 +203,8 @@ public sealed class IndexModel : PageModel
             review.IsReviewed,
             review.IsReviewStale,
             review.ExplicitPhotoUnavailable,
+            review.ImageFrameWidthPoints,
+            review.ImageFrameHeightPoints,
             projectUrl = Url.Page("/Projects/Overview", new { id = review.ProjectId }),
             photosUrl = Url.Page("/Projects/Photos/Index", new { id = review.ProjectId }),
             completedEditUrl,
@@ -427,7 +429,12 @@ public sealed class IndexModel : PageModel
                     Subtitle: Input.Subtitle,
                     Edition: Input.Edition,
                     ProjectSelections: selections,
-                    RequireAllReviewed: !preview),
+                    RequireAllReviewed: !preview,
+                    CoverImageMode: ParseCoverImageMode(Input.CoverImageMode),
+                    CoverHeroProjectId: Input.CoverHeroProjectId,
+                    CoverHeroPhotoId: Input.CoverHeroPhotoId,
+                    CoverFocalX: ClampFocal(Input.CoverFocalX),
+                    CoverFocalY: ClampFocal(Input.CoverFocalY)),
                 cancellationToken);
 
             Response.Headers["X-PRISM-Publication-Composition-Verified"] = result.IsCompositionVerified ? "true" : "false";
@@ -495,6 +502,11 @@ public sealed class IndexModel : PageModel
                 Input.Subtitle = loaded.Configuration.Subtitle;
                 Input.Edition = loaded.Configuration.Edition;
                 Input.HandlingMarking = loaded.Configuration.HandlingMarking;
+                Input.CoverImageMode = loaded.Configuration.Cover.ImageMode.ToString();
+                Input.CoverHeroProjectId = loaded.Configuration.Cover.HeroProjectId;
+                Input.CoverHeroPhotoId = loaded.Configuration.Cover.HeroPhotoId;
+                Input.CoverFocalX = loaded.Configuration.Cover.FocalX;
+                Input.CoverFocalY = loaded.Configuration.Cover.FocalY;
                 Input.SelectedProjectIdsCsv = string.Join(',', loaded.Configuration.ProjectIds);
                 Input.ProjectSelectionsJson = SerializeSelections(
                     loaded.Configuration.Projects.Select(project => new CompendiumProjectSelection(
@@ -565,6 +577,14 @@ public sealed class IndexModel : PageModel
         Input.Subtitle = Clean(Input.Subtitle, 160) ?? "Detailed Project Reference";
         Input.Edition = Clean(Input.Edition, 80) ?? $"Capability Edition · {DateTime.Today.Year}";
         Input.HandlingMarking = Clean(Input.HandlingMarking, 80);
+        Input.CoverImageMode = ParseCoverImageMode(Input.CoverImageMode).ToString();
+        Input.CoverFocalX = ClampFocal(Input.CoverFocalX);
+        Input.CoverFocalY = ClampFocal(Input.CoverFocalY);
+        if (ParseCoverImageMode(Input.CoverImageMode) != CompendiumCoverImageMode.Explicit)
+        {
+            Input.CoverHeroProjectId = null;
+            Input.CoverHeroPhotoId = null;
+        }
 
         var selections = ParseSelections();
         Input.SelectedProjectIdsCsv = string.Join(',', selections.Select(selection => selection.ProjectId));
@@ -660,7 +680,15 @@ public sealed class IndexModel : PageModel
                     selection.FocalX,
                     selection.FocalY,
                     selection.ImageSelectionMode))
-                .ToArray());
+                .ToArray())
+        {
+            Cover = new CompendiumCoverConfiguration(
+                ParseCoverImageMode(Input.CoverImageMode),
+                Input.CoverHeroProjectId,
+                Input.CoverHeroPhotoId,
+                ClampFocal(Input.CoverFocalX),
+                ClampFocal(Input.CoverFocalY))
+        };
 
     private string ActorUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -686,6 +714,11 @@ public sealed class IndexModel : PageModel
                 ReviewFingerprint = selection.ReviewFingerprint
             }),
             JsonOptions);
+
+    private static CompendiumCoverImageMode ParseCoverImageMode(string? value)
+        => Enum.TryParse<CompendiumCoverImageMode>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverImageMode.Automatic;
 
     private static double ClampFocal(double value)
         => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
@@ -738,6 +771,13 @@ public sealed class IndexModel : PageModel
 
         [StringLength(80)]
         public string? HandlingMarking { get; set; }
+
+        [StringLength(32)]
+        public string CoverImageMode { get; set; } = nameof(CompendiumCoverImageMode.Automatic);
+        public int? CoverHeroProjectId { get; set; }
+        public int? CoverHeroPhotoId { get; set; }
+        public double CoverFocalX { get; set; } = .5d;
+        public double CoverFocalY { get; set; } = .5d;
 
         public string? SelectedProjectIdsCsv { get; set; }
         public string? ProjectSelectionsJson { get; set; }

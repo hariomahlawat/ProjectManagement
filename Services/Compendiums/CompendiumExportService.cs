@@ -82,7 +82,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 project.PrimaryFocalX,
                 project.PrimaryFocalY,
                 CompendiumPublicationImagePolicy.RenderWidthPixels,
-                CompendiumPublicationImagePolicy.RenderHeightPixels))
+                CompendiumPublicationImagePolicy.ResolveRenderHeightPixels(CompendiumPublicationTextSanitizer.Sanitize(project.DescriptionMarkdown))))
             .ToArray();
 
         IReadOnlyDictionary<int, BrochurePublicationImage> renderedPhotos;
@@ -125,19 +125,19 @@ public sealed class CompendiumExportService : ICompendiumExportService
 
                 projects.Add(new CompendiumPdfProjectSection(
                     project.ProjectId,
-                    project.ProjectName,
-                    project.CaseFileNumber,
-                    group.TechnicalCategoryName,
-                    project.CompletionYearDisplay,
-                    project.ArmServiceDisplay,
-                    FormatCost(project.ProliferationCostLakhs),
-                    project.ProliferationCostRemarks,
-                    project.DescriptionMarkdown,
+                    CompendiumPublicationTextSanitizer.Sanitize(project.ProjectName),
+                    CompendiumPublicationTextSanitizer.Sanitize(project.CaseFileNumber),
+                    CompendiumPublicationTextSanitizer.Sanitize(group.TechnicalCategoryName),
+                    CompendiumPublicationTextSanitizer.Sanitize(project.CompletionYearDisplay),
+                    CompendiumPublicationTextSanitizer.Sanitize(project.ArmServiceDisplay),
+                    CompendiumPublicationImagePolicy.FormatCost(project.ProliferationCostLakhs),
+                    CompendiumPublicationTextSanitizer.Sanitize(project.ProliferationCostRemarks),
+                    CompendiumPublicationTextSanitizer.Sanitize(project.DescriptionMarkdown),
                     photoBytes,
                     project.CoverPhotoId.HasValue)
                 {
-                    LifecycleDisplay = project.LifecycleDisplay,
-                    ProjectCategoryDisplay = project.ProjectCategoryName,
+                    LifecycleDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.LifecycleDisplay),
+                    ProjectCategoryDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.ProjectCategoryName),
                     IsAvailableForProliferation = project.IsAvailableForProliferation,
                     ProliferationAvailability = project.ProliferationAvailability
                 });
@@ -146,28 +146,20 @@ public sealed class CompendiumExportService : ICompendiumExportService
             categories.Add(new CompendiumPdfCategorySection(group.TechnicalCategoryName, projects));
         }
 
-        var coverImages = publicationProjects
-            .Where(project => project.CoverPhotoId.HasValue)
-            .Select(project => project.CoverPhotoId!.Value)
-            .Distinct()
-            .Select(photoId => renderedPhotos.TryGetValue(photoId, out var image) ? image.Content : null)
-            .Where(content => content is { Length: > 0 })
-            .Select(content => content!)
-            .Take(3)
-            .ToArray();
+        var coverHero = await ResolveCoverHeroAsync(request, publicationProjects, cancellationToken);
 
         var context = new CompendiumPdfReportContext(
-            data.Title,
-            data.Subtitle,
-            data.UnitDisplayName,
-            data.IssuerDisplayName,
+            CompendiumPublicationTextSanitizer.Sanitize(data.Title),
+            CompendiumPublicationTextSanitizer.Sanitize(data.Subtitle),
+            CompendiumPublicationTextSanitizer.Sanitize(data.UnitDisplayName),
+            CompendiumPublicationTextSanitizer.Sanitize(data.IssuerDisplayName),
             NormalizeMarking(request.HandlingMarking),
             data.GeneratedAtUtc,
             categories,
             _options.ShowMissingPhotoPlaceholder)
         {
-            Edition = data.Edition,
-            CoverImages = coverImages
+            Edition = CompendiumPublicationTextSanitizer.Sanitize(data.Edition),
+            CoverHero = coverHero
         };
 
         var plan = _pagePlanner.Plan(context);
@@ -193,6 +185,82 @@ public sealed class CompendiumExportService : ICompendiumExportService
         };
     }
 
+    private async Task<byte[]?> ResolveCoverHeroAsync(
+        CompendiumExportRequest request,
+        IReadOnlyList<CompendiumProjectDto> projects,
+        CancellationToken cancellationToken)
+    {
+        if (request.CoverImageMode == CompendiumCoverImageMode.None)
+        {
+            return null;
+        }
+
+        int? projectId = null;
+        int? photoId = null;
+        double focalX = .5d;
+        double focalY = .5d;
+
+        if (request.CoverImageMode == CompendiumCoverImageMode.Explicit
+            && request.CoverHeroProjectId is int explicitProjectId
+            && request.CoverHeroPhotoId is int explicitPhotoId
+            && projects.Any(project => project.ProjectId == explicitProjectId))
+        {
+            projectId = explicitProjectId;
+            photoId = explicitPhotoId;
+            focalX = ClampFocal(request.CoverFocalX);
+            focalY = ClampFocal(request.CoverFocalY);
+        }
+        else
+        {
+            var candidate = projects
+                .Where(project => project.CoverPhotoId.HasValue)
+                .OrderByDescending(project => project.IsReviewed)
+                .ThenByDescending(project => project.ImageQuality)
+                .ThenBy(project => project.SortOrder)
+                .FirstOrDefault();
+            if (candidate is not null)
+            {
+                projectId = candidate.ProjectId;
+                photoId = candidate.CoverPhotoId;
+                focalX = candidate.PrimaryFocalX;
+                focalY = candidate.PrimaryFocalY;
+            }
+        }
+
+        if (projectId is not int resolvedProjectId || photoId is not int resolvedPhotoId)
+        {
+            return null;
+        }
+
+        try
+        {
+            var rendered = await _photoService.RenderAsync(
+                new[]
+                {
+                    new BrochurePhotoRenderRequest(
+                        resolvedProjectId,
+                        resolvedPhotoId,
+                        focalX,
+                        focalY,
+                        CompendiumCoverImagePolicy.RenderWidthPixels,
+                        CompendiumCoverImagePolicy.RenderHeightPixels)
+                },
+                cancellationToken);
+            return rendered.TryGetValue(resolvedPhotoId, out var image) && image.Content is { Length: > 0 }
+                ? image.Content
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Compendium cover hero could not be rendered; graphic cover fallback will be used.");
+            return null;
+        }
+    }
+
     private static IReadOnlyList<CompendiumProjectSelection> ResolveSelections(CompendiumExportRequest request)
     {
         if (request.ProjectSelections is { Count: > 0 })
@@ -208,10 +276,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
             : Array.Empty<CompendiumProjectSelection>();
     }
 
-    private static string FormatCost(decimal? value)
-        => value.HasValue
-            ? value.Value.ToString("0.##", CultureInfo.InvariantCulture)
-            : "Not recorded";
+    private static double ClampFocal(double value)
+        => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
 
     private static string? NormalizeMarking(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

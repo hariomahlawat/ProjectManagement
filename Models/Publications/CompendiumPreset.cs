@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 2;
+    public int SettingsSchemaVersion { get; set; } = 3;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -33,6 +33,14 @@ public sealed class CompendiumPreset
 
     [MaxLength(80)]
     public string? HandlingMarking { get; set; }
+
+    [Required, MaxLength(32)]
+    public string CoverImageMode { get; set; } = "Automatic";
+
+    public int? CoverHeroProjectId { get; set; }
+    public int? CoverHeroPhotoId { get; set; }
+    public double CoverFocalX { get; set; } = .5d;
+    public double CoverFocalY { get; set; } = .5d;
 
     [Required, MaxLength(450)]
     public string CreatedByUserId { get; set; } = string.Empty;

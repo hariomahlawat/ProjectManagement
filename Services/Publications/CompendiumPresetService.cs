@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -237,12 +237,38 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             }
         }
 
+        var cover = new CompendiumCoverConfiguration(
+            ParseCoverMode(preset.CoverImageMode),
+            preset.CoverHeroProjectId,
+            preset.CoverHeroPhotoId,
+            ClampFocal(preset.CoverFocalX),
+            ClampFocal(preset.CoverFocalY));
+
+        if (cover.ImageMode == CompendiumCoverImageMode.Explicit)
+        {
+            var valid = cover.HeroProjectId is int heroProjectId
+                        && cover.HeroPhotoId is int heroPhotoId
+                        && currentProjects.ContainsKey(heroProjectId)
+                        && (photoIdsByProject.GetValueOrDefault(heroProjectId)?.Contains(heroPhotoId) ?? false);
+            if (!valid)
+            {
+                diagnostics.Add(new CompendiumPresetDiagnostic(
+                    CompendiumPresetDiagnosticSeverity.Warning,
+                    "coverHeroUnavailable",
+                    "The saved Compendium cover hero is no longer available. Automatic cover imagery will be used until you choose another hero."));
+                cover = new CompendiumCoverConfiguration();
+            }
+        }
+
         var configuration = new CompendiumPresetConfiguration(
             preset.Title,
             preset.Subtitle,
             preset.Edition,
             preset.HandlingMarking,
-            projectConfigurations);
+            projectConfigurations)
+        {
+            Cover = cover
+        };
 
         return new CompendiumPresetLoadResult(
             ToSummary(preset),
@@ -452,6 +478,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             Subtitle = source.Subtitle,
             Edition = source.Edition,
             HandlingMarking = source.HandlingMarking,
+            CoverImageMode = source.CoverImageMode,
+            CoverHeroProjectId = source.CoverHeroProjectId,
+            CoverHeroPhotoId = source.CoverHeroPhotoId,
+            CoverFocalX = source.CoverFocalX,
+            CoverFocalY = source.CoverFocalY,
             CreatedByUserId = userId,
             LastModifiedByUserId = userId,
             CreatedAtUtc = now,
@@ -595,6 +626,29 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             }
         }
 
+        var normalizedCover = NormalizeCoverConfiguration(configuration.Cover);
+        if (normalizedCover.ImageMode == CompendiumCoverImageMode.Explicit)
+        {
+            if (normalizedCover.HeroProjectId is not int heroProjectId
+                || normalizedCover.HeroPhotoId is not int heroPhotoId
+                || !projectIds.Contains(heroProjectId))
+            {
+                throw new InvalidOperationException(
+                    "The selected cover hero must belong to a project included in this Compendium.");
+            }
+
+            var coverPhoto = await _db.ProjectPhotos
+                .AsNoTracking()
+                .Where(photo => photo.Id == heroPhotoId)
+                .Select(photo => new SavedPhotoRow(photo.Id, photo.ProjectId))
+                .SingleOrDefaultAsync(cancellationToken);
+            if (coverPhoto is null || coverPhoto.ProjectId != heroProjectId)
+            {
+                throw new InvalidOperationException(
+                    "The selected Compendium cover hero is no longer available. Choose another hero or use automatic imagery.");
+            }
+        }
+
         var currentYear = TimeZoneInfo.ConvertTime(
             _clock.UtcNow.ToUniversalTime(),
             TimeZoneHelper.GetIst()).Year;
@@ -630,7 +684,10 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CleanRequired(configuration.Subtitle, "Detailed Project Reference", 160),
             CleanRequired(configuration.Edition, $"Capability Edition · {currentYear}", 80),
             CleanOptional(configuration.HandlingMarking, 80),
-            projects.ToArray());
+            projects.ToArray())
+        {
+            Cover = NormalizeCoverConfiguration(configuration.Cover)
+        };
 
     private static CompendiumPresetProjectConfiguration NormalizeProjectConfiguration(
         CompendiumPresetProjectConfiguration project)
@@ -660,6 +717,15 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         preset.Subtitle = configuration.Subtitle;
         preset.Edition = configuration.Edition;
         preset.HandlingMarking = configuration.HandlingMarking;
+        preset.CoverImageMode = configuration.Cover.ImageMode.ToString();
+        preset.CoverHeroProjectId = configuration.Cover.ImageMode == CompendiumCoverImageMode.Explicit
+            ? configuration.Cover.HeroProjectId
+            : null;
+        preset.CoverHeroPhotoId = configuration.Cover.ImageMode == CompendiumCoverImageMode.Explicit
+            ? configuration.Cover.HeroPhotoId
+            : null;
+        preset.CoverFocalX = ClampFocal(configuration.Cover.FocalX);
+        preset.CoverFocalY = ClampFocal(configuration.Cover.FocalY);
     }
 
     private async Task<CompendiumPreset> LoadTrackedAsync(
@@ -789,6 +855,23 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 preset.Id);
         }
     }
+
+    private static CompendiumCoverConfiguration NormalizeCoverConfiguration(CompendiumCoverConfiguration? cover)
+    {
+        cover ??= new CompendiumCoverConfiguration();
+        var mode = Enum.IsDefined(cover.ImageMode) ? cover.ImageMode : CompendiumCoverImageMode.Automatic;
+        return new CompendiumCoverConfiguration(
+            mode,
+            mode == CompendiumCoverImageMode.Explicit && cover.HeroProjectId is > 0 ? cover.HeroProjectId : null,
+            mode == CompendiumCoverImageMode.Explicit && cover.HeroPhotoId is > 0 ? cover.HeroPhotoId : null,
+            ClampFocal(cover.FocalX),
+            ClampFocal(cover.FocalY));
+    }
+
+    private static CompendiumCoverImageMode ParseCoverMode(string? value)
+        => Enum.TryParse<CompendiumCoverImageMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverImageMode.Automatic;
 
     private static CompendiumImageSelectionMode ParseImageMode(string? value)
         => Enum.TryParse<CompendiumImageSelectionMode>(value, ignoreCase: true, out var parsed)

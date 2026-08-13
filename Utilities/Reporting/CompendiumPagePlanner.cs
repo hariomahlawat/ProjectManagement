@@ -13,8 +13,10 @@ public enum CompendiumPageKind
 
 public enum CompendiumProjectLayoutVariant
 {
-    Photo = 0,
-    NoPhoto = 1
+    PhotoLong = 0,
+    PhotoMedium = 1,
+    PhotoShort = 2,
+    NoPhoto = 3
 }
 
 public sealed record CompendiumIndexEntryPlan(
@@ -37,7 +39,7 @@ public sealed record CompendiumPagePlanItem(
     public CompendiumPdfProjectSection? Project { get; init; }
     public string DescriptionMarkdown { get; init; } = string.Empty;
     public CompendiumProjectLayoutVariant ProjectLayout { get; init; }
-        = CompendiumProjectLayoutVariant.Photo;
+        = CompendiumProjectLayoutVariant.PhotoMedium;
     public bool IsFirstProjectInCategory { get; init; }
     public int ContinuationPart { get; init; }
 }
@@ -74,12 +76,10 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
             foreach (var project in category.Projects)
             {
                 var hasPhoto = project.CoverPhoto is { Length: > 0 };
-                var firstBudget = hasPhoto
-                    ? CompendiumLayoutMetrics.FirstPageDescriptionBudgetWithPhoto
-                    : CompendiumLayoutMetrics.FirstPageDescriptionBudgetWithoutPhoto;
+                var layout = ResolveLayout(project.DescriptionMarkdown, hasPhoto);
                 var chunks = CompendiumMarkdownChunker.Split(
                     project.DescriptionMarkdown,
-                    firstBudget,
+                    CompendiumLayoutMetrics.FirstPageDescriptionBudget(layout),
                     CompendiumLayoutMetrics.ContinuationDescriptionBudget);
 
                 for (var index = 0; index < chunks.Count; index++)
@@ -89,7 +89,7 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         category.CategoryName,
                         index == 0 ? CompendiumPageKind.Project : CompendiumPageKind.ProjectContinuation,
                         chunks[index],
-                        hasPhoto ? CompendiumProjectLayoutVariant.Photo : CompendiumProjectLayoutVariant.NoPhoto,
+                        layout,
                         firstInCategory && index == 0,
                         index));
                 }
@@ -151,6 +151,16 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
 
         pages.Add(new CompendiumPagePlanItem(physical, CompendiumPageKind.BackCover));
         return new CompendiumPagePlan(pages, projectStartPages);
+    }
+
+
+    private static CompendiumProjectLayoutVariant ResolveLayout(string? markdown, bool hasPhoto)
+    {
+        if (!hasPhoto) return CompendiumProjectLayoutVariant.NoPhoto;
+        var length = string.IsNullOrWhiteSpace(markdown) ? 0 : markdown.Trim().Length;
+        if (length <= 220) return CompendiumProjectLayoutVariant.PhotoShort;
+        if (length <= 1050) return CompendiumProjectLayoutVariant.PhotoMedium;
+        return CompendiumProjectLayoutVariant.PhotoLong;
     }
 
     private static IReadOnlyList<IndexPageSeed> BuildIndexSeeds(

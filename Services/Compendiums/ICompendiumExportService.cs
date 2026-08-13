@@ -7,7 +7,12 @@ public sealed record CompendiumExportRequest(
     string? Subtitle = null,
     string? Edition = null,
     IReadOnlyList<CompendiumProjectSelection>? ProjectSelections = null,
-    bool RequireAllReviewed = false);
+    bool RequireAllReviewed = false,
+    CompendiumCoverImageMode CoverImageMode = CompendiumCoverImageMode.Automatic,
+    int? CoverHeroProjectId = null,
+    int? CoverHeroPhotoId = null,
+    double CoverFocalX = .5d,
+    double CoverFocalY = .5d);
 
 public sealed record CompendiumExportResult(
     byte[] Bytes,

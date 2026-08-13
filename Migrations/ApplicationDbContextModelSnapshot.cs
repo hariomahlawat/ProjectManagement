@@ -5365,12 +5365,17 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Description").HasMaxLength(500).HasColumnType("character varying(500)");
                     b.Property<string>("Edition").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)");
                     b.Property<string>("HandlingMarking").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<double>("CoverFocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<double>("CoverFocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<int?>("CoverHeroPhotoId").HasColumnType("integer");
+                    b.Property<int?>("CoverHeroProjectId").HasColumnType("integer");
+                    b.Property<string>("CoverImageMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
                     b.Property<bool>("IsActive").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
                     b.Property<string>("LastModifiedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(2);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(3);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");

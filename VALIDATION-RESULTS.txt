@@ -1,37 +1,28 @@
-PRISM Publications — Phase 24
-Validation results
-Date: 13 Aug 2026
+PRISM Publications — Phase 24.1 Validation Results
+Compendium Review Flow, Readiness Rationalisation & Publication Freeze
 
-COMPLETED IN ARTIFACT ENVIRONMENT
+Completed in artifact environment
 ---------------------------------
 PASS  node --check wwwroot/js/pages/projects-compendium.js
 PASS  node --test wwwroot/js/projects/publications-compendium-contract.test.js
-      35 tests passed / 0 failed
-PASS  C# structural delimiter scan
-      11 Phase 24 C# files / 0 structural issues
-PASS  Physical-planner source contract
-PASS  519 x 214 pt browser/DPI/PDF geometry contract
-PASS  1800 x 742 render-derivative contract
-PASS  continuation-page composition contract
-PASS  text-led no-photo composition contract
-PASS  final-download all-reviewed gate contract
-PASS  PdfPig post-compose verification contract
-PASS  planner/verifier DI registration contract
-PASS  PDF verified page-count browser contract
-PASS  no new migration / no migration-manifest modification
+      41 tests passed, 0 failed
+PASS  Phase 24.1 static migration / model / snapshot / preset / readiness / cover / planner / sanitizer / review-flow contracts
+      22 checks passed
+PASS  C# structural delimiter validation across 18 changed/new C# files
+PASS  Existing migration IDs 20261208130000 and 20261208140000 retained
+PASS  New immutable migration ID 20261208150000_AddCompendiumCoverHeroControls present
+PASS  New migration contains DbContext + Migration discovery attributes
+PASS  Saved Compendium settings schema v3 mapping present
+PASS  ReviewRequired/ProjectChangedAfterReview removed from publication-quality finding population
+PASS  Automatic-image and normal proliferation-state readiness noise removed
+PASS  Readiness findings ordered by severity and Publication Order
+PASS  Continuous Review & next / Finish review + Ctrl+Enter contracts present
+PASS  Single cover hero / graphic fallback contract present; legacy cover mosaic absent
+PASS  Adaptive PhotoShort / PhotoMedium / PhotoLong project-page geometry present
+PASS  Publication text sanitizer applied before PDF planning/rendering
+PASS  PDF physical verification pipeline retained
 
-NOT AVAILABLE IN ARTIFACT ENVIRONMENT
--------------------------------------
-.NET SDK is not installed, so dotnet build and dotnet test were not executed here.
-PowerShell is not installed, so tools/Test-PrismPublicationsPhase24.ps1 was not itself executed here.
-The validator runs Node checks plus dotnet build/test when executed on the development workstation.
-
-REQUIRED LOCAL VALIDATION
--------------------------
-From the ProjectManagement root:
-
-  Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
-  Set-ExecutionPolicy -Scope Process Bypass
-  .\tools\Test-PrismPublicationsPhase24.ps1
-
-Then exercise Preview/Download with a mixed 6–10 project Compendium and visually inspect the generated physical publication.
+Not executed here
+-----------------
+.NET SDK is not installed in the artifact environment. Therefore no dotnet build or dotnet test result is claimed here.
+Run tools/Test-PrismPublicationsPhase24_1.ps1 on the development workstation; it invokes dotnet build and the test project when dotnet is available.

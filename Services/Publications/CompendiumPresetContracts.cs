@@ -31,6 +31,13 @@ public sealed record CompendiumPresetProjectConfiguration(
     double PrimaryFocalY = .5d,
     CompendiumImageSelectionMode ImageSelectionMode = CompendiumImageSelectionMode.Automatic);
 
+public sealed record CompendiumCoverConfiguration(
+    CompendiumCoverImageMode ImageMode = CompendiumCoverImageMode.Automatic,
+    int? HeroProjectId = null,
+    int? HeroPhotoId = null,
+    double FocalX = .5d,
+    double FocalY = .5d);
+
 public sealed record CompendiumPresetConfiguration(
     string Title,
     string Subtitle,
@@ -38,6 +45,7 @@ public sealed record CompendiumPresetConfiguration(
     string? HandlingMarking,
     IReadOnlyList<CompendiumPresetProjectConfiguration> Projects)
 {
+    public CompendiumCoverConfiguration Cover { get; init; } = new();
     public CompendiumPresetConfiguration(
         string title,
         string subtitle,
