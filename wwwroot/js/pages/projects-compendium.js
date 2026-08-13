@@ -15,6 +15,11 @@
     })[c]);
     const roundFocal = value => Number(clamp(value).toFixed(4));
     const formToken = () => form.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+    const setControlDisabled = (control, disabled) => {
+        if (!control) return;
+        control.disabled = Boolean(disabled);
+        control.setAttribute("aria-disabled", disabled ? "true" : "false");
+    };
 
     const projects = parseJson(form.querySelector("[data-compendium-projects]"), []);
     const projectById = new Map(projects.map(project => [Number(project.projectId), project]));
@@ -140,7 +145,9 @@
     const readyInfo = $("[data-ready-info]");
     const readyReviewed = $("[data-ready-reviewed]");
     const readyCategories = $("[data-ready-categories]");
+    const readyStructureCopy = $("[data-ready-structure-copy]");
     const readyFindings = $("[data-ready-findings]");
+    const findingToolbar = $("[data-finding-toolbar]");
     const findingsCurrentOnly = $("[data-findings-current-only]");
     const findingFilterButtons = [...form.querySelectorAll("[data-finding-filter]")];
     const preflightSpinner = $("[data-preflight-spinner]");
@@ -269,26 +276,32 @@
 
     const stateFor = id => projectStateById.get(Number(id)) || null;
     const findingsFor = id => (lastPreflight?.findings || []).filter(finding => Number(finding.projectId) === Number(id));
-    const highestSeverity = id => {
+    const hasFinding = (id, predicate) => findingsFor(id).some(predicate);
+    const visualProjectState = (id, fallbackState = null) => {
+        const state = stateFor(id) || fallbackState || {};
         const findings = findingsFor(id);
         if (findings.some(finding => finding.severity === "blocker")) return "blocker";
-        if (findings.some(finding => finding.severity === "warning")) return "warning";
-        if (findings.some(finding => finding.severity === "information")) return "information";
+        if (state.isReviewStale || !state.isReviewed) return "review";
+        if (findings.some(finding => finding.severity === "warning"
+            && !["reviewRequired", "projectChangedAfterReview"].includes(finding.code))) return "warning";
         return "ready";
     };
     const orderStateMarkup = id => {
-        const state = stateFor(id);
-        const severity = highestSeverity(id);
-        if (severity === "blocker") return '<span class="compendium-order-state is-blocker" title="Publication blocker"><i class="bi bi-x-octagon-fill"></i></span>';
-        if (state?.isReviewed && severity !== "warning") return '<span class="compendium-order-state is-ready" title="Reviewed"><i class="bi bi-check-circle-fill"></i></span>';
-        if (severity === "warning") return '<span class="compendium-order-state is-warning" title="Requires attention"><i class="bi bi-exclamation-triangle-fill"></i></span>';
-        if (!state?.isReviewed) return '<span class="compendium-order-state is-review" title="Review required"><i class="bi bi-circle"></i></span>';
-        return '<span class="compendium-order-state is-ready" title="Ready"><i class="bi bi-check-circle-fill"></i></span>';
+        const state = visualProjectState(id);
+        if (state === "blocker") return '<span class="compendium-order-state is-blocker" title="Publication blocker" aria-label="Publication blocker"><i class="bi bi-x-octagon-fill" aria-hidden="true"></i></span>';
+        if (state === "warning") return '<span class="compendium-order-state is-warning" title="Reviewed with warning" aria-label="Reviewed with warning"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i></span>';
+        if (state === "review") return '<span class="compendium-order-state is-review" title="Review required" aria-label="Review required"><i class="bi bi-circle" aria-hidden="true"></i></span>';
+        return '<span class="compendium-order-state is-ready" title="Ready" aria-label="Ready"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span>';
     };
 
     const renderOrder = () => {
         if (selectedCount) selectedCount.textContent = String(orderedIds.length);
         if (railCount) railCount.textContent = String(orderedIds.length);
+        if (clearSelection) {
+            const empty = orderedIds.length === 0;
+            clearSelection.hidden = empty;
+            setControlDisabled(clearSelection, empty);
+        }
         if (!orderList) return;
         if (orderedIds.length === 0) {
             orderList.innerHTML = '<div class="compendium-order-empty"><i class="bi bi-journal"></i><span>Select projects from the portfolio.</span></div>';
@@ -332,6 +345,9 @@
         if (reviewState) { reviewState.textContent = "Loading…"; reviewState.className = "compendium-review-state is-loading"; }
         if (reviewFacts) reviewFacts.innerHTML = '<div class="compendium-review-loading">Loading current project information…</div>';
         if (reviewDescription) reviewDescription.innerHTML = '<span class="compendium-review-loading-line"></span><span class="compendium-review-loading-line"></span>';
+        setControlDisabled(reviewMarkReviewed, true);
+        setControlDisabled(reviewChangeImage, true);
+        setControlDisabled(reviewAdjustCrop, true);
     };
 
     const currentReviewPhoto = review => {
@@ -351,11 +367,13 @@
         if (reviewName) reviewName.textContent = review.projectName;
         if (reviewMeta) reviewMeta.textContent = `${review.lifecycleDisplay} · ${review.technicalCategoryName || "Technical category not recorded"}`;
 
+        const visualState = visualProjectState(review.projectId, { isReviewed: reviewed, isReviewStale: stale });
         if (reviewState) {
             reviewState.className = "compendium-review-state";
-            if (stale) { reviewState.textContent = "Review outdated"; reviewState.classList.add("is-warning"); }
-            else if (reviewed) { reviewState.textContent = "Reviewed"; reviewState.classList.add("is-reviewed"); }
-            else { reviewState.textContent = "Review required"; reviewState.classList.add("is-required"); }
+            if (visualState === "blocker") { reviewState.textContent = "Blocked"; reviewState.classList.add("is-blocker"); }
+            else if (visualState === "review") { reviewState.textContent = "Review required"; reviewState.classList.add(stale ? "is-warning" : "is-required"); }
+            else if (visualState === "warning") { reviewState.textContent = "Warning"; reviewState.classList.add("is-warning"); }
+            else { reviewState.textContent = "Ready"; reviewState.classList.add("is-reviewed"); }
         }
 
         const facts = [
@@ -406,27 +424,36 @@
             else if (review.explicitPhotoUnavailable) reviewImageDetail.textContent = "The saved image is unavailable; PRISM is temporarily showing the current automatic choice.";
             else reviewImageDetail.textContent = `${photo.width}×${photo.height} source · ${review.photoSelectionSource === "explicitpublication" ? "publication selection" : "current project selection"}`;
         }
-        if (reviewAdjustCrop) reviewAdjustCrop.disabled = !photo;
+        setControlDisabled(reviewChangeImage, false);
+        setControlDisabled(reviewAdjustCrop, !photo);
         if (reviewUseAutomatic) reviewUseAutomatic.hidden = config.imageSelectionMode !== "explicit";
 
         if (reviewFooterTitle && reviewFooterCopy && reviewMarkReviewed) {
             if (stale) {
                 reviewFooterTitle.textContent = "Review again";
                 reviewFooterCopy.textContent = "Project facts or publication imagery changed after the previous review.";
-                reviewMarkReviewed.disabled = false;
-                reviewMarkReviewed.innerHTML = '<i class="bi bi-check2-circle"></i> Mark reviewed';
-            } else if (reviewed) {
-                reviewFooterTitle.textContent = "Current version reviewed";
-                reviewFooterCopy.textContent = "This review remains valid until project facts or publication imagery change.";
-                reviewMarkReviewed.disabled = true;
-                reviewMarkReviewed.innerHTML = '<i class="bi bi-check-circle-fill"></i> Reviewed';
-            } else {
+                setControlDisabled(reviewMarkReviewed, false);
+                reviewMarkReviewed.innerHTML = '<i class="bi bi-check2-circle" aria-hidden="true"></i> Mark reviewed';
+            } else if (!reviewed) {
                 reviewFooterTitle.textContent = "Review required";
-                reviewFooterCopy.textContent = "Confirm the current project facts and publication image before final issue.";
-                reviewMarkReviewed.disabled = false;
-                reviewMarkReviewed.innerHTML = '<i class="bi bi-check2-circle"></i> Mark reviewed';
+                reviewFooterCopy.textContent = visualState === "blocker"
+                    ? "Resolve the publication blocker, then confirm the current project version."
+                    : "Confirm the current project facts and publication image before final issue.";
+                setControlDisabled(reviewMarkReviewed, visualState === "blocker");
+                reviewMarkReviewed.innerHTML = '<i class="bi bi-check2-circle" aria-hidden="true"></i> Mark reviewed';
+            } else if (visualState === "warning") {
+                reviewFooterTitle.textContent = "Reviewed with warnings";
+                reviewFooterCopy.textContent = "The current version is reviewed; resolve the remaining publication-quality warning where practical.";
+                setControlDisabled(reviewMarkReviewed, true);
+                reviewMarkReviewed.innerHTML = '<i class="bi bi-check-circle-fill" aria-hidden="true"></i> Reviewed';
+            } else {
+                reviewFooterTitle.textContent = "Ready for publication";
+                reviewFooterCopy.textContent = "The current version is reviewed and has no publication warnings.";
+                setControlDisabled(reviewMarkReviewed, true);
+                reviewMarkReviewed.innerHTML = '<i class="bi bi-check-circle-fill" aria-hidden="true"></i> Reviewed';
             }
         }
+        updateReviewNavigation();
     };
 
     const refreshReviewProgress = () => {
@@ -480,25 +507,55 @@
     };
 
     const navigateReview = offset => {
-        if (!orderedIds.length) return;
+        if (orderedIds.length <= 1) return;
         let index = orderedIds.indexOf(Number(activeReviewId));
         if (index < 0) index = 0;
         activeReviewId = orderedIds[(index + offset + orderedIds.length) % orderedIds.length];
         loadReview(activeReviewId);
     };
 
-    const needsAttention = id => {
+    const attentionPriority = id => {
+        const findings = findingsFor(id);
+        if (findings.some(finding => finding.severity === "blocker")) return 0;
+        if (findings.some(finding => finding.severity === "warning"
+            && !["reviewRequired", "projectChangedAfterReview"].includes(finding.code))) return 1;
         const state = stateFor(id);
-        if (!state?.isReviewed) return true;
-        return findingsFor(id).some(finding => finding.severity === "blocker" || finding.severity === "warning");
+        if (state?.isReviewStale || hasFinding(id, finding => finding.code === "projectChangedAfterReview")) return 2;
+        if (!state?.isReviewed || hasFinding(id, finding => finding.code === "reviewRequired")) return 3;
+        return Number.POSITIVE_INFINITY;
+    };
+    const nextAttentionId = () => {
+        if (orderedIds.length <= 1) return null;
+        const currentIndex = Math.max(0, orderedIds.indexOf(Number(activeReviewId)));
+        let bestId = null;
+        let bestPriority = Number.POSITIVE_INFINITY;
+        for (let delta = 1; delta < orderedIds.length; delta++) {
+            const id = orderedIds[(currentIndex + delta) % orderedIds.length];
+            const priority = attentionPriority(id);
+            if (priority < bestPriority) {
+                bestPriority = priority;
+                bestId = id;
+            }
+        }
+        return Number.isFinite(bestPriority) ? bestId : null;
+    };
+    const updateReviewNavigation = () => {
+        const canCycle = orderedIds.length > 1;
+        setControlDisabled(reviewPrevious, !canCycle);
+        setControlDisabled(reviewNext, !canCycle);
+        const attentionId = nextAttentionId();
+        setControlDisabled(reviewNextAttention, attentionId == null);
+        if (reviewNextAttention) {
+            reviewNextAttention.textContent = orderedIds.length === 0
+                ? "Next requiring attention"
+                : attentionId == null ? "No further attention" : "Next requiring attention";
+        }
     };
     const goNextAttention = () => {
-        if (!orderedIds.length) return;
-        const currentIndex = Math.max(0, orderedIds.indexOf(Number(activeReviewId)));
-        for (let delta = 1; delta <= orderedIds.length; delta++) {
-            const id = orderedIds[(currentIndex + delta) % orderedIds.length];
-            if (needsAttention(id)) { activeReviewId = id; loadReview(id); return; }
-        }
+        const id = nextAttentionId();
+        if (!id) return;
+        activeReviewId = id;
+        loadReview(id);
     };
 
     const invalidateProjectReview = id => {
@@ -513,6 +570,11 @@
         syncHidden();
         renderDirty();
         renderOrder();
+        refreshReviewProgress();
+        updateReviewNavigation();
+        if (activeReviewData && Number(activeReviewData.projectId) === Number(id)) {
+            renderReviewData({ ...activeReviewData, isReviewed: false, isReviewStale: false });
+        }
         schedulePreflight();
         if (refreshReview && Number(activeReviewId) === Number(id)) scheduleReviewRefresh();
     };
@@ -625,8 +687,20 @@
         if (focusCrop) window.setTimeout(() => photoCropStage?.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
     };
 
+    const setFindingToolbarAvailability = enabled => {
+        const disabled = !enabled;
+        findingToolbar?.classList.toggle("is-disabled", disabled);
+        if (findingToolbar) findingToolbar.setAttribute("aria-disabled", disabled ? "true" : "false");
+        findingFilterButtons.forEach(button => setControlDisabled(button, disabled));
+        setControlDisabled(findingsCurrentOnly, disabled || activeReviewId == null);
+    };
+
     const renderFindings = () => {
         if (!readyFindings) return;
+        if (orderedIds.length === 0) {
+            readyFindings.innerHTML = '<div class="compendium-readiness-empty"><i class="bi bi-journal-check" aria-hidden="true"></i><span>Select projects to begin publication readiness checks.</span></div>';
+            return;
+        }
         const all = Array.isArray(lastPreflight?.findings) ? lastPreflight.findings : [];
         const onlyCurrent = Boolean(findingsCurrentOnly?.checked) && activeReviewId != null;
         const filtered = all.filter(finding => (findingSeverity === "all" || finding.severity === findingSeverity)
@@ -660,8 +734,10 @@
         const warnings = Number(lastPreflight?.warnings ?? 0);
         const reviewed = Number(lastPreflight?.reviewed ?? 0);
         const canGenerate = selected > 0 && !preflightPending && Boolean(lastPreflight?.canGenerate) && blockers === 0;
-        if (preview) preview.disabled = !canGenerate;
-        if (generate) generate.disabled = !canGenerate;
+        setControlDisabled(preview, !canGenerate);
+        setControlDisabled(generate, !canGenerate);
+        if (preview) preview.title = canGenerate ? "Preview the current Compendium PDF" : "Preview becomes available when the current publication is technically valid.";
+        if (generate) generate.title = canGenerate ? "Download the current Compendium PDF" : "Download becomes available when publication blockers are cleared.";
         if (!outputStatus) return;
         if (!selected) {
             outputStatus.className = "compendium-output-status";
@@ -689,6 +765,15 @@
         projectStateById = new Map();
         preflightPending = orderedIds.length > 0;
         preflightSpinner?.classList.toggle("d-none", !preflightPending);
+        if (preflightPending) {
+            setFindingToolbarAvailability(false);
+            if (readySelected) readySelected.textContent = String(orderedIds.length);
+            if (readyBlockers) readyBlockers.textContent = "…";
+            if (readyWarnings) readyWarnings.textContent = "…";
+            if (readyInfo) readyInfo.textContent = "…";
+            if (readyStructureCopy) readyStructureCopy.textContent = `${orderedIds.length} project${orderedIds.length === 1 ? "" : "s"} selected · checking catalogue structure`;
+            if (readyFindings) readyFindings.innerHTML = '<div class="compendium-readiness-pending"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>Checking the selected projects against current publication requirements…</span></div>';
+        }
         updateOutput();
     };
 
@@ -708,21 +793,33 @@
             if (!response.ok) throw new Error(body.message || "Publication readiness could not be refreshed.");
             lastPreflight = body;
             projectStateById = new Map((body.projects || []).map(state => [Number(state.projectId), state]));
-            if (readySelected) readySelected.textContent = String(body.selected ?? orderedIds.length);
+            const selectedValue = Number(body.selected ?? orderedIds.length);
+            const categoryValue = Number(body.categories ?? 0);
+            if (readySelected) readySelected.textContent = String(selectedValue);
             if (readyBlockers) readyBlockers.textContent = String(body.blockers ?? 0);
             if (readyWarnings) readyWarnings.textContent = String(body.warnings ?? 0);
             if (readyInfo) readyInfo.textContent = String(body.info ?? 0);
-            if (readyCategories) readyCategories.textContent = String(body.categories ?? 0);
+            if (readyCategories) readyCategories.textContent = String(categoryValue);
             if (readyReviewed) readyReviewed.textContent = String(body.reviewed ?? 0);
+            if (readyStructureCopy) readyStructureCopy.textContent = `${selectedValue} project${selectedValue === 1 ? "" : "s"} · ${categoryValue} technical categor${categoryValue === 1 ? "y" : "ies"}`;
+            setFindingToolbarAvailability(true);
             refreshReviewProgress();
             renderFindings();
             renderOrder();
+            updateReviewNavigation();
             if (activeReviewData && Number(activeReviewData.projectId) === Number(activeReviewId)) renderReviewData(activeReviewData);
         } catch (error) {
             if (error?.name === "AbortError") return;
             if (revision !== preflightRevision) return;
             lastPreflight = { selected: orderedIds.length, blockers: 1, warnings: 0, info: 0, categories: 0, reviewed: 0, canGenerate: false, findings: [{ severity: "blocker", code: "preflightUnavailable", message: error.message || "Publication readiness could not be refreshed." }] };
+            if (readySelected) readySelected.textContent = String(orderedIds.length);
+            if (readyBlockers) readyBlockers.textContent = "1";
+            if (readyWarnings) readyWarnings.textContent = "0";
+            if (readyInfo) readyInfo.textContent = "0";
+            if (readyStructureCopy) readyStructureCopy.textContent = `${orderedIds.length} project${orderedIds.length === 1 ? "" : "s"} selected · readiness unavailable`;
+            setFindingToolbarAvailability(true);
             renderFindings();
+            updateReviewNavigation();
         } finally {
             if (revision === preflightRevision) {
                 preflightPending = false;
@@ -739,14 +836,18 @@
         if (!orderedIds.length) {
             preflightPending = false;
             if (readySelected) readySelected.textContent = "0";
-            if (readyBlockers) readyBlockers.textContent = "1";
-            if (readyWarnings) readyWarnings.textContent = "0";
-            if (readyInfo) readyInfo.textContent = "0";
+            if (readyBlockers) readyBlockers.textContent = "—";
+            if (readyWarnings) readyWarnings.textContent = "—";
+            if (readyInfo) readyInfo.textContent = "—";
             if (readyReviewed) readyReviewed.textContent = "0";
             if (readyCategories) readyCategories.textContent = "0";
+            if (readyStructureCopy) readyStructureCopy.textContent = "Select projects to build the catalogue structure.";
+            if (findingsCurrentOnly) findingsCurrentOnly.checked = false;
             lastPreflight = { selected: 0, blockers: 1, warnings: 0, info: 0, categories: 0, reviewed: 0, canGenerate: false, findings: [{ severity: "blocker", code: "noSelection", message: "Select at least one project to begin publication preflight." }] };
+            setFindingToolbarAvailability(false);
             renderFindings();
             refreshReviewProgress();
+            updateReviewNavigation();
             updateOutput();
             return;
         }
@@ -760,6 +861,7 @@
         applyFilters();
         renderDirty();
         refreshReviewProgress();
+        updateReviewNavigation();
         if (activeReviewId == null || !isSelected(activeReviewId)) activeReviewId = orderedIds[0] ?? null;
         if (activeReviewId) loadReview(activeReviewId); else { activeReviewData = null; if (reviewEmpty) reviewEmpty.hidden = false; if (reviewCard) reviewCard.hidden = true; }
         schedulePreflight();
@@ -827,7 +929,13 @@
     reviewMarkReviewed?.addEventListener("click", () => {
         if (!activeReviewId || !activeReviewData?.reviewFingerprint) return;
         ensureConfig(activeReviewId).reviewFingerprint = String(activeReviewData.reviewFingerprint);
+        const current = stateFor(activeReviewId) || { projectId: activeReviewId };
+        projectStateById.set(Number(activeReviewId), { ...current, isReviewed: true, isReviewStale: false });
         syncHidden();
+        refreshReviewProgress();
+        renderOrder();
+        updateReviewNavigation();
+        renderReviewData({ ...activeReviewData, isReviewed: true, isReviewStale: false });
         schedulePreflight();
     });
     reviewChangeImage?.addEventListener("click", () => openPhotoEditor(false));
@@ -989,6 +1097,8 @@
     applyFilters();
     renderOrder();
     refreshReviewProgress();
+    updateReviewNavigation();
+    setFindingToolbarAvailability(orderedIds.length > 0);
     baselineSnapshot = captureSnapshot();
     renderDirty();
     if (activeReviewId) loadReview(activeReviewId);

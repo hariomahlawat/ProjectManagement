@@ -202,3 +202,69 @@ test('phase 23 adds dedicated responsive review and crop presentation', () => {
   assert.match(css, /compendium-crop-frame/);
   assert.match(css, /compendium-focal-marker/);
 });
+
+// Phase 23.1 runtime hardening and review-freeze contracts.
+test('phase 23.1 makes selection readiness semantic without relying on colour alone', () => {
+  assert.match(view, /bi-check2/);
+  assert.match(view, /bi-exclamation-lg/);
+  assert.match(view, /Description available/);
+  assert.match(view, /Arm\/Service missing/);
+  assert.match(view, /No photo/);
+  assert.match(css, /compendium-data-badges > span > i/);
+  assert.match(css, /compendium-photo-count\.is-missing/);
+});
+
+test('phase 23.1 treats the zero-selection state as setup rather than a visible publication error', () => {
+  assert.match(view, /data-ready-blockers>—</);
+  assert.match(view, /Select projects to build the catalogue structure/);
+  assert.match(view, /compendium-readiness-empty/);
+  assert.match(view, /data-clear-selection hidden disabled/);
+  assert.match(js, /readyBlockers\.textContent = "—"/);
+  assert.match(js, /Select projects to begin publication readiness checks/);
+});
+
+test('phase 23.1 disables review navigation and output actions with explicit accessibility state', () => {
+  assert.match(view, /data-review-previous[^>]*disabled[^>]*aria-disabled="true"/);
+  assert.match(view, /data-review-next-attention disabled aria-disabled="true"/);
+  assert.match(js, /setControlDisabled/);
+  assert.match(js, /updateReviewNavigation/);
+  assert.match(js, /setControlDisabled\(preview, !canGenerate\)/);
+  assert.match(css, /compendium-output-actions \.btn:disabled/);
+  assert.match(css, /cursor:not-allowed/);
+});
+
+test('phase 23.1 gives next-attention navigation deterministic blocker-warning-review priority', () => {
+  assert.match(js, /const attentionPriority = id =>/);
+  assert.match(js, /severity === "blocker"/);
+  assert.match(js, /reviewRequired", "projectChangedAfterReview"/);
+  assert.match(js, /return 1/);
+  assert.match(js, /return 2/);
+  assert.match(js, /return 3/);
+  assert.match(js, /const nextAttentionId = \(\) =>/);
+});
+
+test('phase 23.1 presents reviewed project state as Ready Warning or Review required', () => {
+  assert.match(js, /visualProjectState/);
+  assert.match(js, /reviewState\.textContent = "Ready"/);
+  assert.match(js, /reviewState\.textContent = "Warning"/);
+  assert.match(js, /reviewState\.textContent = "Review required"/);
+  assert.match(js, /Reviewed with warnings/);
+  assert.match(js, /Ready for publication/);
+  assert.match(css, /compendium-review-state\.is-blocker/);
+});
+
+test('phase 23.1 confirms review immediately while retaining server fingerprint verification', () => {
+  assert.match(js, /projectStateById\.set\(Number\(activeReviewId\)/);
+  assert.match(js, /isReviewed: true, isReviewStale: false/);
+  assert.match(js, /ensureConfig\(activeReviewId\)\.reviewFingerprint/);
+  assert.match(js, /schedulePreflight\(\)/);
+});
+
+test('phase 23.1 disables findings during refresh but preserves filter context until selection is cleared', () => {
+  assert.match(js, /setFindingToolbarAvailability/);
+  assert.match(js, /if \(preflightPending\)/);
+  assert.match(js, /setFindingToolbarAvailability\(false\)/);
+  assert.match(js, /setFindingToolbarAvailability\(true\)/);
+  assert.match(js, /if \(findingsCurrentOnly\) findingsCurrentOnly\.checked = false/);
+  assert.match(css, /compendium-finding-toolbar\.is-disabled/);
+});

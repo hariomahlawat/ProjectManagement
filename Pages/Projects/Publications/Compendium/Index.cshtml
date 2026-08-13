@@ -225,6 +225,18 @@
                                         var costClass = project.HasProliferationCost
                                             ? "is-ok"
                                             : project.IsAvailableForProliferation ? "is-missing" : "is-neutral";
+                                        var costTitle = project.HasProliferationCost
+                                            ? "Proliferation cost available"
+                                            : project.IsAvailableForProliferation
+                                                ? "Proliferation cost missing"
+                                                : "Proliferation cost not required for the current proliferation status";
+                                        var costIcon = project.HasProliferationCost
+                                            ? "bi-check2"
+                                            : project.IsAvailableForProliferation ? "bi-exclamation-lg" : "bi-dash";
+                                        var photoLabel = project.PhotoCount == 1 ? "1 photo" : $"{project.PhotoCount} photos";
+                                        var photoTitle = project.PhotoCount == 1
+                                            ? "1 project photograph available"
+                                            : $"{project.PhotoCount} project photographs available";
                                         <tr data-project-row
                                             data-id="@project.ProjectId"
                                             data-name="@project.ProjectName.ToLowerInvariant()"
@@ -248,16 +260,38 @@
                                                 <small>@project.CompletionDisplay</small>
                                             </td>
                                             <td>
-                                                <div class="compendium-data-badges">
-                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")">Description</span>
-                                                    <span class="@(project.HasArmService ? "is-ok" : "is-missing")">Arm/Service</span>
-                                                    <span class="@costClass">Cost</span>
+                                                <div class="compendium-data-badges" aria-label="Compendium data readiness">
+                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")"
+                                                          title="@(project.HasDescription ? "Description available" : "Description missing")">
+                                                        <i class="bi @(project.HasDescription ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i>
+                                                        <span>Description</span>
+                                                    </span>
+                                                    <span class="@(project.HasArmService ? "is-ok" : "is-missing")"
+                                                          title="@(project.HasArmService ? "Arm/Service available" : "Arm/Service missing")">
+                                                        <i class="bi @(project.HasArmService ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i>
+                                                        <span>Arm/Service</span>
+                                                    </span>
+                                                    <span class="@costClass" title="@costTitle">
+                                                        <i class="bi @costIcon" aria-hidden="true"></i>
+                                                        <span>Cost</span>
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="compendium-photo-count">
-                                                    <i class="bi bi-image"></i> @project.PhotoCount
-                                                </span>
+                                                @if (project.PhotoCount > 0)
+                                                {
+                                                    <span class="compendium-photo-count" title="@photoTitle">
+                                                        <i class="bi bi-image" aria-hidden="true"></i>
+                                                        <span>@photoLabel</span>
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="compendium-photo-count is-missing" title="No project photograph is available">
+                                                        <i class="bi bi-image" aria-hidden="true"></i>
+                                                        <span>No photo</span>
+                                                    </span>
+                                                }
                                             </td>
                                         </tr>
                                     }
@@ -273,13 +307,13 @@
                             <span class="publication-step">3</span>
                             <div>
                                 <h2>Review publication</h2>
-                                <p><span data-review-progress>0 of 0 reviewed</span> · inspect the information and image that will be published.</p>
+                                <p><span data-review-progress aria-live="polite">0 of 0 reviewed</span> · inspect the information and image that will be published.</p>
                             </div>
                         </div>
                         <div class="compendium-review-nav" aria-label="Project review navigation">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-previous title="Previous project"><i class="bi bi-chevron-left"></i></button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next-attention>Next requiring attention</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next title="Next project"><i class="bi bi-chevron-right"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-previous title="Previous project" aria-label="Previous project" disabled aria-disabled="true"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next-attention disabled aria-disabled="true">Next requiring attention</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next title="Next project" aria-label="Next project" disabled aria-disabled="true"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
                         </div>
                     </header>
                     <div class="publication-panel__body">
@@ -295,7 +329,7 @@
                                     <h3 data-review-name></h3>
                                     <p data-review-meta></p>
                                 </div>
-                                <span class="compendium-review-state" data-review-state>Review required</span>
+                                <span class="compendium-review-state" data-review-state aria-live="polite">Review required</span>
                             </header>
 
                             <div class="compendium-review-workspace">
@@ -358,32 +392,33 @@
                                 <p>Check the selected projects for publication completeness and quality.</p>
                             </div>
                         </div>
-                        <span class="spinner-border spinner-border-sm d-none" data-preflight-spinner></span>
+                        <span class="spinner-border spinner-border-sm d-none" data-preflight-spinner role="status" aria-label="Checking publication readiness"></span>
                     </header>
                     <div class="publication-panel__body">
                         <div class="compendium-readiness-metrics">
                             <div><span>Selected</span><strong data-ready-selected>0</strong></div>
-                            <div><span>Blockers</span><strong data-ready-blockers>1</strong></div>
-                            <div><span>Warnings</span><strong data-ready-warnings>0</strong></div>
-                            <div><span>Info</span><strong data-ready-info>0</strong></div>
+                            <div><span>Blockers</span><strong data-ready-blockers>—</strong></div>
+                            <div><span>Warnings</span><strong data-ready-warnings>—</strong></div>
+                            <div><span>Info</span><strong data-ready-info>—</strong></div>
                         </div>
                         <div class="compendium-readiness-structure">
                             <strong>Catalogue structure</strong>
-                            <span><b data-ready-reviewed>0</b> reviewed · <b data-ready-categories>0</b> technical categories</span>
+                            <span data-ready-structure-copy>Select projects to build the catalogue structure.</span>
+                            <span class="visually-hidden"><b data-ready-reviewed>0</b><b data-ready-categories>0</b></span>
                         </div>
-                        <div class="compendium-finding-toolbar" data-finding-toolbar>
+                        <div class="compendium-finding-toolbar is-disabled" data-finding-toolbar aria-disabled="true">
                             <div class="btn-group btn-group-sm" role="group" aria-label="Finding severity">
-                                <button type="button" class="btn btn-outline-secondary active" data-finding-filter="all">All</button>
-                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="blocker">Blockers</button>
-                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="warning">Warnings</button>
-                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="information">Info</button>
+                                <button type="button" class="btn btn-outline-secondary active" data-finding-filter="all" disabled>All</button>
+                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="blocker" disabled>Blockers</button>
+                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="warning" disabled>Warnings</button>
+                                <button type="button" class="btn btn-outline-secondary" data-finding-filter="information" disabled>Info</button>
                             </div>
                             <label class="compendium-current-findings">
-                                <input class="form-check-input" type="checkbox" data-findings-current-only /> Current project only
+                                <input class="form-check-input" type="checkbox" data-findings-current-only disabled /> Current project only
                             </label>
                         </div>
                         <div class="compendium-findings" data-ready-findings>
-                            <div class="compendium-finding is-blocker">Select at least one project to begin publication preflight.</div>
+                            <div class="compendium-readiness-empty"><i class="bi bi-journal-check" aria-hidden="true"></i><span>Select projects to begin publication readiness checks.</span></div>
                         </div>
                     </div>
                 </section>
@@ -398,7 +433,7 @@
                                 <p><span data-rail-count>0</span> selected · drag to reorder</p>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-link" data-clear-selection>Clear selection</button>
+                        <button type="button" class="btn btn-sm btn-link" data-clear-selection hidden disabled aria-disabled="true">Clear selection</button>
                     </header>
                     <div class="compendium-order-list" data-order-list>
                         <div class="compendium-order-empty">
@@ -419,7 +454,7 @@
                         </div>
                     </header>
                     <div class="publication-panel__body">
-                        <div class="compendium-output-status" data-output-status>
+                        <div class="compendium-output-status" data-output-status aria-live="polite">
                             <i class="bi bi-journal"></i>
                             <div>
                                 <strong>Select projects</strong>

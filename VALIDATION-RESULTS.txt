@@ -1,36 +1,40 @@
-PRISM Publications — Phase 23 validation results
-Compendium Review, Publication Imagery & Readiness
+PRISM Publications — Phase 23.1 validation results
+Generated in the artifact environment
 
-VALIDATED IN THIS ENVIRONMENT
-PASS  node --check wwwroot/js/pages/projects-compendium.js
-PASS  node --test wwwroot/js/projects/publications-compendium-contract.test.js
-      18 tests passed, 0 failed.
-PASS  Structural delimiter validation across 19 C# files.
-PASS  EF migration discovery metadata present for:
-      - 20261208130000_AddSharedCompendiumPresets
-      - 20261208140000_AddCompendiumPublicationImagery
-PASS  Immutable migration manifest includes 20261208140000_AddCompendiumPublicationImagery.
-PASS  Saved Compendium schema is v2 and includes PrimaryPhotoId, PrimaryFocalX,
-      PrimaryFocalY and ImageSelectionMode.
-PASS  ReviewFingerprint is not persisted in CompendiumPreset or preset contracts.
-PASS  TimeZoneHelper usages in supplied C# files import ProjectManagement.Utilities.
-PASS  Image-quality contract uses the current physical PDF viewport: 198 x 152 pt,
-      180 DPI good / 150 DPI acceptable.
-PASS  Phase 23 readiness contract includes stable missing-photo, low-resolution,
-      review-required and changed-after-review finding codes.
-PASS  CSS review/crop selectors cleaned and JavaScript contract rerun after final edit.
+SOURCE SCOPE
+PASS — Exact comparison with the Phase 23 baseline shows only these four implementation/test files changed:
+- Pages/Projects/Publications/Compendium/Index.cshtml
+- wwwroot/js/pages/projects-compendium.js
+- wwwroot/css/pages/projects-publications.css
+- wwwroot/js/projects/publications-compendium-contract.test.js
 
-NOT EXECUTED HERE
-- dotnet build
-- dotnet test
-- PowerShell wrapper execution
+JAVASCRIPT
+PASS — node --check wwwroot/js/pages/projects-compendium.js
+PASS — node --test wwwroot/js/projects/publications-compendium-contract.test.js
+Result: 25 passed, 0 failed.
 
-Reason: this container does not have the .NET SDK or PowerShell installed. The included
-Test-PrismPublicationsPhase23.ps1 runs the same Node checks and then dotnet build/test when
-executed on the Windows development workstation.
+PHASE 23.1 CONTRACT COVERAGE
+PASS — semantic readiness badges and explicit no-photo state
+PASS — neutral zero-selection readiness presentation
+PASS — disabled review/output accessibility state
+PASS — blocker -> warning -> stale review -> unreviewed attention priority
+PASS — Ready / Warning / Review required project-state presentation
+PASS — immediate mark-reviewed state plus authoritative server re-preflight
+PASS — finding controls locked while preflight is refreshing
+PASS — existing Phase 22/23 selection, saved preset, crop, fingerprint and readiness contracts retained
 
-RECOMMENDED LOCAL VALIDATION
+DATABASE / BACKEND SCOPE
+PASS — no new EF Core migration is required.
+PASS — existing Compendium C# backend, migrations and QuestPDF renderer are intentionally not replaced by this overlay.
+PASS — authentication/audit hardening files are outside this package and are not overwritten.
+
+.NET VALIDATION
+NOT RUN — dotnet SDK is not installed in this artifact environment. No dotnet build/test pass is claimed.
+
+POWERSHELL WRAPPER
+NOT RUN — PowerShell is not installed in this artifact environment. The wrapper was created for execution in the user's Windows development environment.
+
+LOCAL VALIDATION COMMAND
+Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase23.ps1
-
-Then perform the runtime checks in README-PHASE23.txt.
+.\tools\Test-PrismPublicationsPhase23_1.ps1

@@ -2212,10 +2212,14 @@ body.brochure-modal-open { overflow: hidden; }
 .compendium-project-table td strong { color:#183228; font-size:.7rem; }
 .compendium-project-table td small { margin-top:2px; color:#7a8a84; font-size:.58rem; }
 .compendium-data-badges { display:flex; gap:4px; flex-wrap:wrap; }
-.compendium-data-badges span { padding:2px 5px; border:1px solid #dce5e1; border-radius:999px; background:#f8faf9; color:#71817b; font-size:.54rem; }
+.compendium-data-badges > span { display:inline-flex; align-items:center; gap:3px; padding:2px 5px; border:1px solid #dce5e1; border-radius:999px; background:#f8faf9; color:#71817b; font-size:.54rem; white-space:nowrap; }
+.compendium-data-badges > span > span { padding:0; border:0; background:transparent; color:inherit; font:inherit; }
+.compendium-data-badges > span > i { font-size:.52rem; line-height:1; }
 .compendium-data-badges .is-ok { border-color:#cfe3d8; background:#f3faf6; color:#39715c; }
 .compendium-data-badges .is-missing { border-color:#ead8ad; background:#fff9e9; color:#936b16; }
+.compendium-data-badges .is-neutral { border-color:#e0e6e3; background:#f8faf9; color:#7b8a84; }
 .compendium-photo-count { display:inline-flex; align-items:center; gap:4px; color:#536b61; white-space:nowrap; }
+.compendium-photo-count.is-missing { color:#9a721b; }
 .compendium-order-card { overflow:visible; }
 .compendium-order-card .publication-panel__header { border-radius:14px 14px 0 0; }
 .compendium-order-list { max-height:350px; overflow:auto; }
@@ -2277,6 +2281,7 @@ body.brochure-modal-open { overflow: hidden; }
 .compendium-review-state { flex:0 0 auto; display:inline-flex; align-items:center; min-height:25px; padding:.25rem .55rem; border:1px solid #dce5e1; border-radius:999px; background:#f7faf9; color:#667a72; font-size:.56rem; font-weight:800; white-space:nowrap; }
 .compendium-review-state.is-reviewed { border-color:#c5dfd2; background:#eff8f3; color:#2f7358; }
 .compendium-review-state.is-warning,.compendium-review-state.is-required { border-color:#ead59f; background:#fff8e4; color:#8b6414; }
+.compendium-review-state.is-blocker { border-color:#edc3c8; background:#fff5f6; color:#a33a45; }
 .compendium-review-state.is-loading { color:#71817b; }
 .compendium-review-workspace { display:grid; grid-template-columns:minmax(280px,.82fr) minmax(0,1.55fr); gap:.8rem; align-items:start; }
 .compendium-review-image-panel,.compendium-review-information { min-width:0; }
@@ -2399,3 +2404,66 @@ body.brochure-modal-open { overflow: hidden; }
     .compendium-photo-choice__badges { grid-column:1/-1; flex-direction:row; align-items:center; }
     .compendium-crop-status { flex-direction:column; gap:.2rem; }
 }
+/* SECTION: Compendium Phase 23.1 runtime hardening */
+.compendium-review-nav .btn:disabled,
+.compendium-output-actions .btn:disabled,
+.compendium-order-card .btn:disabled {
+    border-color:#dce4e1 !important;
+    background:#f6f8f7 !important;
+    color:#a0aca7 !important;
+    box-shadow:none !important;
+    opacity:1;
+    cursor:not-allowed;
+    pointer-events:none;
+    transform:none !important;
+}
+.compendium-output-actions .btn:disabled i { color:#a0aca7 !important; }
+.compendium-finding-toolbar.is-disabled { opacity:.52; }
+.compendium-finding-toolbar.is-disabled .btn,
+.compendium-finding-toolbar.is-disabled label { cursor:not-allowed; }
+.compendium-readiness-empty {
+    grid-column:1/-1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:.45rem;
+    min-height:58px;
+    padding:.65rem;
+    border:1px dashed #d9e4df;
+    border-radius:8px;
+    background:#fafcfc;
+    color:#7f9088;
+    font-size:.61rem;
+    text-align:center;
+}
+.compendium-readiness-empty i { color:#6e897e; font-size:.8rem; }
+.compendium-order-state { border-radius:50%; }
+.compendium-order-state i { line-height:1; }
+.compendium-order-copy:focus-visible,
+.compendium-order-actions button:focus-visible,
+.compendium-review-nav .btn:focus-visible {
+    outline:2px solid rgba(40,109,86,.35);
+    outline-offset:2px;
+}
+.compendium-review-state.is-reviewed::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; margin-right:4px; }
+@media (prefers-reduced-motion: reduce) {
+    .compendium-order-item,
+    .compendium-output-actions .btn,
+    .compendium-review-nav .btn { transition:none !important; }
+}
+
+.compendium-readiness-pending {
+    grid-column:1/-1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:.5rem;
+    min-height:58px;
+    padding:.65rem;
+    border:1px solid #dde6e2;
+    border-radius:8px;
+    background:#f8faf9;
+    color:#71847b;
+    font-size:.6rem;
+}
+.compendium-readiness-pending .spinner-border { width:.8rem; height:.8rem; border-width:.12em; }

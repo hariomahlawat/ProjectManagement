@@ -1,7 +1,30 @@
-REPLACE
-Services/AuditService.cs
-Areas/Identity/Pages/Account/Login.cshtml.cs
+PRISM Publications — Phase 23.1
+Compendium Runtime Hardening & Publication Review Freeze
 
-NO MIGRATION
-NO MODEL CHANGE
-NO PROGRAM.CS CHANGE
+BASELINE REQUIRED
+- Working Phase 23 Compendium implementation, including:
+  - Phase 22 shared Compendium preset migration
+  - Phase 23 publication imagery migration
+  - Phase 23 lifecycle namespace compile fix
+- This package is a focused overlay. It does NOT replace Compendium backend services or migrations.
+
+REPLACE THESE FILES
+1. Pages/Projects/Publications/Compendium/Index.cshtml
+2. wwwroot/js/pages/projects-compendium.js
+3. wwwroot/css/pages/projects-publications.css
+4. wwwroot/js/projects/publications-compendium-contract.test.js
+
+ADD / REPLACE VALIDATOR
+5. tools/Test-PrismPublicationsPhase23_1.ps1
+
+NO DATABASE CHANGE
+- No EF Core migration is introduced by Phase 23.1.
+- Do not edit immutable-migration-ids.txt for this phase.
+- Do not remove either existing Compendium migration:
+  20261208130000_AddSharedCompendiumPresets
+  20261208140000_AddCompendiumPublicationImagery
+
+INTENTIONALLY NOT INCLUDED
+- Audit/login hardening files are not touched by this package.
+- Compendium C# services/models are not touched.
+- QuestPDF Compendium design is not redesigned here; that remains Phase 24.
