@@ -5356,6 +5356,48 @@ namespace ProjectManagement.Migrations
                     b.ToTable("BrochurePresetProjects");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPreset", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("CreatedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+                    b.Property<string>("Description").HasMaxLength(500).HasColumnType("character varying(500)");
+                    b.Property<string>("Edition").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<string>("HandlingMarking").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<bool>("IsActive").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<string>("LastModifiedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(1);
+                    b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
+                    b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("CreatedByUserId");
+                    b.HasIndex("IsActive").HasDatabaseName("IX_CompendiumPresets_IsActive");
+                    b.HasIndex("LastModifiedByUserId");
+                    b.HasIndex("NormalizedName").IsUnique().HasDatabaseName("UX_CompendiumPresets_NormalizedName");
+                    b.HasIndex("UpdatedAtUtc").HasDatabaseName("IX_CompendiumPresets_UpdatedAtUtc");
+                    b.ToTable("CompendiumPresets");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetProject", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<long>("PresetId").HasColumnType("bigint");
+                    b.Property<int?>("ProjectId").HasColumnType("integer");
+                    b.Property<string>("ProjectNameSnapshot").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
+                    b.Property<int>("SortOrder").HasColumnType("integer");
+                    b.HasKey("Id");
+                    b.HasIndex("ProjectId").HasDatabaseName("IX_CompendiumPresetProjects_ProjectId");
+                    b.HasIndex("PresetId", "ProjectId").IsUnique().HasDatabaseName("UX_CompendiumPresetProjects_Preset_Project");
+                    b.HasIndex("PresetId", "SortOrder").IsUnique().HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder");
+                    b.ToTable("CompendiumPresetProjects");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.Property<long>("Id")
@@ -8967,6 +9009,22 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPreset", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "CreatedByUser").WithMany().HasForeignKey("CreatedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser").WithMany().HasForeignKey("LastModifiedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("CreatedByUser");
+                    b.Navigation("LastModifiedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetProject", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Publications.CompendiumPreset", "Preset").WithMany("Projects").HasForeignKey("PresetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("ProjectManagement.Models.Project", "Project").WithMany().HasForeignKey("ProjectId").OnDelete(DeleteBehavior.SetNull);
+                    b.Navigation("Preset");
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
@@ -9842,6 +9900,11 @@ namespace ProjectManagement.Migrations
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePreset", b =>
+                {
+                    b.Navigation("Projects");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPreset", b =>
                 {
                     b.Navigation("Projects");
                 });

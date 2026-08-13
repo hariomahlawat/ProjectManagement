@@ -1,23 +1,21 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
-using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Services.Compendiums;
 
-// SECTION: PDF export orchestration for the Simulators Compendium.
+/// <summary>
+/// Compendium export orchestration. The authored Publications path renders only the selected,
+/// ordered project snapshot. The parameterless overload intentionally retains the historic
+/// automatic proliferation catalogue for legacy integrations/bookmarks.
+/// </summary>
 public sealed class CompendiumExportService : ICompendiumExportService
 {
-    private static readonly HashSet<string> SupportedPhotoFormats = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> SupportedPhotoFormats = new(
+        StringComparer.OrdinalIgnoreCase)
     {
         "jpg",
         "jpeg",
@@ -45,7 +43,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task<CompendiumExportResult> GenerateAsync(CancellationToken cancellationToken = default)
+    public Task<CompendiumExportResult> GenerateAsync(
+        CancellationToken cancellationToken = default)
         => GenerateAsync(new CompendiumExportRequest(), cancellationToken);
 
     public async Task<CompendiumExportResult> GenerateAsync(
@@ -54,40 +53,51 @@ public sealed class CompendiumExportService : ICompendiumExportService
     {
         request ??= new CompendiumExportRequest();
 
-        var data = await _readService.GetProliferationCompendiumAsync(cancellationToken);
-        var categories = new List<CompendiumPdfCategorySection>(data.Groups.Count);
-        var missingDerivativeCount = 0;
+        var data = request.SelectedProjectIds is { Count: > 0 }
+            ? await _readService.GetPublicationAsync(
+                new CompendiumPublicationRequest(
+                    request.SelectedProjectIds,
+                    request.Title,
+                    request.Subtitle,
+                    request.Edition),
+                cancellationToken)
+            : await _readService.GetProliferationCompendiumAsync(cancellationToken);
 
-        // Photo access is intentionally sequential because the underlying scoped
-        // ProjectPhotoService uses the request-scoped EF Core DbContext.
+        if (!data.Preflight.CanGenerate)
+        {
+            throw new InvalidOperationException(
+                "The Compendium cannot be generated while publication blockers remain.");
+        }
+
+        var categories = new List<CompendiumPdfCategorySection>(data.Groups.Count);
         foreach (var group in data.Groups)
         {
             var projects = new List<CompendiumPdfProjectSection>(group.Projects.Count);
-
             foreach (var project in group.Projects)
             {
-                var photoBytes = await TryLoadCoverPhotoAsync(
+                // ProjectPhotoService uses the request-scoped DbContext. Keep image reads
+                // sequential and deterministic rather than running concurrent EF operations.
+                var photoBytes = await TryLoadPhotoAsync(
                     project.ProjectId,
                     project.CoverPhotoId,
                     cancellationToken);
 
-                if (project.CoverPhotoId.HasValue && photoBytes is null)
-                {
-                    missingDerivativeCount++;
-                }
-
                 projects.Add(new CompendiumPdfProjectSection(
-                    ProjectId: project.ProjectId,
-                    ProjectName: project.ProjectName,
-                    CaseFileNumber: project.CaseFileNumber,
-                    CategoryName: group.TechnicalCategoryName,
-                    CompletionYearDisplay: project.CompletionYearDisplay,
-                    ArmServiceDisplay: project.ArmServiceDisplay,
-                    ProliferationCostDisplay: FormatCost(project.ProliferationCostLakhs),
-                    ProliferationCostRemarks: project.ProliferationCostRemarks,
-                    DescriptionMarkdown: project.DescriptionMarkdown,
-                    CoverPhoto: photoBytes,
-                    PhotoWasSelected: project.CoverPhotoId.HasValue));
+                    project.ProjectId,
+                    project.ProjectName,
+                    project.CaseFileNumber,
+                    group.TechnicalCategoryName,
+                    project.CompletionYearDisplay,
+                    project.ArmServiceDisplay,
+                    FormatCost(project.ProliferationCostLakhs),
+                    project.ProliferationCostRemarks,
+                    project.DescriptionMarkdown,
+                    photoBytes,
+                    project.CoverPhotoId.HasValue)
+                {
+                    LifecycleDisplay = project.LifecycleDisplay,
+                    IsAvailableForProliferation = project.IsAvailableForProliferation
+                });
             }
 
             categories.Add(new CompendiumPdfCategorySection(
@@ -95,39 +105,37 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 projects));
         }
 
-        if (missingDerivativeCount > 0)
-        {
-            _logger.LogWarning(
-                "Compendium PDF generated with {MissingDerivativeCount} selected project photos whose derivative files could not be opened.",
-                missingDerivativeCount);
-        }
-
         var context = new CompendiumPdfReportContext(
-            Title: data.Title,
-            Subtitle: data.Subtitle,
-            UnitDisplayName: data.UnitDisplayName,
-            IssuerDisplayName: data.IssuerDisplayName,
-            HandlingMarking: NormalizeHandlingMarking(request.HandlingMarking),
-            GeneratedAtUtc: data.GeneratedAtUtc,
-            Categories: categories,
-            ShowMissingPhotoPlaceholder: _options.ShowMissingPhotoPlaceholder);
+            data.Title,
+            data.Subtitle,
+            data.UnitDisplayName,
+            data.IssuerDisplayName,
+            NormalizeMarking(request.HandlingMarking),
+            data.GeneratedAtUtc,
+            categories,
+            _options.ShowMissingPhotoPlaceholder)
+        {
+            Edition = data.Edition
+        };
 
-        var bytes = _pdfBuilder.Build(context);
-        var generatedAtIst = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst());
-        var safeDate = generatedAtIst.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var pdfBytes = _pdfBuilder.Build(context);
+        var dateStamp = TimeZoneInfo.ConvertTime(
+                data.GeneratedAtUtc,
+                TimeZoneHelper.GetIst())
+            .ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var prefix = SanitizeFileNamePrefix(_options.FileNamePrefix);
-        var fileName = $"{prefix}_{safeDate}.pdf";
+        var projectCount = data.Preflight.SelectedProjectCount > 0
+            ? data.Preflight.SelectedProjectCount
+            : data.Preflight.EligibleProjectCount;
 
-        _logger.LogInformation(
-            "Generated compendium PDF with {ProjectCount} projects across {CategoryCount} categories. Publication warnings: {WarningCount}.",
-            data.Preflight.EligibleProjectCount,
-            data.Preflight.CategoryCount,
-            data.Preflight.TotalWarningCount);
-
-        return new CompendiumExportResult(bytes, fileName);
+        return new CompendiumExportResult(
+            pdfBytes,
+            $"{prefix}_{dateStamp}.pdf",
+            projectCount,
+            data.Groups.Count);
     }
 
-    private async Task<byte[]?> TryLoadCoverPhotoAsync(
+    private async Task<byte[]?> TryLoadPhotoAsync(
         int projectId,
         int? photoId,
         CancellationToken cancellationToken)
@@ -142,8 +150,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
             var derivativeKey = string.IsNullOrWhiteSpace(_options.CoverPhotoDerivativeKey)
                 ? "md"
                 : _options.CoverPhotoDerivativeKey.Trim();
-
             var preferredFormat = NormalizePhotoFormat(_options.PreferredPhotoFormat);
+
             if (preferredFormat is not null)
             {
                 var preferred = await _projectPhotoService.OpenDerivativeAsync(
@@ -152,7 +160,6 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     derivativeKey,
                     preferredFormat,
                     cancellationToken);
-
                 var preferredBytes = await CopyOpenedPhotoAsync(preferred, cancellationToken);
                 if (preferredBytes is not null)
                 {
@@ -160,16 +167,12 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 }
             }
 
-            // Fallback searches the original raster format, PNG/JPEG alternatives,
-            // and finally WebP. This is deliberately PDF-friendly even when legacy
-            // configuration says PreferWebp=true.
             var fallback = await _projectPhotoService.OpenDerivativeAsync(
                 projectId,
                 photoId.Value,
                 derivativeKey,
                 preferWebp: false,
                 cancellationToken: cancellationToken);
-
             var fallbackBytes = await CopyOpenedPhotoAsync(fallback, cancellationToken);
             if (fallbackBytes is not null)
             {
@@ -184,7 +187,6 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     derivativeKey,
                     requestedFormat: "webp",
                     cancellationToken: cancellationToken);
-
                 var webpBytes = await CopyOpenedPhotoAsync(webp, cancellationToken);
                 if (webpBytes is not null)
                 {
@@ -193,11 +195,10 @@ public sealed class CompendiumExportService : ICompendiumExportService
             }
 
             _logger.LogWarning(
-                "No usable compendium photo derivative was found for project {ProjectId}, photo {PhotoId}, derivative {DerivativeKey}.",
+                "No usable Compendium photo derivative was found for project {ProjectId}, photo {PhotoId}, derivative {DerivativeKey}.",
                 projectId,
                 photoId.Value,
                 derivativeKey);
-
             return null;
         }
         catch (OperationCanceledException)
@@ -208,7 +209,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
         {
             _logger.LogWarning(
                 exception,
-                "Unable to load the compendium photo for project {ProjectId}, photo {PhotoId}.",
+                "Unable to load the Compendium photo for project {ProjectId}, photo {PhotoId}.",
                 projectId,
                 photoId.Value);
             return null;
@@ -235,6 +236,9 @@ public sealed class CompendiumExportService : ICompendiumExportService
             ? value.Value.ToString("0.##", CultureInfo.InvariantCulture)
             : "Not recorded";
 
+    private static string? NormalizeMarking(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static string? NormalizePhotoFormat(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -246,34 +250,20 @@ public sealed class CompendiumExportService : ICompendiumExportService
         return SupportedPhotoFormats.Contains(normalized) ? normalized : null;
     }
 
-    private static string? NormalizeHandlingMarking(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = string.Join(
-            " ",
-            value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-
-        return normalized.Length <= 80 ? normalized : normalized[..80];
-    }
-
     private static string SanitizeFileNamePrefix(string? value)
     {
         var candidate = string.IsNullOrWhiteSpace(value)
             ? "SDD_Simulators_Compendium"
             : value.Trim();
-
         var invalid = Path.GetInvalidFileNameChars().ToHashSet();
         var characters = candidate
-            .Select(character => invalid.Contains(character) || char.IsWhiteSpace(character) ? '_' : character)
+            .Select(character => invalid.Contains(character) || char.IsWhiteSpace(character)
+                ? '_'
+                : character)
             .ToArray();
-
-        var sanitized = new string(characters).Trim('_');
-        return string.IsNullOrWhiteSpace(sanitized)
+        var clean = new string(characters).Trim('_');
+        return string.IsNullOrWhiteSpace(clean)
             ? "SDD_Simulators_Compendium"
-            : sanitized;
+            : clean;
     }
 }

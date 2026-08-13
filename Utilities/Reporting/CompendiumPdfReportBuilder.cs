@@ -25,7 +25,10 @@ public sealed record CompendiumPdfReportContext(
     string? HandlingMarking,
     DateTimeOffset GeneratedAtUtc,
     IReadOnlyList<CompendiumPdfCategorySection> Categories,
-    bool ShowMissingPhotoPlaceholder);
+    bool ShowMissingPhotoPlaceholder)
+{
+    public string Edition { get; init; } = string.Empty;
+}
 
 public sealed record CompendiumPdfCategorySection(
     string CategoryName,
@@ -42,7 +45,11 @@ public sealed record CompendiumPdfProjectSection(
     string? ProliferationCostRemarks,
     string DescriptionMarkdown,
     byte[]? CoverPhoto,
-    bool PhotoWasSelected);
+    bool PhotoWasSelected)
+{
+    public string LifecycleDisplay { get; init; } = "Completed";
+    public bool IsAvailableForProliferation { get; init; }
+}
 
 // SECTION: Publication-quality QuestPDF composition for the SDD Simulators Compendium.
 public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
@@ -87,6 +94,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var marking = NormalizeOptional(context.HandlingMarking)?.ToUpperInvariant();
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
         var generatedDate = generatedAtIst.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture);
+        var edition = Normalize(context.Edition, $"Edition · {generatedAtIst.Year}");
         var projectCount = context.Categories.Sum(category => category.Projects.Count);
         var footerLogo = TryLoadAsset("img/logos/sdd.png");
         var crest = TryLoadAsset("img/logos/artrac.png");
@@ -99,6 +107,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     container,
                     title,
                     subtitle,
+                    edition,
                     unit,
                     issuer,
                     marking,
@@ -135,8 +144,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             {
                 Title = $"{title} — {subtitle}",
                 Author = issuer,
-                Subject = $"Completed simulators recorded as {subtitle.ToLowerInvariant()}.",
-                Keywords = "simulators, proliferation, SDD, PRISM ERP, training systems",
+                Subject = "Detailed project reference generated from selected PRISM project records.",
+                Keywords = "projects, simulators, capabilities, SDD, PRISM ERP",
                 Creator = "PRISM ERP",
                 Producer = "PRISM ERP / QuestPDF",
                 CreationDate = context.GeneratedAtUtc,
@@ -150,6 +159,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         IDocumentContainer container,
         string title,
         string subtitle,
+        string edition,
         string unit,
         string issuer,
         string? marking,
@@ -242,13 +252,17 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         .FontSize(16)
                         .FontColor("#CBD5E1");
 
-                    column.Item().PaddingTop(8).Text($"As on {generatedDate}")
+                    column.Item().PaddingTop(8).Text(edition)
                         .FontSize(11)
+                        .SemiBold()
+                        .FontColor("#D8E1EE");
+                    column.Item().Text($"Generated {generatedDate}")
+                        .FontSize(8.5f)
                         .FontColor("#94A3B8");
 
                     column.Item().PaddingTop(28).Row(summary =>
                     {
-                        summary.ConstantItem(138).Element(box => ComposeCoverMetric(box, projectCount.ToString(CultureInfo.InvariantCulture), "SIMULATORS"));
+                        summary.ConstantItem(138).Element(box => ComposeCoverMetric(box, projectCount.ToString(CultureInfo.InvariantCulture), "PROJECTS"));
                         summary.ConstantItem(12);
                         summary.ConstantItem(138).Element(box => ComposeCoverMetric(box, categoryCount.ToString(CultureInfo.InvariantCulture), "TECHNICAL CATEGORIES"));
                     });
@@ -334,7 +348,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 if (categories.Count == 0)
                 {
-                    content.Item().PaddingTop(50).AlignCenter().Text("No eligible projects found.")
+                    content.Item().PaddingTop(50).AlignCenter().Text("No projects are selected for this Compendium.")
                         .FontSize(13)
                         .FontColor(Slate500);
                     return;
@@ -403,9 +417,19 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     {
                         metadata.Spacing(6);
                         metadata.Item().Element(item => ComposeKeyValue(item, "Technical category", project.CategoryName));
-                        metadata.Item().Element(item => ComposeKeyValue(item, "Year of completion", project.CompletionYearDisplay));
+                        metadata.Item().Element(item => ComposeKeyValue(item, "Status", project.LifecycleDisplay));
+                        if (string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            metadata.Item().Element(item => ComposeKeyValue(item, "Year of completion", project.CompletionYearDisplay));
+                        }
                         metadata.Item().Element(item => ComposeKeyValue(item, "Arm/Service", project.ArmServiceDisplay));
-                        metadata.Item().Element(item => ComposeKeyValue(item, "Indicative proliferation cost (₹ lakh)", project.ProliferationCostDisplay));
+                        if (project.IsAvailableForProliferation)
+                        {
+                            metadata.Item().Element(item => ComposeKeyValue(
+                                item,
+                                "Indicative proliferation cost (₹ lakh)",
+                                project.ProliferationCostDisplay));
+                        }
 
                         if (!string.IsNullOrWhiteSpace(project.CaseFileNumber))
                         {
@@ -500,7 +524,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 header.Cell().Element(CategoryHeaderCell).Text(string.Empty);
 
                 header.Cell().Element(IndexColumnHeader).Text("Simulator");
-                header.Cell().Element(IndexColumnHeader).AlignRight().Text("Completed");
+                header.Cell().Element(IndexColumnHeader).AlignRight().Text("Status / year");
                 header.Cell().Element(IndexColumnHeader).AlignRight().Text("Page");
             });
 
@@ -514,7 +538,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 table.Cell().Element(IndexBodyCell)
                     .AlignRight()
-                    .Text(project.CompletionYearDisplay);
+                    .Text(string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
+                        ? project.CompletionYearDisplay
+                        : project.LifecycleDisplay);
 
                 table.Cell().Element(IndexBodyCell)
                     .AlignRight()

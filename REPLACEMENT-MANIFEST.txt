@@ -1,41 +1,33 @@
-PRISM Brochure Phase 21.2 — Ready-to-paste manifest
-===================================================
-
-BASELINE REQUIRED
------------------
-Phase 21.1 must already be present.
+PRISM Publications Phase 22 — Compendium 2.0 Foundation
+Apply on top of the current Phase 21.2 Brochure baseline.
 
 REPLACE
--------
 Data/ApplicationDbContext.cs
 Migrations/ApplicationDbContextModelSnapshot.cs
-Models/Publications/BrochurePreset.cs
-Pages/Projects/Publications/Brochure/Index.cshtml
-Pages/Projects/Publications/Brochure/Index.cshtml.cs
-ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
-Services/Publications/BrochureContracts.cs
-Services/Publications/BrochurePresetContracts.cs
-Services/Publications/BrochurePresetService.cs
-Services/Publications/BrochurePrintLayoutMetrics.cs
-Services/Publications/BrochurePrintMeasurementService.cs
-Services/Publications/BrochurePrintPublicationPolicy.cs
-Utilities/Reporting/BrochurePrintCompactComposer.cs
-wwwroot/css/pages/projects-publications.css
-wwwroot/js/pages/projects-brochure.js
-wwwroot/js/projects/publications-brochure-contract.test.js
 Migrations/immutable-migration-ids.txt
+Pages/Projects/Publications/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml.cs
+Services/Compendiums/CompendiumDtos.cs
+Services/Compendiums/ICompendiumReadService.cs
+Services/Compendiums/CompendiumReadService.cs
+Services/Compendiums/ICompendiumExportService.cs
+Services/Compendiums/CompendiumExportService.cs
+Services/Publications/PublicationServiceCollectionExtensions.cs
+Utilities/Reporting/CompendiumPdfReportBuilder.cs
+wwwroot/css/pages/projects-publications.css
 
 ADD
----
-Migrations/20261208120000_AddBrochureInstitutionalSectionLabels.cs
-ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
-tools/Test-PrismPublicationsPhase21_2.ps1
+Models/Publications/CompendiumPreset.cs
+Services/Publications/CompendiumPresetContracts.cs
+Services/Publications/CompendiumPresetService.cs
+Migrations/20261208130000_AddSharedCompendiumPresets.cs
+wwwroot/js/pages/projects-compendium.js
+wwwroot/js/projects/publications-compendium-contract.test.js
+ProjectManagement.Tests/Publications/CompendiumPhase22ContractTests.cs
+tools/Test-PrismPublicationsPhase22.ps1
 
-DO NOT REPLACE FOR THIS PHASE
------------------------------
-Services/Publications/BrochurePublicationService.cs
-Services/Publications/BrochureReviewFingerprint.cs
-Utilities/Reporting/BrochurePdfReportBuilder.cs
-Services/Publications/BrochureDigitalPublicationPolicy.cs
-
-Those components remain on the already-tested Phase 21.1 implementation.
+NO CHANGE
+Program.cs — existing ICompendiumReadService/ICompendiumExportService/ICompendiumPdfReportBuilder registrations remain valid.
+Brochure Builder files/compositor — Phase 22 does not redesign or alter the frozen Brochure output.
+Legacy /Projects/Compendium route — retained; its automatic proliferation catalogue path remains available for bookmarks.

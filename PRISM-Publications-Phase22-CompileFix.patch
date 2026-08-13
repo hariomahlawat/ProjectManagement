@@ -1,0 +1,97 @@
+--- a/Services/Compendiums/CompendiumReadService.cs
++++ b/Services/Compendiums/CompendiumReadService.cs
+@@ -6,6 +6,7 @@
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.Projects;
+ using ProjectManagement.Services;
++using ProjectManagement.Utilities;
+ 
+ namespace ProjectManagement.Services.Compendiums;
+ 
+@@ -116,7 +117,7 @@
+                     LifecycleDisplay(project.LifecycleStatus),
+                     project.ProjectCategory,
+                     project.TechnicalCategory,
+-                    availableForProliferation,
++                    availableForProliferation == true,
+                     !string.IsNullOrWhiteSpace(project.Description),
+                     !string.IsNullOrWhiteSpace(project.ArmService),
+                     productionCost.HasValue,
+@@ -184,7 +185,7 @@
+         var availableProjectIds = rows.Select(project => project.Id).ToArray();
+ 
+         var availability = availableProjectIds.Length == 0
+-            ? new Dictionary<int, bool>()
++            ? new Dictionary<int, bool?>()
+             : await _db.ProjectTechStatuses
+                 .AsNoTracking()
+                 .Where(status => availableProjectIds.Contains(status.ProjectId))
+@@ -254,7 +255,7 @@
+                 project.Description,
+                 cost?.Cost,
+                 selectedPhoto.PhotoId,
+-                availableForProliferation);
++                availableForProliferation == true);
+ 
+             findings.AddRange(issues.Select(issue =>
+                 ToFinding(issue, project.Id, project.Name)));
+@@ -278,7 +279,7 @@
+             {
+                 LifecycleDisplay = LifecycleDisplay(project.LifecycleStatus),
+                 ProjectCategoryName = NormalizeOptional(project.ProjectCategory),
+-                IsAvailableForProliferation = availableForProliferation,
++                IsAvailableForProliferation = availableForProliferation == true,
+                 PhotoCount = projectPhotos.Count,
+                 SortOrder = sortOrder
+             });
+@@ -342,7 +343,7 @@
+ 
+         var completedIds = completed.Select(project => project.Id).ToArray();
+         var statuses = completedIds.Length == 0
+-            ? new Dictionary<int, bool>()
++            ? new Dictionary<int, bool?>()
+             : await _db.ProjectTechStatuses
+                 .AsNoTracking()
+                 .Where(status => completedIds.Contains(status.ProjectId))
+@@ -352,7 +353,7 @@
+                     cancellationToken);
+ 
+         var eligibleProjectIds = completed
+-            .Where(project => statuses.GetValueOrDefault(project.Id))
++            .Where(project => statuses.GetValueOrDefault(project.Id) == true)
+             .OrderBy(project => project.Category ?? "Not recorded", StringComparer.OrdinalIgnoreCase)
+             .ThenBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+             .Select(project => project.Id)
+@@ -362,9 +363,10 @@
+             new CompendiumPublicationRequest(eligibleProjectIds),
+             cancellationToken);
+ 
+-        var missingStatusCount = completed.Count(project => !statuses.ContainsKey(project.Id));
++        var missingStatusCount = completed.Count(project =>
++            !statuses.TryGetValue(project.Id, out var available) || !available.HasValue);
+         var excludedCount = completed.Count(project =>
+-            statuses.TryGetValue(project.Id, out var available) && !available);
++            statuses.TryGetValue(project.Id, out var available) && available == false);
+ 
+         return data with
+         {
+--- a/Services/Compendiums/CompendiumExportService.cs
++++ b/Services/Compendiums/CompendiumExportService.cs
+@@ -1,6 +1,7 @@
+ using System.Globalization;
+ using Microsoft.Extensions.Options;
+ using ProjectManagement.Configuration;
++using ProjectManagement.Utilities;
+ using ProjectManagement.Services.Projects;
+ using ProjectManagement.Utilities.Reporting;
+ 
+--- a/Services/Publications/CompendiumPresetService.cs
++++ b/Services/Publications/CompendiumPresetService.cs
+@@ -7,6 +7,7 @@
+ using ProjectManagement.Models.Projects;
+ using ProjectManagement.Models.Publications;
+ using ProjectManagement.Services;
++using ProjectManagement.Utilities;
+ 
+ namespace ProjectManagement.Services.Publications;
+ 

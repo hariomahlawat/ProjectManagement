@@ -67,6 +67,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectBriefingDeckItem> ProjectBriefingDeckItems => Set<ProjectBriefingDeckItem>();
         public DbSet<BrochurePreset> BrochurePresets => Set<BrochurePreset>();
         public DbSet<BrochurePresetProject> BrochurePresetProjects => Set<BrochurePresetProject>();
+        public DbSet<CompendiumPreset> CompendiumPresets => Set<CompendiumPreset>();
+        public DbSet<CompendiumPresetProject> CompendiumPresetProjects => Set<CompendiumPresetProject>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<NotebookItem> NotebookItems => Set<NotebookItem>();
@@ -638,6 +640,40 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(item => item.ProjectId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // SECTION: Shared Simulators Compendium presets
+            builder.Entity<CompendiumPreset>(entity =>
+            {
+                entity.ToTable("CompendiumPresets");
+                entity.Property(preset => preset.Name).HasMaxLength(120).IsRequired();
+                entity.Property(preset => preset.NormalizedName).HasMaxLength(120).IsRequired();
+                entity.Property(preset => preset.Description).HasMaxLength(500);
+                entity.Property(preset => preset.Title).HasMaxLength(120).IsRequired();
+                entity.Property(preset => preset.Subtitle).HasMaxLength(160).IsRequired();
+                entity.Property(preset => preset.Edition).HasMaxLength(80).IsRequired();
+                entity.Property(preset => preset.HandlingMarking).HasMaxLength(80);
+                entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(1).IsRequired();
+                entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
+                ConfigureRowVersion(entity);
+                entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();
+                entity.HasIndex(preset => preset.UpdatedAtUtc).HasDatabaseName("IX_CompendiumPresets_UpdatedAtUtc");
+                entity.HasIndex(preset => preset.IsActive).HasDatabaseName("IX_CompendiumPresets_IsActive");
+                entity.HasOne(preset => preset.CreatedByUser).WithMany().HasForeignKey(preset => preset.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(preset => preset.LastModifiedByUser).WithMany().HasForeignKey(preset => preset.LastModifiedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<CompendiumPresetProject>(entity =>
+            {
+                entity.ToTable("CompendiumPresetProjects");
+                entity.Property(item => item.ProjectNameSnapshot).HasMaxLength(160).IsRequired();
+                entity.HasIndex(item => new { item.PresetId, item.SortOrder }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder").IsUnique();
+                entity.HasIndex(item => new { item.PresetId, item.ProjectId }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_Project").IsUnique();
+                entity.HasIndex(item => item.ProjectId).HasDatabaseName("IX_CompendiumPresetProjects_ProjectId");
+                entity.HasOne(item => item.Preset).WithMany(preset => preset.Projects).HasForeignKey(item => item.PresetId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.SetNull);
             });
 
             // SECTION: Project briefing decks

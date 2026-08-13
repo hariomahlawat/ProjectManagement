@@ -1,20 +1,25 @@
-PRISM Publications Phase 21.2 validation
-========================================
+PRISM Publications Phase 22 — Validation Results
+Generated: 2026-08-13
 
-PASS  node --check wwwroot/js/pages/projects-brochure.js
-PASS  full publications-brochure-contract.test.js on assembled current source
-      Tests: 105 passed, 0 failed
-PASS  Phase 21.2 focused contract tests
-PASS  structural delimiter validation for 14 changed/new C# sources
-PASS  SettingsSchemaVersion model/service/EF snapshot = 4
-PASS  20261208120000_AddBrochureInstitutionalSectionLabels occurs exactly once in immutable migration IDs
-PASS  six editable/suppressible Print section-label fields propagate across UI -> input -> build options -> print matter -> renderer
-PASS  six fields propagate across shared preset contract -> normalization -> EF model -> migration -> load/save/clone
-PASS  no fixed renderer literals remain for Procurement/CONTACTS/agency/Visionary/New Simulators labels
-PASS  Print Cover B physical hero height is derived from canonical 1800 x 1055 crop geometry
-PASS  label removal participates in measured contact/closing geometry (no label-only reserved height)
+PASS  node --check wwwroot/js/pages/projects-compendium.js
+PASS  node --test wwwroot/js/projects/publications-compendium-contract.test.js
+      12 tests passed, 0 failed.
+PASS  C# structural source validation
+      15 changed/new C# files checked for balanced braces, parentheses, brackets and lexer end state.
+PASS  Additive persistence static checks
+      CompendiumPresets / CompendiumPresetProjects DbSets, mappings, migration, model snapshot and immutable migration ID are present.
+PASS  Shared preset hardening static checks
+      HoD/Comdt write governance, row-version concurrency, transactional order replacement and PRISM audit actions are present.
+PASS  Selection architecture static checks
+      normal Active/Completed publication candidate scope; proliferation is a filter/fact rather than an authored-Compendium inclusion gate; selected-only export/category grouping is present.
+PASS  Stale-preflight protection static/contracts
+      pending/stale preflight cannot enable current final output.
+PASS  Landing-page user-copy contract
+      old implementation-facing phrases are absent.
 
-NOT EXECUTED HERE
------------------
-dotnet build / dotnet test — .NET SDK is not installed in this environment.
-The supplied Test-PrismPublicationsPhase21_2.ps1 runs both automatically when dotnet is available.
+NOT RUN  dotnet build
+NOT RUN  dotnet test
+Reason: the execution environment used to assemble this package does not contain a .NET SDK.
+Run .\tools\Test-PrismPublicationsPhase22.ps1 on the PRISM development workstation; it will perform build/test when dotnet is available.
+
+Environment note: PowerShell is also unavailable in the assembly container, so the .ps1 wrapper itself could not be executed here. Its Node/static operations were executed directly as recorded above.

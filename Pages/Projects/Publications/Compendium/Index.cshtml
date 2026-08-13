@@ -1,133 +1,463 @@
 @page "/Projects/Publications/Compendium"
 @model ProjectManagement.Pages.Projects.Publications.Compendium.IndexModel
+@using System.Text.Json
 @using ProjectManagement.Services.Compendiums
+@using ProjectManagement.Services.Publications
 @{
     ViewData["Title"] = "Simulators Compendium";
+    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/projects-publications.css" asp-append-version="true" />
 }
 
-<div class="publications-page compendium-publication-page">
+<div class="publications-page compendium-builder-page">
     <nav class="publications-breadcrumb" aria-label="Breadcrumb">
         <a asp-page="/Projects/Index">Projects</a>
-        <span aria-hidden="true">/</span>
+        <span>/</span>
         <a asp-page="/Projects/Publications/Index">Publications</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">Compendium</span>
+        <span>/</span>
+        <span>Compendium</span>
     </nav>
 
-    <header class="publications-header">
+    <header class="publications-header compendium-builder-header">
         <div>
-            <p class="publications-eyebrow">REFERENCE CATALOGUE</p>
+            <p class="publications-eyebrow">DETAILED PROJECT PUBLICATION</p>
             <h1>Simulators Compendium</h1>
-            <p>Generate the existing detailed proliferation catalogue from completed projects recorded as available for proliferation.</p>
+            <p>Create a structured project reference by selecting and arranging projects from across the PRISM portfolio.</p>
         </div>
+
+        <section class="compendium-preset-control" aria-label="Saved Compendium">
+            <div class="compendium-preset-heading">
+                <strong>Saved Compendium</strong>
+                <span data-compendium-preset-dirty hidden>Modified</span>
+            </div>
+            <div class="compendium-preset-row">
+                <select class="form-select form-select-sm" data-compendium-preset-select aria-label="Saved Compendium">
+                    <option value="">Unsaved Compendium</option>
+                    @foreach (var preset in Model.SavedCompendiums)
+                    {
+                        if (Model.PresetId == preset.Id)
+                        {
+                            <option value="@preset.Id" selected>@preset.Name</option>
+                        }
+                        else
+                        {
+                            <option value="@preset.Id">@preset.Name</option>
+                        }
+                    }
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-compendium-preset-load>Load</button>
+
+                @if (Model.CanManagePresets)
+                {
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-primary" data-compendium-save-as-new>Save</button>
+                        <button type="button"
+                                class="btn btn-sm btn-primary dropdown-toggle dropdown-toggle-split"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            <span class="visually-hidden">Saved Compendium actions</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><button class="dropdown-item" type="button" data-compendium-save-changes>Save changes</button></li>
+                            <li><button class="dropdown-item" type="button" data-compendium-rename>Rename</button></li>
+                            <li><button class="dropdown-item" type="button" data-compendium-duplicate>Duplicate</button></li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><button class="dropdown-item text-danger" type="button" data-compendium-delete>Delete</button></li>
+                        </ul>
+                    </div>
+                }
+            </div>
+            <small data-compendium-preset-meta>
+                @if (Model.ActivePreset is null)
+                {
+                    <text>Load a shared publication configuration or continue with an ad-hoc Compendium.</text>
+                }
+                else
+                {
+                    <text>Shared · @Model.ActivePreset.ProjectCount projects · Updated @Model.ActivePreset.UpdatedAtUtc.ToString("dd MMM yyyy") · @Model.ActivePreset.UpdatedByDisplay</text>
+                }
+            </small>
+        </section>
     </header>
 
     <partial name="/Pages/Projects/Publications/_PublicationTabs.cshtml" />
 
     <div asp-validation-summary="ModelOnly" class="alert alert-danger brochure-validation" role="alert"></div>
-
-    <section class="compendium-workspace-card">
-        <div class="compendium-workspace-status @(Model.Preflight.IsPublicationReady ? "is-ready" : Model.Preflight.CanGenerate ? "is-warning" : "is-neutral")">
-            <i class="bi @(Model.Preflight.IsPublicationReady ? "bi-check-circle" : Model.Preflight.CanGenerate ? "bi-exclamation-triangle" : "bi-info-circle")" aria-hidden="true"></i>
-            <div>
-                <strong>@(Model.Preflight.IsPublicationReady ? "Publication preflight passed" : Model.Preflight.CanGenerate ? "Ready to generate with warnings" : "No simulator is currently eligible")</strong>
-                <span>@(Model.Preflight.IsPublicationReady ? "All eligible projects have the core compendium data recorded." : Model.Preflight.CanGenerate ? "Generation remains available; review the warnings below for a cleaner publication." : "Projects must be completed, active records and available for proliferation.")</span>
-            </div>
-        </div>
-
-        <div class="compendium-workspace-metrics">
-            <div><span>Eligible simulators</span><strong>@Model.Preflight.EligibleProjectCount</strong><small>of @Model.Preflight.CompletedProjectCount completed</small></div>
-            <div><span>Technical categories</span><strong>@Model.Preflight.CategoryCount</strong><small>grouped in the index</small></div>
-            <div><span>Photographs selected</span><strong>@Model.Preflight.PhotoSelectedCount/@Model.Preflight.EligibleProjectCount</strong><small>cover or best available</small></div>
-            <div class="@(Model.Preflight.TotalWarningCount > 0 ? "has-warning" : string.Empty)"><span>Publication warnings</span><strong>@Model.Preflight.TotalWarningCount</strong><small>across @Model.Preflight.ProjectsWithWarnings project(s)</small></div>
-        </div>
-
-        <div class="compendium-eligibility-note">
-            <i class="bi bi-check2-circle" aria-hidden="true"></i>
-            <span><strong>Eligibility:</strong> completed, active project records marked available for proliferation.</span>
-        </div>
-
-        <form method="post" class="compendium-workspace-generate" data-compendium-publication-form>
-            <label class="form-label">
-                <span>Handling/classification marking</span>
-                <input asp-for="Input.HandlingMarking" class="form-control" maxlength="80" placeholder="Optional, e.g. RESTRICTED" />
-                <small>PRISM does not assign a classification automatically.</small>
-            </label>
-            <div class="compendium-workspace-actions">
-                <button type="submit"
-                        asp-page-handler="Preview"
-                        formtarget="_blank"
-                        class="btn btn-outline-primary"
-                        disabled="@(!Model.Preflight.CanGenerate)"
-                        data-compendium-publication-preview>
-                    <i class="bi bi-eye" aria-hidden="true"></i>
-                    <span>Preview PDF</span>
-                </button>
-                <button type="submit"
-                        asp-page-handler="Generate"
-                        class="btn btn-primary"
-                        disabled="@(!Model.Preflight.CanGenerate)"
-                        data-compendium-publication-generate>
-                    <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                    <span data-compendium-publication-label>Download PDF</span>
-                </button>
-            </div>
-        </form>
-    </section>
-
-    @if (Model.WarningProjects.Count > 0)
+    @foreach (var diagnostic in Model.PresetDiagnostics)
     {
-        <section class="publication-panel compendium-warning-panel">
-            <header class="publication-panel__header">
-                <div>
-                    <span class="publication-step"><i class="bi bi-clipboard-check" aria-hidden="true"></i></span>
-                    <div><h2>Publication review</h2><p>@Model.WarningProjects.Count project(s) require attention. The authoritative eligibility rules are unchanged.</p></div>
-                </div>
-            </header>
-            <div class="compendium-warning-list">
-                @for (var warningIndex = 0; warningIndex < Model.WarningProjects.Count; warningIndex++)
-                {
-                    var project = Model.WarningProjects[warningIndex];
-                    <article data-compendium-warning-row hidden="@(warningIndex >= 8)">
-                        <div><strong>@project.ProjectName</strong><span>@project.TechnicalCategoryName · @project.CompletionYearDisplay</span></div>
-                        <div class="compendium-warning-tags">
-                            @foreach (var issue in project.Issues)
-                            {
-                                <span>@IndexModel.IssueLabel(issue)</span>
-                            }
-                        </div>
-                        <div class="compendium-warning-actions">
-                            @if (project.Issues.Contains(CompendiumPublicationIssue.MissingPhoto) && Model.CanManageProjectPhotos)
-                            {
-                                <a asp-page="/Projects/Photos/Index" asp-route-id="@project.ProjectId" class="btn btn-sm btn-outline-primary">Add photo</a>
-                            }
-                            @if (Model.CanMaintainProjectData)
-                            {
-                                <a asp-page="/Projects/CompletedSummary/Edit" asp-route-id="@project.ProjectId" class="btn btn-sm btn-outline-secondary">Edit record</a>
-                            }
-                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="btn btn-sm btn-link">Open project</a>
-                        </div>
-                    </article>
-                }
-            </div>
-            @if (Model.WarningProjects.Count > 8)
-            {
-                <footer class="compendium-warning-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-compendium-show-all-warnings>Show all @Model.WarningProjects.Count projects</button>
-                </footer>
-            }
-        </section>
+        var alertClass = diagnostic.Severity == CompendiumPresetDiagnosticSeverity.Warning
+            ? "alert-warning"
+            : "alert-info";
+        <div class="alert @alertClass py-2">@diagnostic.Message</div>
     }
 
-    <p class="compendium-legacy-note">The legacy <code>/Projects/Compendium</code> route remains valid for existing bookmarks. Publications is now the normal navigation entry point.</p>
+    <form method="post"
+          class="compendium-builder-form"
+          data-compendium-builder
+          data-preflight-url="@Url.Page("/Projects/Publications/Compendium/Index", "Preflight")"
+          data-save-url="@Url.Page("/Projects/Publications/Compendium/Index", "SavePreset")"
+          data-rename-url="@Url.Page("/Projects/Publications/Compendium/Index", "RenamePreset")"
+          data-duplicate-url="@Url.Page("/Projects/Publications/Compendium/Index", "DuplicatePreset")"
+          data-delete-url="@Url.Page("/Projects/Publications/Compendium/Index", "DeletePreset")">
+        @Html.AntiForgeryToken()
+        <input asp-for="Input.SelectedProjectIdsCsv" type="hidden" data-selected-project-ids />
+        <input asp-for="PresetId" type="hidden" data-active-preset-id />
+        <input asp-for="ActivePresetRowVersion" type="hidden" data-active-preset-row-version />
+
+        <script type="application/json" data-compendium-projects>@Html.Raw(JsonSerializer.Serialize(Model.Projects, jsonOptions))</script>
+        <script type="application/json" data-compendium-presets>@Html.Raw(JsonSerializer.Serialize(Model.SavedCompendiums, jsonOptions))</script>
+        <script type="application/json" data-compendium-active-preset>@Html.Raw(JsonSerializer.Serialize(new
+        {
+            id = Model.ActivePreset?.Id,
+            rowVersion = Model.ActivePreset?.RowVersion,
+            canManage = Model.CanManagePresets
+        }, jsonOptions))</script>
+
+        <div class="compendium-builder-layout">
+            <main class="compendium-builder-main">
+                <section class="publication-panel" id="compendium-settings">
+                    <header class="publication-panel__header">
+                        <div>
+                            <span class="publication-step">1</span>
+                            <div>
+                                <h2>Publication settings</h2>
+                                <p>Set the identity of this Compendium. Project facts remain live from PRISM.</p>
+                            </div>
+                        </div>
+                    </header>
+                    <div class="publication-panel__body">
+                        <div class="brochure-form-grid">
+                            <label class="brochure-field">
+                                <span>Compendium title</span>
+                                <input asp-for="Input.Title" class="form-control" maxlength="120" data-compendium-durable />
+                            </label>
+                            <label class="brochure-field">
+                                <span>Edition</span>
+                                <input asp-for="Input.Edition" class="form-control" maxlength="80" data-compendium-durable />
+                            </label>
+                            <label class="brochure-field">
+                                <span>Subtitle</span>
+                                <input asp-for="Input.Subtitle" class="form-control" maxlength="160" data-compendium-durable />
+                            </label>
+                            <label class="brochure-field">
+                                <span>Handling/classification marking</span>
+                                <input asp-for="Input.HandlingMarking"
+                                       class="form-control"
+                                       maxlength="80"
+                                       placeholder="Optional, e.g. RESTRICTED"
+                                       data-compendium-durable />
+                                <small>PRISM never assigns a classification automatically.</small>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="publication-panel" id="compendium-select">
+                    <header class="publication-panel__header">
+                        <div>
+                            <span class="publication-step">2</span>
+                            <div>
+                                <h2>Select projects</h2>
+                                <p><span data-compendium-matching>@Model.Projects.Count</span> matching · <span data-compendium-selected-count>0</span> selected</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-select-matching>Select matching</button>
+                    </header>
+                    <div class="publication-panel__body publication-panel__body--projects">
+                        <div class="compendium-filter-toolbar">
+                            <label class="brochure-search-field">
+                                <i class="bi bi-search"></i>
+                                <input class="form-control" type="search" placeholder="Search projects..." data-filter-search />
+                            </label>
+                            <select class="form-select" data-filter-lifecycle aria-label="Lifecycle">
+                                <option value="">All lifecycle</option>
+                                <option>Ongoing</option>
+                                <option>Completed</option>
+                            </select>
+                            <select class="form-select" data-filter-category aria-label="Project category">
+                                <option value="">All project categories</option>
+                                @foreach (var category in Model.ProjectCategories)
+                                {
+                                    <option>@category</option>
+                                }
+                            </select>
+                            <select class="form-select" data-filter-technical aria-label="Technical category">
+                                <option value="">All technical categories</option>
+                                @foreach (var category in Model.TechnicalCategories)
+                                {
+                                    <option>@category</option>
+                                }
+                            </select>
+                            <select class="form-select" data-filter-proliferation aria-label="Proliferation status">
+                                <option value="">All proliferation status</option>
+                                <option value="available">Available for proliferation</option>
+                                <option value="other">Not marked available</option>
+                            </select>
+                            <label class="brochure-selected-only">
+                                <input class="form-check-input" type="checkbox" data-filter-selected />
+                                Selected only
+                            </label>
+                        </div>
+
+                        <div class="compendium-project-table-wrap">
+                            <table class="compendium-project-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col"></th>
+                                        <th scope="col">Project</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Compendium data</th>
+                                        <th scope="col">Photography</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var project in Model.Projects)
+                                    {
+                                        var costClass = project.HasProliferationCost
+                                            ? "is-ok"
+                                            : project.IsAvailableForProliferation ? "is-missing" : "is-neutral";
+                                        <tr data-project-row
+                                            data-id="@project.ProjectId"
+                                            data-name="@project.ProjectName.ToLowerInvariant()"
+                                            data-lifecycle="@project.Lifecycle"
+                                            data-category="@project.ProjectCategory"
+                                            data-technical="@project.TechnicalCategory"
+                                            data-proliferation="@(project.IsAvailableForProliferation ? "available" : "other")">
+                                            <td>
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       value="@project.ProjectId"
+                                                       data-project-checkbox
+                                                       aria-label="Select @project.ProjectName" />
+                                            </td>
+                                            <td>
+                                                <strong>@project.ProjectName</strong>
+                                                <small>@(project.ProjectCategory ?? "Uncategorised") · @(project.TechnicalCategory ?? "Technical category not recorded")</small>
+                                            </td>
+                                            <td>
+                                                <span>@project.Lifecycle</span>
+                                                <small>@project.CompletionDisplay</small>
+                                            </td>
+                                            <td>
+                                                <div class="compendium-data-badges">
+                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")">Description</span>
+                                                    <span class="@(project.HasArmService ? "is-ok" : "is-missing")">Arm/Service</span>
+                                                    <span class="@costClass">Cost</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="compendium-photo-count">
+                                                    <i class="bi bi-image"></i> @project.PhotoCount
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="publication-panel" id="compendium-review">
+                    <header class="publication-panel__header">
+                        <div>
+                            <span class="publication-step">3</span>
+                            <div>
+                                <h2>Review publication</h2>
+                                <p>Inspect the current authoritative information for each selected project.</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next>Review next</button>
+                    </header>
+                    <div class="publication-panel__body">
+                        <div class="compendium-review-empty" data-review-empty>
+                            <i class="bi bi-journal-text"></i>
+                            <strong>Select projects to begin review.</strong>
+                        </div>
+                        <article class="compendium-review-card" data-review-card hidden>
+                            <div>
+                                <small data-review-ordinal></small>
+                                <h3 data-review-name></h3>
+                                <p data-review-meta></p>
+                            </div>
+                            <div class="compendium-review-facts" data-review-facts></div>
+                            <div class="compendium-review-actions">
+                                <a class="btn btn-sm btn-outline-secondary" data-review-open-project>Open project</a>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="publication-panel" id="compendium-readiness">
+                    <header class="publication-panel__header">
+                        <div>
+                            <span class="publication-step">4</span>
+                            <div>
+                                <h2>Publication readiness</h2>
+                                <p>Server preflight for the selected Compendium only.</p>
+                            </div>
+                        </div>
+                        <span class="spinner-border spinner-border-sm d-none" data-preflight-spinner></span>
+                    </header>
+                    <div class="publication-panel__body">
+                        <div class="compendium-readiness-metrics">
+                            <div><span>Selected</span><strong data-ready-selected>0</strong></div>
+                            <div><span>Blockers</span><strong data-ready-blockers>1</strong></div>
+                            <div><span>Warnings</span><strong data-ready-warnings>0</strong></div>
+                            <div><span>Info</span><strong data-ready-info>0</strong></div>
+                        </div>
+                        <div class="compendium-readiness-structure">
+                            <strong>Catalogue structure</strong>
+                            <span><b data-ready-categories>0</b> technical categories</span>
+                        </div>
+                        <div class="compendium-findings" data-ready-findings>
+                            <div class="compendium-finding is-blocker">Select at least one project to begin publication preflight.</div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <aside class="compendium-builder-rail">
+                <section class="publication-panel compendium-order-card">
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <h2>Publication order</h2>
+                                <p><span data-rail-count>0</span> selected · drag to reorder</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link" data-clear-selection>Clear selection</button>
+                    </header>
+                    <div class="compendium-order-list" data-order-list>
+                        <div class="compendium-order-empty">
+                            <i class="bi bi-journal"></i>
+                            <span>Select projects from the portfolio.</span>
+                        </div>
+                    </div>
+                    <p class="compendium-order-note">Technical category sequence follows the first selected project in each category; order within each category is preserved.</p>
+                </section>
+
+                <section class="publication-panel compendium-final-card">
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <h2>Final output</h2>
+                                <p>Preview at any technically valid stage; download when ready.</p>
+                            </div>
+                        </div>
+                    </header>
+                    <div class="publication-panel__body">
+                        <div class="compendium-output-status" data-output-status>
+                            <i class="bi bi-journal"></i>
+                            <div>
+                                <strong>Select projects</strong>
+                                <span>Choose at least one project to begin publication preflight.</span>
+                            </div>
+                        </div>
+                        <div class="compendium-output-actions">
+                            <button type="submit"
+                                    asp-page-handler="Preview"
+                                    formtarget="_blank"
+                                    class="btn btn-outline-primary"
+                                    data-preview
+                                    disabled>
+                                <i class="bi bi-eye"></i> Preview PDF
+                            </button>
+                            <button type="submit"
+                                    asp-page-handler="Generate"
+                                    class="btn btn-primary"
+                                    data-generate
+                                    disabled>
+                                <i class="bi bi-download"></i> Download Compendium PDF
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="compendiumDiscardModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Unsaved changes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">This Compendium has configuration changes that have not been saved. Discard them and load the selected saved Compendium?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Stay here</button>
+                <button type="button" class="btn btn-danger" data-discard-load>Discard and load</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="compendiumSaveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Save Compendium</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label w-100">Name
+                    <input class="form-control" maxlength="120" data-save-name />
+                </label>
+                <label class="form-label w-100 mt-2">Description
+                    <textarea class="form-control" maxlength="500" rows="2" data-save-description></textarea>
+                </label>
+                <div class="compendium-modal-message" data-save-message></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" type="button" data-save-confirm>Save shared Compendium</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="compendiumRenameModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rename Compendium</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label w-100">Name
+                    <input class="form-control" maxlength="120" data-rename-name />
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" type="button" data-rename-confirm>Rename</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="compendiumDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete saved Compendium?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">This removes the shared configuration. It does not alter any project record.</div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-delete-confirm>Delete</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script src="~/js/pages/projects-publications.js" asp-append-version="true"></script>
+    <script src="~/js/pages/projects-compendium.js" asp-append-version="true"></script>
 }
