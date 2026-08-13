@@ -33,6 +33,17 @@
 
     const selectedInput = form.querySelector("[data-selected-project-ids]");
     const selectionsInput = form.querySelector("[data-project-selections]");
+    const narrativeInput = form.querySelector("[data-narrative-source]");
+    const groupingInput = form.querySelector("[data-grouping-mode]");
+    const sortInput = form.querySelector("[data-sort-mode]");
+    const normalizeNarrative = value => ({ projectbrief: "ProjectBrief", capabilityoverview: "CapabilityOverview", projectdescription: "ProjectDescription" }[normalize(value)] || "ProjectBrief");
+    const normalizeGrouping = value => ({ technicalcategory: "TechnicalCategory", none: "None", customsections: "CustomSections" }[normalize(value)] || "TechnicalCategory");
+    const normalizeSort = value => ({ manual: "Manual", latestfirst: "LatestFirst", alphabetical: "Alphabetical" }[normalize(value)] || "Manual");
+    const editorialState = {
+        narrativeSource: normalizeNarrative(narrativeInput?.value),
+        groupingMode: normalizeGrouping(groupingInput?.value),
+        sortMode: normalizeSort(sortInput?.value)
+    };
     const activeIdInput = form.querySelector("[data-active-preset-id]");
     const activeVersionInput = form.querySelector("[data-active-preset-row-version]");
     const coverModeInput = form.querySelector("[data-cover-image-mode]");
@@ -71,7 +82,8 @@
                 focalX: roundFocal(item.focalX),
                 focalY: roundFocal(item.focalY),
                 imageSelectionMode: mode,
-                reviewFingerprint: String(item.reviewFingerprint || "").trim() || null
+                reviewFingerprint: String(item.reviewFingerprint || "").trim() || null,
+                customSectionName: String(item.customSectionName || "").trim().slice(0, 120) || null
             });
         });
     }
@@ -84,7 +96,8 @@
                 focalX: 0.5,
                 focalY: 0.5,
                 imageSelectionMode: "automatic",
-                reviewFingerprint: null
+                reviewFingerprint: null,
+                customSectionName: null
             });
         }
         return configById.get(projectId);
@@ -123,6 +136,15 @@
     const clearSelection = $("[data-clear-selection]");
     const orderList = $("[data-order-list]");
     const railCount = $("[data-rail-count]");
+    const orderModeCopy = $("[data-order-mode-copy]");
+    const orderNote = $("[data-order-note]");
+    const customSectionToolbar = $("[data-custom-section-toolbar]");
+    const customSectionName = $("[data-custom-section-name]");
+    const customSectionAdd = $("[data-custom-section-add]");
+    const composerNote = $("[data-composer-note]");
+    const narrativeButtons = [...form.querySelectorAll("[data-narrative-value]")];
+    const groupingButtons = [...form.querySelectorAll("[data-grouping-value]")];
+    const sortButtons = [...form.querySelectorAll("[data-sort-value]")];
 
     const reviewEmpty = $("[data-review-empty]");
     const reviewCard = $("[data-review-card]");
@@ -134,6 +156,8 @@
     const reviewFacts = $("[data-review-facts]");
     const reviewDescription = $("[data-review-description]");
     const reviewDescriptionState = $("[data-review-description-state]");
+    const reviewNarrativeLabel = $("[data-review-narrative-label]");
+    const reviewNarrativeOptions = $("[data-review-narrative-options]");
     const reviewOpen = $("[data-review-open-project]");
     const reviewEdit = $("[data-review-edit-record]");
     const reviewManagePhotos = $("[data-review-manage-photos]");
@@ -159,6 +183,7 @@
     const coverStatus = $("[data-cover-status]");
     const coverDetail = $("[data-cover-detail]");
     const coverAutomatic = $("[data-cover-automatic]");
+    const coverChoose = $("[data-cover-choose]");
     const coverNone = $("[data-cover-none]");
 
     const readySelected = $("[data-ready-selected]");
@@ -210,6 +235,9 @@
         return node && window.bootstrap?.Modal ? window.bootstrap.Modal.getOrCreateInstance(node) : null;
     };
     const photoModal = bootstrapModal("compendiumPhotoModal");
+    const coverHeroModal = bootstrapModal("compendiumCoverHeroModal");
+    const coverHeroPicker = document.querySelector("[data-cover-hero-picker]");
+    const coverHeroEmpty = document.querySelector("[data-cover-hero-empty]");
     const discardModal = bootstrapModal("compendiumDiscardModal");
     const saveModal = bootstrapModal("compendiumSaveModal");
     const renameModal = bootstrapModal("compendiumRenameModal");
@@ -228,6 +256,7 @@
             focalX: roundFocal(config.focalX),
             focalY: roundFocal(config.focalY),
             imageSelectionMode: config.imageSelectionMode === "explicit" ? "Explicit" : "Automatic",
+            customSectionName: config.customSectionName || null,
             ...(includeReviewFingerprint ? { reviewFingerprint: config.reviewFingerprint || null } : {})
         };
     });
@@ -235,6 +264,9 @@
     const syncHidden = () => {
         if (selectedInput) selectedInput.value = orderedIds.join(",");
         if (selectionsInput) selectionsInput.value = JSON.stringify(serializeConfigs(true));
+        if (narrativeInput) narrativeInput.value = editorialState.narrativeSource;
+        if (groupingInput) groupingInput.value = editorialState.groupingMode;
+        if (sortInput) sortInput.value = editorialState.sortMode;
         if (activeIdInput) activeIdInput.value = activePresetId ? String(activePresetId) : "";
         if (activeVersionInput) activeVersionInput.value = activeRowVersion || "";
         if (coverModeInput) coverModeInput.value = coverState.imageMode === "explicit" ? "Explicit" : coverState.imageMode === "none" ? "None" : "Automatic";
@@ -249,6 +281,9 @@
         subtitle: String(form.elements["Input.Subtitle"]?.value || "").trim(),
         edition: String(form.elements["Input.Edition"]?.value || "").trim(),
         handlingMarking: String(form.elements["Input.HandlingMarking"]?.value || "").trim(),
+        narrativeSource: editorialState.narrativeSource,
+        groupingMode: editorialState.groupingMode,
+        sortMode: editorialState.sortMode,
         cover: { imageMode: coverState.imageMode, heroProjectId: coverState.imageMode === "explicit" ? coverState.heroProjectId : null, heroPhotoId: coverState.imageMode === "explicit" ? coverState.heroPhotoId : null, focalX: roundFocal(coverState.focalX), focalY: roundFocal(coverState.focalY) },
         projects: serializeConfigs(false)
     });
@@ -275,10 +310,46 @@
         url.searchParams.set("photoId", String(photoId)); url.searchParams.set("mode", "source"); url.searchParams.set("v", "0");
         return url.toString();
     };
+    const publicationOrderIds = () => {
+        const ids = [...orderedIds];
+        if (editorialState.sortMode === "LatestFirst") {
+            return ids.sort((a, b) => {
+                const pa = projectById.get(a), pb = projectById.get(b);
+                const yearDiff = Number(pb?.publicationYear || 0) - Number(pa?.publicationYear || 0);
+                return yearDiff || String(pa?.projectName || "").localeCompare(String(pb?.projectName || ""), undefined, { sensitivity: "base" });
+            });
+        }
+        if (editorialState.sortMode === "Alphabetical") {
+            return ids.sort((a, b) => String(projectById.get(a)?.projectName || "").localeCompare(String(projectById.get(b)?.projectName || ""), undefined, { sensitivity: "base" }));
+        }
+        return ids;
+    };
+    const sectionNameFor = id => {
+        const project = projectById.get(Number(id));
+        if (editorialState.groupingMode === "None") return "Projects";
+        if (editorialState.groupingMode === "CustomSections") return ensureConfig(id).customSectionName || "Other Projects";
+        return String(project?.technicalCategory || "").trim() || "Not recorded";
+    };
+    const publicationGroups = () => {
+        const groups = [];
+        const byName = new Map();
+        publicationOrderIds().forEach(id => {
+            const name = sectionNameFor(id);
+            const key = normalize(name);
+            if (!byName.has(key)) { const group = { name, ids: [] }; byName.set(key, group); groups.push(group); }
+            byName.get(key).ids.push(id);
+        });
+        return groups;
+    };
+    const knownCustomSections = () => {
+        const values = orderedIds.map(id => ensureConfig(id).customSectionName).filter(Boolean);
+        return [...new Set(values.map(value => String(value).trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    };
+
     const automaticCoverCandidate = () => orderedIds.map(id => ({ id, state: stateFor(id) })).filter(item => item.state?.resolvedPhotoId).sort((a, b) => {
         const rd = Number(Boolean(b.state?.isReviewed)) - Number(Boolean(a.state?.isReviewed)); if (rd) return rd;
         const rank = value => ({ good: 3, acceptable: 2, low: 1 }[normalize(value)] || 0);
-        const qd = rank(b.state?.imageQuality) - rank(a.state?.imageQuality); return qd || orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id);
+        const qd = rank(b.state?.imageQuality) - rank(a.state?.imageQuality); return qd || publicationOrderIds().indexOf(a.id) - publicationOrderIds().indexOf(b.id);
     })[0] || null;
     const renderCoverSetting = () => {
         let projectId = null, photoId = null, focalX = coverState.focalX, focalY = coverState.focalY;
@@ -291,7 +362,9 @@
             if (projectId && photoId) { coverPreviewImage.src = photoPreviewUrl(projectId, photoId); coverPreviewImage.style.objectPosition = `${clamp(focalX) * 100}% ${clamp(focalY) * 100}%`; coverPreviewImage.alt = `${project?.projectName || "Compendium"} cover hero`; coverPreviewImage.hidden = false; coverPreview.classList.add("has-image"); }
             else { coverPreviewImage.hidden = true; coverPreviewImage.removeAttribute("src"); coverPreview.classList.remove("has-image"); }
         }
-        coverAutomatic?.classList.toggle("active", coverState.imageMode === "automatic"); coverNone?.classList.toggle("active", coverState.imageMode === "none");
+        coverAutomatic?.classList.toggle("active", coverState.imageMode === "automatic");
+        coverChoose?.classList.toggle("active", coverState.imageMode === "explicit");
+        coverNone?.classList.toggle("active", coverState.imageMode === "none");
     };
     const coverChanged = () => { syncHidden(); renderCoverSetting(); renderDirty(); schedulePreflight(); };
 
@@ -351,27 +424,58 @@
         return '<span class="compendium-order-state is-ready" title="Ready" aria-label="Ready"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span>';
     };
 
+    const renderEditorialControls = () => {
+        narrativeButtons.forEach(button => button.classList.toggle("active", normalizeNarrative(button.dataset.narrativeValue) === editorialState.narrativeSource));
+        groupingButtons.forEach(button => button.classList.toggle("active", normalizeGrouping(button.dataset.groupingValue) === editorialState.groupingMode));
+        sortButtons.forEach(button => button.classList.toggle("active", normalizeSort(button.dataset.sortValue) === editorialState.sortMode));
+        if (customSectionToolbar) customSectionToolbar.hidden = editorialState.groupingMode !== "CustomSections";
+        if (orderModeCopy) orderModeCopy.textContent = editorialState.sortMode === "Manual" ? "manual order" : editorialState.sortMode === "LatestFirst" ? "latest first" : "A–Z";
+        if (orderNote) {
+            orderNote.textContent = editorialState.groupingMode === "TechnicalCategory"
+                ? "Projects are grouped by authoritative technical category. Publication order never changes project master data."
+                : editorialState.groupingMode === "CustomSections"
+                    ? "Custom sections exist only in this Compendium. Assign projects below; PRISM technical categories remain unchanged."
+                    : "Projects publish as one continuous catalogue without section grouping.";
+        }
+        if (composerNote) composerNote.textContent = editorialState.groupingMode === "CustomSections"
+            ? "Custom section names are publication metadata only. They never overwrite the project's authoritative Technical Category."
+            : "Technical categories remain authoritative project data. Publication composition only changes this Compendium.";
+        form.querySelectorAll("[data-source-readiness]").forEach(node => node.classList.toggle("is-source-active", normalizeNarrative(node.dataset.sourceReadiness) === editorialState.narrativeSource));
+    };
+
     const renderOrder = () => {
+        renderEditorialControls();
         if (selectedCount) selectedCount.textContent = String(orderedIds.length);
         if (railCount) railCount.textContent = String(orderedIds.length);
-        if (clearSelection) {
-            const empty = orderedIds.length === 0;
-            clearSelection.hidden = empty;
-            setControlDisabled(clearSelection, empty);
-        }
+        if (clearSelection) { const empty = orderedIds.length === 0; clearSelection.hidden = empty; setControlDisabled(clearSelection, empty); }
         if (!orderList) return;
         if (orderedIds.length === 0) {
             orderList.innerHTML = '<div class="compendium-order-empty"><i class="bi bi-journal"></i><span>Select projects from the portfolio.</span></div>';
             return;
         }
-        orderList.innerHTML = orderedIds.map((id, index) => {
-            const project = projectById.get(id);
-            if (!project) return "";
-            return `<div class="compendium-order-item${id === activeReviewId ? " is-active" : ""}" data-order-id="${id}" draggable="true">
-                <span class="compendium-order-handle" aria-label="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
-                <button class="compendium-order-copy" type="button" data-order-review title="Review ${escapeHtml(project.projectName)}"><strong>${escapeHtml(project.projectName)}</strong><small>${escapeHtml(project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(project.lifecycle)}</small></button>
-                <div class="compendium-order-actions">${orderStateMarkup(id)}<button type="button" data-move-up title="Move up" ${index === 0 ? "disabled" : ""}><i class="bi bi-chevron-up"></i></button><button type="button" data-move-down title="Move down" ${index === orderedIds.length - 1 ? "disabled" : ""}><i class="bi bi-chevron-down"></i></button><button type="button" data-remove title="Remove"><i class="bi bi-x-lg"></i></button></div>
+        const manual = editorialState.sortMode === "Manual";
+        const custom = editorialState.groupingMode === "CustomSections";
+        const allSections = knownCustomSections();
+        const htmlForItem = (id, displayIndex, total) => {
+            const project = projectById.get(id); if (!project) return "";
+            const sectionSelect = custom ? `<select class="compendium-order-section-select" data-section-select aria-label="Publication section for ${escapeHtml(project.projectName)}">
+                <option value="">Other Projects</option>${allSections.map(name => `<option value="${escapeHtml(name)}" ${normalize(ensureConfig(id).customSectionName) === normalize(name) ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            </select>` : "";
+            return `<div class="compendium-order-item${id === activeReviewId ? " is-active" : ""}${manual ? "" : " is-auto-ordered"}" data-order-id="${id}" draggable="${manual ? "true" : "false"}">
+                <span class="compendium-order-handle" aria-label="${manual ? "Drag to reorder" : "Automatic order"}"><i class="bi ${manual ? "bi-grip-vertical" : editorialState.sortMode === "LatestFirst" ? "bi-calendar3" : "bi-sort-alpha-down"}"></i></span>
+                <div class="compendium-order-main"><button class="compendium-order-copy" type="button" data-order-review title="Review ${escapeHtml(project.projectName)}"><strong>${escapeHtml(project.projectName)}</strong><small>${escapeHtml(project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(project.lifecycle)}${project.publicationYear ? ` · ${escapeHtml(project.publicationYear)}` : ""}</small></button>${sectionSelect}</div>
+                <div class="compendium-order-actions">${orderStateMarkup(id)}<button type="button" data-move-up title="Move up" ${!manual || displayIndex === 0 ? "disabled" : ""}><i class="bi bi-chevron-up"></i></button><button type="button" data-move-down title="Move down" ${!manual || displayIndex === total - 1 ? "disabled" : ""}><i class="bi bi-chevron-down"></i></button><button type="button" data-remove title="Remove"><i class="bi bi-x-lg"></i></button></div>
             </div>`;
+        };
+        const order = publicationOrderIds();
+        const position = new Map(order.map((id, i) => [id, i]));
+        if (editorialState.groupingMode === "None") { orderList.innerHTML = order.map(id => htmlForItem(id, position.get(id), order.length)).join(""); return; }
+        const groups = publicationGroups();
+        orderList.innerHTML = groups.map((group, groupIndex) => {
+            const customHeader = custom
+                ? `<div class="compendium-order-group__custom"><input value="${escapeHtml(group.name === "Other Projects" ? "" : group.name)}" maxlength="120" data-section-rename data-section-original="${escapeHtml(group.name)}" aria-label="Rename section ${escapeHtml(group.name)}" placeholder="Other Projects"><button type="button" data-section-group-up title="Move section up" ${!manual || groupIndex === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button><button type="button" data-section-group-down title="Move section down" ${!manual || groupIndex === groups.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button></div>`
+                : `<span>${escapeHtml(group.name)}</span>`;
+            return `<section class="compendium-order-group" data-section-group="${escapeHtml(group.name)}"><header>${customHeader}<small>${group.ids.length} project${group.ids.length === 1 ? "" : "s"}</small></header>${group.ids.map(id => htmlForItem(id, position.get(id), order.length)).join("")}</section>`;
         }).join("");
     };
 
@@ -427,8 +531,9 @@
         if (!project) return;
         if (reviewEmpty) reviewEmpty.hidden = true;
         if (reviewCard) reviewCard.hidden = false;
-        const ordinal = orderedIds.indexOf(id) + 1;
-        if (reviewOrdinal) reviewOrdinal.textContent = `PROJECT ${ordinal} OF ${orderedIds.length}`;
+        const reviewOrder = publicationOrderIds();
+        const ordinal = reviewOrder.indexOf(id) + 1;
+        if (reviewOrdinal) reviewOrdinal.textContent = `PROJECT ${ordinal} OF ${reviewOrder.length}`;
         if (reviewName) reviewName.textContent = project.projectName;
         if (reviewMeta) reviewMeta.textContent = `${project.lifecycle} · ${project.technicalCategory || "Technical category not recorded"}`;
         if (reviewState) { reviewState.textContent = "Loading…"; reviewState.className = "compendium-review-state is-loading"; }
@@ -451,8 +556,9 @@
         const state = stateFor(review.projectId);
         const reviewed = state ? Boolean(state.isReviewed) : Boolean(review.isReviewed);
         const stale = state ? Boolean(state.isReviewStale) : Boolean(review.isReviewStale);
-        const ordinal = orderedIds.indexOf(Number(review.projectId)) + 1;
-        if (reviewOrdinal) reviewOrdinal.textContent = `PROJECT ${ordinal} OF ${orderedIds.length}`;
+        const reviewOrder = publicationOrderIds();
+        const ordinal = reviewOrder.indexOf(Number(review.projectId)) + 1;
+        if (reviewOrdinal) reviewOrdinal.textContent = `PROJECT ${ordinal} OF ${reviewOrder.length}`;
         if (reviewName) reviewName.textContent = review.projectName;
         if (reviewMeta) reviewMeta.textContent = `${review.lifecycleDisplay} · ${review.technicalCategoryName || "Technical category not recorded"}`;
 
@@ -476,7 +582,16 @@
         if (review.proliferationAvailability === true || review.proliferationCostLakhs != null) facts.push(["Indicative cost", review.proliferationCostDisplay || "Not recorded"]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
         if (reviewDescription) reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
-        if (reviewDescriptionState) reviewDescriptionState.textContent = String(review.descriptionMarkdown || "").trim() ? "Current PRISM description" : "Missing";
+        if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = review.narrativeLabel || "Project Brief";
+        if (reviewDescriptionState) reviewDescriptionState.textContent = String(review.descriptionMarkdown || "").trim() ? "Current PRISM content" : "Missing";
+        if (reviewNarrativeOptions) {
+            const options = [
+                ["ProjectBrief", "Project Brief", Boolean(review.hasProjectBrief), Number(review.projectBriefWordCount || 0) ? `${review.projectBriefWordCount} words` : "Not recorded"],
+                ["CapabilityOverview", "Capability Overview", Boolean(review.hasCapabilityOverview), Number(review.capabilityStatementCount || 0) ? `${review.capabilityStatementCount} statements` : "Not recorded"],
+                ["ProjectDescription", "Project Description", Boolean(review.hasProjectDescription), Number(review.descriptionWordCount || 0) ? `${review.descriptionWordCount} words` : "Not recorded"]
+            ];
+            reviewNarrativeOptions.innerHTML = options.map(([value,label,available,detail]) => `<button type="button" data-review-narrative-value="${value}" class="${editorialState.narrativeSource === value ? "active" : ""} ${available ? "is-available" : "is-missing"}"><span>${escapeHtml(label)}</span><small>${escapeHtml(detail)}</small></button>`).join("");
+        }
 
         if (reviewOpen) reviewOpen.href = review.projectUrl || `/Projects/Overview?id=${review.projectId}`;
         if (reviewManagePhotos) reviewManagePhotos.href = review.photosUrl || `/Projects/Photos/Index?id=${review.projectId}`;
@@ -600,22 +715,23 @@
     };
 
     const navigateReview = offset => {
-        if (orderedIds.length <= 1) return;
-        let index = orderedIds.indexOf(Number(activeReviewId));
+        const reviewOrder = publicationOrderIds();
+        if (reviewOrder.length <= 1) return;
+        let index = reviewOrder.indexOf(Number(activeReviewId));
         if (index < 0) index = 0;
-        activeReviewId = orderedIds[(index + offset + orderedIds.length) % orderedIds.length];
+        activeReviewId = reviewOrder[(index + offset + reviewOrder.length) % reviewOrder.length];
         loadReview(activeReviewId);
     };
 
     const isReviewedNow = id => { const state = stateFor(id); if (state) return Boolean(state.isReviewed) && !state.isReviewStale; return Boolean(ensureConfig(id).reviewFingerprint); };
     const nextUnreviewedId = (fromId = activeReviewId, skipCurrent = true) => {
-        if (!orderedIds.length) return null; const currentIndex = Math.max(0, orderedIds.indexOf(Number(fromId)));
-        for (let delta = skipCurrent ? 1 : 0; delta < orderedIds.length + (skipCurrent ? 0 : 1); delta++) { const id = orderedIds[(currentIndex + delta) % orderedIds.length]; if (!isReviewedNow(id)) return id; }
+        const reviewOrder = publicationOrderIds(); if (!reviewOrder.length) return null; const currentIndex = Math.max(0, reviewOrder.indexOf(Number(fromId)));
+        for (let delta = skipCurrent ? 1 : 0; delta < reviewOrder.length + (skipCurrent ? 0 : 1); delta++) { const id = reviewOrder[(currentIndex + delta) % reviewOrder.length]; if (!isReviewedNow(id)) return id; }
         return null;
     };
     const nextWarningId = (fromId = activeReviewId) => {
-        if (!orderedIds.length) return null; const currentIndex = Math.max(0, orderedIds.indexOf(Number(fromId)));
-        for (let delta = 1; delta <= orderedIds.length; delta++) { const id = orderedIds[(currentIndex + delta) % orderedIds.length]; if (findingsFor(id).some(finding => finding.severity === "blocker" || finding.severity === "warning")) return id; }
+        const reviewOrder = publicationOrderIds(); if (!reviewOrder.length) return null; const currentIndex = Math.max(0, reviewOrder.indexOf(Number(fromId)));
+        for (let delta = 1; delta <= reviewOrder.length; delta++) { const id = reviewOrder[(currentIndex + delta) % reviewOrder.length]; if (findingsFor(id).some(finding => finding.severity === "blocker" || finding.severity === "warning")) return id; }
         return null;
     };
     const nextAttentionId = () => nextUnreviewedId(activeReviewId, true) || nextWarningId(activeReviewId);
@@ -652,6 +768,21 @@
         }
         schedulePreflight();
         if (refreshReview && Number(activeReviewId) === Number(id)) scheduleReviewRefresh();
+    };
+
+    const publicationStructureChanged = ({ refreshReview = false } = {}) => {
+        syncHidden(); renderDirty(); renderOrder(); updateReviewNavigation(); schedulePreflight();
+        if (refreshReview && activeReviewId) scheduleReviewRefresh();
+    };
+
+    const changeNarrativeSource = value => {
+        const next = normalizeNarrative(value);
+        if (next === editorialState.narrativeSource) return;
+        editorialState.narrativeSource = next;
+        orderedIds.forEach(invalidateProjectReview);
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (activeReviewId) loadReview(activeReviewId);
     };
 
     const activeFrame = () => ({ width: Number(activeReviewData?.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints, height: Number(activeReviewData?.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints });
@@ -902,7 +1033,11 @@
             if (readyInfo) readyInfo.textContent = String(body.info ?? 0);
             if (readyCategories) readyCategories.textContent = String(categoryValue);
             if (readyReviewed) readyReviewed.textContent = String(body.reviewed ?? 0);
-            if (readyStructureCopy) readyStructureCopy.textContent = `${selectedValue} project${selectedValue === 1 ? "" : "s"} · ${categoryValue} technical categor${categoryValue === 1 ? "y" : "ies"}`;
+            if (readyStructureCopy) {
+                const structureLabel = editorialState.groupingMode === "None" ? "continuous catalogue" : editorialState.groupingMode === "CustomSections" ? `${categoryValue} publication section${categoryValue === 1 ? "" : "s"}` : `${categoryValue} technical categor${categoryValue === 1 ? "y" : "ies"}`;
+                const orderLabel = editorialState.sortMode === "Manual" ? "manual order" : editorialState.sortMode === "LatestFirst" ? "latest first" : "A–Z";
+                readyStructureCopy.textContent = `${selectedValue} project${selectedValue === 1 ? "" : "s"} · ${structureLabel} · ${orderLabel}`;
+            }
             setFindingToolbarAvailability(true);
             refreshReviewProgress();
             renderFindings();
@@ -993,6 +1128,20 @@
     clearSelection?.addEventListener("click", () => { orderedIds = []; activeReviewId = null; activeReviewData = null; selectionChanged(); });
 
     orderList?.addEventListener("click", event => {
+        const sectionGroup = event.target.closest("[data-section-group]");
+        const sectionButton = event.target.closest("[data-section-group-up],[data-section-group-down]");
+        if (sectionGroup && sectionButton && editorialState.groupingMode === "CustomSections" && editorialState.sortMode === "Manual") {
+            const groups = publicationGroups();
+            const name = sectionGroup.dataset.sectionGroup || "Other Projects";
+            const index = groups.findIndex(group => normalize(group.name) === normalize(name));
+            const target = sectionButton.matches("[data-section-group-up]") ? index - 1 : index + 1;
+            if (index >= 0 && target >= 0 && target < groups.length) {
+                [groups[index], groups[target]] = [groups[target], groups[index]];
+                orderedIds = groups.flatMap(group => group.ids);
+                publicationStructureChanged();
+            }
+            return;
+        }
         const item = event.target.closest("[data-order-id]");
         if (!item) return;
         const id = Number(item.dataset.orderId), index = orderedIds.indexOf(id);
@@ -1005,7 +1154,34 @@
     });
 
     let draggedOrderId = null;
+    orderList?.addEventListener("change", event => {
+        const renameInput = event.target.closest("[data-section-rename]");
+        if (renameInput && editorialState.groupingMode === "CustomSections") {
+            const original = String(renameInput.dataset.sectionOriginal || "Other Projects").trim();
+            const next = String(renameInput.value || "").trim().replace(/\s+/g, " ").slice(0,120) || null;
+            orderedIds.forEach(id => {
+                const config = ensureConfig(id);
+                const current = config.customSectionName || "Other Projects";
+                if (normalize(current) === normalize(original)) config.customSectionName = next;
+            });
+            publicationStructureChanged();
+            return;
+        }
+        const select = event.target.closest("[data-section-select]");
+        if (!select) return;
+        const item = select.closest("[data-order-id]"); const id = Number(item?.dataset.orderId || 0); if (!id) return;
+        ensureConfig(id).customSectionName = String(select.value || "").trim().slice(0,120) || null;
+        publicationStructureChanged();
+    });
+
+
+    orderList?.addEventListener("keydown", event => {
+        const renameInput = event.target.closest("[data-section-rename]");
+        if (renameInput && event.key === "Enter") { event.preventDefault(); renameInput.blur(); }
+    });
+
     orderList?.addEventListener("dragstart", event => {
+        if (editorialState.sortMode !== "Manual") { event.preventDefault(); return; }
         const item = event.target.closest("[data-order-id]");
         if (!item) return;
         draggedOrderId = Number(item.dataset.orderId) || null;
@@ -1014,7 +1190,7 @@
     });
     orderList?.addEventListener("dragover", event => { if (draggedOrderId != null) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "move"; } });
     orderList?.addEventListener("drop", event => {
-        if (draggedOrderId == null) return;
+        if (editorialState.sortMode !== "Manual" || draggedOrderId == null) return;
         event.preventDefault();
         const target = event.target.closest("[data-order-id]");
         const targetId = Number(target?.dataset.orderId || 0);
@@ -1024,6 +1200,18 @@
         const [moved] = orderedIds.splice(from, 1); orderedIds.splice(to, 0, moved); selectionChanged();
     });
     orderList?.addEventListener("dragend", () => { orderList.querySelectorAll(".is-dragging").forEach(item => item.classList.remove("is-dragging")); draggedOrderId = null; });
+
+    narrativeButtons.forEach(button => button.addEventListener("click", () => changeNarrativeSource(button.dataset.narrativeValue)));
+    groupingButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeGrouping(button.dataset.groupingValue); if (next === editorialState.groupingMode) return; editorialState.groupingMode = next; publicationStructureChanged(); }));
+    sortButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeSort(button.dataset.sortValue); if (next === editorialState.sortMode) return; editorialState.sortMode = next; publicationStructureChanged(); if (activeReviewId) loadReview(activeReviewId); }));
+    customSectionAdd?.addEventListener("click", () => {
+        const name = String(customSectionName?.value || "").trim().replace(/\s+/g, " ").slice(0,120); if (!name) return;
+        if (activeReviewId && isSelected(activeReviewId)) ensureConfig(activeReviewId).customSectionName = name;
+        else { const first = publicationOrderIds()[0]; if (first) ensureConfig(first).customSectionName = name; }
+        if (customSectionName) customSectionName.value = ""; publicationStructureChanged();
+    });
+    customSectionName?.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); customSectionAdd?.click(); } });
+    reviewNarrativeOptions?.addEventListener("click", event => { const button = event.target.closest("[data-review-narrative-value]"); if (button) changeNarrativeSource(button.dataset.reviewNarrativeValue); });
 
     reviewPrevious?.addEventListener("click", () => navigateReview(-1));
     reviewNext?.addEventListener("click", () => navigateReview(1));
@@ -1045,6 +1233,19 @@
         const config = ensureConfig(activeReviewId);
         config.imageSelectionMode = "automatic"; config.primaryPhotoId = null; config.focalX = 0.5; config.focalY = 0.5;
         publicationConfigChanged(activeReviewId);
+    });
+
+    const renderCoverHeroPicker = () => {
+        if (!coverHeroPicker) return;
+        const candidates = publicationOrderIds().map(id => { const project = projectById.get(id), state = stateFor(id), config = ensureConfig(id); const photoId = Number(state?.resolvedPhotoId || project?.defaultPhotoId || 0); return { id, project, state, config, photoId }; }).filter(item => item.project && item.photoId);
+        if (coverHeroEmpty) coverHeroEmpty.hidden = candidates.length > 0;
+        coverHeroPicker.innerHTML = candidates.map(item => `<button type="button" class="compendium-cover-hero-choice${coverState.imageMode === "explicit" && Number(coverState.heroProjectId) === item.id && Number(coverState.heroPhotoId) === item.photoId ? " is-selected" : ""}" data-cover-hero-choice data-project-id="${item.id}" data-photo-id="${item.photoId}"><span class="compendium-cover-hero-thumb"><img src="${escapeHtml(photoPreviewUrl(item.id,item.photoId))}" alt="" style="object-position:${clamp(item.config.focalX)*100}% ${clamp(item.config.focalY)*100}%"></span><span><strong>${escapeHtml(item.project.projectName)}</strong><small>${escapeHtml(item.project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(qualityLabel(normalize(item.state?.imageQuality), item.state?.effectiveDpi))}</small></span><i class="bi bi-check-circle-fill"></i></button>`).join("");
+    };
+    coverChoose?.addEventListener("click", () => { renderCoverHeroPicker(); coverHeroModal?.show(); });
+    coverHeroPicker?.addEventListener("click", event => {
+        const choice = event.target.closest("[data-cover-hero-choice]"); if (!choice) return;
+        const projectId = Number(choice.dataset.projectId || 0), photoId = Number(choice.dataset.photoId || 0); if (!projectId || !photoId) return;
+        const config = ensureConfig(projectId); coverState.imageMode = "explicit"; coverState.heroProjectId = projectId; coverState.heroPhotoId = photoId; coverState.focalX = roundFocal(config.focalX); coverState.focalY = roundFocal(config.focalY); coverChanged(); renderCoverHeroPicker(); coverHeroModal?.hide();
     });
 
     reviewUseCover?.addEventListener("click", () => {

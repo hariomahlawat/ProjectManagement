@@ -20,7 +20,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-13_phase23";
+    public const string BuildStamp = "CompendiumPdf_2026-08-13_editorial-composer-v4";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -59,10 +59,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 project.Category != null ? project.Category.Name : null,
                 project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
+                project.ProjectBrief,
                 project.Description,
                 project.ArmService,
+                project.YearOfDevelopment,
                 project.CompletedYear,
                 project.CompletedOn,
+                project.CreatedAt,
                 project.CoverPhotoId))
             .ToListAsync(cancellationToken);
 
@@ -72,6 +75,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         }
 
         var projectIds = projects.Select(project => project.Id).ToArray();
+        var capabilitiesByProject = await LoadCapabilityStatementsAsync(projectIds, cancellationToken);
         var availability = await _db.ProjectTechStatuses
             .AsNoTracking()
             .Where(status => projectIds.Contains(status.ProjectId))
@@ -121,7 +125,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     defaultPhotoId,
                     completionDisplay)
                 {
-                    ProliferationAvailability = availableForProliferation
+                    ProliferationAvailability = availableForProliferation,
+                    HasProjectBrief = !string.IsNullOrWhiteSpace(project.ProjectBrief),
+                    HasCapabilityOverview = capabilitiesByProject.GetValueOrDefault(project.Id)?.Count > 0,
+                    ProjectBriefWordCount = CountWords(project.ProjectBrief),
+                    CapabilityStatementCount = capabilitiesByProject.GetValueOrDefault(project.Id)?.Count ?? 0,
+                    DescriptionWordCount = CountWords(project.Description),
+                    PublicationYear = ResolvePublicationYear(project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt)
                 };
             })
             .ToArray();
@@ -164,6 +174,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var rows = await LoadPublicationRowsAsync(requestedIds, cancellationToken);
         var rowsById = rows.ToDictionary(project => project.Id);
         var availableProjectIds = rows.Select(project => project.Id).ToArray();
+        var capabilitiesByProject = await LoadCapabilityStatementsAsync(availableProjectIds, cancellationToken);
 
         var availability = availableProjectIds.Length == 0
             ? new Dictionary<int, bool?>()
@@ -228,11 +239,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
             var projectPhotos = photosByProject.GetValueOrDefault(project.Id)
                                 ?? Array.Empty<PhotoCandidate>();
             var resolved = resolvedSelections.First(item => item.Project.ProjectId == project.Id);
+            var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
+            var narrative = ResolveNarrative(project, capabilities, request.NarrativeSource);
             var probe = resolved.ResolvedPhotoId.HasValue
                 ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
                 : null;
             var effectiveDpi = probe is { IsReady: true }
-                ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, project.Description)
+                ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, narrative.Text)
                 : null;
             var imageQuality = CompendiumPublicationImagePolicy.Classify(effectiveDpi);
             var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
@@ -246,11 +259,14 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 completionYear,
                 availableForProliferation,
                 cost?.Cost,
-                project.Description,
+                narrative.Text,
                 resolved.ResolvedPhotoId,
                 resolved.Selection.ImageSelectionMode,
                 resolved.Selection.FocalX,
-                resolved.Selection.FocalY));
+                resolved.Selection.FocalY)
+            {
+                NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource)
+            });
 
             var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
                 project.Id,
@@ -258,7 +274,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 completionYear,
                 project.ArmService,
-                project.Description,
+                narrative.Text,
                 cost?.Cost,
                 availableForProliferation,
                 resolved.ResolvedPhotoId,
@@ -267,7 +283,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 effectiveDpi,
                 resolved.ExplicitPhotoUnavailable,
                 fingerprint,
-                resolved.Selection.ReviewFingerprint));
+                resolved.Selection.ReviewFingerprint)
+            {
+                NarrativeLabel = narrative.Label
+            });
 
             findings.AddRange(assessment.Findings);
 
@@ -285,7 +304,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 NormalizeOptional(cost?.Remarks),
                 resolved.ResolvedPhotoId,
                 resolved.PhotoSelectionSource,
-                NormalizeOptional(project.Description) ?? string.Empty,
+                narrative.Text,
                 assessment.PublicationIssues)
             {
                 LifecycleDisplay = LifecycleDisplay(project.LifecycleStatus),
@@ -302,12 +321,17 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ReviewFingerprint = fingerprint,
                 IsReviewed = assessment.IsReviewed,
                 IsReviewStale = assessment.IsReviewStale,
-                ExplicitPhotoUnavailable = resolved.ExplicitPhotoUnavailable
+                ExplicitPhotoUnavailable = resolved.ExplicitPhotoUnavailable,
+                NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource),
+                NarrativeLabel = narrative.Label,
+                CustomSectionName = NormalizeCustomSection(resolved.Selection.CustomSectionName),
+                PublicationYear = ResolvePublicationYear(project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt)
             });
         }
 
-        var groups = GroupInPublicationOrder(publicationProjects);
-        var projectOrder = publicationProjects.ToDictionary(project => project.ProjectId, project => project.SortOrder);
+        var orderedPublicationProjects = ApplySortMode(publicationProjects, request.SortMode);
+        var groups = GroupInPublicationOrder(orderedPublicationProjects, request.GroupingMode);
+        var projectOrder = orderedPublicationProjects.ToDictionary(project => project.ProjectId, project => project.SortOrder);
         var orderedFindings = findings
             .OrderByDescending(finding => finding.Severity)
             .ThenBy(finding => finding.ProjectId.HasValue
@@ -315,7 +339,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 : -1)
             .ThenBy(finding => finding.Code, StringComparer.Ordinal)
             .ToArray();
-        var readinessProjects = publicationProjects
+        var readinessProjects = orderedPublicationProjects
             .Select(project => new CompendiumProjectReadinessDto(
                 project.ProjectId,
                 project.ProjectName,
@@ -351,8 +375,14 @@ public sealed class CompendiumReadService : ICompendiumReadService
         return CreateResult(generatedAtUtc, request, groups, preflight);
     }
 
+    public Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
+        CompendiumProjectSelection selection,
+        CancellationToken cancellationToken = default)
+        => GetReviewProjectAsync(selection, CompendiumNarrativeSource.ProjectBrief, cancellationToken);
+
     public async Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
+        CompendiumNarrativeSource narrativeSource,
         CancellationToken cancellationToken = default)
     {
         selection = NormalizeSelection(selection);
@@ -367,6 +397,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
         {
             return null;
         }
+
+        narrativeSource = NormalizeNarrativeSource(narrativeSource);
+        var capabilitiesByProject = await LoadCapabilityStatementsAsync(new[] { project.Id }, cancellationToken);
+        var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
+        var narrative = ResolveNarrative(project, capabilities, narrativeSource);
 
         var availability = await _db.ProjectTechStatuses
             .AsNoTracking()
@@ -396,7 +431,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             {
                 var probe = probes.GetValueOrDefault(photo.Id);
                 var dpi = probe is { IsReady: true }
-                    ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, project.Description)
+                    ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, narrative.Text)
                     : null;
                 return new CompendiumReviewPhotoVm(
                     photo.Id,
@@ -416,7 +451,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
             : null;
         var effectiveDpi = selectedProbe is { IsReady: true }
-            ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(selectedProbe.Width, selectedProbe.Height, project.Description)
+            ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(selectedProbe.Width, selectedProbe.Height, narrative.Text)
             : null;
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
         var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
@@ -429,18 +464,21 @@ public sealed class CompendiumReadService : ICompendiumReadService
             completionYear,
             availability,
             cost?.Cost,
-            project.Description,
+            narrative.Text,
             resolved.ResolvedPhotoId,
             resolved.Selection.ImageSelectionMode,
             resolved.Selection.FocalX,
-            resolved.Selection.FocalY));
+            resolved.Selection.FocalY)
+        {
+            NarrativeSource = narrativeSource
+        });
         var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
             project.Id,
             project.Name,
             project.LifecycleStatus,
             completionYear,
             project.ArmService,
-            project.Description,
+            narrative.Text,
             cost?.Cost,
             availability,
             resolved.ResolvedPhotoId,
@@ -449,7 +487,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
             effectiveDpi,
             resolved.ExplicitPhotoUnavailable,
             fingerprint,
-            resolved.Selection.ReviewFingerprint));
+            resolved.Selection.ReviewFingerprint)
+        {
+            NarrativeLabel = narrative.Label
+        });
 
         return new CompendiumReviewProjectDto(
             project.Id,
@@ -464,7 +505,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             availability,
             cost?.Cost,
             CompendiumPublicationImagePolicy.FormatCost(cost?.Cost),
-            NormalizeOptional(project.Description) ?? string.Empty,
+            NormalizeOptional(narrative.Text) ?? string.Empty,
             photos,
             resolved.ResolvedPhotoId,
             resolved.PhotoSelectionSource,
@@ -479,7 +520,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
             resolved.ExplicitPhotoUnavailable)
         {
             ImageFrameWidthPoints = CompendiumPublicationImagePolicy.FrameWidthPoints,
-            ImageFrameHeightPoints = CompendiumPublicationImagePolicy.ResolveFrameHeightPoints(project.Description)
+            ImageFrameHeightPoints = CompendiumPublicationImagePolicy.ResolveFrameHeightPoints(narrative.Text),
+            NarrativeSource = narrativeSource,
+            NarrativeLabel = narrative.Label,
+            HasProjectBrief = !string.IsNullOrWhiteSpace(project.ProjectBrief),
+            HasCapabilityOverview = capabilities.Count > 0,
+            HasProjectDescription = !string.IsNullOrWhiteSpace(project.Description),
+            ProjectBriefWordCount = CountWords(project.ProjectBrief),
+            CapabilityStatementCount = capabilities.Count,
+            DescriptionWordCount = CountWords(project.Description),
+            CustomSectionName = NormalizeCustomSection(selection.CustomSectionName)
         };
     }
 
@@ -525,7 +575,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
             .Select(projectId => new CompendiumProjectSelection(projectId))
             .ToArray();
         var data = await GetPublicationAsync(
-            new CompendiumPublicationRequest(legacySelections),
+            new CompendiumPublicationRequest(legacySelections)
+            {
+                NarrativeSource = CompendiumNarrativeSource.ProjectDescription,
+                GroupingMode = CompendiumGroupingMode.TechnicalCategory,
+                SortMode = CompendiumSortMode.Manual
+            },
             cancellationToken);
 
         var nonReviewFindings = data.Preflight.Findings
@@ -566,7 +621,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
             groups,
             preflight)
         {
-            Edition = NormalizeDisplay(request.Edition, $"Capability Edition · {istYear}")
+            Edition = NormalizeDisplay(request.Edition, $"Capability Edition · {istYear}"),
+            NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource),
+            GroupingMode = NormalizeGroupingMode(request.GroupingMode),
+            SortMode = NormalizeSortMode(request.SortMode)
         };
     }
 
@@ -585,10 +643,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.Name,
                 project.CaseFileNumber,
                 project.LifecycleStatus,
+                project.ProjectBrief,
                 project.Description,
                 project.ArmService,
+                project.YearOfDevelopment,
                 project.CompletedYear,
                 project.CompletedOn,
+                project.CreatedAt,
                 project.CoverPhotoId,
                 project.Category != null ? project.Category.Name : null,
                 project.TechnicalCategory != null ? project.TechnicalCategory.Name : null))
@@ -755,32 +816,73 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ImageSelectionMode = Enum.IsDefined(selection.ImageSelectionMode)
                 ? selection.ImageSelectionMode
                 : CompendiumImageSelectionMode.Automatic,
-            ReviewFingerprint = CleanFingerprint(selection.ReviewFingerprint)
+            ReviewFingerprint = CleanFingerprint(selection.ReviewFingerprint),
+            CustomSectionName = NormalizeCustomSection(selection.CustomSectionName)
         };
 
-    private static IReadOnlyList<CompendiumCategoryGroupDto> GroupInPublicationOrder(
-        IReadOnlyList<CompendiumProjectDto> projects)
+    private static IReadOnlyList<CompendiumProjectDto> ApplySortMode(
+        IReadOnlyList<CompendiumProjectDto> projects,
+        CompendiumSortMode sortMode)
     {
-        var categoryOrder = new List<string>();
+        sortMode = NormalizeSortMode(sortMode);
+        IEnumerable<CompendiumProjectDto> ordered = sortMode switch
+        {
+            CompendiumSortMode.LatestFirst => projects
+                .OrderByDescending(project => project.PublicationYear)
+                .ThenByDescending(project => project.CompletionYearValue ?? 0)
+                .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(project => project.SortOrder),
+            CompendiumSortMode.Alphabetical => projects
+                .OrderBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(project => project.SortOrder),
+            _ => projects.OrderBy(project => project.SortOrder)
+        };
+
+        return ordered
+            .Select((project, index) => project with { SortOrder = index })
+            .ToArray();
+    }
+
+    private static IReadOnlyList<CompendiumCategoryGroupDto> GroupInPublicationOrder(
+        IReadOnlyList<CompendiumProjectDto> projects,
+        CompendiumGroupingMode groupingMode)
+    {
+        groupingMode = NormalizeGroupingMode(groupingMode);
+        if (projects.Count == 0)
+        {
+            return Array.Empty<CompendiumCategoryGroupDto>();
+        }
+
+        if (groupingMode == CompendiumGroupingMode.None)
+        {
+            return new[]
+            {
+                new CompendiumCategoryGroupDto(
+                    "Projects",
+                    projects.OrderBy(project => project.SortOrder).ToArray())
+            };
+        }
+
+        string SectionFor(CompendiumProjectDto project)
+            => groupingMode == CompendiumGroupingMode.CustomSections
+                ? NormalizeCustomSection(project.CustomSectionName) ?? "Other Projects"
+                : NormalizeDisplay(project.TechnicalCategoryName, "Not recorded");
+
+        var sectionOrder = new List<string>();
         foreach (var project in projects.OrderBy(project => project.SortOrder))
         {
-            if (!categoryOrder.Any(category => string.Equals(
-                    category,
-                    project.TechnicalCategoryName,
-                    StringComparison.OrdinalIgnoreCase)))
+            var section = SectionFor(project);
+            if (!sectionOrder.Any(existing => string.Equals(existing, section, StringComparison.OrdinalIgnoreCase)))
             {
-                categoryOrder.Add(project.TechnicalCategoryName);
+                sectionOrder.Add(section);
             }
         }
 
-        return categoryOrder
-            .Select(category => new CompendiumCategoryGroupDto(
-                category,
+        return sectionOrder
+            .Select(section => new CompendiumCategoryGroupDto(
+                section,
                 projects
-                    .Where(project => string.Equals(
-                        project.TechnicalCategoryName,
-                        category,
-                        StringComparison.OrdinalIgnoreCase))
+                    .Where(project => string.Equals(SectionFor(project), section, StringComparison.OrdinalIgnoreCase))
                     .OrderBy(project => project.SortOrder)
                     .ToArray()))
             .ToArray();
@@ -797,6 +899,97 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private async Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> LoadCapabilityStatementsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, IReadOnlyList<string>>();
+        }
+
+        var rows = await _db.ProjectCapabilityStatements
+            .AsNoTracking()
+            .Where(statement => projectIds.Contains(statement.ProjectId))
+            .OrderBy(statement => statement.ProjectId)
+            .ThenBy(statement => statement.DisplayOrder)
+            .ThenBy(statement => statement.Id)
+            .Select(statement => new CapabilityRow(statement.ProjectId, statement.Statement))
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group
+                    .Select(row => NormalizeOptional(row.Statement))
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value!)
+                    .ToArray());
+    }
+
+    private static NarrativeResolution ResolveNarrative(
+        PublicationRow project,
+        IReadOnlyList<string> capabilities,
+        CompendiumNarrativeSource source)
+    {
+        source = NormalizeNarrativeSource(source);
+        return source switch
+        {
+            CompendiumNarrativeSource.ProjectBrief => new NarrativeResolution(
+                NormalizeOptional(project.ProjectBrief) ?? string.Empty,
+                "Project Brief"),
+            CompendiumNarrativeSource.CapabilityOverview => new NarrativeResolution(
+                capabilities.Count == 0
+                    ? string.Empty
+                    : string.Join("\n", capabilities.Select(statement => $"- {statement}")),
+                "Capability Overview"),
+            CompendiumNarrativeSource.ProjectDescription => new NarrativeResolution(
+                NormalizeOptional(project.Description) ?? string.Empty,
+                "Project Description"),
+            _ => throw new InvalidOperationException("The selected Compendium narrative source is invalid.")
+        };
+    }
+
+    private static CompendiumNarrativeSource NormalizeNarrativeSource(CompendiumNarrativeSource source)
+        => Enum.IsDefined(source) ? source : CompendiumNarrativeSource.ProjectBrief;
+
+    private static CompendiumGroupingMode NormalizeGroupingMode(CompendiumGroupingMode mode)
+        => Enum.IsDefined(mode) ? mode : CompendiumGroupingMode.TechnicalCategory;
+
+    private static CompendiumSortMode NormalizeSortMode(CompendiumSortMode mode)
+        => Enum.IsDefined(mode) ? mode : CompendiumSortMode.Manual;
+
+    private static string? NormalizeCustomSection(string? value)
+    {
+        var clean = NormalizeOptional(value);
+        if (clean is null)
+        {
+            return null;
+        }
+
+        return clean.Length <= 120 ? clean : clean[..120].TrimEnd();
+    }
+
+    private static int ResolvePublicationYear(
+        short? yearOfDevelopment,
+        int? completedYear,
+        DateOnly? completedOn,
+        DateTime createdAt)
+    {
+        if (yearOfDevelopment.HasValue)
+        {
+            return yearOfDevelopment.Value;
+        }
+
+        return ResolveCompletionYear(completedYear, completedOn) ?? createdAt.Year;
+    }
+
+    private static int CountWords(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? 0
+            : value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
     private static int CountIssue(
         IEnumerable<CompendiumProjectDto> projects,
@@ -823,10 +1016,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
         ProjectLifecycleStatus LifecycleStatus,
         string? ProjectCategory,
         string? TechnicalCategory,
+        string? ProjectBrief,
         string? Description,
         string? ArmService,
+        short? YearOfDevelopment,
         int? CompletedYear,
         DateOnly? CompletedOn,
+        DateTime CreatedAt,
         int? CoverPhotoId);
 
     private sealed record PublicationRow(
@@ -834,16 +1030,23 @@ public sealed class CompendiumReadService : ICompendiumReadService
         string Name,
         string? CaseFileNumber,
         ProjectLifecycleStatus LifecycleStatus,
+        string? ProjectBrief,
         string? Description,
         string? ArmService,
+        short? YearOfDevelopment,
         int? CompletedYear,
         DateOnly? CompletedOn,
+        DateTime CreatedAt,
         int? CoverPhotoId,
         string? ProjectCategory,
         string? TechnicalCategory)
     {
         public int ProjectId => Id;
     }
+
+    private sealed record CapabilityRow(int ProjectId, string Statement);
+
+    private sealed record NarrativeResolution(string Text, string Label);
 
     private sealed record CostRow(
         int ProjectId,

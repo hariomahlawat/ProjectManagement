@@ -56,7 +56,12 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     authoredSelections,
                     request.Title,
                     request.Subtitle,
-                    request.Edition),
+                    request.Edition)
+                {
+                    NarrativeSource = request.NarrativeSource,
+                    GroupingMode = request.GroupingMode,
+                    SortMode = request.SortMode
+                },
                 cancellationToken)
             : await _readService.GetProliferationCompendiumAsync(cancellationToken);
 
@@ -139,7 +144,9 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     LifecycleDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.LifecycleDisplay),
                     ProjectCategoryDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.ProjectCategoryName),
                     IsAvailableForProliferation = project.IsAvailableForProliferation,
-                    ProliferationAvailability = project.ProliferationAvailability
+                    ProliferationAvailability = project.ProliferationAvailability,
+                    TechnicalCategoryDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.TechnicalCategoryName),
+                    NarrativeLabel = CompendiumPublicationTextSanitizer.Sanitize(project.NarrativeLabel)
                 });
             }
 

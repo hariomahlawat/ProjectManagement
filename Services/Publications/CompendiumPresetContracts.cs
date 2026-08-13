@@ -29,7 +29,10 @@ public sealed record CompendiumPresetProjectConfiguration(
     int? PrimaryPhotoId = null,
     double PrimaryFocalX = .5d,
     double PrimaryFocalY = .5d,
-    CompendiumImageSelectionMode ImageSelectionMode = CompendiumImageSelectionMode.Automatic);
+    CompendiumImageSelectionMode ImageSelectionMode = CompendiumImageSelectionMode.Automatic)
+{
+    public string? CustomSectionName { get; init; }
+}
 
 public sealed record CompendiumCoverConfiguration(
     CompendiumCoverImageMode ImageMode = CompendiumCoverImageMode.Automatic,
@@ -46,6 +49,9 @@ public sealed record CompendiumPresetConfiguration(
     IReadOnlyList<CompendiumPresetProjectConfiguration> Projects)
 {
     public CompendiumCoverConfiguration Cover { get; init; } = new();
+    public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
+    public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public CompendiumPresetConfiguration(
         string title,
         string subtitle,

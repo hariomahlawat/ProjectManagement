@@ -27,6 +27,7 @@ const registration = read('Services/Publications/PublicationServiceCollectionExt
 const landing = read('Pages/Projects/Publications/Index.cshtml');
 const migration = read('Migrations/20261208140000_AddCompendiumPublicationImagery.cs');
 const coverMigration = read('Migrations/20261208150000_AddCompendiumCoverHeroControls.cs');
+const editorialMigration = read('Migrations/20261208160000_AddCompendiumEditorialComposer.cs');
 const sanitizer = read('Utilities/Reporting/CompendiumPublicationTextSanitizer.cs');
 const manifest = read('Migrations/immutable-migration-ids.txt');
 
@@ -50,6 +51,48 @@ test('phase 23 keeps user-authored project membership and order authoritative', 
   assert.match(exportService, /ProjectSelections/);
 });
 
+
+
+test('editorial composer offers project brief by default with capability and description alternatives', () => {
+  assert.match(dto, /CompendiumNarrativeSource/);
+  assert.match(dto, /ProjectBrief\s*=\s*1/);
+  assert.match(view, /data-narrative-value="ProjectBrief"/);
+  assert.match(view, /data-narrative-value="CapabilityOverview"/);
+  assert.match(view, /data-narrative-value="ProjectDescription"/);
+  assert.match(service, /ProjectCapabilityStatements/);
+  assert.match(service, /ResolveNarrative/);
+  assert.match(js, /changeNarrativeSource/);
+});
+
+test('editorial composer separates publication grouping from sort order and preserves authoritative technical category', () => {
+  assert.match(dto, /CompendiumGroupingMode/);
+  assert.match(dto, /CompendiumSortMode/);
+  assert.match(view, /data-grouping-value="TechnicalCategory"/);
+  assert.match(view, /data-grouping-value="CustomSections"/);
+  assert.match(view, /data-sort-value="LatestFirst"/);
+  assert.match(view, /data-sort-value="Alphabetical"/);
+  assert.match(service, /ApplySortMode/);
+  assert.match(service, /CustomSectionName/);
+  assert.match(builder, /TechnicalCategoryDisplay/);
+  assert.match(js, /publicationGroups/);
+});
+
+test('editorial composer exposes a direct cover hero chooser', () => {
+  assert.match(view, /data-cover-choose/);
+  assert.match(view, /id="compendiumCoverHeroModal"/);
+  assert.match(view, /data-cover-hero-picker/);
+  assert.match(js, /renderCoverHeroPicker/);
+  assert.match(js, /data-cover-hero-choice/);
+});
+
+test('capability dossier project pages use a consistent editorial grammar and dynamic narrative heading', () => {
+  assert.match(builder, /CAPABILITY DOSSIER/);
+  assert.match(builder, /ComposeProjectImage/);
+  assert.match(builder, /NarrativeLabel/);
+  assert.match(builder, /TechnicalCategoryDisplay/);
+  assert.match(builder, /NormalizeNarrativeLabel/);
+  assert.doesNotMatch(builder, /if \(planned\.IsFirstProjectInCategory\)/);
+});
 test('phase 23 turns review into a focused project-by-project workspace', () => {
   assert.match(view, /data-review-progress/);
   assert.match(view, /data-review-previous/);
@@ -109,7 +152,8 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v1/);
+  assert.match(fingerprint, /compendium-review-v2/);
+  assert.match(fingerprint, /NarrativeSource/);
   assert.match(fingerprint, /ProjectName/);
   assert.match(fingerprint, /ProliferationCostLakhs/);
   assert.match(fingerprint, /ResolvedPhotoId/);
@@ -170,8 +214,8 @@ test('phase 23 avoids stale async preflight and review responses', () => {
   assert.match(js, /Checking publication/);
 });
 
-test('phase 24.1 saved Compendiums persist image and cover configuration through schema v3', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*3/);
+test('editorial composer persists image, cover, narrative and structure configuration through schema v4', () => {
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*4/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);
@@ -184,6 +228,12 @@ test('phase 24.1 saved Compendiums persist image and cover configuration through
   assert.match(model, /CoverHeroPhotoId/);
   assert.match(presetContracts, /CompendiumCoverConfiguration/);
   assert.match(db, /ImageSelectionMode/);
+  assert.match(editorialMigration, /Migration\("20261208160000_AddCompendiumEditorialComposer"\)/);
+  assert.match(editorialMigration, /NarrativeSource/);
+  assert.match(editorialMigration, /GroupingMode/);
+  assert.match(editorialMigration, /SortMode/);
+  assert.match(editorialMigration, /CustomSectionName/);
+  assert.match(manifest, /20261208160000_AddCompendiumEditorialComposer/);
 });
 
 test('phase 23 registers readiness policy without creating a second factual store', () => {
@@ -205,7 +255,8 @@ test('phase 23 retains safe shared-preset concurrency and PRISM modal load handl
 test('phase 23 user-facing copy removes server and data-model language', () => {
   assert.match(view, /Set the title and publication details for this Compendium/);
   assert.match(view, /Check the selected projects for publication completeness and quality/);
-  assert.match(view, /Projects are grouped by technical category in the final Compendium/);
+  assert.match(view, /Publication structure/);
+  assert.match(view, /authoritative technical category/);
   assert.doesNotMatch(view, /Server preflight/);
   assert.doesNotMatch(view, /Project facts remain live from PRISM/);
   assert.match(landing, /Create professional publications from PRISM project records/);
@@ -304,7 +355,7 @@ test('phase 24.1 uses content-aware reviewed photo geometry across browser DPI a
   assert.match(metrics, /ProjectImageShortHeightPoints\s*=\s*300/);
   assert.match(dto, /FrameWidthPoints\s*=\s*519/);
   assert.match(dto, /ResolveFrameHeightPoints/);
-  assert.match(builder, /ProjectImageHeightPoints\(planned\.ProjectLayout\)/);
+  assert.match(builder, /ProjectImageHeightPoints\(layout\)/);
   assert.match(page, /ImageFrameHeightPoints/);
   assert.match(js, /reviewImageFrame\.style\.aspectRatio/);
 });
@@ -315,7 +366,7 @@ test('phase 24 supports deterministic continuation pages without emergency font 
   assert.match(metrics, /FirstPageDescriptionBudgetPhotoShort/);
   assert.match(planner, /ContinuationDescriptionBudget/);
   assert.match(planner, /CompendiumMarkdownChunker\.Split/);
-  assert.match(builder, /Project description · continued/);
+  assert.match(builder, /narrativeLabel} · continued/);
   assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
   assert.match(metrics, /ProjectBodyFontSize\s*=\s*10f/);
   assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
@@ -388,7 +439,7 @@ test('phase 24.1 supports continuous review with Ctrl Enter while avoiding edita
 test('phase 24.1 makes review metadata context-sensitive and cost units explicit', () => {
   assert.match(js, /normalize\(review\.lifecycleDisplay\) === "completed"/);
   assert.match(dto, /₹.*lakh/);
-  assert.match(builder, /\("Indicative cost", project\.ProliferationCostDisplay\)/);
+  assert.match(builder, /\("Indicative cost", project\.ProliferationCostDisplay, true\)/);
 });
 
 test('phase 24.1 replaces the automatic cover mosaic with one controlled hero or graphic fallback', () => {

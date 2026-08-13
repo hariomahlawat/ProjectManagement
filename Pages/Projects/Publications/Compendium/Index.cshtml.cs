@@ -121,24 +121,29 @@ public sealed class IndexModel : PageModel
             warnings = data.Preflight.TotalWarningCount,
             info = data.Preflight.InformationCount,
             categories = data.Preflight.CategoryCount,
+            groupingMode = data.GroupingMode.ToString(),
+            sortMode = data.SortMode.ToString(),
+            narrativeSource = data.NarrativeSource.ToString(),
             canGenerate = data.Preflight.CanGenerate,
             reviewed = data.Groups.SelectMany(group => group.Projects).Count(project => project.IsReviewed),
             allReviewed = data.Preflight.SelectedProjectCount > 0
                           && data.Groups.SelectMany(group => group.Projects).All(project => project.IsReviewed),
             projects = data.Groups
-                .SelectMany(group => group.Projects)
-                .OrderBy(project => project.SortOrder)
-                .Select(project => new
+                .SelectMany(group => group.Projects.Select(project => new { group.SectionName, Project = project }))
+                .OrderBy(item => item.Project.SortOrder)
+                .Select(item => new
                 {
-                    project.ProjectId,
-                    project.ReviewFingerprint,
-                    project.IsReviewed,
-                    project.IsReviewStale,
-                    resolvedPhotoId = project.CoverPhotoId,
-                    imageSelectionMode = project.ImageSelectionMode.ToString().ToLowerInvariant(),
-                    project.EffectiveDpi,
-                    imageQuality = project.ImageQuality.ToString().ToLowerInvariant(),
-                    project.ExplicitPhotoUnavailable
+                    ProjectId = item.Project.ProjectId,
+                    sectionName = item.SectionName,
+                    publicationYear = item.Project.PublicationYear,
+                    item.Project.ReviewFingerprint,
+                    item.Project.IsReviewed,
+                    item.Project.IsReviewStale,
+                    resolvedPhotoId = item.Project.CoverPhotoId,
+                    imageSelectionMode = item.Project.ImageSelectionMode.ToString().ToLowerInvariant(),
+                    item.Project.EffectiveDpi,
+                    imageQuality = item.Project.ImageQuality.ToString().ToLowerInvariant(),
+                    item.Project.ExplicitPhotoUnavailable
                 }),
             findings = data.Preflight.Findings.Select(finding => new
             {
@@ -164,7 +169,10 @@ public sealed class IndexModel : PageModel
                 "Select this project before reviewing it.");
         }
 
-        var review = await _readService.GetReviewProjectAsync(selection, cancellationToken);
+        var review = await _readService.GetReviewProjectAsync(
+            selection,
+            ParseNarrativeSource(Input.NarrativeSource),
+            cancellationToken);
         if (review is null)
         {
             return JsonError(
@@ -192,6 +200,15 @@ public sealed class IndexModel : PageModel
             review.ProliferationCostLakhs,
             review.ProliferationCostDisplay,
             review.DescriptionMarkdown,
+            narrativeSource = review.NarrativeSource.ToString(),
+            review.NarrativeLabel,
+            review.HasProjectBrief,
+            review.HasCapabilityOverview,
+            review.HasProjectDescription,
+            review.ProjectBriefWordCount,
+            review.CapabilityStatementCount,
+            review.DescriptionWordCount,
+            review.CustomSectionName,
             review.ResolvedPhotoId,
             photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
             imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
@@ -434,7 +451,12 @@ public sealed class IndexModel : PageModel
                     CoverHeroProjectId: Input.CoverHeroProjectId,
                     CoverHeroPhotoId: Input.CoverHeroPhotoId,
                     CoverFocalX: ClampFocal(Input.CoverFocalX),
-                    CoverFocalY: ClampFocal(Input.CoverFocalY)),
+                    CoverFocalY: ClampFocal(Input.CoverFocalY))
+                {
+                    NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
+                    GroupingMode = ParseGroupingMode(Input.GroupingMode),
+                    SortMode = ParseSortMode(Input.SortMode)
+                },
                 cancellationToken);
 
             Response.Headers["X-PRISM-Publication-Composition-Verified"] = result.IsCompositionVerified ? "true" : "false";
@@ -507,6 +529,9 @@ public sealed class IndexModel : PageModel
                 Input.CoverHeroPhotoId = loaded.Configuration.Cover.HeroPhotoId;
                 Input.CoverFocalX = loaded.Configuration.Cover.FocalX;
                 Input.CoverFocalY = loaded.Configuration.Cover.FocalY;
+                Input.NarrativeSource = loaded.Configuration.NarrativeSource.ToString();
+                Input.GroupingMode = loaded.Configuration.GroupingMode.ToString();
+                Input.SortMode = loaded.Configuration.SortMode.ToString();
                 Input.SelectedProjectIdsCsv = string.Join(',', loaded.Configuration.ProjectIds);
                 Input.ProjectSelectionsJson = SerializeSelections(
                     loaded.Configuration.Projects.Select(project => new CompendiumProjectSelection(
@@ -515,7 +540,10 @@ public sealed class IndexModel : PageModel
                         project.PrimaryFocalX,
                         project.PrimaryFocalY,
                         project.ImageSelectionMode,
-                        ReviewFingerprint: null)));
+                        ReviewFingerprint: null)
+                    {
+                        CustomSectionName = project.CustomSectionName
+                    }));
             }
             catch (Exception exception)
             {
@@ -568,6 +596,18 @@ public sealed class IndexModel : PageModel
         {
             Input.Edition = $"Capability Edition · {DateTime.Today.Year}";
         }
+        if (string.IsNullOrWhiteSpace(Input.NarrativeSource))
+        {
+            Input.NarrativeSource = nameof(CompendiumNarrativeSource.ProjectBrief);
+        }
+        if (string.IsNullOrWhiteSpace(Input.GroupingMode))
+        {
+            Input.GroupingMode = nameof(CompendiumGroupingMode.TechnicalCategory);
+        }
+        if (string.IsNullOrWhiteSpace(Input.SortMode))
+        {
+            Input.SortMode = nameof(CompendiumSortMode.Manual);
+        }
     }
 
     private void NormalizeInput()
@@ -577,6 +617,9 @@ public sealed class IndexModel : PageModel
         Input.Subtitle = Clean(Input.Subtitle, 160) ?? "Detailed Project Reference";
         Input.Edition = Clean(Input.Edition, 80) ?? $"Capability Edition · {DateTime.Today.Year}";
         Input.HandlingMarking = Clean(Input.HandlingMarking, 80);
+        Input.NarrativeSource = ParseNarrativeSource(Input.NarrativeSource).ToString();
+        Input.GroupingMode = ParseGroupingMode(Input.GroupingMode).ToString();
+        Input.SortMode = ParseSortMode(Input.SortMode).ToString();
         Input.CoverImageMode = ParseCoverImageMode(Input.CoverImageMode).ToString();
         Input.CoverFocalX = ClampFocal(Input.CoverFocalX);
         Input.CoverFocalY = ClampFocal(Input.CoverFocalY);
@@ -659,13 +702,21 @@ public sealed class IndexModel : PageModel
                     ClampFocal(payload.FocalX),
                     ClampFocal(payload.FocalY),
                     mode,
-                    CleanFingerprint(payload.ReviewFingerprint));
+                    CleanFingerprint(payload.ReviewFingerprint))
+                {
+                    CustomSectionName = Clean(payload.CustomSectionName, 120)
+                };
             })
             .ToArray();
     }
 
     private CompendiumPublicationRequest ToPublicationRequest()
-        => new(ParseSelections(), Input.Title, Input.Subtitle, Input.Edition);
+        => new(ParseSelections(), Input.Title, Input.Subtitle, Input.Edition)
+        {
+            NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
+            GroupingMode = ParseGroupingMode(Input.GroupingMode),
+            SortMode = ParseSortMode(Input.SortMode)
+        };
 
     private CompendiumPresetConfiguration ToPresetConfiguration()
         => new(
@@ -679,9 +730,15 @@ public sealed class IndexModel : PageModel
                     selection.PrimaryPhotoId,
                     selection.FocalX,
                     selection.FocalY,
-                    selection.ImageSelectionMode))
+                    selection.ImageSelectionMode)
+                {
+                    CustomSectionName = selection.CustomSectionName
+                })
                 .ToArray())
         {
+            NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
+            GroupingMode = ParseGroupingMode(Input.GroupingMode),
+            SortMode = ParseSortMode(Input.SortMode),
             Cover = new CompendiumCoverConfiguration(
                 ParseCoverImageMode(Input.CoverImageMode),
                 Input.CoverHeroProjectId,
@@ -711,9 +768,25 @@ public sealed class IndexModel : PageModel
                 FocalX = selection.FocalX,
                 FocalY = selection.FocalY,
                 ImageSelectionMode = selection.ImageSelectionMode.ToString(),
-                ReviewFingerprint = selection.ReviewFingerprint
+                ReviewFingerprint = selection.ReviewFingerprint,
+                CustomSectionName = selection.CustomSectionName
             }),
             JsonOptions);
+
+    private static CompendiumNarrativeSource ParseNarrativeSource(string? value)
+        => Enum.TryParse<CompendiumNarrativeSource>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumNarrativeSource.ProjectBrief;
+
+    private static CompendiumGroupingMode ParseGroupingMode(string? value)
+        => Enum.TryParse<CompendiumGroupingMode>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumGroupingMode.TechnicalCategory;
+
+    private static CompendiumSortMode ParseSortMode(string? value)
+        => Enum.TryParse<CompendiumSortMode>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumSortMode.Manual;
 
     private static CompendiumCoverImageMode ParseCoverImageMode(string? value)
         => Enum.TryParse<CompendiumCoverImageMode>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
@@ -773,6 +846,15 @@ public sealed class IndexModel : PageModel
         public string? HandlingMarking { get; set; }
 
         [StringLength(32)]
+        public string NarrativeSource { get; set; } = nameof(CompendiumNarrativeSource.ProjectBrief);
+
+        [StringLength(32)]
+        public string GroupingMode { get; set; } = nameof(CompendiumGroupingMode.TechnicalCategory);
+
+        [StringLength(32)]
+        public string SortMode { get; set; } = nameof(CompendiumSortMode.Manual);
+
+        [StringLength(32)]
         public string CoverImageMode { get; set; } = nameof(CompendiumCoverImageMode.Automatic);
         public int? CoverHeroProjectId { get; set; }
         public int? CoverHeroPhotoId { get; set; }
@@ -791,5 +873,6 @@ public sealed class IndexModel : PageModel
         public double FocalY { get; set; } = .5d;
         public string? ImageSelectionMode { get; set; }
         public string? ReviewFingerprint { get; set; }
+        public string? CustomSectionName { get; set; }
     }
 }

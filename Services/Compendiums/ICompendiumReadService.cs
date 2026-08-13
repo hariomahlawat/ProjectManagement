@@ -16,6 +16,12 @@ public interface ICompendiumReadService
     Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
         CancellationToken cancellationToken = default)
+        => GetReviewProjectAsync(selection, CompendiumNarrativeSource.ProjectBrief, cancellationToken);
+
+    Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
+        CompendiumProjectSelection selection,
+        CompendiumNarrativeSource narrativeSource,
+        CancellationToken cancellationToken = default)
         => Task.FromResult<CompendiumReviewProjectDto?>(null);
 
     Task<CompendiumPdfDataDto> GetProliferationCompendiumAsync(

@@ -2,6 +2,27 @@ using System.Globalization;
 
 namespace ProjectManagement.Services.Compendiums;
 
+public enum CompendiumNarrativeSource
+{
+    ProjectBrief = 1,
+    CapabilityOverview = 2,
+    ProjectDescription = 3
+}
+
+public enum CompendiumGroupingMode
+{
+    TechnicalCategory = 1,
+    None = 2,
+    CustomSections = 3
+}
+
+public enum CompendiumSortMode
+{
+    Manual = 1,
+    LatestFirst = 2,
+    Alphabetical = 3
+}
+
 public enum CompendiumPhotoSelectionSource
 {
     None = 0,
@@ -72,6 +93,12 @@ public sealed record CompendiumCandidateProjectVm(
     string CompletionDisplay)
 {
     public bool? ProliferationAvailability { get; init; }
+    public bool HasProjectBrief { get; init; }
+    public bool HasCapabilityOverview { get; init; }
+    public int ProjectBriefWordCount { get; init; }
+    public int CapabilityStatementCount { get; init; }
+    public int DescriptionWordCount { get; init; }
+    public int PublicationYear { get; init; }
 }
 
 public sealed record CompendiumProjectSelection(
@@ -80,7 +107,14 @@ public sealed record CompendiumProjectSelection(
     double FocalX = .5d,
     double FocalY = .5d,
     CompendiumImageSelectionMode ImageSelectionMode = CompendiumImageSelectionMode.Automatic,
-    string? ReviewFingerprint = null);
+    string? ReviewFingerprint = null)
+{
+    /// <summary>
+    /// Publication-only section assignment. It never modifies the project's authoritative
+    /// Technical Category or any other PRISM master data.
+    /// </summary>
+    public string? CustomSectionName { get; init; }
+}
 
 public sealed record CompendiumReviewPhotoVm(
     int PhotoId,
@@ -121,6 +155,15 @@ public sealed record CompendiumReviewProjectDto(
 {
     public double ImageFrameWidthPoints { get; init; } = CompendiumPublicationImagePolicy.FrameWidthPoints;
     public double ImageFrameHeightPoints { get; init; } = CompendiumPublicationImagePolicy.MediumFrameHeightPoints;
+    public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public string NarrativeLabel { get; init; } = "Project Brief";
+    public bool HasProjectBrief { get; init; }
+    public bool HasCapabilityOverview { get; init; }
+    public bool HasProjectDescription { get; init; }
+    public int ProjectBriefWordCount { get; init; }
+    public int CapabilityStatementCount { get; init; }
+    public int DescriptionWordCount { get; init; }
+    public string? CustomSectionName { get; init; }
 }
 
 public sealed record CompendiumProjectDto(
@@ -153,11 +196,22 @@ public sealed record CompendiumProjectDto(
     public bool IsReviewed { get; init; }
     public bool IsReviewStale { get; init; }
     public bool ExplicitPhotoUnavailable { get; init; }
+    public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public string NarrativeLabel { get; init; } = "Project Brief";
+    public string? CustomSectionName { get; init; }
+    public int PublicationYear { get; init; }
 }
 
+/// <summary>
+/// A publication section. The legacy property name is retained for source compatibility; when
+/// custom grouping is selected it contains the publication-only custom section name.
+/// </summary>
 public sealed record CompendiumCategoryGroupDto(
     string TechnicalCategoryName,
-    IReadOnlyList<CompendiumProjectDto> Projects);
+    IReadOnlyList<CompendiumProjectDto> Projects)
+{
+    public string SectionName => TechnicalCategoryName;
+}
 
 public sealed record CompendiumProjectReadinessDto(
     int ProjectId,
@@ -234,6 +288,9 @@ public sealed record CompendiumPublicationRequest(
     }
 
     public IReadOnlyList<int> ProjectIds => Projects.Select(project => project.ProjectId).ToArray();
+    public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
+    public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
 }
 
 public sealed record CompendiumPdfDataDto(
@@ -246,6 +303,9 @@ public sealed record CompendiumPdfDataDto(
     CompendiumPreflightDto Preflight)
 {
     public string Edition { get; init; } = string.Empty;
+    public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
+    public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
 }
 
 public static class CompendiumPublicationImagePolicy
@@ -319,11 +379,17 @@ public static class CompendiumPublicationImagePolicy
                 .Trim().Length;
 }
 
+/// <summary>
+/// Fixed geometry for the Compendium cover hero. This is intentionally separate from
+/// <see cref="CompendiumPublicationImagePolicy"/> because project dossier imagery is adaptive,
+/// while the publication cover uses one stable editorial frame.
+/// </summary>
 public static class CompendiumCoverImagePolicy
 {
     public const double FrameWidthPoints = 491d;
     public const double FrameHeightPoints = 300d;
     public const int RenderWidthPixels = 1800;
     public const int RenderHeightPixels = 1100;
+
     public static double TargetAspect => FrameWidthPoints / FrameHeightPoints;
 }

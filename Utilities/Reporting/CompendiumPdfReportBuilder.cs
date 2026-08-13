@@ -49,6 +49,9 @@ public sealed record CompendiumPdfProjectSection(
 {
     public string LifecycleDisplay { get; init; } = "Completed";
     public string? ProjectCategoryDisplay { get; init; }
+    /// <summary>Authoritative project technical category. CategoryName is the publication section/group heading.</summary>
+    public string TechnicalCategoryDisplay { get; init; } = string.Empty;
+    public string NarrativeLabel { get; init; } = "Project Brief";
     public bool IsAvailableForProliferation { get; init; }
     public bool? ProliferationAvailability { get; init; }
 }
@@ -334,36 +337,58 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         byte[]? footerLogo)
     {
         var project = planned.Project ?? throw new InvalidOperationException("Project page is missing its project payload.");
+        var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
         container.Page(page =>
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, project.CategoryName.ToUpperInvariant(), project.LifecycleDisplay, marking));
-            page.Content().PaddingTop(10).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
+            page.Content().PaddingTop(9).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
             {
-                column.Spacing(10);
-                if (planned.IsFirstProjectInCategory)
+                column.Spacing(9);
+
+                // A consistent editorial masthead is used on every project page.  Category changes
+                // are communicated by the running header/index rather than by a one-off heavy banner.
+                column.Item().Row(row =>
                 {
-                    column.Item().Background(Forest900).PaddingHorizontal(12).PaddingVertical(8).Text(project.CategoryName)
-                        .FontSize(12)
-                        .SemiBold()
-                        .FontColor(White);
-                }
+                    row.RelativeItem().Column(kicker =>
+                    {
+                        kicker.Item().Text(project.CategoryName.ToUpperInvariant())
+                            .FontSize(7.4f)
+                            .SemiBold()
+                            .LetterSpacing(1.15f)
+                            .FontColor(Forest800);
+                        kicker.Item().PaddingTop(4).Height(2).Width(58).Background(Gold);
+                    });
+
+                    row.AutoItem().Background(ResolveStatusBackground(project.LifecycleDisplay))
+                        .Border(1).BorderColor(ResolveStatusBorder(project.LifecycleDisplay))
+                        .PaddingHorizontal(8).PaddingVertical(4)
+                        .Text(project.LifecycleDisplay.ToUpperInvariant())
+                        .FontSize(7.1f).SemiBold().LetterSpacing(.55f)
+                        .FontColor(ResolveStatusText(project.LifecycleDisplay));
+                });
 
                 column.Item().Text(project.ProjectName)
                     .FontSize(CompendiumLayoutMetrics.ProjectTitleFontSize)
                     .SemiBold()
-                    .LineHeight(1.06f)
+                    .LineHeight(1.04f)
                     .FontColor(Ink);
+
+                if (!string.IsNullOrWhiteSpace(project.CaseFileNumber))
+                {
+                    column.Item().Text($"PROJECT REFERENCE  ·  {project.CaseFileNumber}")
+                        .FontSize(7.4f)
+                        .SemiBold()
+                        .LetterSpacing(.28f)
+                        .FontColor(Slate500);
+                }
 
                 column.Item().Element(meta => ComposeProjectMetadata(meta, project));
 
                 if (planned.ProjectLayout != CompendiumProjectLayoutVariant.NoPhoto
                     && project.CoverPhoto is { Length: > 0 })
                 {
-                    column.Item().Height(CompendiumLayoutMetrics.ProjectImageHeightPoints(planned.ProjectLayout))
-                        .Background(Slate100)
-                        .Image(project.CoverPhoto)
-                        .FitArea();
+                    column.Item().Element(frame => ComposeProjectImage(frame, project.CoverPhoto, planned.ProjectLayout));
                 }
                 else
                 {
@@ -373,6 +398,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 column.Item().Element(description => ComposeDescription(
                     description,
                     planned.DescriptionMarkdown,
+                    narrativeLabel,
                     continuation: false));
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
@@ -387,13 +413,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         byte[]? footerLogo)
     {
         var project = planned.Project ?? throw new InvalidOperationException("Continuation page is missing its project payload.");
+        var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
         container.Page(page =>
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, project.CategoryName.ToUpperInvariant(), project.LifecycleDisplay, marking));
             page.Content().PaddingTop(14).Column(column =>
             {
-                column.Spacing(12);
+                column.Spacing(11);
                 column.Item().Text(project.ProjectName)
                     .FontSize(16)
                     .SemiBold()
@@ -401,7 +428,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     .FontColor(Ink);
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Text("Project description · continued")
+                    row.RelativeItem().Text($"{narrativeLabel} · continued")
                         .FontSize(10)
                         .SemiBold()
                         .FontColor(Forest800);
@@ -415,6 +442,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 column.Item().Element(description => ComposeDescription(
                     description,
                     planned.DescriptionMarkdown,
+                    narrativeLabel,
                     continuation: true));
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
@@ -423,130 +451,157 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
     private static void ComposeProjectMetadata(IContainer container, CompendiumPdfProjectSection project)
     {
-        var items = new List<(string Key, string Value)>();
+        var items = new List<(string Key, string Value, bool Emphasize)>();
         if (!string.IsNullOrWhiteSpace(project.ProjectCategoryDisplay))
         {
-            items.Add(("Project category", project.ProjectCategoryDisplay!));
+            items.Add(("Project category", project.ProjectCategoryDisplay!, false));
         }
-        items.Add(("Technical category", project.CategoryName));
-        items.Add(("Status", project.LifecycleDisplay));
+
+        var technicalCategory = string.IsNullOrWhiteSpace(project.TechnicalCategoryDisplay)
+            ? project.CategoryName
+            : project.TechnicalCategoryDisplay;
+        items.Add(("Technical category", technicalCategory, false));
+        items.Add(("Status", project.LifecycleDisplay, false));
+
         if (string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(project.CompletionYearDisplay)
             && !string.Equals(project.CompletionYearDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(("Completed", project.CompletionYearDisplay));
+            items.Add(("Completed", project.CompletionYearDisplay, true));
         }
         if (!string.Equals(project.ArmServiceDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(("Arm / Service", project.ArmServiceDisplay));
+            items.Add(("Arm / Service", project.ArmServiceDisplay, false));
         }
         if (project.ProliferationAvailability.HasValue)
         {
-            items.Add(("Proliferation", project.ProliferationAvailability.Value
-                ? "Available"
-                : "Not available"));
+            items.Add(("Proliferation", project.ProliferationAvailability.Value ? "Available" : "Not available", false));
         }
         if (project.ProliferationAvailability == true
             && !string.IsNullOrWhiteSpace(project.ProliferationCostDisplay)
             && !string.Equals(project.ProliferationCostDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(("Indicative cost", project.ProliferationCostDisplay));
-        }
-        if (!string.IsNullOrWhiteSpace(project.CaseFileNumber))
-        {
-            items.Add(("Project reference", project.CaseFileNumber!));
+            items.Add(("Indicative cost", project.ProliferationCostDisplay, true));
         }
 
-        container.Background(Forest50).Border(1).BorderColor("#DCE7E2").Padding(9).Column(column =>
+        container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
         {
-            column.Spacing(7);
-            for (var index = 0; index < items.Count; index += 2)
+            column.Item().Height(3).Background(Forest800);
+            column.Item().PaddingHorizontal(10).PaddingVertical(9).Column(grid =>
             {
-                var first = items[index];
-                var second = index + 1 < items.Count ? items[index + 1] : default;
-                column.Item().Row(row =>
+                grid.Spacing(8);
+                for (var index = 0; index < items.Count; index += 3)
                 {
-                    row.RelativeItem().Element(cell => ComposeMetadataCell(cell, first.Key, first.Value));
-                    if (!string.IsNullOrWhiteSpace(second.Key))
+                    var first = items[index];
+                    var second = index + 1 < items.Count ? items[index + 1] : default;
+                    var third = index + 2 < items.Count ? items[index + 2] : default;
+                    grid.Item().Row(row =>
                     {
-                        row.ConstantItem(18);
-                        row.RelativeItem().Element(cell => ComposeMetadataCell(cell, second.Key, second.Value));
-                    }
-                    else
-                    {
-                        row.ConstantItem(18);
-                        row.RelativeItem().Text(string.Empty);
-                    }
-                });
-            }
+                        row.RelativeItem().Element(cell => ComposeMetadataCell(cell, first.Key, first.Value, first.Emphasize));
+                        row.ConstantItem(12);
+                        row.RelativeItem().Element(cell =>
+                        {
+                            if (!string.IsNullOrWhiteSpace(second.Key)) ComposeMetadataCell(cell, second.Key, second.Value, second.Emphasize);
+                        });
+                        row.ConstantItem(12);
+                        row.RelativeItem().Element(cell =>
+                        {
+                            if (!string.IsNullOrWhiteSpace(third.Key)) ComposeMetadataCell(cell, third.Key, third.Value, third.Emphasize);
+                        });
+                    });
+                }
 
-            if (!string.IsNullOrWhiteSpace(project.ProliferationCostRemarks))
+                if (!string.IsNullOrWhiteSpace(project.ProliferationCostRemarks))
+                {
+                    grid.Item().BorderTop(1).BorderColor("#D8E5DF").PaddingTop(6)
+                        .Text(project.ProliferationCostRemarks!)
+                        .FontSize(8.2f)
+                        .FontColor(Slate600)
+                        .LineHeight(1.18f);
+                }
+            });
+        });
+    }
+
+    private static void ComposeMetadataCell(IContainer container, string key, string value, bool emphasize)
+    {
+        container.MinHeight(27).Column(column =>
+        {
+            column.Item().Text(key.ToUpperInvariant())
+                .FontSize(6.7f)
+                .SemiBold()
+                .LetterSpacing(.42f)
+                .FontColor(Slate500);
+            if (emphasize)
             {
-                column.Item().PaddingTop(2).BorderTop(1).BorderColor("#DCE7E2").PaddingTop(6)
-                    .Text(project.ProliferationCostRemarks!)
-                    .FontSize(8.4f)
-                    .FontColor(Slate600)
-                    .LineHeight(1.18f);
+                column.Item().Text(value).FontSize(10f).SemiBold().FontColor(Forest900);
+            }
+            else
+            {
+                column.Item().Text(value).FontSize(8.9f).FontColor(Ink);
             }
         });
     }
 
-    private static void ComposeMetadataCell(IContainer container, string key, string value)
+    private static void ComposeProjectImage(IContainer container, byte[] photo, CompendiumProjectLayoutVariant layout)
     {
-        container.Column(column =>
+        var height = CompendiumLayoutMetrics.ProjectImageHeightPoints(layout);
+        container.Border(1).BorderColor(Slate200).Background(Slate50).Padding(3).Layers(layers =>
         {
-            column.Item().Text(key.ToUpperInvariant())
-                .FontSize(7)
-                .SemiBold()
-                .LetterSpacing(.45f)
-                .FontColor(Slate500);
-            column.Item().Text(value)
-                .FontSize(9.2f)
-                .SemiBold()
-                .FontColor(Ink);
+            layers.PrimaryLayer().Height(height).Image(photo).FitArea();
+            layers.Layer().AlignBottom().Height(3).Background(Gold);
         });
     }
 
     private static void ComposeNoPhotoTreatment(IContainer container, CompendiumPdfProjectSection project)
     {
-        container.Height(96).Background(Forest100).BorderLeft(4).BorderColor(Gold).PaddingHorizontal(16).PaddingVertical(14).Row(row =>
+        var technicalCategory = string.IsNullOrWhiteSpace(project.TechnicalCategoryDisplay)
+            ? project.CategoryName
+            : project.TechnicalCategoryDisplay;
+
+        container.Height(112).Background(Forest100).Border(1).BorderColor("#D7E7DF").Padding(0).Row(row =>
         {
-            row.RelativeItem().Column(column =>
+            row.ConstantItem(7).Background(Gold);
+            row.RelativeItem().PaddingHorizontal(17).PaddingVertical(14).Column(column =>
             {
-                column.Item().Text(project.CategoryName.ToUpperInvariant())
-                    .FontSize(8)
+                column.Item().Text("CAPABILITY DOSSIER")
+                    .FontSize(7)
                     .SemiBold()
-                    .LetterSpacing(.8f)
-                    .FontColor(Forest800);
-                column.Item().PaddingTop(5).Text(project.ProjectName)
-                    .FontSize(12.5f)
+                    .LetterSpacing(1f)
+                    .FontColor(Slate500);
+                column.Item().PaddingTop(6).Text(technicalCategory.ToUpperInvariant())
+                    .FontSize(17)
                     .SemiBold()
                     .FontColor(Forest950);
+                column.Item().PaddingTop(5).Text("Publication image not selected. The project record remains fully publishable as a text-led dossier.")
+                    .FontSize(8.1f)
+                    .FontColor(Slate600);
             });
-            row.AutoItem().AlignMiddle().Text("PROJECT REFERENCE")
-                .FontSize(7)
-                .SemiBold()
-                .LetterSpacing(.8f)
-                .FontColor(Slate500);
         });
     }
 
-    private static void ComposeDescription(IContainer container, string markdown, bool continuation)
+    private static void ComposeDescription(IContainer container, string markdown, string narrativeLabel, bool continuation)
     {
+        narrativeLabel = NormalizeNarrativeLabel(narrativeLabel);
         container.Column(column =>
         {
             column.Spacing(7);
             if (!continuation)
             {
-                column.Item().Text("Project description")
-                    .FontSize(10.5f)
-                    .SemiBold()
-                    .FontColor(Forest900);
+                column.Item().Row(row =>
+                {
+                    row.AutoItem().Text(narrativeLabel.ToUpperInvariant())
+                        .FontSize(8.6f)
+                        .SemiBold()
+                        .LetterSpacing(.7f)
+                        .FontColor(Forest900);
+                    row.RelativeItem().PaddingLeft(10).AlignMiddle().Height(1).Background(GoldSoft);
+                });
             }
 
             if (string.IsNullOrWhiteSpace(markdown))
             {
-                column.Item().Text("Project description not recorded.")
+                column.Item().Text($"{narrativeLabel} not recorded.")
                     .FontSize(CompendiumLayoutMetrics.ProjectBodyFontSize)
                     .Italic()
                     .FontColor(Slate500);
@@ -721,6 +776,18 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             return null;
         }
     }
+
+    private static string NormalizeNarrativeLabel(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "Project Brief" : value.Trim();
+
+    private static string ResolveStatusBackground(string? lifecycle)
+        => string.Equals(lifecycle, "Completed", StringComparison.OrdinalIgnoreCase) ? "#EAF4EF" : "#EEF4FF";
+
+    private static string ResolveStatusBorder(string? lifecycle)
+        => string.Equals(lifecycle, "Completed", StringComparison.OrdinalIgnoreCase) ? "#BCD8CA" : "#C9D8F4";
+
+    private static string ResolveStatusText(string? lifecycle)
+        => string.Equals(lifecycle, "Completed", StringComparison.OrdinalIgnoreCase) ? Forest800 : "#315E9A";
 
     private static string Normalize(string? value, string fallback)
         => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();

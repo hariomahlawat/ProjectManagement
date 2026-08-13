@@ -654,11 +654,14 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.Edition).HasMaxLength(80).IsRequired();
                 entity.Property(preset => preset.HandlingMarking).HasMaxLength(80);
                 entity.Property(preset => preset.CoverImageMode).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
+                entity.Property(preset => preset.NarrativeSource).HasMaxLength(32).HasDefaultValue("ProjectBrief").IsRequired();
+                entity.Property(preset => preset.GroupingMode).HasMaxLength(32).HasDefaultValue("TechnicalCategory").IsRequired();
+                entity.Property(preset => preset.SortMode).HasMaxLength(32).HasDefaultValue("Manual").IsRequired();
                 entity.Property(preset => preset.CoverFocalX).HasDefaultValue(.5d).IsRequired();
                 entity.Property(preset => preset.CoverFocalY).HasDefaultValue(.5d).IsRequired();
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(3).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(4).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
                 entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();
@@ -675,6 +678,7 @@ namespace ProjectManagement.Data
                 entity.Property(item => item.PrimaryFocalX).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.PrimaryFocalY).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.ImageSelectionMode).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
+                entity.Property(item => item.CustomSectionName).HasMaxLength(120);
                 entity.HasIndex(item => new { item.PresetId, item.SortOrder }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder").IsUnique();
                 entity.HasIndex(item => new { item.PresetId, item.ProjectId }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_Project").IsUnique();
                 entity.HasIndex(item => item.ProjectId).HasDatabaseName("IX_CompendiumPresetProjects_ProjectId");

@@ -111,6 +111,9 @@
         @Html.AntiForgeryToken()
         <input asp-for="Input.SelectedProjectIdsCsv" type="hidden" data-selected-project-ids />
         <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
+        <input asp-for="Input.NarrativeSource" type="hidden" data-narrative-source />
+        <input asp-for="Input.GroupingMode" type="hidden" data-grouping-mode />
+        <input asp-for="Input.SortMode" type="hidden" data-sort-mode />
         <input asp-for="PresetId" type="hidden" data-active-preset-id />
         <input asp-for="ActivePresetRowVersion" type="hidden" data-active-preset-row-version />
         <input asp-for="Input.CoverImageMode" type="hidden" data-cover-image-mode />
@@ -164,6 +167,44 @@
                                 <small>PRISM never assigns a classification automatically.</small>
                             </label>
                         </div>
+
+                        <section class="compendium-composer" aria-label="Publication composition">
+                            <div class="compendium-composer__heading">
+                                <div>
+                                    <span>Publication composition</span>
+                                    <strong>Choose what the Compendium says and how it is organised.</strong>
+                                </div>
+                                <span class="compendium-composer__badge">Editorial controls</span>
+                            </div>
+                            <div class="compendium-composer__grid">
+                                <div class="compendium-composer__control">
+                                    <div class="compendium-composer__label"><i class="bi bi-file-text"></i><span><strong>Project narrative</strong><small>Used on every project dossier.</small></span></div>
+                                    <div class="compendium-segmented" role="group" aria-label="Project narrative source">
+                                        <button type="button" data-narrative-value="ProjectBrief">Project brief <span>Default</span></button>
+                                        <button type="button" data-narrative-value="CapabilityOverview">Capability overview</button>
+                                        <button type="button" data-narrative-value="ProjectDescription">Description</button>
+                                    </div>
+                                </div>
+                                <div class="compendium-composer__control">
+                                    <div class="compendium-composer__label"><i class="bi bi-collection"></i><span><strong>Grouping</strong><small>Controls catalogue sections and index headings.</small></span></div>
+                                    <div class="compendium-segmented" role="group" aria-label="Publication grouping">
+                                        <button type="button" data-grouping-value="TechnicalCategory">Technical category</button>
+                                        <button type="button" data-grouping-value="None">No grouping</button>
+                                        <button type="button" data-grouping-value="CustomSections">Custom sections</button>
+                                    </div>
+                                </div>
+                                <div class="compendium-composer__control">
+                                    <div class="compendium-composer__label"><i class="bi bi-sort-down"></i><span><strong>Order</strong><small>Project sequence inside the publication.</small></span></div>
+                                    <div class="compendium-segmented" role="group" aria-label="Publication order">
+                                        <button type="button" data-sort-value="Manual">Manual</button>
+                                        <button type="button" data-sort-value="LatestFirst">Latest first</button>
+                                        <button type="button" data-sort-value="Alphabetical">A–Z</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="compendium-composer__note" data-composer-note>Technical categories remain authoritative project data. Publication sections only change this Compendium.</p>
+                        </section>
+
                         <div class="compendium-cover-setting" data-cover-setting>
                             <div class="compendium-cover-preview" data-cover-preview>
                                 <i class="bi bi-image" aria-hidden="true"></i>
@@ -176,10 +217,11 @@
                             </div>
                             <div class="compendium-cover-actions">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-automatic>Automatic hero</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-choose><i class="bi bi-images"></i> Choose hero</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-none>No imagery</button>
                             </div>
                         </div>
-                        <small class="compendium-cover-help">To lock a specific cover hero, open that project in Review and choose <b>Use as cover hero</b>. The selected image and focal point are copied independently into the Compendium cover.</small>
+                        <small class="compendium-cover-help">Choose a hero directly here or use <b>Use as cover hero</b> while reviewing a project. Cover crop is stored independently from the project page.</small>
                     </div>
                 </section>
 
@@ -284,10 +326,14 @@
                                             </td>
                                             <td>
                                                 <div class="compendium-data-badges" aria-label="Compendium data readiness">
-                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")"
-                                                          title="@(project.HasDescription ? "Description available" : "Description missing")">
-                                                        <i class="bi @(project.HasDescription ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i>
-                                                        <span>Description</span>
+                                                    <span class="@(project.HasProjectBrief ? "is-ok" : "is-missing")" title="@(project.HasProjectBrief ? $"Project brief available · {project.ProjectBriefWordCount} words" : "Project brief missing")" data-source-readiness="ProjectBrief">
+                                                        <i class="bi @(project.HasProjectBrief ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i><span>Brief</span>
+                                                    </span>
+                                                    <span class="@(project.HasCapabilityOverview ? "is-ok" : "is-missing")" title="@(project.HasCapabilityOverview ? $"Capability overview available · {project.CapabilityStatementCount} statements" : "Capability overview missing")" data-source-readiness="CapabilityOverview">
+                                                        <i class="bi @(project.HasCapabilityOverview ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i><span>Capabilities</span>
+                                                    </span>
+                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")" title="@(project.HasDescription ? $"Description available · {project.DescriptionWordCount} words" : "Description missing")" data-source-readiness="ProjectDescription">
+                                                        <i class="bi @(project.HasDescription ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i><span>Description</span>
                                                     </span>
                                                     <span class="@(project.HasArmService ? "is-ok" : "is-missing")"
                                                           title="@(project.HasArmService ? "Arm/Service available" : "Arm/Service missing")">
@@ -382,9 +428,10 @@
 
                                 <section class="compendium-review-information">
                                     <div class="compendium-review-facts compendium-review-facts--phase23" data-review-facts></div>
+                                    <div class="compendium-review-narrative-selector" data-review-narrative-options aria-label="Narrative availability"></div>
                                     <div class="compendium-review-description">
                                         <div class="compendium-review-section-heading">
-                                            <strong>Project description</strong>
+                                            <strong data-review-narrative-label>Project Brief</strong>
                                             <span data-review-description-state></span>
                                         </div>
                                         <div class="compendium-review-description-text" data-review-description></div>
@@ -453,19 +500,26 @@
                     <header class="publication-panel__header publication-panel__header--compact">
                         <div>
                             <div>
-                                <h2>Publication order</h2>
-                                <p><span data-rail-count>0</span> selected · drag to reorder</p>
+                                <h2>Publication structure</h2>
+                                <p><span data-rail-count>0</span> selected · <span data-order-mode-copy>manual order</span></p>
                             </div>
                         </div>
                         <button type="button" class="btn btn-sm btn-link" data-clear-selection hidden disabled aria-disabled="true">Clear selection</button>
                     </header>
+                    <div class="compendium-custom-section-toolbar" data-custom-section-toolbar hidden>
+                        <div>
+                            <input class="form-control form-control-sm" maxlength="120" placeholder="New section name" data-custom-section-name />
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-custom-section-add><i class="bi bi-plus-lg"></i> Add</button>
+                        </div>
+                        <small>Create publication-only sections, then assign projects below.</small>
+                    </div>
                     <div class="compendium-order-list" data-order-list>
                         <div class="compendium-order-empty">
                             <i class="bi bi-journal"></i>
                             <span>Select projects from the portfolio.</span>
                         </div>
                     </div>
-                    <p class="compendium-order-note">Projects are grouped by technical category in the final Compendium.</p>
+                    <p class="compendium-order-note" data-order-note>Projects are grouped by their authoritative technical category. Manual drag order is retained within those sections.</p>
                 </section>
 
                 <section class="publication-panel compendium-final-card">
@@ -554,6 +608,25 @@
             <div class="modal-footer">
                 <a class="btn btn-outline-secondary me-auto" data-photo-manage-link><i class="bi bi-images"></i> Manage project photographs</a>
                 <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade compendium-cover-hero-modal" id="compendiumCoverHeroModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div><h5 class="modal-title">Choose cover hero</h5><small>Select the publication image that should lead the Compendium.</small></div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="compendium-cover-hero-picker" data-cover-hero-picker></div>
+                <div class="compendium-cover-hero-empty" data-cover-hero-empty hidden>No selected project currently has a usable publication image.</div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto">The selected project's current publication crop is copied to the cover and can later diverge independently.</span>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

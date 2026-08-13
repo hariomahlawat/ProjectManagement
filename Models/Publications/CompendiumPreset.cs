@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 3;
+    public int SettingsSchemaVersion { get; set; } = 4;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -33,6 +33,15 @@ public sealed class CompendiumPreset
 
     [MaxLength(80)]
     public string? HandlingMarking { get; set; }
+
+    [Required, MaxLength(32)]
+    public string NarrativeSource { get; set; } = "ProjectBrief";
+
+    [Required, MaxLength(32)]
+    public string GroupingMode { get; set; } = "TechnicalCategory";
+
+    [Required, MaxLength(32)]
+    public string SortMode { get; set; } = "Manual";
 
     [Required, MaxLength(32)]
     public string CoverImageMode { get; set; } = "Automatic";
@@ -85,4 +94,7 @@ public sealed class CompendiumPresetProject
 
     [Required, MaxLength(32)]
     public string ImageSelectionMode { get; set; } = "Automatic";
+
+    [MaxLength(120)]
+    public string? CustomSectionName { get; set; }
 }

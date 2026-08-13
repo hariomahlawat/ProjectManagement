@@ -17,7 +17,10 @@ public sealed record CompendiumProjectReadinessContext(
     int? EffectiveDpi,
     bool ExplicitPhotoUnavailable,
     string CurrentReviewFingerprint,
-    string? SubmittedReviewFingerprint);
+    string? SubmittedReviewFingerprint)
+{
+    public string NarrativeLabel { get; init; } = "Project description";
+}
 
 public sealed record CompendiumProjectReadinessAssessment(
     IReadOnlyList<CompendiumPublicationIssue> PublicationIssues,
@@ -120,7 +123,7 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         if (string.IsNullOrWhiteSpace(context.Description))
         {
             issues.Add(CompendiumPublicationIssue.MissingDescription);
-            Warning("missingDescription", "Project description is not recorded.");
+            Warning("missingDescription", $"{NormalizeNarrativeLabel(context.NarrativeLabel)} is not recorded.");
         }
 
         if (context.LifecycleStatus == ProjectLifecycleStatus.Completed && !context.CompletionYear.HasValue)
@@ -142,6 +145,9 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             isReviewed,
             isReviewStale);
     }
+
+    private static string NormalizeNarrativeLabel(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "Selected publication narrative" : value.Trim();
 
     private static string? NormalizeFingerprint(string? value)
     {

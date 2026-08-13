@@ -12,7 +12,12 @@ public sealed record CompendiumExportRequest(
     int? CoverHeroProjectId = null,
     int? CoverHeroPhotoId = null,
     double CoverFocalX = .5d,
-    double CoverFocalY = .5d);
+    double CoverFocalY = .5d)
+{
+    public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
+    public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
+}
 
 public sealed record CompendiumExportResult(
     byte[] Bytes,

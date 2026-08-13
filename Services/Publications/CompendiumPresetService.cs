@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -224,7 +224,10 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 primaryPhotoId,
                 ClampFocal(item.PrimaryFocalX),
                 ClampFocal(item.PrimaryFocalY),
-                mode));
+                mode)
+            {
+                CustomSectionName = CleanOptional(item.CustomSectionName, 120)
+            });
 
             if (!string.Equals(currentName, item.ProjectNameSnapshot, StringComparison.Ordinal))
             {
@@ -267,7 +270,10 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             preset.HandlingMarking,
             projectConfigurations)
         {
-            Cover = cover
+            Cover = cover,
+            NarrativeSource = ParseNarrativeSource(preset.NarrativeSource),
+            GroupingMode = ParseGroupingMode(preset.GroupingMode),
+            SortMode = ParseSortMode(preset.SortMode)
         };
 
         return new CompendiumPresetLoadResult(
@@ -478,6 +484,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             Subtitle = source.Subtitle,
             Edition = source.Edition,
             HandlingMarking = source.HandlingMarking,
+            NarrativeSource = source.NarrativeSource,
+            GroupingMode = source.GroupingMode,
+            SortMode = source.SortMode,
             CoverImageMode = source.CoverImageMode,
             CoverHeroProjectId = source.CoverHeroProjectId,
             CoverHeroPhotoId = source.CoverHeroPhotoId,
@@ -500,7 +509,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryPhotoId = item.PrimaryPhotoId,
                     PrimaryFocalX = item.PrimaryFocalX,
                     PrimaryFocalY = item.PrimaryFocalY,
-                    ImageSelectionMode = item.ImageSelectionMode
+                    ImageSelectionMode = item.ImageSelectionMode,
+                    CustomSectionName = item.CustomSectionName
                 })
                 .ToList()
         };
@@ -668,7 +678,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     : null,
                 PrimaryFocalX = project.PrimaryFocalX,
                 PrimaryFocalY = project.PrimaryFocalY,
-                ImageSelectionMode = project.ImageSelectionMode.ToString()
+                ImageSelectionMode = project.ImageSelectionMode.ToString(),
+                CustomSectionName = CleanOptional(project.CustomSectionName, 120)
             })
             .ToList();
 
@@ -686,7 +697,10 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CleanOptional(configuration.HandlingMarking, 80),
             projects.ToArray())
         {
-            Cover = NormalizeCoverConfiguration(configuration.Cover)
+            Cover = NormalizeCoverConfiguration(configuration.Cover),
+            NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource),
+            GroupingMode = NormalizeGroupingMode(configuration.GroupingMode),
+            SortMode = NormalizeSortMode(configuration.SortMode)
         };
 
     private static CompendiumPresetProjectConfiguration NormalizeProjectConfiguration(
@@ -704,7 +718,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PrimaryPhotoId = photoId,
             PrimaryFocalX = ClampFocal(project.PrimaryFocalX),
             PrimaryFocalY = ClampFocal(project.PrimaryFocalY),
-            ImageSelectionMode = mode
+            ImageSelectionMode = mode,
+            CustomSectionName = CleanOptional(project.CustomSectionName, 120)
         };
     }
 
@@ -717,6 +732,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         preset.Subtitle = configuration.Subtitle;
         preset.Edition = configuration.Edition;
         preset.HandlingMarking = configuration.HandlingMarking;
+        preset.NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource).ToString();
+        preset.GroupingMode = NormalizeGroupingMode(configuration.GroupingMode).ToString();
+        preset.SortMode = NormalizeSortMode(configuration.SortMode).ToString();
         preset.CoverImageMode = configuration.Cover.ImageMode.ToString();
         preset.CoverHeroProjectId = configuration.Cover.ImageMode == CompendiumCoverImageMode.Explicit
             ? configuration.Cover.HeroProjectId
@@ -867,6 +885,30 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             ClampFocal(cover.FocalX),
             ClampFocal(cover.FocalY));
     }
+
+    private static CompendiumNarrativeSource ParseNarrativeSource(string? value)
+        => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumNarrativeSource.ProjectBrief;
+
+    private static CompendiumGroupingMode ParseGroupingMode(string? value)
+        => Enum.TryParse<CompendiumGroupingMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumGroupingMode.TechnicalCategory;
+
+    private static CompendiumSortMode ParseSortMode(string? value)
+        => Enum.TryParse<CompendiumSortMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumSortMode.Manual;
+
+    private static CompendiumNarrativeSource NormalizeNarrativeSource(CompendiumNarrativeSource value)
+        => Enum.IsDefined(value) ? value : CompendiumNarrativeSource.ProjectBrief;
+
+    private static CompendiumGroupingMode NormalizeGroupingMode(CompendiumGroupingMode value)
+        => Enum.IsDefined(value) ? value : CompendiumGroupingMode.TechnicalCategory;
+
+    private static CompendiumSortMode NormalizeSortMode(CompendiumSortMode value)
+        => Enum.IsDefined(value) ? value : CompendiumSortMode.Manual;
 
     private static CompendiumCoverImageMode ParseCoverMode(string? value)
         => Enum.TryParse<CompendiumCoverImageMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
