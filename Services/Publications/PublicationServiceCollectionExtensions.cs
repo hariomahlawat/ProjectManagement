@@ -17,6 +17,8 @@ public static class PublicationServiceCollectionExtensions
         services.AddScoped<IBrochurePdfReportBuilder, BrochurePdfReportBuilder>();
         services.AddScoped<IBrochurePresetService, BrochurePresetService>();
         services.AddSingleton<ICompendiumReadinessPolicy, CompendiumReadinessPolicy>();
+        services.AddSingleton<ICompendiumPagePlanner, CompendiumPagePlanner>();
+        services.AddSingleton<ICompendiumPdfCompositionVerifier, CompendiumPdfCompositionVerifier>();
         services.AddScoped<ICompendiumPresetService, CompendiumPresetService>();
         services.AddHostedService<PublicationFontWarmupHostedService>();
         services.AddHostedService<PublicationRuntimeValidationHostedService>();

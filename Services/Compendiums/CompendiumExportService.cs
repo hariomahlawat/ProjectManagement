@@ -8,16 +8,17 @@ using ProjectManagement.Utilities.Reporting;
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
-/// Compendium export orchestration. Phase 23 renders the same publication-specific photo choice and
-/// focal crop reviewed in the browser, using the shared Publications image pipeline rather than a
-/// separate derivative-loading path. The parameterless overload retains the legacy automatic
-/// proliferation catalogue for existing integrations/bookmarks.
+/// Phase 24 export orchestration. The selected live publication snapshot is converted once into a
+/// physical page plan, composed by QuestPDF, reopened with PdfPig and verified before any bytes are
+/// released for preview or final issue.
 /// </summary>
 public sealed class CompendiumExportService : ICompendiumExportService
 {
     private readonly ICompendiumReadService _readService;
     private readonly IBrochurePhotoService _photoService;
     private readonly ICompendiumPdfReportBuilder _pdfBuilder;
+    private readonly ICompendiumPagePlanner _pagePlanner;
+    private readonly ICompendiumPdfCompositionVerifier _compositionVerifier;
     private readonly CompendiumPdfOptions _options;
     private readonly ILogger<CompendiumExportService> _logger;
 
@@ -25,18 +26,21 @@ public sealed class CompendiumExportService : ICompendiumExportService
         ICompendiumReadService readService,
         IBrochurePhotoService photoService,
         ICompendiumPdfReportBuilder pdfBuilder,
+        ICompendiumPagePlanner pagePlanner,
+        ICompendiumPdfCompositionVerifier compositionVerifier,
         IOptions<CompendiumPdfOptions> options,
         ILogger<CompendiumExportService> logger)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _pdfBuilder = pdfBuilder ?? throw new ArgumentNullException(nameof(pdfBuilder));
+        _pagePlanner = pagePlanner ?? throw new ArgumentNullException(nameof(pagePlanner));
+        _compositionVerifier = compositionVerifier ?? throw new ArgumentNullException(nameof(compositionVerifier));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task<CompendiumExportResult> GenerateAsync(
-        CancellationToken cancellationToken = default)
+    public Task<CompendiumExportResult> GenerateAsync(CancellationToken cancellationToken = default)
         => GenerateAsync(new CompendiumExportRequest(), cancellationToken);
 
     public async Task<CompendiumExportResult> GenerateAsync(
@@ -62,8 +66,15 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 "The Compendium cannot be generated while publication blockers remain.");
         }
 
-        var renderRequests = data.Groups
-            .SelectMany(group => group.Projects)
+        var publicationProjects = data.Groups.SelectMany(group => group.Projects).ToArray();
+        if (request.RequireAllReviewed && publicationProjects.Any(project => !project.IsReviewed))
+        {
+            var outstanding = publicationProjects.Count(project => !project.IsReviewed);
+            throw new InvalidOperationException(
+                $"Review all selected projects before final issue. {outstanding} project{(outstanding == 1 ? string.Empty : "s")} still require review.");
+        }
+
+        var renderRequests = publicationProjects
             .Where(project => project.CoverPhotoId.HasValue)
             .Select(project => new BrochurePhotoRenderRequest(
                 project.ProjectId,
@@ -89,7 +100,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
         {
             _logger.LogWarning(
                 exception,
-                "Compendium publication image preparation failed. The PDF will use missing-photo placeholders where necessary.");
+                "Compendium publication image preparation failed. Text-led project layouts will be used where necessary.");
             renderedPhotos = new Dictionary<int, BrochurePublicationImage>();
         }
 
@@ -126,14 +137,24 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     project.CoverPhotoId.HasValue)
                 {
                     LifecycleDisplay = project.LifecycleDisplay,
-                    IsAvailableForProliferation = project.IsAvailableForProliferation
+                    ProjectCategoryDisplay = project.ProjectCategoryName,
+                    IsAvailableForProliferation = project.IsAvailableForProliferation,
+                    ProliferationAvailability = project.ProliferationAvailability
                 });
             }
 
-            categories.Add(new CompendiumPdfCategorySection(
-                group.TechnicalCategoryName,
-                projects));
+            categories.Add(new CompendiumPdfCategorySection(group.TechnicalCategoryName, projects));
         }
+
+        var coverImages = publicationProjects
+            .Where(project => project.CoverPhotoId.HasValue)
+            .Select(project => project.CoverPhotoId!.Value)
+            .Distinct()
+            .Select(photoId => renderedPhotos.TryGetValue(photoId, out var image) ? image.Content : null)
+            .Where(content => content is { Length: > 0 })
+            .Select(content => content!)
+            .Take(3)
+            .ToArray();
 
         var context = new CompendiumPdfReportContext(
             data.Title,
@@ -145,13 +166,16 @@ public sealed class CompendiumExportService : ICompendiumExportService
             categories,
             _options.ShowMissingPhotoPlaceholder)
         {
-            Edition = data.Edition
+            Edition = data.Edition,
+            CoverImages = coverImages
         };
 
+        var plan = _pagePlanner.Plan(context);
+        context = context with { Plan = plan };
         var pdfBytes = _pdfBuilder.Build(context);
-        var dateStamp = TimeZoneInfo.ConvertTime(
-                data.GeneratedAtUtc,
-                TimeZoneHelper.GetIst())
+        var verification = _compositionVerifier.Verify(pdfBytes, context, plan);
+
+        var dateStamp = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst())
             .ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var prefix = SanitizeFileNamePrefix(_options.FileNamePrefix);
         var projectCount = data.Preflight.SelectedProjectCount > 0
@@ -162,7 +186,11 @@ public sealed class CompendiumExportService : ICompendiumExportService
             pdfBytes,
             $"{prefix}_{dateStamp}.pdf",
             projectCount,
-            data.Groups.Count);
+            data.Groups.Count)
+        {
+            IsCompositionVerified = verification.IsVerified,
+            PhysicalPageCount = verification.PageCount
+        };
     }
 
     private static IReadOnlyList<CompendiumProjectSelection> ResolveSelections(CompendiumExportRequest request)

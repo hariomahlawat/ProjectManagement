@@ -239,14 +239,12 @@ public sealed record CompendiumPdfDataDto(
 
 public static class CompendiumPublicationImagePolicy
 {
-    // Current Compendium QuestPDF project-photo viewport. The outer row allocation is 228 x 168 pt,
-    // but 14 pt left separation plus the 1 pt border and 7 pt internal padding leave an actual
-    // 198 x 152 pt image viewport. Browser crop, effective-DPI calculation and final render all
-    // use this same geometry so the reviewed crop matches the issued PDF.
-    public const double FrameWidthPoints = 198d;
-    public const double FrameHeightPoints = 152d;
-    public const int RenderWidthPixels = 1600;
-    public const int RenderHeightPixels = 1228;
+    // Phase 24 reviewed project-image viewport. Browser crop, effective-DPI calculation and final
+    // QuestPDF composition use this single geometry contract.
+    public const double FrameWidthPoints = 519d;
+    public const double FrameHeightPoints = 214d;
+    public const int RenderWidthPixels = 1800;
+    public const int RenderHeightPixels = 742;
     public const int GoodDpi = 180;
     public const int AcceptableDpi = 150;
 

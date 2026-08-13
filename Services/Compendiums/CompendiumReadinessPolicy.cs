@@ -43,6 +43,10 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
 
         var issues = new List<CompendiumPublicationIssue>();
         var findings = new List<CompendiumFindingDto>();
+        var submitted = NormalizeFingerprint(context.SubmittedReviewFingerprint);
+        var current = NormalizeFingerprint(context.CurrentReviewFingerprint);
+        var isReviewed = submitted is not null && string.Equals(submitted, current, StringComparison.Ordinal);
+        var isReviewStale = submitted is not null && !isReviewed;
 
         void Warning(string code, string message)
             => findings.Add(new CompendiumFindingDto(
@@ -92,7 +96,7 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
                     $"The selected photograph is approximately {acceptableDpi} DPI at publication size. It is usable, but a higher-resolution source would provide more reserve.");
             }
 
-            if (context.ImageSelectionMode == CompendiumImageSelectionMode.Automatic)
+            if (context.ImageSelectionMode == CompendiumImageSelectionMode.Automatic && !isReviewed)
             {
                 Information(
                     "automaticImageSelected",
@@ -144,11 +148,6 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             issues.Add(CompendiumPublicationIssue.PossibleTitleTypo);
             Warning("possibleTitleTypo", "Project title may contain “Al” where “AI” was intended.");
         }
-
-        var submitted = NormalizeFingerprint(context.SubmittedReviewFingerprint);
-        var current = NormalizeFingerprint(context.CurrentReviewFingerprint);
-        var isReviewed = submitted is not null && string.Equals(submitted, current, StringComparison.Ordinal);
-        var isReviewStale = submitted is not null && !isReviewed;
 
         if (isReviewStale)
         {

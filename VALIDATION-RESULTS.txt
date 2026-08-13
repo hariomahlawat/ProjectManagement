@@ -1,40 +1,37 @@
-PRISM Publications — Phase 23.1 validation results
-Generated in the artifact environment
+PRISM Publications — Phase 24
+Validation results
+Date: 13 Aug 2026
 
-SOURCE SCOPE
-PASS — Exact comparison with the Phase 23 baseline shows only these four implementation/test files changed:
-- Pages/Projects/Publications/Compendium/Index.cshtml
-- wwwroot/js/pages/projects-compendium.js
-- wwwroot/css/pages/projects-publications.css
-- wwwroot/js/projects/publications-compendium-contract.test.js
+COMPLETED IN ARTIFACT ENVIRONMENT
+---------------------------------
+PASS  node --check wwwroot/js/pages/projects-compendium.js
+PASS  node --test wwwroot/js/projects/publications-compendium-contract.test.js
+      35 tests passed / 0 failed
+PASS  C# structural delimiter scan
+      11 Phase 24 C# files / 0 structural issues
+PASS  Physical-planner source contract
+PASS  519 x 214 pt browser/DPI/PDF geometry contract
+PASS  1800 x 742 render-derivative contract
+PASS  continuation-page composition contract
+PASS  text-led no-photo composition contract
+PASS  final-download all-reviewed gate contract
+PASS  PdfPig post-compose verification contract
+PASS  planner/verifier DI registration contract
+PASS  PDF verified page-count browser contract
+PASS  no new migration / no migration-manifest modification
 
-JAVASCRIPT
-PASS — node --check wwwroot/js/pages/projects-compendium.js
-PASS — node --test wwwroot/js/projects/publications-compendium-contract.test.js
-Result: 25 passed, 0 failed.
+NOT AVAILABLE IN ARTIFACT ENVIRONMENT
+-------------------------------------
+.NET SDK is not installed, so dotnet build and dotnet test were not executed here.
+PowerShell is not installed, so tools/Test-PrismPublicationsPhase24.ps1 was not itself executed here.
+The validator runs Node checks plus dotnet build/test when executed on the development workstation.
 
-PHASE 23.1 CONTRACT COVERAGE
-PASS — semantic readiness badges and explicit no-photo state
-PASS — neutral zero-selection readiness presentation
-PASS — disabled review/output accessibility state
-PASS — blocker -> warning -> stale review -> unreviewed attention priority
-PASS — Ready / Warning / Review required project-state presentation
-PASS — immediate mark-reviewed state plus authoritative server re-preflight
-PASS — finding controls locked while preflight is refreshing
-PASS — existing Phase 22/23 selection, saved preset, crop, fingerprint and readiness contracts retained
+REQUIRED LOCAL VALIDATION
+-------------------------
+From the ProjectManagement root:
 
-DATABASE / BACKEND SCOPE
-PASS — no new EF Core migration is required.
-PASS — existing Compendium C# backend, migrations and QuestPDF renderer are intentionally not replaced by this overlay.
-PASS — authentication/audit hardening files are outside this package and are not overwritten.
+  Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+  Set-ExecutionPolicy -Scope Process Bypass
+  .\tools\Test-PrismPublicationsPhase24.ps1
 
-.NET VALIDATION
-NOT RUN — dotnet SDK is not installed in this artifact environment. No dotnet build/test pass is claimed.
-
-POWERSHELL WRAPPER
-NOT RUN — PowerShell is not installed in this artifact environment. The wrapper was created for execution in the user's Windows development environment.
-
-LOCAL VALIDATION COMMAND
-Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
-Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase23_1.ps1
+Then exercise Preview/Download with a mixed 6–10 project Compendium and visually inspect the generated physical publication.

@@ -2467,3 +2467,81 @@ body.brochure-modal-open { overflow: hidden; }
     font-size:.6rem;
 }
 .compendium-readiness-pending .spinner-border { width:.8rem; height:.8rem; border-width:.12em; }
+
+/* ========================================================================
+   Phase 24 — Compendium publication-design and verified-output hardening
+   ======================================================================== */
+.compendium-builder-page .compendium-output-status.is-review {
+    border-color: #d9c98f;
+    background: #fffaf0;
+    color: #6b5520;
+}
+
+.compendium-builder-page .compendium-output-verification {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    margin-top: .65rem;
+    padding: .42rem .65rem;
+    border: 1px solid #cfe3d9;
+    border-radius: .55rem;
+    background: #f1f8f4;
+    color: #256044;
+    font-size: .78rem;
+    font-weight: 650;
+}
+
+.compendium-builder-page .compendium-output-verification[hidden] {
+    display: none !important;
+}
+
+.compendium-builder-page .compendium-review-description-text {
+    line-height: 1.48;
+}
+
+.compendium-builder-page .compendium-review-description-text p {
+    margin: 0 0 .55rem;
+}
+
+.compendium-builder-page .compendium-review-description-text p:last-child {
+    margin-bottom: 0;
+}
+
+.compendium-builder-page .compendium-review-description-text ul,
+.compendium-builder-page .compendium-review-description-text ol {
+    margin: .35rem 0 .65rem 1.15rem;
+    padding: 0;
+}
+
+.compendium-builder-page .compendium-review-description-text li {
+    margin: .18rem 0;
+}
+
+.compendium-builder-page .compendium-review-description-text strong {
+    color: #17382f;
+    font-weight: 700;
+}
+
+.compendium-builder-page .compendium-review-description-text em {
+    color: #475569;
+}
+
+.compendium-builder-page .compendium-review-description-text code {
+    padding: .05rem .25rem;
+    border-radius: .25rem;
+    background: #f1f5f9;
+    font-size: .92em;
+}
+
+.compendium-builder-page .compendium-review-markdown-heading {
+    margin-top: .75rem !important;
+    color: #17382f;
+    font-weight: 700;
+}
+
+.compendium-builder-page .compendium-output-actions .btn:disabled,
+.compendium-builder-page .compendium-output-actions .btn[aria-disabled="true"] {
+    pointer-events: none;
+    box-shadow: none;
+}

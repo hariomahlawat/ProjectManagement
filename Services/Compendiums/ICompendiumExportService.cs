@@ -6,13 +6,18 @@ public sealed record CompendiumExportRequest(
     string? Title = null,
     string? Subtitle = null,
     string? Edition = null,
-    IReadOnlyList<CompendiumProjectSelection>? ProjectSelections = null);
+    IReadOnlyList<CompendiumProjectSelection>? ProjectSelections = null,
+    bool RequireAllReviewed = false);
 
 public sealed record CompendiumExportResult(
     byte[] Bytes,
     string FileName,
     int ProjectCount = 0,
-    int CategoryCount = 0);
+    int CategoryCount = 0)
+{
+    public bool IsCompositionVerified { get; init; }
+    public int PhysicalPageCount { get; init; }
+}
 
 public interface ICompendiumExportService
 {
@@ -20,7 +25,7 @@ public interface ICompendiumExportService
         CancellationToken cancellationToken = default);
 
     // Default implementation preserves older test doubles/integrations that only implement the
-    // historic parameterless export. The production service overrides this for authored selection.
+    // historic parameterless export. Production authored exports override this implementation.
     Task<CompendiumExportResult> GenerateAsync(
         CompendiumExportRequest request,
         CancellationToken cancellationToken = default)

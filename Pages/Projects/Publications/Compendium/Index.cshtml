@@ -99,6 +99,8 @@
           data-compendium-builder
           data-preflight-url="@Url.Page("/Projects/Publications/Compendium/Index", "Preflight")"
           data-review-url="@Url.Page("/Projects/Publications/Compendium/Index", "Review")"
+          data-preview-url="@Url.Page("/Projects/Publications/Compendium/Index", "Preview")"
+          data-generate-url="@Url.Page("/Projects/Publications/Compendium/Index", "Generate")"
           data-photo-frame-width="@CompendiumPublicationImagePolicy.FrameWidthPoints"
           data-photo-frame-height="@CompendiumPublicationImagePolicy.FrameHeightPoints"
           data-can-maintain-project-data="@(Model.CanMaintainProjectData ? "true" : "false")"
@@ -461,20 +463,25 @@
                                 <span>Choose at least one project to begin publication preflight.</span>
                             </div>
                         </div>
+                        <div class="compendium-output-verification" data-output-verification hidden>
+                            <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+                            <span data-output-verification-text>PDF verified</span>
+                        </div>
                         <div class="compendium-output-actions">
                             <button type="submit"
                                     asp-page-handler="Preview"
-                                    formtarget="_blank"
                                     class="btn btn-outline-primary"
                                     data-preview
-                                    disabled>
+                                    disabled
+                                    aria-disabled="true">
                                 <i class="bi bi-eye"></i> Preview PDF
                             </button>
                             <button type="submit"
                                     asp-page-handler="Generate"
                                     class="btn btn-primary"
                                     data-generate
-                                    disabled>
+                                    disabled
+                                    aria-disabled="true">
                                 <i class="bi bi-download"></i> Download Compendium PDF
                             </button>
                         </div>

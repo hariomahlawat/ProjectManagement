@@ -14,6 +14,11 @@ const service = read('Services/Compendiums/CompendiumReadService.cs');
 const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
 const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
 const exportService = read('Services/Compendiums/CompendiumExportService.cs');
+const planner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
+const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
+const verifier = read('Utilities/Reporting/CompendiumPdfCompositionVerifier.cs');
+const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
+const registrations = read('Services/Publications/PublicationServiceCollectionExtensions.cs');
 const preset = read('Services/Publications/CompendiumPresetService.cs');
 const presetContracts = read('Services/Publications/CompendiumPresetContracts.cs');
 const model = read('Models/Publications/CompendiumPreset.cs');
@@ -87,9 +92,9 @@ test('phase 23 uses the shared Publications image source for probe, preview and 
   assert.match(exportService, /PrimaryFocalY/);
 });
 
-test('phase 23 evaluates effective DPI against the actual current Compendium image frame', () => {
-  assert.match(dto, /FrameWidthPoints\s*=\s*198/);
-  assert.match(dto, /FrameHeightPoints\s*=\s*152/);
+test('phase 24 evaluates effective DPI against the redesigned reviewed project-image frame', () => {
+  assert.match(dto, /FrameWidthPoints\s*=\s*519/);
+  assert.match(dto, /FrameHeightPoints\s*=\s*214/);
   assert.match(dto, /CalculateEffectiveDpi/);
   assert.match(dto, /GoodDpi\s*=\s*180/);
   assert.match(dto, /AcceptableDpi\s*=\s*150/);
@@ -228,7 +233,8 @@ test('phase 23.1 disables review navigation and output actions with explicit acc
   assert.match(view, /data-review-next-attention disabled aria-disabled="true"/);
   assert.match(js, /setControlDisabled/);
   assert.match(js, /updateReviewNavigation/);
-  assert.match(js, /setControlDisabled\(preview, !canGenerate\)/);
+  assert.match(js, /setControlDisabled\(preview, !canPreview\)/);
+  assert.match(js, /setControlDisabled\(generate, !canDownload\)/);
   assert.match(css, /compendium-output-actions \.btn:disabled/);
   assert.match(css, /cursor:not-allowed/);
 });
@@ -267,4 +273,89 @@ test('phase 23.1 disables findings during refresh but preserves filter context u
   assert.match(js, /setFindingToolbarAvailability\(true\)/);
   assert.match(js, /if \(findingsCurrentOnly\) findingsCurrentOnly\.checked = false/);
   assert.match(css, /compendium-finding-toolbar\.is-disabled/);
+});
+
+
+test('phase 24 separates physical page planning from QuestPDF composition', () => {
+  assert.match(planner, /ICompendiumPagePlanner/);
+  assert.match(planner, /CompendiumPagePlan/);
+  assert.match(planner, /CompendiumPageKind\.Cover/);
+  assert.match(planner, /CompendiumPageKind\.Index/);
+  assert.match(planner, /CompendiumPageKind\.ProjectContinuation/);
+  assert.match(planner, /CompendiumPageKind\.BackCover/);
+  assert.match(exportService, /_pagePlanner\.Plan\(context\)/);
+  assert.match(builder, /context\.Plan \?\? new CompendiumPagePlanner\(\)\.Plan\(context\)/);
+});
+
+test('phase 24 uses one reviewed photo geometry across browser DPI and final PDF', () => {
+  assert.match(metrics, /ProjectImageWidthPoints\s*=\s*ContentWidthPoints/);
+  assert.match(metrics, /ProjectImageHeightPoints\s*=\s*214/);
+  assert.match(dto, /FrameWidthPoints\s*=\s*519/);
+  assert.match(dto, /FrameHeightPoints\s*=\s*214/);
+  assert.match(builder, /Height\(CompendiumLayoutMetrics\.ProjectImageHeightPoints\)/);
+  assert.match(view, /data-photo-frame-width="@CompendiumPublicationImagePolicy\.FrameWidthPoints"/);
+});
+
+test('phase 24 supports deterministic continuation pages without emergency font shrinking', () => {
+  assert.match(planner, /FirstPageDescriptionBudgetWithPhoto/);
+  assert.match(planner, /ContinuationDescriptionBudget/);
+  assert.match(planner, /CompendiumMarkdownChunker\.Split/);
+  assert.match(builder, /Project description · continued/);
+  assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
+  assert.match(metrics, /ProjectBodyFontSize\s*=\s*10f/);
+  assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
+  assert.match(builder, /CompendiumLayoutMetrics\.ProjectBodyFontSize/);
+  assert.match(builder, /CompendiumLayoutMetrics\.ContinuationBodyFontSize/);
+});
+
+test('phase 24 replaces the missing-photo placeholder with a designed text-led project layout', () => {
+  assert.match(planner, /CompendiumProjectLayoutVariant\.NoPhoto/);
+  assert.match(builder, /ComposeNoPhotoTreatment/);
+  assert.doesNotMatch(builder, /Photograph not available/);
+  assert.doesNotMatch(builder, /Add or mark a project cover photograph/);
+});
+
+test('phase 24 cover and back cover use publication-controlled identity without fixed narrative copy', () => {
+  assert.match(builder, /ComposeCover\(/);
+  assert.match(builder, /ComposeBackCover\(/);
+  assert.match(builder, /Text\(title\)/);
+  assert.match(builder, /Text\(subtitle\)/);
+  assert.match(builder, /Text\(edition\)/);
+  assert.doesNotMatch(builder, /Capability catalogue generated from/);
+  assert.doesNotMatch(builder, /Generated \{/);
+});
+
+test('phase 24 verifies the physical PDF before it is issued', () => {
+  assert.match(verifier, /UglyToad\.PdfPig/);
+  assert.match(verifier, /expectedPageCount/);
+  assert.match(verifier, /ProjectStartPages/);
+  assert.match(exportService, /_compositionVerifier\.Verify\(pdfBytes, context, plan\)/);
+  assert.match(page, /X-PRISM-Publication-Composition-Verified/);
+  assert.match(page, /X-PRISM-Publication-Page-Count/);
+  assert.match(js, /PDF verified ·/);
+});
+
+test('phase 24 allows preview before review but gates final issue on complete review', () => {
+  assert.match(js, /const canPreview = technicallyValid/);
+  assert.match(js, /const canDownload = technicallyValid && allReviewed/);
+  assert.match(js, /Review required/);
+  assert.match(exportService, /RequireAllReviewed/);
+  assert.match(exportService, /Review all selected projects before final issue/);
+  assert.match(page, /RequireAllReviewed: !preview/);
+});
+
+test('phase 24 renders review markdown instead of exposing markdown source syntax', () => {
+  assert.match(js, /renderInlineMarkdown/);
+  assert.match(js, /<strong>\$1<\/strong>/);
+  assert.match(js, /compendium-review-markdown-heading/);
+  assert.match(css, /compendium-review-description-text strong/);
+});
+
+test('phase 24 suppresses routine automatic-image info after the project is reviewed', () => {
+  assert.match(readiness, /ImageSelectionMode == CompendiumImageSelectionMode\.Automatic && !isReviewed/);
+});
+
+test('phase 24 registers page planning and physical verification services', () => {
+  assert.match(registrations, /AddSingleton<ICompendiumPagePlanner, CompendiumPagePlanner>/);
+  assert.match(registrations, /AddSingleton<ICompendiumPdfCompositionVerifier, CompendiumPdfCompositionVerifier>/);
 });

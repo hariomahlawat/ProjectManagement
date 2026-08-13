@@ -91,6 +91,8 @@
     let preflightPending = false;
     let lastPreflight = null;
     let projectStateById = new Map();
+    let lastVerifiedPdf = null;
+    let exportBusy = false;
     let baselineSnapshot = null;
     let pendingLoadPresetId = null;
     let saveMode = "create";
@@ -154,6 +156,10 @@
     const preview = $("[data-preview]");
     const generate = $("[data-generate]");
     const outputStatus = $("[data-output-status]");
+    const outputVerification = $("[data-output-verification]");
+    const outputVerificationText = $("[data-output-verification-text]");
+    const previewUrl = form.dataset.previewUrl || "";
+    const generateUrl = form.dataset.generateUrl || "";
 
     const presetSelect = document.querySelector("[data-compendium-preset-select]");
     const presetLoad = document.querySelector("[data-compendium-preset-load]");
@@ -327,10 +333,42 @@
     const availabilityLabel = value => value === true
         ? "Available for proliferation"
         : value === false ? "Not available for proliferation" : "Not assessed";
+    const renderInlineMarkdown = value => escapeHtml(value)
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
     const formatDescription = value => {
-        const text = String(value || "").trim();
+        const text = String(value || "").replace(/\r\n/g, "\n").trim();
         if (!text) return '<span class="compendium-review-missing">Not recorded</span>';
-        return escapeHtml(text).replace(/\r?\n/g, "<br>");
+
+        const lines = text.split("\n");
+        const html = [];
+        let list = null;
+        const closeList = () => {
+            if (!list) return;
+            html.push(`</${list}>`);
+            list = null;
+        };
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) { closeList(); continue; }
+            const bullet = line.match(/^[-*]\s+(.+)$/);
+            const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+            if (bullet || numbered) {
+                const desired = bullet ? "ul" : "ol";
+                if (list !== desired) { closeList(); list = desired; html.push(`<${list}>`); }
+                html.push(`<li>${renderInlineMarkdown((bullet || numbered)[1])}</li>`);
+                continue;
+            }
+            closeList();
+            const heading = line.match(/^#{1,4}\s+(.+)$/);
+            if (heading) { html.push(`<p class="compendium-review-markdown-heading">${renderInlineMarkdown(heading[1])}</p>`); continue; }
+            html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+        }
+        closeList();
+        return html.join("");
     };
 
     const renderReviewLoading = id => {
@@ -728,16 +766,40 @@
         }).join("");
     };
 
+    const renderPdfVerification = () => {
+        if (!outputVerification) return;
+        const verified = Boolean(lastVerifiedPdf?.verified) && Number(lastVerifiedPdf?.pageCount || 0) > 0;
+        outputVerification.hidden = !verified;
+        if (verified && outputVerificationText) {
+            const pages = Number(lastVerifiedPdf.pageCount);
+            outputVerificationText.textContent = `PDF verified · ${pages} page${pages === 1 ? "" : "s"}`;
+        }
+    };
+
+    const invalidatePdfVerification = () => {
+        lastVerifiedPdf = null;
+        renderPdfVerification();
+    };
+
     const updateOutput = () => {
         const selected = orderedIds.length;
         const blockers = Number(lastPreflight?.blockers ?? (selected ? 0 : 1));
         const warnings = Number(lastPreflight?.warnings ?? 0);
         const reviewed = Number(lastPreflight?.reviewed ?? 0);
-        const canGenerate = selected > 0 && !preflightPending && Boolean(lastPreflight?.canGenerate) && blockers === 0;
-        setControlDisabled(preview, !canGenerate);
-        setControlDisabled(generate, !canGenerate);
-        if (preview) preview.title = canGenerate ? "Preview the current Compendium PDF" : "Preview becomes available when the current publication is technically valid.";
-        if (generate) generate.title = canGenerate ? "Download the current Compendium PDF" : "Download becomes available when publication blockers are cleared.";
+        const technicallyValid = selected > 0 && !preflightPending && Boolean(lastPreflight?.canGenerate) && blockers === 0;
+        const allReviewed = selected > 0 && reviewed === selected;
+        const canPreview = technicallyValid && !exportBusy;
+        const canDownload = technicallyValid && allReviewed && !exportBusy;
+        setControlDisabled(preview, !canPreview);
+        setControlDisabled(generate, !canDownload);
+        if (preview) preview.title = canPreview
+            ? "Preview the current Compendium PDF"
+            : "Preview becomes available when the current publication is technically valid.";
+        if (generate) generate.title = canDownload
+            ? "Download the verified Compendium PDF"
+            : (!allReviewed && technicallyValid
+                ? "Review all selected projects before final download."
+                : "Download becomes available when publication blockers are cleared and review is complete.");
         if (!outputStatus) return;
         if (!selected) {
             outputStatus.className = "compendium-output-status";
@@ -748,16 +810,20 @@
         } else if (blockers > 0) {
             outputStatus.className = "compendium-output-status is-blocked";
             outputStatus.innerHTML = `<i class="bi bi-x-octagon"></i><div><strong>${blockers} blocker${blockers === 1 ? "" : "s"}</strong><span>Resolve publication blockers before generating the Compendium.</span></div>`;
+        } else if (!allReviewed) {
+            outputStatus.className = "compendium-output-status is-review";
+            outputStatus.innerHTML = `<i class="bi bi-journal-check"></i><div><strong>Review required</strong><span>${reviewed} of ${selected} projects reviewed${warnings ? ` · ${warnings} warning${warnings === 1 ? "" : "s"}` : ""}. Preview remains available.</span></div>`;
         } else if (warnings > 0) {
             outputStatus.className = "compendium-output-status is-warning";
-            outputStatus.innerHTML = `<i class="bi bi-exclamation-triangle"></i><div><strong>Ready with warnings</strong><span>${warnings} warning${warnings === 1 ? "" : "s"} remain · ${reviewed} of ${selected} projects reviewed.</span></div>`;
+            outputStatus.innerHTML = `<i class="bi bi-exclamation-triangle"></i><div><strong>Ready with warnings</strong><span>${warnings} warning${warnings === 1 ? "" : "s"} remain · all ${selected} projects reviewed.</span></div>`;
         } else {
             outputStatus.className = "compendium-output-status is-ready";
-            outputStatus.innerHTML = `<i class="bi bi-check-circle"></i><div><strong>Ready to generate</strong><span>${reviewed} of ${selected} projects reviewed · no publication warnings.</span></div>`;
+            outputStatus.innerHTML = `<i class="bi bi-check-circle"></i><div><strong>Ready to issue</strong><span>All ${selected} projects reviewed · no publication warnings.</span></div>`;
         }
     };
 
     const invalidatePreflight = () => {
+        invalidatePdfVerification();
         preflightRevision++;
         preflightController?.abort();
         preflightController = null;
@@ -1005,6 +1071,97 @@
     });
 
     form.querySelectorAll("[data-compendium-durable]").forEach(input => input.addEventListener("input", () => { renderDirty(); schedulePreflight(); }));
+    const publicationErrorFromResponse = async response => {
+        const type = response.headers.get("content-type") || "";
+        if (type.includes("application/json")) {
+            const payload = await response.json().catch(() => ({}));
+            const error = new Error(payload?.message || `Publication request failed with HTTP ${response.status}.`);
+            error.code = payload?.code || null;
+            return error;
+        }
+        const text = await response.text();
+        return new Error(text?.trim() || `Publication request failed with HTTP ${response.status}.`);
+    };
+
+    const fileNameFromResponse = response => {
+        const explicit = response.headers.get("X-PRISM-Publication-FileName");
+        if (explicit) return explicit;
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const utf = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf?.[1]) return decodeURIComponent(utf[1]);
+        const basic = disposition.match(/filename="?([^";]+)"?/i);
+        return basic?.[1] || "SDD_Simulators_Compendium.pdf";
+    };
+
+    const setExportBusy = (busy, previewRequest = false) => {
+        exportBusy = Boolean(busy);
+        if (preview) preview.innerHTML = busy && previewRequest
+            ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Preparing preview'
+            : '<i class="bi bi-eye"></i> Preview PDF';
+        if (generate) generate.innerHTML = busy && !previewRequest
+            ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Preparing PDF'
+            : '<i class="bi bi-download"></i> Download Compendium PDF';
+        updateOutput();
+    };
+
+    const requestPdf = async previewRequest => {
+        const targetUrl = previewRequest ? previewUrl : generateUrl;
+        if (!targetUrl || exportBusy) return;
+        const selected = orderedIds.length;
+        const blockers = Number(lastPreflight?.blockers ?? 0);
+        const reviewed = Number(lastPreflight?.reviewed ?? 0);
+        if (!selected || preflightPending || blockers > 0 || !lastPreflight?.canGenerate) return;
+        if (!previewRequest && reviewed !== selected) {
+            document.getElementById("compendium-review")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            return;
+        }
+
+        const previewWindow = previewRequest ? window.open("about:blank", "_blank") : null;
+        syncHidden();
+        setExportBusy(true, previewRequest);
+        try {
+            const response = await fetch(targetUrl, {
+                method: "POST",
+                body: new FormData(form),
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+            if (!response.ok) throw await publicationErrorFromResponse(response);
+            const type = response.headers.get("content-type") || "";
+            if (!type.includes("application/pdf")) throw new Error("The server did not return a PDF publication.");
+
+            const verified = response.headers.get("X-PRISM-Publication-Composition-Verified") === "true";
+            const pageCount = Number(response.headers.get("X-PRISM-Publication-Page-Count") || 0);
+            if (!verified || pageCount <= 0) throw new Error("The generated PDF did not return a valid physical composition verification result.");
+            lastVerifiedPdf = { verified: true, pageCount };
+            renderPdfVerification();
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            if (previewRequest) {
+                if (previewWindow) previewWindow.location.replace(url);
+                else window.open(url, "_blank", "noopener");
+                window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+            } else {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = fileNameFromResponse(response);
+                document.body.append(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+            }
+        } catch (error) {
+            if (previewWindow && !previewWindow.closed) previewWindow.close();
+            window.alert(error?.message || "The Compendium PDF could not be generated.");
+        } finally {
+            setExportBusy(false, previewRequest);
+        }
+    };
+
+    preview?.addEventListener("click", event => { event.preventDefault(); requestPdf(true); });
+    generate?.addEventListener("click", event => { event.preventDefault(); requestPdf(false); });
+
     form.addEventListener("submit", () => syncHidden());
 
     const updatePresetOption = preset => {
@@ -1101,6 +1258,7 @@
     setFindingToolbarAvailability(orderedIds.length > 0);
     baselineSnapshot = captureSnapshot();
     renderDirty();
+    renderPdfVerification();
     if (activeReviewId) loadReview(activeReviewId);
     schedulePreflight();
 })();

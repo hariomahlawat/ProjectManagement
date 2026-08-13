@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Compendiums;
 using ProjectManagement.Services.Publications;
+using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Pages.Projects.Publications.Compendium;
 
@@ -122,6 +123,8 @@ public sealed class IndexModel : PageModel
             categories = data.Preflight.CategoryCount,
             canGenerate = data.Preflight.CanGenerate,
             reviewed = data.Groups.SelectMany(group => group.Projects).Count(project => project.IsReviewed),
+            allReviewed = data.Preflight.SelectedProjectCount > 0
+                          && data.Groups.SelectMany(group => group.Projects).All(project => project.IsReviewed),
             projects = data.Groups
                 .SelectMany(group => group.Projects)
                 .OrderBy(project => project.SortOrder)
@@ -403,9 +406,13 @@ public sealed class IndexModel : PageModel
 
         if (!ModelState.IsValid || selections.Count == 0)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                "Select at least one project before generating the Compendium.");
+            const string message = "Select at least one project before generating the Compendium.";
+            if (IsAjaxRequest())
+            {
+                return JsonError(StatusCodes.Status400BadRequest, message, "noSelection");
+            }
+
+            ModelState.AddModelError(string.Empty, message);
             await LoadWorkspaceAsync(loadPreset: false, cancellationToken);
             return Page();
         }
@@ -419,8 +426,13 @@ public sealed class IndexModel : PageModel
                     Title: Input.Title,
                     Subtitle: Input.Subtitle,
                     Edition: Input.Edition,
-                    ProjectSelections: selections),
+                    ProjectSelections: selections,
+                    RequireAllReviewed: !preview),
                 cancellationToken);
+
+            Response.Headers["X-PRISM-Publication-Composition-Verified"] = result.IsCompositionVerified ? "true" : "false";
+            Response.Headers["X-PRISM-Publication-Page-Count"] = result.PhysicalPageCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Response.Headers["X-PRISM-Publication-FileName"] = result.FileName;
 
             if (preview)
             {
@@ -440,11 +452,23 @@ public sealed class IndexModel : PageModel
                 exception,
                 "Compendium PDF {Operation} failed.",
                 preview ? "preview" : "generation");
-            ModelState.AddModelError(
-                string.Empty,
-                preview
-                    ? "The Compendium preview could not be generated. Review publication readiness and try again."
-                    : "The Compendium could not be generated. Review publication readiness and try again.");
+            var message = preview
+                ? "The Compendium preview could not be generated. Review publication readiness and try again."
+                : exception is InvalidOperationException && exception.Message.Contains("Review all selected projects", StringComparison.Ordinal)
+                    ? exception.Message
+                    : "The Compendium could not be generated. Review publication readiness and try again.";
+
+            if (IsAjaxRequest())
+            {
+                var code = exception is CompendiumPdfCompositionException
+                    ? "compositionVerificationFailed"
+                    : (!preview && exception.Message.Contains("Review all selected projects", StringComparison.Ordinal)
+                        ? "reviewRequired"
+                        : "generationFailed");
+                return JsonError(StatusCodes.Status400BadRequest, message, code);
+            }
+
+            ModelState.AddModelError(string.Empty, message);
             await LoadWorkspaceAsync(loadPreset: false, cancellationToken);
             return Page();
         }
@@ -691,6 +715,12 @@ public sealed class IndexModel : PageModel
             ? normalized
             : normalized[..maximumLength].TrimEnd();
     }
+
+    private bool IsAjaxRequest()
+        => string.Equals(
+            Request.Headers["X-Requested-With"].ToString(),
+            "XMLHttpRequest",
+            StringComparison.OrdinalIgnoreCase);
 
     private static JsonResult JsonError(int statusCode, string message, string? code = null)
         => new(new { message, code }) { StatusCode = statusCode };

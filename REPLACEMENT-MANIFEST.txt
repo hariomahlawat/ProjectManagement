@@ -1,30 +1,41 @@
-PRISM Publications — Phase 23.1
-Compendium Runtime Hardening & Publication Review Freeze
+PRISM Publications — Phase 24
+Compendium Publication Design & Composition Engine
+READY-TO-PASTE MANIFEST
 
-BASELINE REQUIRED
-- Working Phase 23 Compendium implementation, including:
-  - Phase 22 shared Compendium preset migration
-  - Phase 23 publication imagery migration
-  - Phase 23 lifecycle namespace compile fix
-- This package is a focused overlay. It does NOT replace Compendium backend services or migrations.
+Apply this package on top of the current working Phase 23.1 Compendium implementation.
+Preserve the folder structure when copying files into the ProjectManagement project root.
 
-REPLACE THESE FILES
-1. Pages/Projects/Publications/Compendium/Index.cshtml
-2. wwwroot/js/pages/projects-compendium.js
-3. wwwroot/css/pages/projects-publications.css
-4. wwwroot/js/projects/publications-compendium-contract.test.js
+ADD
+---
+Utilities/Reporting/CompendiumLayoutMetrics.cs
+Utilities/Reporting/CompendiumPagePlanner.cs
+Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
+ProjectManagement.Tests/Publications/CompendiumPhase24ContractTests.cs
+tools/Test-PrismPublicationsPhase24.ps1
 
-ADD / REPLACE VALIDATOR
-5. tools/Test-PrismPublicationsPhase23_1.ps1
+REPLACE
+-------
+Utilities/Reporting/CompendiumPdfReportBuilder.cs
+Services/Compendiums/CompendiumDtos.cs
+Services/Compendiums/CompendiumReadinessPolicy.cs
+Services/Compendiums/ICompendiumExportService.cs
+Services/Compendiums/CompendiumExportService.cs
+Services/Publications/PublicationServiceCollectionExtensions.cs
+Pages/Projects/Publications/Compendium/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml.cs
+wwwroot/js/pages/projects-compendium.js
+wwwroot/css/pages/projects-publications.css
+wwwroot/js/projects/publications-compendium-contract.test.js
 
-NO DATABASE CHANGE
-- No EF Core migration is introduced by Phase 23.1.
-- Do not edit immutable-migration-ids.txt for this phase.
-- Do not remove either existing Compendium migration:
-  20261208130000_AddSharedCompendiumPresets
-  20261208140000_AddCompendiumPublicationImagery
+DO NOT REPLACE / DO NOT CHANGE
+------------------------------
+Migrations/20261208130000_AddSharedCompendiumPresets.cs
+Migrations/20261208140000_AddCompendiumPublicationImagery.cs
+Migrations/immutable-migration-ids.txt
+Models/Publications/CompendiumPreset.cs
+Services/Publications/CompendiumPresetService.cs
+Services/Publications/CompendiumPresetContracts.cs
+Services/Compendiums/CompendiumReviewFingerprint.cs
 
-INTENTIONALLY NOT INCLUDED
-- Audit/login hardening files are not touched by this package.
-- Compendium C# services/models are not touched.
-- QuestPDF Compendium design is not redesigned here; that remains Phase 24.
+No database migration is required for this phase.
+The prior authentication/audit hardening is independent and is not included here.
