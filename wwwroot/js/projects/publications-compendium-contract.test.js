@@ -566,7 +566,7 @@ test('phase 27 uses wide monitors for a readable project publication register', 
 
 test('phase 27 review includes a near-WYSIWYG dossier page and visible section rename affordance', () => {
   assert.match(view, /data-live-page-preview/);
-  assert.match(view, /PDF preview is authoritative/);
+  assert.match(view, /PDF preview .*authoritative/);
   assert.match(js, /renderLivePagePreview/);
   assert.match(css, /aspect-ratio:\s*595\.28\s*\/\s*841\.89/);
   assert.match(js, /compendium-section-name-editor/);
@@ -604,4 +604,48 @@ test('phase 27 latest chronology and technical taxonomy are authoritative and de
   assert.match(service, /TechnicalCategorySortOrder/);
   assert.match(service, /OrderBy\(group => group\.SortOrder\)/);
   assert.match(view, /Completed projects use completion chronology; ongoing projects use project\/development year/);
+});
+
+test('phase 28 makes Review proof-first with focus mode and explicit preview zoom', () => {
+  assert.match(view, /data-review-focus-toggle/);
+  assert.match(view, /data-live-page-zoom="fit"/);
+  assert.match(view, /data-live-page-zoom="75"/);
+  assert.match(view, /data-live-page-zoom="100"/);
+  assert.match(js, /applyReviewFocusMode/);
+  assert.match(js, /applyLivePreviewZoom/);
+  assert.match(css, /is-review-focus[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*350px/);
+  assert.match(css, /data-preview-zoom="100"[\s\S]*595px/);
+});
+
+test('phase 28 consolidates Review scrolling and compresses duplicate image inspection', () => {
+  assert.match(view, /compendium-review-image-summary/);
+  assert.match(css, /compendium-review-inspector[\s\S]*max-height:\s*calc\(100dvh\s*-\s*260px\)/);
+  assert.match(css, /compendium-review-description-text[\s\S]*max-height:\s*none\s*!important/);
+  assert.match(css, /compendium-review-image-summary[\s\S]*grid-template-columns:\s*132px\s+minmax\(0,\s*1fr\)/);
+});
+
+test('phase 28 supports scalable section collapse without changing publication structure', () => {
+  assert.match(view, /data-structure-collapse-all/);
+  assert.match(view, /data-structure-expand-all/);
+  assert.match(js, /collapsedGroupKeys/);
+  assert.match(js, /data-section-toggle-collapse/);
+  assert.match(js, /structureCollapseAll/);
+  assert.match(js, /structureExpandAll/);
+});
+
+test('phase 28 keeps issue commands reachable with a viewport output dock', () => {
+  assert.match(view, /data-output-dock/);
+  assert.match(view, /data-output-dock-preview/);
+  assert.match(view, /data-output-dock-generate/);
+  assert.match(js, /setupOutputDockObserver/);
+  assert.match(js, /IntersectionObserver/);
+  assert.match(css, /compendium-output-dock[\s\S]*position:\s*fixed/);
+});
+
+test('phase 28 turns grouped readiness findings into review queues', () => {
+  assert.match(js, /data-finding-group-review/);
+  assert.match(js, /activeFindingQueue/);
+  assert.match(js, /nextFindingQueueId/);
+  assert.match(js, /Review affected projects/);
+  assert.match(css, /compendium-finding-group__queue/);
 });

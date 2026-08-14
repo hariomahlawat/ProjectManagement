@@ -399,6 +399,7 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-previous title="Previous project" aria-label="Previous project" disabled aria-disabled="true"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next-attention disabled aria-disabled="true">Next requiring attention</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next title="Next project" aria-label="Next project" disabled aria-disabled="true"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary compendium-review-focus-toggle" data-review-focus-toggle aria-pressed="false" title="Give the review proof more working space"><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i><span>Focus review</span></button>
                         </div>
                     </header>
                     <div class="publication-panel__body">
@@ -424,7 +425,14 @@
                                             <strong>Live page preview</strong>
                                             <span>Near-final dossier composition</span>
                                         </div>
-                                        <span>PDF preview is authoritative</span>
+                                        <div class="compendium-live-page__tools">
+                                            <span class="compendium-live-page__authority">PDF preview remains authoritative</span>
+                                            <div class="btn-group btn-group-sm compendium-live-page__zoom" role="group" aria-label="Live preview zoom">
+                                                <button type="button" class="btn btn-outline-secondary active" data-live-page-zoom="fit" aria-pressed="true">Fit</button>
+                                                <button type="button" class="btn btn-outline-secondary" data-live-page-zoom="75" aria-pressed="false">75%</button>
+                                                <button type="button" class="btn btn-outline-secondary" data-live-page-zoom="100" aria-pressed="false">100%</button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="compendium-live-page__viewport">
                                         <article class="compendium-live-page__sheet" data-live-page-preview>
@@ -459,27 +467,30 @@
 
                                 <section class="compendium-review-inspector" aria-label="Publication inspector">
                                     <section class="compendium-review-image-panel" aria-label="Publication photograph">
-                                        <div class="compendium-review-image-frame" data-review-image-frame>
-                                            <img alt="" data-review-image hidden />
-                                            <div class="compendium-review-image-empty" data-review-image-empty>
-                                                <i class="bi bi-image"></i>
-                                                <strong>No publication image</strong>
+                                        <div class="compendium-review-image-summary">
+                                            <div class="compendium-review-image-frame" data-review-image-frame>
+                                                <img alt="" data-review-image hidden />
+                                                <div class="compendium-review-image-empty" data-review-image-empty>
+                                                    <i class="bi bi-image"></i>
+                                                    <strong>No publication image</strong>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="compendium-review-image-meta">
-                                            <div>
-                                                <span class="compendium-image-badge" data-review-image-mode>Automatic</span>
-                                                <span class="compendium-image-badge" data-review-image-quality>Quality pending</span>
+                                            <div class="compendium-review-image-meta">
+                                                <strong>Publication image</strong>
+                                                <div>
+                                                    <span class="compendium-image-badge" data-review-image-mode>Automatic</span>
+                                                    <span class="compendium-image-badge" data-review-image-quality>Quality pending</span>
+                                                </div>
+                                                <small data-review-image-detail></small>
+                                                <a class="compendium-manage-photos" data-review-manage-photos><i class="bi bi-box-arrow-up-right"></i> Manage photographs</a>
                                             </div>
-                                            <small data-review-image-detail></small>
                                         </div>
                                         <div class="compendium-review-image-actions">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop><i class="bi bi-crop"></i> Adjust crop</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-use-cover><i class="bi bi-card-image"></i> Use as cover hero</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-use-cover><i class="bi bi-card-image"></i> Cover hero</button>
                                             <button type="button" class="btn btn-sm btn-link" data-review-use-automatic>Use automatic</button>
                                         </div>
-                                        <a class="compendium-manage-photos" data-review-manage-photos><i class="bi bi-box-arrow-up-right"></i> Manage project photographs</a>
                                     </section>
 
                                     <section class="compendium-review-information">
@@ -561,7 +572,13 @@
                                 <p><span data-rail-count>0</span> selected · <span data-order-mode-copy>manual order</span></p>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-link" data-clear-selection hidden disabled aria-disabled="true">Clear selection</button>
+                        <div class="compendium-order-header-actions">
+                            <div class="btn-group btn-group-sm compendium-structure-view-tools" data-structure-view-tools role="group" aria-label="Publication structure view">
+                                <button type="button" class="btn btn-outline-secondary" data-structure-collapse-all title="Collapse all sections" aria-label="Collapse all sections"><i class="bi bi-arrows-collapse" aria-hidden="true"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" data-structure-expand-all title="Expand all sections" aria-label="Expand all sections"><i class="bi bi-arrows-expand" aria-hidden="true"></i></button>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-link" data-clear-selection hidden disabled aria-disabled="true">Clear selection</button>
+                        </div>
                     </header>
                     <div class="compendium-custom-section-toolbar" data-custom-section-toolbar hidden>
                         <div>
@@ -621,6 +638,17 @@
                     </div>
                 </section>
             </aside>
+        </div>
+
+        <div class="compendium-output-dock" data-output-dock hidden aria-live="polite">
+            <div class="compendium-output-dock__status">
+                <i class="bi bi-journal-check" data-output-dock-icon aria-hidden="true"></i>
+                <div><strong data-output-dock-title>Publication status</strong><span data-output-dock-copy>Select projects to begin.</span></div>
+            </div>
+            <div class="compendium-output-dock__actions">
+                <button type="button" class="btn btn-sm btn-outline-primary" data-output-dock-preview disabled aria-disabled="true" title="Preview Compendium PDF"><i class="bi bi-eye" aria-hidden="true"></i><span>Preview</span></button>
+                <button type="button" class="btn btn-sm btn-primary" data-output-dock-generate disabled aria-disabled="true" title="Download Compendium PDF"><i class="bi bi-download" aria-hidden="true"></i><span>Download</span></button>
+            </div>
         </div>
     </form>
 </div>

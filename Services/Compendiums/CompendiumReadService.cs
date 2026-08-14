@@ -20,7 +20,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-14_publication-workspace-v6";
+    public const string BuildStamp = "CompendiumPdf_2026-08-14_publication-review-v7";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;

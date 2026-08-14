@@ -2593,7 +2593,7 @@ body.brochure-modal-open { overflow: hidden; }
     .compendium-cover-preview { width:100%; max-width:220px; }
 }
 
-/* ========================================================================== 
+/* ==========================================================================
    Compendium Editorial Composer v4
    Publication-source, structure and capability-dossier refinements.
    ========================================================================== */
@@ -2715,7 +2715,7 @@ body.brochure-modal-open { overflow: hidden; }
 .compendium-order-group__custom button:hover:not(:disabled) { background:#dfece6; color:#245b47; }
 .compendium-order-group__custom button:disabled { opacity:.3; }
 
-/* ========================================================================== 
+/* ==========================================================================
    Compendium Publication Workspace v5 — full-width authoring + first-class
    structure editor. The Publications workspace uses wide displays as working
    space while keeping reading surfaces and controls deliberately bounded.
@@ -2956,7 +2956,7 @@ body.brochure-modal-open { overflow: hidden; }
     .publications-page.brochure-builder .brochure-layout { grid-template-columns: 1fr; }
 }
 
-/* ========================================================================== 
+/* ==========================================================================
    Simulators Compendium - Phase 27 publication polish
    Wide-monitor efficiency, viewport rail, richer project register and live
    dossier review.  These rules intentionally override earlier phase defaults.
@@ -3381,4 +3381,291 @@ body.brochure-modal-open { overflow: hidden; }
     }
     .compendium-builder-page .compendium-order-card { display: block; overflow: visible; }
     .compendium-builder-page .compendium-order-list { max-height: 520px; }
+}
+
+/* ==========================================================================
+   Simulators Compendium - Phase 28 review convergence
+   Proof-first Review workspace, consolidated inspector scrolling, scalable
+   publication structure and always-reachable output commands.
+   ========================================================================== */
+.compendium-order-header-actions {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex: 0 0 auto;
+}
+.compendium-structure-view-tools[hidden] { display: none !important; }
+.compendium-structure-view-tools .btn {
+    display: inline-grid;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    color: #61756d;
+}
+.compendium-order-group > header {
+    gap: .55rem;
+}
+.compendium-order-group__header-main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.compendium-order-group__header-main > span,
+.compendium-order-group__header-main .compendium-order-group__identity {
+    display: block;
+}
+.compendium-order-group__header-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    flex: 0 0 auto;
+}
+.compendium-order-group__header-meta > small { white-space: nowrap; }
+.compendium-order-group__collapse {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #6e8279;
+    font-size: .65rem;
+}
+.compendium-order-group__collapse:hover { background: rgba(39, 91, 73, .08); color: #245b47; }
+.compendium-order-group.is-collapsed > header { border-bottom-color: transparent; }
+.compendium-order-group.is-collapsed + .compendium-order-group { border-top: 1px solid #e6edea; }
+.compendium-builder-page .compendium-order-group__custom {
+    width: 100%;
+}
+
+/* Review mode can deliberately reclaim rail width without hiding structure. */
+.compendium-review-focus-toggle.active {
+    border-color: #5f9783;
+    background: #edf7f2;
+    color: #245b47;
+}
+@media (min-width: 1600px) {
+    .compendium-builder-page.is-review-focus .compendium-builder-layout,
+    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
+        grid-template-columns: minmax(0, 1fr) 350px;
+    }
+}
+@media (min-width: 1900px) {
+    .compendium-builder-page.is-review-focus .compendium-builder-layout,
+    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
+        grid-template-columns: minmax(0, 1fr) 370px;
+    }
+}
+.compendium-builder-page.is-review-focus #compendium-review {
+    border-color: #c5dcd2;
+    box-shadow: 0 12px 32px rgba(26, 65, 51, .08);
+}
+
+/* The proof is the primary Review object; the inspector becomes a compact tool surface. */
+.compendium-builder-page .compendium-review-workspace--live {
+    grid-template-columns: minmax(560px, 1.45fr) minmax(330px, .72fr);
+    gap: .9rem;
+    align-items: start;
+}
+.compendium-live-page__toolbar {
+    min-height: 32px;
+}
+.compendium-live-page__tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+    min-width: 0;
+}
+.compendium-live-page__authority {
+    color: #84938d;
+    white-space: nowrap;
+}
+.compendium-live-page__zoom .btn {
+    min-width: 42px;
+    padding: .2rem .38rem;
+    font-size: .55rem;
+}
+.compendium-live-page__zoom .btn.active {
+    border-color: #6e9d8b;
+    background: #edf7f2;
+    color: #245b47;
+}
+.compendium-live-page__viewport {
+    width: 100%;
+    max-height: calc(100dvh - 260px);
+    min-height: 620px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+    width: min(100%, 680px);
+}
+.compendium-live-page__viewport[data-preview-zoom="75"] .compendium-live-page__sheet {
+    width: 446px;
+    min-width: 446px;
+}
+.compendium-live-page__viewport[data-preview-zoom="100"] .compendium-live-page__sheet {
+    width: 595px;
+    min-width: 595px;
+}
+.compendium-review-inspector {
+    max-height: calc(100dvh - 260px);
+    overflow: auto;
+    padding-right: .18rem;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.compendium-review-image-panel {
+    display: grid;
+    gap: .55rem;
+    padding: .58rem !important;
+}
+.compendium-review-image-summary {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: .6rem;
+    align-items: start;
+}
+.compendium-builder-page .compendium-review-inspector .compendium-review-image-frame {
+    width: 132px;
+    min-width: 132px;
+    align-self: start;
+}
+.compendium-review-image-meta {
+    align-content: start;
+    margin-top: 0 !important;
+}
+.compendium-review-image-meta > strong {
+    color: #294b3f;
+    font-size: .65rem;
+    font-weight: 760;
+}
+.compendium-review-image-meta .compendium-manage-photos {
+    margin-top: .06rem;
+    font-size: .56rem;
+}
+.compendium-review-image-actions {
+    margin-top: 0 !important;
+    padding-top: .48rem;
+    border-top: 1px solid #e4ece8;
+}
+.compendium-review-image-actions .btn:not(.btn-link) {
+    padding-inline: .45rem;
+    font-size: .58rem;
+}
+.compendium-builder-page .compendium-review-facts--phase23 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+.compendium-builder-page .compendium-review-facts--phase23 > div {
+    min-height: 48px;
+}
+/* Narrative is read through one inspector scroll rather than a second nested scrollbar. */
+.compendium-builder-page .compendium-review-description-text {
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* Readiness groups can launch a focused editorial queue. */
+.compendium-finding-group__queue {
+    display: flex;
+    justify-content: flex-end;
+    padding: .45rem .65rem;
+    border-bottom: 1px solid #edf1ef;
+    background: #fbfcfc;
+}
+.compendium-finding-group__queue .btn {
+    font-size: .57rem;
+    white-space: nowrap;
+}
+
+/* Compact output dock appears only when the full Final Output card is out of view. */
+.compendium-output-dock {
+    position: fixed;
+    z-index: 1032;
+    right: clamp(1rem, 2vw, 2rem);
+    bottom: 1rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .75rem;
+    align-items: center;
+    width: min(520px, calc(100vw - 2rem));
+    padding: .58rem .65rem;
+    border: 1px solid #d4e1dc;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 16px 38px rgba(20, 47, 38, .17);
+    backdrop-filter: blur(8px);
+}
+.compendium-output-dock[hidden] { display: none !important; }
+.compendium-output-dock__status {
+    display: grid;
+    grid-template-columns: 25px minmax(0, 1fr);
+    gap: .45rem;
+    align-items: center;
+    min-width: 0;
+}
+.compendium-output-dock__status > i {
+    display: grid;
+    width: 25px;
+    height: 25px;
+    place-items: center;
+    border-radius: 7px;
+    background: #f1f6f4;
+    color: #587168;
+}
+.compendium-output-dock__status > div { display: grid; min-width: 0; }
+.compendium-output-dock__status strong {
+    overflow: hidden;
+    color: #2d483e;
+    font-size: .65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-output-dock__status span {
+    overflow: hidden;
+    color: #74867e;
+    font-size: .55rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-output-dock__actions { display: flex; gap: .35rem; }
+.compendium-output-dock__actions .btn { white-space: nowrap; font-size: .58rem; }
+.compendium-output-dock.is-blocked { border-color: #e8c7cc; }
+.compendium-output-dock.is-blocked .compendium-output-dock__status > i { background: #fff1f3; color: #a13d47; }
+.compendium-output-dock.is-warning,
+.compendium-output-dock.is-review { border-color: #ead8aa; }
+.compendium-output-dock.is-warning .compendium-output-dock__status > i,
+.compendium-output-dock.is-review .compendium-output-dock__status > i { background: #fff8e5; color: #906816; }
+.compendium-output-dock.is-ready .compendium-output-dock__status > i { background: #ecf7f1; color: #2e7559; }
+
+@media (min-width: 1800px) {
+    .compendium-builder-page .compendium-review-workspace--live {
+        grid-template-columns: minmax(650px, 1.58fr) minmax(350px, .72fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+        grid-template-columns: minmax(720px, 1.7fr) minmax(360px, .68fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+        width: min(100%, 720px);
+    }
+}
+@media (max-width: 1549.98px) {
+    .compendium-builder-page .compendium-review-workspace--live { grid-template-columns: 1fr; }
+    .compendium-review-inspector { max-height: none; overflow: visible; padding-right: 0; }
+    .compendium-live-page__viewport { min-height: 0; max-height: 760px; }
+}
+@media (max-width: 1199.98px) {
+    .compendium-output-dock { display: none !important; }
+    .compendium-review-focus-toggle { display: none; }
+}
+@media (max-width: 720px) {
+    .compendium-live-page__tools { align-items: flex-end; flex-direction: column; }
+    .compendium-live-page__authority { display: none; }
+    .compendium-review-image-summary { grid-template-columns: 1fr; }
+    .compendium-builder-page .compendium-review-inspector .compendium-review-image-frame { width: 100%; min-width: 0; }
 }
