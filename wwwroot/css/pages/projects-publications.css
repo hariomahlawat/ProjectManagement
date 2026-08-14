@@ -2714,3 +2714,244 @@ body.brochure-modal-open { overflow: hidden; }
 .compendium-order-group__custom button { display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:5px; background:transparent; color:#698178; font-size:.58rem; }
 .compendium-order-group__custom button:hover:not(:disabled) { background:#dfece6; color:#245b47; }
 .compendium-order-group__custom button:disabled { opacity:.3; }
+
+/* ========================================================================== 
+   Compendium Publication Workspace v5 — full-width authoring + first-class
+   structure editor. The Publications workspace uses wide displays as working
+   space while keeping reading surfaces and controls deliberately bounded.
+   ========================================================================== */
+.publications-page.compendium-builder-page {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: clamp(1.25rem, 2.15vw, 2.75rem);
+}
+.compendium-builder-page .compendium-builder-form { width: 100%; }
+.compendium-builder-page .compendium-builder-layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 1.15rem;
+}
+.compendium-builder-page .compendium-builder-rail { top: 118px; }
+.compendium-builder-page .compendium-order-list {
+    max-height: min(64vh, 760px);
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.compendium-builder-page .compendium-order-item {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    gap: .48rem;
+    padding: .55rem .62rem;
+}
+.compendium-builder-page .compendium-order-copy strong { font-size: .75rem; line-height: 1.25; }
+.compendium-builder-page .compendium-order-copy small { margin-top: .08rem; font-size: .63rem; line-height: 1.3; }
+.compendium-builder-page .compendium-order-section-select {
+    min-height: 30px;
+    padding: .22rem 1.7rem .22rem .42rem;
+    font-size: .64rem;
+}
+.compendium-builder-page .compendium-order-actions button { width: 27px; height: 27px; font-size: .65rem; }
+.compendium-builder-page .compendium-order-state { width: 24px; height: 24px; font-size: .68rem; }
+.compendium-builder-page .compendium-order-group > header {
+    min-height: 43px;
+    padding: .5rem .65rem;
+}
+.compendium-builder-page .compendium-order-group > header > span,
+.compendium-builder-page .compendium-order-group__identity > span { font-size: .67rem; }
+.compendium-builder-page .compendium-order-group > header > small { font-size: .58rem; }
+.compendium-order-group__identity { display: grid; gap: .05rem; min-width: 0; }
+.compendium-order-group__identity small { color: #7c8f87; font-size: .55rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.compendium-order-group__empty {
+    margin: .48rem .58rem;
+    padding: .78rem .6rem;
+    border: 1px dashed #c9dcd4;
+    border-radius: 8px;
+    background: #f9fcfb;
+    color: #80928a;
+    font-size: .63rem;
+    text-align: center;
+}
+.compendium-order-group.is-unassigned > header { background: #fff8e9; border-color: #eadcaf; }
+.compendium-order-group.is-unassigned .compendium-order-group__identity > span { color: #80601a; }
+
+.compendium-builder-page .compendium-custom-section-toolbar { padding: .7rem .68rem; }
+.compendium-builder-page .compendium-custom-section-toolbar > div { gap: .45rem; }
+.compendium-builder-page .compendium-custom-section-toolbar .form-control { min-height: 34px; font-size: .7rem; }
+.compendium-builder-page .compendium-custom-section-toolbar .btn { min-width: 104px; min-height: 34px; white-space: nowrap; font-size: .67rem; }
+.compendium-builder-page .compendium-custom-section-toolbar small { margin-top: .38rem; font-size: .59rem; line-height: 1.4; }
+
+.compendium-builder-page .compendium-order-group__custom {
+    grid-template-columns: 24px minmax(0,1fr) 28px 28px 28px;
+    gap: .18rem;
+}
+.compendium-order-section-grip {
+    display: grid;
+    width: 24px;
+    height: 28px;
+    place-items: center;
+    border-radius: 5px;
+    color: #789087;
+    cursor: grab;
+}
+.compendium-order-section-grip:active { cursor: grabbing; }
+.compendium-order-section-grip:hover { background: #dfece6; color: #245b47; }
+.compendium-builder-page .compendium-order-group__custom input {
+    height: 30px;
+    padding-inline: .4rem;
+    font-size: .65rem;
+}
+.compendium-builder-page .compendium-order-group__custom button { width: 28px; height: 28px; font-size: .65rem; }
+.compendium-builder-page .compendium-order-group__custom [data-section-delete]:hover:not(:disabled) { background: #fff0f1; color: #a13d46; }
+
+.compendium-builder-page .compendium-composer__heading span:first-child { font-size: .64rem; }
+.compendium-builder-page .compendium-composer__heading strong { font-size: .84rem; }
+.compendium-builder-page .compendium-composer__label strong { font-size: .72rem; }
+.compendium-builder-page .compendium-composer__label small { font-size: .6rem; }
+.compendium-builder-page .compendium-segmented > button { min-height: 34px; padding: .38rem .62rem; font-size: .65rem; }
+.compendium-builder-page .compendium-composer__note { font-size: .59rem; }
+
+/* Review is deliberately wider and calmer on desktop. */
+.compendium-builder-page .compendium-review-workspace {
+    grid-template-columns: minmax(330px, .92fr) minmax(520px, 1.58fr);
+    gap: 1rem;
+}
+.compendium-builder-page .compendium-review-card h3 { font-size: 1.15rem; }
+.compendium-builder-page .compendium-review-card > div:first-child > small { font-size: .64rem; }
+.compendium-builder-page .compendium-review-card > div:first-child > p { font-size: .7rem; }
+.compendium-builder-page .compendium-review-facts--phase23 > div span { font-size: .57rem !important; }
+.compendium-builder-page .compendium-review-facts--phase23 > div strong { font-size: .69rem !important; }
+.compendium-builder-page .compendium-review-description-text {
+    max-height: 310px !important;
+    font-size: .66rem !important;
+    line-height: 1.55 !important;
+}
+.compendium-builder-page .compendium-review-narrative-selector {
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    align-items: stretch;
+}
+.compendium-review-narrative-context {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .38rem .48rem;
+    border: 1px solid #e1e9e6;
+    border-radius: 7px;
+    background: #f8fbfa;
+    color: #687b73;
+    font-size: .61rem;
+}
+.compendium-review-narrative-context button {
+    display: inline-flex !important;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: .15rem .28rem !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: #2a6751 !important;
+    font-size: .59rem !important;
+    font-weight: 700;
+}
+.compendium-review-narrative-context small { color: #7d8f87; font-size: .57rem; }
+.compendium-builder-page .compendium-review-narrative-selector > button span { font-size: .65rem; }
+.compendium-builder-page .compendium-review-narrative-selector > button small { font-size: .56rem; }
+
+/* Aggregated readiness findings reduce alarm fatigue while preserving detail. */
+.compendium-builder-page .compendium-findings { grid-template-columns: 1fr; gap: .48rem; }
+.compendium-finding-group {
+    overflow: hidden;
+    border: 1px solid #dfe7e4;
+    border-radius: 9px;
+    background: #fff;
+}
+.compendium-finding-group.is-warning { border-color: #ead7a7; background: #fffcf4; }
+.compendium-finding-group.is-blocker { border-color: #efc7cb; background: #fff7f7; }
+.compendium-finding-group.is-information { border-color: #d8e4ed; background: #f9fcff; }
+.compendium-finding-group > summary {
+    display: grid;
+    grid-template-columns: 24px minmax(0,1fr) 22px;
+    gap: .5rem;
+    align-items: center;
+    padding: .58rem .65rem;
+    cursor: pointer;
+    list-style: none;
+}
+.compendium-finding-group > summary::-webkit-details-marker { display: none; }
+.compendium-finding-group > summary > div { display: grid; min-width: 0; }
+.compendium-finding-group > summary strong { color: #334b42; font-size: .67rem; }
+.compendium-finding-group > summary small { margin-top: .04rem; color: #7a8c84; font-size: .58rem; }
+.compendium-finding-group__icon { display: grid; place-items: center; color: #6f8179; }
+.compendium-finding-group.is-warning .compendium-finding-group__icon { color: #a87612; }
+.compendium-finding-group.is-blocker .compendium-finding-group__icon { color: #ae3d47; }
+.compendium-finding-group.is-information .compendium-finding-group__icon { color: #4d7798; }
+.compendium-finding-group__chevron { color: #81928b; transition: transform .16s ease; }
+.compendium-finding-group[open] .compendium-finding-group__chevron { transform: rotate(180deg); }
+.compendium-finding-group__body { border-top: 1px solid rgba(210,222,217,.75); background: rgba(255,255,255,.75); }
+.compendium-finding-group__project {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: .75rem;
+    align-items: center;
+    padding: .5rem .65rem;
+    border-bottom: 1px solid #edf1ef;
+}
+.compendium-finding-group__project:last-child { border-bottom: 0; }
+.compendium-finding-group__project > div:first-child { display: grid; gap: .04rem; min-width: 0; }
+.compendium-finding-group__project strong { color: #3a5048; font-size: .63rem; }
+.compendium-finding-group__project span { color: #71827b; font-size: .58rem; line-height: 1.4; }
+.compendium-finding-group__project .btn { white-space: nowrap; font-size: .57rem; }
+
+@media (min-width: 1600px) {
+    .compendium-builder-page .compendium-builder-layout { grid-template-columns: minmax(0,1fr) 420px; gap: 1.3rem; }
+    .compendium-builder-page.is-custom-structure .compendium-builder-layout { grid-template-columns: minmax(0,1fr) 520px; }
+    .compendium-builder-page .compendium-project-table td:nth-child(2) { min-width: 330px; }
+    .compendium-builder-page .compendium-project-table { font-size: .72rem; }
+}
+@media (min-width: 1800px) {
+    .compendium-builder-page .compendium-builder-layout { grid-template-columns: minmax(0,1fr) 455px; gap: 1.45rem; }
+    .compendium-builder-page.is-custom-structure .compendium-builder-layout { grid-template-columns: minmax(0,1fr) 570px; }
+    .compendium-builder-page .compendium-filter-toolbar { grid-template-columns: minmax(300px,1.8fr) repeat(4,minmax(155px,.9fr)) auto; }
+    .compendium-builder-page .compendium-review-workspace { grid-template-columns: minmax(390px, .9fr) minmax(620px, 1.65fr); }
+}
+@media (min-width: 2200px) {
+    .compendium-builder-page .compendium-builder-layout { grid-template-columns: minmax(0,1fr) 500px; }
+    .compendium-builder-page.is-custom-structure .compendium-builder-layout { grid-template-columns: minmax(0,1fr) 640px; }
+}
+@media (max-width: 1199.98px) {
+    .publications-page.compendium-builder-page { padding-inline: 1rem; }
+    .compendium-builder-page .compendium-builder-layout,
+    .compendium-builder-page.is-custom-structure .compendium-builder-layout { grid-template-columns: 1fr; }
+    .compendium-builder-page .compendium-builder-rail { position: static; }
+    .compendium-builder-page .compendium-order-list { max-height: 520px; }
+    .compendium-builder-page .compendium-review-workspace { grid-template-columns: minmax(280px,.9fr) minmax(0,1.3fr); }
+}
+@media (max-width: 900px) {
+    .compendium-builder-page .compendium-review-workspace { grid-template-columns: 1fr; }
+    .compendium-builder-page .compendium-review-narrative-selector { grid-template-columns: 1fr; }
+    .compendium-finding-group__project { grid-template-columns: 1fr; }
+}
+
+/* Publications workspace shell — Brochure uses the same wide-monitor strategy as Compendium. */
+.publications-page.brochure-builder {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: clamp(1.25rem, 2.15vw, 2.75rem);
+}
+.publications-page.brochure-builder .brochure-layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 1.15rem;
+}
+@media (min-width: 1600px) {
+    .publications-page.brochure-builder .brochure-layout { grid-template-columns: minmax(0, 1fr) 420px; gap: 1.3rem; }
+}
+@media (min-width: 1800px) {
+    .publications-page.brochure-builder .brochure-layout { grid-template-columns: minmax(0, 1fr) 455px; gap: 1.45rem; }
+}
+@media (min-width: 2200px) {
+    .publications-page.brochure-builder .brochure-layout { grid-template-columns: minmax(0, 1fr) 500px; }
+}
+@media (max-width: 1199.98px) {
+    .publications-page.brochure-builder { padding-inline: 1rem; }
+    .publications-page.brochure-builder .brochure-layout { grid-template-columns: 1fr; }
+}

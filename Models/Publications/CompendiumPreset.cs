@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 4;
+    public int SettingsSchemaVersion { get; set; } = 5;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -66,6 +66,32 @@ public sealed class CompendiumPreset
     [ConcurrencyCheck]
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
+    public ICollection<CompendiumPresetSection> Sections { get; set; } = new List<CompendiumPresetSection>();
+    public ICollection<CompendiumPresetProject> Projects { get; set; } = new List<CompendiumPresetProject>();
+}
+
+/// <summary>
+/// A first-class, publication-only custom section. The stable key is intentionally independent
+/// from the database identity so unsaved browser sections can survive save/load without being
+/// coupled to database-generated IDs.
+/// </summary>
+public sealed class CompendiumPresetSection
+{
+    public long Id { get; set; }
+    public long PresetId { get; set; }
+    public CompendiumPreset Preset { get; set; } = null!;
+
+    [Required, MaxLength(40)]
+    public string SectionKey { get; set; } = string.Empty;
+
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required, MaxLength(120)]
+    public string NormalizedName { get; set; } = string.Empty;
+
+    public int SortOrder { get; set; }
+
     public ICollection<CompendiumPresetProject> Projects { get; set; } = new List<CompendiumPresetProject>();
 }
 
@@ -95,6 +121,19 @@ public sealed class CompendiumPresetProject
     [Required, MaxLength(32)]
     public string ImageSelectionMode { get; set; } = "Automatic";
 
+    /// <summary>
+    /// Optional per-project publication narrative override. Null means inherit the Compendium default.
+    /// </summary>
+    [MaxLength(32)]
+    public string? NarrativeSourceOverride { get; set; }
+
+    public long? CustomSectionId { get; set; }
+    public CompendiumPresetSection? CustomSection { get; set; }
+
+    /// <summary>
+    /// Legacy phase-25 compatibility snapshot. Phase 26 uses CustomSectionId/CompendiumPresetSection;
+    /// keeping this column allows safe migration and rollback and makes older saved rows intelligible.
+    /// </summary>
     [MaxLength(120)]
     public string? CustomSectionName { get; set; }
 }

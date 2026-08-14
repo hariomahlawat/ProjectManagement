@@ -51,6 +51,14 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         var isReviewed = submitted is not null && string.Equals(submitted, current, StringComparison.Ordinal);
         var isReviewStale = submitted is not null && !isReviewed;
 
+        void Blocker(string code, string message)
+            => findings.Add(new CompendiumFindingDto(
+                CompendiumFindingSeverity.Blocker,
+                code,
+                message,
+                context.ProjectId,
+                context.ProjectName));
+
         void Warning(string code, string message)
             => findings.Add(new CompendiumFindingDto(
                 CompendiumFindingSeverity.Warning,
@@ -104,7 +112,7 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         if (string.IsNullOrWhiteSpace(context.ArmService))
         {
             issues.Add(CompendiumPublicationIssue.MissingArmService);
-            Warning("missingArmService", "Arm/Service is not recorded.");
+            Information("missingArmService", "Arm/Service is not recorded.");
         }
 
         if (context.ProliferationAvailability == true && !context.ProliferationCostLakhs.HasValue)
@@ -123,7 +131,7 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         if (string.IsNullOrWhiteSpace(context.Description))
         {
             issues.Add(CompendiumPublicationIssue.MissingDescription);
-            Warning("missingDescription", $"{NormalizeNarrativeLabel(context.NarrativeLabel)} is not recorded.");
+            Blocker("missingDescription", $"{NormalizeNarrativeLabel(context.NarrativeLabel)} is not recorded. Choose another publication narrative for this project or record the missing content before final issue.");
         }
 
         if (context.LifecycleStatus == ProjectLifecycleStatus.Completed && !context.CompletionYear.HasValue)

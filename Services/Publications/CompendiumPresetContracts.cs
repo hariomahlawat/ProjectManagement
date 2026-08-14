@@ -24,6 +24,16 @@ public sealed record CompendiumPresetSummaryVm(
     string UpdatedByDisplay,
     string RowVersion);
 
+/// <summary>
+/// Stable, publication-only section definition. SectionKey is generated in the authoring client
+/// and persisted unchanged so empty sections and section order survive save/load independently
+/// of project membership.
+/// </summary>
+public sealed record CompendiumPresetSectionConfiguration(
+    string SectionKey,
+    string Name,
+    int SortOrder);
+
 public sealed record CompendiumPresetProjectConfiguration(
     int ProjectId,
     int? PrimaryPhotoId = null,
@@ -31,7 +41,9 @@ public sealed record CompendiumPresetProjectConfiguration(
     double PrimaryFocalY = .5d,
     CompendiumImageSelectionMode ImageSelectionMode = CompendiumImageSelectionMode.Automatic)
 {
+    public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
+    public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
 }
 
 public sealed record CompendiumCoverConfiguration(
@@ -52,6 +64,9 @@ public sealed record CompendiumPresetConfiguration(
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
+    public IReadOnlyList<CompendiumPresetSectionConfiguration> Sections { get; init; }
+        = Array.Empty<CompendiumPresetSectionConfiguration>();
+
     public CompendiumPresetConfiguration(
         string title,
         string subtitle,

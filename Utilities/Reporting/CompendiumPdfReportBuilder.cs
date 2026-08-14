@@ -281,31 +281,36 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 content.Item().Height(2).Background(Gold);
 
+                var showGroupHeadings = !(planned.IndexGroups.Count == 1
+                    && string.Equals(planned.IndexGroups[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase));
                 foreach (var group in planned.IndexGroups)
                 {
-                    content.Item().Element(element => ComposeIndexGroup(element, group));
+                    content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings));
                 }
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
     }
 
-    private static void ComposeIndexGroup(IContainer container, CompendiumIndexGroupPlan group)
+    private static void ComposeIndexGroup(IContainer container, CompendiumIndexGroupPlan group, bool showHeading = true)
     {
         container.Column(column =>
         {
             column.Spacing(0);
-            column.Item().Background(Forest100).BorderLeft(4).BorderColor(Forest800).PaddingHorizontal(10).PaddingVertical(7)
-                .Row(row =>
-                {
-                    row.RelativeItem().Text(group.CategoryName)
-                        .FontSize(11.5f)
-                        .SemiBold()
-                        .FontColor(Forest900);
-                    row.AutoItem().Text($"{group.Projects.Count} project{(group.Projects.Count == 1 ? string.Empty : "s")}")
-                        .FontSize(8)
-                        .FontColor(Slate500);
-                });
+            if (showHeading)
+            {
+                column.Item().Background(Forest100).BorderLeft(4).BorderColor(Forest800).PaddingHorizontal(10).PaddingVertical(7)
+                    .Row(row =>
+                    {
+                        row.RelativeItem().Text(group.CategoryName)
+                            .FontSize(11.5f)
+                            .SemiBold()
+                            .FontColor(Forest900);
+                        row.AutoItem().Text($"{group.Projects.Count} project{(group.Projects.Count == 1 ? string.Empty : "s")}")
+                            .FontSize(8)
+                            .FontColor(Slate500);
+                    });
+            }
 
             foreach (var project in group.Projects)
             {
@@ -338,10 +343,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     {
         var project = planned.Project ?? throw new InvalidOperationException("Project page is missing its project payload.");
         var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
+        var publicationKicker = ResolveProjectKicker(project);
         container.Page(page =>
         {
             ConfigureStandardPage(page);
-            page.Header().Element(header => ComposeRunningHeader(header, project.CategoryName.ToUpperInvariant(), project.LifecycleDisplay, marking));
+            page.Header().Element(header => ComposeRunningHeader(header, publicationKicker.ToUpperInvariant(), project.LifecycleDisplay, marking));
             page.Content().PaddingTop(9).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
             {
                 column.Spacing(9);
@@ -352,7 +358,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     row.RelativeItem().Column(kicker =>
                     {
-                        kicker.Item().Text(project.CategoryName.ToUpperInvariant())
+                        kicker.Item().Text(publicationKicker.ToUpperInvariant())
                             .FontSize(7.4f)
                             .SemiBold()
                             .LetterSpacing(1.15f)
@@ -414,10 +420,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     {
         var project = planned.Project ?? throw new InvalidOperationException("Continuation page is missing its project payload.");
         var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
+        var publicationKicker = ResolveProjectKicker(project);
         container.Page(page =>
         {
             ConfigureStandardPage(page);
-            page.Header().Element(header => ComposeRunningHeader(header, project.CategoryName.ToUpperInvariant(), project.LifecycleDisplay, marking));
+            page.Header().Element(header => ComposeRunningHeader(header, publicationKicker.ToUpperInvariant(), project.LifecycleDisplay, marking));
             page.Content().PaddingTop(14).Column(column =>
             {
                 column.Spacing(11);
@@ -461,7 +468,6 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             ? project.CategoryName
             : project.TechnicalCategoryDisplay;
         items.Add(("Technical category", technicalCategory, false));
-        items.Add(("Status", project.LifecycleDisplay, false));
 
         if (string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(project.CompletionYearDisplay)
@@ -559,23 +565,29 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             ? project.CategoryName
             : project.TechnicalCategoryDisplay;
 
-        container.Height(112).Background(Forest100).Border(1).BorderColor("#D7E7DF").Padding(0).Row(row =>
+        // A missing photograph is treated as an intentional text-led dossier. No authoring or
+        // diagnostic language is printed into the issued publication.
+        container.Height(94).Background(Forest100).Border(1).BorderColor("#D7E7DF").Padding(0).Row(row =>
         {
             row.ConstantItem(7).Background(Gold);
-            row.RelativeItem().PaddingHorizontal(17).PaddingVertical(14).Column(column =>
+            row.RelativeItem().PaddingHorizontal(17).PaddingVertical(13).Column(column =>
             {
                 column.Item().Text("CAPABILITY DOSSIER")
                     .FontSize(7)
                     .SemiBold()
                     .LetterSpacing(1f)
                     .FontColor(Slate500);
-                column.Item().PaddingTop(6).Text(technicalCategory.ToUpperInvariant())
-                    .FontSize(17)
+                column.Item().PaddingTop(5).Text(technicalCategory.ToUpperInvariant())
+                    .FontSize(16)
                     .SemiBold()
                     .FontColor(Forest950);
-                column.Item().PaddingTop(5).Text("Publication image not selected. The project record remains fully publishable as a text-led dossier.")
-                    .FontSize(8.1f)
-                    .FontColor(Slate600);
+                column.Item().PaddingTop(5).Text(string.IsNullOrWhiteSpace(project.CaseFileNumber)
+                        ? "PRISM · DETAILED PROJECT REFERENCE"
+                        : $"PROJECT REFERENCE · {project.CaseFileNumber}")
+                    .FontSize(7.4f)
+                    .SemiBold()
+                    .LetterSpacing(.3f)
+                    .FontColor(Slate500);
             });
         });
     }
@@ -775,6 +787,17 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             _logger.LogWarning(exception, "Unable to load compendium PDF asset {RelativeAssetPath}.", relativeUnderWwwRoot);
             return null;
         }
+    }
+
+    private static string ResolveProjectKicker(CompendiumPdfProjectSection project)
+    {
+        var publicationSection = Normalize(project.CategoryName, "Projects");
+        if (!string.Equals(publicationSection, "Projects", StringComparison.OrdinalIgnoreCase))
+        {
+            return publicationSection;
+        }
+
+        return Normalize(project.TechnicalCategoryDisplay, "Project dossier");
     }
 
     private static string NormalizeNarrativeLabel(string? value)

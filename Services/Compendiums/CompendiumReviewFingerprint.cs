@@ -22,11 +22,13 @@ public sealed record CompendiumReviewFingerprintInput(
     double FocalY)
 {
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectDescription;
+    public string? PublicationSectionKey { get; init; }
+    public string? PublicationSectionName { get; init; }
 }
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v2";
+    private const string ContractVersion = "compendium-review-v3";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
@@ -45,6 +47,8 @@ public static class CompendiumReviewFingerprint
             input.ProliferationAvailability switch { true => "true", false => "false", _ => "null" },
             input.ProliferationCostLakhs?.ToString("0.############################", CultureInfo.InvariantCulture) ?? string.Empty,
             input.NarrativeSource.ToString(),
+            Clean(input.PublicationSectionKey),
+            Clean(input.PublicationSectionName),
             NormalizeNarrative(input.Description),
             input.ResolvedPhotoId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             input.ImageSelectionMode.ToString(),

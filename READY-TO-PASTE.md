@@ -1,71 +1,70 @@
-# PRISM Publications Phase 25 — Compendium Editorial Composer
+# PRISM Publications Phase 26
 
-This package is a **ready-to-paste delta** for the uploaded PRISM source. Copy the project-relative files over the existing solution, preserving folder structure.
+## Publication Workspace + First-Class Editorial Structure
 
-## What is implemented
+This package is intended to be pasted over the Phase 25 Compendium implementation.
 
-- **Publication narrative source**: Project Brief (new default), Capability Overview, or Project Description.
-- Source availability/counts are visible during selection and review. Changing the narrative source invalidates prior review fingerprints because the publication content changed.
-- **Direct cover hero workflow**: Automatic hero, Choose hero, or No imagery. The existing “Use as cover hero” shortcut remains available during project review.
-- **Grouping is separate from ordering**:
-  - Technical Category (default)
-  - No Grouping
-  - Custom Sections (publication-only; never modifies the Project Technical Category)
-  - Manual, Latest First, or A–Z ordering
-- **Custom sections** can be created, renamed, reordered and assigned per project in the publication structure rail.
-- “Latest First” uses `YearOfDevelopment` first, then completion year/date, then record creation year as a deterministic fallback.
-- Saved Compendiums use **schema v4** and persist narrative, grouping, sort, custom section, image, crop and cover decisions.
-- Existing schema-v3 Compendiums are migration-preserved as **Project Description** publications so an old saved publication does not silently change content after deployment. New v4 Compendiums default to **Project Brief**.
-- Project PDF pages are redesigned as a consistent **Capability Dossier**: stronger editorial hierarchy, compact factual metadata, prominent imagery, dynamic narrative heading, designed no-photo state, and continuation treatment.
-- The factual Technical Category remains visible in the project dossier even when the publication is arranged by custom sections.
-- The browser review workspace exposes the narrative source/availability and uses the same publication-image/crop contract as the final PDF.
+### What changes
 
-## Database migration
+- Brochure and Compendium opt into the PRISM `workspace` shell and use wide/ultrawide monitors instead of the normal constrained ERP page width.
+- Compendium Custom Sections are persisted as independent `CompendiumPresetSection` records rather than being inferred from a project's section-name string.
+- Multiple empty custom sections can be created, ordered, saved and reloaded before any project is assigned.
+- Custom section order is independent of project sort mode. `Latest first` and `A-Z` sort projects *inside* each section.
+- Projects can be moved between custom sections by assignment control or drag-and-drop; section headers support rename, reorder and safe deletion.
+- A dedicated PRISM modal confirms section deletion; populated sections move their projects to `Unassigned` without changing Project master data.
+- Global narrative remains Project Brief by default, with per-project Project Brief / Capability Overview / Project Description override support.
+- Review fingerprints are v3 and include publication section identity/name, so visible editorial changes require re-review.
+- Readiness findings are aggregated by issue type. Missing Arm/Service is informational; the selected publication narrative being absent is a final-issue blocker.
+- PDF dossier treatment removes duplicate status metadata and never prints internal authoring language for projects without photography.
+- `No grouping` index output suppresses the artificial `Projects` section banner.
 
-New migration:
+### Database migration
 
-`Migrations/20261208160000_AddCompendiumEditorialComposer.cs`
+`20261208170000_AddCompendiumFirstClassSections`
 
-It adds:
+The migration:
 
-- `CompendiumPresets.NarrativeSource`
-- `CompendiumPresets.GroupingMode`
-- `CompendiumPresets.SortMode`
-- `CompendiumPresetProjects.CustomSectionName`
-- schema default upgrade from v3 to v4
+1. creates `CompendiumPresetSections`;
+2. adds `CustomSectionId` and `NarrativeSourceOverride` to saved Compendium project rows;
+3. migrates existing Phase 25 `CustomSectionName` values into first-class sections;
+4. updates Compendium settings schema version from 4 to 5;
+5. preserves the legacy section-name column for rollback/compatibility.
 
-The migration ID deliberately follows the repository's existing `2026120815...` Compendium migration sequence.
+No Project Technical Category or other authoritative Project master data is changed.
 
-## Apply
+### Paste / deploy
 
-1. Back up the database/source branch.
-2. Copy all files from this package into the project root, preserving paths.
-3. Apply the EF Core migration using your normal deployment process (`dotnet ef database update` if that is how this solution is managed).
-4. Build the solution.
-5. Run the validation script:
+Copy the contents of the ready-to-paste package into the ProjectManagement root and overwrite the matching files.
+
+Then run in PowerShell from the project root:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase25.ps1
+.\tools\Test-PrismPublicationsPhase26.ps1
 ```
 
-## Validation performed in this environment
+The script performs JavaScript syntax and Compendium contract tests, checks the migration/section/fingerprint/PDF contracts, and runs `dotnet build` plus `dotnet test` when the .NET SDK is available.
 
-- `node --check wwwroot/js/pages/projects-compendium.js` — **passed**.
-- `node --test wwwroot/js/projects/publications-compendium-contract.test.js` — **45/45 passed**.
-- Brochure + Compendium contract run: **149/150 passed**. The sole Brochure failure already exists unchanged in the uploaded baseline (`IBrochurePrintMeasurementService` test expects Singleton while the baseline DI registration is Scoped); it is unrelated to this Compendium phase.
-- A .NET SDK is not installed in this execution environment, so `dotnet build` / `dotnet test` could not be executed here. The included Phase 25 PowerShell validator runs them automatically when `dotnet` is available on the development workstation.
+If your environment does not apply EF Core migrations automatically, apply the migration using your normal deployment procedure before testing saved Compendiums.
 
-## Smoke-test scenarios after paste
+### Functional verification after build
 
-1. Create a new Compendium: **Project Brief / Technical Category / Manual** should be selected by default.
-2. Switch narrative to Capability Overview: all prior project review confirmations should require re-review.
-3. Switch to **Latest First** and **No Grouping**: the rail/index/project sequence should be newest-first.
-4. Switch to **Custom Sections**: create/rename sections, move projects, preview PDF, and confirm the Project Technical Category shown in the dossier remains unchanged.
-5. Use **Choose hero** in Publication Settings and confirm the selected project image becomes the cover hero without changing that project's primary image record.
-6. Preview before all reviews is allowed; final download remains gated until the selected publication state is fully reviewed.
-7. Load an older saved v3 Compendium and confirm it remains Description-led after migration.
+1. Open Compendium on a 1600–1920 px monitor and confirm the Publications workspace uses nearly the full application canvas.
+2. Choose **Custom sections**.
+3. Create at least three sections without assigning projects. All three must remain visible.
+4. Save and reload the Compendium. Empty sections must remain.
+5. Assign projects to different sections and reorder the section headers.
+6. Switch project order between Manual, Latest first and A-Z. Section order must not change.
+7. Drag a project from one custom section to another.
+8. Delete a populated section and confirm its projects move to **Unassigned**.
+9. Override one project's narrative while the publication default remains Project Brief; save/reload and confirm persistence.
+10. Preview PDF in Technical Category, No Grouping and Custom Sections modes and verify the index reflects the selected structure.
+11. Verify a project with no photograph renders as a deliberate text-led Capability Dossier without internal authoring messages.
 
-## File inventory
+### Validation performed in this delivery environment
 
-See `CHANGED-FILES.txt` for the complete repo-relative list.
+- `node --check wwwroot/js/pages/projects-compendium.js` — passed.
+- `node --test wwwroot/js/projects/publications-compendium-contract.test.js` — **52/52 passed**.
+- Brochure contract suite — **104/105 passed**; the single failure is the same pre-existing Phase 9 DI registration expectation present in the Phase 25 baseline and is unrelated to Phase 26.
+- Static delimiter/lexical sanity check performed on all modified C# files — passed.
+- .NET build/test could not be executed here because the .NET SDK is not installed in the execution environment. Run the supplied Phase 26 PowerShell validator on the development workstation.

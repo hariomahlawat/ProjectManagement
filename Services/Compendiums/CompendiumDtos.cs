@@ -45,6 +45,11 @@ public enum CompendiumCoverImageMode
     None = 2
 }
 
+public sealed record CompendiumPublicationSection(
+    string SectionKey,
+    string Name,
+    int SortOrder);
+
 public enum CompendiumImageQuality
 {
     Unknown = 0,
@@ -113,7 +118,9 @@ public sealed record CompendiumProjectSelection(
     /// Publication-only section assignment. It never modifies the project's authoritative
     /// Technical Category or any other PRISM master data.
     /// </summary>
+    public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
+    public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
 }
 
 public sealed record CompendiumReviewPhotoVm(
@@ -163,7 +170,9 @@ public sealed record CompendiumReviewProjectDto(
     public int ProjectBriefWordCount { get; init; }
     public int CapabilityStatementCount { get; init; }
     public int DescriptionWordCount { get; init; }
+    public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
+    public bool UsesNarrativeOverride { get; init; }
 }
 
 public sealed record CompendiumProjectDto(
@@ -198,7 +207,9 @@ public sealed record CompendiumProjectDto(
     public bool ExplicitPhotoUnavailable { get; init; }
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public string NarrativeLabel { get; init; } = "Project Brief";
+    public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
+    public bool UsesNarrativeOverride { get; init; }
     public int PublicationYear { get; init; }
 }
 
@@ -291,6 +302,7 @@ public sealed record CompendiumPublicationRequest(
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
+    public IReadOnlyList<CompendiumPublicationSection> Sections { get; init; } = Array.Empty<CompendiumPublicationSection>();
 }
 
 public sealed record CompendiumPdfDataDto(
@@ -379,10 +391,10 @@ public static class CompendiumPublicationImagePolicy
                 .Trim().Length;
 }
 
+
 /// <summary>
-/// Fixed geometry for the Compendium cover hero. This is intentionally separate from
-/// <see cref="CompendiumPublicationImagePolicy"/> because project dossier imagery is adaptive,
-/// while the publication cover uses one stable editorial frame.
+/// Fixed geometry for the Compendium cover hero. Project dossier imagery is adaptive,
+/// while the publication cover intentionally uses one stable editorial frame.
 /// </summary>
 public static class CompendiumCoverImagePolicy
 {

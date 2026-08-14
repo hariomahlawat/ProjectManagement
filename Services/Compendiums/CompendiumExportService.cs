@@ -60,7 +60,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 {
                     NarrativeSource = request.NarrativeSource,
                     GroupingMode = request.GroupingMode,
-                    SortMode = request.SortMode
+                    SortMode = request.SortMode,
+                    Sections = request.Sections
                 },
                 cancellationToken)
             : await _readService.GetProliferationCompendiumAsync(cancellationToken);

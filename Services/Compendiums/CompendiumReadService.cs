@@ -20,7 +20,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-13_editorial-composer-v4";
+    public const string BuildStamp = "CompendiumPdf_2026-08-14_publication-workspace-v5";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -144,6 +144,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         ArgumentNullException.ThrowIfNull(request);
 
         var selections = NormalizeSelections(request.Projects);
+        var sections = NormalizeSections(request.Sections);
         var requestedIds = selections.Select(selection => selection.ProjectId).ToArray();
         var generatedAtUtc = _clock.UtcNow.ToUniversalTime();
         var candidateCount = await CountCandidatesAsync(cancellationToken);
@@ -240,7 +241,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
                                 ?? Array.Empty<PhotoCandidate>();
             var resolved = resolvedSelections.First(item => item.Project.ProjectId == project.Id);
             var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
-            var narrative = ResolveNarrative(project, capabilities, request.NarrativeSource);
+            var effectiveNarrativeSource = selection.NarrativeSourceOverride ?? NormalizeNarrativeSource(request.NarrativeSource);
+            var narrative = ResolveNarrative(project, capabilities, effectiveNarrativeSource);
+            var sectionAssignment = ResolveSectionAssignment(selection, sections);
             var probe = resolved.ResolvedPhotoId.HasValue
                 ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
                 : null;
@@ -265,7 +268,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 resolved.Selection.FocalX,
                 resolved.Selection.FocalY)
             {
-                NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource)
+                NarrativeSource = effectiveNarrativeSource,
+                PublicationSectionKey = sectionAssignment.SectionKey,
+                PublicationSectionName = sectionAssignment.SectionName
             });
 
             var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
@@ -322,15 +327,33 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 IsReviewed = assessment.IsReviewed,
                 IsReviewStale = assessment.IsReviewStale,
                 ExplicitPhotoUnavailable = resolved.ExplicitPhotoUnavailable,
-                NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource),
+                NarrativeSource = effectiveNarrativeSource,
                 NarrativeLabel = narrative.Label,
-                CustomSectionName = NormalizeCustomSection(resolved.Selection.CustomSectionName),
+                CustomSectionKey = sectionAssignment.SectionKey,
+                CustomSectionName = sectionAssignment.SectionName,
+                UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
                 PublicationYear = ResolvePublicationYear(project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt)
             });
         }
 
-        var orderedPublicationProjects = ApplySortMode(publicationProjects, request.SortMode);
-        var groups = GroupInPublicationOrder(orderedPublicationProjects, request.GroupingMode);
+        if (NormalizeGroupingMode(request.GroupingMode) == CompendiumGroupingMode.CustomSections)
+        {
+            var assignedKeys = sections.Select(section => section.SectionKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var project in publicationProjects.Where(project => string.IsNullOrWhiteSpace(project.CustomSectionKey)
+                                                                         || !assignedKeys.Contains(project.CustomSectionKey!)))
+            {
+                findings.Add(new CompendiumFindingDto(
+                    CompendiumFindingSeverity.Warning,
+                    "customSectionUnassigned",
+                    $"{project.ProjectName} is not assigned to a custom publication section and will appear under Other Projects.",
+                    project.ProjectId,
+                    project.ProjectName));
+            }
+        }
+
+        var structure = BuildPublicationStructure(publicationProjects, request.GroupingMode, request.SortMode, sections);
+        var orderedPublicationProjects = structure.Projects;
+        var groups = structure.Groups;
         var projectOrder = orderedPublicationProjects.ToDictionary(project => project.ProjectId, project => project.SortOrder);
         var orderedFindings = findings
             .OrderByDescending(finding => finding.Severity)
@@ -398,7 +421,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             return null;
         }
 
-        narrativeSource = NormalizeNarrativeSource(narrativeSource);
+        narrativeSource = selection.NarrativeSourceOverride ?? NormalizeNarrativeSource(narrativeSource);
         var capabilitiesByProject = await LoadCapabilityStatementsAsync(new[] { project.Id }, cancellationToken);
         var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
         var narrative = ResolveNarrative(project, capabilities, narrativeSource);
@@ -470,7 +493,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
             resolved.Selection.FocalX,
             resolved.Selection.FocalY)
         {
-            NarrativeSource = narrativeSource
+            NarrativeSource = narrativeSource,
+            PublicationSectionKey = selection.CustomSectionKey,
+            PublicationSectionName = selection.CustomSectionName
         });
         var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
             project.Id,
@@ -529,7 +554,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ProjectBriefWordCount = CountWords(project.ProjectBrief),
             CapabilityStatementCount = capabilities.Count,
             DescriptionWordCount = CountWords(project.Description),
-            CustomSectionName = NormalizeCustomSection(selection.CustomSectionName)
+            CustomSectionKey = NormalizeSectionKey(selection.CustomSectionKey),
+            CustomSectionName = NormalizeCustomSection(selection.CustomSectionName),
+            UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue
         };
     }
 
@@ -817,75 +844,165 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ? selection.ImageSelectionMode
                 : CompendiumImageSelectionMode.Automatic,
             ReviewFingerprint = CleanFingerprint(selection.ReviewFingerprint),
-            CustomSectionName = NormalizeCustomSection(selection.CustomSectionName)
+            CustomSectionKey = NormalizeSectionKey(selection.CustomSectionKey),
+            CustomSectionName = NormalizeCustomSection(selection.CustomSectionName),
+            NarrativeSourceOverride = selection.NarrativeSourceOverride.HasValue
+                ? NormalizeNarrativeSource(selection.NarrativeSourceOverride.Value)
+                : null
         };
 
-    private static IReadOnlyList<CompendiumProjectDto> ApplySortMode(
+    private static PublicationStructureResult BuildPublicationStructure(
+        IReadOnlyList<CompendiumProjectDto> projects,
+        CompendiumGroupingMode groupingMode,
+        CompendiumSortMode sortMode,
+        IReadOnlyList<CompendiumPublicationSection> sections)
+    {
+        groupingMode = NormalizeGroupingMode(groupingMode);
+        sortMode = NormalizeSortMode(sortMode);
+        if (projects.Count == 0)
+        {
+            return new PublicationStructureResult(Array.Empty<CompendiumProjectDto>(), Array.Empty<CompendiumCategoryGroupDto>());
+        }
+
+        var authoredOrder = projects.OrderBy(project => project.SortOrder).ToArray();
+        var grouped = new List<(string Name, IReadOnlyList<CompendiumProjectDto> Projects)>();
+
+        if (groupingMode == CompendiumGroupingMode.None)
+        {
+            grouped.Add(("Projects", SortProjects(authoredOrder, sortMode)));
+        }
+        else if (groupingMode == CompendiumGroupingMode.CustomSections)
+        {
+            var normalizedSections = NormalizeSections(sections);
+            foreach (var section in normalizedSections.OrderBy(section => section.SortOrder))
+            {
+                var members = authoredOrder
+                    .Where(project => string.Equals(project.CustomSectionKey, section.SectionKey, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                if (members.Length > 0)
+                {
+                    grouped.Add((section.Name, SortProjects(members, sortMode)));
+                }
+            }
+
+            var knownKeys = normalizedSections.Select(section => section.SectionKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var unassigned = authoredOrder
+                .Where(project => string.IsNullOrWhiteSpace(project.CustomSectionKey)
+                                  || !knownKeys.Contains(project.CustomSectionKey!))
+                .ToArray();
+            if (unassigned.Length > 0)
+            {
+                grouped.Add(("Other Projects", SortProjects(unassigned, sortMode)));
+            }
+        }
+        else
+        {
+            var sectionOrder = new List<string>();
+            foreach (var project in authoredOrder)
+            {
+                var sectionName = NormalizeDisplay(project.TechnicalCategoryName, "Not recorded");
+                if (!sectionOrder.Any(existing => string.Equals(existing, sectionName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    sectionOrder.Add(sectionName);
+                }
+            }
+
+            foreach (var sectionName in sectionOrder)
+            {
+                var members = authoredOrder
+                    .Where(project => string.Equals(
+                        NormalizeDisplay(project.TechnicalCategoryName, "Not recorded"),
+                        sectionName,
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                grouped.Add((sectionName, SortProjects(members, sortMode)));
+            }
+        }
+
+        var flattened = new List<CompendiumProjectDto>(projects.Count);
+        var finalGroups = new List<CompendiumCategoryGroupDto>(grouped.Count);
+        var nextOrder = 0;
+        foreach (var group in grouped)
+        {
+            var groupProjects = group.Projects
+                .Select(project => project with { SortOrder = nextOrder++ })
+                .ToArray();
+            flattened.AddRange(groupProjects);
+            finalGroups.Add(new CompendiumCategoryGroupDto(group.Name, groupProjects));
+        }
+
+        return new PublicationStructureResult(flattened, finalGroups);
+    }
+
+    private static IReadOnlyList<CompendiumProjectDto> SortProjects(
         IReadOnlyList<CompendiumProjectDto> projects,
         CompendiumSortMode sortMode)
-    {
-        sortMode = NormalizeSortMode(sortMode);
-        IEnumerable<CompendiumProjectDto> ordered = sortMode switch
+        => NormalizeSortMode(sortMode) switch
         {
             CompendiumSortMode.LatestFirst => projects
                 .OrderByDescending(project => project.PublicationYear)
                 .ThenByDescending(project => project.CompletionYearValue ?? 0)
                 .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(project => project.SortOrder),
+                .ThenBy(project => project.SortOrder)
+                .ToArray(),
             CompendiumSortMode.Alphabetical => projects
                 .OrderBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(project => project.SortOrder),
-            _ => projects.OrderBy(project => project.SortOrder)
+                .ThenBy(project => project.SortOrder)
+                .ToArray(),
+            _ => projects.OrderBy(project => project.SortOrder).ToArray()
         };
 
-        return ordered
-            .Select((project, index) => project with { SortOrder = index })
-            .ToArray();
+    private static IReadOnlyList<CompendiumPublicationSection> NormalizeSections(
+        IReadOnlyList<CompendiumPublicationSection>? sections)
+    {
+        if (sections is null || sections.Count == 0)
+        {
+            return Array.Empty<CompendiumPublicationSection>();
+        }
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<CompendiumPublicationSection>();
+        foreach (var section in sections.OrderBy(section => section.SortOrder))
+        {
+            var key = NormalizeSectionKey(section.SectionKey);
+            var name = NormalizeCustomSection(section.Name);
+            if (key is null || name is null || !keys.Add(key) || !names.Add(name))
+            {
+                continue;
+            }
+
+            result.Add(new CompendiumPublicationSection(key, name, result.Count));
+        }
+
+        return result;
     }
 
-    private static IReadOnlyList<CompendiumCategoryGroupDto> GroupInPublicationOrder(
-        IReadOnlyList<CompendiumProjectDto> projects,
-        CompendiumGroupingMode groupingMode)
+    private static SectionAssignment ResolveSectionAssignment(
+        CompendiumProjectSelection selection,
+        IReadOnlyList<CompendiumPublicationSection> sections)
     {
-        groupingMode = NormalizeGroupingMode(groupingMode);
-        if (projects.Count == 0)
+        var key = NormalizeSectionKey(selection.CustomSectionKey);
+        if (key is not null)
         {
-            return Array.Empty<CompendiumCategoryGroupDto>();
-        }
-
-        if (groupingMode == CompendiumGroupingMode.None)
-        {
-            return new[]
+            var byKey = sections.FirstOrDefault(section => string.Equals(section.SectionKey, key, StringComparison.OrdinalIgnoreCase));
+            if (byKey is not null)
             {
-                new CompendiumCategoryGroupDto(
-                    "Projects",
-                    projects.OrderBy(project => project.SortOrder).ToArray())
-            };
-        }
-
-        string SectionFor(CompendiumProjectDto project)
-            => groupingMode == CompendiumGroupingMode.CustomSections
-                ? NormalizeCustomSection(project.CustomSectionName) ?? "Other Projects"
-                : NormalizeDisplay(project.TechnicalCategoryName, "Not recorded");
-
-        var sectionOrder = new List<string>();
-        foreach (var project in projects.OrderBy(project => project.SortOrder))
-        {
-            var section = SectionFor(project);
-            if (!sectionOrder.Any(existing => string.Equals(existing, section, StringComparison.OrdinalIgnoreCase)))
-            {
-                sectionOrder.Add(section);
+                return new SectionAssignment(byKey.SectionKey, byKey.Name);
             }
         }
 
-        return sectionOrder
-            .Select(section => new CompendiumCategoryGroupDto(
-                section,
-                projects
-                    .Where(project => string.Equals(SectionFor(project), section, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(project => project.SortOrder)
-                    .ToArray()))
-            .ToArray();
+        var legacyName = NormalizeCustomSection(selection.CustomSectionName);
+        if (legacyName is not null)
+        {
+            var byName = sections.FirstOrDefault(section => string.Equals(section.Name, legacyName, StringComparison.OrdinalIgnoreCase));
+            if (byName is not null)
+            {
+                return new SectionAssignment(byName.SectionKey, byName.Name);
+            }
+        }
+
+        return new SectionAssignment(null, legacyName);
     }
 
     private static int? ResolveCompletionYear(int? completedYear, DateOnly? completedOn)
@@ -972,6 +1089,20 @@ public sealed class CompendiumReadService : ICompendiumReadService
         return clean.Length <= 120 ? clean : clean[..120].TrimEnd();
     }
 
+    private static string? NormalizeSectionKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var clean = new string(value.Trim()
+            .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_')
+            .Take(40)
+            .ToArray());
+        return clean.Length == 0 ? null : clean;
+    }
+
     private static int ResolvePublicationYear(
         short? yearOfDevelopment,
         int? completedYear,
@@ -1009,6 +1140,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var clean = value.Trim();
         return clean.Length <= 128 ? clean : clean[..128];
     }
+
+    private sealed record PublicationStructureResult(
+        IReadOnlyList<CompendiumProjectDto> Projects,
+        IReadOnlyList<CompendiumCategoryGroupDto> Groups);
+
+    private sealed record SectionAssignment(string? SectionKey, string? SectionName);
 
     private sealed record CandidateRow(
         int Id,

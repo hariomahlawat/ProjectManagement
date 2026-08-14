@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..', '..', '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 
 const view = read('Pages/Projects/Publications/Compendium/Index.cshtml');
+const brochureView = read('Pages/Projects/Publications/Brochure/Index.cshtml');
 const page = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs');
 const js = read('wwwroot/js/pages/projects-compendium.js');
 const css = read('wwwroot/css/pages/projects-publications.css');
@@ -28,6 +29,7 @@ const landing = read('Pages/Projects/Publications/Index.cshtml');
 const migration = read('Migrations/20261208140000_AddCompendiumPublicationImagery.cs');
 const coverMigration = read('Migrations/20261208150000_AddCompendiumCoverHeroControls.cs');
 const editorialMigration = read('Migrations/20261208160000_AddCompendiumEditorialComposer.cs');
+const workspaceMigration = read('Migrations/20261208170000_AddCompendiumFirstClassSections.cs');
 const sanitizer = read('Utilities/Reporting/CompendiumPublicationTextSanitizer.cs');
 const manifest = read('Migrations/immutable-migration-ids.txt');
 
@@ -47,7 +49,7 @@ test('phase 23 keeps user-authored project membership and order authoritative', 
   assert.match(js, /orderedIds/);
   assert.match(js, /dragstart/);
   assert.match(js, /Select first 100 matching/);
-  assert.match(service, /GroupInPublicationOrder/);
+  assert.match(service, /BuildPublicationStructure/);
   assert.match(exportService, /ProjectSelections/);
 });
 
@@ -71,7 +73,7 @@ test('editorial composer separates publication grouping from sort order and pres
   assert.match(view, /data-grouping-value="CustomSections"/);
   assert.match(view, /data-sort-value="LatestFirst"/);
   assert.match(view, /data-sort-value="Alphabetical"/);
-  assert.match(service, /ApplySortMode/);
+  assert.match(service, /SortProjects/);
   assert.match(service, /CustomSectionName/);
   assert.match(builder, /TechnicalCategoryDisplay/);
   assert.match(js, /publicationGroups/);
@@ -152,7 +154,9 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v2/);
+  assert.match(fingerprint, /compendium-review-v3/);
+  assert.match(fingerprint, /PublicationSectionKey/);
+  assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
   assert.match(fingerprint, /ProjectName/);
   assert.match(fingerprint, /ProliferationCostLakhs/);
@@ -214,8 +218,8 @@ test('phase 23 avoids stale async preflight and review responses', () => {
   assert.match(js, /Checking publication/);
 });
 
-test('editorial composer persists image, cover, narrative and structure configuration through schema v4', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*4/);
+test('publication workspace persists first-class sections and project narrative overrides through schema v5', () => {
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*5/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);
@@ -234,6 +238,14 @@ test('editorial composer persists image, cover, narrative and structure configur
   assert.match(editorialMigration, /SortMode/);
   assert.match(editorialMigration, /CustomSectionName/);
   assert.match(manifest, /20261208160000_AddCompendiumEditorialComposer/);
+  assert.match(workspaceMigration, /Migration\("20261208170000_AddCompendiumFirstClassSections"\)/);
+  assert.match(workspaceMigration, /CompendiumPresetSections/);
+  assert.match(workspaceMigration, /CustomSectionId/);
+  assert.match(workspaceMigration, /NarrativeSourceOverride/);
+  assert.match(manifest, /20261208170000_AddCompendiumFirstClassSections/);
+  assert.match(model, /ICollection<CompendiumPresetSection> Sections/);
+  assert.match(model, /CustomSectionId/);
+  assert.match(model, /NarrativeSourceOverride/);
 });
 
 test('phase 23 registers readiness policy without creating a second factual store', () => {
@@ -466,4 +478,70 @@ test('phase 24.1 orders readiness findings by severity and publication order', (
 
 test('phase 24.1 has a content-aware no-JS review-image aspect fallback', () => {
   assert.match(css, /compendium-review-image-frame[^\n]*aspect-ratio:519\/240/);
+});
+
+
+test('phase 26 makes Brochure and Compendium true full-width publication workspaces', () => {
+  assert.match(view, /ViewData\["UseFullWidth"\]\s*=\s*true/);
+  assert.match(view, /ViewData\["PageShell"\]\s*=\s*"workspace"/);
+  assert.match(brochureView, /ViewData\["UseFullWidth"\]\s*=\s*true/);
+  assert.match(brochureView, /ViewData\["PageShell"\]\s*=\s*"workspace"/);
+  assert.match(css, /publications-page\.compendium-builder-page[\s\S]*max-width:\s*none/);
+  assert.match(css, /publications-page\.brochure-builder[\s\S]*max-width:\s*none/);
+  assert.match(css, /@media \(min-width: 1800px\)/);
+});
+
+test('phase 26 custom sections are first-class independent objects rather than project-derived names', () => {
+  assert.match(dto, /CompendiumPublicationSection/);
+  assert.match(presetContracts, /CompendiumPresetSectionConfiguration/);
+  assert.match(page, /CustomSectionsJson/);
+  assert.match(js, /customSections/);
+  assert.match(js, /serializeSections/);
+  assert.match(js, /createSectionKey/);
+  assert.match(js, /data-custom-section-add/);
+  assert.match(js, /const knownCustomSections = \(\) => customSections\.map/);
+  assert.match(service, /NormalizeSections/);
+});
+
+test('phase 26 preserves custom section order while sorting projects within sections', () => {
+  assert.match(service, /foreach \(var section in normalizedSections\.OrderBy\(section => section\.SortOrder\)\)/);
+  assert.match(service, /grouped\.Add\(\(section\.Name, SortProjects\(members, sortMode\)\)\)/);
+  assert.match(js, /customSections\.map\(section =>/);
+  assert.match(js, /sortProjectIds/);
+  assert.match(js, /moveSection/);
+});
+
+test('phase 26 supports safe custom section creation rename reorder delete and drag assignment', () => {
+  assert.match(view, /id="compendiumSectionDeleteModal"/);
+  assert.match(js, /data-section-rename/);
+  assert.match(js, /data-section-group-up/);
+  assert.match(js, /data-section-group-down/);
+  assert.match(js, /data-section-delete/);
+  assert.match(js, /data-section-drag-handle/);
+  assert.match(js, /assignProjectToSection/);
+  assert.match(js, /Unassigned/);
+  assert.doesNotMatch(js, /\bconfirm\s*\(/);
+});
+
+test('phase 26 supports a per-project narrative override while retaining a publication default', () => {
+  assert.match(dto, /NarrativeSourceOverride/);
+  assert.match(page, /NarrativeSourceOverride/);
+  assert.match(presetContracts, /NarrativeSourceOverride/);
+  assert.match(service, /selection\.NarrativeSourceOverride \?\?/);
+  assert.match(js, /effectiveNarrativeSource/);
+  assert.match(js, /setProjectNarrativeSource/);
+  assert.match(js, /Use publication default/);
+});
+
+test('phase 26 aggregates readiness findings and removes authoring language from issued no-photo pages', () => {
+  assert.match(js, /compendium-finding-group/);
+  assert.match(css, /compendium-finding-group/);
+  assert.match(builder, /CAPABILITY DOSSIER/);
+  assert.doesNotMatch(builder, /Publication image not selected/);
+  assert.doesNotMatch(builder, /project record remains fully publishable/);
+});
+
+test('phase 26 no-grouping index suppresses an artificial Projects section heading', () => {
+  assert.match(builder, /showGroupHeadings/);
+  assert.match(builder, /string\.Equals\(planned\.IndexGroups\[0\]\.CategoryName, "Projects"/);
 });

@@ -4,6 +4,8 @@
 @using ProjectManagement.Services.Compendiums
 @using ProjectManagement.Services.Publications
 @{
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
     ViewData["Title"] = "Simulators Compendium";
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 }
@@ -111,6 +113,7 @@
         @Html.AntiForgeryToken()
         <input asp-for="Input.SelectedProjectIdsCsv" type="hidden" data-selected-project-ids />
         <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
+        <input asp-for="Input.CustomSectionsJson" type="hidden" data-custom-sections />
         <input asp-for="Input.NarrativeSource" type="hidden" data-narrative-source />
         <input asp-for="Input.GroupingMode" type="hidden" data-grouping-mode />
         <input asp-for="Input.SortMode" type="hidden" data-sort-mode />
@@ -509,9 +512,9 @@
                     <div class="compendium-custom-section-toolbar" data-custom-section-toolbar hidden>
                         <div>
                             <input class="form-control form-control-sm" maxlength="120" placeholder="New section name" data-custom-section-name />
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-custom-section-add><i class="bi bi-plus-lg"></i> Add</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-custom-section-add><i class="bi bi-plus-lg"></i> Add section</button>
                         </div>
-                        <small>Create publication-only sections, then assign projects below.</small>
+                        <small><span data-custom-section-summary>No custom sections yet.</span> Sections exist independently; drag projects between them or use the assignment control.</small>
                     </div>
                     <div class="compendium-order-list" data-order-list>
                         <div class="compendium-order-empty">
@@ -687,6 +690,25 @@
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" type="button" data-rename-confirm>Rename</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="compendiumSectionDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete publication section?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" data-section-delete-message>
+                Projects in this section will move to Unassigned. Project master data is not changed.
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-section-delete-confirm>Delete section</button>
             </div>
         </div>
     </div>

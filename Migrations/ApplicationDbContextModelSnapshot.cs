@@ -5378,7 +5378,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(4);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(5);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
@@ -5391,13 +5391,31 @@ namespace ProjectManagement.Migrations
                     b.ToTable("CompendiumPresets");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetSection", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<long>("PresetId").HasColumnType("bigint");
+                    b.Property<string>("SectionKey").IsRequired().HasMaxLength(40).HasColumnType("character varying(40)");
+                    b.Property<int>("SortOrder").HasColumnType("integer");
+                    b.HasKey("Id");
+                    b.HasIndex("PresetId", "NormalizedName").IsUnique().HasDatabaseName("UX_CompendiumPresetSections_Preset_Name");
+                    b.HasIndex("PresetId", "SectionKey").IsUnique().HasDatabaseName("UX_CompendiumPresetSections_Preset_Key");
+                    b.HasIndex("PresetId", "SortOrder").IsUnique().HasDatabaseName("UX_CompendiumPresetSections_Preset_SortOrder");
+                    b.ToTable("CompendiumPresetSections");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetProject", b =>
                 {
                     b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
                     b.Property<long>("PresetId").HasColumnType("bigint");
+                    b.Property<long?>("CustomSectionId").HasColumnType("bigint");
                     b.Property<string>("ImageSelectionMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
                     b.Property<string>("CustomSectionName").HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<string>("NarrativeSourceOverride").HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<double>("PrimaryFocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
                     b.Property<double>("PrimaryFocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
                     b.Property<int?>("PrimaryPhotoId").HasColumnType("integer");
@@ -5405,6 +5423,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("ProjectNameSnapshot").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<int>("SortOrder").HasColumnType("integer");
                     b.HasKey("Id");
+                    b.HasIndex("CustomSectionId").HasDatabaseName("IX_CompendiumPresetProjects_CustomSectionId");
                     b.HasIndex("ProjectId").HasDatabaseName("IX_CompendiumPresetProjects_ProjectId");
                     b.HasIndex("PresetId", "ProjectId").IsUnique().HasDatabaseName("UX_CompendiumPresetProjects_Preset_Project");
                     b.HasIndex("PresetId", "SortOrder").IsUnique().HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder");
@@ -9030,10 +9049,18 @@ namespace ProjectManagement.Migrations
                     b.Navigation("LastModifiedByUser");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetSection", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Publications.CompendiumPreset", "Preset").WithMany("Sections").HasForeignKey("PresetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("Preset");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetProject", b =>
                 {
+                    b.HasOne("ProjectManagement.Models.Publications.CompendiumPresetSection", "CustomSection").WithMany("Projects").HasForeignKey("CustomSectionId").OnDelete(DeleteBehavior.SetNull);
                     b.HasOne("ProjectManagement.Models.Publications.CompendiumPreset", "Preset").WithMany("Projects").HasForeignKey("PresetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                     b.HasOne("ProjectManagement.Models.Project", "Project").WithMany().HasForeignKey("ProjectId").OnDelete(DeleteBehavior.SetNull);
+                    b.Navigation("CustomSection");
                     b.Navigation("Preset");
                     b.Navigation("Project");
                 });
@@ -9918,6 +9945,13 @@ namespace ProjectManagement.Migrations
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPreset", b =>
+                {
+                    b.Navigation("Projects");
+
+                    b.Navigation("Sections");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetSection", b =>
                 {
                     b.Navigation("Projects");
                 });

@@ -17,6 +17,7 @@ public sealed record CompendiumExportRequest(
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
+    public IReadOnlyList<CompendiumPublicationSection> Sections { get; init; } = Array.Empty<CompendiumPublicationSection>();
 }
 
 public sealed record CompendiumExportResult(

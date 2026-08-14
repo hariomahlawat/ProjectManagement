@@ -68,6 +68,7 @@ namespace ProjectManagement.Data
         public DbSet<BrochurePreset> BrochurePresets => Set<BrochurePreset>();
         public DbSet<BrochurePresetProject> BrochurePresetProjects => Set<BrochurePresetProject>();
         public DbSet<CompendiumPreset> CompendiumPresets => Set<CompendiumPreset>();
+        public DbSet<CompendiumPresetSection> CompendiumPresetSections => Set<CompendiumPresetSection>();
         public DbSet<CompendiumPresetProject> CompendiumPresetProjects => Set<CompendiumPresetProject>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
@@ -661,7 +662,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.CoverFocalY).HasDefaultValue(.5d).IsRequired();
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(4).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(5).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
                 entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();
@@ -671,6 +672,27 @@ namespace ProjectManagement.Data
                 entity.HasOne(preset => preset.LastModifiedByUser).WithMany().HasForeignKey(preset => preset.LastModifiedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
 
+            builder.Entity<CompendiumPresetSection>(entity =>
+            {
+                entity.ToTable("CompendiumPresetSections");
+                entity.Property(section => section.SectionKey).HasMaxLength(40).IsRequired();
+                entity.Property(section => section.Name).HasMaxLength(120).IsRequired();
+                entity.Property(section => section.NormalizedName).HasMaxLength(120).IsRequired();
+                entity.HasIndex(section => new { section.PresetId, section.SectionKey })
+                    .HasDatabaseName("UX_CompendiumPresetSections_Preset_Key")
+                    .IsUnique();
+                entity.HasIndex(section => new { section.PresetId, section.NormalizedName })
+                    .HasDatabaseName("UX_CompendiumPresetSections_Preset_Name")
+                    .IsUnique();
+                entity.HasIndex(section => new { section.PresetId, section.SortOrder })
+                    .HasDatabaseName("UX_CompendiumPresetSections_Preset_SortOrder")
+                    .IsUnique();
+                entity.HasOne(section => section.Preset)
+                    .WithMany(preset => preset.Sections)
+                    .HasForeignKey(section => section.PresetId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             builder.Entity<CompendiumPresetProject>(entity =>
             {
                 entity.ToTable("CompendiumPresetProjects");
@@ -678,12 +700,18 @@ namespace ProjectManagement.Data
                 entity.Property(item => item.PrimaryFocalX).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.PrimaryFocalY).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.ImageSelectionMode).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
+                entity.Property(item => item.NarrativeSourceOverride).HasMaxLength(32);
                 entity.Property(item => item.CustomSectionName).HasMaxLength(120);
                 entity.HasIndex(item => new { item.PresetId, item.SortOrder }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder").IsUnique();
                 entity.HasIndex(item => new { item.PresetId, item.ProjectId }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_Project").IsUnique();
                 entity.HasIndex(item => item.ProjectId).HasDatabaseName("IX_CompendiumPresetProjects_ProjectId");
+                entity.HasIndex(item => item.CustomSectionId).HasDatabaseName("IX_CompendiumPresetProjects_CustomSectionId");
                 entity.HasOne(item => item.Preset).WithMany(preset => preset.Projects).HasForeignKey(item => item.PresetId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(item => item.CustomSection)
+                    .WithMany(section => section.Projects)
+                    .HasForeignKey(item => item.CustomSectionId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // SECTION: Project briefing decks

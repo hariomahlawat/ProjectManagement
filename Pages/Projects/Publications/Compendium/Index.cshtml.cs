@@ -171,7 +171,7 @@ public sealed class IndexModel : PageModel
 
         var review = await _readService.GetReviewProjectAsync(
             selection,
-            ParseNarrativeSource(Input.NarrativeSource),
+            selection.NarrativeSourceOverride ?? ParseNarrativeSource(Input.NarrativeSource),
             cancellationToken);
         if (review is null)
         {
@@ -208,7 +208,9 @@ public sealed class IndexModel : PageModel
             review.ProjectBriefWordCount,
             review.CapabilityStatementCount,
             review.DescriptionWordCount,
+            review.CustomSectionKey,
             review.CustomSectionName,
+            review.UsesNarrativeOverride,
             review.ResolvedPhotoId,
             photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
             imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
@@ -455,7 +457,8 @@ public sealed class IndexModel : PageModel
                 {
                     NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
                     GroupingMode = ParseGroupingMode(Input.GroupingMode),
-                    SortMode = ParseSortMode(Input.SortMode)
+                    SortMode = ParseSortMode(Input.SortMode),
+                    Sections = ParseSections()
                 },
                 cancellationToken);
 
@@ -532,6 +535,8 @@ public sealed class IndexModel : PageModel
                 Input.NarrativeSource = loaded.Configuration.NarrativeSource.ToString();
                 Input.GroupingMode = loaded.Configuration.GroupingMode.ToString();
                 Input.SortMode = loaded.Configuration.SortMode.ToString();
+                Input.CustomSectionsJson = SerializeSections(loaded.Configuration.Sections.Select(section =>
+                    new CompendiumPublicationSection(section.SectionKey, section.Name, section.SortOrder)));
                 Input.SelectedProjectIdsCsv = string.Join(',', loaded.Configuration.ProjectIds);
                 Input.ProjectSelectionsJson = SerializeSelections(
                     loaded.Configuration.Projects.Select(project => new CompendiumProjectSelection(
@@ -542,7 +547,9 @@ public sealed class IndexModel : PageModel
                         project.ImageSelectionMode,
                         ReviewFingerprint: null)
                     {
-                        CustomSectionName = project.CustomSectionName
+                        CustomSectionKey = project.CustomSectionKey,
+                        CustomSectionName = project.CustomSectionName,
+                        NarrativeSourceOverride = project.NarrativeSourceOverride
                     }));
             }
             catch (Exception exception)
@@ -629,6 +636,9 @@ public sealed class IndexModel : PageModel
             Input.CoverHeroPhotoId = null;
         }
 
+        var sections = ParseSections();
+        Input.CustomSectionsJson = SerializeSections(sections);
+
         var selections = ParseSelections();
         Input.SelectedProjectIdsCsv = string.Join(',', selections.Select(selection => selection.ProjectId));
         Input.ProjectSelectionsJson = SerializeSelections(selections);
@@ -704,7 +714,9 @@ public sealed class IndexModel : PageModel
                     mode,
                     CleanFingerprint(payload.ReviewFingerprint))
                 {
-                    CustomSectionName = Clean(payload.CustomSectionName, 120)
+                    CustomSectionKey = NormalizeSectionKey(payload.CustomSectionKey),
+                    CustomSectionName = Clean(payload.CustomSectionName, 120),
+                    NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride)
                 };
             })
             .ToArray();
@@ -715,7 +727,8 @@ public sealed class IndexModel : PageModel
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
-            SortMode = ParseSortMode(Input.SortMode)
+            SortMode = ParseSortMode(Input.SortMode),
+            Sections = ParseSections()
         };
 
     private CompendiumPresetConfiguration ToPresetConfiguration()
@@ -732,13 +745,18 @@ public sealed class IndexModel : PageModel
                     selection.FocalY,
                     selection.ImageSelectionMode)
                 {
-                    CustomSectionName = selection.CustomSectionName
+                    CustomSectionKey = selection.CustomSectionKey,
+                    CustomSectionName = selection.CustomSectionName,
+                    NarrativeSourceOverride = selection.NarrativeSourceOverride
                 })
                 .ToArray())
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
+            Sections = ParseSections()
+                .Select(section => new CompendiumPresetSectionConfiguration(section.SectionKey, section.Name, section.SortOrder))
+                .ToArray(),
             Cover = new CompendiumCoverConfiguration(
                 ParseCoverImageMode(Input.CoverImageMode),
                 Input.CoverHeroProjectId,
@@ -769,9 +787,113 @@ public sealed class IndexModel : PageModel
                 FocalY = selection.FocalY,
                 ImageSelectionMode = selection.ImageSelectionMode.ToString(),
                 ReviewFingerprint = selection.ReviewFingerprint,
-                CustomSectionName = selection.CustomSectionName
+                CustomSectionKey = selection.CustomSectionKey,
+                CustomSectionName = selection.CustomSectionName,
+                NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString()
             }),
             JsonOptions);
+
+    private IReadOnlyList<CompendiumPublicationSection> ParseSections()
+    {
+        IReadOnlyList<CompendiumSectionPayload> payloads;
+        try
+        {
+            payloads = string.IsNullOrWhiteSpace(Input.CustomSectionsJson)
+                ? Array.Empty<CompendiumSectionPayload>()
+                : JsonSerializer.Deserialize<List<CompendiumSectionPayload>>(Input.CustomSectionsJson, JsonOptions)
+                  ?? new List<CompendiumSectionPayload>();
+        }
+        catch (JsonException)
+        {
+            payloads = Array.Empty<CompendiumSectionPayload>();
+        }
+
+        var result = new List<CompendiumPublicationSection>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var payload in payloads.OrderBy(section => section.SortOrder))
+        {
+            var name = Clean(payload.Name, 120);
+            if (name is null || !names.Add(name))
+            {
+                continue;
+            }
+
+            var key = NormalizeSectionKey(payload.SectionKey) ?? $"sec-{Guid.NewGuid():N}";
+            if (!keys.Add(key))
+            {
+                key = $"sec-{Guid.NewGuid():N}";
+                keys.Add(key);
+            }
+
+            result.Add(new CompendiumPublicationSection(key, name, result.Count));
+            if (result.Count >= 100)
+            {
+                break;
+            }
+        }
+
+        // Backward compatibility for an in-flight Phase 25 browser payload that only contains
+        // CustomSectionName on projects. This is intentionally a one-way normalization into v5.
+        if (result.Count == 0)
+        {
+            IReadOnlyList<CompendiumProjectSelectionPayload> legacyProjects;
+            try
+            {
+                legacyProjects = string.IsNullOrWhiteSpace(Input.ProjectSelectionsJson)
+                    ? Array.Empty<CompendiumProjectSelectionPayload>()
+                    : JsonSerializer.Deserialize<List<CompendiumProjectSelectionPayload>>(Input.ProjectSelectionsJson, JsonOptions)
+                      ?? new List<CompendiumProjectSelectionPayload>();
+            }
+            catch (JsonException)
+            {
+                legacyProjects = Array.Empty<CompendiumProjectSelectionPayload>();
+            }
+
+            foreach (var project in legacyProjects)
+            {
+                var name = Clean(project.CustomSectionName, 120);
+                if (name is null || !names.Add(name))
+                {
+                    continue;
+                }
+
+                var key = NormalizeSectionKey(project.CustomSectionKey) ?? $"sec-{Guid.NewGuid():N}";
+                result.Add(new CompendiumPublicationSection(key, name, result.Count));
+            }
+        }
+
+        return result;
+    }
+
+    private static string SerializeSections(IEnumerable<CompendiumPublicationSection> sections)
+        => JsonSerializer.Serialize(
+            sections.OrderBy(section => section.SortOrder).Select((section, index) => new CompendiumSectionPayload
+            {
+                SectionKey = NormalizeSectionKey(section.SectionKey) ?? $"sec-{Guid.NewGuid():N}",
+                Name = Clean(section.Name, 120),
+                SortOrder = index
+            }),
+            JsonOptions);
+
+    private static CompendiumNarrativeSource? ParseNullableNarrativeSource(string? value)
+        => Enum.TryParse<CompendiumNarrativeSource>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : null;
+
+    private static string? NormalizeSectionKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var clean = new string(value.Trim()
+            .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_')
+            .Take(40)
+            .ToArray());
+        return clean.Length == 0 ? null : clean;
+    }
 
     private static CompendiumNarrativeSource ParseNarrativeSource(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
@@ -863,6 +985,7 @@ public sealed class IndexModel : PageModel
 
         public string? SelectedProjectIdsCsv { get; set; }
         public string? ProjectSelectionsJson { get; set; }
+        public string? CustomSectionsJson { get; set; }
     }
 
     public sealed class CompendiumProjectSelectionPayload
@@ -873,6 +996,15 @@ public sealed class IndexModel : PageModel
         public double FocalY { get; set; } = .5d;
         public string? ImageSelectionMode { get; set; }
         public string? ReviewFingerprint { get; set; }
+        public string? CustomSectionKey { get; set; }
         public string? CustomSectionName { get; set; }
+        public string? NarrativeSourceOverride { get; set; }
     }
+    public sealed class CompendiumSectionPayload
+    {
+        public string? SectionKey { get; set; }
+        public string? Name { get; set; }
+        public int SortOrder { get; set; }
+    }
+
 }

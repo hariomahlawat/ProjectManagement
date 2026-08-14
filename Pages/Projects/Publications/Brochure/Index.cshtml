@@ -3,6 +3,8 @@
 @using ProjectManagement.Services.Publications
 @using System.Text.Json
 @{
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
     ViewData["Title"] = "Capability Brochure";
     var selectedIds = Model.Input.Selections.Select(selection => selection.ProjectId).ToHashSet();
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);

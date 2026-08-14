@@ -33,6 +33,7 @@
 
     const selectedInput = form.querySelector("[data-selected-project-ids]");
     const selectionsInput = form.querySelector("[data-project-selections]");
+    const sectionsInput = form.querySelector("[data-custom-sections]");
     const narrativeInput = form.querySelector("[data-narrative-source]");
     const groupingInput = form.querySelector("[data-grouping-mode]");
     const sortInput = form.querySelector("[data-sort-mode]");
@@ -44,6 +45,28 @@
         groupingMode: normalizeGrouping(groupingInput?.value),
         sortMode: normalizeSort(sortInput?.value)
     };
+    const cleanSectionName = value => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
+    const cleanSectionKey = value => String(value ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+    const createSectionKey = () => `sec-${(globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`).replace(/[^a-zA-Z0-9]/g, "").slice(0, 32)}`;
+    const sectionSeed = (() => {
+        try { return sectionsInput?.value ? JSON.parse(sectionsInput.value) : []; }
+        catch { return []; }
+    })();
+    let customSections = [];
+    if (Array.isArray(sectionSeed)) {
+        const seenKeys = new Set(), seenNames = new Set();
+        sectionSeed
+            .slice()
+            .sort((a,b) => Number(a?.sortOrder || 0) - Number(b?.sortOrder || 0))
+            .forEach(item => {
+                const name = cleanSectionName(item?.name);
+                if (!name || seenNames.has(normalize(name))) return;
+                let key = cleanSectionKey(item?.sectionKey) || createSectionKey();
+                if (seenKeys.has(normalize(key))) key = createSectionKey();
+                seenKeys.add(normalize(key)); seenNames.add(normalize(name));
+                customSections.push({ sectionKey: key, name, sortOrder: customSections.length });
+            });
+    }
     const activeIdInput = form.querySelector("[data-active-preset-id]");
     const activeVersionInput = form.querySelector("[data-active-preset-row-version]");
     const coverModeInput = form.querySelector("[data-cover-image-mode]");
@@ -83,7 +106,9 @@
                 focalY: roundFocal(item.focalY),
                 imageSelectionMode: mode,
                 reviewFingerprint: String(item.reviewFingerprint || "").trim() || null,
-                customSectionName: String(item.customSectionName || "").trim().slice(0, 120) || null
+                customSectionKey: cleanSectionKey(item.customSectionKey) || null,
+                customSectionName: cleanSectionName(item.customSectionName) || null,
+                narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null
             });
         });
     }
@@ -97,12 +122,40 @@
                 focalY: 0.5,
                 imageSelectionMode: "automatic",
                 reviewFingerprint: null,
-                customSectionName: null
+                customSectionKey: null,
+                customSectionName: null,
+                narrativeSourceOverride: null
             });
         }
         return configById.get(projectId);
     };
     orderedIds.forEach(ensureConfig);
+
+    // One-time browser normalization for a Phase-25 payload where sections only existed on projects.
+    if (customSections.length === 0) {
+        orderedIds.forEach(id => {
+            const config = ensureConfig(id);
+            const name = cleanSectionName(config.customSectionName);
+            if (!name) return;
+            let section = customSections.find(item => normalize(item.name) === normalize(name));
+            if (!section) {
+                section = { sectionKey: cleanSectionKey(config.customSectionKey) || createSectionKey(), name, sortOrder: customSections.length };
+                customSections.push(section);
+            }
+            config.customSectionKey = section.sectionKey;
+            config.customSectionName = section.name;
+        });
+    } else {
+        orderedIds.forEach(id => {
+            const config = ensureConfig(id);
+            let section = config.customSectionKey
+                ? customSections.find(item => normalize(item.sectionKey) === normalize(config.customSectionKey))
+                : null;
+            if (!section && config.customSectionName) section = customSections.find(item => normalize(item.name) === normalize(config.customSectionName));
+            config.customSectionKey = section?.sectionKey || null;
+            config.customSectionName = section?.name || null;
+        });
+    }
 
     let activeReviewId = orderedIds[0] ?? null;
     let activeReviewData = null;
@@ -141,6 +194,7 @@
     const customSectionToolbar = $("[data-custom-section-toolbar]");
     const customSectionName = $("[data-custom-section-name]");
     const customSectionAdd = $("[data-custom-section-add]");
+    const customSectionSummary = $("[data-custom-section-summary]");
     const composerNote = $("[data-composer-note]");
     const narrativeButtons = [...form.querySelectorAll("[data-narrative-value]")];
     const groupingButtons = [...form.querySelectorAll("[data-grouping-value]")];
@@ -241,22 +295,38 @@
     const discardModal = bootstrapModal("compendiumDiscardModal");
     const saveModal = bootstrapModal("compendiumSaveModal");
     const renameModal = bootstrapModal("compendiumRenameModal");
+    const sectionDeleteModal = bootstrapModal("compendiumSectionDeleteModal");
+    const sectionDeleteMessage = document.querySelector("[data-section-delete-message]");
+    const sectionDeleteConfirm = document.querySelector("[data-section-delete-confirm]");
     const deleteModal = bootstrapModal("compendiumDeleteModal");
+    let pendingSectionDeleteKey = null;
     const saveName = document.querySelector("[data-save-name]");
     const saveDescription = document.querySelector("[data-save-description]");
     const saveMessage = document.querySelector("[data-save-message]");
     const renameName = document.querySelector("[data-rename-name]");
 
     const isSelected = id => orderedIds.includes(Number(id));
+    const sectionByKey = key => {
+        const clean = cleanSectionKey(key);
+        return clean ? customSections.find(section => normalize(section.sectionKey) === normalize(clean)) || null : null;
+    };
+    const serializeSections = () => customSections.map((section, index) => ({
+        sectionKey: section.sectionKey,
+        name: section.name,
+        sortOrder: index
+    }));
     const serializeConfigs = (includeReviewFingerprint = true) => orderedIds.map(id => {
         const config = ensureConfig(id);
+        const section = sectionByKey(config.customSectionKey);
         return {
             projectId: id,
             primaryPhotoId: config.imageSelectionMode === "explicit" ? config.primaryPhotoId : null,
             focalX: roundFocal(config.focalX),
             focalY: roundFocal(config.focalY),
             imageSelectionMode: config.imageSelectionMode === "explicit" ? "Explicit" : "Automatic",
-            customSectionName: config.customSectionName || null,
+            customSectionKey: section?.sectionKey || null,
+            customSectionName: section?.name || null,
+            narrativeSourceOverride: config.narrativeSourceOverride || null,
             ...(includeReviewFingerprint ? { reviewFingerprint: config.reviewFingerprint || null } : {})
         };
     });
@@ -264,6 +334,7 @@
     const syncHidden = () => {
         if (selectedInput) selectedInput.value = orderedIds.join(",");
         if (selectionsInput) selectionsInput.value = JSON.stringify(serializeConfigs(true));
+        if (sectionsInput) sectionsInput.value = JSON.stringify(serializeSections());
         if (narrativeInput) narrativeInput.value = editorialState.narrativeSource;
         if (groupingInput) groupingInput.value = editorialState.groupingMode;
         if (sortInput) sortInput.value = editorialState.sortMode;
@@ -285,6 +356,7 @@
         groupingMode: editorialState.groupingMode,
         sortMode: editorialState.sortMode,
         cover: { imageMode: coverState.imageMode, heroProjectId: coverState.imageMode === "explicit" ? coverState.heroProjectId : null, heroPhotoId: coverState.imageMode === "explicit" ? coverState.heroPhotoId : null, focalX: roundFocal(coverState.focalX), focalY: roundFocal(coverState.focalY) },
+        sections: serializeSections(),
         projects: serializeConfigs(false)
     });
     const renderDirty = () => {
@@ -310,41 +382,52 @@
         url.searchParams.set("photoId", String(photoId)); url.searchParams.set("mode", "source"); url.searchParams.set("v", "0");
         return url.toString();
     };
-    const publicationOrderIds = () => {
-        const ids = [...orderedIds];
+    const sortProjectIds = ids => {
+        const result = [...ids];
         if (editorialState.sortMode === "LatestFirst") {
-            return ids.sort((a, b) => {
+            return result.sort((a, b) => {
                 const pa = projectById.get(a), pb = projectById.get(b);
                 const yearDiff = Number(pb?.publicationYear || 0) - Number(pa?.publicationYear || 0);
                 return yearDiff || String(pa?.projectName || "").localeCompare(String(pb?.projectName || ""), undefined, { sensitivity: "base" });
             });
         }
         if (editorialState.sortMode === "Alphabetical") {
-            return ids.sort((a, b) => String(projectById.get(a)?.projectName || "").localeCompare(String(projectById.get(b)?.projectName || ""), undefined, { sensitivity: "base" }));
+            return result.sort((a, b) => String(projectById.get(a)?.projectName || "").localeCompare(String(projectById.get(b)?.projectName || ""), undefined, { sensitivity: "base" }));
         }
-        return ids;
-    };
-    const sectionNameFor = id => {
-        const project = projectById.get(Number(id));
-        if (editorialState.groupingMode === "None") return "Projects";
-        if (editorialState.groupingMode === "CustomSections") return ensureConfig(id).customSectionName || "Other Projects";
-        return String(project?.technicalCategory || "").trim() || "Not recorded";
+        return result;
     };
     const publicationGroups = () => {
-        const groups = [];
-        const byName = new Map();
-        publicationOrderIds().forEach(id => {
-            const name = sectionNameFor(id);
+        if (editorialState.groupingMode === "None") return [{ key: "all", name: "Projects", ids: sortProjectIds(orderedIds), unassigned: false }];
+
+        if (editorialState.groupingMode === "CustomSections") {
+            const groups = customSections.map(section => ({
+                key: section.sectionKey,
+                name: section.name,
+                ids: sortProjectIds(orderedIds.filter(id => normalize(ensureConfig(id).customSectionKey) === normalize(section.sectionKey))),
+                unassigned: false
+            }));
+            const known = new Set(customSections.map(section => normalize(section.sectionKey)));
+            const unassignedIds = sortProjectIds(orderedIds.filter(id => !ensureConfig(id).customSectionKey || !known.has(normalize(ensureConfig(id).customSectionKey))));
+            if (unassignedIds.length) groups.push({ key: "__unassigned", name: "Unassigned", ids: unassignedIds, unassigned: true });
+            return groups;
+        }
+
+        const groups = [], byName = new Map();
+        // Section order is derived from authored/manual order and therefore stays stable when
+        // Latest First or A-Z is applied inside each technical category.
+        orderedIds.forEach(id => {
+            const project = projectById.get(id);
+            const name = String(project?.technicalCategory || "").trim() || "Not recorded";
             const key = normalize(name);
-            if (!byName.has(key)) { const group = { name, ids: [] }; byName.set(key, group); groups.push(group); }
+            if (!byName.has(key)) { const group = { key, name, ids: [], unassigned: false }; byName.set(key, group); groups.push(group); }
             byName.get(key).ids.push(id);
         });
+        groups.forEach(group => { group.ids = sortProjectIds(group.ids); });
         return groups;
     };
-    const knownCustomSections = () => {
-        const values = orderedIds.map(id => ensureConfig(id).customSectionName).filter(Boolean);
-        return [...new Set(values.map(value => String(value).trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-    };
+    const publicationOrderIds = () => publicationGroups().flatMap(group => group.ids);
+    const knownCustomSections = () => customSections.map(section => section.name);
+    const effectiveNarrativeSource = id => ensureConfig(id).narrativeSourceOverride || editorialState.narrativeSource;
 
     const automaticCoverCandidate = () => orderedIds.map(id => ({ id, state: stateFor(id) })).filter(item => item.state?.resolvedPhotoId).sort((a, b) => {
         const rd = Number(Boolean(b.state?.isReviewed)) - Number(Boolean(a.state?.isReviewed)); if (rd) return rd;
@@ -428,17 +511,25 @@
         narrativeButtons.forEach(button => button.classList.toggle("active", normalizeNarrative(button.dataset.narrativeValue) === editorialState.narrativeSource));
         groupingButtons.forEach(button => button.classList.toggle("active", normalizeGrouping(button.dataset.groupingValue) === editorialState.groupingMode));
         sortButtons.forEach(button => button.classList.toggle("active", normalizeSort(button.dataset.sortValue) === editorialState.sortMode));
-        if (customSectionToolbar) customSectionToolbar.hidden = editorialState.groupingMode !== "CustomSections";
-        if (orderModeCopy) orderModeCopy.textContent = editorialState.sortMode === "Manual" ? "manual order" : editorialState.sortMode === "LatestFirst" ? "latest first" : "A–Z";
+        const customMode = editorialState.groupingMode === "CustomSections";
+        if (customSectionToolbar) customSectionToolbar.hidden = !customMode;
+        form.closest(".compendium-builder-page")?.classList.toggle("is-custom-structure", customMode);
+        if (customSectionSummary) {
+            const unassigned = orderedIds.filter(id => !sectionByKey(ensureConfig(id).customSectionKey)).length;
+            customSectionSummary.textContent = customSections.length
+                ? `${customSections.length} section${customSections.length === 1 ? "" : "s"}${unassigned ? ` · ${unassigned} unassigned` : ""}.`
+                : "No custom sections yet.";
+        }
+        if (orderModeCopy) orderModeCopy.textContent = editorialState.sortMode === "Manual" ? "manual order" : editorialState.sortMode === "LatestFirst" ? "latest first within sections" : "A–Z within sections";
         if (orderNote) {
             orderNote.textContent = editorialState.groupingMode === "TechnicalCategory"
-                ? "Projects are grouped by authoritative technical category. Publication order never changes project master data."
-                : editorialState.groupingMode === "CustomSections"
-                    ? "Custom sections exist only in this Compendium. Assign projects below; PRISM technical categories remain unchanged."
-                    : "Projects publish as one continuous catalogue without section grouping.";
+                ? "Technical-category section order remains stable; the selected order mode is applied within each section."
+                : customMode
+                    ? "Custom section order is authored independently. Latest First and A–Z only reorder projects inside each section."
+                    : "Projects publish as one continuous catalogue; the selected order mode applies to the complete project stream.";
         }
-        if (composerNote) composerNote.textContent = editorialState.groupingMode === "CustomSections"
-            ? "Custom section names are publication metadata only. They never overwrite the project's authoritative Technical Category."
+        if (composerNote) composerNote.textContent = customMode
+            ? "Custom sections are publication metadata only. Empty sections are preserved when saved; project master data is never changed."
             : "Technical categories remain authoritative project data. Publication composition only changes this Compendium.";
         form.querySelectorAll("[data-source-readiness]").forEach(node => node.classList.toggle("is-source-active", normalizeNarrative(node.dataset.sourceReadiness) === editorialState.narrativeSource));
     };
@@ -449,33 +540,47 @@
         if (railCount) railCount.textContent = String(orderedIds.length);
         if (clearSelection) { const empty = orderedIds.length === 0; clearSelection.hidden = empty; setControlDisabled(clearSelection, empty); }
         if (!orderList) return;
-        if (orderedIds.length === 0) {
+
+        const manual = editorialState.sortMode === "Manual";
+        const custom = editorialState.groupingMode === "CustomSections";
+        const groups = publicationGroups();
+        if (orderedIds.length === 0 && !customSections.length) {
             orderList.innerHTML = '<div class="compendium-order-empty"><i class="bi bi-journal"></i><span>Select projects from the portfolio.</span></div>';
             return;
         }
-        const manual = editorialState.sortMode === "Manual";
-        const custom = editorialState.groupingMode === "CustomSections";
-        const allSections = knownCustomSections();
-        const htmlForItem = (id, displayIndex, total) => {
+
+        const order = publicationOrderIds();
+        const htmlForItem = (id, group, indexInGroup) => {
             const project = projectById.get(id); if (!project) return "";
+            const config = ensureConfig(id);
             const sectionSelect = custom ? `<select class="compendium-order-section-select" data-section-select aria-label="Publication section for ${escapeHtml(project.projectName)}">
-                <option value="">Other Projects</option>${allSections.map(name => `<option value="${escapeHtml(name)}" ${normalize(ensureConfig(id).customSectionName) === normalize(name) ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+                <option value="">Unassigned</option>${customSections.map(section => `<option value="${escapeHtml(section.sectionKey)}" ${normalize(config.customSectionKey) === normalize(section.sectionKey) ? "selected" : ""}>${escapeHtml(section.name)}</option>`).join("")}
             </select>` : "";
+            const orderIcon = manual ? "bi-grip-vertical" : editorialState.sortMode === "LatestFirst" ? "bi-calendar3" : "bi-sort-alpha-down";
             return `<div class="compendium-order-item${id === activeReviewId ? " is-active" : ""}${manual ? "" : " is-auto-ordered"}" data-order-id="${id}" draggable="${manual ? "true" : "false"}">
-                <span class="compendium-order-handle" aria-label="${manual ? "Drag to reorder" : "Automatic order"}"><i class="bi ${manual ? "bi-grip-vertical" : editorialState.sortMode === "LatestFirst" ? "bi-calendar3" : "bi-sort-alpha-down"}"></i></span>
-                <div class="compendium-order-main"><button class="compendium-order-copy" type="button" data-order-review title="Review ${escapeHtml(project.projectName)}"><strong>${escapeHtml(project.projectName)}</strong><small>${escapeHtml(project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(project.lifecycle)}${project.publicationYear ? ` · ${escapeHtml(project.publicationYear)}` : ""}</small></button>${sectionSelect}</div>
-                <div class="compendium-order-actions">${orderStateMarkup(id)}<button type="button" data-move-up title="Move up" ${!manual || displayIndex === 0 ? "disabled" : ""}><i class="bi bi-chevron-up"></i></button><button type="button" data-move-down title="Move down" ${!manual || displayIndex === total - 1 ? "disabled" : ""}><i class="bi bi-chevron-down"></i></button><button type="button" data-remove title="Remove"><i class="bi bi-x-lg"></i></button></div>
+                <span class="compendium-order-handle" aria-label="${manual ? "Drag to reorder" : "Automatic project order"}"><i class="bi ${orderIcon}"></i></span>
+                <div class="compendium-order-main">
+                    <button class="compendium-order-copy" type="button" data-order-review title="Review ${escapeHtml(project.projectName)}"><strong>${escapeHtml(project.projectName)}</strong><small>${escapeHtml(project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(project.lifecycle)}${project.publicationYear ? ` · ${escapeHtml(project.publicationYear)}` : ""}</small></button>
+                    ${sectionSelect}
+                </div>
+                <div class="compendium-order-actions">${orderStateMarkup(id)}<button type="button" data-move-up title="Move up within section" ${!manual || indexInGroup === 0 ? "disabled" : ""}><i class="bi bi-chevron-up"></i></button><button type="button" data-move-down title="Move down within section" ${!manual || indexInGroup === group.ids.length - 1 ? "disabled" : ""}><i class="bi bi-chevron-down"></i></button><button type="button" data-remove title="Remove from Compendium"><i class="bi bi-x-lg"></i></button></div>
             </div>`;
         };
-        const order = publicationOrderIds();
-        const position = new Map(order.map((id, i) => [id, i]));
-        if (editorialState.groupingMode === "None") { orderList.innerHTML = order.map(id => htmlForItem(id, position.get(id), order.length)).join(""); return; }
-        const groups = publicationGroups();
+
+        if (editorialState.groupingMode === "None") {
+            orderList.innerHTML = order.map((id, index) => htmlForItem(id, groups[0], index)).join("");
+            return;
+        }
+
         orderList.innerHTML = groups.map((group, groupIndex) => {
+            const realSection = custom && !group.unassigned ? sectionByKey(group.key) : null;
             const customHeader = custom
-                ? `<div class="compendium-order-group__custom"><input value="${escapeHtml(group.name === "Other Projects" ? "" : group.name)}" maxlength="120" data-section-rename data-section-original="${escapeHtml(group.name)}" aria-label="Rename section ${escapeHtml(group.name)}" placeholder="Other Projects"><button type="button" data-section-group-up title="Move section up" ${!manual || groupIndex === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button><button type="button" data-section-group-down title="Move section down" ${!manual || groupIndex === groups.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button></div>`
+                ? (group.unassigned
+                    ? `<div class="compendium-order-group__identity"><span>Unassigned</span><small>Assign before final issue where possible</small></div>`
+                    : `<div class="compendium-order-group__custom"><span class="compendium-order-section-grip" draggable="true" data-section-drag-handle data-section-key="${escapeHtml(group.key)}" title="Drag to reorder section"><i class="bi bi-grip-vertical"></i></span><input value="${escapeHtml(group.name)}" maxlength="120" data-section-rename data-section-key="${escapeHtml(group.key)}" aria-label="Rename section ${escapeHtml(group.name)}"><button type="button" data-section-group-up data-section-key="${escapeHtml(group.key)}" title="Move section up" ${groupIndex === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button><button type="button" data-section-group-down data-section-key="${escapeHtml(group.key)}" title="Move section down" ${groupIndex >= customSections.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button><button type="button" data-section-delete data-section-key="${escapeHtml(group.key)}" title="Delete section"><i class="bi bi-trash3"></i></button></div>`)
                 : `<span>${escapeHtml(group.name)}</span>`;
-            return `<section class="compendium-order-group" data-section-group="${escapeHtml(group.name)}"><header>${customHeader}<small>${group.ids.length} project${group.ids.length === 1 ? "" : "s"}</small></header>${group.ids.map(id => htmlForItem(id, position.get(id), order.length)).join("")}</section>`;
+            const empty = group.ids.length === 0 ? `<div class="compendium-order-group__empty" data-section-drop-zone>Drop projects here</div>` : "";
+            return `<section class="compendium-order-group${group.unassigned ? " is-unassigned" : ""}" data-section-group="${escapeHtml(group.key)}" data-section-key="${escapeHtml(group.key)}"><header>${customHeader}<small>${group.ids.length} project${group.ids.length === 1 ? "" : "s"}</small></header>${empty}${group.ids.map((id, index) => htmlForItem(id, group, index)).join("")}</section>`;
         }).join("");
     };
 
@@ -590,7 +695,11 @@
                 ["CapabilityOverview", "Capability Overview", Boolean(review.hasCapabilityOverview), Number(review.capabilityStatementCount || 0) ? `${review.capabilityStatementCount} statements` : "Not recorded"],
                 ["ProjectDescription", "Project Description", Boolean(review.hasProjectDescription), Number(review.descriptionWordCount || 0) ? `${review.descriptionWordCount} words` : "Not recorded"]
             ];
-            reviewNarrativeOptions.innerHTML = options.map(([value,label,available,detail]) => `<button type="button" data-review-narrative-value="${value}" class="${editorialState.narrativeSource === value ? "active" : ""} ${available ? "is-available" : "is-missing"}"><span>${escapeHtml(label)}</span><small>${escapeHtml(detail)}</small></button>`).join("");
+            const effectiveSource = normalizeNarrative(review.narrativeSource || effectiveNarrativeSource(review.projectId));
+            const override = ensureConfig(review.projectId).narrativeSourceOverride;
+            const defaultLabel = { ProjectBrief: "Project Brief", CapabilityOverview: "Capability Overview", ProjectDescription: "Project Description" }[editorialState.narrativeSource] || "Project Brief";
+            reviewNarrativeOptions.innerHTML = `<div class="compendium-review-narrative-context"><span>Publication default · <strong>${escapeHtml(defaultLabel)}</strong></span>${override ? '<button type="button" data-review-narrative-default>Use publication default</button>' : '<small>Inherited</small>'}</div>`
+                + options.map(([value,label,available,detail]) => `<button type="button" data-review-narrative-value="${value}" class="${effectiveSource === value ? "active" : ""} ${available ? "is-available" : "is-missing"}"><span>${escapeHtml(label)}</span><small>${escapeHtml(detail)}${editorialState.narrativeSource !== value && effectiveSource === value ? " · override" : ""}</small></button>`).join("");
         }
 
         if (reviewOpen) reviewOpen.href = review.projectUrl || `/Projects/Overview?id=${review.projectId}`;
@@ -779,10 +888,21 @@
         const next = normalizeNarrative(value);
         if (next === editorialState.narrativeSource) return;
         editorialState.narrativeSource = next;
-        orderedIds.forEach(invalidateProjectReview);
+        orderedIds.filter(id => !ensureConfig(id).narrativeSourceOverride).forEach(invalidateProjectReview);
         activeReviewData = null;
         syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
         if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const setProjectNarrativeSource = (projectId, value) => {
+        const id = Number(projectId); if (!id || !isSelected(id)) return;
+        const config = ensureConfig(id);
+        const next = value ? normalizeNarrative(value) : null;
+        config.narrativeSourceOverride = next && next !== editorialState.narrativeSource ? next : null;
+        invalidateProjectReview(id);
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (Number(activeReviewId) === id) loadReview(id);
     };
 
     const activeFrame = () => ({ width: Number(activeReviewData?.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints, height: Number(activeReviewData?.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints });
@@ -898,6 +1018,36 @@
         setControlDisabled(findingsCurrentOnly, disabled || activeReviewId == null);
     };
 
+    const findingTitle = finding => ({
+        missingArmService: "Arm / Service not recorded",
+        missingCost: "Proliferation cost incomplete",
+        zeroCost: "Zero proliferation cost",
+        missingDescription: "Selected narrative missing",
+        missingCompletionYear: "Completion year missing",
+        lowResolutionPhoto: "Low-resolution publication imagery",
+        acceptableResolutionPhoto: "Publication imagery has limited resolution reserve",
+        missingPhoto: "Publication photograph missing",
+        selectedPhotoUnavailable: "Selected photograph unavailable",
+        publicationImageUnavailable: "Locked publication image unavailable",
+        possibleTitleTypo: "Possible project-title typo",
+        reviewRequired: "Project review required",
+        projectChangedAfterReview: "Project changed after review",
+        customSectionUnassigned: "Custom section assignment required",
+        projectUnavailable: "Selected project unavailable"
+    }[finding.code] || finding.message || "Publication finding");
+
+    const findingProjectAction = finding => {
+        const projectId = Number(finding.projectId || 0) || null;
+        const project = projectId ? projectById.get(projectId) : null;
+        if (!projectId || !project) return "";
+        const imageAction = ["publicationImageUnavailable","selectedPhotoUnavailable","missingPhoto","lowResolutionPhoto","acceptableResolutionPhoto"].includes(finding.code);
+        const reviewAction = ["projectChangedAfterReview","reviewRequired","missingDescription","customSectionUnassigned"].includes(finding.code);
+        if (imageAction) return `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="image" data-finding-project="${projectId}">Review image</button>`;
+        if (reviewAction) return `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="review" data-finding-project="${projectId}">Review project</button>`;
+        const canEdit = canMaintainProjectData && normalize(project.lifecycle) === "completed";
+        return `<a class="btn btn-sm btn-outline-secondary" href="${canEdit ? `/Projects/CompletedSummary/Edit?id=${projectId}&returnUrl=${encodeURIComponent(location.pathname + location.search)}` : `/Projects/Overview?id=${projectId}`}">${canEdit ? "Edit record" : "Open project"}</a>`;
+    };
+
     const renderFindings = () => {
         if (!readyFindings) return;
         if (orderedIds.length === 0) {
@@ -912,22 +1062,29 @@
             readyFindings.innerHTML = `<div class="compendium-findings-empty"><i class="bi bi-check-circle"></i><span>${all.length ? "No findings match the current filter." : "No publication findings."}</span></div>`;
             return;
         }
-        readyFindings.innerHTML = filtered.map((finding, index) => {
-            const projectId = Number(finding.projectId || 0) || null;
-            const project = projectId ? projectById.get(projectId) : null;
-            const imageAction = ["publicationImageUnavailable","selectedPhotoUnavailable","missingPhoto","lowResolutionPhoto","acceptableResolutionPhoto"].includes(finding.code);
-            const reviewAction = ["projectChangedAfterReview","reviewRequired"].includes(finding.code);
-            let action = "";
-            if (projectId && imageAction) action = `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="image" data-finding-project="${projectId}">Review image</button>`;
-            else if (projectId && reviewAction) action = `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="review" data-finding-project="${projectId}">Review project</button>`;
-            else if (projectId && project) {
-                const canEdit = canMaintainProjectData && normalize(project.lifecycle) === "completed";
-                action = `<a class="btn btn-sm btn-outline-secondary" href="${canEdit ? `/Projects/CompletedSummary/Edit?id=${projectId}&returnUrl=${encodeURIComponent(location.pathname + location.search)}` : `/Projects/Overview?id=${projectId}`}">${canEdit ? "Edit record" : "Open project"}</a>`;
+
+        const grouped = [];
+        const byCode = new Map();
+        filtered.forEach(finding => {
+            const key = `${finding.severity}|${finding.code || finding.message}`;
+            if (!byCode.has(key)) { const group = { severity: finding.severity, code: finding.code, title: findingTitle(finding), findings: [] }; byCode.set(key, group); grouped.push(group); }
+            byCode.get(key).findings.push(finding);
+        });
+
+        readyFindings.innerHTML = grouped.map((group, index) => {
+            const count = group.findings.length;
+            const first = group.findings[0];
+            const projectRows = group.findings.map(finding => {
+                const detail = String(finding.message || "").trim();
+                return `<div class="compendium-finding-group__project"><div><strong>${escapeHtml(finding.projectName || "Publication")}</strong><span>${escapeHtml(detail)}</span></div><div>${findingProjectAction(finding)}</div></div>`;
+            }).join("");
+            if (count === 1 && onlyCurrent) {
+                return `<article class="compendium-finding is-${escapeHtml(group.severity)}"><div class="compendium-finding__copy"><strong>${escapeHtml(first.projectName || group.title)}</strong><span>${escapeHtml(first.message)}</span></div><div class="compendium-finding__action">${findingProjectAction(first)}</div></article>`;
             }
-            return `<article class="compendium-finding is-${escapeHtml(finding.severity)}" data-finding-index="${index}">
-                <div class="compendium-finding__copy">${finding.projectName ? `<strong>${escapeHtml(finding.projectName)}</strong>` : ""}<span>${escapeHtml(finding.message)}</span></div>
-                ${action ? `<div class="compendium-finding__action">${action}</div>` : ""}
-            </article>`;
+            return `<details class="compendium-finding-group is-${escapeHtml(group.severity)}" ${group.severity === "blocker" ? "open" : ""}>
+                <summary><span class="compendium-finding-group__icon"><i class="bi ${group.severity === "blocker" ? "bi-x-octagon-fill" : group.severity === "warning" ? "bi-exclamation-triangle-fill" : "bi-info-circle-fill"}"></i></span><div><strong>${escapeHtml(group.title)}</strong><small>${count} finding${count === 1 ? "" : "s"}${count === 1 && first.projectName ? ` · ${escapeHtml(first.projectName)}` : ""}</small></div><span class="compendium-finding-group__chevron"><i class="bi bi-chevron-down"></i></span></summary>
+                <div class="compendium-finding-group__body">${projectRows}</div>
+            </details>`;
         }).join("");
     };
 
@@ -1127,42 +1284,97 @@
     });
     clearSelection?.addEventListener("click", () => { orderedIds = []; activeReviewId = null; activeReviewData = null; selectionChanged(); });
 
+    const normalizeSectionOrders = () => customSections.forEach((section, index) => { section.sortOrder = index; });
+    const moveSection = (sectionKey, delta) => {
+        const index = customSections.findIndex(section => normalize(section.sectionKey) === normalize(sectionKey));
+        const target = index + delta;
+        if (index < 0 || target < 0 || target >= customSections.length) return;
+        [customSections[index], customSections[target]] = [customSections[target], customSections[index]];
+        normalizeSectionOrders();
+        publicationStructureChanged();
+    };
+    const assignProjectToSection = (projectId, sectionKey) => {
+        const id = Number(projectId); if (!id) return;
+        const section = sectionByKey(sectionKey);
+        const config = ensureConfig(id);
+        const previousKey = config.customSectionKey;
+        config.customSectionKey = section?.sectionKey || null;
+        config.customSectionName = section?.name || null;
+        if (normalize(previousKey) !== normalize(config.customSectionKey)) invalidateProjectReview(id);
+    };
+    const moveProjectRelative = (id, delta) => {
+        const group = publicationGroups().find(item => item.ids.includes(id));
+        if (!group) return false;
+        const index = group.ids.indexOf(id), targetId = group.ids[index + delta];
+        if (!targetId) return false;
+        const from = orderedIds.indexOf(id), target = orderedIds.indexOf(targetId);
+        if (from < 0 || target < 0) return false;
+        orderedIds.splice(from, 1);
+        const insertAt = orderedIds.indexOf(targetId) + (delta > 0 ? 1 : 0);
+        orderedIds.splice(insertAt, 0, id);
+        return true;
+    };
+
     orderList?.addEventListener("click", event => {
-        const sectionGroup = event.target.closest("[data-section-group]");
-        const sectionButton = event.target.closest("[data-section-group-up],[data-section-group-down]");
-        if (sectionGroup && sectionButton && editorialState.groupingMode === "CustomSections" && editorialState.sortMode === "Manual") {
-            const groups = publicationGroups();
-            const name = sectionGroup.dataset.sectionGroup || "Other Projects";
-            const index = groups.findIndex(group => normalize(group.name) === normalize(name));
-            const target = sectionButton.matches("[data-section-group-up]") ? index - 1 : index + 1;
-            if (index >= 0 && target >= 0 && target < groups.length) {
-                [groups[index], groups[target]] = [groups[target], groups[index]];
-                orderedIds = groups.flatMap(group => group.ids);
-                publicationStructureChanged();
+        const sectionAction = event.target.closest("[data-section-group-up],[data-section-group-down],[data-section-delete]");
+        if (sectionAction && editorialState.groupingMode === "CustomSections") {
+            const key = sectionAction.dataset.sectionKey || sectionAction.closest("[data-section-key]")?.dataset.sectionKey;
+            if (!key || key === "__unassigned") return;
+            if (sectionAction.matches("[data-section-group-up]")) moveSection(key, -1);
+            else if (sectionAction.matches("[data-section-group-down]")) moveSection(key, 1);
+            else {
+                const section = sectionByKey(key); if (!section) return;
+                const count = orderedIds.filter(id => normalize(ensureConfig(id).customSectionKey) === normalize(key)).length;
+                pendingSectionDeleteKey = key;
+                if (sectionDeleteMessage) {
+                    sectionDeleteMessage.textContent = count
+                        ? `Delete “${section.name}”? ${count} project${count === 1 ? "" : "s"} will move to Unassigned. Project master data is not changed.`
+                        : `Delete the empty publication section “${section.name}”?`;
+                }
+                sectionDeleteModal?.show();
             }
             return;
         }
+
         const item = event.target.closest("[data-order-id]");
         if (!item) return;
-        const id = Number(item.dataset.orderId), index = orderedIds.indexOf(id);
+        const id = Number(item.dataset.orderId);
         if (event.target.closest("[data-order-review]")) { activeReviewId = id; loadReview(id); document.getElementById("compendium-review")?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
-        if (event.target.closest("[data-remove]")) { orderedIds = orderedIds.filter(projectId => projectId !== id); if (activeReviewId === id) activeReviewId = orderedIds[0] ?? null; }
-        else if (event.target.closest("[data-move-up]") && index > 0) [orderedIds[index - 1], orderedIds[index]] = [orderedIds[index], orderedIds[index - 1]];
-        else if (event.target.closest("[data-move-down]") && index >= 0 && index < orderedIds.length - 1) [orderedIds[index + 1], orderedIds[index]] = [orderedIds[index], orderedIds[index + 1]];
-        else return;
-        selectionChanged();
+        if (event.target.closest("[data-remove]")) { orderedIds = orderedIds.filter(projectId => projectId !== id); if (activeReviewId === id) activeReviewId = orderedIds[0] ?? null; selectionChanged(); return; }
+        if (editorialState.sortMode !== "Manual") return;
+        if (event.target.closest("[data-move-up]") && moveProjectRelative(id, -1)) selectionChanged();
+        else if (event.target.closest("[data-move-down]") && moveProjectRelative(id, 1)) selectionChanged();
+    });
+
+    sectionDeleteConfirm?.addEventListener("click", () => {
+        const key = pendingSectionDeleteKey;
+        if (!key) return;
+        orderedIds
+            .filter(id => normalize(ensureConfig(id).customSectionKey) === normalize(key))
+            .forEach(id => assignProjectToSection(id, null));
+        customSections = customSections.filter(item => normalize(item.sectionKey) !== normalize(key));
+        normalizeSectionOrders();
+        pendingSectionDeleteKey = null;
+        sectionDeleteModal?.hide();
+        publicationStructureChanged();
     });
 
     let draggedOrderId = null;
+    let draggedSectionKey = null;
     orderList?.addEventListener("change", event => {
         const renameInput = event.target.closest("[data-section-rename]");
         if (renameInput && editorialState.groupingMode === "CustomSections") {
-            const original = String(renameInput.dataset.sectionOriginal || "Other Projects").trim();
-            const next = String(renameInput.value || "").trim().replace(/\s+/g, " ").slice(0,120) || null;
-            orderedIds.forEach(id => {
-                const config = ensureConfig(id);
-                const current = config.customSectionName || "Other Projects";
-                if (normalize(current) === normalize(original)) config.customSectionName = next;
+            const key = renameInput.dataset.sectionKey;
+            const section = sectionByKey(key); if (!section) return;
+            const next = cleanSectionName(renameInput.value);
+            if (!next) { renderOrder(); return; }
+            const duplicate = customSections.some(item => normalize(item.sectionKey) !== normalize(key) && normalize(item.name) === normalize(next));
+            if (duplicate) { window.alert("A custom section with this name already exists."); renderOrder(); return; }
+            if (section.name === next) return;
+            section.name = next;
+            orderedIds.filter(id => normalize(ensureConfig(id).customSectionKey) === normalize(key)).forEach(id => {
+                ensureConfig(id).customSectionName = next;
+                invalidateProjectReview(id);
             });
             publicationStructureChanged();
             return;
@@ -1170,10 +1382,9 @@
         const select = event.target.closest("[data-section-select]");
         if (!select) return;
         const item = select.closest("[data-order-id]"); const id = Number(item?.dataset.orderId || 0); if (!id) return;
-        ensureConfig(id).customSectionName = String(select.value || "").trim().slice(0,120) || null;
-        publicationStructureChanged();
+        assignProjectToSection(id, select.value || null);
+        publicationStructureChanged({ refreshReview: id === activeReviewId });
     });
-
 
     orderList?.addEventListener("keydown", event => {
         const renameInput = event.target.closest("[data-section-rename]");
@@ -1181,37 +1392,77 @@
     });
 
     orderList?.addEventListener("dragstart", event => {
+        const sectionHandle = event.target.closest("[data-section-drag-handle]");
+        if (sectionHandle && editorialState.groupingMode === "CustomSections") {
+            draggedSectionKey = sectionHandle.dataset.sectionKey || sectionHandle.closest("[data-section-key]")?.dataset.sectionKey || null;
+            draggedOrderId = null;
+            if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", `section:${draggedSectionKey || ""}`); }
+            return;
+        }
         if (editorialState.sortMode !== "Manual") { event.preventDefault(); return; }
         const item = event.target.closest("[data-order-id]");
         if (!item) return;
-        draggedOrderId = Number(item.dataset.orderId) || null;
+        draggedOrderId = Number(item.dataset.orderId) || null; draggedSectionKey = null;
         item.classList.add("is-dragging");
         if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(draggedOrderId || "")); }
     });
-    orderList?.addEventListener("dragover", event => { if (draggedOrderId != null) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "move"; } });
+    orderList?.addEventListener("dragover", event => {
+        if (draggedOrderId != null || draggedSectionKey) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "move"; }
+    });
     orderList?.addEventListener("drop", event => {
+        if (draggedSectionKey && editorialState.groupingMode === "CustomSections") {
+            event.preventDefault();
+            const targetGroup = event.target.closest("[data-section-key]");
+            const targetKey = targetGroup?.dataset.sectionKey;
+            if (!targetKey || targetKey === "__unassigned" || normalize(targetKey) === normalize(draggedSectionKey)) return;
+            const from = customSections.findIndex(section => normalize(section.sectionKey) === normalize(draggedSectionKey));
+            const to = customSections.findIndex(section => normalize(section.sectionKey) === normalize(targetKey));
+            if (from < 0 || to < 0) return;
+            const [moved] = customSections.splice(from, 1); customSections.splice(to, 0, moved); normalizeSectionOrders(); publicationStructureChanged();
+            return;
+        }
         if (editorialState.sortMode !== "Manual" || draggedOrderId == null) return;
         event.preventDefault();
+        const targetGroup = event.target.closest("[data-section-key]");
+        if (editorialState.groupingMode === "CustomSections" && targetGroup) {
+            const targetSectionKey = targetGroup.dataset.sectionKey === "__unassigned" ? null : targetGroup.dataset.sectionKey;
+            assignProjectToSection(draggedOrderId, targetSectionKey);
+        }
         const target = event.target.closest("[data-order-id]");
         const targetId = Number(target?.dataset.orderId || 0);
-        if (!targetId || targetId === draggedOrderId) return;
-        const from = orderedIds.indexOf(draggedOrderId), to = orderedIds.indexOf(targetId);
-        if (from < 0 || to < 0) return;
-        const [moved] = orderedIds.splice(from, 1); orderedIds.splice(to, 0, moved); selectionChanged();
+        if (targetId && targetId !== draggedOrderId) {
+            const from = orderedIds.indexOf(draggedOrderId), to = orderedIds.indexOf(targetId);
+            if (from >= 0 && to >= 0) { const [moved] = orderedIds.splice(from, 1); orderedIds.splice(to, 0, moved); }
+        } else if (targetGroup) {
+            const groupKey = targetGroup.dataset.sectionKey;
+            const group = publicationGroups().find(item => normalize(item.key) === normalize(groupKey));
+            const peers = group?.ids.filter(id => id !== draggedOrderId) || [];
+            const from = orderedIds.indexOf(draggedOrderId); if (from >= 0) orderedIds.splice(from, 1);
+            const lastPeer = peers.at(-1);
+            const insertAt = lastPeer ? orderedIds.indexOf(lastPeer) + 1 : orderedIds.length;
+            orderedIds.splice(Math.max(0, insertAt), 0, draggedOrderId);
+        }
+        selectionChanged();
     });
-    orderList?.addEventListener("dragend", () => { orderList.querySelectorAll(".is-dragging").forEach(item => item.classList.remove("is-dragging")); draggedOrderId = null; });
+    orderList?.addEventListener("dragend", () => { orderList.querySelectorAll(".is-dragging").forEach(item => item.classList.remove("is-dragging")); draggedOrderId = null; draggedSectionKey = null; });
 
     narrativeButtons.forEach(button => button.addEventListener("click", () => changeNarrativeSource(button.dataset.narrativeValue)));
     groupingButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeGrouping(button.dataset.groupingValue); if (next === editorialState.groupingMode) return; editorialState.groupingMode = next; publicationStructureChanged(); }));
     sortButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeSort(button.dataset.sortValue); if (next === editorialState.sortMode) return; editorialState.sortMode = next; publicationStructureChanged(); if (activeReviewId) loadReview(activeReviewId); }));
     customSectionAdd?.addEventListener("click", () => {
-        const name = String(customSectionName?.value || "").trim().replace(/\s+/g, " ").slice(0,120); if (!name) return;
-        if (activeReviewId && isSelected(activeReviewId)) ensureConfig(activeReviewId).customSectionName = name;
-        else { const first = publicationOrderIds()[0]; if (first) ensureConfig(first).customSectionName = name; }
-        if (customSectionName) customSectionName.value = ""; publicationStructureChanged();
+        const name = cleanSectionName(customSectionName?.value); if (!name) return;
+        if (customSections.some(section => normalize(section.name) === normalize(name))) { window.alert("A custom section with this name already exists."); customSectionName?.focus(); return; }
+        customSections.push({ sectionKey: createSectionKey(), name, sortOrder: customSections.length });
+        if (customSectionName) customSectionName.value = "";
+        publicationStructureChanged();
     });
     customSectionName?.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); customSectionAdd?.click(); } });
-    reviewNarrativeOptions?.addEventListener("click", event => { const button = event.target.closest("[data-review-narrative-value]"); if (button) changeNarrativeSource(button.dataset.reviewNarrativeValue); });
+    reviewNarrativeOptions?.addEventListener("click", event => {
+        const reset = event.target.closest("[data-review-narrative-default]");
+        if (reset && activeReviewId) { setProjectNarrativeSource(activeReviewId, null); return; }
+        const button = event.target.closest("[data-review-narrative-value]");
+        if (button && activeReviewId) setProjectNarrativeSource(activeReviewId, button.dataset.reviewNarrativeValue);
+    });
 
     reviewPrevious?.addEventListener("click", () => navigateReview(-1));
     reviewNext?.addEventListener("click", () => navigateReview(1));

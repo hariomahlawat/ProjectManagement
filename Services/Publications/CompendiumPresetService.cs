@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -135,6 +135,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
         var preset = await _db.CompendiumPresets
             .AsNoTracking()
+            .Include(row => row.Sections)
             .Include(row => row.Projects)
             .Include(row => row.LastModifiedByUser)
             .FirstOrDefaultAsync(row => row.Id == presetId && row.IsActive, cancellationToken)
@@ -150,6 +151,19 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.Id)
             .ToArray();
+
+        var sectionConfigurations = preset.Sections
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .Select((section, index) => new CompendiumPresetSectionConfiguration(
+                NormalizeSectionKey(section.SectionKey) ?? $"legacy-{section.Id}",
+                CleanRequired(section.Name, "Section", 120),
+                index))
+            .ToArray();
+        var sectionById = preset.Sections.ToDictionary(section => section.Id);
+        var sectionByName = preset.Sections
+            .GroupBy(section => NormalizeName(section.Name), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
         var savedProjectIds = orderedItems
             .Where(item => item.ProjectId is > 0)
@@ -219,6 +233,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 primaryPhotoId = null;
             }
 
+            CompendiumPresetSection? assignedSection = null;
+            if (item.CustomSectionId.HasValue)
+            {
+                sectionById.TryGetValue(item.CustomSectionId.Value, out assignedSection);
+            }
+            if (assignedSection is null && !string.IsNullOrWhiteSpace(item.CustomSectionName))
+            {
+                sectionByName.TryGetValue(NormalizeName(item.CustomSectionName), out assignedSection);
+            }
+
             projectConfigurations.Add(new CompendiumPresetProjectConfiguration(
                 projectId,
                 primaryPhotoId,
@@ -226,7 +250,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 ClampFocal(item.PrimaryFocalY),
                 mode)
             {
-                CustomSectionName = CleanOptional(item.CustomSectionName, 120)
+                CustomSectionKey = assignedSection is null ? null : NormalizeSectionKey(assignedSection.SectionKey),
+                CustomSectionName = assignedSection is null
+                    ? CleanOptional(item.CustomSectionName, 120)
+                    : CleanOptional(assignedSection.Name, 120),
+                NarrativeSourceOverride = ParseNullableNarrativeSource(item.NarrativeSourceOverride)
             });
 
             if (!string.Equals(currentName, item.ProjectNameSnapshot, StringComparison.Ordinal))
@@ -273,7 +301,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             Cover = cover,
             NarrativeSource = ParseNarrativeSource(preset.NarrativeSource),
             GroupingMode = ParseGroupingMode(preset.GroupingMode),
-            SortMode = ParseSortMode(preset.SortMode)
+            SortMode = ParseSortMode(preset.SortMode),
+            Sections = sectionConfigurations
         };
 
         return new CompendiumPresetLoadResult(
@@ -309,6 +338,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             UpdatedAtUtc = now,
             IsActive = true,
             RowVersion = NewRowVersion(),
+            Sections = prepared.Sections,
             Projects = prepared.Projects
         };
         ApplyConfiguration(preset, prepared.Configuration);
@@ -363,14 +393,22 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         {
             _db.CompendiumPresetProjects.RemoveRange(preset.Projects);
             await _db.SaveChangesAsync(cancellationToken);
+            _db.CompendiumPresetSections.RemoveRange(preset.Sections);
+            await _db.SaveChangesAsync(cancellationToken);
 
+            foreach (var section in prepared.Sections)
+            {
+                section.PresetId = preset.Id;
+            }
             foreach (var item in prepared.Projects)
             {
                 item.PresetId = preset.Id;
             }
 
             ApplyConfiguration(preset, prepared.Configuration);
+            _db.CompendiumPresetSections.AddRange(prepared.Sections);
             _db.CompendiumPresetProjects.AddRange(prepared.Projects);
+            preset.Sections = prepared.Sections;
             preset.Projects = prepared.Projects;
             preset.LastModifiedByUserId = userId;
             preset.UpdatedAtUtc = _clock.UtcNow.ToUniversalTime();
@@ -474,6 +512,50 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         await EnsureUniqueNameAsync(normalizedName, excludedPresetId: null, cancellationToken);
 
         var now = _clock.UtcNow.ToUniversalTime();
+        var sourceSections = source.Sections
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .ToArray();
+        var duplicateSections = sourceSections
+            .Select((section, index) => new CompendiumPresetSection
+            {
+                SectionKey = NormalizeSectionKey(section.SectionKey) ?? NewSectionKey(),
+                Name = CleanRequired(section.Name, "Section", 120),
+                NormalizedName = NormalizeName(section.Name),
+                SortOrder = index
+            })
+            .ToArray();
+        var sectionBySourceId = sourceSections
+            .Select((section, index) => new { section.Id, Clone = duplicateSections[index] })
+            .ToDictionary(item => item.Id, item => item.Clone);
+
+        var duplicateProjects = source.Projects
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Id)
+            .Select(item =>
+            {
+                CompendiumPresetSection? assignedSection = null;
+                if (item.CustomSectionId.HasValue)
+                {
+                    sectionBySourceId.TryGetValue(item.CustomSectionId.Value, out assignedSection);
+                }
+
+                return new CompendiumPresetProject
+                {
+                    ProjectId = item.ProjectId,
+                    ProjectNameSnapshot = item.ProjectNameSnapshot,
+                    SortOrder = item.SortOrder,
+                    PrimaryPhotoId = item.PrimaryPhotoId,
+                    PrimaryFocalX = item.PrimaryFocalX,
+                    PrimaryFocalY = item.PrimaryFocalY,
+                    ImageSelectionMode = item.ImageSelectionMode,
+                    NarrativeSourceOverride = item.NarrativeSourceOverride,
+                    CustomSection = assignedSection,
+                    CustomSectionName = assignedSection?.Name ?? item.CustomSectionName
+                };
+            })
+            .ToList();
+
         var duplicate = new CompendiumPreset
         {
             Name = cleanName,
@@ -498,21 +580,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             UpdatedAtUtc = now,
             IsActive = true,
             RowVersion = NewRowVersion(),
-            Projects = source.Projects
-                .OrderBy(item => item.SortOrder)
-                .ThenBy(item => item.Id)
-                .Select(item => new CompendiumPresetProject
-                {
-                    ProjectId = item.ProjectId,
-                    ProjectNameSnapshot = item.ProjectNameSnapshot,
-                    SortOrder = item.SortOrder,
-                    PrimaryPhotoId = item.PrimaryPhotoId,
-                    PrimaryFocalX = item.PrimaryFocalX,
-                    PrimaryFocalY = item.PrimaryFocalY,
-                    ImageSelectionMode = item.ImageSelectionMode,
-                    CustomSectionName = item.CustomSectionName
-                })
-                .ToList()
+            Sections = duplicateSections.ToList(),
+            Projects = duplicateProjects
         };
 
         _db.CompendiumPresets.Add(duplicate);
@@ -527,7 +596,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 ["PresetId"] = duplicate.Id.ToString(),
                 ["SourcePresetId"] = source.Id.ToString(),
                 ["PresetName"] = duplicate.Name,
-                ["ProjectCount"] = duplicate.Projects.Count.ToString()
+                ["ProjectCount"] = duplicate.Projects.Count.ToString(),
+                ["SectionCount"] = duplicate.Sections.Count.ToString()
             });
 
         return new CompendiumPresetMutationResult(
@@ -564,18 +634,21 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             });
     }
 
-    private async Task<(CompendiumPresetConfiguration Configuration, List<CompendiumPresetProject> Projects)>
+    private async Task<(CompendiumPresetConfiguration Configuration, List<CompendiumPresetProject> Projects, List<CompendiumPresetSection> Sections)>
         PrepareConfigurationAsync(
             CompendiumPresetConfiguration configuration,
             CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        var normalizedSections = NormalizeSections(configuration.Sections);
+        var sectionByKey = normalizedSections.ToDictionary(section => section.SectionKey, StringComparer.OrdinalIgnoreCase);
+
         var seen = new HashSet<int>();
         var requestedProjects = (configuration.Projects ?? Array.Empty<CompendiumPresetProjectConfiguration>())
             .Where(project => project.ProjectId > 0 && seen.Add(project.ProjectId))
             .Take(MaximumProjects + 1)
-            .Select(NormalizeProjectConfiguration)
+            .Select(project => NormalizeProjectConfiguration(project, sectionByKey))
             .ToArray();
 
         if (requestedProjects.Length == 0)
@@ -662,33 +735,60 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         var currentYear = TimeZoneInfo.ConvertTime(
             _clock.UtcNow.ToUniversalTime(),
             TimeZoneHelper.GetIst()).Year;
-        var normalizedConfiguration = NormalizeConfiguration(configuration, requestedProjects, currentYear);
+        var normalizedConfiguration = NormalizeConfiguration(
+            configuration,
+            requestedProjects,
+            normalizedSections,
+            currentYear);
+
+        var sectionRows = normalizedConfiguration.Sections
+            .OrderBy(section => section.SortOrder)
+            .Select((section, index) => new CompendiumPresetSection
+            {
+                SectionKey = section.SectionKey,
+                Name = section.Name,
+                NormalizedName = NormalizeName(section.Name),
+                SortOrder = index
+            })
+            .ToList();
+        var sectionRowByKey = sectionRows.ToDictionary(section => section.SectionKey, StringComparer.OrdinalIgnoreCase);
 
         var rows = normalizedConfiguration.Projects
-            .Select((project, sortOrder) => new CompendiumPresetProject
+            .Select((project, sortOrder) =>
             {
-                ProjectId = project.ProjectId,
-                ProjectNameSnapshot = CleanRequired(
-                    projectNames[project.ProjectId],
-                    $"Project {project.ProjectId}",
-                    160),
-                SortOrder = sortOrder,
-                PrimaryPhotoId = project.ImageSelectionMode == CompendiumImageSelectionMode.Explicit
-                    ? project.PrimaryPhotoId
-                    : null,
-                PrimaryFocalX = project.PrimaryFocalX,
-                PrimaryFocalY = project.PrimaryFocalY,
-                ImageSelectionMode = project.ImageSelectionMode.ToString(),
-                CustomSectionName = CleanOptional(project.CustomSectionName, 120)
+                var section = !string.IsNullOrWhiteSpace(project.CustomSectionKey)
+                              && sectionRowByKey.TryGetValue(project.CustomSectionKey, out var matched)
+                    ? matched
+                    : null;
+
+                return new CompendiumPresetProject
+                {
+                    ProjectId = project.ProjectId,
+                    ProjectNameSnapshot = CleanRequired(
+                        projectNames[project.ProjectId],
+                        $"Project {project.ProjectId}",
+                        160),
+                    SortOrder = sortOrder,
+                    PrimaryPhotoId = project.ImageSelectionMode == CompendiumImageSelectionMode.Explicit
+                        ? project.PrimaryPhotoId
+                        : null,
+                    PrimaryFocalX = project.PrimaryFocalX,
+                    PrimaryFocalY = project.PrimaryFocalY,
+                    ImageSelectionMode = project.ImageSelectionMode.ToString(),
+                    NarrativeSourceOverride = project.NarrativeSourceOverride?.ToString(),
+                    CustomSection = section,
+                    CustomSectionName = section?.Name
+                };
             })
             .ToList();
 
-        return (normalizedConfiguration, rows);
+        return (normalizedConfiguration, rows, sectionRows);
     }
 
     private static CompendiumPresetConfiguration NormalizeConfiguration(
         CompendiumPresetConfiguration configuration,
         IReadOnlyList<CompendiumPresetProjectConfiguration> projects,
+        IReadOnlyList<CompendiumPresetSectionConfiguration> sections,
         int currentYear)
         => new(
             CleanRequired(configuration.Title, "SDD Simulators Compendium", 120),
@@ -700,17 +800,23 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             Cover = NormalizeCoverConfiguration(configuration.Cover),
             NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource),
             GroupingMode = NormalizeGroupingMode(configuration.GroupingMode),
-            SortMode = NormalizeSortMode(configuration.SortMode)
+            SortMode = NormalizeSortMode(configuration.SortMode),
+            Sections = sections.ToArray()
         };
 
     private static CompendiumPresetProjectConfiguration NormalizeProjectConfiguration(
-        CompendiumPresetProjectConfiguration project)
+        CompendiumPresetProjectConfiguration project,
+        IReadOnlyDictionary<string, CompendiumPresetSectionConfiguration> sectionByKey)
     {
         var mode = Enum.IsDefined(project.ImageSelectionMode)
             ? project.ImageSelectionMode
             : CompendiumImageSelectionMode.Automatic;
         var photoId = mode == CompendiumImageSelectionMode.Explicit && project.PrimaryPhotoId is > 0
             ? project.PrimaryPhotoId
+            : null;
+        var sectionKey = NormalizeSectionKey(project.CustomSectionKey);
+        var section = sectionKey is not null && sectionByKey.TryGetValue(sectionKey, out var matched)
+            ? matched
             : null;
 
         return project with
@@ -719,8 +825,46 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PrimaryFocalX = ClampFocal(project.PrimaryFocalX),
             PrimaryFocalY = ClampFocal(project.PrimaryFocalY),
             ImageSelectionMode = mode,
-            CustomSectionName = CleanOptional(project.CustomSectionName, 120)
+            CustomSectionKey = section?.SectionKey,
+            CustomSectionName = section?.Name,
+            NarrativeSourceOverride = NormalizeNullableNarrativeSource(project.NarrativeSourceOverride)
         };
+    }
+
+    private static IReadOnlyList<CompendiumPresetSectionConfiguration> NormalizeSections(
+        IReadOnlyList<CompendiumPresetSectionConfiguration>? sections)
+    {
+        const int maximumSections = 100;
+        var result = new List<CompendiumPresetSectionConfiguration>();
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var source in (sections ?? Array.Empty<CompendiumPresetSectionConfiguration>())
+                     .OrderBy(section => section.SortOrder)
+                     .Take(maximumSections))
+        {
+            var name = CleanOptional(source.Name, 120);
+            if (name is null)
+            {
+                continue;
+            }
+
+            var normalizedName = NormalizeName(name);
+            if (!names.Add(normalizedName))
+            {
+                continue;
+            }
+
+            var key = NormalizeSectionKey(source.SectionKey) ?? NewSectionKey();
+            while (!keys.Add(key))
+            {
+                key = NewSectionKey();
+            }
+
+            result.Add(new CompendiumPresetSectionConfiguration(key, name, result.Count));
+        }
+
+        return result;
     }
 
     private static void ApplyConfiguration(
@@ -754,7 +898,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         IQueryable<CompendiumPreset> query = _db.CompendiumPresets;
         if (includeProjects)
         {
-            query = query.Include(preset => preset.Projects);
+            query = query
+                .Include(preset => preset.Sections)
+                .Include(preset => preset.Projects);
         }
 
         return await query.FirstOrDefaultAsync(
@@ -885,6 +1031,30 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             ClampFocal(cover.FocalX),
             ClampFocal(cover.FocalY));
     }
+
+    private static CompendiumNarrativeSource? ParseNullableNarrativeSource(string? value)
+        => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : null;
+
+    private static CompendiumNarrativeSource? NormalizeNullableNarrativeSource(CompendiumNarrativeSource? value)
+        => value.HasValue && Enum.IsDefined(value.Value) ? value.Value : null;
+
+    private static string? NormalizeSectionKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var clean = new string(value.Trim()
+            .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_')
+            .Take(40)
+            .ToArray());
+        return string.IsNullOrWhiteSpace(clean) ? null : clean;
+    }
+
+    private static string NewSectionKey() => $"sec-{Guid.NewGuid():N}";
 
     private static CompendiumNarrativeSource ParseNarrativeSource(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed) && Enum.IsDefined(parsed)
