@@ -4228,3 +4228,213 @@ body.brochure-modal-open { overflow: hidden; }
     color: #285f4b;
     box-shadow: inset 3px 0 #2f7559;
 }
+
+/* ==========================================================================
+   Simulators Compendium - Phase 29.1 stabilization
+   Viewport structure composer, focus-review cleanup, output command integrity
+   and large-monitor register refinements.
+   ========================================================================== */
+
+/* Final-output dock must never visually imply a disabled download is available. */
+.compendium-output-dock__actions .btn:disabled,
+.compendium-output-dock__actions .btn[aria-disabled="true"] {
+    opacity: 1;
+    border-color: #dbe3e0 !important;
+    background: #f2f5f4 !important;
+    color: #9aa6a1 !important;
+    box-shadow: none !important;
+    cursor: not-allowed;
+}
+.compendium-output-dock__actions .btn:disabled i,
+.compendium-output-dock__actions .btn[aria-disabled="true"] i { color: inherit; }
+
+/* Focus Review is now genuinely proof-first.  Structure composition belongs in
+   the dedicated Structure Editor and the fixed output dock retains issue access. */
+@media (min-width: 1600px) {
+    .compendium-builder-page.is-review-focus .compendium-builder-layout,
+    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-builder-rail {
+        display: none;
+    }
+    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+        grid-template-columns: minmax(720px, 1.78fr) minmax(350px, .62fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+        width: min(100%, 780px);
+    }
+}
+@media (min-width: 1900px) {
+    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+        grid-template-columns: minmax(820px, 1.9fr) minmax(380px, .58fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+        width: min(100%, 860px);
+    }
+}
+
+/* A 1920-class monitor should not require horizontal scrolling merely because
+   the project register is shown beside the compact structure rail. */
+@media (min-width: 1600px) {
+    .compendium-builder-page .compendium-project-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+    }
+    .compendium-builder-page .compendium-project-col--select { width: 34px; }
+    .compendium-builder-page .compendium-project-col--project { width: 22%; }
+    .compendium-builder-page .compendium-project-col--lifecycle { width: 7%; }
+    .compendium-builder-page .compendium-project-col--category { width: 11%; }
+    .compendium-builder-page .compendium-project-col--technical { width: 10%; }
+    .compendium-builder-page .compendium-project-col--narrative { width: 21%; }
+    .compendium-builder-page .compendium-project-col--arm { width: 9%; }
+    .compendium-builder-page .compendium-project-col--cost { width: 8%; }
+    .compendium-builder-page .compendium-project-col--photo { width: 8%; }
+    .compendium-builder-page .compendium-project-table thead th,
+    .compendium-builder-page .compendium-project-table tbody td {
+        overflow-wrap: anywhere;
+    }
+}
+
+/* ---------- Structure Editor: true viewport application ---------- */
+html.compendium-structure-editor-mode,
+body.compendium-structure-editor-mode {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+.compendium-structure-editor-page {
+    box-sizing: border-box;
+    display: flex;
+    height: var(--compendium-structure-editor-height, calc(100dvh - 205px));
+    min-height: 500px;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 10px;
+}
+.compendium-structure-editor-page > .alert {
+    flex: 0 0 auto;
+    margin-bottom: .5rem !important;
+}
+.compendium-structure-editor-header,
+.compendium-structure-editor-summary {
+    flex: 0 0 auto;
+}
+.compendium-structure-editor-layout {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+}
+
+/* Persistent, unambiguous save state. */
+.compendium-structure-editor-save-state,
+.compendium-structure-editor-readonly {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .28rem .52rem;
+    border: 1px solid #cfe1d8;
+    border-radius: 999px;
+    background: #edf7f2;
+    color: #356651;
+    font-size: .59rem;
+    font-weight: 750;
+    white-space: nowrap;
+}
+.compendium-structure-editor-save-state.is-dirty {
+    border-color: #e3cf8d;
+    background: #fff7df;
+    color: #866313;
+}
+.compendium-structure-editor-save-state.is-session {
+    border-color: #ccd9e4;
+    background: #f2f6fa;
+    color: #516c83;
+}
+.compendium-structure-editor-save-state i { font-size: .66rem; }
+
+/* Filtered bulk selection is discoverable without conflating it with filters. */
+.compendium-structure-editor-filter-selection {
+    display: flex;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    padding: 0 .7rem .45rem;
+}
+.compendium-structure-editor-filter-selection button {
+    display: inline-flex;
+    align-items: center;
+    gap: .32rem;
+    padding: .18rem .15rem;
+    border: 0;
+    background: transparent;
+    color: #527166;
+    font-size: .56rem;
+    font-weight: 650;
+}
+.compendium-structure-editor-filter-selection button:hover:not(:disabled) {
+    color: #255d48;
+    text-decoration: underline;
+}
+.compendium-structure-editor-filter-selection button.is-all-selected { color: #2b7558; }
+.compendium-structure-editor-filter-selection button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Section names remain direct-edit fields but now visibly advertise Rename. */
+.compendium-structure-editor-section-name {
+    position: relative;
+    display: block;
+    width: min(460px, 80%);
+    min-width: 150px;
+    margin: 0;
+}
+.compendium-structure-editor-section-title .compendium-structure-editor-section-name input {
+    width: 100%;
+    padding-right: 1.8rem;
+}
+.compendium-structure-editor-section-name > i {
+    position: absolute;
+    top: 50%;
+    right: .48rem;
+    transform: translateY(-50%);
+    color: #748c82;
+    font-size: .65rem;
+    opacity: .42;
+    pointer-events: none;
+    transition: opacity .15s ease, color .15s ease;
+}
+.compendium-structure-editor-section-name:hover > i,
+.compendium-structure-editor-section-name:focus-within > i {
+    color: #285f4b;
+    opacity: 1;
+}
+.compendium-structure-editor-section-actions button,
+.compendium-structure-editor-section-grip,
+.compendium-structure-editor-project-grip {
+    width: 30px;
+    height: 30px;
+    font-size: .7rem;
+}
+
+/* Optional section navigator: reclaim canvas width when it is not needed. */
+.compendium-structure-editor-sections-toggle { white-space: nowrap; }
+.compendium-structure-editor-page.is-sections-collapsed .compendium-structure-editor-layout {
+    grid-template-columns: minmax(270px, 20vw) minmax(560px, 1fr);
+}
+.compendium-structure-editor-page.is-sections-collapsed .compendium-structure-editor-sections { display: none; }
+.compendium-structure-editor-page.is-sections-collapsed .compendium-structure-editor-sections-toggle {
+    border-color: #6f9e8b;
+    background: #edf7f2;
+    color: #285f4b;
+}
+
+@media (max-width: 1499.98px) {
+    .compendium-structure-editor-sections-toggle { display: none; }
+}
+@media (max-width: 1099.98px) {
+    html.compendium-structure-editor-mode,
+    body.compendium-structure-editor-mode { overflow: auto !important; }
+    .compendium-structure-editor-page {
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+    }
+}

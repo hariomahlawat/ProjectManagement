@@ -665,6 +665,7 @@
             if (icon) icon.className = `bi ${reviewFocusMode ? "bi-fullscreen-exit" : "bi-arrows-fullscreen"}`;
             reviewFocusToggle.title = reviewFocusMode ? "Return to the normal publication workspace" : "Give the review proof more working space";
         }
+        requestAnimationFrame(() => setupOutputDockObserver());
     };
 
     const applyLivePreviewZoom = value => {
@@ -1392,11 +1393,15 @@
         if (!outputDock || !finalOutputCard) return;
         const setVisible = visible => { outputDock.hidden = !visible || window.innerWidth < 1200; };
         outputDockObserver?.disconnect?.();
+        if (reviewFocusMode) { setVisible(true); return; }
         if (!("IntersectionObserver" in window)) { setVisible(true); return; }
         outputDockObserver = new IntersectionObserver(entries => {
             const entry = entries[0];
-            setVisible(!(entry?.isIntersecting && entry.intersectionRatio >= .7));
-        }, { threshold: [0, .35, .7, 1] });
+            // The floating command surface disappears the moment the canonical
+            // Final Output card enters the viewport; two issue surfaces should
+            // never compete visually.
+            setVisible(!Boolean(entry?.isIntersecting));
+        }, { threshold: [0, .01] });
         outputDockObserver.observe(finalOutputCard);
     };
 

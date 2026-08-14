@@ -1,22 +1,12 @@
-# READY TO PASTE — PRISM Publications Phase 29
+# Phase 29.1 — Ready to Paste
 
-Copy the project-relative files in this ZIP into the root of your current **Phase 28** PRISM ProjectManagement source tree and allow them to overwrite files with the same path.
+Copy these files into the same relative paths under your PRISM project root.
 
-No database migration is required.
+No EF migration is required.
 
-Then run:
+After replacement:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase29.ps1
+.\tools\Test-PrismPublicationsPhase29_1.ps1
 ```
-
-Primary functional checks:
-
-1. Candidate project rows toggle selection when the row is clicked; Shift-click selects a visible range.
-2. Load/save a Compendium and use **Publication Structure → Structure editor**.
-3. Verify project search/filtering, multi-select, bulk Move to section, drag/drop, section drag/order, collapse/expand and section navigator.
-4. Save and return; the compact rail should reflect the editor state.
-5. Preview PDF to confirm export ordering remains unchanged.
-
-See `PRISM_Publications_Phase29_README.md` for implementation details and validation notes.

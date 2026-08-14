@@ -155,6 +155,8 @@
     const selectionToolbar = root.querySelector("[data-editor-selection-toolbar]");
     const selectedCount = root.querySelector("[data-editor-selected-count]");
     const clearSelectionButton = root.querySelector("[data-editor-clear-selection]");
+    const selectFilteredButton = root.querySelector("[data-editor-select-filtered]");
+    const filteredCount = root.querySelector("[data-editor-filtered-count]");
     const bulk = root.querySelector("[data-editor-bulk]");
     const bulkCount = root.querySelector("[data-editor-bulk-count]");
     const bulkSection = root.querySelector("[data-editor-bulk-section]");
@@ -174,10 +176,10 @@
     const visibleCount = root.querySelector("[data-editor-visible-count]");
     const unassignedCallout = root.querySelector("[data-editor-unassigned-callout]");
     const unassignedCount = root.querySelector("[data-editor-unassigned-count]");
-    const dirtyBadge = root.querySelector("[data-editor-dirty]");
+    const saveState = root.querySelector("[data-editor-save-state]");
     const saveButton = root.querySelector("[data-editor-save]");
-    const doneButton = root.querySelector("[data-editor-done]");
     const backButton = root.querySelector("[data-structure-back]");
+    const toggleSectionsButton = root.querySelector("[data-editor-toggle-sections]");
     const returnUnsaved = document.querySelector("[data-editor-return-unsaved]");
     const saveReturn = document.querySelector("[data-editor-save-return]");
     const leaveModalNode = document.getElementById("compendiumStructureLeaveModal");
@@ -197,6 +199,20 @@
     let autoScrollFrame = 0;
     let autoScrollDelta = 0;
     let sectionNavFrame = 0;
+    let sectionsNavigatorCollapsed = false;
+
+    const fitEditorViewport = () => {
+        const desktop = window.innerWidth >= 1100;
+        document.documentElement.classList.toggle("compendium-structure-editor-mode", desktop);
+        document.body.classList.toggle("compendium-structure-editor-mode", desktop);
+        if (!desktop) {
+            root.style.removeProperty("--compendium-structure-editor-height");
+            return;
+        }
+        const top = Math.max(0, root.getBoundingClientRect().top);
+        const available = Math.max(500, window.innerHeight - top - 10);
+        root.style.setProperty("--compendium-structure-editor-height", `${available}px`);
+    };
 
     const projectState = id => {
         const state = projectStates?.[id] || projectStates?.[String(id)] || null;
@@ -281,8 +297,21 @@
     const isDirty = () => structureSignature() !== baselineSignature;
     const renderDirty = () => {
         const dirty = isDirty();
-        if (dirtyBadge) dirtyBadge.hidden = !dirty;
         if (saveButton) saveButton.disabled = !dirty || !canManage;
+        if (saveState) {
+            const label = saveState.querySelector("span");
+            const icon = saveState.querySelector("i");
+            saveState.classList.toggle("is-dirty", dirty);
+            saveState.classList.toggle("is-session", !dirty && outsideStructureDirty);
+            const text = dirty ? "Modified" : (outsideStructureDirty ? "Session changes" : "Saved");
+            if (label) label.textContent = text;
+            if (icon) icon.className = `bi ${dirty ? "bi-pencil-square" : outsideStructureDirty ? "bi-clock-history" : "bi-check-circle"}`;
+            saveState.title = dirty
+                ? "Structure changes have not been saved to the shared Compendium."
+                : outsideStructureDirty
+                    ? "Other Compendium changes from the current browser session will return with you."
+                    : "Publication structure is saved.";
+        }
         return dirty;
     };
 
@@ -337,6 +366,14 @@
         if (!projectList) return;
         const visible = orderedIds.filter(filterMatches);
         if (visibleCount) visibleCount.textContent = `${visible.length} shown`;
+        if (filteredCount) filteredCount.textContent = String(visible.length);
+        if (selectFilteredButton) {
+            const allSelected = visible.length > 0 && visible.every(id => editorSelection.has(id));
+            selectFilteredButton.disabled = visible.length === 0;
+            selectFilteredButton.classList.toggle("is-all-selected", allSelected);
+            selectFilteredButton.firstElementChild?.classList.toggle("bi-check2-square", !allSelected);
+            selectFilteredButton.firstElementChild?.classList.toggle("bi-check2-all", allSelected);
+        }
         projectList.innerHTML = visible.length
             ? visible.map(id => {
                 const project = projectById.get(id);
@@ -399,7 +436,10 @@
             const section = isCustomSection ? sectionByKey(group.key) : null;
             const headerIdentity = isCustomSection
                 ? `<button type="button" class="compendium-structure-editor-section-grip" data-section-drag-handle data-section-key="${escapeHtml(group.key)}" draggable="true" title="Drag section" aria-label="Drag ${escapeHtml(group.name)} section"><i class="bi bi-grip-vertical"></i></button>
-                   <input type="text" maxlength="120" value="${escapeHtml(group.name)}" data-editor-section-name data-section-key="${escapeHtml(group.key)}" aria-label="Section name" />`
+                   <label class="compendium-structure-editor-section-name">
+                       <input type="text" maxlength="120" value="${escapeHtml(group.name)}" data-editor-section-name data-section-key="${escapeHtml(group.key)}" aria-label="Section name" />
+                       <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                   </label>`
                 : `<span class="compendium-structure-editor-section-label">${escapeHtml(group.name)}</span>`;
             const sectionActions = isCustomSection
                 ? `<button type="button" data-editor-section-up data-section-key="${escapeHtml(group.key)}" ${groupIndex === 0 ? "disabled" : ""} title="Move section up"><i class="bi bi-chevron-up"></i></button>
@@ -479,6 +519,13 @@
         renderSelectionToolbar();
         renderCanvas();
         renderSectionNav();
+        root.classList.toggle("is-sections-collapsed", sectionsNavigatorCollapsed);
+        if (toggleSectionsButton) {
+            toggleSectionsButton.setAttribute("aria-pressed", sectionsNavigatorCollapsed ? "true" : "false");
+            toggleSectionsButton.title = sectionsNavigatorCollapsed ? "Show section navigator" : "Hide section navigator";
+            const label = toggleSectionsButton.querySelector("span");
+            if (label) label.textContent = sectionsNavigatorCollapsed ? "Show sections" : "Sections";
+        }
         requestAnimationFrame(updateActiveSectionNav);
         renderDirty();
     };
@@ -581,6 +628,27 @@
         toggleEditorSelection(id, !editorSelection.has(id), event.shiftKey);
     });
     clearSelectionButton?.addEventListener("click", () => { editorSelection.clear(); renderAll(); });
+
+    selectFilteredButton?.addEventListener("click", () => {
+        const visible = orderedIds.filter(filterMatches);
+        if (!visible.length) return;
+        const allSelected = visible.every(id => editorSelection.has(id));
+        visible.forEach(id => setEditorSelected(id, !allSelected));
+        lastEditorSelectionAnchor = visible.at(-1) || null;
+        renderAll();
+    });
+
+    toggleSectionsButton?.addEventListener("click", () => {
+        sectionsNavigatorCollapsed = !sectionsNavigatorCollapsed;
+        root.classList.toggle("is-sections-collapsed", sectionsNavigatorCollapsed);
+        if (toggleSectionsButton) {
+            toggleSectionsButton.setAttribute("aria-pressed", sectionsNavigatorCollapsed ? "true" : "false");
+            toggleSectionsButton.title = sectionsNavigatorCollapsed ? "Show section navigator" : "Hide section navigator";
+            const label = toggleSectionsButton.querySelector("span");
+            if (label) label.textContent = sectionsNavigatorCollapsed ? "Show sections" : "Sections";
+        }
+        requestAnimationFrame(updateActiveSectionNav);
+    });
 
     canvas?.addEventListener("click", event => {
         const select = event.target.closest("[data-editor-canvas-select]");
@@ -908,7 +976,6 @@
     };
 
     saveButton?.addEventListener("click", saveStructure);
-    doneButton?.addEventListener("click", requestDone);
     backButton?.addEventListener("click", event => { event.preventDefault(); requestDone(); });
     returnUnsaved?.addEventListener("click", () => { leaveModal?.hide(); navigateBack(false); });
     saveReturn?.addEventListener("click", async () => {
@@ -924,6 +991,16 @@
         event.returnValue = "";
     });
 
+    let viewportFrame = 0;
+    const scheduleViewportFit = () => {
+        if (viewportFrame) cancelAnimationFrame(viewportFrame);
+        viewportFrame = requestAnimationFrame(() => { viewportFrame = 0; fitEditorViewport(); });
+    };
+    window.addEventListener("resize", scheduleViewportFit, { passive: true });
+    window.addEventListener("orientationchange", scheduleViewportFit, { passive: true });
+    window.addEventListener("pageshow", scheduleViewportFit, { passive: true });
+
+    fitEditorViewport();
     renderAll();
     writeHandoff(!outsideStructureDirty && !isDirty());
 })();
