@@ -183,7 +183,7 @@
                                 <div class="compendium-composer__control">
                                     <div class="compendium-composer__label"><i class="bi bi-file-text"></i><span><strong>Project narrative</strong><small>Used on every project dossier.</small></span></div>
                                     <div class="compendium-segmented" role="group" aria-label="Project narrative source">
-                                        <button type="button" data-narrative-value="ProjectBrief">Project brief <span>Default</span></button>
+                                        <button type="button" data-narrative-value="ProjectBrief">Project brief <span>Recommended</span></button>
                                         <button type="button" data-narrative-value="CapabilityOverview">Capability overview</button>
                                         <button type="button" data-narrative-value="ProjectDescription">Description</button>
                                     </div>
@@ -200,7 +200,7 @@
                                     <div class="compendium-composer__label"><i class="bi bi-sort-down"></i><span><strong>Order</strong><small>Project sequence inside the publication.</small></span></div>
                                     <div class="compendium-segmented" role="group" aria-label="Publication order">
                                         <button type="button" data-sort-value="Manual">Manual</button>
-                                        <button type="button" data-sort-value="LatestFirst">Latest first</button>
+                                        <button type="button" data-sort-value="LatestFirst" title="Completed projects use completion chronology; ongoing projects use project/development year.">Latest first</button>
                                         <button type="button" data-sort-value="Alphabetical">A–Z</button>
                                     </div>
                                 </div>
@@ -280,11 +280,15 @@
                             <table class="compendium-project-table">
                                 <thead>
                                     <tr>
-                                        <th scope="col"></th>
-                                        <th scope="col">Project</th>
-                                        <th scope="col">Status</th>
-                                        <th scope="col">Compendium data</th>
-                                        <th scope="col">Photography</th>
+                                        <th scope="col" class="compendium-project-col--select"></th>
+                                        <th scope="col" class="compendium-project-col--project">Project</th>
+                                        <th scope="col" class="compendium-project-col--lifecycle">Lifecycle</th>
+                                        <th scope="col" class="compendium-project-col--category">Project category</th>
+                                        <th scope="col" class="compendium-project-col--technical">Technical category</th>
+                                        <th scope="col" class="compendium-project-col--narrative">Narrative</th>
+                                        <th scope="col" class="compendium-project-col--arm">Arm / Service</th>
+                                        <th scope="col" class="compendium-project-col--cost">Cost</th>
+                                        <th scope="col" class="compendium-project-col--photo">Photography</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -298,9 +302,6 @@
                                             : project.IsAvailableForProliferation
                                                 ? "Proliferation cost missing"
                                                 : "Proliferation cost not required for the current proliferation status";
-                                        var costIcon = project.HasProliferationCost
-                                            ? "bi-check2"
-                                            : project.IsAvailableForProliferation ? "bi-exclamation-lg" : "bi-dash";
                                         var photoLabel = project.PhotoCount == 1 ? "1 photo" : $"{project.PhotoCount} photos";
                                         var photoTitle = project.PhotoCount == 1
                                             ? "1 project photograph available"
@@ -312,44 +313,56 @@
                                             data-category="@project.ProjectCategory"
                                             data-technical="@project.TechnicalCategory"
                                             data-proliferation="@(project.ProliferationAvailability == true ? "available" : project.ProliferationAvailability == false ? "notavailable" : "notassessed")">
-                                            <td>
+                                            <td class="compendium-project-col--select">
                                                 <input class="form-check-input"
                                                        type="checkbox"
                                                        value="@project.ProjectId"
                                                        data-project-checkbox
                                                        aria-label="Select @project.ProjectName" />
                                             </td>
-                                            <td>
+                                            <td class="compendium-project-col--project">
                                                 <strong>@project.ProjectName</strong>
-                                                <small>@(project.ProjectCategory ?? "Uncategorised") · @(project.TechnicalCategory ?? "Technical category not recorded")</small>
+                                                <small>@(project.PublicationYear > 0 ? $"Publication year · {project.PublicationYear}" : "Publication year not recorded")</small>
                                             </td>
-                                            <td>
-                                                <span>@project.Lifecycle</span>
+                                            <td class="compendium-project-col--lifecycle">
+                                                <span class="compendium-table-primary">@project.Lifecycle</span>
                                                 <small>@project.CompletionDisplay</small>
                                             </td>
-                                            <td>
-                                                <div class="compendium-data-badges" aria-label="Compendium data readiness">
-                                                    <span class="@(project.HasProjectBrief ? "is-ok" : "is-missing")" title="@(project.HasProjectBrief ? $"Project brief available · {project.ProjectBriefWordCount} words" : "Project brief missing")" data-source-readiness="ProjectBrief">
-                                                        <i class="bi @(project.HasProjectBrief ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i><span>Brief</span>
+                                            <td class="compendium-project-col--category">
+                                                <span class="compendium-table-primary">@(project.ProjectCategory ?? "Uncategorised")</span>
+                                            </td>
+                                            <td class="compendium-project-col--technical">
+                                                <span class="compendium-table-primary">@(project.TechnicalCategory ?? "Not recorded")</span>
+                                            </td>
+                                            <td class="compendium-project-col--narrative">
+                                                <div class="compendium-narrative-readiness" aria-label="Narrative availability">
+                                                    <span class="@(project.HasProjectBrief ? "is-ok" : "is-missing")" data-source-readiness="ProjectBrief" title="@(project.HasProjectBrief ? $"Project brief available · {project.ProjectBriefWordCount} words" : "Project brief missing")">
+                                                        <i class="bi @(project.HasProjectBrief ? "bi-check2-circle" : "bi-exclamation-circle")" aria-hidden="true"></i>
+                                                        <b>Brief</b><small>@(project.HasProjectBrief ? $"{project.ProjectBriefWordCount} words" : "Missing")</small>
                                                     </span>
-                                                    <span class="@(project.HasCapabilityOverview ? "is-ok" : "is-missing")" title="@(project.HasCapabilityOverview ? $"Capability overview available · {project.CapabilityStatementCount} statements" : "Capability overview missing")" data-source-readiness="CapabilityOverview">
-                                                        <i class="bi @(project.HasCapabilityOverview ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i><span>Capabilities</span>
+                                                    <span class="@(project.HasCapabilityOverview ? "is-ok" : "is-missing")" data-source-readiness="CapabilityOverview" title="@(project.HasCapabilityOverview ? $"Capability overview available · {project.CapabilityStatementCount} statements" : "Capability overview missing")">
+                                                        <i class="bi @(project.HasCapabilityOverview ? "bi-check2-circle" : "bi-exclamation-circle")" aria-hidden="true"></i>
+                                                        <b>Capabilities</b><small>@(project.HasCapabilityOverview ? $"{project.CapabilityStatementCount} statements" : "Missing")</small>
                                                     </span>
-                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")" title="@(project.HasDescription ? $"Description available · {project.DescriptionWordCount} words" : "Description missing")" data-source-readiness="ProjectDescription">
-                                                        <i class="bi @(project.HasDescription ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i><span>Description</span>
-                                                    </span>
-                                                    <span class="@(project.HasArmService ? "is-ok" : "is-missing")"
-                                                          title="@(project.HasArmService ? "Arm/Service available" : "Arm/Service missing")">
-                                                        <i class="bi @(project.HasArmService ? "bi-check2" : "bi-exclamation-lg")" aria-hidden="true"></i>
-                                                        <span>Arm/Service</span>
-                                                    </span>
-                                                    <span class="@costClass" title="@costTitle">
-                                                        <i class="bi @costIcon" aria-hidden="true"></i>
-                                                        <span>Cost</span>
+                                                    <span class="@(project.HasDescription ? "is-ok" : "is-missing")" data-source-readiness="ProjectDescription" title="@(project.HasDescription ? $"Description available · {project.DescriptionWordCount} words" : "Description missing")">
+                                                        <i class="bi @(project.HasDescription ? "bi-check2-circle" : "bi-exclamation-circle")" aria-hidden="true"></i>
+                                                        <b>Description</b><small>@(project.HasDescription ? $"{project.DescriptionWordCount} words" : "Missing")</small>
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td class="compendium-project-col--arm">
+                                                <span class="compendium-table-value @(project.HasArmService ? "is-recorded" : "is-missing")" title="@(project.HasArmService ? "Arm/Service available" : "Arm/Service missing")">
+                                                    <i class="bi @(project.HasArmService ? "bi-check2" : "bi-dash")" aria-hidden="true"></i>
+                                                    @project.ArmServiceDisplay
+                                                </span>
+                                            </td>
+                                            <td class="compendium-project-col--cost">
+                                                <span class="compendium-table-value @costClass" title="@costTitle">
+                                                    <i class="bi @(project.HasProliferationCost ? "bi-check2" : project.IsAvailableForProliferation ? "bi-exclamation-lg" : "bi-dash")" aria-hidden="true"></i>
+                                                    @(project.HasProliferationCost ? project.ProliferationCostDisplay : project.IsAvailableForProliferation ? "Not recorded" : "Not required")
+                                                </span>
+                                            </td>
+                                            <td class="compendium-project-col--photo">
                                                 @if (project.PhotoCount > 0)
                                                 {
                                                     <span class="compendium-photo-count" title="@photoTitle">
@@ -404,45 +417,86 @@
                                 <span class="compendium-review-state" data-review-state aria-live="polite">Review required</span>
                             </header>
 
-                            <div class="compendium-review-workspace">
-                                <section class="compendium-review-image-panel" aria-label="Publication photograph">
-                                    <div class="compendium-review-image-frame" data-review-image-frame>
-                                        <img alt="" data-review-image hidden />
-                                        <div class="compendium-review-image-empty" data-review-image-empty>
-                                            <i class="bi bi-image"></i>
-                                            <strong>No publication image</strong>
-                                        </div>
-                                    </div>
-                                    <div class="compendium-review-image-meta">
+                            <div class="compendium-review-workspace compendium-review-workspace--live">
+                                <section class="compendium-live-page" aria-label="Live project page preview">
+                                    <div class="compendium-live-page__toolbar">
                                         <div>
-                                            <span class="compendium-image-badge" data-review-image-mode>Automatic</span>
-                                            <span class="compendium-image-badge" data-review-image-quality>Quality pending</span>
+                                            <strong>Live page preview</strong>
+                                            <span>Near-final dossier composition</span>
                                         </div>
-                                        <small data-review-image-detail></small>
+                                        <span>PDF preview is authoritative</span>
                                     </div>
-                                    <div class="compendium-review-image-actions">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop><i class="bi bi-crop"></i> Adjust crop</button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-use-cover><i class="bi bi-card-image"></i> Use as cover hero</button>
-                                        <button type="button" class="btn btn-sm btn-link" data-review-use-automatic>Use automatic</button>
+                                    <div class="compendium-live-page__viewport">
+                                        <article class="compendium-live-page__sheet" data-live-page-preview>
+                                            <header class="compendium-live-page__running">
+                                                <span data-live-page-publication>SDD SIMULATORS COMPENDIUM</span>
+                                                <span data-live-page-edition>Capability dossier</span>
+                                            </header>
+                                            <div class="compendium-live-page__masthead">
+                                                <div>
+                                                    <span data-live-page-kicker>PROJECT DOSSIER</span>
+                                                    <i aria-hidden="true"></i>
+                                                </div>
+                                                <b data-live-page-status>ONGOING</b>
+                                            </div>
+                                            <h4 data-live-page-title>Project title</h4>
+                                            <div class="compendium-live-page__facts" data-live-page-facts></div>
+                                            <div class="compendium-live-page__image" data-live-page-image-frame>
+                                                <img alt="" data-live-page-image hidden />
+                                                <div data-live-page-image-empty>
+                                                    <span>CAPABILITY DOSSIER</span>
+                                                    <strong data-live-page-image-category>PROJECT</strong>
+                                                </div>
+                                            </div>
+                                            <section class="compendium-live-page__narrative">
+                                                <header><span data-live-page-narrative-label>PROJECT BRIEF</span><i aria-hidden="true"></i></header>
+                                                <div data-live-page-narrative></div>
+                                            </section>
+                                            <footer><span>Simulator Development Division</span><span>Project dossier</span></footer>
+                                        </article>
                                     </div>
-                                    <a class="compendium-manage-photos" data-review-manage-photos><i class="bi bi-box-arrow-up-right"></i> Manage project photographs</a>
                                 </section>
 
-                                <section class="compendium-review-information">
-                                    <div class="compendium-review-facts compendium-review-facts--phase23" data-review-facts></div>
-                                    <div class="compendium-review-narrative-selector" data-review-narrative-options aria-label="Narrative availability"></div>
-                                    <div class="compendium-review-description">
-                                        <div class="compendium-review-section-heading">
-                                            <strong data-review-narrative-label>Project Brief</strong>
-                                            <span data-review-description-state></span>
+                                <section class="compendium-review-inspector" aria-label="Publication inspector">
+                                    <section class="compendium-review-image-panel" aria-label="Publication photograph">
+                                        <div class="compendium-review-image-frame" data-review-image-frame>
+                                            <img alt="" data-review-image hidden />
+                                            <div class="compendium-review-image-empty" data-review-image-empty>
+                                                <i class="bi bi-image"></i>
+                                                <strong>No publication image</strong>
+                                            </div>
                                         </div>
-                                        <div class="compendium-review-description-text" data-review-description></div>
-                                    </div>
-                                    <div class="compendium-review-actions">
-                                        <a class="btn btn-sm btn-outline-secondary" data-review-open-project><i class="bi bi-box-arrow-up-right"></i> Open project</a>
-                                        <a class="btn btn-sm btn-outline-secondary" data-review-edit-record hidden><i class="bi bi-pencil"></i> Edit record</a>
-                                    </div>
+                                        <div class="compendium-review-image-meta">
+                                            <div>
+                                                <span class="compendium-image-badge" data-review-image-mode>Automatic</span>
+                                                <span class="compendium-image-badge" data-review-image-quality>Quality pending</span>
+                                            </div>
+                                            <small data-review-image-detail></small>
+                                        </div>
+                                        <div class="compendium-review-image-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop><i class="bi bi-crop"></i> Adjust crop</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-use-cover><i class="bi bi-card-image"></i> Use as cover hero</button>
+                                            <button type="button" class="btn btn-sm btn-link" data-review-use-automatic>Use automatic</button>
+                                        </div>
+                                        <a class="compendium-manage-photos" data-review-manage-photos><i class="bi bi-box-arrow-up-right"></i> Manage project photographs</a>
+                                    </section>
+
+                                    <section class="compendium-review-information">
+                                        <div class="compendium-review-facts compendium-review-facts--phase23" data-review-facts></div>
+                                        <div class="compendium-review-narrative-selector" data-review-narrative-options aria-label="Narrative availability"></div>
+                                        <div class="compendium-review-description">
+                                            <div class="compendium-review-section-heading">
+                                                <strong data-review-narrative-label>Project Brief</strong>
+                                                <span data-review-description-state></span>
+                                            </div>
+                                            <div class="compendium-review-description-text" data-review-description></div>
+                                        </div>
+                                        <div class="compendium-review-actions">
+                                            <a class="btn btn-sm btn-outline-secondary" data-review-open-project><i class="bi bi-box-arrow-up-right"></i> Open project</a>
+                                            <a class="btn btn-sm btn-outline-secondary" data-review-edit-record hidden><i class="bi bi-pencil"></i> Edit record</a>
+                                        </div>
+                                    </section>
                                 </section>
                             </div>
 

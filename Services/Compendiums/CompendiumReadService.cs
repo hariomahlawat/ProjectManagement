@@ -20,7 +20,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-14_publication-workspace-v5";
+    public const string BuildStamp = "CompendiumPdf_2026-08-14_publication-workspace-v6";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -59,6 +59,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 project.Category != null ? project.Category.Name : null,
                 project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
+                project.TechnicalCategory != null ? project.TechnicalCategory.SortOrder : int.MaxValue,
                 project.ProjectBrief,
                 project.Description,
                 project.ArmService,
@@ -131,7 +132,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     ProjectBriefWordCount = CountWords(project.ProjectBrief),
                     CapabilityStatementCount = capabilitiesByProject.GetValueOrDefault(project.Id)?.Count ?? 0,
                     DescriptionWordCount = CountWords(project.Description),
-                    PublicationYear = ResolvePublicationYear(project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt)
+                    PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
+                    TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
+                    ArmServiceDisplay = NormalizeDisplay(project.ArmService, "Not recorded"),
+                    ProliferationCostDisplay = CompendiumPublicationImagePolicy.FormatCost(productionCost)
                 };
             })
             .ToArray();
@@ -332,7 +336,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 CustomSectionKey = sectionAssignment.SectionKey,
                 CustomSectionName = sectionAssignment.SectionName,
                 UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
-                PublicationYear = ResolvePublicationYear(project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt)
+                PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
+                TechnicalCategorySortOrder = project.TechnicalCategorySortOrder
             });
         }
 
@@ -679,7 +684,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.CreatedAt,
                 project.CoverPhotoId,
                 project.Category != null ? project.Category.Name : null,
-                project.TechnicalCategory != null ? project.TechnicalCategory.Name : null))
+                project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
+                project.TechnicalCategory != null ? project.TechnicalCategory.SortOrder : int.MaxValue))
             .ToListAsync(cancellationToken);
 
     private async Task<List<PhotoCandidate>> LoadPhotoCandidatesAsync(
@@ -897,25 +903,23 @@ public sealed class CompendiumReadService : ICompendiumReadService
         }
         else
         {
-            var sectionOrder = new List<string>();
-            foreach (var project in authoredOrder)
-            {
-                var sectionName = NormalizeDisplay(project.TechnicalCategoryName, "Not recorded");
-                if (!sectionOrder.Any(existing => string.Equals(existing, sectionName, StringComparison.OrdinalIgnoreCase)))
+            // Technical-category mode follows authoritative master-data ordering. Manual/latest/A-Z
+            // affects projects inside a category, never the catalogue taxonomy itself.
+            var technicalGroups = authoredOrder
+                .GroupBy(project => NormalizeDisplay(project.TechnicalCategoryName, "Not recorded"), StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
                 {
-                    sectionOrder.Add(sectionName);
-                }
-            }
+                    Name = group.First().TechnicalCategoryName is null ? "Not recorded" : NormalizeDisplay(group.First().TechnicalCategoryName, "Not recorded"),
+                    SortOrder = group.Min(project => project.TechnicalCategorySortOrder),
+                    Projects = group.ToArray()
+                })
+                .OrderBy(group => group.SortOrder)
+                .ThenBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
-            foreach (var sectionName in sectionOrder)
+            foreach (var group in technicalGroups)
             {
-                var members = authoredOrder
-                    .Where(project => string.Equals(
-                        NormalizeDisplay(project.TechnicalCategoryName, "Not recorded"),
-                        sectionName,
-                        StringComparison.OrdinalIgnoreCase))
-                    .ToArray();
-                grouped.Add((sectionName, SortProjects(members, sortMode)));
+                grouped.Add((group.Name, SortProjects(group.Projects, sortMode)));
             }
         }
 
@@ -1104,17 +1108,22 @@ public sealed class CompendiumReadService : ICompendiumReadService
     }
 
     private static int ResolvePublicationYear(
+        ProjectLifecycleStatus lifecycleStatus,
         short? yearOfDevelopment,
         int? completedYear,
         DateOnly? completedOn,
         DateTime createdAt)
     {
-        if (yearOfDevelopment.HasValue)
+        // "Latest" means the most recent meaningful lifecycle chronology: completion for
+        // completed projects, project/development year for ongoing work. Database import time
+        // is used only as a final deterministic fallback.
+        if (lifecycleStatus == ProjectLifecycleStatus.Completed)
         {
-            return yearOfDevelopment.Value;
+            return ResolveCompletionYear(completedYear, completedOn)
+                   ?? (yearOfDevelopment.HasValue ? yearOfDevelopment.Value : createdAt.Year);
         }
 
-        return ResolveCompletionYear(completedYear, completedOn) ?? createdAt.Year;
+        return yearOfDevelopment.HasValue ? yearOfDevelopment.Value : createdAt.Year;
     }
 
     private static int CountWords(string? value)
@@ -1153,6 +1162,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         ProjectLifecycleStatus LifecycleStatus,
         string? ProjectCategory,
         string? TechnicalCategory,
+        int TechnicalCategorySortOrder,
         string? ProjectBrief,
         string? Description,
         string? ArmService,
@@ -1176,7 +1186,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
         DateTime CreatedAt,
         int? CoverPhotoId,
         string? ProjectCategory,
-        string? TechnicalCategory)
+        string? TechnicalCategory,
+        int TechnicalCategorySortOrder)
     {
         public int ProjectId => Id;
     }

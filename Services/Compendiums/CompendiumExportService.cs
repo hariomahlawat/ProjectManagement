@@ -222,8 +222,10 @@ public sealed class CompendiumExportService : ICompendiumExportService
         {
             var candidate = projects
                 .Where(project => project.CoverPhotoId.HasValue)
-                .OrderByDescending(project => project.IsReviewed)
+                .OrderByDescending(project => CoverHeroSourcePriority(project.CoverPhotoSource))
+                .ThenByDescending(project => project.IsReviewed)
                 .ThenByDescending(project => project.ImageQuality)
+                .ThenByDescending(project => project.EffectiveDpi ?? 0)
                 .ThenBy(project => project.SortOrder)
                 .FirstOrDefault();
             if (candidate is not null)
@@ -283,6 +285,16 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 .ToArray()
             : Array.Empty<CompendiumProjectSelection>();
     }
+
+    private static int CoverHeroSourcePriority(CompendiumPhotoSelectionSource source)
+        => source switch
+        {
+            CompendiumPhotoSelectionSource.ProjectCover => 4,
+            CompendiumPhotoSelectionSource.MarkedCover => 3,
+            CompendiumPhotoSelectionSource.ExplicitPublication => 2,
+            CompendiumPhotoSelectionSource.FirstAvailable => 1,
+            _ => 0
+        };
 
     private static double ClampFocal(double value)
         => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;

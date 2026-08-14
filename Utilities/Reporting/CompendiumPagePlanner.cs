@@ -1,3 +1,4 @@
+using ProjectManagement.Services.Compendiums;
 using System.Text.RegularExpressions;
 
 namespace ProjectManagement.Utilities.Reporting;
@@ -157,9 +158,9 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
     private static CompendiumProjectLayoutVariant ResolveLayout(string? markdown, bool hasPhoto)
     {
         if (!hasPhoto) return CompendiumProjectLayoutVariant.NoPhoto;
-        var length = string.IsNullOrWhiteSpace(markdown) ? 0 : markdown.Trim().Length;
-        if (length <= 220) return CompendiumProjectLayoutVariant.PhotoShort;
-        if (length <= 1050) return CompendiumProjectLayoutVariant.PhotoMedium;
+        var frameHeight = CompendiumPublicationImagePolicy.ResolveFrameHeightPoints(markdown);
+        if (frameHeight >= CompendiumPublicationImagePolicy.ShortFrameHeightPoints) return CompendiumProjectLayoutVariant.PhotoShort;
+        if (frameHeight >= CompendiumPublicationImagePolicy.MediumFrameHeightPoints) return CompendiumProjectLayoutVariant.PhotoMedium;
         return CompendiumProjectLayoutVariant.PhotoLong;
     }
 

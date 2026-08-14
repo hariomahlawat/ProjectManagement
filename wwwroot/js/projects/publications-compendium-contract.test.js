@@ -19,6 +19,7 @@ const planner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
 const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
 const verifier = read('Utilities/Reporting/CompendiumPdfCompositionVerifier.cs');
 const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
+const pagePlanner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
 const registrations = read('Services/Publications/PublicationServiceCollectionExtensions.cs');
 const preset = read('Services/Publications/CompendiumPresetService.cs');
 const presetContracts = read('Services/Publications/CompendiumPresetContracts.cs');
@@ -544,4 +545,63 @@ test('phase 26 aggregates readiness findings and removes authoring language from
 test('phase 26 no-grouping index suppresses an artificial Projects section heading', () => {
   assert.match(builder, /showGroupHeadings/);
   assert.match(builder, /string\.Equals\(planned\.IndexGroups\[0\]\.CategoryName, "Projects"/);
+});
+
+
+test('phase 27 pins final output while the publication structure owns the rail scroll viewport', () => {
+  assert.match(css, /grid-template-rows:\s*minmax\(0,\s*1fr\)\s*auto/);
+  assert.match(css, /height:\s*calc\(100vh\s*-\s*128px\)/);
+  assert.match(css, /compendium-order-list[\s\S]*flex:\s*1\s+1\s+auto/);
+  assert.match(css, /compendium-final-card[\s\S]*flex:\s*0\s+0\s+auto/);
+});
+
+test('phase 27 uses wide monitors for a readable project publication register', () => {
+  for (const heading of ['Lifecycle', 'Project category', 'Technical category', 'Narrative', 'Arm / Service', 'Cost', 'Photography']) {
+    assert.match(view, new RegExp(heading.replace('/', '\\/')));
+  }
+  assert.match(css, /compendium-project-table[\s\S]*min-width:\s*1180px/);
+  assert.match(view, /compendium-narrative-readiness/);
+  assert.match(view, /Arm\/Service missing/);
+});
+
+test('phase 27 review includes a near-WYSIWYG dossier page and visible section rename affordance', () => {
+  assert.match(view, /data-live-page-preview/);
+  assert.match(view, /PDF preview is authoritative/);
+  assert.match(js, /renderLivePagePreview/);
+  assert.match(css, /aspect-ratio:\s*595\.28\s*\/\s*841\.89/);
+  assert.match(js, /compendium-section-name-editor/);
+  assert.match(js, /bi-pencil-square/);
+});
+
+test('phase 27 removes repeated category and lifecycle from the PDF running header', () => {
+  assert.match(builder, /ComposeRunningHeader\(header, publicationTitle\.ToUpperInvariant\(\), edition, marking\)/);
+  assert.match(builder, /ResolveProjectKicker\(project\)/);
+  assert.match(builder, /project\.LifecycleDisplay\.ToUpperInvariant\(\)/);
+  assert.doesNotMatch(builder, /ComposeRunningHeader\(header, publicationKicker\.ToUpperInvariant\(\), project\.LifecycleDisplay/);
+});
+
+test('phase 27 adapts PDF fact geometry and narrative image pressure', () => {
+  assert.match(builder, /BuildMetadataRows/);
+  assert.match(builder, /4\s*=>\s*new\[\]\s*\{\s*2,\s*2\s*\}/);
+  assert.match(builder, /5\s*=>\s*new\[\]\s*\{\s*3,\s*2\s*\}/);
+  assert.match(dto, /EstimateNarrativeLines/);
+  assert.match(dto, /Math\.Ceiling\(Math\.Max\(1, line\.Length\) \/ 90d\)/);
+  assert.match(pagePlanner, /CompendiumPublicationImagePolicy\.ResolveFrameHeightPoints/);
+});
+
+test('phase 27 automatic cover selection prefers intentional project cover sources', () => {
+  assert.match(exportService, /CoverHeroSourcePriority/);
+  assert.match(exportService, /CompendiumPhotoSelectionSource\.ProjectCover\s*=>\s*4/);
+  assert.match(exportService, /CompendiumPhotoSelectionSource\.FirstAvailable\s*=>\s*1/);
+  assert.match(js, /projectcover:\s*4/);
+  assert.match(js, /firstavailable:\s*1/);
+  assert.match(js, /prefers reviewed project-cover imagery/);
+});
+
+test('phase 27 latest chronology and technical taxonomy are authoritative and deterministic', () => {
+  assert.match(service, /lifecycleStatus == ProjectLifecycleStatus\.Completed/);
+  assert.match(service, /ResolveCompletionYear\(completedYear, completedOn\)/);
+  assert.match(service, /TechnicalCategorySortOrder/);
+  assert.match(service, /OrderBy\(group => group\.SortOrder\)/);
+  assert.match(view, /Completed projects use completion chronology; ongoing projects use project\/development year/);
 });

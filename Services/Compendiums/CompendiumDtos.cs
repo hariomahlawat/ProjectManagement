@@ -104,6 +104,9 @@ public sealed record CompendiumCandidateProjectVm(
     public int CapabilityStatementCount { get; init; }
     public int DescriptionWordCount { get; init; }
     public int PublicationYear { get; init; }
+    public string ArmServiceDisplay { get; init; } = "Not recorded";
+    public string ProliferationCostDisplay { get; init; } = "Not recorded";
+    public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
 }
 
 public sealed record CompendiumProjectSelection(
@@ -211,6 +214,7 @@ public sealed record CompendiumProjectDto(
     public string? CustomSectionName { get; init; }
     public bool UsesNarrativeOverride { get; init; }
     public int PublicationYear { get; init; }
+    public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
 }
 
 /// <summary>
@@ -336,10 +340,58 @@ public static class CompendiumPublicationImagePolicy
 
     public static double ResolveFrameHeightPoints(string? descriptionMarkdown)
     {
-        var length = PublicationTextLength(descriptionMarkdown);
-        if (length <= 220) return ShortFrameHeightPoints;
-        if (length <= 1050) return MediumFrameHeightPoints;
+        var lines = EstimateNarrativeLines(descriptionMarkdown);
+        if (lines <= 6) return ShortFrameHeightPoints;
+        if (lines <= 18) return MediumFrameHeightPoints;
         return LongFrameHeightPoints;
+    }
+
+    /// <summary>
+    /// Estimates rendered narrative pressure rather than using raw character count. Markdown
+    /// markers, list prefixes and paragraph boundaries are normalised so layout choice more
+    /// closely tracks the number of visual lines that QuestPDF will consume.
+    /// </summary>
+    public static int EstimateNarrativeLines(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0;
+        var text = value.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        var total = 0d;
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0)
+            {
+                total += .45d;
+                continue;
+            }
+
+            line = line.Replace("**", string.Empty, StringComparison.Ordinal)
+                .Replace("__", string.Empty, StringComparison.Ordinal)
+                .Replace("`", string.Empty, StringComparison.Ordinal)
+                .TrimStart('#', '>', ' ', '\t');
+            if (line.StartsWith("- ", StringComparison.Ordinal) || line.StartsWith("* ", StringComparison.Ordinal))
+            {
+                line = line[2..].Trim();
+                total += .2d;
+            }
+            else
+            {
+                var prefix = 0;
+                while (prefix < line.Length && char.IsDigit(line[prefix])) prefix++;
+                if (prefix > 0 && prefix + 1 < line.Length && (line[prefix] == '.' || line[prefix] == ')'))
+                {
+                    line = line[(prefix + 1)..].Trim();
+                    total += .2d;
+                }
+            }
+
+            // At 10 pt on the 519 pt dossier text width, normal prose averages roughly
+            // 88-96 characters per visual line. 90 keeps the estimate conservative for
+            // military abbreviations and bold fragments without over-penalising short words.
+            total += Math.Max(1d, Math.Ceiling(Math.Max(1, line.Length) / 90d));
+        }
+
+        return Math.Max(1, (int)Math.Ceiling(total));
     }
 
     public static int ResolveRenderHeightPixels(string? descriptionMarkdown)
@@ -383,12 +435,6 @@ public static class CompendiumPublicationImagePolicy
             ? $"₹{value.Value.ToString("0.##", CultureInfo.InvariantCulture)} lakh"
             : "Not recorded";
 
-    private static int PublicationTextLength(string? value)
-        => string.IsNullOrWhiteSpace(value)
-            ? 0
-            : value.Replace("**", string.Empty, StringComparison.Ordinal)
-                .Replace("__", string.Empty, StringComparison.Ordinal)
-                .Trim().Length;
 }
 
 

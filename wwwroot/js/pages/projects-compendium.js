@@ -232,6 +232,20 @@
     const reviewUseAutomatic = $("[data-review-use-automatic]");
     const reviewUseCover = $("[data-review-use-cover]");
 
+    const livePagePreview = $("[data-live-page-preview]");
+    const livePagePublication = $("[data-live-page-publication]");
+    const livePageEdition = $("[data-live-page-edition]");
+    const livePageKicker = $("[data-live-page-kicker]");
+    const livePageStatus = $("[data-live-page-status]");
+    const livePageTitle = $("[data-live-page-title]");
+    const livePageFacts = $("[data-live-page-facts]");
+    const livePageImageFrame = $("[data-live-page-image-frame]");
+    const livePageImage = $("[data-live-page-image]");
+    const livePageImageEmpty = $("[data-live-page-image-empty]");
+    const livePageImageCategory = $("[data-live-page-image-category]");
+    const livePageNarrativeLabel = $("[data-live-page-narrative-label]");
+    const livePageNarrative = $("[data-live-page-narrative]");
+
     const coverPreview = $("[data-cover-preview]");
     const coverPreviewImage = $("[data-cover-preview-image]");
     const coverStatus = $("[data-cover-status]");
@@ -412,16 +426,17 @@
             return groups;
         }
 
-        const groups = [], byName = new Map();
-        // Section order is derived from authored/manual order and therefore stays stable when
-        // Latest First or A-Z is applied inside each technical category.
+        const byName = new Map();
         orderedIds.forEach(id => {
             const project = projectById.get(id);
             const name = String(project?.technicalCategory || "").trim() || "Not recorded";
             const key = normalize(name);
-            if (!byName.has(key)) { const group = { key, name, ids: [], unassigned: false }; byName.set(key, group); groups.push(group); }
-            byName.get(key).ids.push(id);
+            if (!byName.has(key)) byName.set(key, { key, name, ids: [], unassigned: false, sortOrder: Number(project?.technicalCategorySortOrder ?? Number.MAX_SAFE_INTEGER) });
+            const group = byName.get(key);
+            group.ids.push(id);
+            group.sortOrder = Math.min(group.sortOrder, Number(project?.technicalCategorySortOrder ?? Number.MAX_SAFE_INTEGER));
         });
+        const groups = [...byName.values()].sort((a,b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
         groups.forEach(group => { group.ids = sortProjectIds(group.ids); });
         return groups;
     };
@@ -430,9 +445,13 @@
     const effectiveNarrativeSource = id => ensureConfig(id).narrativeSourceOverride || editorialState.narrativeSource;
 
     const automaticCoverCandidate = () => orderedIds.map(id => ({ id, state: stateFor(id) })).filter(item => item.state?.resolvedPhotoId).sort((a, b) => {
+        const sourceRank = value => ({ projectcover: 4, markedcover: 3, explicitpublication: 2, firstavailable: 1 }[normalize(value)] || 0);
+        const sr = sourceRank(b.state?.photoSelectionSource) - sourceRank(a.state?.photoSelectionSource); if (sr) return sr;
         const rd = Number(Boolean(b.state?.isReviewed)) - Number(Boolean(a.state?.isReviewed)); if (rd) return rd;
         const rank = value => ({ good: 3, acceptable: 2, low: 1 }[normalize(value)] || 0);
-        const qd = rank(b.state?.imageQuality) - rank(a.state?.imageQuality); return qd || publicationOrderIds().indexOf(a.id) - publicationOrderIds().indexOf(b.id);
+        const qd = rank(b.state?.imageQuality) - rank(a.state?.imageQuality); if (qd) return qd;
+        const dpi = Number(b.state?.effectiveDpi || 0) - Number(a.state?.effectiveDpi || 0);
+        return dpi || publicationOrderIds().indexOf(a.id) - publicationOrderIds().indexOf(b.id);
     })[0] || null;
     const renderCoverSetting = () => {
         let projectId = null, photoId = null, focalX = coverState.focalX, focalY = coverState.focalY;
@@ -440,7 +459,7 @@
         else if (coverState.imageMode === "automatic") { const candidate = automaticCoverCandidate(); projectId = candidate?.id || null; photoId = candidate?.state?.resolvedPhotoId || null; if (projectId) { const config = ensureConfig(projectId); focalX = config.focalX; focalY = config.focalY; } }
         const project = projectId ? projectById.get(Number(projectId)) : null;
         if (coverStatus) coverStatus.textContent = coverState.imageMode === "none" ? "No imagery" : coverState.imageMode === "explicit" ? `Selected hero · ${project?.projectName || "Project image"}` : "Automatic hero";
-        if (coverDetail) coverDetail.textContent = coverState.imageMode === "none" ? "The cover will use the institutional graphic treatment without project imagery." : coverState.imageMode === "explicit" ? "This hero is independent of project order. Re-select from Review to copy a newer project crop." : "PRISM uses the strongest available reviewed publication image from the selected projects.";
+        if (coverDetail) coverDetail.textContent = coverState.imageMode === "none" ? "The cover will use the institutional graphic treatment without project imagery." : coverState.imageMode === "explicit" ? "This hero is independent of project order. Re-select from Review to copy a newer project crop." : "PRISM prefers reviewed project-cover imagery, then falls back to the strongest available publication image.";
         if (coverPreviewImage && coverPreview) {
             if (projectId && photoId) { coverPreviewImage.src = photoPreviewUrl(projectId, photoId); coverPreviewImage.style.objectPosition = `${clamp(focalX) * 100}% ${clamp(focalY) * 100}%`; coverPreviewImage.alt = `${project?.projectName || "Compendium"} cover hero`; coverPreviewImage.hidden = false; coverPreview.classList.add("has-image"); }
             else { coverPreviewImage.hidden = true; coverPreviewImage.removeAttribute("src"); coverPreview.classList.remove("has-image"); }
@@ -577,7 +596,7 @@
             const customHeader = custom
                 ? (group.unassigned
                     ? `<div class="compendium-order-group__identity"><span>Unassigned</span><small>Assign before final issue where possible</small></div>`
-                    : `<div class="compendium-order-group__custom"><span class="compendium-order-section-grip" draggable="true" data-section-drag-handle data-section-key="${escapeHtml(group.key)}" title="Drag to reorder section"><i class="bi bi-grip-vertical"></i></span><input value="${escapeHtml(group.name)}" maxlength="120" data-section-rename data-section-key="${escapeHtml(group.key)}" aria-label="Rename section ${escapeHtml(group.name)}"><button type="button" data-section-group-up data-section-key="${escapeHtml(group.key)}" title="Move section up" ${groupIndex === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button><button type="button" data-section-group-down data-section-key="${escapeHtml(group.key)}" title="Move section down" ${groupIndex >= customSections.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button><button type="button" data-section-delete data-section-key="${escapeHtml(group.key)}" title="Delete section"><i class="bi bi-trash3"></i></button></div>`)
+                    : `<div class="compendium-order-group__custom"><span class="compendium-order-section-grip" draggable="true" data-section-drag-handle data-section-key="${escapeHtml(group.key)}" title="Drag to reorder section"><i class="bi bi-grip-vertical"></i></span><label class="compendium-section-name-editor" title="Rename publication section"><input value="${escapeHtml(group.name)}" maxlength="120" data-section-rename data-section-key="${escapeHtml(group.key)}" aria-label="Rename section ${escapeHtml(group.name)}"><i class="bi bi-pencil-square" aria-hidden="true"></i></label><button type="button" data-section-group-up data-section-key="${escapeHtml(group.key)}" title="Move section up" ${groupIndex === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button><button type="button" data-section-group-down data-section-key="${escapeHtml(group.key)}" title="Move section down" ${groupIndex >= customSections.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button><button type="button" data-section-delete data-section-key="${escapeHtml(group.key)}" title="Delete section"><i class="bi bi-trash3"></i></button></div>`)
                 : `<span>${escapeHtml(group.name)}</span>`;
             const empty = group.ids.length === 0 ? `<div class="compendium-order-group__empty" data-section-drop-zone>Drop projects here</div>` : "";
             return `<section class="compendium-order-group${group.unassigned ? " is-unassigned" : ""}" data-section-group="${escapeHtml(group.key)}" data-section-key="${escapeHtml(group.key)}"><header>${customHeader}<small>${group.ids.length} project${group.ids.length === 1 ? "" : "s"}</small></header>${empty}${group.ids.map((id, index) => htmlForItem(id, group, index)).join("")}</section>`;
@@ -590,6 +609,12 @@
         if (quality === "low") return dpi ? `Low · ${dpi} DPI` : "Low resolution";
         return "Quality unavailable";
     };
+    const coverSourceLabel = value => ({
+        projectcover: "Project cover",
+        markedcover: "Marked cover",
+        explicitpublication: "Publication image",
+        firstavailable: "Available image"
+    }[normalize(value)] || "Publication image");
     const availabilityLabel = value => value === true
         ? "Available for proliferation"
         : value === false ? "Not available for proliferation" : "Not assessed";
@@ -641,6 +666,9 @@
         if (reviewOrdinal) reviewOrdinal.textContent = `PROJECT ${ordinal} OF ${reviewOrder.length}`;
         if (reviewName) reviewName.textContent = project.projectName;
         if (reviewMeta) reviewMeta.textContent = `${project.lifecycle} · ${project.technicalCategory || "Technical category not recorded"}`;
+        if (livePageTitle) livePageTitle.textContent = project.projectName || "Project";
+        if (livePageKicker) livePageKicker.textContent = (ensureConfig(id).customSectionName || project.technicalCategory || "Project dossier").toUpperCase();
+        if (livePageNarrative) livePageNarrative.textContent = "Loading current PRISM publication content…";
         if (reviewState) { reviewState.textContent = "Loading…"; reviewState.className = "compendium-review-state is-loading"; }
         if (reviewFacts) reviewFacts.innerHTML = '<div class="compendium-review-loading">Loading current project information…</div>';
         if (reviewDescription) reviewDescription.innerHTML = '<span class="compendium-review-loading-line"></span><span class="compendium-review-loading-line"></span>';
@@ -652,6 +680,69 @@
     const currentReviewPhoto = review => {
         if (!review?.resolvedPhotoId || !Array.isArray(review.photos)) return null;
         return review.photos.find(photo => Number(photo.photoId) === Number(review.resolvedPhotoId)) || null;
+    };
+
+    const narrativePlainText = value => String(value || "")
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/[*_`#>]/g, "")
+        .replace(/^\s*[-+]\s+/gm, "")
+        .replace(/^\s*\d+[.)]\s+/gm, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const renderLivePagePreview = (review, photo) => {
+        if (!livePagePreview || !review) return;
+        const config = ensureConfig(review.projectId);
+        const sectionName = review.customSectionName || review.technicalCategoryName || "Project dossier";
+        const lifecycleValue = review.lifecycleDisplay || "Ongoing";
+        const completed = normalize(lifecycleValue) === "completed";
+        if (livePagePublication) livePagePublication.textContent = String(form.elements["Input.Title"]?.value || "Simulators Compendium").trim().toUpperCase() || "SIMULATORS COMPENDIUM";
+        if (livePageEdition) livePageEdition.textContent = String(form.elements["Input.Edition"]?.value || "Capability dossier").trim() || "Capability dossier";
+        if (livePageKicker) livePageKicker.textContent = sectionName.toUpperCase();
+        if (livePageStatus) {
+            livePageStatus.textContent = lifecycleValue.toUpperCase();
+            livePageStatus.classList.toggle("is-completed", completed);
+            livePageStatus.classList.toggle("is-ongoing", !completed);
+        }
+        if (livePageTitle) livePageTitle.textContent = review.projectName || "Project";
+
+        const facts = [];
+        if (review.projectCategoryName) facts.push(["Project category", review.projectCategoryName]);
+        if (review.technicalCategoryName) facts.push(["Technical category", review.technicalCategoryName]);
+        if (completed && String(review.completionDisplay || "").trim()) facts.push(["Completed", review.completionDisplay]);
+        if (review.armServiceDisplay && normalize(review.armServiceDisplay) !== "not recorded") facts.push(["Arm / Service", review.armServiceDisplay]);
+        if (review.proliferationAvailability !== null && review.proliferationAvailability !== undefined) facts.push(["Proliferation", review.proliferationAvailability ? "Available" : "Not available"]);
+        if (review.proliferationAvailability === true && review.proliferationCostDisplay && normalize(review.proliferationCostDisplay) !== "not recorded") facts.push(["Indicative cost", review.proliferationCostDisplay]);
+        if (livePageFacts) {
+            livePageFacts.dataset.factCount = String(facts.length);
+            livePageFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+        }
+
+        if (livePageImageFrame) {
+            const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints;
+            const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints;
+            livePageImageFrame.style.aspectRatio = `${fw} / ${fh}`;
+        }
+        if (livePageImage && livePageImageEmpty) {
+            if (photo?.previewUrl) {
+                livePageImage.src = photo.previewUrl;
+                livePageImage.style.objectPosition = `${clamp(config.focalX) * 100}% ${clamp(config.focalY) * 100}%`;
+                livePageImage.alt = `${review.projectName} publication preview`;
+                livePageImage.hidden = false;
+                livePageImageEmpty.hidden = true;
+            } else {
+                livePageImage.removeAttribute("src");
+                livePageImage.hidden = true;
+                livePageImageEmpty.hidden = false;
+                if (livePageImageCategory) livePageImageCategory.textContent = (review.technicalCategoryName || sectionName).toUpperCase();
+            }
+        }
+        if (livePageNarrativeLabel) livePageNarrativeLabel.textContent = String(review.narrativeLabel || "Project Brief").toUpperCase();
+        if (livePageNarrative) {
+            const plain = narrativePlainText(review.descriptionMarkdown);
+            livePageNarrative.textContent = plain || `${review.narrativeLabel || "Project Brief"} not recorded.`;
+            livePageNarrative.classList.toggle("is-missing", !plain);
+        }
     };
 
     const renderReviewData = review => {
@@ -738,6 +829,7 @@
             else if (review.explicitPhotoUnavailable) reviewImageDetail.textContent = "The saved image is unavailable; PRISM is temporarily showing the current automatic choice.";
             else reviewImageDetail.textContent = `${photo.width}×${photo.height} source · ${review.photoSelectionSource === "explicitpublication" ? "publication selection" : "current project selection"}`;
         }
+        renderLivePagePreview(review, photo);
         setControlDisabled(reviewChangeImage, false);
         setControlDisabled(reviewAdjustCrop, !photo);
         setControlDisabled(reviewUseCover, !photo);
@@ -1490,7 +1582,7 @@
         if (!coverHeroPicker) return;
         const candidates = publicationOrderIds().map(id => { const project = projectById.get(id), state = stateFor(id), config = ensureConfig(id); const photoId = Number(state?.resolvedPhotoId || project?.defaultPhotoId || 0); return { id, project, state, config, photoId }; }).filter(item => item.project && item.photoId);
         if (coverHeroEmpty) coverHeroEmpty.hidden = candidates.length > 0;
-        coverHeroPicker.innerHTML = candidates.map(item => `<button type="button" class="compendium-cover-hero-choice${coverState.imageMode === "explicit" && Number(coverState.heroProjectId) === item.id && Number(coverState.heroPhotoId) === item.photoId ? " is-selected" : ""}" data-cover-hero-choice data-project-id="${item.id}" data-photo-id="${item.photoId}"><span class="compendium-cover-hero-thumb"><img src="${escapeHtml(photoPreviewUrl(item.id,item.photoId))}" alt="" style="object-position:${clamp(item.config.focalX)*100}% ${clamp(item.config.focalY)*100}%"></span><span><strong>${escapeHtml(item.project.projectName)}</strong><small>${escapeHtml(item.project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(qualityLabel(normalize(item.state?.imageQuality), item.state?.effectiveDpi))}</small></span><i class="bi bi-check-circle-fill"></i></button>`).join("");
+        coverHeroPicker.innerHTML = candidates.map(item => `<button type="button" class="compendium-cover-hero-choice${coverState.imageMode === "explicit" && Number(coverState.heroProjectId) === item.id && Number(coverState.heroPhotoId) === item.photoId ? " is-selected" : ""}" data-cover-hero-choice data-project-id="${item.id}" data-photo-id="${item.photoId}"><span class="compendium-cover-hero-thumb"><img src="${escapeHtml(photoPreviewUrl(item.id,item.photoId))}" alt="" style="object-position:${clamp(item.config.focalX)*100}% ${clamp(item.config.focalY)*100}%"></span><span><strong>${escapeHtml(item.project.projectName)}</strong><small>${escapeHtml(item.project.technicalCategory || "Technical category not recorded")} · ${escapeHtml(coverSourceLabel(item.state?.photoSelectionSource))} · ${escapeHtml(qualityLabel(normalize(item.state?.imageQuality), item.state?.effectiveDpi))}</small></span><i class="bi bi-check-circle-fill"></i></button>`).join("");
     };
     coverChoose?.addEventListener("click", () => { renderCoverHeroPicker(); coverHeroModal?.show(); });
     coverHeroPicker?.addEventListener("click", event => {
@@ -1563,7 +1655,11 @@
         });
     });
 
-    form.querySelectorAll("[data-compendium-durable]").forEach(input => input.addEventListener("input", () => { renderDirty(); schedulePreflight(); }));
+    form.querySelectorAll("[data-compendium-durable]").forEach(input => input.addEventListener("input", () => {
+        renderDirty();
+        if (activeReviewData) renderLivePagePreview(activeReviewData, currentReviewPhoto(activeReviewData));
+        schedulePreflight();
+    }));
     const publicationErrorFromResponse = async response => {
         const type = response.headers.get("content-type") || "";
         if (type.includes("application/json")) {

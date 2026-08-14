@@ -2955,3 +2955,430 @@ body.brochure-modal-open { overflow: hidden; }
     .publications-page.brochure-builder { padding-inline: 1rem; }
     .publications-page.brochure-builder .brochure-layout { grid-template-columns: 1fr; }
 }
+
+/* ========================================================================== 
+   Simulators Compendium - Phase 27 publication polish
+   Wide-monitor efficiency, viewport rail, richer project register and live
+   dossier review.  These rules intentionally override earlier phase defaults.
+   ========================================================================== */
+.publications-page.compendium-builder-page {
+    padding-top: .78rem;
+}
+.compendium-builder-page .publications-breadcrumb {
+    margin-bottom: .48rem;
+    font-size: .7rem;
+}
+.compendium-builder-page .publications-header {
+    gap: 1rem;
+    margin-bottom: .72rem;
+}
+.compendium-builder-page .publications-header h1 {
+    font-size: clamp(1.55rem, 1.8vw, 1.95rem);
+}
+.compendium-builder-page .publications-header p:not(.publications-eyebrow) {
+    max-width: 690px;
+    margin-top: .2rem;
+    font-size: .79rem;
+    line-height: 1.4;
+}
+.compendium-builder-page .publications-eyebrow {
+    margin-bottom: .18rem;
+    font-size: .6rem;
+}
+.compendium-builder-page .compendium-preset-control {
+    width: min(100%, 430px);
+    padding: .58rem .65rem;
+}
+.compendium-builder-page .compendium-preset-heading { margin-bottom: .25rem; }
+.compendium-builder-page .compendium-preset-control > small { margin-top: .2rem; }
+.compendium-builder-page + .publication-tabs,
+.compendium-builder-page .publication-tabs { margin-bottom: .82rem; }
+.compendium-builder-page .compendium-builder-form { margin-top: .7rem; }
+
+/* The rail owns the viewport: publication structure scrolls, issue controls stay visible. */
+@media (min-width: 1200px) {
+    .compendium-builder-page .compendium-builder-rail {
+        top: 112px;
+        height: calc(100vh - 128px);
+        max-height: calc(100vh - 128px);
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: .7rem;
+        overflow: hidden;
+        align-self: start;
+    }
+    .compendium-builder-page .compendium-order-card {
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+        flex-direction: column;
+    }
+    .compendium-builder-page .compendium-order-card > .publication-panel__header,
+    .compendium-builder-page .compendium-custom-section-toolbar,
+    .compendium-builder-page .compendium-order-note {
+        flex: 0 0 auto;
+    }
+    .compendium-builder-page .compendium-order-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow: auto;
+    }
+    .compendium-builder-page .compendium-final-card {
+        flex: 0 0 auto;
+    }
+    .compendium-builder-page .compendium-final-card .publication-panel__header {
+        padding-block: .6rem;
+    }
+    .compendium-builder-page .compendium-final-card .publication-panel__body {
+        padding: .65rem;
+    }
+}
+
+/* Custom-section names remain directly editable, but now visibly communicate that affordance. */
+.compendium-builder-page .compendium-order-group__custom {
+    grid-template-columns: 24px minmax(0,1fr) 28px 28px 28px;
+}
+.compendium-section-name-editor {
+    position: relative;
+    display: block;
+    min-width: 0;
+    margin: 0;
+}
+.compendium-builder-page .compendium-section-name-editor input {
+    width: 100%;
+    padding-right: 1.75rem;
+    border-color: transparent;
+    background: transparent;
+    font-weight: 760;
+    text-transform: uppercase;
+    letter-spacing: .025em;
+}
+.compendium-builder-page .compendium-section-name-editor > i {
+    position: absolute;
+    top: 50%;
+    right: .45rem;
+    transform: translateY(-50%);
+    color: #789087;
+    font-size: .67rem;
+    opacity: .55;
+    pointer-events: none;
+    transition: opacity .15s ease, color .15s ease;
+}
+.compendium-builder-page .compendium-section-name-editor:hover input,
+.compendium-builder-page .compendium-section-name-editor input:focus {
+    border-color: #bcd4ca;
+    background: #fff;
+}
+.compendium-builder-page .compendium-section-name-editor:hover > i,
+.compendium-builder-page .compendium-section-name-editor:focus-within > i {
+    color: #245b47;
+    opacity: 1;
+}
+
+/* The project register now uses wide monitors as an information surface instead of a badge tray. */
+.compendium-builder-page .compendium-project-table-wrap {
+    max-height: clamp(500px, 59vh, 820px);
+    scrollbar-gutter: stable both-edges;
+}
+.compendium-builder-page .compendium-project-table {
+    min-width: 1180px;
+    table-layout: fixed;
+    font-size: .7rem;
+}
+.compendium-builder-page .compendium-project-table thead th {
+    padding: .58rem .48rem;
+    font-size: .6rem;
+}
+.compendium-builder-page .compendium-project-table tbody td {
+    padding: .52rem .48rem;
+    line-height: 1.35;
+}
+.compendium-builder-page .compendium-project-col--select { width: 38px; }
+.compendium-builder-page .compendium-project-col--project { width: 23%; }
+.compendium-builder-page .compendium-project-col--lifecycle { width: 8%; }
+.compendium-builder-page .compendium-project-col--category { width: 12%; }
+.compendium-builder-page .compendium-project-col--technical { width: 11%; }
+.compendium-builder-page .compendium-project-col--narrative { width: 20%; }
+.compendium-builder-page .compendium-project-col--arm { width: 9%; }
+.compendium-builder-page .compendium-project-col--cost { width: 9%; }
+.compendium-builder-page .compendium-project-col--photo { width: 8%; }
+.compendium-builder-page .compendium-project-table td strong {
+    font-size: .73rem;
+    line-height: 1.28;
+}
+.compendium-builder-page .compendium-project-table td small {
+    font-size: .6rem;
+}
+.compendium-table-primary {
+    display: block;
+    color: #30483f;
+    font-size: .68rem;
+    font-weight: 650;
+}
+.compendium-table-value {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    min-width: 0;
+    color: #566c63;
+    font-size: .65rem;
+    line-height: 1.28;
+}
+.compendium-table-value.is-recorded,
+.compendium-table-value.is-ok { color: #39715c; }
+.compendium-table-value.is-missing { color: #956c17; }
+.compendium-table-value.is-neutral { color: #7d8b86; }
+.compendium-narrative-readiness {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .28rem;
+}
+.compendium-narrative-readiness > span {
+    display: grid;
+    grid-template-columns: 14px minmax(0,1fr);
+    grid-template-rows: auto auto;
+    column-gap: .2rem;
+    min-width: 0;
+    padding: .3rem .32rem;
+    border: 1px solid #dce6e2;
+    border-radius: 7px;
+    background: #fafcfb;
+    color: #6e8078;
+}
+.compendium-narrative-readiness > span > i {
+    grid-row: 1 / 3;
+    align-self: center;
+    font-size: .7rem;
+}
+.compendium-narrative-readiness > span > b {
+    overflow: hidden;
+    font-size: .59rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-narrative-readiness > span > small {
+    margin: 0;
+    font-size: .52rem !important;
+    line-height: 1.2;
+}
+.compendium-narrative-readiness > span.is-ok { border-color: #cfe3d8; color: #39715c; background: #f5faf7; }
+.compendium-narrative-readiness > span.is-missing { border-color: #ead8ad; color: #946b16; background: #fffaf0; }
+.compendium-narrative-readiness > span.is-source-active {
+    border-color: #6da38e;
+    box-shadow: inset 0 0 0 1px rgba(56,120,94,.16);
+    background: #edf7f2;
+}
+
+/* Live dossier review: near-WYSIWYG page on wide screens, inspector alongside. */
+.compendium-builder-page .compendium-review-workspace--live {
+    grid-template-columns: minmax(420px, .95fr) minmax(460px, 1.05fr);
+    gap: 1rem;
+}
+.compendium-live-page,
+.compendium-review-inspector {
+    min-width: 0;
+}
+.compendium-live-page {
+    display: grid;
+    align-content: start;
+    gap: .45rem;
+}
+.compendium-live-page__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    color: #6d7f77;
+}
+.compendium-live-page__toolbar > div { display: grid; gap: .02rem; }
+.compendium-live-page__toolbar strong { color: #2e493f; font-size: .68rem; }
+.compendium-live-page__toolbar span { font-size: .56rem; }
+.compendium-live-page__viewport {
+    display: grid;
+    place-items: start center;
+    padding: .8rem;
+    border: 1px solid #dfe7e4;
+    border-radius: 11px;
+    background: #eef3f1;
+}
+.compendium-live-page__sheet {
+    position: relative;
+    width: min(100%, 510px);
+    aspect-ratio: 595.28 / 841.89;
+    overflow: hidden;
+    padding: 4.7% 5.8% 5.1%;
+    border: 1px solid #d9e0dd;
+    background: #fff;
+    box-shadow: 0 14px 34px rgba(29, 52, 44, .13);
+    color: #14221d;
+}
+.compendium-live-page__running {
+    display: flex;
+    justify-content: space-between;
+    gap: .6rem;
+    padding-bottom: .45rem;
+    border-bottom: 1px solid #dfe6e3;
+    color: #64766f;
+    font-size: .42rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.compendium-live-page__masthead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .7rem;
+    margin-top: .65rem;
+}
+.compendium-live-page__masthead > div { display: grid; gap: .25rem; min-width: 0; }
+.compendium-live-page__masthead > div > span {
+    overflow: hidden;
+    color: #245b47;
+    font-size: .46rem;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-live-page__masthead > div > i { display: block; width: 42px; height: 2px; background: #c9a646; }
+.compendium-live-page__masthead > b {
+    flex: 0 0 auto;
+    padding: .22rem .45rem;
+    border: 1px solid #c9d8f4;
+    background: #eef4ff;
+    color: #315e9a;
+    font-size: .43rem;
+    letter-spacing: .14em;
+}
+.compendium-live-page__masthead > b.is-completed { border-color: #bcd8ca; background: #eaf4ef; color: #205244; }
+.compendium-live-page__sheet h4 {
+    margin: .62rem 0 .48rem;
+    color: #17241f;
+    font-size: 1rem;
+    font-weight: 760;
+    line-height: 1.08;
+    letter-spacing: -.02em;
+}
+.compendium-live-page__facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .42rem .68rem;
+    padding: .55rem .65rem;
+    border: 1px solid #d8e5df;
+    border-top: 3px solid #205244;
+    background: #f5f9f7;
+}
+.compendium-live-page__facts[data-fact-count="2"],
+.compendium-live-page__facts[data-fact-count="4"] { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.compendium-live-page__facts > div { min-width: 0; }
+.compendium-live-page__facts span,
+.compendium-live-page__facts strong { display: block; }
+.compendium-live-page__facts span {
+    color: #71817b;
+    font-size: .38rem;
+    font-weight: 800;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+}
+.compendium-live-page__facts strong {
+    margin-top: .08rem;
+    overflow: hidden;
+    color: #233a31;
+    font-size: .52rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-live-page__image {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    margin-top: .55rem;
+    border: 1px solid #dfe5e2;
+    background: #eaf3ef;
+}
+.compendium-live-page__image img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.compendium-live-page__image > div {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: .2rem;
+    color: #4f7063;
+}
+.compendium-live-page__image > div[hidden] { display: none; }
+.compendium-live-page__image > div span { font-size: .38rem; font-weight: 700; letter-spacing: .18em; }
+.compendium-live-page__image > div strong { font-size: .75rem; letter-spacing: .06em; }
+.compendium-live-page__narrative { margin-top: .55rem; }
+.compendium-live-page__narrative > header {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+}
+.compendium-live-page__narrative > header span {
+    flex: 0 0 auto;
+    color: #17382f;
+    font-size: .45rem;
+    font-weight: 800;
+    letter-spacing: .18em;
+}
+.compendium-live-page__narrative > header i { flex: 1 1 auto; height: 1px; background: #e9d9a7; }
+.compendium-live-page__narrative > div {
+    position: relative;
+    max-height: 10.6rem;
+    margin-top: .38rem;
+    overflow: hidden;
+    color: #334155;
+    font-size: .49rem;
+    line-height: 1.42;
+}
+.compendium-live-page__narrative > div::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1.5rem;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+    content: "";
+    pointer-events: none;
+}
+.compendium-live-page__narrative > div.is-missing { color: #7f8b86; font-style: italic; }
+.compendium-live-page__sheet > footer {
+    position: absolute;
+    right: 5.8%;
+    bottom: 2.6%;
+    left: 5.8%;
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+    padding-top: .3rem;
+    border-top: 1px solid #e2e8e5;
+    color: #71817b;
+    font-size: .38rem;
+}
+.compendium-review-inspector {
+    display: grid;
+    align-content: start;
+    gap: .75rem;
+}
+.compendium-builder-page .compendium-review-inspector .compendium-review-image-panel,
+.compendium-builder-page .compendium-review-inspector .compendium-review-information {
+    min-width: 0;
+}
+
+@media (max-width: 1549.98px) {
+    .compendium-builder-page .compendium-review-workspace--live { grid-template-columns: 1fr; }
+    .compendium-live-page__sheet { width: min(100%, 560px); }
+}
+@media (max-width: 1199.98px) {
+    .compendium-builder-page .compendium-builder-rail {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+    .compendium-builder-page .compendium-order-card { display: block; overflow: visible; }
+    .compendium-builder-page .compendium-order-list { max-height: 520px; }
+}

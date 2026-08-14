@@ -124,10 +124,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                             ComposeIndexPage(container, planned, title, edition, issuer, marking, footerLogo, plan.IndexPageCount);
                             break;
                         case CompendiumPageKind.Project:
-                            ComposeProjectPage(container, planned, issuer, marking, footerLogo);
+                            ComposeProjectPage(container, planned, title, edition, issuer, marking, footerLogo);
                             break;
                         case CompendiumPageKind.ProjectContinuation:
-                            ComposeProjectContinuationPage(container, planned, issuer, marking, footerLogo);
+                            ComposeProjectContinuationPage(container, planned, title, edition, issuer, marking, footerLogo);
                             break;
                         case CompendiumPageKind.BackCover:
                             ComposeBackCover(container, title, subtitle, edition, marking, crest, sddMark);
@@ -337,6 +337,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     private static void ComposeProjectPage(
         IDocumentContainer container,
         CompendiumPagePlanItem planned,
+        string publicationTitle,
+        string edition,
         string issuer,
         string? marking,
         byte[]? footerLogo)
@@ -347,7 +349,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         container.Page(page =>
         {
             ConfigureStandardPage(page);
-            page.Header().Element(header => ComposeRunningHeader(header, publicationKicker.ToUpperInvariant(), project.LifecycleDisplay, marking));
+            page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
             page.Content().PaddingTop(9).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
             {
                 column.Spacing(9);
@@ -414,17 +416,18 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     private static void ComposeProjectContinuationPage(
         IDocumentContainer container,
         CompendiumPagePlanItem planned,
+        string publicationTitle,
+        string edition,
         string issuer,
         string? marking,
         byte[]? footerLogo)
     {
         var project = planned.Project ?? throw new InvalidOperationException("Continuation page is missing its project payload.");
         var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
-        var publicationKicker = ResolveProjectKicker(project);
         container.Page(page =>
         {
             ConfigureStandardPage(page);
-            page.Header().Element(header => ComposeRunningHeader(header, publicationKicker.ToUpperInvariant(), project.LifecycleDisplay, marking));
+            page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
             page.Content().PaddingTop(14).Column(column =>
             {
                 column.Spacing(11);
@@ -493,27 +496,19 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
         {
             column.Item().Height(3).Background(Forest800);
-            column.Item().PaddingHorizontal(10).PaddingVertical(9).Column(grid =>
+            column.Item().PaddingHorizontal(11).PaddingVertical(9).Column(grid =>
             {
                 grid.Spacing(8);
-                for (var index = 0; index < items.Count; index += 3)
+                foreach (var rowItems in BuildMetadataRows(items))
                 {
-                    var first = items[index];
-                    var second = index + 1 < items.Count ? items[index + 1] : default;
-                    var third = index + 2 < items.Count ? items[index + 2] : default;
                     grid.Item().Row(row =>
                     {
-                        row.RelativeItem().Element(cell => ComposeMetadataCell(cell, first.Key, first.Value, first.Emphasize));
-                        row.ConstantItem(12);
-                        row.RelativeItem().Element(cell =>
+                        for (var index = 0; index < rowItems.Count; index++)
                         {
-                            if (!string.IsNullOrWhiteSpace(second.Key)) ComposeMetadataCell(cell, second.Key, second.Value, second.Emphasize);
-                        });
-                        row.ConstantItem(12);
-                        row.RelativeItem().Element(cell =>
-                        {
-                            if (!string.IsNullOrWhiteSpace(third.Key)) ComposeMetadataCell(cell, third.Key, third.Value, third.Emphasize);
-                        });
+                            if (index > 0) row.ConstantItem(14);
+                            var item = rowItems[index];
+                            row.RelativeItem().Element(cell => ComposeMetadataCell(cell, item.Key, item.Value, item.Emphasize));
+                        }
                     });
                 }
 
@@ -527,6 +522,36 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 }
             });
         });
+    }
+
+    private static IReadOnlyList<IReadOnlyList<(string Key, string Value, bool Emphasize)>> BuildMetadataRows(
+        IReadOnlyList<(string Key, string Value, bool Emphasize)> items)
+    {
+        if (items.Count == 0)
+        {
+            return Array.Empty<IReadOnlyList<(string Key, string Value, bool Emphasize)>>();
+        }
+
+        var rowSizes = items.Count switch
+        {
+            1 => new[] { 1 },
+            2 => new[] { 2 },
+            3 => new[] { 3 },
+            4 => new[] { 2, 2 },
+            5 => new[] { 3, 2 },
+            _ => Enumerable.Repeat(3, (items.Count + 2) / 3).ToArray()
+        };
+
+        var rows = new List<IReadOnlyList<(string Key, string Value, bool Emphasize)>>();
+        var offset = 0;
+        foreach (var requestedSize in rowSizes)
+        {
+            if (offset >= items.Count) break;
+            var size = Math.Min(requestedSize, items.Count - offset);
+            rows.Add(items.Skip(offset).Take(size).ToArray());
+            offset += size;
+        }
+        return rows;
     }
 
     private static void ComposeMetadataCell(IContainer container, string key, string value, bool emphasize)

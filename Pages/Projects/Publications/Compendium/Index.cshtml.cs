@@ -140,6 +140,7 @@ public sealed class IndexModel : PageModel
                     item.Project.IsReviewed,
                     item.Project.IsReviewStale,
                     resolvedPhotoId = item.Project.CoverPhotoId,
+                    photoSelectionSource = item.Project.CoverPhotoSource.ToString().ToLowerInvariant(),
                     imageSelectionMode = item.Project.ImageSelectionMode.ToString().ToLowerInvariant(),
                     item.Project.EffectiveDpi,
                     imageQuality = item.Project.ImageQuality.ToString().ToLowerInvariant(),
