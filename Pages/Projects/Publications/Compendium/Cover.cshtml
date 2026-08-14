@@ -132,7 +132,7 @@
             <header>
                 <div>
                     <h2 data-cover-proof-title>Front cover proof</h2>
-                    <span>Near-final A4 composition · PDF remains authoritative</span>
+                    <span>Authoritative A4 cover geometry · PDF uses the same layout metrics</span>
                 </div>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Cover proof surface">
                     <button type="button" class="btn btn-outline-secondary active" data-cover-proof-surface="front">Front</button>
@@ -144,8 +144,8 @@
                 <article class="compendium-cover-proof-sheet" data-cover-proof-sheet>
                     <div class="compendium-cover-proof-goldbar"></div>
                     <div class="compendium-cover-proof-logos">
-                        <img src="~/img/logos/artrac.png" alt="Left organisational mark" data-cover-proof-left-logo />
-                        <img src="~/img/logos/sdd.png" alt="Right organisational mark" data-cover-proof-right-logo />
+                        <img class="cover-proof-mark cover-proof-mark--formation" src="~/img/logos/artrac.png" alt="Formation mark" data-cover-proof-left-logo />
+                        <img class="cover-proof-mark cover-proof-mark--sdd" src="~/img/logos/sdd.png" alt="Simulator Development Division mark" data-cover-proof-right-logo />
                     </div>
                     <div class="compendium-cover-proof-content" data-cover-proof-content></div>
                 </article>
@@ -160,25 +160,58 @@
 
             <section class="compendium-cover-inspector-section">
                 <div class="compendium-cover-inspector-heading">
-                    <div><strong>Content</strong><span>Blank override fields inherit the publication settings.</span></div>
+                    <div><strong>Content</strong><span>Publication identity is inherited by default. Override only the fields that need different cover wording.</span></div>
                 </div>
 
                 <label class="compendium-cover-editor-field" data-cover-eyebrow-wrap>
-                    <span><input class="form-check-input" type="checkbox" data-cover-show="eyebrow" checked /> Eyebrow / series label</span>
+                    <span><input class="form-check-input" type="checkbox" data-cover-show="eyebrow" checked /> Eyebrow / series label <small class="compendium-cover-field-state is-cover-only">Cover only</small></span>
                     <input class="form-control form-control-sm" maxlength="80" placeholder="Optional, e.g. CAPABILITY CATALOGUE" data-cover-text="eyebrow" />
                 </label>
-                <label class="compendium-cover-editor-field">
-                    <span><input class="form-check-input" type="checkbox" data-cover-show="title" checked /> Title</span>
-                    <input class="form-control form-control-sm" maxlength="120" data-cover-text="title" />
-                </label>
-                <label class="compendium-cover-editor-field">
-                    <span><input class="form-check-input" type="checkbox" data-cover-show="subtitle" checked /> Subtitle</span>
-                    <input class="form-control form-control-sm" maxlength="160" data-cover-text="subtitle" />
-                </label>
-                <label class="compendium-cover-editor-field">
-                    <span><input class="form-check-input" type="checkbox" data-cover-show="edition" checked /> Edition / issue line</span>
-                    <input class="form-control form-control-sm" maxlength="80" data-cover-text="edition" />
-                </label>
+
+                <div class="compendium-cover-editor-field compendium-cover-inherited-field" data-cover-field-wrap="title">
+                    <div class="compendium-cover-field-heading">
+                        <label><input class="form-check-input" type="checkbox" data-cover-show="title" checked /> Title</label>
+                        <span class="compendium-cover-field-state" data-cover-field-state="title">Inherited</span>
+                    </div>
+                    <div class="compendium-cover-inherited-value" data-cover-inherited-view="title">
+                        <strong data-cover-inherited-value="title"></strong>
+                        <button type="button" class="btn btn-sm btn-link" data-cover-override="title">Override</button>
+                    </div>
+                    <div class="compendium-cover-override-editor" data-cover-override-editor="title" hidden>
+                        <input class="form-control form-control-sm" maxlength="120" data-cover-text="title" />
+                        <div><small>Cover override</small><button type="button" class="btn btn-sm btn-link" data-cover-reset="title">Reset to inherited</button></div>
+                    </div>
+                </div>
+
+                <div class="compendium-cover-editor-field compendium-cover-inherited-field" data-cover-field-wrap="subtitle">
+                    <div class="compendium-cover-field-heading">
+                        <label><input class="form-check-input" type="checkbox" data-cover-show="subtitle" checked /> Subtitle</label>
+                        <span class="compendium-cover-field-state" data-cover-field-state="subtitle">Inherited</span>
+                    </div>
+                    <div class="compendium-cover-inherited-value" data-cover-inherited-view="subtitle">
+                        <strong data-cover-inherited-value="subtitle"></strong>
+                        <button type="button" class="btn btn-sm btn-link" data-cover-override="subtitle">Override</button>
+                    </div>
+                    <div class="compendium-cover-override-editor" data-cover-override-editor="subtitle" hidden>
+                        <input class="form-control form-control-sm" maxlength="160" data-cover-text="subtitle" />
+                        <div><small>Cover override</small><button type="button" class="btn btn-sm btn-link" data-cover-reset="subtitle">Reset to inherited</button></div>
+                    </div>
+                </div>
+
+                <div class="compendium-cover-editor-field compendium-cover-inherited-field" data-cover-field-wrap="edition">
+                    <div class="compendium-cover-field-heading">
+                        <label><input class="form-check-input" type="checkbox" data-cover-show="edition" checked /> Edition / issue line</label>
+                        <span class="compendium-cover-field-state" data-cover-field-state="edition">Inherited</span>
+                    </div>
+                    <div class="compendium-cover-inherited-value" data-cover-inherited-view="edition">
+                        <strong data-cover-inherited-value="edition"></strong>
+                        <button type="button" class="btn btn-sm btn-link" data-cover-override="edition">Override</button>
+                    </div>
+                    <div class="compendium-cover-override-editor" data-cover-override-editor="edition" hidden>
+                        <input class="form-control form-control-sm" maxlength="80" data-cover-text="edition" />
+                        <div><small>Cover override</small><button type="button" class="btn btn-sm btn-link" data-cover-reset="edition">Reset to inherited</button></div>
+                    </div>
+                </div>
             </section>
 
             <section class="compendium-cover-inspector-section">
@@ -186,8 +219,16 @@
                     <div><strong>Marks</strong><span>Controlled placement preserves institutional consistency.</span></div>
                 </div>
                 <div class="compendium-cover-logo-toggles">
-                    <label><input class="form-check-input" type="checkbox" data-cover-logo="left" checked /> Left mark</label>
-                    <label><input class="form-check-input" type="checkbox" data-cover-logo="right" checked /> Right mark</label>
+                    <label title="Formation mark">
+                        <input class="form-check-input" type="checkbox" data-cover-logo="left" checked />
+                        <img src="~/img/logos/artrac.png" alt="" aria-hidden="true" />
+                        <span>Formation mark</span>
+                    </label>
+                    <label title="Simulator Development Division mark">
+                        <input class="form-check-input" type="checkbox" data-cover-logo="right" checked />
+                        <img src="~/img/logos/sdd.png" alt="" aria-hidden="true" />
+                        <span>SDD mark</span>
+                    </label>
                 </div>
                 <label class="compendium-cover-editor-field compendium-cover-logo-placement">
                     <span>Placement</span>

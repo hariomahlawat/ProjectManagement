@@ -58,7 +58,7 @@ test('phase 30 makes cover identity publication-controlled rather than renderer 
   assert.match(coverView, /data-cover-text="subtitle"/);
   assert.match(coverView, /data-cover-text="edition"/);
   assert.match(coverView, /data-cover-text="eyebrow"/);
-  assert.match(coverView, /Blank override fields inherit the publication settings/);
+  assert.match(coverView, /Publication identity is inherited by default/);
   assert.doesNotMatch(builder, /Detailed Project Reference/);
   assert.doesNotMatch(builder, /Capability Edition ·/);
   assert.doesNotMatch(builder, /Simulators Compendium/);

@@ -306,6 +306,8 @@
     const coverChoose = $("[data-cover-choose]");
     const coverNone = $("[data-cover-none]");
     const coverEditorButton = $("[data-cover-editor]");
+    const coverEditorLabel = $("[data-cover-editor-label]");
+    const coverQuickHeroActions = $("[data-cover-quick-hero-actions]");
     const coverFrontSummary = $("[data-cover-front-summary]");
     const coverBackSummary = $("[data-cover-back-summary]");
 
@@ -642,8 +644,23 @@
         else if (coverState.imageMode === "automatic") { const candidate = automaticCoverCandidate(); projectId = candidate?.id || null; photoId = candidate?.state?.resolvedPhotoId || null; if (projectId) { const config = ensureConfig(projectId); focalX = config.focalX; focalY = config.focalY; } }
         const project = projectId ? projectById.get(Number(projectId)) : null;
         const templateLabel = value => String(value || "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
+        const frontTemplate = normalize(coverDesignState.frontTemplate);
+        const singleHeroTemplate = frontTemplate === "institutionalhero" || frontTemplate === "fullbleedhero";
+        const imageryFreeTemplate = frontTemplate === "minimal";
         if (coverStatus) coverStatus.textContent = `${templateLabel(coverDesignState.frontTemplate)} · ${templateLabel(coverDesignState.backTemplate)}`;
-        if (coverDetail) coverDetail.textContent = coverState.imageMode === "explicit" ? `Front hero · ${project?.projectName || "Selected project image"}. Open Cover editor for multiple slots, text, marks and back-cover design.` : "Front and back covers use controlled templates. Open Cover editor for multiple imagery, Fit/Fill, crop, marks and printed cover content.";
+        if (coverDetail) {
+            if (singleHeroTemplate && coverState.imageMode === "explicit") {
+                coverDetail.textContent = `Front hero · ${project?.projectName || "Selected project image"}. Open Cover editor for text, marks, crop and back-cover design.`;
+            } else if (singleHeroTemplate) {
+                coverDetail.textContent = "Single-hero front cover. Use the quick Hero controls for routine changes or open Cover editor for the full composition.";
+            } else if (imageryFreeTemplate) {
+                coverDetail.textContent = "Typography-led front cover. Open Cover editor to control printed identity, marks and the back-cover design.";
+            } else {
+                coverDetail.textContent = "Multi-image front cover. Open Cover editor to curate each image slot, Fit/Fill, crop, text and marks.";
+            }
+        }
+        if (coverQuickHeroActions) coverQuickHeroActions.hidden = !singleHeroTemplate;
+        if (coverEditorLabel) coverEditorLabel.textContent = singleHeroTemplate ? "Cover editor" : imageryFreeTemplate ? "Edit cover" : "Edit cover images";
         if (coverFrontSummary) coverFrontSummary.textContent = `Front · ${templateLabel(coverDesignState.frontTemplate)}`;
         if (coverBackSummary) coverBackSummary.textContent = `Back · ${templateLabel(coverDesignState.backTemplate)}`;
         if (coverPreviewImage && coverPreview) {

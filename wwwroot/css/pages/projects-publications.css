@@ -4741,3 +4741,156 @@ body.compendium-structure-editor-mode {
         overflow-wrap: normal;
     }
 }
+
+/* Phase 30.1 — Cover Composer fidelity and identity-control polish */
+.compendium-cover-proof-sheet {
+    width: 595px;
+    height: 842px;
+    min-height: 0;
+    aspect-ratio: auto;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.compendium-cover-proof-goldbar { height: 6px; }
+.compendium-cover-proof-content {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    display: block;
+}
+.compendium-cover-proof-logos {
+    top: 48px;
+    left: 52px;
+    right: 52px;
+    min-height: 48px;
+    align-items: flex-start;
+}
+.compendium-cover-proof-logos .cover-proof-mark--formation { width: 44px; height: 44px; align-self: center; }
+.compendium-cover-proof-logos .cover-proof-mark--sdd { width: 48px; height: 48px; }
+.compendium-cover-proof-logos.is-centred { gap: 20px; align-items: center; }
+.compendium-cover-proof-logos.is-centred .cover-proof-mark--formation { align-self: center; }
+
+.cover-proof-identity {
+    position: absolute;
+    z-index: 4;
+    left: 52px;
+    right: 52px;
+    max-width: none;
+}
+.cover-proof-identity::before {
+    width: 128px;
+    height: 3px;
+    margin-bottom: 10px;
+}
+.cover-proof-identity small { margin-bottom: 10px; font-size: 8px; font-weight: 700; letter-spacing: 1.15px; }
+.cover-proof-identity h3 { margin: 0 0 10px; font-size: 34px; line-height: 1.04; font-weight: 600; }
+.cover-proof-identity p { margin: 0 0 10px; font-size: 14px; line-height: 1.18; }
+.cover-proof-identity b { font-size: 10.5px; font-weight: 600; }
+.cover-proof-image { min-height: 0; border: 0; }
+
+/* Front cover geometry mirrors CompendiumPdfReportBuilder point-for-point at A4 design scale. */
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-identity { top: 150px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-image--institutional {
+    position: absolute; left: 52px; right: 52px; top: 322px; height: 300px; margin: 0;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Minimal"] .cover-proof-identity { top: 228px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-logos { top: 40px; left: 44px; right: 44px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-content::before {
+    content: ''; position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; height: 315px; background: #102A23;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-identity {
+    top: 565px; left: 52px; right: 52px; margin: 0; max-width: none;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-identity h3 { font-size: 33px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .compendium-cover-proof-logos,
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Triptych"] .compendium-cover-proof-logos { top: 42px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-identity { top: 140px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-identity h3 { font-size: 31px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split {
+    position: absolute; left: 0; right: 0; top: 355px; height: 471px; margin: 0;
+    display: grid; grid-template-columns: 2fr 4px 1fr; gap: 0;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split::before { display: none; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split .cover-proof-image:first-child { grid-column: 1; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split .cover-proof-image:last-child { grid-column: 3; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split::after {
+    content: ''; grid-column: 2; grid-row: 1; background: #102A23;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split .cover-proof-image { height: 471px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Triptych"] .cover-proof-identity { top: 138px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Triptych"] .cover-proof-identity h3 { font-size: 29px; }
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Triptych"] .cover-proof-triptych {
+    position: absolute; left: 0; right: 0; top: 395px; height: 431px; margin: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background: #102A23;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Triptych"] .cover-proof-triptych .cover-proof-image { height: 431px; }
+
+/* Back cover geometry. */
+.compendium-cover-proof-sheet[data-surface="back"] .cover-proof-identity h3 { font-size: 24px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="MinimalInstitutional"] .compendium-cover-proof-logos { top: 54px; left: 58px; right: 58px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="MinimalInstitutional"] .cover-proof-identity { top: 296px; left: 58px; right: 58px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="ImageEcho"] .compendium-cover-proof-logos { top: 44px; left: 54px; right: 54px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="ImageEcho"] .cover-proof-identity { top: 140px; left: 54px; right: 54px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="ImageEcho"] .cover-proof-identity h3 { font-size: 25px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="ImageEcho"] .cover-proof-image--echo {
+    position: absolute; left: 0; right: 0; top: 300px; height: 526px; margin: 0; order: initial;
+}
+.compendium-cover-proof-sheet[data-surface="back"][data-template="PortfolioStrip"] .compendium-cover-proof-logos { top: 50px; left: 56px; right: 56px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="PortfolioStrip"] .cover-proof-identity { top: 243px; left: 56px; right: 56px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="PortfolioStrip"] .cover-proof-identity h3 { font-size: 25px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="PortfolioStrip"] .cover-proof-triptych--back {
+    position: absolute; left: 0; right: 0; top: 510px; height: 316px; margin: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background: #102A23;
+}
+.compendium-cover-proof-sheet[data-surface="back"][data-template="PortfolioStrip"] .cover-proof-triptych--back .cover-proof-image { height: 316px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="TypographyOnly"] .compendium-cover-proof-logos,
+.compendium-cover-proof-sheet[data-surface="back"][data-template="Clean"] .compendium-cover-proof-logos { top: 58px; left: 66px; right: 66px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="TypographyOnly"] .cover-proof-identity { top: 326px; left: 66px; right: 66px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="TypographyOnly"] .cover-proof-identity h3 { font-size: 25px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="Clean"] .cover-proof-identity { top: 376px; left: 66px; right: 66px; }
+.compendium-cover-proof-sheet[data-surface="back"][data-template="Clean"] .cover-proof-identity h3 { font-size: 27px; }
+
+/* Explicit inheritance is visible instead of being encoded as an empty textbox. */
+.compendium-cover-field-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .3rem; }
+.compendium-cover-field-heading label { display: flex; align-items: center; gap: .35rem; margin: 0; color: #41534d; font-size: .66rem; font-weight: 700; }
+.compendium-cover-field-state { display: inline-flex; align-items: center; min-height: 20px; padding: .08rem .42rem; border-radius: 999px; background: #eef4f1; color: #587168; font-size: .55rem; font-weight: 700; }
+.compendium-cover-field-state.is-override { background: #eef4ff; color: #3f5d91; }
+.compendium-cover-field-state.is-cover-only { margin-left: auto; background: #f5f5f4; color: #72716f; }
+.compendium-cover-inherited-value { display: flex; align-items: center; justify-content: space-between; gap: .45rem; padding: .45rem .5rem; border: 1px solid var(--pub-border); border-radius: .4rem; background: #f8faf9; }
+.compendium-cover-inherited-value strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #30453e; font-size: .68rem; font-weight: 600; }
+.compendium-cover-inherited-value .btn-link,
+.compendium-cover-override-editor .btn-link { padding: 0; font-size: .58rem; text-decoration: none; }
+.compendium-cover-override-editor > div { display: flex; align-items: center; justify-content: space-between; gap: .4rem; margin-top: .2rem; }
+.compendium-cover-override-editor small { color: var(--pub-muted); font-size: .57rem; }
+.compendium-cover-inherited-field.is-hidden .compendium-cover-inherited-value,
+.compendium-cover-inherited-field.is-hidden .compendium-cover-override-editor { opacity: .55; }
+
+/* Marks are named and optically balanced in both inspector and proof. */
+.compendium-cover-logo-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; }
+.compendium-cover-logo-toggles label { min-width: 0; padding: .4rem .45rem; border: 1px solid var(--pub-border); border-radius: .45rem; background: #f9fbfa; }
+.compendium-cover-logo-toggles label img { width: 24px; height: 24px; object-fit: contain; flex: 0 0 auto; }
+.compendium-cover-logo-toggles label span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (min-width: 1700px) {
+    .compendium-cover-proof-sheet { width: 595px; }
+}
+
+/* Institutional covers keep identity and hero in document flow, matching QuestPDF when title height changes. */
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .compendium-cover-proof-content {
+    padding: 150px 52px 48px;
+    display: flex;
+    flex-direction: column;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-identity {
+    position: relative; inset: auto;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-image--institutional {
+    position: relative; inset: auto; height: 300px; margin-top: 22px; flex: 0 0 300px;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Minimal"] .compendium-cover-proof-content {
+    padding: 228px 52px 48px;
+    display: block;
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Minimal"] .cover-proof-identity { position: relative; inset: auto; }
+.compendium-cover-quick-hero-actions { display: inline-flex; align-items: center; gap: .35rem; }
+.compendium-cover-quick-hero-actions[hidden] { display: none !important; }
+.compendium-cover-proof-sheet[data-template="FullBleedHero"] .cover-proof-image--full::after { display: none; }

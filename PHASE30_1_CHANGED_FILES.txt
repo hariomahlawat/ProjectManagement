@@ -1,0 +1,13 @@
+Pages/Projects/Publications/Compendium/Cover.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml.cs
+ProjectManagement.Tests/Publications/CompendiumPhase30ContractTests.cs
+Services/Compendiums/CompendiumExportService.cs
+Services/Compendiums/CompendiumReadService.cs
+Utilities/Reporting/CompendiumPdfReportBuilder.cs
+wwwroot/css/pages/projects-publications.css
+wwwroot/js/pages/projects-compendium-cover-editor.js
+wwwroot/js/pages/projects-compendium.js
+wwwroot/js/projects/publications-compendium-phase30-contract.test.js
+wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
+tools/Test-PrismPublicationsPhase30_1.ps1

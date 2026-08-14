@@ -35,7 +35,7 @@ public sealed class CompendiumPhase30ContractTests
     [Fact]
     public void CoverComposer_UsesVersionedPdfIdentity()
     {
-        Assert.Equal("CompendiumPdf_2026-08-14_cover-composer-v8", CompendiumReadService.BuildStamp);
+        Assert.Equal("CompendiumPdf_2026-08-14_cover-fidelity-v9", CompendiumReadService.BuildStamp);
     }
 
     [Fact]

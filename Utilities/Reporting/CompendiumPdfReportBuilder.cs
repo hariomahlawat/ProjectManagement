@@ -427,16 +427,16 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             if (placement == CompendiumCoverLogoPlacement.TopCenter)
             {
                 row.RelativeItem();
-                if (showLeft && crest is { Length: > 0 }) row.ConstantItem(48).Height(48).Image(crest).FitArea();
-                if (showLeft && showRight && crest is { Length: > 0 } && sddMark is { Length: > 0 }) row.ConstantItem(14);
-                if (showRight && sddMark is { Length: > 0 }) row.ConstantItem(42).Height(42).AlignMiddle().Image(sddMark).FitArea();
+                if (showLeft && crest is { Length: > 0 }) row.ConstantItem(44).Height(44).AlignMiddle().Image(crest).FitArea();
+                if (showLeft && showRight && crest is { Length: > 0 } && sddMark is { Length: > 0 }) row.ConstantItem(20);
+                if (showRight && sddMark is { Length: > 0 }) row.ConstantItem(48).Height(48).AlignMiddle().Image(sddMark).FitArea();
                 row.RelativeItem();
                 return;
             }
 
-            if (showLeft && crest is { Length: > 0 }) row.ConstantItem(48).Height(48).Image(crest).FitArea();
+            if (showLeft && crest is { Length: > 0 }) row.ConstantItem(44).Height(44).AlignMiddle().Image(crest).FitArea();
             row.RelativeItem();
-            if (showRight && sddMark is { Length: > 0 }) row.ConstantItem(42).Height(42).AlignMiddle().Image(sddMark).FitArea();
+            if (showRight && sddMark is { Length: > 0 }) row.ConstantItem(48).Height(48).AlignMiddle().Image(sddMark).FitArea();
         });
     }
 

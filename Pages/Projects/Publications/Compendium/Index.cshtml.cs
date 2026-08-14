@@ -237,7 +237,7 @@ public sealed class IndexModel : PageModel
         if (needsFrontImagery && hasAutomaticFrontSlot && !hasCuratedHero)
         {
             findings.Add(new CompendiumFindingDto(
-                CompendiumFindingSeverity.Information,
+                CompendiumFindingSeverity.Warning,
                 "coverHeroUsesFallback",
                 "Automatic front-cover imagery has no photograph marked Cover suitable. PRISM will use ranked fallback imagery; curate a cover-suitable image for stronger editorial control."));
         }

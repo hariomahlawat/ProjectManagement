@@ -220,6 +220,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
             .ToDictionary(group => group.Key, group => group.First());
         var candidates = BuildAutomaticCoverCandidates(projects, preferences);
         var used = new HashSet<(int ProjectId, int PhotoId)>();
+        var usedProjects = new HashSet<int>();
         var rendered = new List<CompendiumPdfCoverImage>();
 
         foreach (var required in requiredSlots)
@@ -256,7 +257,10 @@ public sealed class CompendiumExportService : ICompendiumExportService
             }
             else
             {
-                candidate = candidates.FirstOrDefault(item => !used.Contains((item.ProjectId, item.PhotoId)))
+                candidate = candidates.FirstOrDefault(item =>
+                                !used.Contains((item.ProjectId, item.PhotoId))
+                                && !usedProjects.Contains(item.ProjectId))
+                            ?? candidates.FirstOrDefault(item => !used.Contains((item.ProjectId, item.PhotoId)))
                             ?? candidates.FirstOrDefault();
             }
 
@@ -295,7 +299,11 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     slot.FitMode,
                     candidate.ProjectId,
                     candidate.PhotoId));
-                if (image?.Content is { Length: > 0 }) used.Add((candidate.ProjectId, candidate.PhotoId));
+                if (image?.Content is { Length: > 0 })
+                {
+                    used.Add((candidate.ProjectId, candidate.PhotoId));
+                    usedProjects.Add(candidate.ProjectId);
+                }
             }
             catch (OperationCanceledException)
             {
