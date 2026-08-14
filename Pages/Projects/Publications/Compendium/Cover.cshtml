@@ -1,0 +1,287 @@
+@page "/Projects/Publications/Compendium/Cover"
+@model ProjectManagement.Pages.Projects.Publications.Compendium.CoverModel
+@using ProjectManagement.Services.Publications
+@{
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
+    ViewData["Title"] = "Compendium Cover Editor";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-publications.css" asp-append-version="true" />
+}
+
+<div class="compendium-cover-editor-page" data-compendium-cover-editor>
+    <form method="post" class="compendium-cover-editor-token" aria-hidden="true">
+        @Html.AntiForgeryToken()
+    </form>
+    <script type="application/json" data-cover-editor-bootstrap>@Html.Raw(Model.BootstrapJson)</script>
+
+    <header class="compendium-cover-editor-header">
+        <div class="compendium-cover-editor-heading">
+            <a class="btn btn-sm btn-outline-secondary"
+               asp-page="/Projects/Publications/Compendium/Index"
+               asp-route-presetId="@Model.PresetId"
+               data-cover-back>
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Back to Compendium</span>
+            </a>
+            <div>
+                <p>PUBLICATION COMPOSER</p>
+                <h1>Cover design</h1>
+                <span>@(Model.Preset?.Name ?? "Simulators Compendium")</span>
+            </div>
+        </div>
+        <div class="compendium-cover-editor-commands">
+            <span class="compendium-structure-editor-save-state" data-cover-save-state>
+                <i class="bi bi-check-circle" aria-hidden="true"></i>
+                <span>Saved</span>
+            </span>
+            @if (Model.CanManagePresets)
+            {
+                <button type="button" class="btn btn-outline-primary" data-cover-save disabled>
+                    <i class="bi bi-floppy" aria-hidden="true"></i> Save
+                </button>
+            }
+            else
+            {
+                <span class="compendium-structure-editor-readonly" title="Only HoD or Comdt may save shared Compendium configurations">Preview only</span>
+            }
+        </div>
+    </header>
+
+    @foreach (var diagnostic in Model.Diagnostics)
+    {
+        var alertClass = diagnostic.Severity == CompendiumPresetDiagnosticSeverity.Warning ? "alert-warning" : "alert-info";
+        <div class="alert @alertClass py-2 mb-2">@diagnostic.Message</div>
+    }
+
+    <div class="compendium-cover-editor-summary">
+        <div>
+            <strong data-cover-front-template-label>Institutional hero</strong>
+            <span>front cover</span>
+        </div>
+        <i aria-hidden="true"></i>
+        <div>
+            <strong data-cover-back-template-label>Minimal institutional</strong>
+            <span>back cover</span>
+        </div>
+        <p>Choose a controlled design, curate imagery and control exactly which publication identity fields appear.</p>
+    </div>
+
+    <main class="compendium-cover-editor-layout">
+        <aside class="compendium-cover-editor-templates" aria-label="Cover templates">
+            <header>
+                <h2>Design</h2>
+                <span>Professional layout families</span>
+            </header>
+
+            <div class="compendium-cover-surface-tabs" role="tablist" aria-label="Cover surface">
+                <button type="button" class="active" data-cover-surface="front" aria-selected="true">Front</button>
+                <button type="button" data-cover-surface="back" aria-selected="false">Back</button>
+            </div>
+
+            <div class="compendium-cover-template-list" data-cover-front-templates>
+                <button type="button" data-cover-template="InstitutionalHero">
+                    <span class="cover-template-mini cover-template-mini--hero"><i></i></span>
+                    <b>Institutional hero</b><small>Single image · balanced identity</small>
+                </button>
+                <button type="button" data-cover-template="FullBleedHero">
+                    <span class="cover-template-mini cover-template-mini--full"><i></i></span>
+                    <b>Full-bleed hero</b><small>Image-led · high visual impact</small>
+                </button>
+                <button type="button" data-cover-template="EditorialSplit">
+                    <span class="cover-template-mini cover-template-mini--split"><i></i><i></i></span>
+                    <b>Editorial split</b><small>Hero + supporting image</small>
+                </button>
+                <button type="button" data-cover-template="Triptych">
+                    <span class="cover-template-mini cover-template-mini--triptych"><i></i><i></i><i></i></span>
+                    <b>Portfolio triptych</b><small>Three capability images</small>
+                </button>
+                <button type="button" data-cover-template="Minimal">
+                    <span class="cover-template-mini cover-template-mini--minimal"></span>
+                    <b>Minimal</b><small>Typography-led · no imagery</small>
+                </button>
+            </div>
+
+            <div class="compendium-cover-template-list" data-cover-back-templates hidden>
+                <button type="button" data-cover-template="MinimalInstitutional">
+                    <span class="cover-template-mini cover-template-mini--minimal"></span>
+                    <b>Minimal institutional</b><small>Current restrained back cover</small>
+                </button>
+                <button type="button" data-cover-template="ImageEcho">
+                    <span class="cover-template-mini cover-template-mini--hero"><i></i></span>
+                    <b>Image echo</b><small>One image + publication identity</small>
+                </button>
+                <button type="button" data-cover-template="PortfolioStrip">
+                    <span class="cover-template-mini cover-template-mini--strip"><i></i><i></i><i></i></span>
+                    <b>Portfolio strip</b><small>Three-image closing treatment</small>
+                </button>
+                <button type="button" data-cover-template="TypographyOnly">
+                    <span class="cover-template-mini cover-template-mini--type"></span>
+                    <b>Typography only</b><small>Identity without imagery</small>
+                </button>
+                <button type="button" data-cover-template="Clean">
+                    <span class="cover-template-mini cover-template-mini--clean"></span>
+                    <b>Clean back</b><small>Almost blank · optional identity</small>
+                </button>
+            </div>
+        </aside>
+
+        <section class="compendium-cover-editor-proof" aria-label="Cover proof">
+            <header>
+                <div>
+                    <h2 data-cover-proof-title>Front cover proof</h2>
+                    <span>Near-final A4 composition · PDF remains authoritative</span>
+                </div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Cover proof surface">
+                    <button type="button" class="btn btn-outline-secondary active" data-cover-proof-surface="front">Front</button>
+                    <button type="button" class="btn btn-outline-secondary" data-cover-proof-surface="back">Back</button>
+                </div>
+            </header>
+
+            <div class="compendium-cover-proof-stage">
+                <article class="compendium-cover-proof-sheet" data-cover-proof-sheet>
+                    <div class="compendium-cover-proof-goldbar"></div>
+                    <div class="compendium-cover-proof-logos">
+                        <img src="~/img/logos/artrac.png" alt="Left organisational mark" data-cover-proof-left-logo />
+                        <img src="~/img/logos/sdd.png" alt="Right organisational mark" data-cover-proof-right-logo />
+                    </div>
+                    <div class="compendium-cover-proof-content" data-cover-proof-content></div>
+                </article>
+            </div>
+        </section>
+
+        <aside class="compendium-cover-editor-inspector" aria-label="Cover settings">
+            <header>
+                <h2>Cover settings</h2>
+                <span data-cover-inspector-surface>Front cover</span>
+            </header>
+
+            <section class="compendium-cover-inspector-section">
+                <div class="compendium-cover-inspector-heading">
+                    <div><strong>Content</strong><span>Blank override fields inherit the publication settings.</span></div>
+                </div>
+
+                <label class="compendium-cover-editor-field" data-cover-eyebrow-wrap>
+                    <span><input class="form-check-input" type="checkbox" data-cover-show="eyebrow" checked /> Eyebrow / series label</span>
+                    <input class="form-control form-control-sm" maxlength="80" placeholder="Optional, e.g. CAPABILITY CATALOGUE" data-cover-text="eyebrow" />
+                </label>
+                <label class="compendium-cover-editor-field">
+                    <span><input class="form-check-input" type="checkbox" data-cover-show="title" checked /> Title</span>
+                    <input class="form-control form-control-sm" maxlength="120" data-cover-text="title" />
+                </label>
+                <label class="compendium-cover-editor-field">
+                    <span><input class="form-check-input" type="checkbox" data-cover-show="subtitle" checked /> Subtitle</span>
+                    <input class="form-control form-control-sm" maxlength="160" data-cover-text="subtitle" />
+                </label>
+                <label class="compendium-cover-editor-field">
+                    <span><input class="form-check-input" type="checkbox" data-cover-show="edition" checked /> Edition / issue line</span>
+                    <input class="form-control form-control-sm" maxlength="80" data-cover-text="edition" />
+                </label>
+            </section>
+
+            <section class="compendium-cover-inspector-section">
+                <div class="compendium-cover-inspector-heading">
+                    <div><strong>Marks</strong><span>Controlled placement preserves institutional consistency.</span></div>
+                </div>
+                <div class="compendium-cover-logo-toggles">
+                    <label><input class="form-check-input" type="checkbox" data-cover-logo="left" checked /> Left mark</label>
+                    <label><input class="form-check-input" type="checkbox" data-cover-logo="right" checked /> Right mark</label>
+                </div>
+                <label class="compendium-cover-editor-field compendium-cover-logo-placement">
+                    <span>Placement</span>
+                    <select class="form-select form-select-sm" data-cover-logo-placement>
+                        <option value="TopCorners">Top corners</option>
+                        <option value="TopCenter">Top centre</option>
+                    </select>
+                </label>
+            </section>
+
+            <section class="compendium-cover-inspector-section" data-cover-image-section>
+                <div class="compendium-cover-inspector-heading">
+                    <div><strong>Imagery</strong><span>Each layout slot is curated independently.</span></div>
+                </div>
+                <div data-cover-slot-list></div>
+            </section>
+        </aside>
+    </main>
+</div>
+
+<div class="modal fade" id="compendiumCoverPhotoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content compendium-cover-photo-modal">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Choose publication image</h5>
+                    <small data-cover-photo-modal-slot></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="compendium-cover-photo-picker-toolbar">
+                    <div class="compendium-cover-editor-search">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input type="search" class="form-control" placeholder="Search selected projects..." data-cover-project-search />
+                    </div>
+                    <select class="form-select" data-cover-project-select aria-label="Project"></select>
+                    <div class="btn-group" role="group" aria-label="Slot image mode">
+                        <button type="button" class="btn btn-outline-secondary" data-cover-slot-auto>Automatic</button>
+                        <button type="button" class="btn btn-outline-secondary" data-cover-slot-none>No image</button>
+                    </div>
+                </div>
+                <div class="compendium-cover-photo-picker-state" data-cover-photo-state>Select a project to view its publication photographs.</div>
+                <div class="compendium-cover-photo-grid" data-cover-photo-grid></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="compendiumCoverCropModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Adjust cover crop</h5>
+                    <small>Choose the focal point used when this slot is set to Fill.</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="compendium-cover-crop-stage" data-cover-crop-stage>
+                    <img alt="Cover crop source" data-cover-crop-image />
+                    <button type="button" class="compendium-cover-crop-target" data-cover-crop-target aria-label="Focal point"></button>
+                </div>
+                <div class="compendium-cover-crop-help">Click anywhere on the source image to place the focal point. The crop is stored independently for each cover slot.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-cover-crop-centre>Centre</button>
+                <button type="button" class="btn btn-primary" data-cover-crop-done data-bs-dismiss="modal">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="compendiumCoverLeaveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Unsaved cover changes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">The cover design has changed. Save before returning to the Compendium, return without saving, or stay in the editor.</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-danger" data-cover-return-unsaved>Return without saving</button>
+                @if (Model.CanManagePresets)
+                {
+                    <button type="button" class="btn btn-primary" data-cover-save-return>Save and return</button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/projects-compendium-cover-editor.js" asp-append-version="true"></script>
+}

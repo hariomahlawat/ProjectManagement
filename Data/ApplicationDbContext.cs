@@ -70,6 +70,8 @@ namespace ProjectManagement.Data
         public DbSet<CompendiumPreset> CompendiumPresets => Set<CompendiumPreset>();
         public DbSet<CompendiumPresetSection> CompendiumPresetSections => Set<CompendiumPresetSection>();
         public DbSet<CompendiumPresetProject> CompendiumPresetProjects => Set<CompendiumPresetProject>();
+        public DbSet<CompendiumPresetCoverImage> CompendiumPresetCoverImages => Set<CompendiumPresetCoverImage>();
+        public DbSet<CompendiumPresetPhotoPreference> CompendiumPresetPhotoPreferences => Set<CompendiumPresetPhotoPreference>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<NotebookItem> NotebookItems => Set<NotebookItem>();
@@ -660,9 +662,31 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.SortMode).HasMaxLength(32).HasDefaultValue("Manual").IsRequired();
                 entity.Property(preset => preset.CoverFocalX).HasDefaultValue(.5d).IsRequired();
                 entity.Property(preset => preset.CoverFocalY).HasDefaultValue(.5d).IsRequired();
+                entity.Property(preset => preset.FrontCoverTemplate).HasMaxLength(32).HasDefaultValue("InstitutionalHero").IsRequired();
+                entity.Property(preset => preset.BackCoverTemplate).HasMaxLength(32).HasDefaultValue("MinimalInstitutional").IsRequired();
+                entity.Property(preset => preset.FrontCoverTitle).HasMaxLength(120);
+                entity.Property(preset => preset.FrontCoverSubtitle).HasMaxLength(160);
+                entity.Property(preset => preset.FrontCoverEdition).HasMaxLength(80);
+                entity.Property(preset => preset.FrontCoverEyebrow).HasMaxLength(80);
+                entity.Property(preset => preset.BackCoverTitle).HasMaxLength(120);
+                entity.Property(preset => preset.BackCoverSubtitle).HasMaxLength(160);
+                entity.Property(preset => preset.BackCoverEdition).HasMaxLength(80);
+                entity.Property(preset => preset.BackCoverEyebrow).HasMaxLength(80);
+                entity.Property(preset => preset.ShowFrontTitle).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontSubtitle).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontEdition).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontLeftLogo).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontRightLogo).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.FrontLogoPlacement).HasMaxLength(24).HasDefaultValue("TopCorners").IsRequired();
+                entity.Property(preset => preset.ShowBackTitle).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowBackSubtitle).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowBackEdition).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowBackLeftLogo).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowBackRightLogo).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.BackLogoPlacement).HasMaxLength(24).HasDefaultValue("TopCorners").IsRequired();
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(5).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(6).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
                 entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();
@@ -700,6 +724,7 @@ namespace ProjectManagement.Data
                 entity.Property(item => item.PrimaryFocalX).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.PrimaryFocalY).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.ImageSelectionMode).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
+                entity.Property(item => item.ImageFitMode).HasMaxLength(16).HasDefaultValue("Fill").IsRequired();
                 entity.Property(item => item.NarrativeSourceOverride).HasMaxLength(32);
                 entity.Property(item => item.CustomSectionName).HasMaxLength(120);
                 entity.HasIndex(item => new { item.PresetId, item.SortOrder }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder").IsUnique();
@@ -712,6 +737,38 @@ namespace ProjectManagement.Data
                     .WithMany(section => section.Projects)
                     .HasForeignKey(item => item.CustomSectionId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<CompendiumPresetCoverImage>(entity =>
+            {
+                entity.ToTable("CompendiumPresetCoverImages");
+                entity.Property(item => item.Surface).HasMaxLength(16).IsRequired();
+                entity.Property(item => item.SlotKey).HasMaxLength(32).IsRequired();
+                entity.Property(item => item.ImageMode).HasMaxLength(16).HasDefaultValue("Automatic").IsRequired();
+                entity.Property(item => item.FitMode).HasMaxLength(16).HasDefaultValue("Fill").IsRequired();
+                entity.Property(item => item.FocalX).HasDefaultValue(.5d).IsRequired();
+                entity.Property(item => item.FocalY).HasDefaultValue(.5d).IsRequired();
+                entity.HasIndex(item => new { item.PresetId, item.Surface, item.SlotKey })
+                    .HasDatabaseName("UX_CompendiumPresetCoverImages_Preset_Surface_Slot")
+                    .IsUnique();
+                entity.HasIndex(item => item.PhotoId).HasDatabaseName("IX_CompendiumPresetCoverImages_PhotoId");
+                entity.HasOne(item => item.Preset)
+                    .WithMany(preset => preset.CoverImages)
+                    .HasForeignKey(item => item.PresetId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<CompendiumPresetPhotoPreference>(entity =>
+            {
+                entity.ToTable("CompendiumPresetPhotoPreferences");
+                entity.HasIndex(item => new { item.PresetId, item.ProjectId, item.PhotoId })
+                    .HasDatabaseName("UX_CompendiumPresetPhotoPreferences_Preset_Project_Photo")
+                    .IsUnique();
+                entity.HasIndex(item => item.PhotoId).HasDatabaseName("IX_CompendiumPresetPhotoPreferences_PhotoId");
+                entity.HasOne(item => item.Preset)
+                    .WithMany(preset => preset.PhotoPreferences)
+                    .HasForeignKey(item => item.PresetId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // SECTION: Project briefing decks

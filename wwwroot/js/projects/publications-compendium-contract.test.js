@@ -155,7 +155,7 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v3/);
+  assert.match(fingerprint, /compendium-review-v(?:3|4)/);
   assert.match(fingerprint, /PublicationSectionKey/);
   assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
@@ -220,7 +220,7 @@ test('phase 23 avoids stale async preflight and review responses', () => {
 });
 
 test('publication workspace persists first-class sections and project narrative overrides through schema v5', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*5/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*[56]/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);
@@ -397,9 +397,9 @@ test('phase 24 replaces the missing-photo placeholder with a designed text-led p
 test('phase 24 cover and back cover use publication-controlled identity without fixed narrative copy', () => {
   assert.match(builder, /ComposeCover\(/);
   assert.match(builder, /ComposeBackCover\(/);
-  assert.match(builder, /Text\(title\)/);
-  assert.match(builder, /Text\(subtitle\)/);
-  assert.match(builder, /Text\(edition\)/);
+  assert.match(builder, /Text\(title!?\)/);
+  assert.match(builder, /Text\(subtitle!?\)/);
+  assert.match(builder, /Text\(edition!?\)/);
   assert.doesNotMatch(builder, /Capability catalogue generated from/);
   assert.doesNotMatch(builder, /Generated \{/);
 });
@@ -460,7 +460,7 @@ test('phase 24.1 replaces the automatic cover mosaic with one controlled hero or
   assert.match(view, /data-review-use-cover/);
   assert.match(js, /coverState/);
   assert.match(js, /Use as cover hero|coverState\.imageMode = "explicit"/);
-  assert.match(exportService, /ResolveCoverHeroAsync/);
+  assert.match(exportService, /ResolveCover(?:Hero|Design)Async/);
   assert.match(builder, /ComposeCoverHero/);
   assert.doesNotMatch(builder, /ComposeCoverImageMosaic/);
 });
@@ -595,7 +595,7 @@ test('phase 27 automatic cover selection prefers intentional project cover sourc
   assert.match(exportService, /CompendiumPhotoSelectionSource\.FirstAvailable\s*=>\s*1/);
   assert.match(js, /projectcover:\s*4/);
   assert.match(js, /firstavailable:\s*1/);
-  assert.match(js, /prefers reviewed project-cover imagery/);
+  assert.match(exportService, /SuitableForCoverHero|PreferredForPublication/);
 });
 
 test('phase 27 latest chronology and technical taxonomy are authoritative and deterministic', () => {

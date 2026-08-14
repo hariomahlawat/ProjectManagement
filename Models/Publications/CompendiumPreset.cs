@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 5;
+    public int SettingsSchemaVersion { get; set; } = 6;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -51,6 +51,36 @@ public sealed class CompendiumPreset
     public double CoverFocalX { get; set; } = .5d;
     public double CoverFocalY { get; set; } = .5d;
 
+    [Required, MaxLength(32)]
+    public string FrontCoverTemplate { get; set; } = "InstitutionalHero";
+
+    [Required, MaxLength(32)]
+    public string BackCoverTemplate { get; set; } = "MinimalInstitutional";
+
+    [MaxLength(120)] public string? FrontCoverTitle { get; set; }
+    [MaxLength(160)] public string? FrontCoverSubtitle { get; set; }
+    [MaxLength(80)] public string? FrontCoverEdition { get; set; }
+    [MaxLength(80)] public string? FrontCoverEyebrow { get; set; }
+    [MaxLength(120)] public string? BackCoverTitle { get; set; }
+    [MaxLength(160)] public string? BackCoverSubtitle { get; set; }
+    [MaxLength(80)] public string? BackCoverEdition { get; set; }
+    [MaxLength(80)] public string? BackCoverEyebrow { get; set; }
+
+    public bool ShowFrontTitle { get; set; } = true;
+    public bool ShowFrontSubtitle { get; set; } = true;
+    public bool ShowFrontEdition { get; set; } = true;
+    public bool ShowFrontLeftLogo { get; set; } = true;
+    public bool ShowFrontRightLogo { get; set; } = true;
+    [Required, MaxLength(24)]
+    public string FrontLogoPlacement { get; set; } = "TopCorners";
+    public bool ShowBackTitle { get; set; } = true;
+    public bool ShowBackSubtitle { get; set; } = true;
+    public bool ShowBackEdition { get; set; } = true;
+    public bool ShowBackLeftLogo { get; set; } = true;
+    public bool ShowBackRightLogo { get; set; } = true;
+    [Required, MaxLength(24)]
+    public string BackLogoPlacement { get; set; } = "TopCorners";
+
     [Required, MaxLength(450)]
     public string CreatedByUserId { get; set; } = string.Empty;
     public ApplicationUser CreatedByUser { get; set; } = null!;
@@ -68,6 +98,8 @@ public sealed class CompendiumPreset
 
     public ICollection<CompendiumPresetSection> Sections { get; set; } = new List<CompendiumPresetSection>();
     public ICollection<CompendiumPresetProject> Projects { get; set; } = new List<CompendiumPresetProject>();
+    public ICollection<CompendiumPresetCoverImage> CoverImages { get; set; } = new List<CompendiumPresetCoverImage>();
+    public ICollection<CompendiumPresetPhotoPreference> PhotoPreferences { get; set; } = new List<CompendiumPresetPhotoPreference>();
 }
 
 /// <summary>
@@ -121,6 +153,9 @@ public sealed class CompendiumPresetProject
     [Required, MaxLength(32)]
     public string ImageSelectionMode { get; set; } = "Automatic";
 
+    [Required, MaxLength(16)]
+    public string ImageFitMode { get; set; } = "Fill";
+
     /// <summary>
     /// Optional per-project publication narrative override. Null means inherit the Compendium default.
     /// </summary>
@@ -136,4 +171,32 @@ public sealed class CompendiumPresetProject
     /// </summary>
     [MaxLength(120)]
     public string? CustomSectionName { get; set; }
+}
+
+public sealed class CompendiumPresetCoverImage
+{
+    public long Id { get; set; }
+    public long PresetId { get; set; }
+    public CompendiumPreset Preset { get; set; } = null!;
+
+    [Required, MaxLength(16)] public string Surface { get; set; } = "Front";
+    [Required, MaxLength(32)] public string SlotKey { get; set; } = "Hero";
+    [Required, MaxLength(16)] public string ImageMode { get; set; } = "Automatic";
+    public int? ProjectId { get; set; }
+    public int? PhotoId { get; set; }
+    public double FocalX { get; set; } = .5d;
+    public double FocalY { get; set; } = .5d;
+    [Required, MaxLength(16)] public string FitMode { get; set; } = "Fill";
+    public int SortOrder { get; set; }
+}
+
+public sealed class CompendiumPresetPhotoPreference
+{
+    public long Id { get; set; }
+    public long PresetId { get; set; }
+    public CompendiumPreset Preset { get; set; } = null!;
+    public int ProjectId { get; set; }
+    public int PhotoId { get; set; }
+    public bool PreferredForPublication { get; set; }
+    public bool SuitableForCoverHero { get; set; }
 }

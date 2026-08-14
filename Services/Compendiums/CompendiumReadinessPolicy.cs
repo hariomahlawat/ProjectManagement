@@ -133,6 +133,22 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             issues.Add(CompendiumPublicationIssue.MissingDescription);
             Blocker("missingDescription", $"{NormalizeNarrativeLabel(context.NarrativeLabel)} is not recorded. Choose another publication narrative for this project or record the missing content before final issue.");
         }
+        else
+        {
+            if (LooksLikePlaceholderNarrative(context.Description))
+            {
+                Warning(
+                    "placeholderNarrative",
+                    $"{NormalizeNarrativeLabel(context.NarrativeLabel)} appears to contain placeholder or test text; replace it before formal issue.");
+            }
+
+            if (ContainsDuplicateNarrativeParagraph(context.Description))
+            {
+                Warning(
+                    "duplicateNarrativeParagraph",
+                    $"{NormalizeNarrativeLabel(context.NarrativeLabel)} appears to repeat a paragraph. Review the source content before formal issue.");
+            }
+        }
 
         if (context.LifecycleStatus == ProjectLifecycleStatus.Completed && !context.CompletionYear.HasValue)
         {
@@ -173,5 +189,53 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         var normalized = value.TrimStart();
         return normalized.StartsWith("Al Based", StringComparison.OrdinalIgnoreCase)
                || normalized.StartsWith("Al-based", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikePlaceholderNarrative(string value)
+    {
+        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Contains("lorem ipsum", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("dummy text", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("testing text", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("sample text", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsDuplicateNarrativeParagraph(string value)
+    {
+        var paragraphs = value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(paragraph => string.Join(' ', paragraph.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim())
+            .Where(paragraph => paragraph.Length >= 80)
+            .ToArray();
+
+        if (paragraphs.Length < 2)
+        {
+            // Some stored project briefs are plain text without paragraph breaks. Detect an
+            // immediately repeated long sentence block without trying to rewrite the source.
+            var compact = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            var midpoint = compact.Length / 2;
+            if (compact.Length >= 320)
+            {
+                var first = compact[..midpoint].Trim();
+                var second = compact[midpoint..].Trim();
+                if (first.Length >= 120 && string.Equals(first, second, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var paragraph in paragraphs)
+        {
+            if (!seen.Add(paragraph))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

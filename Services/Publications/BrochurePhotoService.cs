@@ -8,6 +8,7 @@ using ProjectManagement.Services.Storage;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace ProjectManagement.Services.Publications;
@@ -310,6 +311,33 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
 
             var sourceWidth = image.Width;
             var sourceHeight = image.Height;
+            if (request.FitMode == BrochurePhotoFitMode.Fit)
+            {
+                var scale = Math.Min(
+                    request.TargetWidth / (double)Math.Max(1, sourceWidth),
+                    request.TargetHeight / (double)Math.Max(1, sourceHeight));
+                var width = Math.Max(1, (int)Math.Round(sourceWidth * scale));
+                var height = Math.Max(1, (int)Math.Round(sourceHeight * scale));
+                image.Mutate(context => context.Resize(width, height));
+
+                using var canvas = new Image<Rgba32>(request.TargetWidth, request.TargetHeight, Color.White);
+                var x = (request.TargetWidth - width) / 2;
+                var y = (request.TargetHeight - height) / 2;
+                canvas.Mutate(context => context.DrawImage(image, new Point(x, y), 1f));
+                using var fitOutput = new MemoryStream();
+                canvas.Save(fitOutput, new JpegEncoder { Quality = 91 });
+
+                var fitQuality = DetermineQuality(sourceWidth, sourceHeight);
+                return new BrochurePublicationImage(
+                    photo.Id,
+                    fitOutput.ToArray(),
+                    sourceWidth,
+                    sourceHeight,
+                    fitQuality >= BrochurePhotoQuality.PrintReady,
+                    source.Variant,
+                    fitQuality);
+            }
+
             var crop = CalculateCropRectangle(
                 sourceWidth,
                 sourceHeight,

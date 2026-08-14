@@ -410,7 +410,16 @@ public sealed record BrochurePhotoRenderRequest(
     double FocalX,
     double FocalY,
     int TargetWidth = 1920,
-    int TargetHeight = 1080);
+    int TargetHeight = 1080)
+{
+    public BrochurePhotoFitMode FitMode { get; init; } = BrochurePhotoFitMode.Fill;
+}
+
+public enum BrochurePhotoFitMode
+{
+    Fill = 0,
+    Fit = 1
+}
 
 public sealed record BrochurePublicationImage(
     int PhotoId,

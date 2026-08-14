@@ -3169,6 +3169,12 @@ body.brochure-modal-open { overflow: hidden; }
     box-shadow: inset 0 0 0 1px rgba(56,120,94,.16);
     background: #edf7f2;
 }
+.compendium-narrative-readiness > span.is-source-active.is-missing {
+    border-color: #d8b45f;
+    box-shadow: inset 0 0 0 1px rgba(173,126,24,.14);
+    background: #fff5dc;
+    color: #875f0f;
+}
 
 /* Live dossier review: near-WYSIWYG page on wide screens, inspector alongside. */
 .compendium-builder-page .compendium-review-workspace--live {
@@ -4284,10 +4290,10 @@ body.brochure-modal-open { overflow: hidden; }
     }
     .compendium-builder-page .compendium-project-col--select { width: 34px; }
     .compendium-builder-page .compendium-project-col--project { width: 22%; }
-    .compendium-builder-page .compendium-project-col--lifecycle { width: 7%; }
+    .compendium-builder-page .compendium-project-col--lifecycle { width: 8%; }
     .compendium-builder-page .compendium-project-col--category { width: 11%; }
     .compendium-builder-page .compendium-project-col--technical { width: 10%; }
-    .compendium-builder-page .compendium-project-col--narrative { width: 21%; }
+    .compendium-builder-page .compendium-project-col--narrative { width: 20%; }
     .compendium-builder-page .compendium-project-col--arm { width: 9%; }
     .compendium-builder-page .compendium-project-col--cost { width: 8%; }
     .compendium-builder-page .compendium-project-col--photo { width: 8%; }
@@ -4436,5 +4442,302 @@ body.compendium-structure-editor-mode {
         height: auto;
         min-height: 0;
         overflow: visible;
+    }
+}
+
+/* ============================================================
+   Phase 30 · Compendium Cover Composer & publication imagery
+   ============================================================ */
+.compendium-cover-editor-page {
+    --cover-editor-top: 196px;
+    width: 100%;
+    max-width: none;
+    height: calc(100vh - 190px);
+    min-height: 620px;
+    padding: 1rem clamp(1.1rem, 2.5vw, 2.75rem) 1.15rem;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: .75rem;
+    overflow: hidden;
+    color: var(--pub-ink);
+}
+
+.compendium-cover-editor-token { display: none; }
+
+.compendium-cover-editor-header,
+.compendium-cover-editor-summary,
+.compendium-cover-editor-templates,
+.compendium-cover-editor-proof,
+.compendium-cover-editor-inspector {
+    background: #fff;
+    border: 1px solid var(--pub-border);
+    border-radius: .85rem;
+    box-shadow: 0 5px 18px rgba(25, 50, 43, .045);
+}
+
+.compendium-cover-editor-header {
+    min-height: 84px;
+    padding: .9rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.compendium-cover-editor-heading { display: flex; align-items: center; gap: .85rem; min-width: 0; }
+.compendium-cover-editor-heading > div { min-width: 0; }
+.compendium-cover-editor-heading p { margin: 0 0 .1rem; color: var(--pub-green-700); font-size: .66rem; font-weight: 800; letter-spacing: .16em; }
+.compendium-cover-editor-heading h1 { margin: 0; font-size: 1.45rem; line-height: 1.1; }
+.compendium-cover-editor-heading span { display: block; margin-top: .15rem; color: var(--pub-muted); font-size: .78rem; }
+.compendium-cover-editor-heading > a { min-height: 42px; display: inline-flex; align-items: center; gap: .35rem; }
+.compendium-cover-editor-commands { display: flex; align-items: center; gap: .55rem; }
+
+.compendium-cover-editor-summary {
+    min-height: 48px;
+    padding: .55rem .9rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    background: var(--pub-green-50);
+}
+.compendium-cover-editor-summary > div { display: flex; align-items: baseline; gap: .35rem; white-space: nowrap; }
+.compendium-cover-editor-summary strong { font-size: .78rem; }
+.compendium-cover-editor-summary span { color: var(--pub-muted); font-size: .68rem; }
+.compendium-cover-editor-summary > i { width: 1px; height: 20px; background: var(--pub-border); }
+.compendium-cover-editor-summary p { margin: 0 0 0 auto; color: var(--pub-muted); font-size: .68rem; text-align: right; }
+
+.compendium-cover-editor-layout {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(230px, 285px) minmax(540px, 1fr) minmax(300px, 355px);
+    gap: .75rem;
+}
+
+.compendium-cover-editor-templates,
+.compendium-cover-editor-proof,
+.compendium-cover-editor-inspector {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.compendium-cover-editor-templates,
+.compendium-cover-editor-inspector { display: flex; flex-direction: column; }
+.compendium-cover-editor-templates > header,
+.compendium-cover-editor-proof > header,
+.compendium-cover-editor-inspector > header {
+    padding: .75rem .85rem;
+    border-bottom: 1px solid var(--pub-border);
+}
+.compendium-cover-editor-templates h2,
+.compendium-cover-editor-proof h2,
+.compendium-cover-editor-inspector h2 { margin: 0; font-size: .9rem; }
+.compendium-cover-editor-templates header span,
+.compendium-cover-editor-proof header span,
+.compendium-cover-editor-inspector header span { color: var(--pub-muted); font-size: .66rem; }
+
+.compendium-cover-surface-tabs {
+    margin: .7rem .7rem .35rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--pub-border);
+    border-radius: .55rem;
+    overflow: hidden;
+}
+.compendium-cover-surface-tabs button { border: 0; padding: .48rem; background: #fff; color: var(--pub-muted); font-size: .73rem; font-weight: 700; }
+.compendium-cover-surface-tabs button + button { border-left: 1px solid var(--pub-border); }
+.compendium-cover-surface-tabs button.active { background: var(--pub-green-100); color: var(--pub-green-900); }
+
+.compendium-cover-template-list {
+    padding: .35rem .7rem .8rem;
+    overflow: auto;
+    display: grid;
+    gap: .45rem;
+}
+.compendium-cover-template-list > button {
+    width: 100%;
+    border: 1px solid var(--pub-border);
+    border-radius: .65rem;
+    background: #fff;
+    padding: .55rem;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: .65rem;
+    text-align: left;
+    color: var(--pub-ink);
+    transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.compendium-cover-template-list > button:hover { border-color: var(--pub-border-strong); background: var(--pub-green-50); }
+.compendium-cover-template-list > button.active { border-color: #78aa99; background: #eef7f3; box-shadow: inset 3px 0 0 var(--pub-green-700); }
+.compendium-cover-template-list b { align-self: end; font-size: .72rem; }
+.compendium-cover-template-list small { color: var(--pub-muted); font-size: .62rem; }
+.cover-template-mini {
+    grid-row: 1 / span 2;
+    width: 48px; height: 62px;
+    border-radius: .2rem;
+    background: #0c302a;
+    border-top: 3px solid var(--pub-gold);
+    padding: 5px;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    overflow: hidden;
+}
+.cover-template-mini i { display: block; flex: 1; min-height: 19px; background: #b7cbc4; border-radius: 1px; }
+.cover-template-mini--full { padding: 0; }
+.cover-template-mini--full i { min-height: 100%; background: linear-gradient(135deg,#5f8075,#b4c1bc); }
+.cover-template-mini--split i:first-child { min-height: 30px; flex: 2; }
+.cover-template-mini--triptych i:nth-child(2) { min-height: 25px; }
+.cover-template-mini--strip { align-items: center; }
+.cover-template-mini--strip i { min-height: 14px; }
+.cover-template-mini--minimal::after,
+.cover-template-mini--type::after { content: ''; width: 30px; height: 2px; margin: auto auto 20px; background: var(--pub-gold); box-shadow: 0 7px 0 rgba(255,255,255,.75), 0 13px 0 rgba(255,255,255,.38); }
+.cover-template-mini--clean::after { content: ''; width: 9px; height: 9px; margin: auto; border-radius: 50%; background: var(--pub-gold); }
+
+.compendium-cover-editor-proof { display: grid; grid-template-rows: auto minmax(0,1fr); background: #f3f6f5; }
+.compendium-cover-editor-proof > header { display: flex; justify-content: space-between; align-items: center; background: #fff; }
+.compendium-cover-proof-stage { min-height: 0; padding: .85rem; display: flex; align-items: flex-start; justify-content: center; overflow: auto; }
+.compendium-cover-proof-sheet {
+    position: relative;
+    width: min(100%, 600px);
+    aspect-ratio: 595 / 842;
+    min-height: 620px;
+    background: #0c302a;
+    color: white;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(16, 40, 34, .16);
+    border-radius: 2px;
+    flex: none;
+}
+.compendium-cover-proof-goldbar { position: absolute; inset: 0 0 auto; height: 8px; background: var(--pub-gold); z-index: 5; }
+.compendium-cover-proof-logos { position: absolute; z-index: 6; top: 44px; left: 48px; right: 48px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+.compendium-cover-proof-logos img { width: 43px; height: 43px; object-fit: contain; }
+.compendium-cover-proof-logos.is-centred { justify-content: center; gap: 14px; }
+.compendium-cover-logo-placement { margin-top: .65rem; margin-bottom: 0; }
+.compendium-cover-proof-content { position: absolute; inset: 0; padding: 150px 50px 70px; display: flex; flex-direction: column; gap: 26px; }
+.cover-proof-identity { position: relative; z-index: 4; max-width: 84%; }
+.cover-proof-identity::before { content: ''; display: block; width: 130px; height: 5px; margin-bottom: 16px; background: var(--pub-gold); }
+.cover-proof-identity small { display: block; margin-bottom: 8px; color: #d7bd75; font-size: .62rem; font-weight: 800; letter-spacing: .18em; }
+.cover-proof-identity h3 { margin: 0 0 10px; color: #fff; font-size: clamp(1.65rem, 3vw, 2.4rem); line-height: 1.06; font-weight: 500; }
+.cover-proof-identity p { margin: 0 0 8px; color: #d9e3df; font-size: .9rem; }
+.cover-proof-identity b { color: #e3ca83; font-size: .76rem; }
+.cover-proof-image { overflow: hidden; background: #e9efec; border: 1px solid rgba(255,255,255,.16); min-height: 140px; }
+.cover-proof-image img { width: 100%; height: 100%; display: block; }
+.cover-proof-image--empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; color: #70817b; font-size: .68rem; }
+.cover-proof-image--empty i { font-size: 1.35rem; }
+.cover-proof-image--institutional { height: 300px; margin-top: auto; }
+.cover-proof-split { display: grid; grid-template-columns: 1.7fr 1fr; gap: 10px; margin-top: auto; }
+.cover-proof-split .cover-proof-image { height: 325px; }
+.cover-proof-triptych { display: grid; grid-template-columns: 1.45fr 1fr 1fr; gap: 8px; margin-top: auto; }
+.cover-proof-triptych .cover-proof-image { height: 330px; }
+.cover-proof-triptych--back { grid-template-columns: repeat(3,1fr); }
+.cover-proof-image--full { position: absolute; inset: 0; z-index: 1; border: 0; }
+.cover-proof-image--full::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,20,17,.32), rgba(5,30,25,.25) 35%, rgba(4,27,23,.88) 86%); }
+.compendium-cover-proof-sheet[data-template="FullBleedHero"] .compendium-cover-proof-content { padding-top: 0; justify-content: flex-end; }
+.compendium-cover-proof-sheet[data-template="FullBleedHero"] .cover-proof-identity { margin-bottom: 46px; max-width: 90%; }
+.cover-proof-image--echo { height: 315px; margin-top: auto; order: 2; }
+.compendium-cover-proof-sheet[data-surface="back"] .compendium-cover-proof-content { justify-content: center; }
+.compendium-cover-proof-sheet[data-surface="back"] .cover-proof-identity h3 { font-size: 2rem; }
+
+.compendium-cover-editor-inspector { overflow-y: auto; }
+.compendium-cover-inspector-section { padding: .75rem .8rem; border-bottom: 1px solid var(--pub-border); }
+.compendium-cover-inspector-heading { margin-bottom: .65rem; }
+.compendium-cover-inspector-heading strong { display: block; font-size: .76rem; }
+.compendium-cover-inspector-heading span { display: block; margin-top: .08rem; color: var(--pub-muted); font-size: .61rem; line-height: 1.35; }
+.compendium-cover-editor-field { display: block; margin-bottom: .55rem; }
+.compendium-cover-editor-field > span { display: flex; align-items: center; gap: .35rem; margin-bottom: .25rem; color: #41534d; font-size: .66rem; font-weight: 700; }
+.compendium-cover-logo-toggles { display: flex; gap: .75rem; flex-wrap: wrap; }
+.compendium-cover-logo-toggles label { display: flex; align-items: center; gap: .35rem; font-size: .67rem; }
+.compendium-cover-slot-card { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: .55rem; padding: .55rem 0; border-top: 1px solid var(--pub-border); }
+.compendium-cover-slot-card:first-child { border-top: 0; padding-top: 0; }
+.compendium-cover-slot-thumb { width: 64px; height: 50px; border-radius: .35rem; overflow: hidden; border: 1px solid var(--pub-border); background: #f3f6f5; }
+.compendium-cover-slot-thumb img { width:100%;height:100%;display:block; }
+.compendium-cover-slot-placeholder { height:100%;display:flex;align-items:center;justify-content:center;color:#82928d; }
+.compendium-cover-slot-copy { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.compendium-cover-slot-copy strong { font-size: .69rem; }
+.compendium-cover-slot-copy span { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#42534e;font-size:.62rem; }
+.compendium-cover-slot-copy small { color:var(--pub-muted);font-size:.58rem; }
+.compendium-cover-slot-actions { grid-column:1/-1; display:flex;align-items:center;gap:.35rem;flex-wrap:wrap; }
+.compendium-cover-slot-actions .btn-link { padding-inline:.25rem; font-size:.62rem; }
+
+.compendium-cover-photo-modal .modal-body { min-height: 480px; }
+.compendium-cover-photo-picker-toolbar { display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1.25fr) auto;gap:.6rem;align-items:center;margin-bottom:.65rem; }
+.compendium-cover-editor-search { position:relative; }
+.compendium-cover-editor-search i { position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:#81908b; }
+.compendium-cover-editor-search input { padding-left:2rem; }
+.compendium-cover-photo-picker-state { margin:.35rem 0 .6rem;color:var(--pub-muted);font-size:.68rem; }
+.compendium-cover-photo-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.7rem; }
+.compendium-cover-photo-card { border:1px solid var(--pub-border);border-radius:.65rem;overflow:hidden;background:#fff; }
+.compendium-cover-photo-card.selected { border-color:#6fa18f;box-shadow:0 0 0 2px rgba(38,108,89,.12); }
+.compendium-cover-photo-select { width:100%;border:0;background:#fff;padding:0;text-align:left;position:relative; }
+.compendium-cover-photo-select > img { width:100%;height:135px;object-fit:cover;display:block;background:#edf2f0; }
+.compendium-cover-photo-select > span { display:flex;flex-direction:column;padding:.45rem .55rem; }
+.compendium-cover-photo-select b { white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.68rem; }
+.compendium-cover-photo-select small { color:var(--pub-muted);font-size:.59rem; }
+.compendium-cover-photo-select > i { position:absolute;right:.5rem;top:.5rem;color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.55);font-size:1.15rem; }
+.compendium-cover-photo-flags { display:flex;gap:.75rem;flex-wrap:wrap;padding:.42rem .55rem;border-top:1px solid var(--pub-border);background:#f9fbfa; }
+.compendium-cover-photo-flags label { display:flex;align-items:center;gap:.3rem;font-size:.6rem;color:#42534e; }
+
+.compendium-cover-crop-stage { position:relative;height:min(55vh,460px);overflow:hidden;border-radius:.6rem;background:#e8efec;cursor:crosshair; }
+.compendium-cover-crop-stage img { width:100%;height:100%;object-fit:contain;display:block; }
+.compendium-cover-crop-target { position:absolute;width:28px;height:28px;border:2px solid white;border-radius:50%;background:rgba(16,61,53,.62);box-shadow:0 0 0 1px rgba(0,0,0,.25);transform:translate(-50%,-50%);pointer-events:none; }
+.compendium-cover-crop-target::after { content:'';position:absolute;inset:7px;border:1px solid rgba(255,255,255,.9);border-radius:50%; }
+.compendium-cover-crop-help { margin-top:.55rem;color:var(--pub-muted);font-size:.67rem; }
+
+@media (min-width: 1700px) {
+    .compendium-cover-editor-layout { grid-template-columns: 300px minmax(650px,1fr) 380px; }
+    .compendium-cover-proof-sheet { width: min(100%, 650px); }
+}
+@media (max-width: 1280px) {
+    .compendium-cover-editor-page { height:auto;overflow:visible; }
+    .compendium-cover-editor-layout { grid-template-columns: 240px minmax(0,1fr); }
+    .compendium-cover-editor-inspector { grid-column:1/-1;max-height:none;overflow:visible; }
+}
+@media (max-width: 900px) {
+    .compendium-cover-editor-layout { grid-template-columns:1fr; }
+    .compendium-cover-editor-templates,.compendium-cover-editor-proof,.compendium-cover-editor-inspector { min-height:auto; }
+    .compendium-cover-photo-picker-toolbar { grid-template-columns:1fr; }
+    .compendium-cover-editor-summary p { display:none; }
+}
+
+/* Phase 30 main Compendium integration */
+.compendium-cover-setting--composer .compendium-cover-copy { min-width: 0; }
+.compendium-cover-design-meta { display:flex;align-items:center;gap:.45rem;margin-top:.25rem;color:var(--pub-muted);font-size:.58rem; }
+.compendium-cover-design-meta i { width:1px;height:11px;background:var(--pub-border); }
+.compendium-review-fit-toggle .btn.active { background:var(--pub-green-100);border-color:#89b4a5;color:var(--pub-green-900); }
+.compendium-review-image-frame img,
+.compendium-live-page__image img { background:#fff; }
+
+@media (min-width: 1600px) {
+    .compendium-project-table { table-layout: fixed; min-width: 0 !important; }
+    .compendium-project-table th:nth-child(2),
+    .compendium-project-table td:nth-child(2),
+    .compendium-project-table th:nth-child(7),
+    .compendium-project-table td:nth-child(7),
+    .compendium-project-table th:nth-child(8),
+    .compendium-project-table td:nth-child(8) { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+    .compendium-project-table th { word-break: normal; overflow-wrap: normal; }
+}
+
+
+@media (min-width: 1600px) {
+    .compendium-builder-page .compendium-project-table thead th.compendium-project-col--lifecycle,
+    .compendium-builder-page .compendium-project-table tbody td.compendium-project-col--lifecycle,
+    .compendium-builder-page .compendium-project-table thead th.compendium-project-col--cost,
+    .compendium-builder-page .compendium-project-table tbody td.compendium-project-col--cost,
+    .compendium-builder-page .compendium-project-table thead th.compendium-project-col--photo,
+    .compendium-builder-page .compendium-project-table tbody td.compendium-project-col--photo {
+        white-space: nowrap;
+        word-break: normal;
+        overflow-wrap: normal;
+    }
+    .compendium-builder-page .compendium-project-table thead th.compendium-project-col--category,
+    .compendium-builder-page .compendium-project-table tbody td.compendium-project-col--category,
+    .compendium-builder-page .compendium-project-table thead th.compendium-project-col--technical,
+    .compendium-builder-page .compendium-project-table tbody td.compendium-project-col--technical,
+    .compendium-builder-page .compendium-project-table thead th.compendium-project-col--arm,
+    .compendium-builder-page .compendium-project-table tbody td.compendium-project-col--arm {
+        word-break: normal;
+        overflow-wrap: normal;
     }
 }

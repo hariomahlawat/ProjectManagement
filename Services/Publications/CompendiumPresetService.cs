@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 5;
+    private const int CurrentSchemaVersion = 6;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -137,6 +137,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             .AsNoTracking()
             .Include(row => row.Sections)
             .Include(row => row.Projects)
+            .Include(row => row.CoverImages)
+            .Include(row => row.PhotoPreferences)
             .Include(row => row.LastModifiedByUser)
             .FirstOrDefaultAsync(row => row.Id == presetId && row.IsActive, cancellationToken)
             ?? throw new KeyNotFoundException("The saved Compendium was not found.");
@@ -254,7 +256,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 CustomSectionName = assignedSection is null
                     ? CleanOptional(item.CustomSectionName, 120)
                     : CleanOptional(assignedSection.Name, 120),
-                NarrativeSourceOverride = ParseNullableNarrativeSource(item.NarrativeSourceOverride)
+                NarrativeSourceOverride = ParseNullableNarrativeSource(item.NarrativeSourceOverride),
+                ImageFitMode = ParseImageFitMode(item.ImageFitMode)
             });
 
             if (!string.Equals(currentName, item.ProjectNameSnapshot, StringComparison.Ordinal))
@@ -291,6 +294,74 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             }
         }
 
+        var coverImages = preset.CoverImages
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Id)
+            .Select((item, index) => new CompendiumPresetCoverImageConfiguration(
+                ParseCoverSurface(item.Surface),
+                CleanRequired(item.SlotKey, "Hero", 32),
+                ParseCoverMode(item.ImageMode),
+                item.ProjectId,
+                item.PhotoId,
+                ClampFocal(item.FocalX),
+                ClampFocal(item.FocalY),
+                ParseImageFitMode(item.FitMode),
+                index))
+            .ToArray();
+
+        if (coverImages.Length == 0)
+        {
+            coverImages = new[]
+            {
+                new CompendiumPresetCoverImageConfiguration(
+                    CompendiumCoverSurface.Front,
+                    "Hero",
+                    cover.ImageMode,
+                    cover.HeroProjectId,
+                    cover.HeroPhotoId,
+                    cover.FocalX,
+                    cover.FocalY,
+                    CompendiumImageFitMode.Fill,
+                    0)
+            };
+        }
+
+        var photoPreferences = preset.PhotoPreferences
+            .Where(item => item.ProjectId > 0 && item.PhotoId > 0)
+            .Select(item => new CompendiumPresetPhotoPreferenceConfiguration(
+                item.ProjectId,
+                item.PhotoId,
+                item.PreferredForPublication,
+                item.SuitableForCoverHero))
+            .ToArray();
+
+        var coverDesign = new CompendiumCoverDesignConfiguration
+        {
+            FrontTemplate = ParseFrontTemplate(preset.FrontCoverTemplate),
+            BackTemplate = ParseBackTemplate(preset.BackCoverTemplate),
+            FrontTitle = CleanOptional(preset.FrontCoverTitle, 120),
+            FrontSubtitle = CleanOptional(preset.FrontCoverSubtitle, 160),
+            FrontEdition = CleanOptional(preset.FrontCoverEdition, 80),
+            FrontEyebrow = CleanOptional(preset.FrontCoverEyebrow, 80),
+            BackTitle = CleanOptional(preset.BackCoverTitle, 120),
+            BackSubtitle = CleanOptional(preset.BackCoverSubtitle, 160),
+            BackEdition = CleanOptional(preset.BackCoverEdition, 80),
+            BackEyebrow = CleanOptional(preset.BackCoverEyebrow, 80),
+            ShowFrontTitle = preset.ShowFrontTitle,
+            ShowFrontSubtitle = preset.ShowFrontSubtitle,
+            ShowFrontEdition = preset.ShowFrontEdition,
+            ShowFrontLeftLogo = preset.ShowFrontLeftLogo,
+            ShowFrontRightLogo = preset.ShowFrontRightLogo,
+            FrontLogoPlacement = ParseLogoPlacement(preset.FrontLogoPlacement),
+            ShowBackTitle = preset.ShowBackTitle,
+            ShowBackSubtitle = preset.ShowBackSubtitle,
+            ShowBackEdition = preset.ShowBackEdition,
+            ShowBackLeftLogo = preset.ShowBackLeftLogo,
+            ShowBackRightLogo = preset.ShowBackRightLogo,
+            BackLogoPlacement = ParseLogoPlacement(preset.BackLogoPlacement),
+            Images = coverImages
+        };
+
         var configuration = new CompendiumPresetConfiguration(
             preset.Title,
             preset.Subtitle,
@@ -299,6 +370,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             projectConfigurations)
         {
             Cover = cover,
+            CoverDesign = coverDesign,
+            PhotoPreferences = photoPreferences,
             NarrativeSource = ParseNarrativeSource(preset.NarrativeSource),
             GroupingMode = ParseGroupingMode(preset.GroupingMode),
             SortMode = ParseSortMode(preset.SortMode),
@@ -339,7 +412,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             IsActive = true,
             RowVersion = NewRowVersion(),
             Sections = prepared.Sections,
-            Projects = prepared.Projects
+            Projects = prepared.Projects,
+            CoverImages = prepared.CoverImages,
+            PhotoPreferences = prepared.PhotoPreferences
         };
         ApplyConfiguration(preset, prepared.Configuration);
 
@@ -395,6 +470,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             await _db.SaveChangesAsync(cancellationToken);
             _db.CompendiumPresetSections.RemoveRange(preset.Sections);
             await _db.SaveChangesAsync(cancellationToken);
+            _db.CompendiumPresetCoverImages.RemoveRange(preset.CoverImages);
+            _db.CompendiumPresetPhotoPreferences.RemoveRange(preset.PhotoPreferences);
+            await _db.SaveChangesAsync(cancellationToken);
 
             foreach (var section in prepared.Sections)
             {
@@ -404,12 +482,24 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             {
                 item.PresetId = preset.Id;
             }
+            foreach (var image in prepared.CoverImages)
+            {
+                image.PresetId = preset.Id;
+            }
+            foreach (var preference in prepared.PhotoPreferences)
+            {
+                preference.PresetId = preset.Id;
+            }
 
             ApplyConfiguration(preset, prepared.Configuration);
             _db.CompendiumPresetSections.AddRange(prepared.Sections);
             _db.CompendiumPresetProjects.AddRange(prepared.Projects);
+            _db.CompendiumPresetCoverImages.AddRange(prepared.CoverImages);
+            _db.CompendiumPresetPhotoPreferences.AddRange(prepared.PhotoPreferences);
             preset.Sections = prepared.Sections;
             preset.Projects = prepared.Projects;
+            preset.CoverImages = prepared.CoverImages;
+            preset.PhotoPreferences = prepared.PhotoPreferences;
             preset.LastModifiedByUserId = userId;
             preset.UpdatedAtUtc = _clock.UtcNow.ToUniversalTime();
             preset.RowVersion = NewRowVersion();
@@ -549,6 +639,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryFocalX = item.PrimaryFocalX,
                     PrimaryFocalY = item.PrimaryFocalY,
                     ImageSelectionMode = item.ImageSelectionMode,
+                    ImageFitMode = item.ImageFitMode,
                     NarrativeSourceOverride = item.NarrativeSourceOverride,
                     CustomSection = assignedSection,
                     CustomSectionName = assignedSection?.Name ?? item.CustomSectionName
@@ -574,6 +665,28 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CoverHeroPhotoId = source.CoverHeroPhotoId,
             CoverFocalX = source.CoverFocalX,
             CoverFocalY = source.CoverFocalY,
+            FrontCoverTemplate = source.FrontCoverTemplate,
+            BackCoverTemplate = source.BackCoverTemplate,
+            FrontCoverTitle = source.FrontCoverTitle,
+            FrontCoverSubtitle = source.FrontCoverSubtitle,
+            FrontCoverEdition = source.FrontCoverEdition,
+            FrontCoverEyebrow = source.FrontCoverEyebrow,
+            BackCoverTitle = source.BackCoverTitle,
+            BackCoverSubtitle = source.BackCoverSubtitle,
+            BackCoverEdition = source.BackCoverEdition,
+            BackCoverEyebrow = source.BackCoverEyebrow,
+            ShowFrontTitle = source.ShowFrontTitle,
+            ShowFrontSubtitle = source.ShowFrontSubtitle,
+            ShowFrontEdition = source.ShowFrontEdition,
+            ShowFrontLeftLogo = source.ShowFrontLeftLogo,
+            ShowFrontRightLogo = source.ShowFrontRightLogo,
+            FrontLogoPlacement = source.FrontLogoPlacement,
+            ShowBackTitle = source.ShowBackTitle,
+            ShowBackSubtitle = source.ShowBackSubtitle,
+            ShowBackEdition = source.ShowBackEdition,
+            ShowBackLeftLogo = source.ShowBackLeftLogo,
+            ShowBackRightLogo = source.ShowBackRightLogo,
+            BackLogoPlacement = source.BackLogoPlacement,
             CreatedByUserId = userId,
             LastModifiedByUserId = userId,
             CreatedAtUtc = now,
@@ -581,7 +694,26 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             IsActive = true,
             RowVersion = NewRowVersion(),
             Sections = duplicateSections.ToList(),
-            Projects = duplicateProjects
+            Projects = duplicateProjects,
+            CoverImages = source.CoverImages.Select(item => new CompendiumPresetCoverImage
+            {
+                Surface = item.Surface,
+                SlotKey = item.SlotKey,
+                ImageMode = item.ImageMode,
+                ProjectId = item.ProjectId,
+                PhotoId = item.PhotoId,
+                FocalX = item.FocalX,
+                FocalY = item.FocalY,
+                FitMode = item.FitMode,
+                SortOrder = item.SortOrder
+            }).ToList(),
+            PhotoPreferences = source.PhotoPreferences.Select(item => new CompendiumPresetPhotoPreference
+            {
+                ProjectId = item.ProjectId,
+                PhotoId = item.PhotoId,
+                PreferredForPublication = item.PreferredForPublication,
+                SuitableForCoverHero = item.SuitableForCoverHero
+            }).ToList()
         };
 
         _db.CompendiumPresets.Add(duplicate);
@@ -634,7 +766,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             });
     }
 
-    private async Task<(CompendiumPresetConfiguration Configuration, List<CompendiumPresetProject> Projects, List<CompendiumPresetSection> Sections)>
+    private async Task<(CompendiumPresetConfiguration Configuration, List<CompendiumPresetProject> Projects, List<CompendiumPresetSection> Sections, List<CompendiumPresetCoverImage> CoverImages, List<CompendiumPresetPhotoPreference> PhotoPreferences)>
         PrepareConfigurationAsync(
             CompendiumPresetConfiguration configuration,
             CancellationToken cancellationToken)
@@ -709,6 +841,47 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             }
         }
 
+        var normalizedDesign = NormalizeCoverDesign(configuration.CoverDesign, configuration.Cover);
+        var normalizedPreferences = NormalizePhotoPreferences(configuration.PhotoPreferences, projectIds);
+        var referencedCoverPhotos = normalizedDesign.Images
+            .Where(image => image.ImageMode == CompendiumCoverImageMode.Explicit && image.PhotoId is > 0)
+            .Select(image => image.PhotoId!.Value);
+        var preferencePhotoIds = normalizedPreferences.Select(item => item.PhotoId);
+        var referencedPhotoIds = explicitPhotoIds
+            .Concat(referencedCoverPhotos)
+            .Concat(preferencePhotoIds)
+            .Distinct()
+            .ToArray();
+        var referencedPhotos = referencedPhotoIds.Length == 0
+            ? new Dictionary<int, SavedPhotoRow>()
+            : await _db.ProjectPhotos
+                .AsNoTracking()
+                .Where(photo => referencedPhotoIds.Contains(photo.Id))
+                .Select(photo => new SavedPhotoRow(photo.Id, photo.ProjectId))
+                .ToDictionaryAsync(photo => photo.PhotoId, cancellationToken);
+
+        foreach (var image in normalizedDesign.Images.Where(image => image.ImageMode == CompendiumCoverImageMode.Explicit))
+        {
+            if (image.ProjectId is not int coverProjectId
+                || image.PhotoId is not int coverPhotoId
+                || !projectIds.Contains(coverProjectId)
+                || !referencedPhotos.TryGetValue(coverPhotoId, out var coverPhoto)
+                || coverPhoto.ProjectId != coverProjectId)
+            {
+                throw new InvalidOperationException(
+                    $"The selected {image.Surface.ToString().ToLowerInvariant()} cover image for slot '{image.SlotKey}' is no longer available. Choose another image or use automatic imagery.");
+            }
+        }
+
+        foreach (var preference in normalizedPreferences)
+        {
+            if (!referencedPhotos.TryGetValue(preference.PhotoId, out var photo)
+                || photo.ProjectId != preference.ProjectId)
+            {
+                throw new InvalidOperationException("A saved publication image preference references a photograph that is no longer available. Refresh the Cover Editor and try again.");
+            }
+        }
+
         var normalizedCover = NormalizeCoverConfiguration(configuration.Cover);
         if (normalizedCover.ImageMode == CompendiumCoverImageMode.Explicit)
         {
@@ -775,6 +948,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryFocalX = project.PrimaryFocalX,
                     PrimaryFocalY = project.PrimaryFocalY,
                     ImageSelectionMode = project.ImageSelectionMode.ToString(),
+                    ImageFitMode = project.ImageFitMode.ToString(),
                     NarrativeSourceOverride = project.NarrativeSourceOverride?.ToString(),
                     CustomSection = section,
                     CustomSectionName = section?.Name
@@ -782,7 +956,34 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             })
             .ToList();
 
-        return (normalizedConfiguration, rows, sectionRows);
+        var coverRows = normalizedConfiguration.CoverDesign.Images
+            .OrderBy(image => image.SortOrder)
+            .Select((image, index) => new CompendiumPresetCoverImage
+            {
+                Surface = image.Surface.ToString(),
+                SlotKey = image.SlotKey,
+                ImageMode = image.ImageMode.ToString(),
+                ProjectId = image.ImageMode == CompendiumCoverImageMode.Explicit ? image.ProjectId : null,
+                PhotoId = image.ImageMode == CompendiumCoverImageMode.Explicit ? image.PhotoId : null,
+                FocalX = ClampFocal(image.FocalX),
+                FocalY = ClampFocal(image.FocalY),
+                FitMode = image.FitMode.ToString(),
+                SortOrder = index
+            })
+            .ToList();
+
+        var preferenceRows = normalizedConfiguration.PhotoPreferences
+            .Where(preference => preference.PreferredForPublication || preference.SuitableForCoverHero)
+            .Select(preference => new CompendiumPresetPhotoPreference
+            {
+                ProjectId = preference.ProjectId,
+                PhotoId = preference.PhotoId,
+                PreferredForPublication = preference.PreferredForPublication,
+                SuitableForCoverHero = preference.SuitableForCoverHero
+            })
+            .ToList();
+
+        return (normalizedConfiguration, rows, sectionRows, coverRows, preferenceRows);
     }
 
     private static CompendiumPresetConfiguration NormalizeConfiguration(
@@ -798,6 +999,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             projects.ToArray())
         {
             Cover = NormalizeCoverConfiguration(configuration.Cover),
+            CoverDesign = NormalizeCoverDesign(configuration.CoverDesign, configuration.Cover),
+            PhotoPreferences = NormalizePhotoPreferences(configuration.PhotoPreferences, projects.Select(project => project.ProjectId).ToArray()),
             NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource),
             GroupingMode = NormalizeGroupingMode(configuration.GroupingMode),
             SortMode = NormalizeSortMode(configuration.SortMode),
@@ -825,6 +1028,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PrimaryFocalX = ClampFocal(project.PrimaryFocalX),
             PrimaryFocalY = ClampFocal(project.PrimaryFocalY),
             ImageSelectionMode = mode,
+            ImageFitMode = Enum.IsDefined(project.ImageFitMode) ? project.ImageFitMode : CompendiumImageFitMode.Fill,
             CustomSectionKey = section?.SectionKey,
             CustomSectionName = section?.Name,
             NarrativeSourceOverride = NormalizeNullableNarrativeSource(project.NarrativeSourceOverride)
@@ -888,6 +1092,29 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             : null;
         preset.CoverFocalX = ClampFocal(configuration.Cover.FocalX);
         preset.CoverFocalY = ClampFocal(configuration.Cover.FocalY);
+        var design = NormalizeCoverDesign(configuration.CoverDesign, configuration.Cover);
+        preset.FrontCoverTemplate = design.FrontTemplate.ToString();
+        preset.BackCoverTemplate = design.BackTemplate.ToString();
+        preset.FrontCoverTitle = CleanOptional(design.FrontTitle, 120);
+        preset.FrontCoverSubtitle = CleanOptional(design.FrontSubtitle, 160);
+        preset.FrontCoverEdition = CleanOptional(design.FrontEdition, 80);
+        preset.FrontCoverEyebrow = CleanOptional(design.FrontEyebrow, 80);
+        preset.BackCoverTitle = CleanOptional(design.BackTitle, 120);
+        preset.BackCoverSubtitle = CleanOptional(design.BackSubtitle, 160);
+        preset.BackCoverEdition = CleanOptional(design.BackEdition, 80);
+        preset.BackCoverEyebrow = CleanOptional(design.BackEyebrow, 80);
+        preset.ShowFrontTitle = design.ShowFrontTitle;
+        preset.ShowFrontSubtitle = design.ShowFrontSubtitle;
+        preset.ShowFrontEdition = design.ShowFrontEdition;
+        preset.ShowFrontLeftLogo = design.ShowFrontLeftLogo;
+        preset.ShowFrontRightLogo = design.ShowFrontRightLogo;
+        preset.FrontLogoPlacement = design.FrontLogoPlacement.ToString();
+        preset.ShowBackTitle = design.ShowBackTitle;
+        preset.ShowBackSubtitle = design.ShowBackSubtitle;
+        preset.ShowBackEdition = design.ShowBackEdition;
+        preset.ShowBackLeftLogo = design.ShowBackLeftLogo;
+        preset.ShowBackRightLogo = design.ShowBackRightLogo;
+        preset.BackLogoPlacement = design.BackLogoPlacement.ToString();
     }
 
     private async Task<CompendiumPreset> LoadTrackedAsync(
@@ -900,7 +1127,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         {
             query = query
                 .Include(preset => preset.Sections)
-                .Include(preset => preset.Projects);
+                .Include(preset => preset.Projects)
+                .Include(preset => preset.CoverImages)
+                .Include(preset => preset.PhotoPreferences);
         }
 
         return await query.FirstOrDefaultAsync(
@@ -1032,6 +1261,88 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             ClampFocal(cover.FocalY));
     }
 
+    private static CompendiumCoverDesignConfiguration NormalizeCoverDesign(
+        CompendiumCoverDesignConfiguration? design,
+        CompendiumCoverConfiguration? legacyCover)
+    {
+        design ??= new CompendiumCoverDesignConfiguration();
+        var legacy = NormalizeCoverConfiguration(legacyCover);
+        var images = (design.Images ?? Array.Empty<CompendiumPresetCoverImageConfiguration>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.SlotKey))
+            .OrderBy(item => item.SortOrder)
+            .Select((item, index) => new CompendiumPresetCoverImageConfiguration(
+                Enum.IsDefined(item.Surface) ? item.Surface : CompendiumCoverSurface.Front,
+                CleanRequired(item.SlotKey, "Hero", 32),
+                Enum.IsDefined(item.ImageMode) ? item.ImageMode : CompendiumCoverImageMode.Automatic,
+                item.ImageMode == CompendiumCoverImageMode.Explicit && item.ProjectId is > 0 ? item.ProjectId : null,
+                item.ImageMode == CompendiumCoverImageMode.Explicit && item.PhotoId is > 0 ? item.PhotoId : null,
+                ClampFocal(item.FocalX),
+                ClampFocal(item.FocalY),
+                Enum.IsDefined(item.FitMode) ? item.FitMode : CompendiumImageFitMode.Fill,
+                index))
+            .GroupBy(item => $"{item.Surface}:{item.SlotKey}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+
+        if (images.Length == 0)
+        {
+            images = new[]
+            {
+                new CompendiumPresetCoverImageConfiguration(
+                    CompendiumCoverSurface.Front,
+                    "Hero",
+                    legacy.ImageMode,
+                    legacy.HeroProjectId,
+                    legacy.HeroPhotoId,
+                    legacy.FocalX,
+                    legacy.FocalY,
+                    CompendiumImageFitMode.Fill,
+                    0)
+            };
+        }
+
+        return new CompendiumCoverDesignConfiguration
+        {
+            FrontTemplate = Enum.IsDefined(design.FrontTemplate) ? design.FrontTemplate : CompendiumFrontCoverTemplate.InstitutionalHero,
+            BackTemplate = Enum.IsDefined(design.BackTemplate) ? design.BackTemplate : CompendiumBackCoverTemplate.MinimalInstitutional,
+            FrontTitle = CleanOptional(design.FrontTitle, 120),
+            FrontSubtitle = CleanOptional(design.FrontSubtitle, 160),
+            FrontEdition = CleanOptional(design.FrontEdition, 80),
+            FrontEyebrow = CleanOptional(design.FrontEyebrow, 80),
+            BackTitle = CleanOptional(design.BackTitle, 120),
+            BackSubtitle = CleanOptional(design.BackSubtitle, 160),
+            BackEdition = CleanOptional(design.BackEdition, 80),
+            BackEyebrow = CleanOptional(design.BackEyebrow, 80),
+            ShowFrontTitle = design.ShowFrontTitle,
+            ShowFrontSubtitle = design.ShowFrontSubtitle,
+            ShowFrontEdition = design.ShowFrontEdition,
+            ShowFrontLeftLogo = design.ShowFrontLeftLogo,
+            ShowFrontRightLogo = design.ShowFrontRightLogo,
+            FrontLogoPlacement = Enum.IsDefined(design.FrontLogoPlacement) ? design.FrontLogoPlacement : CompendiumCoverLogoPlacement.TopCorners,
+            ShowBackTitle = design.ShowBackTitle,
+            ShowBackSubtitle = design.ShowBackSubtitle,
+            ShowBackEdition = design.ShowBackEdition,
+            ShowBackLeftLogo = design.ShowBackLeftLogo,
+            ShowBackRightLogo = design.ShowBackRightLogo,
+            BackLogoPlacement = Enum.IsDefined(design.BackLogoPlacement) ? design.BackLogoPlacement : CompendiumCoverLogoPlacement.TopCorners,
+            Images = images
+        };
+    }
+
+    private static IReadOnlyList<CompendiumPresetPhotoPreferenceConfiguration> NormalizePhotoPreferences(
+        IReadOnlyList<CompendiumPresetPhotoPreferenceConfiguration>? preferences,
+        IReadOnlyCollection<int> selectedProjectIds)
+    {
+        var selected = selectedProjectIds.ToHashSet();
+        return (preferences ?? Array.Empty<CompendiumPresetPhotoPreferenceConfiguration>())
+            .Where(item => item.ProjectId > 0 && item.PhotoId > 0 && selected.Contains(item.ProjectId))
+            .GroupBy(item => (item.ProjectId, item.PhotoId))
+            .Select(group => group.Last())
+            .Where(item => item.PreferredForPublication || item.SuitableForCoverHero)
+            .Take(1000)
+            .ToArray();
+    }
+
     private static CompendiumNarrativeSource? ParseNullableNarrativeSource(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
@@ -1084,6 +1395,31 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         => Enum.TryParse<CompendiumCoverImageMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumCoverImageMode.Automatic;
+
+    private static CompendiumCoverSurface ParseCoverSurface(string? value)
+        => Enum.TryParse<CompendiumCoverSurface>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverSurface.Front;
+
+    private static CompendiumImageFitMode ParseImageFitMode(string? value)
+        => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumImageFitMode.Fill;
+
+    private static CompendiumFrontCoverTemplate ParseFrontTemplate(string? value)
+        => Enum.TryParse<CompendiumFrontCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumFrontCoverTemplate.InstitutionalHero;
+
+    private static CompendiumBackCoverTemplate ParseBackTemplate(string? value)
+        => Enum.TryParse<CompendiumBackCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumBackCoverTemplate.MinimalInstitutional;
+
+    private static CompendiumCoverLogoPlacement ParseLogoPlacement(string? value)
+        => Enum.TryParse<CompendiumCoverLogoPlacement>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverLogoPlacement.TopCorners;
 
     private static CompendiumImageSelectionMode ParseImageMode(string? value)
         => Enum.TryParse<CompendiumImageSelectionMode>(value, ignoreCase: true, out var parsed)

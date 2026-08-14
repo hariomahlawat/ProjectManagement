@@ -20,7 +20,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-14_publication-review-v7";
+    public const string BuildStamp = "CompendiumPdf_2026-08-14_cover-composer-v8";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -252,7 +252,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
                 : null;
             var effectiveDpi = probe is { IsReady: true }
-                ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, narrative.Text)
+                ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                    probe.Width,
+                    probe.Height,
+                    narrative.Text,
+                    resolved.Selection.ImageFitMode)
                 : null;
             var imageQuality = CompendiumPublicationImagePolicy.Classify(effectiveDpi);
             var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
@@ -274,7 +278,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             {
                 NarrativeSource = effectiveNarrativeSource,
                 PublicationSectionKey = sectionAssignment.SectionKey,
-                PublicationSectionName = sectionAssignment.SectionName
+                PublicationSectionName = sectionAssignment.SectionName,
+                ImageFitMode = resolved.Selection.ImageFitMode
             });
 
             var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
@@ -337,7 +342,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 CustomSectionName = sectionAssignment.SectionName,
                 UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
                 PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
-                TechnicalCategorySortOrder = project.TechnicalCategorySortOrder
+                TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
+                ImageFitMode = resolved.Selection.ImageFitMode
             });
         }
 
@@ -459,7 +465,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
             {
                 var probe = probes.GetValueOrDefault(photo.Id);
                 var dpi = probe is { IsReady: true }
-                    ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(probe.Width, probe.Height, narrative.Text)
+                    ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                        probe.Width,
+                        probe.Height,
+                        narrative.Text,
+                        selection.ImageFitMode)
                     : null;
                 return new CompendiumReviewPhotoVm(
                     photo.Id,
@@ -479,7 +489,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
             : null;
         var effectiveDpi = selectedProbe is { IsReady: true }
-            ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(selectedProbe.Width, selectedProbe.Height, narrative.Text)
+            ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                selectedProbe.Width,
+                selectedProbe.Height,
+                narrative.Text,
+                resolved.Selection.ImageFitMode)
             : null;
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
         var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
@@ -500,7 +514,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
         {
             NarrativeSource = narrativeSource,
             PublicationSectionKey = selection.CustomSectionKey,
-            PublicationSectionName = selection.CustomSectionName
+            PublicationSectionName = selection.CustomSectionName,
+            ImageFitMode = resolved.Selection.ImageFitMode
         });
         var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
             project.Id,
@@ -561,7 +576,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DescriptionWordCount = CountWords(project.Description),
             CustomSectionKey = NormalizeSectionKey(selection.CustomSectionKey),
             CustomSectionName = NormalizeCustomSection(selection.CustomSectionName),
-            UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue
+            UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
+            ImageFitMode = resolved.Selection.ImageFitMode
         };
     }
 
@@ -656,7 +672,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             Edition = NormalizeDisplay(request.Edition, $"Capability Edition · {istYear}"),
             NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource),
             GroupingMode = NormalizeGroupingMode(request.GroupingMode),
-            SortMode = NormalizeSortMode(request.SortMode)
+            SortMode = NormalizeSortMode(request.SortMode),
+            CoverDesign = request.CoverDesign
         };
     }
 
@@ -854,7 +871,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
             CustomSectionName = NormalizeCustomSection(selection.CustomSectionName),
             NarrativeSourceOverride = selection.NarrativeSourceOverride.HasValue
                 ? NormalizeNarrativeSource(selection.NarrativeSourceOverride.Value)
-                : null
+                : null,
+            ImageFitMode = Enum.IsDefined(selection.ImageFitMode)
+                ? selection.ImageFitMode
+                : CompendiumImageFitMode.Fill
         };
 
     private static PublicationStructureResult BuildPublicationStructure(

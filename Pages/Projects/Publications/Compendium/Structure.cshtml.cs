@@ -86,6 +86,7 @@ public sealed class StructureModel : PageModel
                         primaryFocalX = item?.PrimaryFocalX ?? .5d,
                         primaryFocalY = item?.PrimaryFocalY ?? .5d,
                         imageSelectionMode = item?.ImageSelectionMode.ToString() ?? "Automatic",
+                        imageFitMode = item?.ImageFitMode.ToString() ?? "Fill",
                         sortOrder = existing?.index ?? int.MaxValue,
                         available = true
                     };
@@ -216,6 +217,7 @@ public sealed class StructureModel : PageModel
                     PrimaryFocalX = ClampFocal(item.FocalX ?? baseConfiguration.PrimaryFocalX),
                     PrimaryFocalY = ClampFocal(item.FocalY ?? baseConfiguration.PrimaryFocalY),
                     ImageSelectionMode = mode,
+                    ImageFitMode = ParseImageFitMode(item.ImageFitMode, baseConfiguration.ImageFitMode),
                     NarrativeSourceOverride = ParseNarrativeOverride(item.NarrativeSourceOverride) ?? baseConfiguration.NarrativeSourceOverride,
                     CustomSectionKey = section?.SectionKey,
                     CustomSectionName = section?.Name
@@ -328,6 +330,11 @@ public sealed class StructureModel : PageModel
     private static double ClampFocal(double? value)
         => Math.Clamp(value ?? .5d, 0d, 1d);
 
+    private static CompendiumImageFitMode ParseImageFitMode(string? value, CompendiumImageFitMode fallback)
+        => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : fallback;
+
     private static CompendiumNarrativeSource? ParseNarrativeOverride(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed)
            && Enum.IsDefined(parsed)
@@ -362,6 +369,7 @@ public sealed class StructureModel : PageModel
         public double? FocalX { get; set; }
         public double? FocalY { get; set; }
         public string? ImageSelectionMode { get; set; }
+        public string? ImageFitMode { get; set; }
         public string? NarrativeSourceOverride { get; set; }
     }
 }

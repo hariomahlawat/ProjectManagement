@@ -110,21 +110,29 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostPreflightAsync(CancellationToken cancellationToken)
     {
         NormalizeInput();
+        var request = ToPublicationRequest();
         var data = await _readService.GetPublicationAsync(
-            ToPublicationRequest(),
+            request,
             cancellationToken);
+        var coverFindings = await EvaluateCoverReadinessAsync(
+            request.CoverDesign,
+            request.PhotoPreferences,
+            cancellationToken);
+        var coverBlockers = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Blocker);
+        var coverWarnings = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Warning);
+        var coverInfo = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Information);
 
         return new JsonResult(new
         {
             selected = data.Preflight.SelectedProjectCount,
-            blockers = data.Preflight.BlockerCount,
-            warnings = data.Preflight.TotalWarningCount,
-            info = data.Preflight.InformationCount,
+            blockers = data.Preflight.BlockerCount + coverBlockers,
+            warnings = data.Preflight.TotalWarningCount + coverWarnings,
+            info = data.Preflight.InformationCount + coverInfo,
             categories = data.Preflight.CategoryCount,
             groupingMode = data.GroupingMode.ToString(),
             sortMode = data.SortMode.ToString(),
             narrativeSource = data.NarrativeSource.ToString(),
-            canGenerate = data.Preflight.CanGenerate,
+            canGenerate = data.Preflight.CanGenerate && coverBlockers == 0,
             reviewed = data.Groups.SelectMany(group => group.Projects).Count(project => project.IsReviewed),
             allReviewed = data.Preflight.SelectedProjectCount > 0
                           && data.Groups.SelectMany(group => group.Projects).All(project => project.IsReviewed),
@@ -142,20 +150,109 @@ public sealed class IndexModel : PageModel
                     resolvedPhotoId = item.Project.CoverPhotoId,
                     photoSelectionSource = item.Project.CoverPhotoSource.ToString().ToLowerInvariant(),
                     imageSelectionMode = item.Project.ImageSelectionMode.ToString().ToLowerInvariant(),
+                    imageFitMode = item.Project.ImageFitMode.ToString().ToLowerInvariant(),
                     item.Project.EffectiveDpi,
                     imageQuality = item.Project.ImageQuality.ToString().ToLowerInvariant(),
                     item.Project.ExplicitPhotoUnavailable
                 }),
-            findings = data.Preflight.Findings.Select(finding => new
-            {
-                severity = finding.Severity.ToString().ToLowerInvariant(),
-                finding.Code,
-                finding.Message,
-                finding.ProjectId,
-                finding.ProjectName
-            })
+            findings = data.Preflight.Findings
+                .Concat(coverFindings)
+                .Select(finding => new
+                {
+                    severity = finding.Severity.ToString().ToLowerInvariant(),
+                    finding.Code,
+                    finding.Message,
+                    finding.ProjectId,
+                    finding.ProjectName
+                })
         });
     }
+
+    private async Task<IReadOnlyList<CompendiumFindingDto>> EvaluateCoverReadinessAsync(
+        CompendiumCoverDesign? design,
+        IReadOnlyList<CompendiumPhotoPreference>? preferences,
+        CancellationToken cancellationToken)
+    {
+        if (design is null)
+        {
+            return Array.Empty<CompendiumFindingDto>();
+        }
+
+        var findings = new List<CompendiumFindingDto>();
+        foreach (var slot in design.Images.Where(item => item.ImageMode == CompendiumCoverImageMode.Explicit))
+        {
+            if (slot.ProjectId is > 0 && slot.PhotoId is > 0) continue;
+            findings.Add(new CompendiumFindingDto(
+                CompendiumFindingSeverity.Blocker,
+                "coverImageUnavailable",
+                $"The selected {slot.Surface.ToString().ToLowerInvariant()} cover image for {CoverSlotDisplay(slot.SlotKey)} is incomplete. Choose the image again."));
+        }
+
+        var explicitSlots = design.Images
+            .Where(item => item.ImageMode == CompendiumCoverImageMode.Explicit)
+            .Where(item => item.ProjectId is > 0 && item.PhotoId is > 0)
+            .ToArray();
+
+        if (explicitSlots.Length > 0)
+        {
+            var references = explicitSlots
+                .Select(item => new BrochurePhotoReference(item.ProjectId!.Value, item.PhotoId!.Value))
+                .Distinct()
+                .ToArray();
+            var probes = await _photoService.ProbeAsync(references, cancellationToken);
+
+            foreach (var slot in explicitSlots)
+            {
+                var projectId = slot.ProjectId!.Value;
+                var photoId = slot.PhotoId!.Value;
+                if (!probes.TryGetValue(photoId, out var probe)
+                    || probe.ProjectId != projectId
+                    || !probe.IsReady)
+                {
+                    findings.Add(new CompendiumFindingDto(
+                        CompendiumFindingSeverity.Blocker,
+                        "coverImageUnavailable",
+                        $"The selected {slot.Surface.ToString().ToLowerInvariant()} cover image for {CoverSlotDisplay(slot.SlotKey)} is no longer available. Choose another image.",
+                        projectId));
+                    continue;
+                }
+
+                if (!probe.IsPrintReady)
+                {
+                    findings.Add(new CompendiumFindingDto(
+                        CompendiumFindingSeverity.Warning,
+                        "coverImageLowResolution",
+                        $"The selected {slot.Surface.ToString().ToLowerInvariant()} cover image for {CoverSlotDisplay(slot.SlotKey)} is {probe.Width} × {probe.Height} and may reproduce softly in print.",
+                        projectId));
+                }
+            }
+        }
+
+        var needsFrontImagery = design.FrontTemplate != CompendiumFrontCoverTemplate.Minimal;
+        var hasAutomaticFrontSlot = design.Images.Any(item =>
+            item.Surface == CompendiumCoverSurface.Front
+            && item.ImageMode == CompendiumCoverImageMode.Automatic);
+        var hasCuratedHero = (preferences ?? Array.Empty<CompendiumPhotoPreference>())
+            .Any(item => item.SuitableForCoverHero);
+        if (needsFrontImagery && hasAutomaticFrontSlot && !hasCuratedHero)
+        {
+            findings.Add(new CompendiumFindingDto(
+                CompendiumFindingSeverity.Information,
+                "coverHeroUsesFallback",
+                "Automatic front-cover imagery has no photograph marked Cover suitable. PRISM will use ranked fallback imagery; curate a cover-suitable image for stronger editorial control."));
+        }
+
+        return findings;
+    }
+
+    private static string CoverSlotDisplay(string? slotKey)
+        => string.Equals(slotKey, "Hero", StringComparison.OrdinalIgnoreCase)
+            ? "the hero slot"
+            : string.Equals(slotKey, "Secondary1", StringComparison.OrdinalIgnoreCase)
+                ? "supporting image 1"
+                : string.Equals(slotKey, "Secondary2", StringComparison.OrdinalIgnoreCase)
+                    ? "supporting image 2"
+                    : $"slot '{slotKey}'";
 
     public async Task<IActionResult> OnPostReviewAsync(
         int projectId,
@@ -215,6 +312,7 @@ public sealed class IndexModel : PageModel
             review.ResolvedPhotoId,
             photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
             imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
+            imageFitMode = review.ImageFitMode.ToString().ToLowerInvariant(),
             review.FocalX,
             review.FocalY,
             review.EffectiveDpi,
@@ -459,7 +557,9 @@ public sealed class IndexModel : PageModel
                     NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
                     GroupingMode = ParseGroupingMode(Input.GroupingMode),
                     SortMode = ParseSortMode(Input.SortMode),
-                    Sections = ParseSections()
+                    Sections = ParseSections(),
+                    CoverDesign = ParseCoverDesign(),
+                    PhotoPreferences = ParsePhotoPreferences()
                 },
                 cancellationToken);
 
@@ -533,6 +633,8 @@ public sealed class IndexModel : PageModel
                 Input.CoverHeroPhotoId = loaded.Configuration.Cover.HeroPhotoId;
                 Input.CoverFocalX = loaded.Configuration.Cover.FocalX;
                 Input.CoverFocalY = loaded.Configuration.Cover.FocalY;
+                Input.CoverDesignJson = SerializeCoverDesign(loaded.Configuration.CoverDesign);
+                Input.PhotoPreferencesJson = SerializePhotoPreferences(loaded.Configuration.PhotoPreferences);
                 Input.NarrativeSource = loaded.Configuration.NarrativeSource.ToString();
                 Input.GroupingMode = loaded.Configuration.GroupingMode.ToString();
                 Input.SortMode = loaded.Configuration.SortMode.ToString();
@@ -550,7 +652,8 @@ public sealed class IndexModel : PageModel
                     {
                         CustomSectionKey = project.CustomSectionKey,
                         CustomSectionName = project.CustomSectionName,
-                        NarrativeSourceOverride = project.NarrativeSourceOverride
+                        NarrativeSourceOverride = project.NarrativeSourceOverride,
+                        ImageFitMode = project.ImageFitMode
                     }));
             }
             catch (Exception exception)
@@ -643,6 +746,8 @@ public sealed class IndexModel : PageModel
         var selections = ParseSelections();
         Input.SelectedProjectIdsCsv = string.Join(',', selections.Select(selection => selection.ProjectId));
         Input.ProjectSelectionsJson = SerializeSelections(selections);
+        Input.CoverDesignJson = SerializeCoverDesign(ParseCoverDesign());
+        Input.PhotoPreferencesJson = SerializePhotoPreferences(ParsePhotoPreferences());
     }
 
     private IReadOnlyList<int> ParseSelectedIds()
@@ -717,7 +822,8 @@ public sealed class IndexModel : PageModel
                 {
                     CustomSectionKey = NormalizeSectionKey(payload.CustomSectionKey),
                     CustomSectionName = Clean(payload.CustomSectionName, 120),
-                    NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride)
+                    NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride),
+                    ImageFitMode = ParseImageFitMode(payload.ImageFitMode)
                 };
             })
             .ToArray();
@@ -729,7 +835,9 @@ public sealed class IndexModel : PageModel
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
-            Sections = ParseSections()
+            Sections = ParseSections(),
+            CoverDesign = ParseCoverDesign(),
+            PhotoPreferences = ParsePhotoPreferences()
         };
 
     private CompendiumPresetConfiguration ToPresetConfiguration()
@@ -748,7 +856,8 @@ public sealed class IndexModel : PageModel
                 {
                     CustomSectionKey = selection.CustomSectionKey,
                     CustomSectionName = selection.CustomSectionName,
-                    NarrativeSourceOverride = selection.NarrativeSourceOverride
+                    NarrativeSourceOverride = selection.NarrativeSourceOverride,
+                    ImageFitMode = selection.ImageFitMode
                 })
                 .ToArray())
         {
@@ -763,7 +872,15 @@ public sealed class IndexModel : PageModel
                 Input.CoverHeroProjectId,
                 Input.CoverHeroPhotoId,
                 ClampFocal(Input.CoverFocalX),
-                ClampFocal(Input.CoverFocalY))
+                ClampFocal(Input.CoverFocalY)),
+            CoverDesign = ToPresetCoverDesign(ParseCoverDesign()),
+            PhotoPreferences = ParsePhotoPreferences()
+                .Select(item => new CompendiumPresetPhotoPreferenceConfiguration(
+                    item.ProjectId,
+                    item.PhotoId,
+                    item.PreferredForPublication,
+                    item.SuitableForCoverHero))
+                .ToArray()
         };
 
     private string ActorUserId()
@@ -790,7 +907,8 @@ public sealed class IndexModel : PageModel
                 ReviewFingerprint = selection.ReviewFingerprint,
                 CustomSectionKey = selection.CustomSectionKey,
                 CustomSectionName = selection.CustomSectionName,
-                NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString()
+                NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString(),
+                ImageFitMode = selection.ImageFitMode.ToString()
             }),
             JsonOptions);
 
@@ -876,6 +994,274 @@ public sealed class IndexModel : PageModel
                 SortOrder = index
             }),
             JsonOptions);
+
+    private CompendiumCoverDesign ParseCoverDesign()
+    {
+        CompendiumCoverDesignPayload? payload = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(Input.CoverDesignJson))
+            {
+                payload = JsonSerializer.Deserialize<CompendiumCoverDesignPayload>(Input.CoverDesignJson, JsonOptions);
+            }
+        }
+        catch (JsonException)
+        {
+            payload = null;
+        }
+
+        var frontTemplate = ParseFrontCoverTemplate(payload?.FrontTemplate);
+        var backTemplate = ParseBackCoverTemplate(payload?.BackTemplate);
+        var images = (payload?.Images ?? new List<CompendiumCoverImagePayload>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.SlotKey))
+            .Select((item, index) => new CompendiumCoverImageSlot(
+                ParseCoverSurface(item.Surface),
+                Clean(item.SlotKey, 32) ?? $"Slot{index + 1}",
+                ParseCoverImageMode(item.ImageMode),
+                item.ProjectId is > 0 ? item.ProjectId : null,
+                item.PhotoId is > 0 ? item.PhotoId : null,
+                ClampFocal(item.FocalX),
+                ClampFocal(item.FocalY),
+                ParseImageFitMode(item.FitMode)))
+            .GroupBy(item => (item.Surface, item.SlotKey), new CoverSlotKeyComparer())
+            .Select(group => group.First())
+            .Take(12)
+            .ToList();
+
+        // Phase 30 is backward compatible with the previous single-hero fields. If the new
+        // payload does not yet contain a front Hero slot, use the legacy authoring state once
+        // and immediately normalise it into the new cover model.
+        if (!images.Any(item => item.Surface == CompendiumCoverSurface.Front
+                                && string.Equals(item.SlotKey, "Hero", StringComparison.OrdinalIgnoreCase)))
+        {
+            images.Insert(0, new CompendiumCoverImageSlot(
+                CompendiumCoverSurface.Front,
+                "Hero",
+                ParseCoverImageMode(Input.CoverImageMode),
+                Input.CoverHeroProjectId,
+                Input.CoverHeroPhotoId,
+                ClampFocal(Input.CoverFocalX),
+                ClampFocal(Input.CoverFocalY),
+                CompendiumImageFitMode.Fill));
+        }
+
+        return new CompendiumCoverDesign(frontTemplate, backTemplate, images)
+        {
+            FrontTitle = Clean(payload?.FrontTitle, 120),
+            FrontSubtitle = Clean(payload?.FrontSubtitle, 160),
+            FrontEdition = Clean(payload?.FrontEdition, 80),
+            FrontEyebrow = Clean(payload?.FrontEyebrow, 80),
+            BackTitle = Clean(payload?.BackTitle, 120),
+            BackSubtitle = Clean(payload?.BackSubtitle, 160),
+            BackEdition = Clean(payload?.BackEdition, 80),
+            BackEyebrow = Clean(payload?.BackEyebrow, 80),
+            ShowFrontTitle = payload?.ShowFrontTitle ?? true,
+            ShowFrontSubtitle = payload?.ShowFrontSubtitle ?? true,
+            ShowFrontEdition = payload?.ShowFrontEdition ?? true,
+            ShowFrontLeftLogo = payload?.ShowFrontLeftLogo ?? true,
+            ShowFrontRightLogo = payload?.ShowFrontRightLogo ?? true,
+            FrontLogoPlacement = ParseLogoPlacement(payload?.FrontLogoPlacement),
+            ShowBackTitle = payload?.ShowBackTitle ?? true,
+            ShowBackSubtitle = payload?.ShowBackSubtitle ?? true,
+            ShowBackEdition = payload?.ShowBackEdition ?? true,
+            ShowBackLeftLogo = payload?.ShowBackLeftLogo ?? true,
+            ShowBackRightLogo = payload?.ShowBackRightLogo ?? true,
+            BackLogoPlacement = ParseLogoPlacement(payload?.BackLogoPlacement),
+            PhotoPreferences = ParsePhotoPreferences()
+        };
+    }
+
+    private IReadOnlyList<CompendiumPhotoPreference> ParsePhotoPreferences()
+    {
+        IReadOnlyList<CompendiumPhotoPreferencePayload> payloads;
+        try
+        {
+            payloads = string.IsNullOrWhiteSpace(Input.PhotoPreferencesJson)
+                ? Array.Empty<CompendiumPhotoPreferencePayload>()
+                : JsonSerializer.Deserialize<List<CompendiumPhotoPreferencePayload>>(Input.PhotoPreferencesJson, JsonOptions)
+                  ?? new List<CompendiumPhotoPreferencePayload>();
+        }
+        catch (JsonException)
+        {
+            payloads = Array.Empty<CompendiumPhotoPreferencePayload>();
+        }
+
+        var selected = ParseSelectedIds().ToHashSet();
+        return payloads
+            .Where(item => item.ProjectId > 0 && item.PhotoId > 0 && selected.Contains(item.ProjectId))
+            .GroupBy(item => (item.ProjectId, item.PhotoId))
+            .Select(group => group.Last())
+            .Where(item => item.PreferredForPublication || item.SuitableForCoverHero)
+            .Take(MaximumSelectedProjects * 6)
+            .Select(item => new CompendiumPhotoPreference(
+                item.ProjectId,
+                item.PhotoId,
+                item.PreferredForPublication,
+                item.SuitableForCoverHero))
+            .ToArray();
+    }
+
+    private static string SerializeCoverDesign(CompendiumCoverDesignConfiguration design)
+        => SerializeCoverDesign(new CompendiumCoverDesign(
+            design.FrontTemplate,
+            design.BackTemplate,
+            design.Images.Select(item => new CompendiumCoverImageSlot(
+                item.Surface,
+                item.SlotKey,
+                item.ImageMode,
+                item.ProjectId,
+                item.PhotoId,
+                item.FocalX,
+                item.FocalY,
+                item.FitMode)).ToArray())
+        {
+            FrontTitle = design.FrontTitle,
+            FrontSubtitle = design.FrontSubtitle,
+            FrontEdition = design.FrontEdition,
+            FrontEyebrow = design.FrontEyebrow,
+            BackTitle = design.BackTitle,
+            BackSubtitle = design.BackSubtitle,
+            BackEdition = design.BackEdition,
+            BackEyebrow = design.BackEyebrow,
+            ShowFrontTitle = design.ShowFrontTitle,
+            ShowFrontSubtitle = design.ShowFrontSubtitle,
+            ShowFrontEdition = design.ShowFrontEdition,
+            ShowFrontLeftLogo = design.ShowFrontLeftLogo,
+            ShowFrontRightLogo = design.ShowFrontRightLogo,
+            FrontLogoPlacement = design.FrontLogoPlacement,
+            ShowBackTitle = design.ShowBackTitle,
+            ShowBackSubtitle = design.ShowBackSubtitle,
+            ShowBackEdition = design.ShowBackEdition,
+            ShowBackLeftLogo = design.ShowBackLeftLogo,
+            ShowBackRightLogo = design.ShowBackRightLogo,
+            BackLogoPlacement = design.BackLogoPlacement
+        });
+
+    private static string SerializeCoverDesign(CompendiumCoverDesign design)
+        => JsonSerializer.Serialize(new CompendiumCoverDesignPayload
+        {
+            FrontTemplate = design.FrontTemplate.ToString(),
+            BackTemplate = design.BackTemplate.ToString(),
+            FrontTitle = design.FrontTitle,
+            FrontSubtitle = design.FrontSubtitle,
+            FrontEdition = design.FrontEdition,
+            FrontEyebrow = design.FrontEyebrow,
+            BackTitle = design.BackTitle,
+            BackSubtitle = design.BackSubtitle,
+            BackEdition = design.BackEdition,
+            BackEyebrow = design.BackEyebrow,
+            ShowFrontTitle = design.ShowFrontTitle,
+            ShowFrontSubtitle = design.ShowFrontSubtitle,
+            ShowFrontEdition = design.ShowFrontEdition,
+            ShowFrontLeftLogo = design.ShowFrontLeftLogo,
+            ShowFrontRightLogo = design.ShowFrontRightLogo,
+            FrontLogoPlacement = design.FrontLogoPlacement.ToString(),
+            ShowBackTitle = design.ShowBackTitle,
+            ShowBackSubtitle = design.ShowBackSubtitle,
+            ShowBackEdition = design.ShowBackEdition,
+            ShowBackLeftLogo = design.ShowBackLeftLogo,
+            ShowBackRightLogo = design.ShowBackRightLogo,
+            BackLogoPlacement = design.BackLogoPlacement.ToString(),
+            Images = design.Images.Select((item, index) => new CompendiumCoverImagePayload
+            {
+                Surface = item.Surface.ToString(),
+                SlotKey = item.SlotKey,
+                ImageMode = item.ImageMode.ToString(),
+                ProjectId = item.ProjectId,
+                PhotoId = item.PhotoId,
+                FocalX = item.FocalX,
+                FocalY = item.FocalY,
+                FitMode = item.FitMode.ToString(),
+                SortOrder = index
+            }).ToList()
+        }, JsonOptions);
+
+    private static string SerializePhotoPreferences(IEnumerable<CompendiumPresetPhotoPreferenceConfiguration> preferences)
+        => SerializePhotoPreferences(preferences.Select(item => new CompendiumPhotoPreference(
+            item.ProjectId,
+            item.PhotoId,
+            item.PreferredForPublication,
+            item.SuitableForCoverHero)));
+
+    private static string SerializePhotoPreferences(IEnumerable<CompendiumPhotoPreference> preferences)
+        => JsonSerializer.Serialize(preferences.Select(item => new CompendiumPhotoPreferencePayload
+        {
+            ProjectId = item.ProjectId,
+            PhotoId = item.PhotoId,
+            PreferredForPublication = item.PreferredForPublication,
+            SuitableForCoverHero = item.SuitableForCoverHero
+        }), JsonOptions);
+
+    private static CompendiumCoverDesignConfiguration ToPresetCoverDesign(CompendiumCoverDesign design)
+        => new()
+        {
+            FrontTemplate = design.FrontTemplate,
+            BackTemplate = design.BackTemplate,
+            FrontTitle = design.FrontTitle,
+            FrontSubtitle = design.FrontSubtitle,
+            FrontEdition = design.FrontEdition,
+            FrontEyebrow = design.FrontEyebrow,
+            BackTitle = design.BackTitle,
+            BackSubtitle = design.BackSubtitle,
+            BackEdition = design.BackEdition,
+            BackEyebrow = design.BackEyebrow,
+            ShowFrontTitle = design.ShowFrontTitle,
+            ShowFrontSubtitle = design.ShowFrontSubtitle,
+            ShowFrontEdition = design.ShowFrontEdition,
+            ShowFrontLeftLogo = design.ShowFrontLeftLogo,
+            ShowFrontRightLogo = design.ShowFrontRightLogo,
+            FrontLogoPlacement = design.FrontLogoPlacement,
+            ShowBackTitle = design.ShowBackTitle,
+            ShowBackSubtitle = design.ShowBackSubtitle,
+            ShowBackEdition = design.ShowBackEdition,
+            ShowBackLeftLogo = design.ShowBackLeftLogo,
+            ShowBackRightLogo = design.ShowBackRightLogo,
+            BackLogoPlacement = design.BackLogoPlacement,
+            Images = design.Images.Select((item, index) => new CompendiumPresetCoverImageConfiguration(
+                item.Surface,
+                item.SlotKey,
+                item.ImageMode,
+                item.ProjectId,
+                item.PhotoId,
+                item.FocalX,
+                item.FocalY,
+                item.FitMode,
+                index)).ToArray()
+        };
+
+    private static CompendiumFrontCoverTemplate ParseFrontCoverTemplate(string? value)
+        => Enum.TryParse<CompendiumFrontCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumFrontCoverTemplate.InstitutionalHero;
+
+    private static CompendiumBackCoverTemplate ParseBackCoverTemplate(string? value)
+        => Enum.TryParse<CompendiumBackCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumBackCoverTemplate.MinimalInstitutional;
+
+    private static CompendiumCoverLogoPlacement ParseLogoPlacement(string? value)
+        => Enum.TryParse<CompendiumCoverLogoPlacement>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverLogoPlacement.TopCorners;
+
+    private static CompendiumCoverSurface ParseCoverSurface(string? value)
+        => Enum.TryParse<CompendiumCoverSurface>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverSurface.Front;
+
+    private static CompendiumImageFitMode ParseImageFitMode(string? value)
+        => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumImageFitMode.Fill;
+
+    private sealed class CoverSlotKeyComparer : IEqualityComparer<(CompendiumCoverSurface Surface, string SlotKey)>
+    {
+        public bool Equals((CompendiumCoverSurface Surface, string SlotKey) x, (CompendiumCoverSurface Surface, string SlotKey) y)
+            => x.Surface == y.Surface && string.Equals(x.SlotKey, y.SlotKey, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode((CompendiumCoverSurface Surface, string SlotKey) obj)
+            => HashCode.Combine(obj.Surface, StringComparer.OrdinalIgnoreCase.GetHashCode(obj.SlotKey));
+    }
 
     private static CompendiumNarrativeSource? ParseNullableNarrativeSource(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
@@ -987,6 +1373,8 @@ public sealed class IndexModel : PageModel
         public string? SelectedProjectIdsCsv { get; set; }
         public string? ProjectSelectionsJson { get; set; }
         public string? CustomSectionsJson { get; set; }
+        public string? CoverDesignJson { get; set; }
+        public string? PhotoPreferencesJson { get; set; }
     }
 
     public sealed class CompendiumProjectSelectionPayload
@@ -1000,7 +1388,56 @@ public sealed class IndexModel : PageModel
         public string? CustomSectionKey { get; set; }
         public string? CustomSectionName { get; set; }
         public string? NarrativeSourceOverride { get; set; }
+        public string? ImageFitMode { get; set; }
     }
+    public sealed class CompendiumCoverDesignPayload
+    {
+        public string? FrontTemplate { get; set; }
+        public string? BackTemplate { get; set; }
+        public string? FrontTitle { get; set; }
+        public string? FrontSubtitle { get; set; }
+        public string? FrontEdition { get; set; }
+        public string? FrontEyebrow { get; set; }
+        public string? BackTitle { get; set; }
+        public string? BackSubtitle { get; set; }
+        public string? BackEdition { get; set; }
+        public string? BackEyebrow { get; set; }
+        public bool? ShowFrontTitle { get; set; }
+        public bool? ShowFrontSubtitle { get; set; }
+        public bool? ShowFrontEdition { get; set; }
+        public bool? ShowFrontLeftLogo { get; set; }
+        public bool? ShowFrontRightLogo { get; set; }
+        public string? FrontLogoPlacement { get; set; }
+        public bool? ShowBackTitle { get; set; }
+        public bool? ShowBackSubtitle { get; set; }
+        public bool? ShowBackEdition { get; set; }
+        public bool? ShowBackLeftLogo { get; set; }
+        public bool? ShowBackRightLogo { get; set; }
+        public string? BackLogoPlacement { get; set; }
+        public List<CompendiumCoverImagePayload> Images { get; set; } = new();
+    }
+
+    public sealed class CompendiumCoverImagePayload
+    {
+        public string? Surface { get; set; }
+        public string? SlotKey { get; set; }
+        public string? ImageMode { get; set; }
+        public int? ProjectId { get; set; }
+        public int? PhotoId { get; set; }
+        public double FocalX { get; set; } = .5d;
+        public double FocalY { get; set; } = .5d;
+        public string? FitMode { get; set; }
+        public int SortOrder { get; set; }
+    }
+
+    public sealed class CompendiumPhotoPreferencePayload
+    {
+        public int ProjectId { get; set; }
+        public int PhotoId { get; set; }
+        public bool PreferredForPublication { get; set; }
+        public bool SuitableForCoverHero { get; set; }
+    }
+
     public sealed class CompendiumSectionPayload
     {
         public string? SectionKey { get; set; }

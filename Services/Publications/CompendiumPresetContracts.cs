@@ -44,7 +44,25 @@ public sealed record CompendiumPresetProjectConfiguration(
     public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
+
+public sealed record CompendiumPresetCoverImageConfiguration(
+    CompendiumCoverSurface Surface,
+    string SlotKey,
+    CompendiumCoverImageMode ImageMode,
+    int? ProjectId,
+    int? PhotoId,
+    double FocalX,
+    double FocalY,
+    CompendiumImageFitMode FitMode,
+    int SortOrder);
+
+public sealed record CompendiumPresetPhotoPreferenceConfiguration(
+    int ProjectId,
+    int PhotoId,
+    bool PreferredForPublication,
+    bool SuitableForCoverHero);
 
 public sealed record CompendiumCoverConfiguration(
     CompendiumCoverImageMode ImageMode = CompendiumCoverImageMode.Automatic,
@@ -52,6 +70,34 @@ public sealed record CompendiumCoverConfiguration(
     int? HeroPhotoId = null,
     double FocalX = .5d,
     double FocalY = .5d);
+
+public sealed record CompendiumCoverDesignConfiguration
+{
+    public CompendiumFrontCoverTemplate FrontTemplate { get; init; } = CompendiumFrontCoverTemplate.InstitutionalHero;
+    public CompendiumBackCoverTemplate BackTemplate { get; init; } = CompendiumBackCoverTemplate.MinimalInstitutional;
+    public string? FrontTitle { get; init; }
+    public string? FrontSubtitle { get; init; }
+    public string? FrontEdition { get; init; }
+    public string? FrontEyebrow { get; init; }
+    public string? BackTitle { get; init; }
+    public string? BackSubtitle { get; init; }
+    public string? BackEdition { get; init; }
+    public string? BackEyebrow { get; init; }
+    public bool ShowFrontTitle { get; init; } = true;
+    public bool ShowFrontSubtitle { get; init; } = true;
+    public bool ShowFrontEdition { get; init; } = true;
+    public bool ShowFrontLeftLogo { get; init; } = true;
+    public bool ShowFrontRightLogo { get; init; } = true;
+    public CompendiumCoverLogoPlacement FrontLogoPlacement { get; init; } = CompendiumCoverLogoPlacement.TopCorners;
+    public bool ShowBackTitle { get; init; } = true;
+    public bool ShowBackSubtitle { get; init; } = true;
+    public bool ShowBackEdition { get; init; } = true;
+    public bool ShowBackLeftLogo { get; init; } = true;
+    public bool ShowBackRightLogo { get; init; } = true;
+    public CompendiumCoverLogoPlacement BackLogoPlacement { get; init; } = CompendiumCoverLogoPlacement.TopCorners;
+    public IReadOnlyList<CompendiumPresetCoverImageConfiguration> Images { get; init; }
+        = Array.Empty<CompendiumPresetCoverImageConfiguration>();
+}
 
 public sealed record CompendiumPresetConfiguration(
     string Title,
@@ -61,6 +107,9 @@ public sealed record CompendiumPresetConfiguration(
     IReadOnlyList<CompendiumPresetProjectConfiguration> Projects)
 {
     public CompendiumCoverConfiguration Cover { get; init; } = new();
+    public CompendiumCoverDesignConfiguration CoverDesign { get; init; } = new();
+    public IReadOnlyList<CompendiumPresetPhotoPreferenceConfiguration> PhotoPreferences { get; init; }
+        = Array.Empty<CompendiumPresetPhotoPreferenceConfiguration>();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;

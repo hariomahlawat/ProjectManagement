@@ -1,0 +1,579 @@
+(() => {
+    'use strict';
+
+    const root = document.querySelector('[data-compendium-cover-editor]');
+    if (!root) return;
+
+    const bootstrapNode = root.querySelector('[data-cover-editor-bootstrap]');
+    if (!bootstrapNode) return;
+
+    let boot;
+    try { boot = JSON.parse(bootstrapNode.textContent || '{}'); }
+    catch { boot = {}; }
+
+    const clone = value => JSON.parse(JSON.stringify(value ?? null));
+    const by = selector => root.querySelector(selector);
+    const all = selector => Array.from(root.querySelectorAll(selector));
+    const csrf = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const modal = id => window.bootstrap?.Modal.getOrCreateInstance(document.getElementById(id));
+    const clean = value => (value ?? '').toString().trim();
+    const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : .5));
+    const titleCase = value => (value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+
+    const initialDesign = normaliseDesign(boot.coverDesign || {});
+    const state = {
+        design: clone(initialDesign),
+        preferences: normalisePreferences(boot.photoPreferences || []),
+        publication: boot.publication || {},
+        projects: Array.isArray(boot.projects) ? boot.projects : [],
+        rowVersion: boot.preset?.rowVersion || '',
+        activeSurface: 'front',
+        proofSurface: 'front',
+        activeSlot: null,
+        photoCache: new Map(),
+        previewCache: new Map(),
+        dirty: false,
+        leaveAfterSave: false
+    };
+    const initialSignature = () => JSON.stringify({ design: state.design, preferences: state.preferences });
+    let savedSignature = initialSignature();
+
+    const frontSlots = {
+        InstitutionalHero: ['Hero'],
+        FullBleedHero: ['Hero'],
+        EditorialSplit: ['Hero', 'Secondary1'],
+        Triptych: ['Hero', 'Secondary1', 'Secondary2'],
+        Minimal: []
+    };
+    const backSlots = {
+        MinimalInstitutional: [],
+        ImageEcho: ['Hero'],
+        PortfolioStrip: ['Hero', 'Secondary1', 'Secondary2'],
+        TypographyOnly: [],
+        Clean: []
+    };
+
+    function normaliseDesign(value) {
+        return {
+            frontTemplate: value.frontTemplate || 'InstitutionalHero',
+            backTemplate: value.backTemplate || 'MinimalInstitutional',
+            frontTitle: value.frontTitle ?? '',
+            frontSubtitle: value.frontSubtitle ?? '',
+            frontEdition: value.frontEdition ?? '',
+            frontEyebrow: value.frontEyebrow ?? '',
+            backTitle: value.backTitle ?? '',
+            backSubtitle: value.backSubtitle ?? '',
+            backEdition: value.backEdition ?? '',
+            backEyebrow: value.backEyebrow ?? '',
+            showFrontTitle: value.showFrontTitle !== false,
+            showFrontSubtitle: value.showFrontSubtitle !== false,
+            showFrontEdition: value.showFrontEdition !== false,
+            showFrontLeftLogo: value.showFrontLeftLogo !== false,
+            showFrontRightLogo: value.showFrontRightLogo !== false,
+            frontLogoPlacement: value.frontLogoPlacement || 'TopCorners',
+            showBackTitle: value.showBackTitle !== false,
+            showBackSubtitle: value.showBackSubtitle !== false,
+            showBackEdition: value.showBackEdition !== false,
+            showBackLeftLogo: value.showBackLeftLogo !== false,
+            showBackRightLogo: value.showBackRightLogo !== false,
+            backLogoPlacement: value.backLogoPlacement || 'TopCorners',
+            images: Array.isArray(value.images) ? value.images.map((item, index) => ({
+                surface: titleCase(item.surface || 'Front'),
+                slotKey: item.slotKey || `Slot${index + 1}`,
+                imageMode: titleCase(item.imageMode || 'Automatic'),
+                projectId: Number(item.projectId) || null,
+                photoId: Number(item.photoId) || null,
+                focalX: clamp01(item.focalX),
+                focalY: clamp01(item.focalY),
+                fitMode: titleCase(item.fitMode || 'Fill'),
+                sortOrder: Number(item.sortOrder) || index,
+                previewUrl: item.previewUrl || null,
+                sourceWidth: item.sourceWidth || null,
+                sourceHeight: item.sourceHeight || null
+            })) : []
+        };
+    }
+
+    function normalisePreferences(values) {
+        const map = new Map();
+        (Array.isArray(values) ? values : []).forEach(item => {
+            const projectId = Number(item.projectId);
+            const photoId = Number(item.photoId);
+            if (!projectId || !photoId) return;
+            map.set(`${projectId}:${photoId}`, {
+                projectId,
+                photoId,
+                preferredForPublication: !!item.preferredForPublication,
+                suitableForCoverHero: !!item.suitableForCoverHero
+            });
+        });
+        return Array.from(map.values());
+    }
+
+    function surfacePrefix(surface = state.activeSurface) { return surface === 'front' ? 'front' : 'back'; }
+    function isFront(surface = state.activeSurface) { return surface === 'front'; }
+    function currentTemplate(surface = state.activeSurface) { return isFront(surface) ? state.design.frontTemplate : state.design.backTemplate; }
+    function requiredSlots(surface = state.activeSurface) {
+        return (isFront(surface) ? frontSlots : backSlots)[currentTemplate(surface)] || [];
+    }
+    function findSlot(surface, slotKey) {
+        return state.design.images.find(item => item.surface.toLowerCase() === surface && item.slotKey.toLowerCase() === slotKey.toLowerCase());
+    }
+    function ensureSlot(surface, slotKey) {
+        let item = findSlot(surface, slotKey);
+        if (!item) {
+            item = { surface: titleCase(surface), slotKey, imageMode: 'Automatic', projectId: null, photoId: null, focalX: .5, focalY: .5, fitMode: 'Fill', previewUrl: null };
+            state.design.images.push(item);
+        }
+        return item;
+    }
+
+    function setDirty() {
+        const signature = initialSignature();
+        state.dirty = signature !== savedSignature;
+        const save = by('[data-cover-save]');
+        if (save) save.disabled = !state.dirty || !boot.canManage;
+        const saveState = by('[data-cover-save-state]');
+        if (saveState) {
+            saveState.classList.toggle('is-modified', state.dirty);
+            saveState.querySelector('i')?.classList.toggle('bi-check-circle', !state.dirty);
+            saveState.querySelector('i')?.classList.toggle('bi-pencil', state.dirty);
+            const label = saveState.querySelector('span');
+            if (label) label.textContent = state.dirty ? 'Modified' : 'Saved';
+        }
+    }
+
+    function currentText(surface, field) {
+        const prefix = surfacePrefix(surface);
+        const override = clean(state.design[`${prefix}${field}`]);
+        if (override) return override;
+        if (field === 'Title') return state.publication.title || '';
+        if (field === 'Subtitle') return state.publication.subtitle || '';
+        if (field === 'Edition') return state.publication.edition || '';
+        return '';
+    }
+
+    function currentShow(surface, field) {
+        const prefix = surfacePrefix(surface);
+        return state.design[`show${titleCase(prefix)}${field}`] !== false;
+    }
+
+    function updateInspector() {
+        const surface = state.activeSurface;
+        const front = isFront(surface);
+        by('[data-cover-inspector-surface]').textContent = front ? 'Front cover' : 'Back cover';
+        all('[data-cover-surface]').forEach(button => {
+            const active = button.dataset.coverSurface === surface;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        by('[data-cover-front-templates]').hidden = !front;
+        by('[data-cover-back-templates]').hidden = front;
+        const list = front ? by('[data-cover-front-templates]') : by('[data-cover-back-templates]');
+        list?.querySelectorAll('[data-cover-template]').forEach(button => button.classList.toggle('active', button.dataset.coverTemplate === currentTemplate(surface)));
+
+        ['title', 'subtitle', 'edition', 'eyebrow'].forEach(field => {
+            const input = by(`[data-cover-text="${field}"]`);
+            if (input) input.value = state.design[`${surfacePrefix(surface)}${titleCase(field)}`] || '';
+            const show = by(`[data-cover-show="${field}"]`);
+            if (show) {
+                if (field === 'eyebrow') {
+                    show.checked = !!clean(state.design[`${surfacePrefix(surface)}Eyebrow`]);
+                    show.disabled = false;
+                } else {
+                    show.checked = currentShow(surface, titleCase(field));
+                }
+            }
+        });
+        by('[data-cover-logo="left"]').checked = state.design[`show${front ? 'Front' : 'Back'}LeftLogo`] !== false;
+        by('[data-cover-logo="right"]').checked = state.design[`show${front ? 'Front' : 'Back'}RightLogo`] !== false;
+        const placement = by('[data-cover-logo-placement]');
+        if (placement) placement.value = state.design[`${surfacePrefix(surface)}LogoPlacement`] || 'TopCorners';
+        renderSlots();
+        renderProof();
+        updateTemplateLabels();
+    }
+
+    function updateTemplateLabels() {
+        by('[data-cover-front-template-label]').textContent = titleCase(state.design.frontTemplate);
+        by('[data-cover-back-template-label]').textContent = titleCase(state.design.backTemplate);
+    }
+
+    function renderSlots() {
+        const host = by('[data-cover-slot-list]');
+        const section = by('[data-cover-image-section]');
+        if (!host || !section) return;
+        const slots = requiredSlots();
+        section.hidden = slots.length === 0;
+        host.innerHTML = '';
+        slots.forEach((slotKey, index) => {
+            const slot = ensureSlot(state.activeSurface, slotKey);
+            const row = document.createElement('article');
+            row.className = 'compendium-cover-slot-card';
+            row.dataset.coverSlotKey = slotKey;
+            const label = slotKey === 'Hero' ? 'Hero image' : `Supporting image ${index}`;
+            const source = slot.imageMode === 'Explicit'
+                ? projectName(slot.projectId) || 'Selected photograph'
+                : slot.imageMode === 'None' ? 'No image' : 'Automatic selection';
+            const preview = slot.previewUrl
+                ? `<img src="${escapeHtml(slot.previewUrl)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${slot.focalX * 100}% ${slot.focalY * 100}%" />`
+                : `<span class="compendium-cover-slot-placeholder"><i class="bi ${slot.imageMode === 'None' ? 'bi-image-alt' : 'bi-stars'}"></i></span>`;
+            row.innerHTML = `
+                <div class="compendium-cover-slot-thumb">${preview}</div>
+                <div class="compendium-cover-slot-copy"><strong>${label}</strong><span>${escapeHtml(source)}</span><small>${slot.imageMode === 'Explicit' ? `${slot.fitMode} · independent crop` : slot.imageMode}</small></div>
+                <div class="compendium-cover-slot-actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-choose-slot="${slotKey}"><i class="bi bi-images"></i> Change</button>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Image fit">
+                        <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fill' ? 'active' : ''}" data-cover-fit="Fill" data-cover-slot="${slotKey}">Fill</button>
+                        <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fit' ? 'active' : ''}" data-cover-fit="Fit" data-cover-slot="${slotKey}">Fit</button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-link" data-cover-crop-slot="${slotKey}" ${slot.imageMode !== 'Explicit' || slot.fitMode === 'Fit' ? 'disabled' : ''}>Adjust crop</button>
+                </div>`;
+            host.appendChild(row);
+        });
+        void hydrateVisibleSlotPreviews();
+    }
+
+    function projectName(projectId) { return state.projects.find(item => Number(item.projectId) === Number(projectId))?.projectName || ''; }
+
+    function renderProof() {
+        const surface = state.proofSurface;
+        const front = surface === 'front';
+        const template = currentTemplate(surface);
+        const sheet = by('[data-cover-proof-sheet]');
+        const content = by('[data-cover-proof-content]');
+        if (!sheet || !content) return;
+        sheet.dataset.template = template;
+        sheet.dataset.surface = surface;
+        by('[data-cover-proof-title]').textContent = front ? 'Front cover proof' : 'Back cover proof';
+        all('[data-cover-proof-surface]').forEach(button => button.classList.toggle('active', button.dataset.coverProofSurface === surface));
+
+        const leftLogo = by('[data-cover-proof-left-logo]');
+        const rightLogo = by('[data-cover-proof-right-logo]');
+        const logoBand = leftLogo?.closest('.compendium-cover-proof-logos');
+        leftLogo.hidden = !state.design[`show${front ? 'Front' : 'Back'}LeftLogo`];
+        rightLogo.hidden = !state.design[`show${front ? 'Front' : 'Back'}RightLogo`];
+        logoBand?.classList.toggle('is-centred', (state.design[`${surfacePrefix(surface)}LogoPlacement`] || 'TopCorners') === 'TopCenter');
+
+        const title = currentShow(surface, 'Title') ? currentText(surface, 'Title') : '';
+        const subtitle = currentShow(surface, 'Subtitle') ? currentText(surface, 'Subtitle') : '';
+        const edition = currentShow(surface, 'Edition') ? currentText(surface, 'Edition') : '';
+        const eyebrow = clean(state.design[`${surfacePrefix(surface)}Eyebrow`]);
+        const slots = requiredSlots(surface).map(key => ensureSlot(surface, key));
+        const tile = (slot, cls = '') => {
+            if (!slot) return '';
+            const src = slot.previewUrl;
+            if (!src) return `<div class="cover-proof-image ${cls} cover-proof-image--empty"><i class="bi bi-image"></i><span>${slot.imageMode === 'None' ? 'No imagery' : 'Automatic imagery'}</span></div>`;
+            return `<div class="cover-proof-image ${cls}"><img src="${escapeHtml(src)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${slot.focalX * 100}% ${slot.focalY * 100}%" /></div>`;
+        };
+        const identity = `<div class="cover-proof-identity">${eyebrow ? `<small>${escapeHtml(eyebrow)}</small>` : ''}${title ? `<h3>${escapeHtml(title)}</h3>` : ''}${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}${edition ? `<b>${escapeHtml(edition)}</b>` : ''}</div>`;
+
+        if (front) {
+            switch (template) {
+                case 'FullBleedHero': content.innerHTML = `${tile(slots[0], 'cover-proof-image--full')}${identity}`; break;
+                case 'EditorialSplit': content.innerHTML = `${identity}<div class="cover-proof-split">${tile(slots[0])}${tile(slots[1])}</div>`; break;
+                case 'Triptych': content.innerHTML = `${identity}<div class="cover-proof-triptych">${slots.map(slot => tile(slot)).join('')}</div>`; break;
+                case 'Minimal': content.innerHTML = identity; break;
+                default: content.innerHTML = `${identity}${tile(slots[0], 'cover-proof-image--institutional')}`; break;
+            }
+        } else {
+            switch (template) {
+                case 'ImageEcho': content.innerHTML = `${tile(slots[0], 'cover-proof-image--echo')}${identity}`; break;
+                case 'PortfolioStrip': content.innerHTML = `${identity}<div class="cover-proof-triptych cover-proof-triptych--back">${slots.map(slot => tile(slot)).join('')}</div>`; break;
+                case 'Clean': content.innerHTML = identity; break;
+                case 'TypographyOnly': content.innerHTML = identity; break;
+                default: content.innerHTML = identity; break;
+            }
+        }
+        void hydrateVisibleSlotPreviews(surface);
+    }
+
+    async function loadProjectPhotos(projectId) {
+        const key = Number(projectId);
+        if (!key) return [];
+        if (state.photoCache.has(key)) return state.photoCache.get(key);
+        const url = new URL(boot.photosUrl, window.location.origin);
+        url.searchParams.set('projectId', String(key));
+        const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!response.ok) throw new Error((await safeJson(response))?.message || 'Project photography could not be loaded.');
+        const data = await response.json();
+        const photos = Array.isArray(data.photos) ? data.photos : [];
+        state.photoCache.set(key, photos);
+        return photos;
+    }
+
+    async function hydrateVisibleSlotPreviews(surface = state.activeSurface) {
+        const slots = requiredSlots(surface).map(key => ensureSlot(surface, key));
+        let changed = false;
+        for (const slot of slots) {
+            if (slot.previewUrl || slot.imageMode === 'None') continue;
+            try {
+                let projectId = slot.projectId;
+                let photoId = slot.photoId;
+                if (slot.imageMode !== 'Explicit') {
+                    const preferred = chooseAutomaticCandidate();
+                    projectId = preferred?.projectId || state.projects.find(item => item.primaryPhotoId)?.projectId || state.projects.find(item => item.photoCount > 0)?.projectId;
+                    photoId = preferred?.photoId || state.projects.find(item => Number(item.projectId) === Number(projectId))?.primaryPhotoId;
+                }
+                if (!projectId) continue;
+                const photos = await loadProjectPhotos(projectId);
+                const photo = photos.find(item => Number(item.photoId) === Number(photoId)) || photos.find(item => item.isCover) || photos[0];
+                if (!photo) continue;
+                slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+                slot.sourceWidth = photo.width;
+                slot.sourceHeight = photo.height;
+                if (slot.imageMode === 'Explicit' && !slot.photoId) slot.photoId = photo.photoId;
+                changed = true;
+            } catch { /* automatic preview is best-effort */ }
+        }
+        if (changed) {
+            renderProof();
+            if (surface === state.activeSurface) renderSlotsWithoutHydration();
+        }
+    }
+
+    function renderSlotsWithoutHydration() {
+        const original = hydrateVisibleSlotPreviews;
+        // renderSlots will schedule hydration again but populated preview URLs make it a no-op.
+        renderSlots();
+    }
+
+    function chooseAutomaticCandidate() {
+        const hero = state.preferences.find(item => item.suitableForCoverHero);
+        if (hero) return hero;
+        return state.preferences.find(item => item.preferredForPublication) || null;
+    }
+
+    async function openPhotoPicker(slotKey) {
+        const slot = ensureSlot(state.activeSurface, slotKey);
+        state.activeSlot = slot;
+        by('[data-cover-photo-modal-slot]').textContent = `${state.activeSurface === 'front' ? 'Front' : 'Back'} · ${slotKey === 'Hero' ? 'Hero image' : slotKey}`;
+        const select = by('[data-cover-project-select]');
+        select.innerHTML = '<option value="">Select project…</option>' + state.projects.map(project => `<option value="${project.projectId}" ${Number(project.projectId) === Number(slot.projectId) ? 'selected' : ''}>${escapeHtml(project.projectName)}</option>`).join('');
+        by('[data-cover-project-search]').value = '';
+        applyProjectSearch();
+        const grid = by('[data-cover-photo-grid]');
+        grid.innerHTML = '';
+        by('[data-cover-photo-state]').textContent = 'Select a project to view its publication photographs.';
+        modal('compendiumCoverPhotoModal')?.show();
+        if (slot.projectId) await renderProjectPhotos(slot.projectId);
+    }
+
+    async function renderProjectPhotos(projectId) {
+        const grid = by('[data-cover-photo-grid]');
+        const stateNode = by('[data-cover-photo-state]');
+        grid.innerHTML = '';
+        stateNode.textContent = 'Loading project photography…';
+        try {
+            const photos = await loadProjectPhotos(projectId);
+            if (!photos.length) {
+                stateNode.textContent = 'No usable publication photographs are recorded for this project.';
+                return;
+            }
+            stateNode.textContent = `${photos.length} photograph${photos.length === 1 ? '' : 's'} available`;
+            photos.forEach(photo => {
+                const pref = preferenceFor(projectId, photo.photoId);
+                const card = document.createElement('article');
+                card.className = 'compendium-cover-photo-card';
+                const selected = state.activeSlot?.imageMode === 'Explicit' && Number(state.activeSlot?.projectId) === Number(projectId) && Number(state.activeSlot?.photoId) === Number(photo.photoId);
+                if (selected) card.classList.add('selected');
+                card.innerHTML = `
+                    <button type="button" class="compendium-cover-photo-select" data-cover-select-photo="${photo.photoId}">
+                        <img src="${escapeHtml(photo.thumbnailUrl || photo.previewUrl || '')}" alt="" />
+                        <span><b>${escapeHtml(photo.caption || `Photo ${photo.photoId}`)}</b><small>${photo.width} × ${photo.height} · ${titleCase(photo.quality)}</small></span>
+                        ${selected ? '<i class="bi bi-check-circle-fill"></i>' : ''}
+                    </button>
+                    <div class="compendium-cover-photo-flags">
+                        <label title="Prefer this image when PRISM fills automatic cover slots"><input type="checkbox" data-cover-pref="preferred" data-photo-id="${photo.photoId}" ${pref.preferredForPublication ? 'checked' : ''}/> Cover preferred</label>
+                        <label title="Allow Automatic Hero to prioritise this image for the cover"><input type="checkbox" data-cover-pref="hero" data-photo-id="${photo.photoId}" ${pref.suitableForCoverHero ? 'checked' : ''}/> Cover suitable</label>
+                    </div>`;
+                card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(projectId, photo));
+                card.querySelectorAll('[data-cover-pref]').forEach(input => input.addEventListener('change', () => updatePreference(projectId, photo.photoId, input.dataset.coverPref, input.checked)));
+                grid.appendChild(card);
+            });
+        } catch (error) {
+            stateNode.textContent = error?.message || 'Project photography could not be loaded.';
+        }
+    }
+
+    function preferenceFor(projectId, photoId) {
+        return state.preferences.find(item => Number(item.projectId) === Number(projectId) && Number(item.photoId) === Number(photoId)) || { projectId: Number(projectId), photoId: Number(photoId), preferredForPublication: false, suitableForCoverHero: false };
+    }
+
+    function updatePreference(projectId, photoId, kind, checked) {
+        let item = state.preferences.find(pref => Number(pref.projectId) === Number(projectId) && Number(pref.photoId) === Number(photoId));
+        if (!item) {
+            item = { projectId: Number(projectId), photoId: Number(photoId), preferredForPublication: false, suitableForCoverHero: false };
+            state.preferences.push(item);
+        }
+        if (kind === 'hero') item.suitableForCoverHero = checked;
+        else item.preferredForPublication = checked;
+        if (!item.preferredForPublication && !item.suitableForCoverHero) state.preferences = state.preferences.filter(pref => pref !== item);
+        setDirty();
+    }
+
+    function choosePhoto(projectId, photo) {
+        const slot = state.activeSlot;
+        if (!slot) return;
+        slot.imageMode = 'Explicit';
+        slot.projectId = Number(projectId);
+        slot.photoId = Number(photo.photoId);
+        slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+        slot.sourceWidth = photo.width;
+        slot.sourceHeight = photo.height;
+        setDirty();
+        renderSlots();
+        renderProof();
+        modal('compendiumCoverPhotoModal')?.hide();
+    }
+
+    function setSlotMode(mode) {
+        if (!state.activeSlot) return;
+        state.activeSlot.imageMode = mode;
+        if (mode !== 'Explicit') {
+            state.activeSlot.projectId = null;
+            state.activeSlot.photoId = null;
+            state.activeSlot.previewUrl = null;
+        }
+        setDirty();
+        renderSlots();
+        renderProof();
+        modal('compendiumCoverPhotoModal')?.hide();
+    }
+
+    function applyProjectSearch() {
+        const term = clean(by('[data-cover-project-search]')?.value).toLowerCase();
+        const select = by('[data-cover-project-select]');
+        if (!select) return;
+        Array.from(select.options).forEach((option, index) => { if (index) option.hidden = !!term && !option.text.toLowerCase().includes(term); });
+    }
+
+    function openCrop(slotKey) {
+        const slot = ensureSlot(state.activeSurface, slotKey);
+        if (slot.imageMode !== 'Explicit' || !slot.previewUrl || slot.fitMode === 'Fit') return;
+        state.activeSlot = slot;
+        const image = document.querySelector('[data-cover-crop-image]');
+        image.src = slot.previewUrl;
+        positionCropTarget();
+        modal('compendiumCoverCropModal')?.show();
+    }
+
+    function positionCropTarget() {
+        const slot = state.activeSlot;
+        const target = document.querySelector('[data-cover-crop-target]');
+        if (!slot || !target) return;
+        target.style.left = `${slot.focalX * 100}%`;
+        target.style.top = `${slot.focalY * 100}%`;
+    }
+
+    async function save() {
+        if (!boot.canManage || !state.dirty) return true;
+        const button = by('[data-cover-save]');
+        if (button) button.disabled = true;
+        try {
+            const form = new FormData();
+            form.set('presetId', String(boot.preset?.id || 0));
+            form.set('rowVersion', state.rowVersion || '');
+            form.set('coverJson', JSON.stringify(state.design));
+            form.set('photoPreferencesJson', JSON.stringify(state.preferences));
+            if (csrf) form.set('__RequestVerificationToken', csrf);
+            const response = await fetch(boot.saveUrl, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: form
+            });
+            const result = await safeJson(response);
+            if (!response.ok) throw new Error(result?.message || 'Cover design could not be saved.');
+            state.rowVersion = result?.preset?.rowVersion || state.rowVersion;
+            if (result?.coverDesign) state.design = normaliseDesign(result.coverDesign);
+            if (Array.isArray(result?.photoPreferences)) state.preferences = normalisePreferences(result.photoPreferences);
+            savedSignature = initialSignature();
+            state.dirty = false;
+            setDirty();
+            return true;
+        } catch (error) {
+            window.alert(error?.message || 'Cover design could not be saved.');
+            setDirty();
+            return false;
+        }
+    }
+
+    async function safeJson(response) { try { return await response.json(); } catch { return null; } }
+    function goBack() { window.location.href = boot.returnUrl || `/Projects/Publications/Compendium?presetId=${encodeURIComponent(boot.preset?.id || '')}#compendium-settings`; }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+    }
+
+    all('[data-cover-surface]').forEach(button => button.addEventListener('click', () => { state.activeSurface = button.dataset.coverSurface; state.proofSurface = state.activeSurface; updateInspector(); }));
+    all('[data-cover-proof-surface]').forEach(button => button.addEventListener('click', () => { state.proofSurface = button.dataset.coverProofSurface; renderProof(); }));
+    all('[data-cover-template]').forEach(button => button.addEventListener('click', () => {
+        if (isFront()) state.design.frontTemplate = button.dataset.coverTemplate;
+        else state.design.backTemplate = button.dataset.coverTemplate;
+        requiredSlots().forEach(key => ensureSlot(state.activeSurface, key));
+        setDirty(); updateInspector();
+    }));
+    all('[data-cover-text]').forEach(input => input.addEventListener('input', () => {
+        const field = titleCase(input.dataset.coverText);
+        state.design[`${surfacePrefix()}${field}`] = input.value;
+        setDirty(); renderProof();
+    }));
+    all('[data-cover-show]').forEach(input => input.addEventListener('change', () => {
+        const field = titleCase(input.dataset.coverShow);
+        if (field === 'Eyebrow') {
+            if (!input.checked) state.design[`${surfacePrefix()}Eyebrow`] = '';
+        } else state.design[`show${isFront() ? 'Front' : 'Back'}${field}`] = input.checked;
+        setDirty(); updateInspector();
+    }));
+    all('[data-cover-logo]').forEach(input => input.addEventListener('change', () => {
+        state.design[`show${isFront() ? 'Front' : 'Back'}${titleCase(input.dataset.coverLogo)}Logo`] = input.checked;
+        setDirty(); renderProof();
+    }));
+    by('[data-cover-logo-placement]')?.addEventListener('change', event => {
+        state.design[`${surfacePrefix()}LogoPlacement`] = event.target.value || 'TopCorners';
+        setDirty(); renderProof();
+    });
+
+    by('[data-cover-slot-list]')?.addEventListener('click', event => {
+        const choose = event.target.closest('[data-cover-choose-slot]');
+        if (choose) { void openPhotoPicker(choose.dataset.coverChooseSlot); return; }
+        const fit = event.target.closest('[data-cover-fit]');
+        if (fit) {
+            const slot = ensureSlot(state.activeSurface, fit.dataset.coverSlot);
+            slot.fitMode = fit.dataset.coverFit;
+            setDirty(); renderSlots(); renderProof(); return;
+        }
+        const crop = event.target.closest('[data-cover-crop-slot]');
+        if (crop) openCrop(crop.dataset.coverCropSlot);
+    });
+
+    by('[data-cover-project-select]')?.addEventListener('change', event => { if (event.target.value) void renderProjectPhotos(Number(event.target.value)); });
+    by('[data-cover-project-search]')?.addEventListener('input', applyProjectSearch);
+    by('[data-cover-slot-auto]')?.addEventListener('click', () => setSlotMode('Automatic'));
+    by('[data-cover-slot-none]')?.addEventListener('click', () => setSlotMode('None'));
+
+    document.querySelector('[data-cover-crop-stage]')?.addEventListener('click', event => {
+        if (!state.activeSlot) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        state.activeSlot.focalX = clamp01((event.clientX - rect.left) / rect.width);
+        state.activeSlot.focalY = clamp01((event.clientY - rect.top) / rect.height);
+        positionCropTarget(); setDirty(); renderSlots(); renderProof();
+    });
+    document.querySelector('[data-cover-crop-centre]')?.addEventListener('click', () => {
+        if (!state.activeSlot) return;
+        state.activeSlot.focalX = .5; state.activeSlot.focalY = .5; positionCropTarget(); setDirty(); renderSlots(); renderProof();
+    });
+
+    by('[data-cover-save]')?.addEventListener('click', () => void save());
+    by('[data-cover-back]')?.addEventListener('click', event => {
+        event.preventDefault();
+        if (!state.dirty) { goBack(); return; }
+        modal('compendiumCoverLeaveModal')?.show();
+    });
+    document.querySelector('[data-cover-return-unsaved]')?.addEventListener('click', goBack);
+    document.querySelector('[data-cover-save-return]')?.addEventListener('click', async () => { if (await save()) goBack(); });
+    window.addEventListener('beforeunload', event => { if (state.dirty) { event.preventDefault(); event.returnValue = ''; } });
+
+    updateInspector();
+    setDirty();
+})();

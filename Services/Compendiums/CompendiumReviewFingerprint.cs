@@ -24,11 +24,12 @@ public sealed record CompendiumReviewFingerprintInput(
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectDescription;
     public string? PublicationSectionKey { get; init; }
     public string? PublicationSectionName { get; init; }
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v3";
+    private const string ContractVersion = "compendium-review-v4";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
@@ -52,6 +53,7 @@ public static class CompendiumReviewFingerprint
             NormalizeNarrative(input.Description),
             input.ResolvedPhotoId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             input.ImageSelectionMode.ToString(),
+            input.ImageFitMode.ToString(),
             Clamp(input.FocalX).ToString("0.0000", CultureInfo.InvariantCulture),
             Clamp(input.FocalY).ToString("0.0000", CultureInfo.InvariantCulture)
         });

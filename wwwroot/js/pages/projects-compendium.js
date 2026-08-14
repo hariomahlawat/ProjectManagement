@@ -74,6 +74,8 @@
     const coverPhotoInput = form.querySelector("[data-cover-hero-photo]");
     const coverFocalXInput = form.querySelector("[data-cover-focal-x]");
     const coverFocalYInput = form.querySelector("[data-cover-focal-y]");
+    const coverDesignInput = form.querySelector("[data-cover-design]");
+    const photoPreferencesInput = form.querySelector("[data-photo-preferences]");
     const coverState = {
         imageMode: normalize(coverModeInput?.value) === "explicit" ? "explicit" : normalize(coverModeInput?.value) === "none" ? "none" : "automatic",
         heroProjectId: Number(coverProjectInput?.value || 0) || null,
@@ -81,6 +83,40 @@
         focalX: roundFocal(coverFocalXInput?.value),
         focalY: roundFocal(coverFocalYInput?.value)
     };
+    const parseHiddenJson = (input, fallback) => {
+        try { return input?.value ? JSON.parse(input.value) : fallback; } catch { return fallback; }
+    };
+    const normalizeCoverTemplate = value => String(value || "InstitutionalHero").trim() || "InstitutionalHero";
+    const normalizeBackTemplate = value => String(value || "MinimalInstitutional").trim() || "MinimalInstitutional";
+    const coverDesignSeed = parseHiddenJson(coverDesignInput, {});
+    const coverDesignState = {
+        frontTemplate: normalizeCoverTemplate(coverDesignSeed?.frontTemplate),
+        backTemplate: normalizeBackTemplate(coverDesignSeed?.backTemplate),
+        frontTitle: coverDesignSeed?.frontTitle ?? null, frontSubtitle: coverDesignSeed?.frontSubtitle ?? null, frontEdition: coverDesignSeed?.frontEdition ?? null, frontEyebrow: coverDesignSeed?.frontEyebrow ?? null,
+        backTitle: coverDesignSeed?.backTitle ?? null, backSubtitle: coverDesignSeed?.backSubtitle ?? null, backEdition: coverDesignSeed?.backEdition ?? null, backEyebrow: coverDesignSeed?.backEyebrow ?? null,
+        showFrontTitle: coverDesignSeed?.showFrontTitle !== false, showFrontSubtitle: coverDesignSeed?.showFrontSubtitle !== false, showFrontEdition: coverDesignSeed?.showFrontEdition !== false,
+        showFrontLeftLogo: coverDesignSeed?.showFrontLeftLogo !== false, showFrontRightLogo: coverDesignSeed?.showFrontRightLogo !== false,
+        frontLogoPlacement: coverDesignSeed?.frontLogoPlacement || "TopCorners",
+        showBackTitle: coverDesignSeed?.showBackTitle !== false, showBackSubtitle: coverDesignSeed?.showBackSubtitle !== false, showBackEdition: coverDesignSeed?.showBackEdition !== false,
+        showBackLeftLogo: coverDesignSeed?.showBackLeftLogo !== false, showBackRightLogo: coverDesignSeed?.showBackRightLogo !== false,
+        backLogoPlacement: coverDesignSeed?.backLogoPlacement || "TopCorners",
+        images: Array.isArray(coverDesignSeed?.images) ? coverDesignSeed.images.map((item,index) => ({
+            surface: String(item?.surface || "Front"), slotKey: String(item?.slotKey || `Slot${index+1}`), imageMode: String(item?.imageMode || "Automatic"),
+            projectId: Number(item?.projectId || 0) || null, photoId: Number(item?.photoId || 0) || null, focalX: roundFocal(item?.focalX), focalY: roundFocal(item?.focalY),
+            fitMode: normalize(item?.fitMode) === "fit" ? "Fit" : "Fill", sortOrder: Number(item?.sortOrder || index)
+        })) : []
+    };
+    let photoPreferencesState = Array.isArray(parseHiddenJson(photoPreferencesInput, [])) ? parseHiddenJson(photoPreferencesInput, []) : [];
+    const frontHeroSlot = () => coverDesignState.images.find(item => normalize(item.surface) === "front" && normalize(item.slotKey) === "hero");
+    const syncLegacyCoverIntoDesign = () => {
+        let hero = frontHeroSlot();
+        if (!hero) { hero = { surface:"Front", slotKey:"Hero", imageMode:"Automatic", projectId:null, photoId:null, focalX:.5, focalY:.5, fitMode:"Fill", sortOrder:0 }; coverDesignState.images.unshift(hero); }
+        hero.imageMode = coverState.imageMode === "explicit" ? "Explicit" : coverState.imageMode === "none" ? "None" : "Automatic";
+        hero.projectId = coverState.imageMode === "explicit" ? coverState.heroProjectId : null;
+        hero.photoId = coverState.imageMode === "explicit" ? coverState.heroPhotoId : null;
+        hero.focalX = roundFocal(coverState.focalX); hero.focalY = roundFocal(coverState.focalY);
+    };
+    if (!frontHeroSlot()) syncLegacyCoverIntoDesign();
 
     let activePresetId = Number(activeIdInput?.value || activeSeed?.id || 0) || null;
     let activeRowVersion = String(activeVersionInput?.value || activeSeed?.rowVersion || "");
@@ -108,7 +144,8 @@
                 reviewFingerprint: String(item.reviewFingerprint || "").trim() || null,
                 customSectionKey: cleanSectionKey(item.customSectionKey) || null,
                 customSectionName: cleanSectionName(item.customSectionName) || null,
-                narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null
+                narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null,
+                imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill"
             });
         });
     }
@@ -124,7 +161,8 @@
                 reviewFingerprint: null,
                 customSectionKey: null,
                 customSectionName: null,
-                narrativeSourceOverride: null
+                narrativeSourceOverride: null,
+                imageFitMode: "fill"
             });
         }
         return configById.get(projectId);
@@ -242,6 +280,7 @@
     const reviewAdjustCrop = $("[data-review-adjust-crop]");
     const reviewUseAutomatic = $("[data-review-use-automatic]");
     const reviewUseCover = $("[data-review-use-cover]");
+    const reviewImageFitButtons = [...form.querySelectorAll("[data-review-image-fit]")];
     const reviewFocusToggle = $("[data-review-focus-toggle]");
     const livePageZoomButtons = [...form.querySelectorAll("[data-live-page-zoom]")];
 
@@ -266,6 +305,9 @@
     const coverAutomatic = $("[data-cover-automatic]");
     const coverChoose = $("[data-cover-choose]");
     const coverNone = $("[data-cover-none]");
+    const coverEditorButton = $("[data-cover-editor]");
+    const coverFrontSummary = $("[data-cover-front-summary]");
+    const coverBackSummary = $("[data-cover-back-summary]");
 
     const readySelected = $("[data-ready-selected]");
     const readyBlockers = $("[data-ready-blockers]");
@@ -365,6 +407,7 @@
             customSectionKey: section?.sectionKey || null,
             customSectionName: section?.name || null,
             narrativeSourceOverride: config.narrativeSourceOverride || null,
+            imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
             ...(includeReviewFingerprint ? { reviewFingerprint: config.reviewFingerprint || null } : {})
         };
     });
@@ -383,6 +426,9 @@
         if (coverPhotoInput) coverPhotoInput.value = coverState.imageMode === "explicit" && coverState.heroPhotoId ? String(coverState.heroPhotoId) : "";
         if (coverFocalXInput) coverFocalXInput.value = String(roundFocal(coverState.focalX));
         if (coverFocalYInput) coverFocalYInput.value = String(roundFocal(coverState.focalY));
+        syncLegacyCoverIntoDesign();
+        if (coverDesignInput) coverDesignInput.value = JSON.stringify(coverDesignState);
+        if (photoPreferencesInput) photoPreferencesInput.value = JSON.stringify(photoPreferencesState);
     };
 
     const captureSnapshot = () => JSON.stringify({
@@ -394,6 +440,8 @@
         groupingMode: editorialState.groupingMode,
         sortMode: editorialState.sortMode,
         cover: { imageMode: coverState.imageMode, heroProjectId: coverState.imageMode === "explicit" ? coverState.heroProjectId : null, heroPhotoId: coverState.imageMode === "explicit" ? coverState.heroPhotoId : null, focalX: roundFocal(coverState.focalX), focalY: roundFocal(coverState.focalY) },
+        coverDesign: coverDesignState,
+        photoPreferences: photoPreferencesState,
         sections: serializeSections(),
         projects: serializeConfigs(false)
     });
@@ -413,6 +461,11 @@
             openStructureEditor.title = activePresetId
                 ? "Open the full-screen publication structure editor"
                 : "Save or load a Compendium before opening the structure editor";
+        }
+        if (coverEditorButton) {
+            coverEditorButton.disabled = !activePresetId;
+            coverEditorButton.setAttribute("aria-disabled", activePresetId ? "false" : "true");
+            coverEditorButton.title = activePresetId ? "Open the dedicated front and back cover editor" : "Save or load a Compendium before opening the cover editor";
         }
         return dirty;
     };
@@ -436,7 +489,8 @@
                 reviewFingerprint: config.reviewFingerprint || null,
                 customSectionKey: config.customSectionKey || null,
                 customSectionName: config.customSectionName || null,
-                narrativeSourceOverride: config.narrativeSourceOverride || null
+                narrativeSourceOverride: config.narrativeSourceOverride || null,
+                imageFitMode: config.imageFitMode || "fill"
             };
             const state = stateFor(id) || {};
             const findings = findingsFor(id);
@@ -457,6 +511,9 @@
             source: "compendium",
             returnUrl: `${location.pathname}?presetId=${Number(activePresetId || 0)}&resumeStructure=1#compendium-select`,
             editorialState: { ...editorialState },
+            publication: { title: String(form.elements["Input.Title"]?.value || ""), subtitle: String(form.elements["Input.Subtitle"]?.value || ""), edition: String(form.elements["Input.Edition"]?.value || "") },
+            coverDesign: coverDesignState,
+            photoPreferences: photoPreferencesState,
             orderedIds: [...orderedIds],
             sections: serializeSections(),
             configs,
@@ -499,6 +556,7 @@
             config.customSectionKey = section?.sectionKey || null;
             config.customSectionName = section?.name || null;
             config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
+            config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
         });
 
         if (snapshot.editorialState) {
@@ -583,8 +641,11 @@
         if (coverState.imageMode === "explicit") { projectId = coverState.heroProjectId; photoId = coverState.heroPhotoId; }
         else if (coverState.imageMode === "automatic") { const candidate = automaticCoverCandidate(); projectId = candidate?.id || null; photoId = candidate?.state?.resolvedPhotoId || null; if (projectId) { const config = ensureConfig(projectId); focalX = config.focalX; focalY = config.focalY; } }
         const project = projectId ? projectById.get(Number(projectId)) : null;
-        if (coverStatus) coverStatus.textContent = coverState.imageMode === "none" ? "No imagery" : coverState.imageMode === "explicit" ? `Selected hero · ${project?.projectName || "Project image"}` : "Automatic hero";
-        if (coverDetail) coverDetail.textContent = coverState.imageMode === "none" ? "The cover will use the institutional graphic treatment without project imagery." : coverState.imageMode === "explicit" ? "This hero is independent of project order. Re-select from Review to copy a newer project crop." : "PRISM prefers reviewed project-cover imagery, then falls back to the strongest available publication image.";
+        const templateLabel = value => String(value || "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
+        if (coverStatus) coverStatus.textContent = `${templateLabel(coverDesignState.frontTemplate)} · ${templateLabel(coverDesignState.backTemplate)}`;
+        if (coverDetail) coverDetail.textContent = coverState.imageMode === "explicit" ? `Front hero · ${project?.projectName || "Selected project image"}. Open Cover editor for multiple slots, text, marks and back-cover design.` : "Front and back covers use controlled templates. Open Cover editor for multiple imagery, Fit/Fill, crop, marks and printed cover content.";
+        if (coverFrontSummary) coverFrontSummary.textContent = `Front · ${templateLabel(coverDesignState.frontTemplate)}`;
+        if (coverBackSummary) coverBackSummary.textContent = `Back · ${templateLabel(coverDesignState.backTemplate)}`;
         if (coverPreviewImage && coverPreview) {
             if (projectId && photoId) { coverPreviewImage.src = photoPreviewUrl(projectId, photoId); coverPreviewImage.style.objectPosition = `${clamp(focalX) * 100}% ${clamp(focalY) * 100}%`; coverPreviewImage.alt = `${project?.projectName || "Compendium"} cover hero`; coverPreviewImage.hidden = false; coverPreview.classList.add("has-image"); }
             else { coverPreviewImage.hidden = true; coverPreviewImage.removeAttribute("src"); coverPreview.classList.remove("has-image"); }
@@ -593,7 +654,7 @@
         coverChoose?.classList.toggle("active", coverState.imageMode === "explicit");
         coverNone?.classList.toggle("active", coverState.imageMode === "none");
     };
-    const coverChanged = () => { syncHidden(); renderCoverSetting(); renderDirty(); schedulePreflight(); };
+    const coverChanged = () => { syncLegacyCoverIntoDesign(); syncHidden(); renderCoverSetting(); renderDirty(); schedulePreflight(); };
 
     const visibleRows = () => rows.filter(row => !row.hidden);
     const applyFilters = () => {
@@ -889,7 +950,8 @@
         if (livePageImage && livePageImageEmpty) {
             if (photo?.previewUrl) {
                 livePageImage.src = photo.previewUrl;
-                livePageImage.style.objectPosition = `${clamp(config.focalX) * 100}% ${clamp(config.focalY) * 100}%`;
+                livePageImage.style.objectFit = config.imageFitMode === "fit" ? "contain" : "cover";
+                livePageImage.style.objectPosition = config.imageFitMode === "fit" ? "50% 50%" : `${clamp(config.focalX) * 100}% ${clamp(config.focalY) * 100}%`;
                 livePageImage.alt = `${review.projectName} publication preview`;
                 livePageImage.hidden = false;
                 livePageImageEmpty.hidden = true;
@@ -968,7 +1030,8 @@
         if (reviewImage && reviewImageEmpty) {
             if (photo?.previewUrl) {
                 reviewImage.src = photo.previewUrl;
-                reviewImage.style.objectPosition = `${clamp(config.focalX) * 100}% ${clamp(config.focalY) * 100}%`;
+                reviewImage.style.objectFit = config.imageFitMode === "fit" ? "contain" : "cover";
+                reviewImage.style.objectPosition = config.imageFitMode === "fit" ? "50% 50%" : `${clamp(config.focalX) * 100}% ${clamp(config.focalY) * 100}%`;
                 reviewImage.alt = `${review.projectName} publication photograph`;
                 reviewImage.hidden = false;
                 reviewImageEmpty.hidden = true;
@@ -992,9 +1055,11 @@
             else if (review.explicitPhotoUnavailable) reviewImageDetail.textContent = "The saved image is unavailable; PRISM is temporarily showing the current automatic choice.";
             else reviewImageDetail.textContent = `${photo.width}×${photo.height} source · ${review.photoSelectionSource === "explicitpublication" ? "publication selection" : "current project selection"}`;
         }
+        reviewImageFitButtons.forEach(button => button.classList.toggle("active", normalize(button.dataset.reviewImageFit) === config.imageFitMode));
         renderLivePagePreview(review, photo);
         setControlDisabled(reviewChangeImage, false);
-        setControlDisabled(reviewAdjustCrop, !photo);
+        setControlDisabled(reviewAdjustCrop, !photo || config.imageFitMode === "fit");
+        if (reviewAdjustCrop) reviewAdjustCrop.title = config.imageFitMode === "fit" ? "Fit shows the complete source; switch to Fill to adjust crop" : "Adjust crop";
         setControlDisabled(reviewUseCover, !photo);
         if (reviewUseAutomatic) reviewUseAutomatic.hidden = config.imageSelectionMode !== "explicit";
 
@@ -1863,6 +1928,14 @@
     reviewMarkReviewed?.addEventListener("click", reviewAndAdvance);
     reviewChangeImage?.addEventListener("click", () => openPhotoEditor(false));
     reviewAdjustCrop?.addEventListener("click", () => openPhotoEditor(true));
+    reviewImageFitButtons.forEach(button => button.addEventListener("click", () => {
+        if (!activeReviewId) return;
+        const config = ensureConfig(activeReviewId);
+        const next = normalize(button.dataset.reviewImageFit) === "fit" ? "fit" : "fill";
+        if (config.imageFitMode === next) return;
+        config.imageFitMode = next;
+        publicationConfigChanged(activeReviewId);
+    }));
     reviewUseAutomatic?.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
@@ -2090,6 +2163,21 @@
         const persisted = !renderDirty();
         writeStructureHandoff(persisted);
         const target = new URL(form.dataset.structureEditorUrl || "/Projects/Publications/Compendium/Structure", location.origin);
+        target.searchParams.set("presetId", String(activePresetId));
+        location.assign(target.toString());
+    });
+
+    coverEditorButton?.addEventListener("click", async () => {
+        if (!activePresetId) { window.alert("Save or load this Compendium before opening the Cover Editor."); return; }
+        syncHidden();
+        if (renderDirty()) {
+            if (!canManage) { window.alert("This shared Compendium has unsaved local changes. Ask HoD/Comdt to save it before opening the Cover Editor."); return; }
+            try {
+                const payload = new FormData(form); payload.set("saveAsNew", "false");
+                const result = await post(form.dataset.saveUrl, payload); updatePresetOption(result.preset); setActivePreset(result.preset);
+            } catch (error) { window.alert(error.message || "Save the Compendium before opening the Cover Editor."); return; }
+        }
+        const target = new URL(form.dataset.coverEditorUrl || "/Projects/Publications/Compendium/Cover", location.origin);
         target.searchParams.set("presetId", String(activePresetId));
         location.assign(target.toString());
     });

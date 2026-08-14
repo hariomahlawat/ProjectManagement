@@ -110,7 +110,8 @@
           data-rename-url="@Url.Page("/Projects/Publications/Compendium/Index", "RenamePreset")"
           data-duplicate-url="@Url.Page("/Projects/Publications/Compendium/Index", "DuplicatePreset")"
           data-delete-url="@Url.Page("/Projects/Publications/Compendium/Index", "DeletePreset")"
-          data-structure-editor-url="@Url.Page("/Projects/Publications/Compendium/Structure")">
+          data-structure-editor-url="@Url.Page("/Projects/Publications/Compendium/Structure")"
+          data-cover-editor-url="@Url.Page("/Projects/Publications/Compendium/Cover")">
         @Html.AntiForgeryToken()
         <input asp-for="Input.SelectedProjectIdsCsv" type="hidden" data-selected-project-ids />
         <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
@@ -125,6 +126,8 @@
         <input asp-for="Input.CoverHeroPhotoId" type="hidden" data-cover-hero-photo />
         <input asp-for="Input.CoverFocalX" type="hidden" data-cover-focal-x />
         <input asp-for="Input.CoverFocalY" type="hidden" data-cover-focal-y />
+        <input asp-for="Input.CoverDesignJson" type="hidden" data-cover-design />
+        <input asp-for="Input.PhotoPreferencesJson" type="hidden" data-photo-preferences />
 
         <script type="application/json" data-compendium-projects>@Html.Raw(JsonSerializer.Serialize(Model.Projects, jsonOptions))</script>
         <script type="application/json" data-compendium-presets>@Html.Raw(JsonSerializer.Serialize(Model.SavedCompendiums, jsonOptions))</script>
@@ -209,23 +212,24 @@
                             <p class="compendium-composer__note" data-composer-note>Technical categories remain authoritative project data. Publication sections only change this Compendium.</p>
                         </section>
 
-                        <div class="compendium-cover-setting" data-cover-setting>
+                        <div class="compendium-cover-setting compendium-cover-setting--composer" data-cover-setting>
                             <div class="compendium-cover-preview" data-cover-preview>
-                                <i class="bi bi-image" aria-hidden="true"></i>
+                                <i class="bi bi-layout-text-window-reverse" aria-hidden="true"></i>
                                 <img alt="" data-cover-preview-image hidden />
                             </div>
                             <div class="compendium-cover-copy">
-                                <span>Cover imagery</span>
-                                <strong data-cover-status>Automatic hero</strong>
-                                <small data-cover-detail>PRISM uses the strongest available publication image from the selected projects.</small>
+                                <span>Cover design</span>
+                                <strong data-cover-status>Institutional hero · Minimal back</strong>
+                                <small data-cover-detail>Front and back covers use controlled layouts, configurable text and independently curated imagery.</small>
+                                <div class="compendium-cover-design-meta"><span data-cover-front-summary>Front · Institutional hero</span><i></i><span data-cover-back-summary>Back · Minimal institutional</span></div>
                             </div>
                             <div class="compendium-cover-actions">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-automatic>Automatic hero</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-cover-editor><i class="bi bi-layout-wtf"></i> Cover editor</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-automatic title="Quickly return the front Hero slot to automatic selection">Automatic hero</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-choose><i class="bi bi-images"></i> Choose hero</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-none>No imagery</button>
                             </div>
                         </div>
-                        <small class="compendium-cover-help">Choose a hero directly here or use <b>Use as cover hero</b> while reviewing a project. Cover crop is stored independently from the project page.</small>
+                        <small class="compendium-cover-help">Use <b>Cover editor</b> for front/back templates, multiple image slots, Fit/Fill, cover-specific crops, marks and printed cover text. The quick Hero controls remain available for routine changes.</small>
                     </div>
                 </section>
 
@@ -492,6 +496,10 @@
                                         </div>
                                         <div class="compendium-review-image-actions">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
+                                            <div class="btn-group btn-group-sm compendium-review-fit-toggle" role="group" aria-label="Publication image fit">
+                                                <button type="button" class="btn btn-outline-secondary" data-review-image-fit="Fill" title="Fill the image frame; cropping may occur">Fill</button>
+                                                <button type="button" class="btn btn-outline-secondary" data-review-image-fit="Fit" title="Show the complete image inside the frame">Fit</button>
+                                            </div>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop><i class="bi bi-crop"></i> Adjust crop</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-use-cover><i class="bi bi-card-image"></i> Cover hero</button>
                                             <button type="button" class="btn btn-sm btn-link" data-review-use-automatic>Use automatic</button>

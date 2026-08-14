@@ -5370,6 +5370,28 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("CoverHeroPhotoId").HasColumnType("integer");
                     b.Property<int?>("CoverHeroProjectId").HasColumnType("integer");
                     b.Property<string>("CoverImageMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
+                    b.Property<string>("FrontCoverTemplate").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("InstitutionalHero");
+                    b.Property<string>("BackCoverTemplate").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("MinimalInstitutional");
+                    b.Property<string>("FrontCoverTitle").HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<string>("FrontCoverSubtitle").HasMaxLength(160).HasColumnType("character varying(160)");
+                    b.Property<string>("FrontCoverEdition").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<string>("FrontCoverEyebrow").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<string>("BackCoverTitle").HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<string>("BackCoverSubtitle").HasMaxLength(160).HasColumnType("character varying(160)");
+                    b.Property<string>("BackCoverEdition").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<string>("BackCoverEyebrow").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<bool>("ShowFrontTitle").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowFrontSubtitle").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowFrontEdition").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowFrontLeftLogo").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowFrontRightLogo").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<string>("FrontLogoPlacement").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("TopCorners");
+                    b.Property<bool>("ShowBackTitle").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowBackSubtitle").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowBackEdition").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowBackLeftLogo").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowBackRightLogo").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<string>("BackLogoPlacement").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("TopCorners");
                     b.Property<string>("NarrativeSource").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("ProjectBrief");
                     b.Property<string>("GroupingMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("TechnicalCategory");
                     b.Property<string>("SortMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Manual");
@@ -5378,7 +5400,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(5);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(6);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
@@ -5414,6 +5436,7 @@ namespace ProjectManagement.Migrations
                     b.Property<long>("PresetId").HasColumnType("bigint");
                     b.Property<long?>("CustomSectionId").HasColumnType("bigint");
                     b.Property<string>("ImageSelectionMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
+                    b.Property<string>("ImageFitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
                     b.Property<string>("CustomSectionName").HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NarrativeSourceOverride").HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<double>("PrimaryFocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
@@ -5428,6 +5451,41 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("PresetId", "ProjectId").IsUnique().HasDatabaseName("UX_CompendiumPresetProjects_Preset_Project");
                     b.HasIndex("PresetId", "SortOrder").IsUnique().HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder");
                     b.ToTable("CompendiumPresetProjects");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetCoverImage", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<double>("FocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<double>("FocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<string>("FitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
+                    b.Property<string>("ImageMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Automatic");
+                    b.Property<int?>("PhotoId").HasColumnType("integer");
+                    b.Property<long>("PresetId").HasColumnType("bigint");
+                    b.Property<int?>("ProjectId").HasColumnType("integer");
+                    b.Property<string>("SlotKey").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<int>("SortOrder").HasColumnType("integer");
+                    b.Property<string>("Surface").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.HasKey("Id");
+                    b.HasIndex("PhotoId").HasDatabaseName("IX_CompendiumPresetCoverImages_PhotoId");
+                    b.HasIndex("PresetId", "Surface", "SlotKey").IsUnique().HasDatabaseName("UX_CompendiumPresetCoverImages_Preset_Surface_Slot");
+                    b.ToTable("CompendiumPresetCoverImages");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetPhotoPreference", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<int>("PhotoId").HasColumnType("integer");
+                    b.Property<bool>("PreferredForPublication").HasColumnType("boolean");
+                    b.Property<long>("PresetId").HasColumnType("bigint");
+                    b.Property<int>("ProjectId").HasColumnType("integer");
+                    b.Property<bool>("SuitableForCoverHero").HasColumnType("boolean");
+                    b.HasKey("Id");
+                    b.HasIndex("PhotoId").HasDatabaseName("IX_CompendiumPresetPhotoPreferences_PhotoId");
+                    b.HasIndex("PresetId", "ProjectId", "PhotoId").IsUnique().HasDatabaseName("UX_CompendiumPresetPhotoPreferences_Preset_Project_Photo");
+                    b.ToTable("CompendiumPresetPhotoPreferences");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
@@ -9065,6 +9123,18 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetCoverImage", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Publications.CompendiumPreset", "Preset").WithMany("CoverImages").HasForeignKey("PresetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("Preset");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPresetPhotoPreference", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Publications.CompendiumPreset", "Preset").WithMany("PhotoPreferences").HasForeignKey("PresetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("Preset");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
@@ -9946,6 +10016,10 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Publications.CompendiumPreset", b =>
                 {
+                    b.Navigation("CoverImages");
+
+                    b.Navigation("PhotoPreferences");
+
                     b.Navigation("Projects");
 
                     b.Navigation("Sections");

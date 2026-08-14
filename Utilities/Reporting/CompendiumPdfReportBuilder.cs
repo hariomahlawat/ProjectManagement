@@ -27,7 +27,43 @@ public sealed record CompendiumPdfReportContext(
 {
     public string Edition { get; init; } = string.Empty;
     public byte[]? CoverHero { get; init; }
+    public CompendiumPdfCoverDesign? CoverDesign { get; init; }
     public CompendiumPagePlan? Plan { get; init; }
+}
+
+public sealed record CompendiumPdfCoverImage(
+    CompendiumCoverSurface Surface,
+    string SlotKey,
+    byte[]? Content,
+    CompendiumImageFitMode FitMode,
+    int? ProjectId = null,
+    int? PhotoId = null);
+
+public sealed record CompendiumPdfCoverDesign(
+    CompendiumFrontCoverTemplate FrontTemplate,
+    CompendiumBackCoverTemplate BackTemplate,
+    IReadOnlyList<CompendiumPdfCoverImage> Images)
+{
+    public string? FrontTitle { get; init; }
+    public string? FrontSubtitle { get; init; }
+    public string? FrontEdition { get; init; }
+    public string? FrontEyebrow { get; init; }
+    public string? BackTitle { get; init; }
+    public string? BackSubtitle { get; init; }
+    public string? BackEdition { get; init; }
+    public string? BackEyebrow { get; init; }
+    public bool ShowFrontTitle { get; init; } = true;
+    public bool ShowFrontSubtitle { get; init; } = true;
+    public bool ShowFrontEdition { get; init; } = true;
+    public bool ShowFrontLeftLogo { get; init; } = true;
+    public bool ShowFrontRightLogo { get; init; } = true;
+    public CompendiumCoverLogoPlacement FrontLogoPlacement { get; init; } = CompendiumCoverLogoPlacement.TopCorners;
+    public bool ShowBackTitle { get; init; } = true;
+    public bool ShowBackSubtitle { get; init; } = true;
+    public bool ShowBackEdition { get; init; } = true;
+    public bool ShowBackLeftLogo { get; init; } = true;
+    public bool ShowBackRightLogo { get; init; } = true;
+    public CompendiumCoverLogoPlacement BackLogoPlacement { get; init; } = CompendiumCoverLogoPlacement.TopCorners;
 }
 
 public sealed record CompendiumPdfCategorySection(
@@ -54,6 +90,7 @@ public sealed record CompendiumPdfProjectSection(
     public string NarrativeLabel { get; init; } = "Project Brief";
     public bool IsAvailableForProliferation { get; init; }
     public bool? ProliferationAvailability { get; init; }
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 /// <summary>
@@ -99,12 +136,12 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var title = Normalize(context.Title, "Simulators Compendium");
-        var subtitle = Normalize(context.Subtitle, "Detailed Project Reference");
+        var title = NormalizeOptional(context.Title)
+                    ?? throw new InvalidOperationException("A Compendium publication title is required before PDF generation.");
+        var subtitle = NormalizeOptional(context.Subtitle) ?? string.Empty;
         var issuer = Normalize(context.IssuerDisplayName, "Simulator Development Division");
         var marking = NormalizeOptional(context.HandlingMarking)?.ToUpperInvariant();
-        var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
-        var edition = Normalize(context.Edition, $"Capability Edition · {generatedAtIst.Year}");
+        var edition = NormalizeOptional(context.Edition) ?? string.Empty;
         var crest = TryLoadAsset("img/logos/artrac.png");
         var sddMark = TryLoadAsset("img/logos/sdd.png");
         var footerLogo = sddMark;
@@ -118,7 +155,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     switch (planned.Kind)
                     {
                         case CompendiumPageKind.Cover:
-                            ComposeCover(container, title, subtitle, edition, marking, context.CoverHero, crest, sddMark);
+                            ComposeCover(container, title, subtitle, edition, marking, context.CoverDesign, context.CoverHero, crest, sddMark);
                             break;
                         case CompendiumPageKind.Index:
                             ComposeIndexPage(container, planned, title, edition, issuer, marking, footerLogo, plan.IndexPageCount);
@@ -130,7 +167,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                             ComposeProjectContinuationPage(container, planned, title, edition, issuer, marking, footerLogo);
                             break;
                         case CompendiumPageKind.BackCover:
-                            ComposeBackCover(container, title, subtitle, edition, marking, crest, sddMark);
+                            ComposeBackCover(container, title, subtitle, edition, marking, context.CoverDesign, crest, sddMark);
                             break;
                         default:
                             throw new InvalidOperationException($"Unsupported Compendium page kind: {planned.Kind}.");
@@ -158,9 +195,69 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string subtitle,
         string edition,
         string? marking,
-        byte[]? coverHero,
+        CompendiumPdfCoverDesign? design,
+        byte[]? legacyHero,
         byte[]? crest,
         byte[]? sddMark)
+    {
+        design ??= new CompendiumPdfCoverDesign(
+            CompendiumFrontCoverTemplate.InstitutionalHero,
+            CompendiumBackCoverTemplate.MinimalInstitutional,
+            legacyHero is { Length: > 0 }
+                ? new[] { new CompendiumPdfCoverImage(CompendiumCoverSurface.Front, "Hero", legacyHero, CompendiumImageFitMode.Fill) }
+                : Array.Empty<CompendiumPdfCoverImage>());
+
+        var frontImages = design.Images
+            .Where(image => image.Surface == CompendiumCoverSurface.Front && image.Content is { Length: > 0 })
+            .ToDictionary(image => image.SlotKey, StringComparer.OrdinalIgnoreCase);
+        var hero = frontImages.GetValueOrDefault("Hero")?.Content ?? legacyHero;
+        var secondary1 = frontImages.GetValueOrDefault("Secondary1")?.Content;
+        var secondary2 = frontImages.GetValueOrDefault("Secondary2")?.Content;
+
+        var displayTitle = design.ShowFrontTitle ? NormalizeOptional(design.FrontTitle) ?? title : null;
+        var displaySubtitle = design.ShowFrontSubtitle ? NormalizeOptional(design.FrontSubtitle) ?? subtitle : null;
+        var displayEdition = design.ShowFrontEdition ? NormalizeOptional(design.FrontEdition) ?? edition : null;
+        var eyebrow = NormalizeOptional(design.FrontEyebrow);
+
+        switch (design.FrontTemplate)
+        {
+            case CompendiumFrontCoverTemplate.FullBleedHero:
+                ComposeFullBleedCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero, crest, sddMark,
+                    design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo);
+                break;
+            case CompendiumFrontCoverTemplate.EditorialSplit:
+                ComposeSplitCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero, secondary1, crest, sddMark,
+                    design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo);
+                break;
+            case CompendiumFrontCoverTemplate.Triptych:
+                ComposeTriptychCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero, secondary1, secondary2, crest, sddMark,
+                    design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo);
+                break;
+            case CompendiumFrontCoverTemplate.Minimal:
+                ComposeInstitutionalCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, null, crest, sddMark,
+                    design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo, showHeroFrame: false);
+                break;
+            default:
+                ComposeInstitutionalCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero, crest, sddMark,
+                    design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo, showHeroFrame: true);
+                break;
+        }
+    }
+
+    private static void ComposeInstitutionalCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? hero,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo,
+        bool showHeroFrame)
     {
         container.Page(page =>
         {
@@ -168,58 +265,211 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             page.Margin(0);
             page.PageColor(Forest950);
             page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
-
             page.Content().Layers(layers =>
             {
                 layers.PrimaryLayer().Background(Forest950).PaddingHorizontal(52).PaddingVertical(48).Column(column =>
                 {
                     column.Spacing(12);
-                    column.Item().Row(row =>
-                    {
-                        if (crest is { Length: > 0 })
-                        {
-                            row.ConstantItem(48).Height(48).Image(crest).FitArea();
-                            row.ConstantItem(12);
-                        }
-
-                        row.RelativeItem();
-
-                        if (sddMark is { Length: > 0 })
-                        {
-                            row.ConstantItem(42).Height(42).AlignMiddle().Image(sddMark).FitArea();
-                        }
-                    });
-
+                    column.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
                     if (!string.IsNullOrWhiteSpace(marking))
                     {
-                        column.Item().PaddingTop(2).AlignCenter().Text(marking)
-                            .FontSize(8.5f)
-                            .SemiBold()
-                            .LetterSpacing(.8f)
-                            .FontColor(GoldSoft);
+                        column.Item().PaddingTop(2).AlignCenter().Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.8f).FontColor(GoldSoft);
                     }
-
-                    column.Item().PaddingTop(50).Text(title)
-                        .FontSize(34)
-                        .SemiBold()
-                        .LineHeight(1.04f)
-                        .FontColor(White);
-                    column.Item().Width(128).Height(3).Background(Gold);
-                    column.Item().Text(subtitle)
-                        .FontSize(15)
-                        .LineHeight(1.18f)
-                        .FontColor("#D7E3DE");
-                    column.Item().Text(edition)
-                        .FontSize(10.5f)
-                        .SemiBold()
-                        .FontColor(GoldSoft);
-
-                    column.Item().PaddingTop(28).Element(frame => ComposeCoverHero(frame, coverHero));
+                    column.Item().PaddingTop(showHeroFrame ? 42 : 120).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 34));
+                    if (showHeroFrame)
+                    {
+                        column.Item().PaddingTop(22).Element(frame => ComposeCoverHero(frame, hero));
+                    }
                 });
-
                 layers.Layer().AlignTop().Height(6).Background(Gold);
                 layers.Layer().AlignBottom().Height(16).Background(Forest900);
             });
+        });
+    }
+
+    private static void ComposeFullBleedCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? hero,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo)
+    {
+        if (hero is not { Length: > 0 })
+        {
+            ComposeInstitutionalCover(container, title, subtitle, edition, eyebrow, marking, null, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo, false);
+            return;
+        }
+
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Layers(layers =>
+            {
+                layers.PrimaryLayer().Image(hero).FitArea();
+                layers.Layer().AlignTop().PaddingHorizontal(44).PaddingTop(40).Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                layers.Layer().AlignBottom().Height(315).Background(Forest950).PaddingHorizontal(52).PaddingTop(38).Column(column =>
+                {
+                    column.Item().Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 33));
+                    if (!string.IsNullOrWhiteSpace(marking))
+                    {
+                        column.Item().PaddingTop(18).Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.8f).FontColor(GoldSoft);
+                    }
+                });
+                layers.Layer().AlignTop().Height(6).Background(Gold);
+                layers.Layer().AlignBottom().Height(16).Background(Forest900);
+            });
+        });
+    }
+
+    private static void ComposeSplitCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? hero,
+        byte[]? secondary,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo)
+    {
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Column(column =>
+            {
+                column.Item().Height(355).Background(Forest950).PaddingHorizontal(52).PaddingTop(42).Column(top =>
+                {
+                    top.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                    top.Item().PaddingTop(50).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 31));
+                    if (!string.IsNullOrWhiteSpace(marking)) top.Item().PaddingTop(14).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
+                });
+                column.Item().Height(471).Padding(0).Row(row =>
+                {
+                    row.RelativeItem(2).Element(cell => ComposeCoverTile(cell, hero));
+                    row.ConstantItem(4).Background(Forest950);
+                    row.RelativeItem(1).Element(cell => ComposeCoverTile(cell, secondary));
+                });
+                column.Item().Height(16).Background(Forest900);
+            });
+        });
+    }
+
+    private static void ComposeTriptychCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? hero,
+        byte[]? secondary1,
+        byte[]? secondary2,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo)
+    {
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Column(column =>
+            {
+                column.Item().Height(395).Background(Forest950).PaddingHorizontal(52).PaddingTop(42).Column(top =>
+                {
+                    top.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                    top.Item().PaddingTop(48).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 29));
+                    if (!string.IsNullOrWhiteSpace(marking)) top.Item().PaddingTop(12).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
+                });
+                column.Item().Height(431).Row(row =>
+                {
+                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, hero));
+                    row.ConstantItem(3).Background(Forest950);
+                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, secondary1));
+                    row.ConstantItem(3).Background(Forest950);
+                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, secondary2));
+                });
+                column.Item().Height(16).Background(Forest900);
+            });
+        });
+    }
+
+    private static void ComposeCoverLogos(
+        IContainer container,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement placement,
+        bool showLeft,
+        bool showRight)
+    {
+        container.Row(row =>
+        {
+            if (placement == CompendiumCoverLogoPlacement.TopCenter)
+            {
+                row.RelativeItem();
+                if (showLeft && crest is { Length: > 0 }) row.ConstantItem(48).Height(48).Image(crest).FitArea();
+                if (showLeft && showRight && crest is { Length: > 0 } && sddMark is { Length: > 0 }) row.ConstantItem(14);
+                if (showRight && sddMark is { Length: > 0 }) row.ConstantItem(42).Height(42).AlignMiddle().Image(sddMark).FitArea();
+                row.RelativeItem();
+                return;
+            }
+
+            if (showLeft && crest is { Length: > 0 }) row.ConstantItem(48).Height(48).Image(crest).FitArea();
+            row.RelativeItem();
+            if (showRight && sddMark is { Length: > 0 }) row.ConstantItem(42).Height(42).AlignMiddle().Image(sddMark).FitArea();
+        });
+    }
+
+    private static void ComposeCoverIdentity(IContainer container, string? eyebrow, string? title, string? subtitle, string? edition, float titleSize)
+    {
+        container.Column(column =>
+        {
+            column.Spacing(10);
+            if (!string.IsNullOrWhiteSpace(eyebrow))
+            {
+                column.Item().Text(eyebrow!.ToUpperInvariant()).FontSize(8).SemiBold().LetterSpacing(1.15f).FontColor(GoldSoft);
+            }
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                column.Item().Text(title!).FontSize(titleSize).SemiBold().LineHeight(1.04f).FontColor(White);
+                column.Item().Width(128).Height(3).Background(Gold);
+            }
+            if (!string.IsNullOrWhiteSpace(subtitle)) column.Item().Text(subtitle!).FontSize(14).LineHeight(1.18f).FontColor("#D7E3DE");
+            if (!string.IsNullOrWhiteSpace(edition)) column.Item().Text(edition!).FontSize(10.5f).SemiBold().FontColor(GoldSoft);
+        });
+    }
+
+    private static void ComposeCoverTile(IContainer container, byte[]? image)
+    {
+        if (image is { Length: > 0 })
+        {
+            container.Background(Forest900).Image(image).FitArea();
+            return;
+        }
+        container.Background(Forest900).Layers(layers =>
+        {
+            layers.PrimaryLayer().Background(Forest900);
+            layers.Layer().AlignBottom().Height(72).Background(Forest800);
         });
     }
 
@@ -662,8 +912,62 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string subtitle,
         string edition,
         string? marking,
+        CompendiumPdfCoverDesign? design,
         byte[]? crest,
         byte[]? sddMark)
+    {
+        design ??= new CompendiumPdfCoverDesign(
+            CompendiumFrontCoverTemplate.InstitutionalHero,
+            CompendiumBackCoverTemplate.MinimalInstitutional,
+            Array.Empty<CompendiumPdfCoverImage>());
+        var images = design.Images
+            .Where(image => image.Surface == CompendiumCoverSurface.Back && image.Content is { Length: > 0 })
+            .ToDictionary(image => image.SlotKey, StringComparer.OrdinalIgnoreCase);
+        var hero = images.GetValueOrDefault("Hero")?.Content;
+        var secondary1 = images.GetValueOrDefault("Secondary1")?.Content;
+        var secondary2 = images.GetValueOrDefault("Secondary2")?.Content;
+        var displayTitle = design.ShowBackTitle ? NormalizeOptional(design.BackTitle) ?? title : null;
+        var displaySubtitle = design.ShowBackSubtitle ? NormalizeOptional(design.BackSubtitle) ?? subtitle : null;
+        var displayEdition = design.ShowBackEdition ? NormalizeOptional(design.BackEdition) ?? edition : null;
+        var eyebrow = NormalizeOptional(design.BackEyebrow);
+
+        switch (design.BackTemplate)
+        {
+            case CompendiumBackCoverTemplate.ImageEcho:
+                ComposeImageEchoBackCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero,
+                    crest, sddMark, design.BackLogoPlacement, design.ShowBackLeftLogo, design.ShowBackRightLogo);
+                break;
+            case CompendiumBackCoverTemplate.PortfolioStrip:
+                ComposePortfolioBackCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking,
+                    hero, secondary1, secondary2, crest, sddMark, design.BackLogoPlacement, design.ShowBackLeftLogo, design.ShowBackRightLogo);
+                break;
+            case CompendiumBackCoverTemplate.TypographyOnly:
+                ComposeTypographyBackCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking,
+                    crest, sddMark, design.BackLogoPlacement, design.ShowBackLeftLogo, design.ShowBackRightLogo, clean: false);
+                break;
+            case CompendiumBackCoverTemplate.Clean:
+                ComposeTypographyBackCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking,
+                    crest, sddMark, design.BackLogoPlacement, design.ShowBackLeftLogo, design.ShowBackRightLogo, clean: true);
+                break;
+            default:
+                ComposeMinimalBackCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking,
+                    crest, sddMark, design.BackLogoPlacement, design.ShowBackLeftLogo, design.ShowBackRightLogo);
+                break;
+        }
+    }
+
+    private static void ComposeMinimalBackCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo)
     {
         container.Page(page =>
         {
@@ -675,40 +979,130 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             {
                 layers.PrimaryLayer().Background(Forest950).PaddingHorizontal(58).PaddingVertical(54).Column(column =>
                 {
-                    column.Item().Row(row =>
-                    {
-                        if (crest is { Length: > 0 })
-                        {
-                            row.ConstantItem(46).Height(46).Image(crest).FitArea();
-                        }
-                        row.RelativeItem();
-                        if (sddMark is { Length: > 0 })
-                        {
-                            row.ConstantItem(42).Height(42).Image(sddMark).FitArea();
-                        }
-                    });
-
-                    column.Item().PaddingTop(205).Width(110).Height(3).Background(Gold);
-                    column.Item().PaddingTop(16).Text(title)
-                        .FontSize(24)
-                        .SemiBold()
-                        .FontColor(White);
-                    column.Item().PaddingTop(8).Text(subtitle)
-                        .FontSize(12)
-                        .FontColor("#D7E3DE");
-                    column.Item().PaddingTop(16).Text(edition)
-                        .FontSize(10)
-                        .SemiBold()
-                        .FontColor(GoldSoft);
-
+                    column.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                    column.Item().PaddingTop(190).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 24));
                     if (!string.IsNullOrWhiteSpace(marking))
                     {
-                        column.Item().PaddingTop(245).Text(marking)
-                            .FontSize(8.5f)
-                            .SemiBold()
-                            .LetterSpacing(.8f)
-                            .FontColor(GoldSoft);
+                        column.Item().PaddingTop(210).Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.8f).FontColor(GoldSoft);
                     }
+                });
+                layers.Layer().AlignTop().Height(6).Background(Gold);
+                layers.Layer().AlignBottom().Height(16).Background(Forest900);
+            });
+        });
+    }
+
+    private static void ComposeImageEchoBackCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? hero,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo)
+    {
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Layers(layers =>
+            {
+                layers.PrimaryLayer().Column(column =>
+                {
+                    column.Item().Height(300).Background(Forest950).PaddingHorizontal(54).PaddingTop(44).Column(top =>
+                    {
+                        top.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                        top.Item().PaddingTop(48).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 25));
+                    });
+                    column.Item().Height(526).Element(tile => ComposeCoverTile(tile, hero));
+                    column.Item().Height(16).Background(Forest900);
+                });
+                if (!string.IsNullOrWhiteSpace(marking))
+                {
+                    layers.Layer().AlignBottom().PaddingBottom(30).PaddingHorizontal(54).Text(marking)
+                        .FontSize(8.2f).SemiBold().FontColor(GoldSoft);
+                }
+            });
+        });
+    }
+
+    private static void ComposePortfolioBackCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? hero,
+        byte[]? secondary1,
+        byte[]? secondary2,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo)
+    {
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Column(column =>
+            {
+                column.Item().Height(510).Background(Forest950).PaddingHorizontal(56).PaddingTop(50).Column(top =>
+                {
+                    top.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                    top.Item().PaddingTop(145).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 25));
+                    if (!string.IsNullOrWhiteSpace(marking)) top.Item().PaddingTop(18).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
+                });
+                column.Item().Height(316).Row(row =>
+                {
+                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, hero));
+                    row.ConstantItem(3).Background(Forest950);
+                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, secondary1));
+                    row.ConstantItem(3).Background(Forest950);
+                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, secondary2));
+                });
+                column.Item().Height(16).Background(Forest900);
+            });
+        });
+    }
+
+    private static void ComposeTypographyBackCover(
+        IDocumentContainer container,
+        string? title,
+        string? subtitle,
+        string? edition,
+        string? eyebrow,
+        string? marking,
+        byte[]? crest,
+        byte[]? sddMark,
+        CompendiumCoverLogoPlacement logoPlacement,
+        bool showLeftLogo,
+        bool showRightLogo,
+        bool clean)
+    {
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Layers(layers =>
+            {
+                layers.PrimaryLayer().Background(Forest950).PaddingHorizontal(66).PaddingVertical(58).Column(column =>
+                {
+                    column.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                    column.Item().PaddingTop(clean ? 270 : 220).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, clean ? 27 : 25));
+                    if (!string.IsNullOrWhiteSpace(marking)) column.Item().PaddingTop(180).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
                 });
                 layers.Layer().AlignTop().Height(6).Background(Gold);
                 layers.Layer().AlignBottom().Height(16).Background(Forest900);

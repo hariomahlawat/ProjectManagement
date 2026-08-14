@@ -38,11 +38,92 @@ public enum CompendiumImageSelectionMode
     Explicit = 1
 }
 
+public enum CompendiumImageFitMode
+{
+    Fill = 0,
+    Fit = 1
+}
+
 public enum CompendiumCoverImageMode
 {
     Automatic = 0,
     Explicit = 1,
     None = 2
+}
+
+public enum CompendiumFrontCoverTemplate
+{
+    InstitutionalHero = 0,
+    FullBleedHero = 1,
+    EditorialSplit = 2,
+    Triptych = 3,
+    Minimal = 4
+}
+
+public enum CompendiumBackCoverTemplate
+{
+    MinimalInstitutional = 0,
+    ImageEcho = 1,
+    PortfolioStrip = 2,
+    TypographyOnly = 3,
+    Clean = 4
+}
+
+public enum CompendiumCoverSurface
+{
+    Front = 0,
+    Back = 1
+}
+
+public enum CompendiumCoverLogoPlacement
+{
+    TopCorners = 0,
+    TopCenter = 1
+}
+
+public sealed record CompendiumCoverImageSlot(
+    CompendiumCoverSurface Surface,
+    string SlotKey,
+    CompendiumCoverImageMode ImageMode,
+    int? ProjectId,
+    int? PhotoId,
+    double FocalX,
+    double FocalY,
+    CompendiumImageFitMode FitMode);
+
+public sealed record CompendiumPhotoPreference(
+    int ProjectId,
+    int PhotoId,
+    bool PreferredForPublication,
+    bool SuitableForCoverHero);
+
+public sealed record CompendiumCoverDesign(
+    CompendiumFrontCoverTemplate FrontTemplate,
+    CompendiumBackCoverTemplate BackTemplate,
+    IReadOnlyList<CompendiumCoverImageSlot> Images)
+{
+    public string? FrontTitle { get; init; }
+    public string? FrontSubtitle { get; init; }
+    public string? FrontEdition { get; init; }
+    public string? FrontEyebrow { get; init; }
+    public string? BackTitle { get; init; }
+    public string? BackSubtitle { get; init; }
+    public string? BackEdition { get; init; }
+    public string? BackEyebrow { get; init; }
+    public bool ShowFrontTitle { get; init; } = true;
+    public bool ShowFrontSubtitle { get; init; } = true;
+    public bool ShowFrontEdition { get; init; } = true;
+    public bool ShowFrontLeftLogo { get; init; } = true;
+    public bool ShowFrontRightLogo { get; init; } = true;
+    public CompendiumCoverLogoPlacement FrontLogoPlacement { get; init; } = CompendiumCoverLogoPlacement.TopCorners;
+    public bool ShowBackTitle { get; init; } = true;
+    public bool ShowBackSubtitle { get; init; } = true;
+    public bool ShowBackEdition { get; init; } = true;
+    public bool ShowBackLeftLogo { get; init; } = true;
+    public bool ShowBackRightLogo { get; init; } = true;
+    public CompendiumCoverLogoPlacement BackLogoPlacement { get; init; } = CompendiumCoverLogoPlacement.TopCorners;
+    public IReadOnlyList<CompendiumPhotoPreference> PhotoPreferences { get; init; }
+        = Array.Empty<CompendiumPhotoPreference>();
 }
 
 public sealed record CompendiumPublicationSection(
@@ -124,6 +205,7 @@ public sealed record CompendiumProjectSelection(
     public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 public sealed record CompendiumReviewPhotoVm(
@@ -176,6 +258,7 @@ public sealed record CompendiumReviewProjectDto(
     public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
     public bool UsesNarrativeOverride { get; init; }
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 public sealed record CompendiumProjectDto(
@@ -215,6 +298,7 @@ public sealed record CompendiumProjectDto(
     public bool UsesNarrativeOverride { get; init; }
     public int PublicationYear { get; init; }
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 /// <summary>
@@ -307,6 +391,8 @@ public sealed record CompendiumPublicationRequest(
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public IReadOnlyList<CompendiumPublicationSection> Sections { get; init; } = Array.Empty<CompendiumPublicationSection>();
+    public CompendiumCoverDesign? CoverDesign { get; init; }
+    public IReadOnlyList<CompendiumPhotoPreference> PhotoPreferences { get; init; } = Array.Empty<CompendiumPhotoPreference>();
 }
 
 public sealed record CompendiumPdfDataDto(
@@ -322,6 +408,7 @@ public sealed record CompendiumPdfDataDto(
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
+    public CompendiumCoverDesign? CoverDesign { get; init; }
 }
 
 public static class CompendiumPublicationImagePolicy
@@ -397,12 +484,37 @@ public static class CompendiumPublicationImagePolicy
     public static int ResolveRenderHeightPixels(string? descriptionMarkdown)
         => (int)Math.Round(RenderWidthPixels * ResolveFrameHeightPoints(descriptionMarkdown) / FrameWidthPoints);
 
-    public static int? CalculateEffectiveDpi(int sourceWidth, int sourceHeight, string? descriptionMarkdown = null)
+    public static int? CalculateEffectiveDpi(
+        int sourceWidth,
+        int sourceHeight,
+        string? descriptionMarkdown = null,
+        CompendiumImageFitMode fitMode = CompendiumImageFitMode.Fill)
     {
         if (sourceWidth <= 0 || sourceHeight <= 0) return null;
         var frameHeight = ResolveFrameHeightPoints(descriptionMarkdown);
         var targetAspect = FrameWidthPoints / frameHeight;
         var sourceAspect = sourceWidth / (double)sourceHeight;
+
+        if (fitMode == CompendiumImageFitMode.Fit)
+        {
+            double displayWidthPoints;
+            double displayHeightPoints;
+            if (sourceAspect >= targetAspect)
+            {
+                displayWidthPoints = FrameWidthPoints;
+                displayHeightPoints = FrameWidthPoints / sourceAspect;
+            }
+            else
+            {
+                displayHeightPoints = frameHeight;
+                displayWidthPoints = frameHeight * sourceAspect;
+            }
+
+            var horizontalFitDpi = sourceWidth / (displayWidthPoints / 72d);
+            var verticalFitDpi = sourceHeight / (displayHeightPoints / 72d);
+            return (int)Math.Floor(Math.Min(horizontalFitDpi, verticalFitDpi));
+        }
+
         double cropWidth;
         double cropHeight;
         if (sourceAspect > targetAspect)

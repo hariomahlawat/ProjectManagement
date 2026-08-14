@@ -67,6 +67,7 @@
             focalX: clamp(project.primaryFocalX),
             focalY: clamp(project.primaryFocalY),
             imageSelectionMode: normalize(project.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
+            imageFitMode: normalize(project.imageFitMode) === "fit" ? "fit" : "fill",
             reviewFingerprint: null,
             customSectionKey: cleanKey(project.customSectionKey) || null,
             customSectionName: cleanName(project.customSectionName) || null,
@@ -105,6 +106,7 @@
                 focalX: clamp(incoming.focalX),
                 focalY: clamp(incoming.focalY),
                 imageSelectionMode: normalize(incoming.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
+                imageFitMode: normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill",
                 reviewFingerprint: String(incoming.reviewFingerprint || "").trim() || null,
                 customSectionKey: cleanKey(incoming.customSectionKey) || null,
                 customSectionName: cleanName(incoming.customSectionName) || null,
@@ -122,6 +124,7 @@
                 focalX: .5,
                 focalY: .5,
                 imageSelectionMode: "automatic",
+                imageFitMode: "fill",
                 reviewFingerprint: null,
                 customSectionKey: null,
                 customSectionName: null,
@@ -542,6 +545,7 @@
                 focalX: clamp(config.focalX),
                 focalY: clamp(config.focalY),
                 imageSelectionMode: config.imageSelectionMode,
+                imageFitMode: config.imageFitMode || "fill",
                 reviewFingerprint: config.reviewFingerprint || null,
                 customSectionKey: section?.sectionKey || null,
                 customSectionName: section?.name || null,
@@ -919,6 +923,7 @@
                 focalX: clamp(config.focalX),
                 focalY: clamp(config.focalY),
                 imageSelectionMode: config.imageSelectionMode === "explicit" ? "Explicit" : "Automatic",
+                imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
                 narrativeSourceOverride: config.narrativeSourceOverride || null
             };
         })

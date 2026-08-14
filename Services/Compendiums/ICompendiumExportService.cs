@@ -18,6 +18,8 @@ public sealed record CompendiumExportRequest(
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public IReadOnlyList<CompendiumPublicationSection> Sections { get; init; } = Array.Empty<CompendiumPublicationSection>();
+    public CompendiumCoverDesign? CoverDesign { get; init; }
+    public IReadOnlyList<CompendiumPhotoPreference> PhotoPreferences { get; init; } = Array.Empty<CompendiumPhotoPreference>();
 }
 
 public sealed record CompendiumExportResult(
