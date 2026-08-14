@@ -109,7 +109,8 @@
           data-save-url="@Url.Page("/Projects/Publications/Compendium/Index", "SavePreset")"
           data-rename-url="@Url.Page("/Projects/Publications/Compendium/Index", "RenamePreset")"
           data-duplicate-url="@Url.Page("/Projects/Publications/Compendium/Index", "DuplicatePreset")"
-          data-delete-url="@Url.Page("/Projects/Publications/Compendium/Index", "DeletePreset")">
+          data-delete-url="@Url.Page("/Projects/Publications/Compendium/Index", "DeletePreset")"
+          data-structure-editor-url="@Url.Page("/Projects/Publications/Compendium/Structure")">
         @Html.AntiForgeryToken()
         <input asp-for="Input.SelectedProjectIdsCsv" type="hidden" data-selected-project-ids />
         <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
@@ -312,7 +313,11 @@
                                             data-lifecycle="@project.Lifecycle"
                                             data-category="@project.ProjectCategory"
                                             data-technical="@project.TechnicalCategory"
-                                            data-proliferation="@(project.ProliferationAvailability == true ? "available" : project.ProliferationAvailability == false ? "notavailable" : "notassessed")">
+                                            data-proliferation="@(project.ProliferationAvailability == true ? "available" : project.ProliferationAvailability == false ? "notavailable" : "notassessed")"
+                                            role="option"
+                                            tabindex="0"
+                                            aria-selected="false"
+                                            title="Click anywhere on this row to select or deselect the project">
                                             <td class="compendium-project-col--select">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -577,6 +582,14 @@
                                 <button type="button" class="btn btn-outline-secondary" data-structure-collapse-all title="Collapse all sections" aria-label="Collapse all sections"><i class="bi bi-arrows-collapse" aria-hidden="true"></i></button>
                                 <button type="button" class="btn btn-outline-secondary" data-structure-expand-all title="Expand all sections" aria-label="Expand all sections"><i class="bi bi-arrows-expand" aria-hidden="true"></i></button>
                             </div>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary compendium-open-structure-editor"
+                                    data-open-structure-editor
+                                    title="Open the full-screen publication structure editor"
+                                    aria-label="Open full-screen publication structure editor">
+                                <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+                                <span>Structure editor</span>
+                            </button>
                             <button type="button" class="btn btn-sm btn-link" data-clear-selection hidden disabled aria-disabled="true">Clear selection</button>
                         </div>
                     </header>
@@ -796,6 +809,24 @@
     </div>
 </div>
 
+<div class="modal fade" id="compendiumClearSelectionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Clear project selection?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" data-clear-selection-message>
+                Remove all selected projects from this Compendium? Project master data will not be changed.
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-clear-selection-confirm>Clear selection</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="compendiumDeleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -814,5 +845,6 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/projects/compendium-structure-state.js" asp-append-version="true"></script>
     <script src="~/js/pages/projects-compendium.js" asp-append-version="true"></script>
 }

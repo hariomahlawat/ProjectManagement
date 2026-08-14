@@ -1,0 +1,187 @@
+@page "/Projects/Publications/Compendium/Structure"
+@model ProjectManagement.Pages.Projects.Publications.Compendium.StructureModel
+@using System.Text.Json
+@using ProjectManagement.Services.Publications
+@{
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
+    ViewData["Title"] = "Compendium Structure Editor";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-publications.css" asp-append-version="true" />
+}
+
+<div class="compendium-structure-editor-page" data-compendium-structure-editor>
+    <form method="post" class="compendium-structure-editor-token" aria-hidden="true">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <script type="application/json" data-structure-editor-bootstrap>@Html.Raw(Model.BootstrapJson)</script>
+
+    <header class="compendium-structure-editor-header">
+        <div class="compendium-structure-editor-heading">
+            <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Publications/Compendium/Index" asp-route-presetId="@Model.PresetId" data-structure-back>
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Back to Compendium</span>
+            </a>
+            <div>
+                <p>PUBLICATION COMPOSER</p>
+                <h1>Publication Structure</h1>
+                <span data-editor-heading-meta>@(Model.Preset?.Name ?? "Simulators Compendium")</span>
+            </div>
+        </div>
+        <div class="compendium-structure-editor-commands">
+            <span class="compendium-structure-editor-dirty" data-editor-dirty hidden>Modified</span>
+            @if (Model.CanManagePresets)
+            {
+                <button type="button" class="btn btn-outline-primary" data-editor-save disabled>
+                    <i class="bi bi-floppy" aria-hidden="true"></i> Save
+                </button>
+            }
+            else
+            {
+                <span class="compendium-structure-editor-readonly" title="Only HoD or Comdt may save shared Compendium configurations">Local editing</span>
+            }
+            <button type="button" class="btn btn-primary" data-editor-done>
+                Done
+            </button>
+        </div>
+    </header>
+
+    @foreach (var diagnostic in Model.Diagnostics)
+    {
+        var alertClass = diagnostic.Severity == CompendiumPresetDiagnosticSeverity.Warning ? "alert-warning" : "alert-info";
+        <div class="alert @alertClass py-2 mb-2">@diagnostic.Message</div>
+    }
+
+    <div class="compendium-structure-editor-summary">
+        <div>
+            <strong data-editor-project-count>@(Model.Preset?.ProjectCount ?? 0)</strong>
+            <span>projects</span>
+        </div>
+        <i aria-hidden="true"></i>
+        <div>
+            <strong data-editor-section-count>0</strong>
+            <span>sections</span>
+        </div>
+        <i aria-hidden="true"></i>
+        <div>
+            <strong data-editor-order-label>Manual order</strong>
+            <span>project sequence</span>
+        </div>
+        <p data-editor-guidance>Drag projects between sections or use bulk Move to section for large publications.</p>
+    </div>
+
+    <main class="compendium-structure-editor-layout">
+        <aside class="compendium-structure-editor-projects" aria-label="Selected publication projects">
+            <header>
+                <div>
+                    <h2>Projects</h2>
+                    <span>Selected publication projects</span>
+                </div>
+                <span data-editor-visible-count></span>
+            </header>
+
+            <div class="compendium-structure-editor-search">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search" class="form-control" placeholder="Search selected projects..." data-editor-search />
+            </div>
+
+            <div class="compendium-structure-editor-quickfilters" role="group" aria-label="Project quick filters">
+                <button type="button" class="active" data-editor-filter="all">All <span data-filter-count="all">0</span></button>
+                <button type="button" data-editor-filter="unassigned">Unassigned <span data-filter-count="unassigned">0</span></button>
+                <button type="button" data-editor-filter="warning">Warnings <span data-filter-count="warning">0</span></button>
+                <button type="button" data-editor-filter="unreviewed">Unreviewed <span data-filter-count="unreviewed">0</span></button>
+            </div>
+
+            <div class="compendium-structure-editor-selection" data-editor-selection-toolbar hidden>
+                <strong><span data-editor-selected-count>0</span> selected</strong>
+                <button type="button" data-editor-clear-selection>Clear</button>
+            </div>
+
+            <div class="compendium-structure-editor-project-list" data-editor-project-list></div>
+        </aside>
+
+        <section class="compendium-structure-editor-canvas-panel" aria-label="Publication structure canvas">
+            <header class="compendium-structure-editor-canvas-toolbar">
+                <div>
+                    <h2>Publication canvas</h2>
+                    <span data-editor-mode-copy>Custom sections · Manual order</span>
+                </div>
+                <div class="compendium-structure-editor-canvas-actions">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Section visibility">
+                        <button type="button" class="btn btn-outline-secondary" data-editor-collapse-all title="Collapse all sections"><i class="bi bi-arrows-collapse" aria-hidden="true"></i><span>Collapse all</span></button>
+                        <button type="button" class="btn btn-outline-secondary" data-editor-expand-all title="Expand all sections"><i class="bi bi-arrows-expand" aria-hidden="true"></i><span>Expand all</span></button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="compendium-structure-editor-bulk" data-editor-bulk hidden>
+                <div>
+                    <strong><span data-editor-bulk-count>0</span> projects selected</strong>
+                    <span>Apply one action to the selected projects.</span>
+                </div>
+                <select class="form-select form-select-sm" data-editor-bulk-section aria-label="Move selected projects to section"></select>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-editor-bulk-move>Move</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-editor-bulk-remove>Remove from publication</button>
+            </div>
+
+            <div class="compendium-structure-editor-add-section" data-editor-add-section-wrap>
+                <input type="text" class="form-control" maxlength="120" placeholder="New publication section" data-editor-new-section />
+                <button type="button" class="btn btn-outline-secondary" data-editor-add-section><i class="bi bi-plus-lg" aria-hidden="true"></i> Add section</button>
+            </div>
+
+            <div class="compendium-structure-editor-sort-note" data-editor-sort-note hidden>
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                <span>Projects are automatically ordered inside each section. Section assignment remains editable.</span>
+            </div>
+
+            <div class="compendium-structure-editor-canvas" data-editor-canvas></div>
+        </section>
+
+        <aside class="compendium-structure-editor-sections" aria-label="Section navigator">
+            <header>
+                <div>
+                    <h2>Sections</h2>
+                    <span>Jump to a publication section</span>
+                </div>
+            </header>
+            <nav data-editor-section-nav></nav>
+            <div class="compendium-structure-editor-unassigned-callout" data-editor-unassigned-callout hidden>
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <div>
+                    <strong><span data-editor-unassigned-count>0</span> unassigned</strong>
+                    <span>Assign these projects where possible before final issue.</span>
+                </div>
+            </div>
+        </aside>
+    </main>
+</div>
+
+<div class="modal fade" id="compendiumStructureLeaveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Unsaved structure changes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                The publication structure has changed. Save before returning to the Compendium, return with the changes kept locally, or stay in the editor.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-danger" data-editor-return-unsaved>Return without saving</button>
+                @if (Model.CanManagePresets)
+                {
+                    <button type="button" class="btn btn-primary" data-editor-save-return>Save and return</button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/projects/compendium-structure-state.js" asp-append-version="true"></script>
+    <script src="~/js/pages/projects-compendium-structure-editor.js" asp-append-version="true"></script>
+}

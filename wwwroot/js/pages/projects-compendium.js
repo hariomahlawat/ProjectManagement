@@ -179,6 +179,9 @@
     const collapsedGroupKeys = new Set();
     let activeFindingQueue = [];
     let outputDockObserver = null;
+    let lastSelectionAnchorId = null;
+    let resumedStructureHandoff = null;
+    let serverBaselineBeforeStructureResume = null;
 
     const $ = selector => form.querySelector(selector);
     const rows = [...form.querySelectorAll("[data-project-row]")];
@@ -300,6 +303,7 @@
     const renameButton = document.querySelector("[data-compendium-rename]");
     const duplicateButton = document.querySelector("[data-compendium-duplicate]");
     const deleteButton = document.querySelector("[data-compendium-delete]");
+    const openStructureEditor = form.querySelector("[data-open-structure-editor]");
 
     const photoModalNode = document.getElementById("compendiumPhotoModal");
     const photoModalProject = document.querySelector("[data-photo-modal-project]");
@@ -330,6 +334,9 @@
     const sectionDeleteMessage = document.querySelector("[data-section-delete-message]");
     const sectionDeleteConfirm = document.querySelector("[data-section-delete-confirm]");
     const deleteModal = bootstrapModal("compendiumDeleteModal");
+    const clearSelectionModal = bootstrapModal("compendiumClearSelectionModal");
+    const clearSelectionMessage = document.querySelector("[data-clear-selection-message]");
+    const clearSelectionConfirm = document.querySelector("[data-clear-selection-confirm]");
     let pendingSectionDeleteKey = null;
     const saveName = document.querySelector("[data-save-name]");
     const saveDescription = document.querySelector("[data-save-description]");
@@ -400,11 +407,112 @@
         if (renameButton) renameButton.disabled = !activePresetId;
         if (duplicateButton) duplicateButton.disabled = !activePresetId;
         if (deleteButton) deleteButton.disabled = !activePresetId;
+        if (openStructureEditor) {
+            openStructureEditor.disabled = !activePresetId;
+            openStructureEditor.setAttribute("aria-disabled", activePresetId ? "false" : "true");
+            openStructureEditor.title = activePresetId
+                ? "Open the full-screen publication structure editor"
+                : "Save or load a Compendium before opening the structure editor";
+        }
         return dirty;
     };
     const markClean = () => {
         baselineSnapshot = captureSnapshot();
         renderDirty();
+    };
+
+
+    const structureHandoffApi = globalThis.PrismCompendiumStructure || null;
+    const structureHandoffSnapshot = persisted => {
+        const configs = {};
+        const projectStates = {};
+        orderedIds.forEach(id => {
+            const config = ensureConfig(id);
+            configs[id] = {
+                primaryPhotoId: config.primaryPhotoId,
+                focalX: roundFocal(config.focalX),
+                focalY: roundFocal(config.focalY),
+                imageSelectionMode: config.imageSelectionMode,
+                reviewFingerprint: config.reviewFingerprint || null,
+                customSectionKey: config.customSectionKey || null,
+                customSectionName: config.customSectionName || null,
+                narrativeSourceOverride: config.narrativeSourceOverride || null
+            };
+            const state = stateFor(id) || {};
+            const findings = findingsFor(id);
+            projectStates[id] = {
+                isReviewed: Boolean(state.isReviewed || config.reviewFingerprint),
+                isReviewStale: Boolean(state.isReviewStale),
+                severity: findings.some(f => f.severity === "blocker") ? "blocker"
+                    : findings.some(f => f.severity === "warning") ? "warning"
+                        : "",
+                warningCount: findings.filter(f => f.severity === "warning").length,
+                blockerCount: findings.filter(f => f.severity === "blocker").length
+            };
+        });
+        return {
+            presetId: activePresetId,
+            rowVersion: activeRowVersion,
+            persisted: persisted !== false,
+            source: "compendium",
+            returnUrl: `${location.pathname}?presetId=${Number(activePresetId || 0)}&resumeStructure=1#compendium-select`,
+            editorialState: { ...editorialState },
+            orderedIds: [...orderedIds],
+            sections: serializeSections(),
+            configs,
+            projectStates
+        };
+    };
+
+    const writeStructureHandoff = persisted => {
+        if (!activePresetId || !structureHandoffApi?.write) return false;
+        return structureHandoffApi.write(structureHandoffSnapshot(persisted));
+    };
+
+    const applyStructureHandoffOnResume = () => {
+        if (!activePresetId || !structureHandoffApi?.read) return null;
+        const params = new URLSearchParams(location.search);
+        if (params.get("resumeStructure") !== "1") return null;
+        const snapshot = structureHandoffApi.read(activePresetId);
+        if (!snapshot) return null;
+
+        const validIds = snapshot.orderedIds.filter(id => projectById.has(Number(id))).map(Number);
+        if (validIds.length) orderedIds = [...new Set(validIds)];
+        else orderedIds = [];
+
+        customSections = (snapshot.sections || []).map((section, index) => ({
+            sectionKey: cleanSectionKey(section.sectionKey) || createSectionKey(),
+            name: cleanSectionName(section.name),
+            sortOrder: index
+        })).filter(section => section.name);
+
+        orderedIds.forEach(id => {
+            const incoming = snapshot.configs?.[id] || snapshot.configs?.[String(id)] || null;
+            if (!incoming) return;
+            const config = ensureConfig(id);
+            config.primaryPhotoId = Number(incoming.primaryPhotoId) > 0 ? Number(incoming.primaryPhotoId) : null;
+            config.focalX = roundFocal(incoming.focalX);
+            config.focalY = roundFocal(incoming.focalY);
+            config.imageSelectionMode = normalize(incoming.imageSelectionMode) === "explicit" ? "explicit" : "automatic";
+            config.reviewFingerprint = String(incoming.reviewFingerprint || "").trim() || null;
+            const section = incoming.customSectionKey ? customSections.find(item => normalize(item.sectionKey) === normalize(incoming.customSectionKey)) : null;
+            config.customSectionKey = section?.sectionKey || null;
+            config.customSectionName = section?.name || null;
+            config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
+        });
+
+        if (snapshot.editorialState) {
+            editorialState.narrativeSource = normalizeNarrative(snapshot.editorialState.narrativeSource);
+            editorialState.groupingMode = normalizeGrouping(snapshot.editorialState.groupingMode);
+            editorialState.sortMode = normalizeSort(snapshot.editorialState.sortMode);
+        }
+        if (snapshot.rowVersion) activeRowVersion = snapshot.rowVersion;
+        if (!orderedIds.includes(Number(activeReviewId))) activeReviewId = orderedIds[0] ?? null;
+
+        const url = new URL(location.href);
+        url.searchParams.delete("resumeStructure");
+        history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+        return snapshot;
     };
 
     const photoPreviewUrl = (projectId, photoId) => {
@@ -520,8 +628,10 @@
     const updateCheckboxes = () => rows.forEach(row => {
         const id = Number(row.dataset.id);
         const box = row.querySelector("[data-project-checkbox]");
-        if (box instanceof HTMLInputElement) box.checked = isSelected(id);
-        row.classList.toggle("is-selected", isSelected(id));
+        const selected = isSelected(id);
+        if (box instanceof HTMLInputElement) box.checked = selected;
+        row.classList.toggle("is-selected", selected);
+        row.setAttribute("aria-selected", selected ? "true" : "false");
     });
 
     const stateFor = id => projectStateById.get(Number(id)) || null;
@@ -1449,18 +1559,64 @@
         schedulePreflight();
     };
 
-    rows.forEach(row => row.querySelector("[data-project-checkbox]")?.addEventListener("change", event => {
-        const id = Number(row.dataset.id);
-        if (event.currentTarget.checked) {
-            if (!isSelected(id)) orderedIds.push(id);
-            ensureConfig(id);
-            activeReviewId ??= id;
+    const setProjectSelected = (id, selected) => {
+        const projectId = Number(id);
+        if (!projectId || !projectById.has(projectId)) return;
+        if (selected) {
+            if (!isSelected(projectId)) orderedIds.push(projectId);
+            ensureConfig(projectId);
+            activeReviewId ??= projectId;
         } else {
-            orderedIds = orderedIds.filter(projectId => projectId !== id);
-            if (activeReviewId === id) activeReviewId = orderedIds[0] ?? null;
+            orderedIds = orderedIds.filter(value => value !== projectId);
+            if (activeReviewId === projectId) activeReviewId = orderedIds[0] ?? null;
         }
+    };
+
+    const applySelectionRange = (anchorId, targetId, selected) => {
+        const visible = visibleRows();
+        const from = visible.findIndex(row => Number(row.dataset.id) === Number(anchorId));
+        const to = visible.findIndex(row => Number(row.dataset.id) === Number(targetId));
+        if (from < 0 || to < 0) {
+            setProjectSelected(targetId, selected);
+            return;
+        }
+        const start = Math.min(from, to), end = Math.max(from, to);
+        visible.slice(start, end + 1).forEach(row => setProjectSelected(Number(row.dataset.id), selected));
+    };
+
+    const rowTargetIsInteractive = target => Boolean(target?.closest?.("input,button,a,select,textarea,label,[role='button'],[contenteditable='true']"));
+    const toggleProjectFromRow = (row, event) => {
+        const id = Number(row.dataset.id);
+        if (!id) return;
+        const next = !isSelected(id);
+        if (event?.shiftKey && lastSelectionAnchorId) applySelectionRange(lastSelectionAnchorId, id, next);
+        else setProjectSelected(id, next);
+        lastSelectionAnchorId = id;
         selectionChanged();
-    }));
+    };
+
+    rows.forEach(row => {
+        const box = row.querySelector("[data-project-checkbox]");
+        box?.addEventListener("click", event => {
+            event.stopPropagation();
+            const id = Number(row.dataset.id);
+            const next = Boolean(event.currentTarget.checked);
+            if (event.shiftKey && lastSelectionAnchorId) applySelectionRange(lastSelectionAnchorId, id, next);
+            else setProjectSelected(id, next);
+            lastSelectionAnchorId = id;
+            selectionChanged();
+        });
+        row.addEventListener("click", event => {
+            if (rowTargetIsInteractive(event.target)) return;
+            toggleProjectFromRow(row, event);
+        });
+        row.addEventListener("keydown", event => {
+            if (event.key !== " " && event.key !== "Spacebar") return;
+            if (rowTargetIsInteractive(event.target) && event.target !== row) return;
+            event.preventDefault();
+            toggleProjectFromRow(row, event);
+        });
+    });
     [search, lifecycle, category, technical, proliferation, selectedOnly].forEach(control => control?.addEventListener(control === search ? "input" : "change", applyFilters));
     selectMatching?.addEventListener("click", () => {
         visibleRows().filter(row => !isSelected(Number(row.dataset.id))).slice(0, 100).forEach(row => {
@@ -1470,7 +1626,22 @@
         activeReviewId ??= orderedIds[0] ?? null;
         selectionChanged();
     });
-    clearSelection?.addEventListener("click", () => { orderedIds = []; activeReviewId = null; activeReviewData = null; selectionChanged(); });
+    const clearAllSelectedProjects = () => {
+        orderedIds = [];
+        activeReviewId = null;
+        activeReviewData = null;
+        lastSelectionAnchorId = null;
+        selectionChanged();
+    };
+    clearSelection?.addEventListener("click", () => {
+        if (orderedIds.length < 50 || !clearSelectionModal) { clearAllSelectedProjects(); return; }
+        if (clearSelectionMessage) clearSelectionMessage.textContent = `Remove all ${orderedIds.length} selected projects from this Compendium? Project master data will not be changed.`;
+        clearSelectionModal.show();
+    });
+    clearSelectionConfirm?.addEventListener("click", () => {
+        clearSelectionModal?.hide();
+        clearAllSelectedProjects();
+    });
 
     const normalizeSectionOrders = () => customSections.forEach((section, index) => { section.sortOrder = index; });
     const moveSection = (sectionKey, delta) => {
@@ -1905,6 +2076,19 @@
     presetLoad?.addEventListener("click", () => requestLoad(presetSelect?.value));
     document.querySelector("[data-discard-load]")?.addEventListener("click", () => { discardModal?.hide(); location.assign(presetUrl(pendingLoadPresetId)); });
 
+    openStructureEditor?.addEventListener("click", () => {
+        if (!activePresetId) {
+            window.alert("Save or load this Compendium before opening the full-screen Structure Editor.");
+            return;
+        }
+        syncHidden();
+        const persisted = !renderDirty();
+        writeStructureHandoff(persisted);
+        const target = new URL(form.dataset.structureEditorUrl || "/Projects/Publications/Compendium/Structure", location.origin);
+        target.searchParams.set("presetId", String(activePresetId));
+        location.assign(target.toString());
+    });
+
     const post = async (url, payload) => {
         const response = await fetch(url, { method: "POST", body: payload, headers: { "X-Requested-With": "XMLHttpRequest" } });
         const body = await response.json().catch(() => ({}));
@@ -1976,6 +2160,8 @@
         reviewAndAdvance();
     });
 
+    serverBaselineBeforeStructureResume = captureSnapshot();
+    resumedStructureHandoff = applyStructureHandoffOnResume();
     syncHidden();
     renderCoverSetting();
     updateCheckboxes();
@@ -1986,7 +2172,9 @@
     refreshReviewProgress();
     updateReviewNavigation();
     setFindingToolbarAvailability(orderedIds.length > 0);
-    baselineSnapshot = captureSnapshot();
+    baselineSnapshot = resumedStructureHandoff && resumedStructureHandoff.persisted === false
+        ? serverBaselineBeforeStructureResume
+        : captureSnapshot();
     renderDirty();
     renderPdfVerification();
     setupOutputDockObserver();

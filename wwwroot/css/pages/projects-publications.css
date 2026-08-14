@@ -3669,3 +3669,562 @@ body.brochure-modal-open { overflow: hidden; }
     .compendium-review-image-summary { grid-template-columns: 1fr; }
     .compendium-builder-page .compendium-review-inspector .compendium-review-image-frame { width: 100%; min-width: 0; }
 }
+
+/* ==========================================================================
+   Simulators Compendium - Phase 29 large-publication structure composer
+   Whole-row portfolio selection plus a dedicated full-screen Structure Editor.
+   ========================================================================== */
+
+/* The project register is a selection surface: the checkbox remains the explicit
+   state control, while the full row becomes the practical pointer/keyboard target. */
+.compendium-builder-page .compendium-project-table tbody tr[data-project-row] {
+    cursor: pointer;
+    transition: background-color .14s ease, box-shadow .14s ease;
+}
+.compendium-builder-page .compendium-project-table tbody tr[data-project-row]:hover {
+    background: #f6faf8;
+}
+.compendium-builder-page .compendium-project-table tbody tr[data-project-row].is-selected {
+    background: #edf7f2;
+    box-shadow: inset 3px 0 #2d7258;
+}
+.compendium-builder-page .compendium-project-table tbody tr[data-project-row].is-selected:hover {
+    background: #e8f4ee;
+}
+.compendium-builder-page .compendium-project-table tbody tr[data-project-row]:focus-visible {
+    outline: 2px solid #5d9a82;
+    outline-offset: -2px;
+    background: #f1f8f5;
+}
+.compendium-builder-page .compendium-project-table [data-project-checkbox] { cursor: pointer; }
+.compendium-open-structure-editor {
+    display: inline-flex;
+    align-items: center;
+    gap: .32rem;
+    white-space: nowrap;
+    color: #345f50;
+}
+.compendium-open-structure-editor i { font-size: .72rem; }
+@media (max-width: 1699.98px) {
+    .compendium-open-structure-editor span { display: none; }
+    .compendium-open-structure-editor { width: 30px; height: 30px; justify-content: center; padding: 0; }
+}
+
+/* Full-screen publication structure editor. */
+.compendium-structure-editor-page {
+    width: 100%;
+    max-width: none;
+    padding: clamp(14px, 1.5vw, 26px) clamp(18px, 2vw, 38px) 24px;
+    color: #243c33;
+}
+.compendium-structure-editor-token { display: none; }
+.compendium-structure-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .75rem;
+    padding: .82rem 1rem;
+    border: 1px solid #dce6e2;
+    border-radius: 14px;
+    background: rgba(255,255,255,.96);
+    box-shadow: 0 8px 24px rgba(30, 66, 54, .045);
+}
+.compendium-structure-editor-heading {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    min-width: 0;
+}
+.compendium-structure-editor-heading > div { min-width: 0; }
+.compendium-structure-editor-heading p {
+    margin: 0 0 .1rem;
+    color: #39715d;
+    font-size: .58rem;
+    font-weight: 800;
+    letter-spacing: .13em;
+}
+.compendium-structure-editor-heading h1 {
+    margin: 0;
+    color: #183228;
+    font-size: clamp(1.25rem, 1.45vw, 1.6rem);
+    line-height: 1.1;
+}
+.compendium-structure-editor-heading span {
+    display: block;
+    margin-top: .18rem;
+    overflow: hidden;
+    color: #75867f;
+    font-size: .68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-structure-editor-commands {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex: 0 0 auto;
+}
+.compendium-structure-editor-dirty,
+.compendium-structure-editor-readonly {
+    padding: .24rem .5rem;
+    border: 1px solid #e3d39d;
+    border-radius: 999px;
+    background: #fff8de;
+    color: #826214;
+    font-size: .59rem;
+    font-weight: 700;
+}
+.compendium-structure-editor-readonly {
+    border-color: #dce4e1;
+    background: #f5f7f6;
+    color: #72817b;
+}
+.compendium-structure-editor-summary {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    min-height: 50px;
+    margin-bottom: .75rem;
+    padding: .55rem .9rem;
+    border: 1px solid #dfe8e4;
+    border-radius: 12px;
+    background: #f7faf8;
+}
+.compendium-structure-editor-summary > div {
+    display: flex;
+    align-items: baseline;
+    gap: .32rem;
+    white-space: nowrap;
+}
+.compendium-structure-editor-summary > div strong { color: #204f3f; font-size: .76rem; }
+.compendium-structure-editor-summary > div span { color: #75867f; font-size: .61rem; }
+.compendium-structure-editor-summary > i {
+    width: 1px;
+    height: 20px;
+    background: #d7e2de;
+}
+.compendium-structure-editor-summary > p {
+    margin: 0 0 0 auto;
+    color: #71827b;
+    font-size: .62rem;
+    text-align: right;
+}
+
+.compendium-structure-editor-layout {
+    display: grid;
+    grid-template-columns: minmax(270px, 20vw) minmax(560px, 1fr) minmax(220px, 16vw);
+    gap: .8rem;
+    height: clamp(580px, calc(100vh - 330px), 900px);
+    min-height: 580px;
+    align-items: stretch;
+}
+.compendium-structure-editor-projects,
+.compendium-structure-editor-canvas-panel,
+.compendium-structure-editor-sections {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid #dce6e2;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(32, 70, 57, .035);
+}
+.compendium-structure-editor-projects,
+.compendium-structure-editor-canvas-panel,
+.compendium-structure-editor-sections {
+    display: flex;
+    flex-direction: column;
+}
+.compendium-structure-editor-projects > header,
+.compendium-structure-editor-sections > header,
+.compendium-structure-editor-canvas-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    flex: 0 0 auto;
+    padding: .72rem .78rem;
+    border-bottom: 1px solid #e2e9e6;
+    background: #fbfcfc;
+}
+.compendium-structure-editor-projects > header h2,
+.compendium-structure-editor-sections > header h2,
+.compendium-structure-editor-canvas-toolbar h2 {
+    margin: 0;
+    color: #1f3d32;
+    font-size: .86rem;
+}
+.compendium-structure-editor-projects > header span,
+.compendium-structure-editor-sections > header span,
+.compendium-structure-editor-canvas-toolbar span {
+    display: block;
+    margin-top: .08rem;
+    color: #7b8b85;
+    font-size: .57rem;
+}
+.compendium-structure-editor-projects > header > span { margin: 0; white-space: nowrap; }
+
+.compendium-structure-editor-search {
+    position: relative;
+    flex: 0 0 auto;
+    margin: .65rem .7rem .45rem;
+}
+.compendium-structure-editor-search > i {
+    position: absolute;
+    top: 50%;
+    left: .65rem;
+    z-index: 1;
+    transform: translateY(-50%);
+    color: #7a8d85;
+    font-size: .72rem;
+}
+.compendium-structure-editor-search input {
+    min-height: 36px;
+    padding-left: 2rem;
+    font-size: .7rem;
+}
+.compendium-structure-editor-quickfilters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .28rem;
+    flex: 0 0 auto;
+    padding: 0 .7rem .55rem;
+}
+.compendium-structure-editor-quickfilters button {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    padding: .25rem .42rem;
+    border: 1px solid #dce5e1;
+    border-radius: 7px;
+    background: #fff;
+    color: #60736b;
+    font-size: .57rem;
+}
+.compendium-structure-editor-quickfilters button span {
+    min-width: 17px;
+    padding: .04rem .25rem;
+    border-radius: 999px;
+    background: #f0f4f2;
+    text-align: center;
+    font-size: .5rem;
+}
+.compendium-structure-editor-quickfilters button.active {
+    border-color: #76a592;
+    background: #edf7f2;
+    color: #255d48;
+}
+.compendium-structure-editor-selection {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    margin: 0 .7rem .5rem;
+    padding: .35rem .5rem;
+    border-radius: 7px;
+    background: #edf6f2;
+    color: #356351;
+    font-size: .59rem;
+}
+.compendium-structure-editor-selection button {
+    border: 0;
+    background: transparent;
+    color: #376e59;
+    font-size: .57rem;
+    text-decoration: underline;
+}
+.compendium-structure-editor-project-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 0 .45rem .55rem;
+    scrollbar-gutter: stable;
+}
+.compendium-structure-editor-project-row {
+    display: grid;
+    grid-template-columns: 18px minmax(0,1fr) 22px;
+    gap: .45rem;
+    align-items: center;
+    padding: .5rem .48rem;
+    border-bottom: 1px solid #edf1ef;
+    border-radius: 7px;
+    cursor: pointer;
+}
+.compendium-structure-editor-project-row:hover { background: #f7faf8; }
+.compendium-structure-editor-project-row.is-selected {
+    background: #eaf5f0;
+    box-shadow: inset 3px 0 #2d7359;
+}
+.compendium-structure-editor-project-row:focus-visible { outline: 2px solid #6ca38d; outline-offset: -2px; }
+.compendium-structure-editor-project-copy { min-width: 0; }
+.compendium-structure-editor-project-copy strong,
+.compendium-structure-editor-project-copy span,
+.compendium-structure-editor-project-copy small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compendium-structure-editor-project-copy strong { color: #263e35; font-size: .66rem; line-height: 1.3; }
+.compendium-structure-editor-project-copy span { margin-top: .06rem; color: #778981; font-size: .56rem; }
+.compendium-structure-editor-project-copy small { margin-top: .12rem; color: #43715f; font-size: .53rem; font-weight: 650; }
+.compendium-structure-editor-project-state { display: grid; place-items: center; font-size: .66rem; }
+.compendium-structure-editor-project-state .is-ready { color: #2f7b5d; }
+.compendium-structure-editor-project-state .is-warning { color: #b17b0e; }
+.compendium-structure-editor-project-state .is-blocker { color: #b53d48; }
+.compendium-structure-editor-project-state .is-review { color: #a1aca7; }
+
+.compendium-structure-editor-canvas-actions { display: flex; align-items: center; gap: .4rem; }
+.compendium-structure-editor-canvas-actions .btn { font-size: .59rem; }
+.compendium-structure-editor-canvas-actions .btn i { margin-right: .2rem; }
+.compendium-structure-editor-bulk {
+    display: grid;
+    grid-template-columns: minmax(170px,1fr) minmax(180px,260px) auto auto;
+    gap: .45rem;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: .55rem .7rem;
+    border-bottom: 1px solid #d9e5e0;
+    background: #edf7f2;
+}
+.compendium-structure-editor-bulk > div strong,
+.compendium-structure-editor-bulk > div span { display: block; }
+.compendium-structure-editor-bulk > div strong { color: #295e49; font-size: .65rem; }
+.compendium-structure-editor-bulk > div span { color: #70827a; font-size: .54rem; }
+.compendium-structure-editor-add-section {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: .45rem;
+    flex: 0 0 auto;
+    padding: .55rem .7rem;
+    border-bottom: 1px solid #e2e9e6;
+}
+.compendium-structure-editor-add-section input { min-height: 34px; font-size: .67rem; }
+.compendium-structure-editor-add-section .btn { font-size: .62rem; }
+.compendium-structure-editor-sort-note {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex: 0 0 auto;
+    padding: .42rem .7rem;
+    border-bottom: 1px solid #e7ecea;
+    background: #f7f9f8;
+    color: #667970;
+    font-size: .58rem;
+}
+.compendium-structure-editor-canvas {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: .7rem;
+    background: #f5f8f6;
+    scrollbar-gutter: stable;
+    scroll-behavior: smooth;
+}
+.compendium-structure-editor-section {
+    margin-bottom: .65rem;
+    overflow: hidden;
+    border: 1px solid #d9e4df;
+    border-radius: 11px;
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.compendium-structure-editor-section.is-drop-target {
+    border-color: #5b987f;
+    box-shadow: 0 0 0 2px rgba(60, 126, 99, .12);
+}
+.compendium-structure-editor-section.is-unassigned { border-color: #ead8a8; }
+.compendium-structure-editor-section > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .7rem;
+    min-height: 48px;
+    padding: .48rem .55rem;
+    border-bottom: 1px solid #dde8e3;
+    background: #eaf4ef;
+}
+.compendium-structure-editor-section.is-unassigned > header { background: #fff7e3; border-color: #ead8a8; }
+.compendium-structure-editor-section.is-collapsed > header { border-bottom: 0; }
+.compendium-structure-editor-section-title {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.compendium-structure-editor-section-title input {
+    width: min(460px, 80%);
+    min-width: 150px;
+    height: 31px;
+    padding: .18rem .38rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #245341;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+.compendium-structure-editor-section-title input:hover,
+.compendium-structure-editor-section-title input:focus { border-color: #b7d2c6; background: #fff; outline: 0; }
+.compendium-structure-editor-section-label {
+    color: #245341;
+    font-size: .69rem;
+    font-weight: 800;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+}
+.compendium-structure-editor-section-grip,
+.compendium-structure-editor-section-actions button,
+.compendium-structure-editor-project-grip {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #6d8379;
+    font-size: .66rem;
+}
+.compendium-structure-editor-section-grip { cursor: grab; }
+.compendium-structure-editor-section-grip:active,
+.compendium-structure-editor-project-grip:active { cursor: grabbing; }
+.compendium-structure-editor-section-actions {
+    display: flex;
+    align-items: center;
+    gap: .16rem;
+    flex: 0 0 auto;
+}
+.compendium-structure-editor-section-actions small { margin-right: .25rem; color: #73877e; font-size: .56rem; white-space: nowrap; }
+.compendium-structure-editor-section-actions button:hover:not(:disabled),
+.compendium-structure-editor-section-grip:hover,
+.compendium-structure-editor-project-grip:hover { background: rgba(38, 103, 79, .08); color: #285f4b; }
+.compendium-structure-editor-section-actions button:disabled { opacity: .25; }
+.compendium-structure-editor-section-body { min-height: 10px; }
+.compendium-structure-editor-project-card {
+    display: grid;
+    grid-template-columns: 28px 18px minmax(0,1fr) 24px;
+    gap: .4rem;
+    align-items: center;
+    min-height: 50px;
+    padding: .42rem .55rem;
+    border-bottom: 1px solid #edf1ef;
+    background: #fff;
+}
+.compendium-structure-editor-project-card:last-child { border-bottom: 0; }
+.compendium-structure-editor-project-card:hover { background: #fafcfb; }
+.compendium-structure-editor-project-card.is-selected { background: #edf7f2; }
+.compendium-structure-editor-project-card.is-dragging { opacity: .45; }
+.compendium-structure-editor-project-card.is-auto-ordered .compendium-structure-editor-project-grip { color: #acb6b2; }
+.compendium-structure-editor-project-card > div { min-width: 0; }
+.compendium-structure-editor-project-card strong,
+.compendium-structure-editor-project-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compendium-structure-editor-project-card strong { color: #283f36; font-size: .67rem; }
+.compendium-structure-editor-project-card span { margin-top: .08rem; color: #7b8a84; font-size: .56rem; }
+.compendium-structure-editor-project-grip { cursor: grab; }
+.compendium-structure-editor-drop-empty {
+    display: grid;
+    place-items: center;
+    min-height: 54px;
+    margin: .45rem;
+    border: 1px dashed #b9cec5;
+    border-radius: 8px;
+    color: #82938c;
+    font-size: .59rem;
+}
+.compendium-structure-editor-section.is-unassigned .compendium-structure-editor-drop-empty { border-color: #ddc98d; background: #fffdf8; }
+
+.compendium-structure-editor-sections nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: .5rem;
+    scrollbar-gutter: stable;
+}
+.compendium-structure-editor-sections nav button {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: .5rem;
+    width: 100%;
+    margin-bottom: .22rem;
+    padding: .48rem .52rem;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: #486459;
+    text-align: left;
+    font-size: .63rem;
+}
+.compendium-structure-editor-sections nav button:hover { border-color: #d9e4df; background: #f5f9f7; }
+.compendium-structure-editor-sections nav button.is-unassigned { color: #85641d; }
+.compendium-structure-editor-sections nav button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compendium-structure-editor-sections nav button b {
+    min-width: 24px;
+    padding: .08rem .28rem;
+    border-radius: 999px;
+    background: #edf3f0;
+    color: #60776e;
+    font-size: .53rem;
+    text-align: center;
+}
+.compendium-structure-editor-unassigned-callout {
+    display: flex;
+    gap: .48rem;
+    align-items: flex-start;
+    flex: 0 0 auto;
+    margin: .55rem;
+    padding: .55rem;
+    border: 1px solid #ead8a7;
+    border-radius: 8px;
+    background: #fff9e9;
+    color: #7d611d;
+}
+.compendium-structure-editor-unassigned-callout > i { margin-top: .08rem; }
+.compendium-structure-editor-unassigned-callout strong,
+.compendium-structure-editor-unassigned-callout span { display: block; }
+.compendium-structure-editor-unassigned-callout strong { font-size: .62rem; }
+.compendium-structure-editor-unassigned-callout span { margin-top: .08rem; color: #89733e; font-size: .54rem; line-height: 1.35; }
+.compendium-structure-editor-empty {
+    display: grid;
+    place-items: center;
+    gap: .25rem;
+    min-height: 160px;
+    padding: 1rem;
+    color: #81918b;
+    text-align: center;
+}
+.compendium-structure-editor-empty i { font-size: 1.1rem; }
+.compendium-structure-editor-empty strong { color: #5f756c; font-size: .66rem; }
+.compendium-structure-editor-empty span { font-size: .57rem; }
+
+@media (max-width: 1499.98px) {
+    .compendium-structure-editor-layout {
+        grid-template-columns: minmax(260px, 310px) minmax(520px, 1fr);
+    }
+    .compendium-structure-editor-sections { display: none; }
+    .compendium-structure-editor-summary > p { display: none; }
+}
+@media (max-width: 1099.98px) {
+    .compendium-structure-editor-layout {
+        display: flex;
+        height: auto;
+        min-height: 0;
+        flex-direction: column;
+    }
+    .compendium-structure-editor-projects,
+    .compendium-structure-editor-canvas-panel { min-height: 520px; }
+    .compendium-structure-editor-header { align-items: flex-start; flex-direction: column; }
+    .compendium-structure-editor-commands { width: 100%; justify-content: flex-end; }
+    .compendium-structure-editor-bulk { grid-template-columns: 1fr; }
+}
+.compendium-structure-editor-sections nav button.is-active {
+    border-color: #bcd4ca;
+    background: #eaf5f0;
+    color: #285f4b;
+    box-shadow: inset 3px 0 #2f7559;
+}
