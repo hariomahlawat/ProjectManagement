@@ -68,7 +68,7 @@ test('phase 34 differentiates filed, granted and mixed IPR within one document-s
 test('phase 34 keeps browser proof and generated PDF programme furniture in parity', () => {
   assert.match(mainJs, /const\s+programmeIconVersion\s*=\s*"v1[56]"/);
   assert.match(mainJs, /compendium-icons\/\$\{key\}\.svg\?v=\$\{programmeIconVersion\}/);
-  assert.match(mainJs, /compendium-live-page__programme-heading">PROGRAMME INFORMATION/);
+  assert.match(mainJs, /compendium-live-page__programme-heading">PROJECT PARTICULARS/);
   assert.match(mainJs, /classList\.toggle\(\s*"is-compact-single"/s);
 
   assert.match(css, /\.compendium-live-page__programme\{[^}]*border-top:2px solid #205244/s);
@@ -96,6 +96,6 @@ test('phase 34 keeps semantic keys stable across subsequent programme refinement
     assert.ok(resolver.includes(`"${key}"`), `resolver must retain ${key}`);
   }
 
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17)/);
   assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate)/);
 });

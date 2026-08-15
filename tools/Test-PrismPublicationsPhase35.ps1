@@ -89,7 +89,7 @@ $planner = Get-Content (Join-Path $root "Services/Compendiums/CompendiumDossierP
 foreach ($contract in @(
     'project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null',
     'SponsoringLineDirectorateDisplay = NormalizeDisplay(project.SponsoringLineDirectorate, "Not recorded")',
-    'CompendiumPdf_2026-08-15_programme-semantics-v16'
+    'CompendiumPdf_2026-08-15_programme-particulars-v17'
 )) {
     if ($readService -notmatch [regex]::Escape($contract)) {
         throw "Authoritative Sponsoring Line Directorate contract is missing: $contract"
@@ -114,6 +114,14 @@ if ($readiness -notmatch 'missingSponsoringLineDirectorate' -or
 
 if ($mainJs -notmatch [regex]::Escape('const programmeIconVersion = "v16"')) {
     throw "The v16 browser icon cache identity is missing."
+}
+if ($mainJs -notmatch [regex]::Escape('compendium-live-page__programme-heading">PROJECT PARTICULARS') -or
+    $builder -notmatch [regex]::Escape('Text("PROJECT PARTICULARS")')) {
+    throw "The Project Particulars heading is not consistent across browser proof and PDF."
+}
+if ($mainJs -match [regex]::Escape('compendium-live-page__programme-heading">PROGRAMME INFORMATION') -or
+    $builder -match [regex]::Escape('Text("PROGRAMME INFORMATION")')) {
+    throw "The superseded Programme Information heading remains in a rendered surface."
 }
 
 $iconRuleMatch = [regex]::Match(

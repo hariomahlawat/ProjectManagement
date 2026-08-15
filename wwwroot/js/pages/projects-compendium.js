@@ -1054,7 +1054,7 @@
                     + `</div>`;
             }).join("");
             livePageFacts.innerHTML = programme.length
-                ? `<header class="compendium-live-page__programme-heading">PROGRAMME INFORMATION</header>${items}`
+                ? `<header class="compendium-live-page__programme-heading">PROJECT PARTICULARS</header>${items}`
                 : "";
         }
 

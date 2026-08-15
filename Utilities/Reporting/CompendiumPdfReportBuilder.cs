@@ -852,7 +852,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             column.Item().PaddingHorizontal(10).PaddingVertical(7).Column(content =>
             {
                 content.Spacing(6);
-                content.Item().Text("PROGRAMME INFORMATION")
+                content.Item().Text("PROJECT PARTICULARS")
                     .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
 
                 foreach (var rowModules in modules.Chunk(programmeColumns))

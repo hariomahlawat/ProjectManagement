@@ -35,4 +35,4 @@ wwwroot/js/projects/publications-compendium-phase35-contract.test.js
 tools/Test-PrismPublicationsPhase35.ps1
 PRISM_Publications_Phase35_README.md
 PHASE35_CHANGED_FILES.txt
-Phase35-Visual-Proof/programme-information-unboxed-proof.png
+Phase35-Visual-Proof/project-particulars-unboxed-proof.png

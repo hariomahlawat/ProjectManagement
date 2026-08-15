@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Phase 35 corrects the source meaning of `Arms / Services` and removes the nested coloured rectangles around programme icons. The resulting browser proof and generated PDF use a quieter, publication-grade icon treatment while preserving the established category colours and common vector family.
+Phase 35 corrects the source meaning of `Arms / Services`, replaces the vague rendered heading `PROGRAMME INFORMATION` with `PROJECT PARTICULARS`, and removes the nested coloured rectangles around programme icons. The resulting browser proof and generated PDF use a quieter, publication-grade treatment while preserving the established category colours and common vector family.
 
 The change is cumulative with the Phase 34 icon system and includes the earlier `IReadOnlyList<string>.Count` pagination build fix.
 
@@ -42,9 +42,9 @@ This is intentionally not a frameless or floating layout. The outer panel contin
 
 The generated-PDF identity advances to:
 
-`CompendiumPdf_2026-08-15_programme-semantics-v16`
+`CompendiumPdf_2026-08-15_programme-particulars-v17`
 
-Browser icon URLs carry `?v=v16` so the revised presentation is not masked by cached v15 assets.
+Browser icon URLs continue to carry `?v=v16` because the SVG artwork is unchanged. The v17 PDF identity ensures previously generated PDFs are rebuilt with the new `PROJECT PARTICULARS` heading.
 
 The editorial-review fingerprint advances to:
 
@@ -85,7 +85,7 @@ The validator checks:
 - the original `IReadOnlyList<string>.Count` pagination compile fix;
 - SVG canvas, stroke and self-contained-vector constraints;
 - removal of browser and PDF icon tiles while retaining the fixed alignment column;
-- the v16 generated-PDF identity and v10 review identity; and
+- the v17 generated-PDF identity, `PROJECT PARTICULARS` browser/PDF parity, and v10 review identity; and
 - `dotnet build` and `dotnet test` when the .NET SDK is available.
 
 ## Preparation-environment result
@@ -103,7 +103,7 @@ The validator checks:
 2. All four icon positions align despite the icons having different silhouettes.
 3. Maroon, green, gold and blue remain legible but subordinate to the programme values.
 4. Filed, Granted and Mixed IPR states remain distinguishable by shape/state, not colour alone.
-5. The outer programme panel is the only card-like container.
+5. The outer `PROJECT PARTICULARS` panel is the only card-like container.
 6. `Arms / Services` displays the Sponsoring Line Directorate value and never the separate Arm/Service project field.
 7. Missing Sponsoring Line Directorate data is reported transparently rather than replaced by unrelated data.
 8. At 100% PDF zoom and in print preview, the 18-point symbols are crisp and optically balanced with the value typography.

@@ -63,7 +63,7 @@ test('phase 35 evaluates readiness and review identity against the same authorit
   assert.match(fingerprint, /string\? SponsoringLineDirectorate/);
   assert.match(fingerprint, /Clean\(input\.SponsoringLineDirectorate\)/);
   assert.match(fingerprint, /compendium-review-v10-sponsoring-line-directorate/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_programme-semantics-v16/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_programme-particulars-v17/);
 });
 
 test('phase 35 removes nested icon tiles while retaining a stable alignment column', () => {
@@ -85,6 +85,10 @@ test('phase 35 removes nested icon tiles while retaining a stable alignment colu
 });
 
 test('phase 35 retains coloured local vectors and the programme panel as the sole container', () => {
+  assert.match(mainJs, /compendium-live-page__programme-heading">PROJECT PARTICULARS/);
+  assert.doesNotMatch(mainJs, /compendium-live-page__programme-heading">PROGRAMME INFORMATION/);
+  assert.match(builder, /Text\("PROJECT PARTICULARS"\)/);
+  assert.doesNotMatch(builder, /Text\("PROGRAMME INFORMATION"\)/);
   assert.match(css, /\.compendium-live-page__programme\{[^}]*border:1px solid #d8e5df[^}]*border-top:2px solid #205244/s);
   assert.match(builder, /container\.Background\(Forest50\)\.Border\(1\)\.BorderColor\("#D8E5DF"\)/);
   assert.match(builder, /"maroon" => "#8B3A3A"/);
