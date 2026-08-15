@@ -30,20 +30,20 @@ public sealed record CompendiumProgrammeModuleDto(
 public static class CompendiumProgrammeInformation
 {
     public static IReadOnlyList<CompendiumProgrammeModuleDto> Resolve(
-        string? armService,
+        string? sponsoringLineDirectorate,
         string? proliferationCostDisplay,
         IReadOnlyList<CompendiumIprCredentialDto>? iprCredentials,
         CompendiumTechnologyTransferDto? technologyTransfer)
     {
         var modules = new List<CompendiumProgrammeModuleDto>(4);
 
-        var cleanArmService = NormalizeOptional(armService);
-        if (cleanArmService is not null && !IsNotRecorded(cleanArmService))
+        var cleanSponsoringLineDirectorate = NormalizeOptional(sponsoringLineDirectorate);
+        if (cleanSponsoringLineDirectorate is not null && !IsNotRecorded(cleanSponsoringLineDirectorate))
         {
             modules.Add(new CompendiumProgrammeModuleDto(
                 CompendiumProgrammeModuleKind.ArmsServices,
                 "Arms / Services",
-                cleanArmService,
+                cleanSponsoringLineDirectorate,
                 "arms-services",
                 "maroon"));
         }

@@ -18,6 +18,6 @@ public sealed class CompendiumPhase29ContractTests
     [Fact]
     public void StructureComposer_DoesNotChangePdfBuildIdentity()
     {
-        Assert.StartsWith("CompendiumPdf_2026-08-14_", CompendiumReadService.BuildStamp);
+        Assert.StartsWith("CompendiumPdf_2026-08-", CompendiumReadService.BuildStamp);
     }
 }

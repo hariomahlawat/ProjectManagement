@@ -84,7 +84,7 @@ public sealed class CompendiumPhase26ContractTests
     }
 
     [Fact]
-    public void MissingArmService_IsInformationalRatherThanPublicationWarning()
+    public void MissingSponsoringLineDirectorate_IsInformationalRatherThanPublicationWarning()
     {
         var assessment = new CompendiumReadinessPolicy().Evaluate(new CompendiumProjectReadinessContext(
             1,
@@ -103,7 +103,7 @@ public sealed class CompendiumPhase26ContractTests
             "current",
             "current"));
 
-        var armService = Assert.Single(assessment.Findings.Where(finding => finding.Code == "missingArmService"));
-        Assert.Equal(CompendiumFindingSeverity.Information, armService.Severity);
+        var lineDirectorate = Assert.Single(assessment.Findings.Where(finding => finding.Code == "missingSponsoringLineDirectorate"));
+        Assert.Equal(CompendiumFindingSeverity.Information, lineDirectorate.Severity);
     }
 }

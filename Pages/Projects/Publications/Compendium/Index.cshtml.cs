@@ -292,7 +292,7 @@ public sealed class IndexModel : PageModel
             review.LifecycleDisplay,
             review.ProjectCategoryName,
             review.TechnicalCategoryName,
-            review.ArmServiceDisplay,
+            review.SponsoringLineDirectorateDisplay,
             review.CompletionDisplay,
             review.ProliferationAvailability,
             review.ProliferationCostLakhs,

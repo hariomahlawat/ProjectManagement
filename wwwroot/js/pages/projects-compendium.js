@@ -16,7 +16,7 @@
     const programmeIconKeys = new Set([
         "arms-services", "proliferation-cost", "ipr-filed", "ipr-granted", "ipr-mixed", "technology-transfer"
     ]);
-    const programmeIconVersion = "v15";
+    const programmeIconVersion = "v16";
     const programmeIconUrl = key => programmeIconKeys.has(String(key || ""))
         ? `/images/publications/compendium-icons/${key}.svg?v=${programmeIconVersion}`
         : "";
@@ -1640,7 +1640,7 @@
     };
 
     const findingTitle = finding => ({
-        missingArmService: "Arms / Services not recorded",
+        missingSponsoringLineDirectorate: "Arms / Services not recorded",
         missingCost: "Proliferation cost incomplete",
         zeroCost: "Zero proliferation cost",
         missingDescription: "Selected narrative missing",

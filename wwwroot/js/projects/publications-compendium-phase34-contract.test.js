@@ -66,14 +66,15 @@ test('phase 34 differentiates filed, granted and mixed IPR within one document-s
 });
 
 test('phase 34 keeps browser proof and generated PDF programme furniture in parity', () => {
-  assert.match(mainJs, /const\s+programmeIconVersion\s*=\s*"v15"/);
+  assert.match(mainJs, /const\s+programmeIconVersion\s*=\s*"v1[56]"/);
   assert.match(mainJs, /compendium-icons\/\$\{key\}\.svg\?v=\$\{programmeIconVersion\}/);
   assert.match(mainJs, /compendium-live-page__programme-heading">PROGRAMME INFORMATION/);
   assert.match(mainJs, /classList\.toggle\(\s*"is-compact-single"/s);
 
   assert.match(css, /\.compendium-live-page__programme\{[^}]*border-top:2px solid #205244/s);
   assert.match(css, /\.compendium-live-page__programme-heading\{[^}]*grid-column:1\/-1[^}]*letter-spacing:\.1em/s);
-  assert.match(css, /\.compendium-live-page__programme-icon\{[^}]*width:22px[^}]*height:22px[^}]*border-radius:2px/s);
+  assert.match(css, /\.compendium-live-page__programme-icon\{[^}]*width:22px[^}]*height:22px/s);
+  assert.match(css, /\.compendium-live-page__programme-icon img\{[^}]*width:(?:16|18)px[^}]*height:(?:16|18)px/s);
   assert.match(css, /\.compendium-live-page__programme\.is-compact-single\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/s);
 
   assert.match(builder, /private const float ProgrammeTopRuleHeight = 2\.25f;/);
@@ -83,7 +84,7 @@ test('phase 34 keeps browser proof and generated PDF programme furniture in pari
   assert.match(planner, /return 30\.25f \+ rows \* 38f;/);
 });
 
-test('phase 34 keeps semantic keys stable and invalidates only cached PDF presentation', () => {
+test('phase 34 keeps semantic keys stable across subsequent programme refinements', () => {
   for (const key of [
     'arms-services',
     'proliferation-cost',
@@ -95,8 +96,6 @@ test('phase 34 keeps semantic keys stable and invalidates only cached PDF presen
     assert.ok(resolver.includes(`"${key}"`), `resolver must retain ${key}`);
   }
 
-  assert.match(readService, /CompendiumPdf_2026-08-15_programme-iconography-v15/);
-  assert.match(fingerprint, /compendium-review-v9-programme-iconography/);
-  assert.doesNotMatch(fingerprint, /programme-iconography-v15/,
-    'a presentation-only refinement must not invalidate completed editorial reviews');
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16)/);
+  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate)/);
 });

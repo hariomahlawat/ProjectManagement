@@ -7,7 +7,7 @@ public sealed record CompendiumProjectReadinessContext(
     string ProjectName,
     ProjectLifecycleStatus LifecycleStatus,
     int? CompletionYear,
-    string? ArmService,
+    string? SponsoringLineDirectorate,
     string? Description,
     decimal? ProliferationCostLakhs,
     bool? ProliferationAvailability,
@@ -109,10 +109,10 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
 
         }
 
-        if (string.IsNullOrWhiteSpace(context.ArmService))
+        if (string.IsNullOrWhiteSpace(context.SponsoringLineDirectorate))
         {
-            issues.Add(CompendiumPublicationIssue.MissingArmService);
-            Information("missingArmService", "Arms / Services is not recorded.");
+            issues.Add(CompendiumPublicationIssue.MissingSponsoringLineDirectorate);
+            Information("missingSponsoringLineDirectorate", "Arms / Services is not recorded.");
         }
 
         if (context.ProliferationAvailability == true && !context.ProliferationCostLakhs.HasValue)

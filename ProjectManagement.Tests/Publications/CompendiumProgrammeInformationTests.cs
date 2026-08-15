@@ -9,7 +9,7 @@ public sealed class CompendiumProgrammeInformationTests
     public void Resolve_UsesStablePublicationOrderAndColouredIconKeys()
     {
         var modules = CompendiumProgrammeInformation.Resolve(
-            "Indian Army",
+            "Infantry Directorate",
             "₹28 lakh",
             new[] { new CompendiumIprCredentialDto("Patent", "Granted", 2026) },
             new CompendiumTechnologyTransferDto("Completed", 2026));
@@ -20,6 +20,8 @@ public sealed class CompendiumProgrammeInformationTests
             module => AssertModule(module, CompendiumProgrammeModuleKind.ProliferationCost, "Proliferation cost", "proliferation-cost", "green"),
             module => AssertModule(module, CompendiumProgrammeModuleKind.Ipr, "IPR", "ipr-granted", "gold"),
             module => AssertModule(module, CompendiumProgrammeModuleKind.TechnologyTransfer, "Technology transfer", "technology-transfer", "blue"));
+
+        Assert.Equal("Infantry Directorate", modules[0].Value);
     }
 
     [Fact]

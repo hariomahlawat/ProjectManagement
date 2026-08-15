@@ -77,7 +77,7 @@ public sealed class StructureModel : PageModel
                         technicalCategory = candidate.TechnicalCategory ?? "Not recorded",
                         technicalCategorySortOrder = candidate.TechnicalCategorySortOrder,
                         publicationYear = candidate.PublicationYear,
-                        armService = candidate.ArmServiceDisplay,
+                        sponsoringLineDirectorate = candidate.SponsoringLineDirectorateDisplay,
                         selected = item is not null,
                         customSectionKey = item?.CustomSectionKey,
                         customSectionName = item?.CustomSectionName,

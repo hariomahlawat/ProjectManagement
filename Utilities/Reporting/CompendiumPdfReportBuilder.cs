@@ -82,7 +82,7 @@ public sealed record CompendiumPdfProjectSection(
     string? CaseFileNumber,
     string CategoryName,
     string CompletionYearDisplay,
-    string ArmServiceDisplay,
+    string SponsoringLineDirectorateDisplay,
     string ProliferationCostDisplay,
     string? ProliferationCostRemarks,
     string DescriptionMarkdown,
@@ -821,7 +821,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var modules = project.ProgrammeModules.Count > 0
             ? project.ProgrammeModules
             : CompendiumProgrammeInformation.Resolve(
-                project.ArmServiceDisplay,
+                project.SponsoringLineDirectorateDisplay,
                 project.ProliferationCostDisplay,
                 project.IprCredentials,
                 project.TechnologyTransfer);
@@ -903,15 +903,17 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         CompendiumProgrammeModuleDto module,
         IReadOnlyDictionary<string, string> programmeIcons)
     {
-        var (background, border, fallbackColor) = module.Tone.ToLowerInvariant() switch
+        var fallbackColor = module.Tone.ToLowerInvariant() switch
         {
-            "maroon" => ("#F8EEEE", "#E4C8C8", "#8B3A3A"),
-            "green" => ("#EEF7F2", "#CCE4D7", "#27825B"),
-            "blue" => ("#EEF5FC", "#CADCF1", "#3275C7"),
-            _ => ("#FBF5E5", "#E8D7A6", "#B88916")
+            "maroon" => "#8B3A3A",
+            "green" => "#27825B",
+            "blue" => "#3275C7",
+            _ => "#B88916"
         };
 
-        container.Background(background).Border(1).BorderColor(border).Padding(3).Element(icon =>
+        // The programme panel already supplies the visual container. Keeping the icon column
+        // unboxed avoids nested card furniture and gives every coloured symbol a clean 18-point field.
+        container.Padding(2).Element(icon =>
         {
             if (programmeIcons.TryGetValue(module.IconKey, out var svg) && !string.IsNullOrWhiteSpace(svg))
             {
@@ -991,9 +993,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             items.Add(("Completed", project.CompletionYearDisplay, true));
         }
-        if (!string.Equals(project.ArmServiceDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(project.SponsoringLineDirectorateDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(("Arm / Service", project.ArmServiceDisplay, false));
+            items.Add(("Arms / Services", project.SponsoringLineDirectorateDisplay, false));
         }
         if (project.ProliferationAvailability.HasValue)
         {

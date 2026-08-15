@@ -175,7 +175,7 @@ public enum CompendiumImageQuality
 public enum CompendiumPublicationIssue
 {
     MissingPhoto = 0,
-    MissingArmService = 1,
+    MissingSponsoringLineDirectorate = 1,
     MissingProliferationCost = 2,
     ZeroProliferationCost = 3,
     MissingDescription = 4,
@@ -205,7 +205,7 @@ public sealed record CompendiumCandidateProjectVm(
     string? TechnicalCategory,
     bool IsAvailableForProliferation,
     bool HasDescription,
-    bool HasArmService,
+    bool HasSponsoringLineDirectorate,
     bool HasProliferationCost,
     int PhotoCount,
     int? DefaultPhotoId,
@@ -218,7 +218,7 @@ public sealed record CompendiumCandidateProjectVm(
     public int CapabilityStatementCount { get; init; }
     public int DescriptionWordCount { get; init; }
     public int PublicationYear { get; init; }
-    public string ArmServiceDisplay { get; init; } = "Not recorded";
+    public string SponsoringLineDirectorateDisplay { get; init; } = "Not recorded";
     public string ProliferationCostDisplay { get; init; } = "Not recorded";
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
     public int TechnicalSpecificationCount { get; init; }
@@ -272,7 +272,7 @@ public sealed record CompendiumReviewProjectDto(
     string LifecycleDisplay,
     string? ProjectCategoryName,
     string TechnicalCategoryName,
-    string ArmServiceDisplay,
+    string SponsoringLineDirectorateDisplay,
     string CompletionDisplay,
     bool? ProliferationAvailability,
     decimal? ProliferationCostLakhs,
@@ -331,7 +331,7 @@ public sealed record CompendiumProjectDto(
     string TechnicalCategoryName,
     int? CompletionYearValue,
     string CompletionYearDisplay,
-    string ArmServiceDisplay,
+    string SponsoringLineDirectorateDisplay,
     decimal? ProliferationCostLakhs,
     string? ProliferationCostRemarks,
     int? CoverPhotoId,
@@ -410,7 +410,7 @@ public sealed record CompendiumPreflightDto(
     int MissingAvailabilityStatusCount,
     int PhotoSelectedCount,
     int MissingPhotoCount,
-    int MissingArmServiceCount,
+    int MissingSponsoringLineDirectorateCount,
     int MissingCostCount,
     int ZeroCostCount,
     int MissingDescriptionCount,
@@ -431,7 +431,7 @@ public sealed record CompendiumPreflightDto(
 
     public int TotalWarningCount => WarningCount ??
         (MissingPhotoCount
-         + MissingArmServiceCount
+         + MissingSponsoringLineDirectorateCount
          + MissingCostCount
          + ZeroCostCount
          + MissingDescriptionCount

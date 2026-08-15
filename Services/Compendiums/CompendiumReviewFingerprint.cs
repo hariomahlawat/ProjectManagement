@@ -11,7 +11,7 @@ public sealed record CompendiumReviewFingerprintInput(
     ProjectLifecycleStatus LifecycleStatus,
     string? ProjectCategory,
     string? TechnicalCategory,
-    string? ArmService,
+    string? SponsoringLineDirectorate,
     int? CompletionYear,
     bool? ProliferationAvailability,
     decimal? ProliferationCostLakhs,
@@ -34,7 +34,7 @@ public sealed record CompendiumReviewFingerprintInput(
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v9-programme-iconography";
+    private const string ContractVersion = "compendium-review-v10-sponsoring-line-directorate";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
@@ -48,7 +48,7 @@ public static class CompendiumReviewFingerprint
             input.LifecycleStatus.ToString(),
             Clean(input.ProjectCategory),
             Clean(input.TechnicalCategory),
-            Clean(input.ArmService),
+            Clean(input.SponsoringLineDirectorate),
             input.CompletionYear?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             input.ProliferationAvailability switch { true => "true", false => "false", _ => "null" },
             input.ProliferationCostLakhs?.ToString("0.############################", CultureInfo.InvariantCulture) ?? string.Empty,

@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-15_programme-iconography-v15";
+    public const string BuildStamp = "CompendiumPdf_2026-08-15_programme-semantics-v16";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -63,7 +63,6 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.TechnicalCategory != null ? project.TechnicalCategory.SortOrder : int.MaxValue,
                 project.ProjectBrief,
                 project.Description,
-                project.ArmService,
                 project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
                 project.YearOfDevelopment,
                 project.CompletedYear,
@@ -143,7 +142,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     project.TechnicalCategory,
                     availableForProliferation == true,
                     !string.IsNullOrWhiteSpace(project.Description),
-                    !string.IsNullOrWhiteSpace(project.ArmService),
+                    !string.IsNullOrWhiteSpace(project.SponsoringLineDirectorate),
                     productionCost.HasValue,
                     projectPhotos.Count,
                     defaultPhotoId,
@@ -157,7 +156,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     DescriptionWordCount = CountWords(project.Description),
                     PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
                     TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
-                    ArmServiceDisplay = NormalizeDisplay(project.ArmService, "Not recorded"),
+                    SponsoringLineDirectorateDisplay = NormalizeDisplay(project.SponsoringLineDirectorate, "Not recorded"),
                     ProliferationCostDisplay = CompendiumPublicationImagePolicy.FormatCost(productionCost),
                     TechnicalSpecificationCount = technicalSpecificationCounts.GetValueOrDefault(project.Id),
                     HasIpr = iprProjectSet.Contains(project.Id),
@@ -279,10 +278,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
             var specifications = specificationsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
             var iprCredentials = iprByProject.GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
             var technologyTransfer = totByProject.GetValueOrDefault(project.Id);
-            var armService = NormalizeOptional(project.ArmService) ?? string.Empty;
+            var sponsoringLineDirectorate = NormalizeOptional(project.SponsoringLineDirectorate) ?? string.Empty;
             var dossierImages = ResolveDossierImages(project, selection, projectPhotos, resolved);
             var programmeModules = CompendiumProgrammeInformation.Resolve(
-                armService,
+                sponsoringLineDirectorate,
                 CompendiumPublicationImagePolicy.FormatCost(cost?.Cost),
                 iprCredentials,
                 technologyTransfer);
@@ -327,7 +326,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 project.ProjectCategory,
                 project.TechnicalCategory,
-                armService,
+                sponsoringLineDirectorate,
                 completionYear,
                 availableForProliferation,
                 cost?.Cost,
@@ -353,7 +352,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.Name,
                 project.LifecycleStatus,
                 completionYear,
-                armService,
+                sponsoringLineDirectorate,
                 narrative.Text,
                 cost?.Cost,
                 availableForProliferation,
@@ -379,7 +378,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus == ProjectLifecycleStatus.Completed
                     ? completionYear?.ToString(CultureInfo.InvariantCulture) ?? "Not recorded"
                     : "Ongoing",
-                NormalizeDisplay(project.ArmService, "Not recorded"),
+                NormalizeDisplay(project.SponsoringLineDirectorate, "Not recorded"),
                 cost?.Cost,
                 NormalizeOptional(cost?.Remarks),
                 resolved.ResolvedPhotoId,
@@ -473,7 +472,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             MissingAvailabilityStatusCount: 0,
             PhotoSelectedCount: publicationProjects.Count(project => project.CoverPhotoId.HasValue),
             MissingPhotoCount: CountIssue(publicationProjects, CompendiumPublicationIssue.MissingPhoto),
-            MissingArmServiceCount: CountIssue(publicationProjects, CompendiumPublicationIssue.MissingArmService),
+            MissingSponsoringLineDirectorateCount: CountIssue(publicationProjects, CompendiumPublicationIssue.MissingSponsoringLineDirectorate),
             MissingCostCount: CountIssue(publicationProjects, CompendiumPublicationIssue.MissingProliferationCost),
             ZeroCostCount: CountIssue(publicationProjects, CompendiumPublicationIssue.ZeroProliferationCost),
             MissingDescriptionCount: CountIssue(publicationProjects, CompendiumPublicationIssue.MissingDescription),
@@ -522,7 +521,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var specifications = (await LoadTechnicalSpecificationsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<string>();
         var iprCredentials = (await LoadIprCredentialsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
         var technologyTransfer = (await LoadTechnologyTransferAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id);
-        var armService = NormalizeOptional(project.ArmService) ?? string.Empty;
+        var sponsoringLineDirectorate = NormalizeOptional(project.SponsoringLineDirectorate) ?? string.Empty;
 
         var availability = await _db.ProjectTechStatuses
             .AsNoTracking()
@@ -540,7 +539,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var resolved = ResolveSelection(project, selection, photoCandidates);
         var dossierImages = ResolveDossierImages(project, selection, photoCandidates, resolved);
         var programmeModules = CompendiumProgrammeInformation.Resolve(
-            armService,
+            sponsoringLineDirectorate,
             CompendiumPublicationImagePolicy.FormatCost(cost?.Cost),
             iprCredentials,
             technologyTransfer);
@@ -615,7 +614,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             project.LifecycleStatus,
             project.ProjectCategory,
             project.TechnicalCategory,
-            armService,
+            sponsoringLineDirectorate,
             completionYear,
             availability,
             cost?.Cost,
@@ -640,7 +639,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             project.Name,
             project.LifecycleStatus,
             completionYear,
-            armService,
+            sponsoringLineDirectorate,
             narrative.Text,
             cost?.Cost,
             availability,
@@ -661,7 +660,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             LifecycleDisplay(project.LifecycleStatus),
             NormalizeOptional(project.ProjectCategory),
             NormalizeDisplay(project.TechnicalCategory, "Not recorded"),
-            NormalizeDisplay(project.ArmService, "Not recorded"),
+            NormalizeDisplay(project.SponsoringLineDirectorate, "Not recorded"),
             project.LifecycleStatus == ProjectLifecycleStatus.Completed
                 ? completionYear?.ToString(CultureInfo.InvariantCulture) ?? "Not recorded"
                 : string.Empty,
@@ -829,7 +828,6 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 project.ProjectBrief,
                 project.Description,
-                project.ArmService,
                 project.YearOfDevelopment,
                 project.CompletedYear,
                 project.CompletedOn,
@@ -1514,7 +1512,6 @@ public sealed class CompendiumReadService : ICompendiumReadService
         int TechnicalCategorySortOrder,
         string? ProjectBrief,
         string? Description,
-        string? ArmService,
         string? SponsoringLineDirectorate,
         short? YearOfDevelopment,
         int? CompletedYear,
@@ -1529,7 +1526,6 @@ public sealed class CompendiumReadService : ICompendiumReadService
         ProjectLifecycleStatus LifecycleStatus,
         string? ProjectBrief,
         string? Description,
-        string? ArmService,
         short? YearOfDevelopment,
         int? CompletedYear,
         DateOnly? CompletedOn,

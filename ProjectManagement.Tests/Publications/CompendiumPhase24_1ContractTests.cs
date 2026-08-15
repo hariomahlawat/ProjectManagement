@@ -73,7 +73,7 @@ public sealed class CompendiumPhase24_1ContractTests
         Assert.False(assessment.IsReviewed);
         Assert.DoesNotContain(assessment.Findings, finding => finding.Code is "reviewRequired" or "projectChangedAfterReview");
         Assert.DoesNotContain(assessment.Findings, finding => finding.Code is "automaticImageSelected" or "proliferationNotAssessed");
-        Assert.Contains(assessment.Findings, finding => finding.Code == "missingArmService");
+        Assert.Contains(assessment.Findings, finding => finding.Code == "missingSponsoringLineDirectorate");
     }
 
     [Fact]

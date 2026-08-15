@@ -156,7 +156,7 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography)/);
+  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate)/);
   assert.match(fingerprint, /PublicationSectionKey/);
   assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
@@ -181,7 +181,7 @@ test('phase 23 dirty state excludes review fingerprint while including image and
 test('phase 24.1 readiness separates workflow review state from publication-quality findings', () => {
   assert.match(dto, /CompendiumFindingSeverity/);
   assert.match(readiness, /missingPhoto/);
-  assert.match(readiness, /missingArmService/);
+  assert.match(readiness, /missingSponsoringLineDirectorate/);
   assert.match(readiness, /missingDescription/);
   assert.doesNotMatch(readiness, /automaticImageSelected/);
   assert.doesNotMatch(readiness, /proliferationNotAssessed/);

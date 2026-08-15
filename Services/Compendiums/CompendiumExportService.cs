@@ -151,7 +151,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     CompendiumPublicationTextSanitizer.Sanitize(project.CaseFileNumber),
                     CompendiumPublicationTextSanitizer.Sanitize(group.TechnicalCategoryName),
                     CompendiumPublicationTextSanitizer.Sanitize(project.CompletionYearDisplay),
-                    CompendiumPublicationTextSanitizer.Sanitize(project.ArmServiceDisplay),
+                    CompendiumPublicationTextSanitizer.Sanitize(project.SponsoringLineDirectorateDisplay),
                     CompendiumPublicationImagePolicy.FormatCost(project.ProliferationCostLakhs),
                     CompendiumPublicationTextSanitizer.Sanitize(project.ProliferationCostRemarks),
                     CompendiumPublicationTextSanitizer.Sanitize(project.DescriptionMarkdown),

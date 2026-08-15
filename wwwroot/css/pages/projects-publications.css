@@ -4968,12 +4968,8 @@ body.compendium-structure-editor-mode {
 .compendium-live-page__programme.is-compact-single{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .compendium-live-page__programme.is-compact-single .compendium-live-page__programme-item{grid-column:1}
 .compendium-live-page__programme-item{display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;gap:.38rem;min-width:0}
-.compendium-live-page__programme-icon{display:grid;width:22px;height:22px;place-items:center;border:1px solid #e8d7a6;border-radius:2px;background:#fbf5e5}
-.compendium-live-page__programme-icon img{display:block;width:16px;height:16px;object-fit:contain}
-.compendium-live-page__programme-item.tone-maroon .compendium-live-page__programme-icon{border-color:#e4c8c8;background:#f8eeee}
-.compendium-live-page__programme-item.tone-green .compendium-live-page__programme-icon{border-color:#cce4d7;background:#eef7f2}
-.compendium-live-page__programme-item.tone-gold .compendium-live-page__programme-icon{border-color:#e8d7a6;background:#fbf5e5}
-.compendium-live-page__programme-item.tone-blue .compendium-live-page__programme-icon{border-color:#cadcf1;background:#eef5fc}
+.compendium-live-page__programme-icon{display:grid;width:22px;height:22px;place-items:center;align-self:center}
+.compendium-live-page__programme-icon img{display:block;width:18px;height:18px;object-fit:contain}
 .compendium-live-page__programme-copy{display:block;min-width:0}
 .compendium-live-page__programme-copy>span,.compendium-live-page__programme-copy>strong{display:block}
 .compendium-live-page__programme-copy>span{color:#71817b;font-size:.36rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
