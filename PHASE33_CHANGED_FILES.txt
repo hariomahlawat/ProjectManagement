@@ -1,0 +1,17 @@
+Services/Compendiums/CompendiumDossierPaginationPlanner.cs
+Services/Compendiums/CompendiumReadService.cs
+Services/Compendiums/CompendiumReviewFingerprint.cs
+Utilities/Reporting/CompendiumPdfReportBuilder.cs
+wwwroot/css/pages/projects-publications.css
+wwwroot/js/pages/projects-compendium-cover-editor.js
+wwwroot/js/pages/projects-compendium.js
+ProjectManagement.Tests/Compendiums/CompendiumPublicationTests.cs
+wwwroot/js/projects/publications-compendium-contract.test.js
+wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
+wwwroot/js/projects/publications-compendium-phase31-contract.test.js
+wwwroot/js/projects/publications-compendium-phase31-1-contract.test.js
+wwwroot/js/projects/publications-compendium-phase32-contract.test.js
+wwwroot/js/projects/publications-compendium-phase33-contract.test.js
+tools/Test-PrismPublicationsPhase33.ps1
+PRISM_Publications_Phase33_README.md
+PHASE33_CHANGED_FILES.txt

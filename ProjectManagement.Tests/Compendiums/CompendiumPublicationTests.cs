@@ -61,8 +61,12 @@ public sealed class CompendiumPublicationTests
     {
         using var root = new TemporaryDirectory();
         var environment = new TestWebHostEnvironment(root.Path);
+        var fontService = new PublicationFontService(
+            environment,
+            NullLogger<PublicationFontService>.Instance);
         var builder = new CompendiumPdfReportBuilder(
             environment,
+            fontService,
             NullLogger<CompendiumPdfReportBuilder>.Instance);
 
         var context = new CompendiumPdfReportContext(

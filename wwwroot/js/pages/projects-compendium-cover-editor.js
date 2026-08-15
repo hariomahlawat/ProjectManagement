@@ -14,6 +14,9 @@
     const clone = value => JSON.parse(JSON.stringify(value ?? null));
     const by = selector => root.querySelector(selector);
     const all = selector => Array.from(root.querySelectorAll(selector));
+    // Bootstrap modals are rendered as body-level portals outside the editor root.
+    // Keep normal editor queries scoped, but resolve portal controls explicitly.
+    const portalBy = selector => document.querySelector(selector);
     const csrf = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const modal = id => window.bootstrap?.Modal.getOrCreateInstance(document.getElementById(id));
     const clean = value => (value ?? '').toString().trim();
@@ -263,7 +266,7 @@
                         <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fill' ? 'active' : ''}" data-cover-fit="Fill" data-cover-slot="${slotKey}">Fill</button>
                         <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fit' ? 'active' : ''}" data-cover-fit="Fit" data-cover-slot="${slotKey}">Fit</button>
                     </div>
-                    <button type="button" class="btn btn-sm btn-link" data-cover-crop-slot="${slotKey}" ${slot.imageMode !== 'Explicit' || slot.fitMode === 'Fit' ? 'disabled' : ''}>Adjust crop</button>
+                    <button type="button" class="btn btn-sm btn-link" data-cover-crop-slot="${slotKey}" ${slot.imageMode === 'None' || !slot.previewUrl || slot.fitMode === 'Fit' ? 'disabled' : ''}>Adjust crop</button>
                 </div>`;
             host.appendChild(row);
         });
@@ -494,21 +497,28 @@
     async function openPhotoPicker(slotKey) {
         const slot = ensureSlot(state.activeSurface, slotKey);
         state.activeSlot = slot;
-        by('[data-cover-photo-modal-slot]').textContent = `${state.activeSurface === 'front' ? 'Front' : 'Back'} · ${slotKey === 'Hero' ? 'Hero image' : slotKey}`;
-        const select = by('[data-cover-project-select]');
-        select.innerHTML = '<option value="">Select project…</option>' + state.projects.map(project => `<option value="${project.projectId}" ${Number(project.projectId) === Number(slot.projectId) ? 'selected' : ''}>${escapeHtml(project.projectName)}</option>`).join('');
-        by('[data-cover-project-search]').value = '';
+        const resolved = state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey));
+        const selectedProjectId = slot.projectId || resolved?.projectId || null;
+        const slotLabel = portalBy('[data-cover-photo-modal-slot]');
+        if (slotLabel) slotLabel.textContent = `${state.activeSurface === 'front' ? 'Front' : 'Back'} · ${slotKey === 'Hero' ? 'Hero image' : slotKey}`;
+        const select = portalBy('[data-cover-project-select]');
+        if (!select) return;
+        select.innerHTML = '<option value="">Select project…</option>' + state.projects.map(project => `<option value="${project.projectId}" ${Number(project.projectId) === Number(selectedProjectId) ? 'selected' : ''}>${escapeHtml(project.projectName)}</option>`).join('');
+        const search = portalBy('[data-cover-project-search]');
+        if (search) search.value = '';
         applyProjectSearch();
-        const grid = by('[data-cover-photo-grid]');
-        grid.innerHTML = '';
-        by('[data-cover-photo-state]').textContent = 'Select a project to view its publication photographs.';
+        const grid = portalBy('[data-cover-photo-grid]');
+        if (grid) grid.innerHTML = '';
+        const photoState = portalBy('[data-cover-photo-state]');
+        if (photoState) photoState.textContent = 'Select a project to view its publication photographs.';
         modal('compendiumCoverPhotoModal')?.show();
-        if (slot.projectId) await renderProjectPhotos(slot.projectId);
+        if (selectedProjectId) await renderProjectPhotos(selectedProjectId);
     }
 
     async function renderProjectPhotos(projectId) {
-        const grid = by('[data-cover-photo-grid]');
-        const stateNode = by('[data-cover-photo-state]');
+        const grid = portalBy('[data-cover-photo-grid]');
+        const stateNode = portalBy('[data-cover-photo-state]');
+        if (!grid || !stateNode) return;
         grid.innerHTML = '';
         stateNode.textContent = 'Loading project photography…';
         try {
@@ -596,17 +606,54 @@
     }
 
     function applyProjectSearch() {
-        const term = clean(by('[data-cover-project-search]')?.value).toLowerCase();
-        const select = by('[data-cover-project-select]');
+        const term = clean(portalBy('[data-cover-project-search]')?.value).toLowerCase();
+        const select = portalBy('[data-cover-project-select]');
         if (!select) return;
         Array.from(select.options).forEach((option, index) => { if (index) option.hidden = !!term && !option.text.toLowerCase().includes(term); });
     }
 
-    function openCrop(slotKey) {
+    async function pinResolvedAutomaticSlot(slot) {
+        if (slot.imageMode === 'Explicit') return true;
+        if (slot.imageMode !== 'Automatic') return false;
+
+        const key = automaticSlotKey(state.activeSurface, slot.slotKey);
+        if (!state.autoResolved.has(key) || !slot.previewUrl) {
+            await hydrateVisibleSlotPreviews(state.activeSurface);
+        }
+
+        const resolved = state.autoResolved.get(key);
+        if (!resolved?.projectId || !resolved?.photoId || !slot.previewUrl) return false;
+
+        let photo = null;
+        try {
+            const photos = await loadProjectPhotos(resolved.projectId);
+            photo = photos.find(item => Number(item.photoId) === Number(resolved.photoId)) || null;
+        } catch {
+            // The already resolved preview is sufficient to preserve the publisher's crop intent.
+        }
+
+        slot.imageMode = 'Explicit';
+        slot.projectId = Number(resolved.projectId);
+        slot.photoId = Number(resolved.photoId);
+        slot.previewUrl = photo?.previewUrl || photo?.thumbnailUrl || slot.previewUrl;
+        slot.sourceWidth = photo?.width || slot.sourceWidth;
+        slot.sourceHeight = photo?.height || slot.sourceHeight;
+        state.autoResolved.delete(key);
+        setDirty();
+        renderSlots();
+        renderProof();
+        return true;
+    }
+
+    async function openCrop(slotKey) {
         const slot = ensureSlot(state.activeSurface, slotKey);
-        if (slot.imageMode !== 'Explicit' || !slot.previewUrl || slot.fitMode === 'Fit') return;
+        if (slot.fitMode === 'Fit' || slot.imageMode === 'None') return;
+        if (slot.imageMode === 'Automatic' && !(await pinResolvedAutomaticSlot(slot))) return;
+        if (slot.imageMode !== 'Explicit' || !slot.previewUrl) return;
+
         state.activeSlot = slot;
-        const image = document.querySelector('[data-cover-crop-image]');
+        const image = portalBy('[data-cover-crop-image]');
+        if (!image) return;
         image.src = slot.previewUrl;
         positionCropTarget();
         modal('compendiumCoverCropModal')?.show();
@@ -614,7 +661,7 @@
 
     function positionCropTarget() {
         const slot = state.activeSlot;
-        const target = document.querySelector('[data-cover-crop-target]');
+        const target = portalBy('[data-cover-crop-target]');
         if (!slot || !target) return;
         target.style.left = `${slot.focalX * 100}%`;
         target.style.top = `${slot.focalY * 100}%`;
@@ -741,22 +788,22 @@
             setDirty(); renderSlots(); renderProof(); return;
         }
         const crop = event.target.closest('[data-cover-crop-slot]');
-        if (crop) openCrop(crop.dataset.coverCropSlot);
+        if (crop) void openCrop(crop.dataset.coverCropSlot);
     });
 
-    by('[data-cover-project-select]')?.addEventListener('change', event => { if (event.target.value) void renderProjectPhotos(Number(event.target.value)); });
-    by('[data-cover-project-search]')?.addEventListener('input', applyProjectSearch);
-    by('[data-cover-slot-auto]')?.addEventListener('click', () => setSlotMode('Automatic'));
-    by('[data-cover-slot-none]')?.addEventListener('click', () => setSlotMode('None'));
+    portalBy('[data-cover-project-select]')?.addEventListener('change', event => { if (event.target.value) void renderProjectPhotos(Number(event.target.value)); });
+    portalBy('[data-cover-project-search]')?.addEventListener('input', applyProjectSearch);
+    portalBy('[data-cover-slot-auto]')?.addEventListener('click', () => setSlotMode('Automatic'));
+    portalBy('[data-cover-slot-none]')?.addEventListener('click', () => setSlotMode('None'));
 
-    document.querySelector('[data-cover-crop-stage]')?.addEventListener('click', event => {
+    portalBy('[data-cover-crop-stage]')?.addEventListener('click', event => {
         if (!state.activeSlot) return;
         const rect = event.currentTarget.getBoundingClientRect();
         state.activeSlot.focalX = clamp01((event.clientX - rect.left) / rect.width);
         state.activeSlot.focalY = clamp01((event.clientY - rect.top) / rect.height);
         positionCropTarget(); setDirty(); renderSlots(); renderProof();
     });
-    document.querySelector('[data-cover-crop-centre]')?.addEventListener('click', () => {
+    portalBy('[data-cover-crop-centre]')?.addEventListener('click', () => {
         if (!state.activeSlot) return;
         state.activeSlot.focalX = .5; state.activeSlot.focalY = .5; positionCropTarget(); setDirty(); renderSlots(); renderProof();
     });
@@ -767,8 +814,8 @@
         if (!state.dirty) { goBack(); return; }
         modal('compendiumCoverLeaveModal')?.show();
     });
-    document.querySelector('[data-cover-return-unsaved]')?.addEventListener('click', goBack);
-    document.querySelector('[data-cover-save-return]')?.addEventListener('click', async () => { if (await save()) goBack(); });
+    portalBy('[data-cover-return-unsaved]')?.addEventListener('click', goBack);
+    portalBy('[data-cover-save-return]')?.addEventListener('click', async () => { if (await save()) goBack(); });
     window.addEventListener('beforeunload', event => { if (state.dirty) { event.preventDefault(); event.returnValue = ''; } });
 
     const proofStage = by('.compendium-cover-proof-stage');

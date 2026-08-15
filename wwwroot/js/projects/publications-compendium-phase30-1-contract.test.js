@@ -69,5 +69,5 @@ test('phase 30.1 keeps crop unavailable while project imagery uses Fit', () => {
 });
 
 test('phase 30.1 advances publication build identity without a schema migration', () => {
-  assert.match(readService, /CompendiumPdf_(?:2026-08-14_(?:cover-fidelity-v9|adaptive-dossier-v10|adaptive-pagination-v11)|2026-08-15_adaptive-composition-v12)/);
+  assert.match(readService, /CompendiumPdf_(?:2026-08-14_(?:cover-fidelity-v9|adaptive-dossier-v10|adaptive-pagination-v11)|2026-08-15_(?:adaptive-composition-v12|production-hardening-v13))/);
 });

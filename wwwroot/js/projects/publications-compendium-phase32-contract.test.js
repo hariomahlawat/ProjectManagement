@@ -81,6 +81,6 @@ test('phase 32 gives the cover proof Fit 75 and 100 percent controls with viewpo
 });
 
 test('phase 32 advances review and PDF composition identities', () => {
-  assert.match(fingerprint, /compendium-review-v7-adaptive-composition/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_adaptive-composition-v12/);
+  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13)/);
 });

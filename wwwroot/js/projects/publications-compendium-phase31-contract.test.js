@@ -110,7 +110,7 @@ test('phase 31 live proof mirrors the modular programme specification and multi-
 });
 
 test('phase 31 review fingerprint invalidates approval when adaptive dossier facts or presentation changes', () => {
-  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition)/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening)/);
   assert.match(fingerprint, /DossierLayout/);
   assert.match(fingerprint, /DossierImages/);
   assert.match(fingerprint, /TechnicalSpecifications/);
@@ -119,5 +119,5 @@ test('phase 31 review fingerprint invalidates approval when adaptive dossier fac
 });
 
 test('phase 31 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_adaptive-composition-v12)/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13))/);
 });

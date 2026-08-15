@@ -1750,7 +1750,11 @@
 
     const setupOutputDockObserver = () => {
         if (!outputDock || !finalOutputCard) return;
-        const setVisible = visible => { outputDock.hidden = !visible || window.innerWidth < 1200; };
+        const setVisible = visible => {
+            const shouldShow = Boolean(visible) && window.innerWidth >= 1200;
+            outputDock.hidden = !shouldShow;
+            page?.classList.toggle('has-output-dock', shouldShow);
+        };
         outputDockObserver?.disconnect?.();
         if (reviewFocusMode) { setVisible(true); return; }
         if (!("IntersectionObserver" in window)) { setVisible(true); return; }

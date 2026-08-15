@@ -138,7 +138,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     private const string White = "#FFFFFF";
 
     private readonly IWebHostEnvironment _environment;
+    private readonly IPublicationFontService _fontService;
     private readonly ILogger<CompendiumPdfReportBuilder> _logger;
+    private static string s_primaryFontFamily = PublicationFontService.FallbackFamilyName;
 
     static CompendiumPdfReportBuilder()
     {
@@ -147,15 +149,22 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
     public CompendiumPdfReportBuilder(
         IWebHostEnvironment environment,
+        IPublicationFontService fontService,
         ILogger<CompendiumPdfReportBuilder> logger)
     {
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public byte[] Build(CompendiumPdfReportContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        var fontStatus = _fontService.EnsureRegistered();
+        // The compositor is otherwise stateless/static. The publication font result is process-wide
+        // and deterministic, so every page - cover, index, dossier and back cover - shares it.
+        Volatile.Write(ref s_primaryFontFamily, fontStatus.PrimaryFamily);
 
         var title = NormalizeOptional(context.Title)
                     ?? throw new InvalidOperationException("A Compendium publication title is required before PDF generation.");
@@ -294,7 +303,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     column.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
                     if (!string.IsNullOrWhiteSpace(marking))
                     {
-                        column.Item().PaddingTop(2).AlignCenter().Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.8f).FontColor(GoldSoft);
+                        column.Item().PaddingTop(2).AlignCenter().Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.35f).FontColor(GoldSoft);
                     }
                     column.Item().PaddingTop(showHeroFrame ? 42 : 120).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 34));
                     if (showHeroFrame)
@@ -343,7 +352,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     column.Item().Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 33));
                     if (!string.IsNullOrWhiteSpace(marking))
                     {
-                        column.Item().PaddingTop(18).Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.8f).FontColor(GoldSoft);
+                        column.Item().PaddingTop(18).Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.35f).FontColor(GoldSoft);
                     }
                 });
                 layers.Layer().AlignTop().Height(6).Background(Gold);
@@ -468,7 +477,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             column.Spacing(10);
             if (!string.IsNullOrWhiteSpace(eyebrow))
             {
-                column.Item().Text(eyebrow!.ToUpperInvariant()).FontSize(8).SemiBold().LetterSpacing(1.15f).FontColor(GoldSoft);
+                column.Item().Text(eyebrow!.ToUpperInvariant()).FontSize(8).SemiBold().LetterSpacing(.26f).FontColor(GoldSoft);
             }
             if (!string.IsNullOrWhiteSpace(title))
             {
@@ -626,10 +635,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             {
                 column.Spacing(9);
                 column.Item().Text(publicationKicker.ToUpperInvariant())
-                    .FontSize(7.3f).SemiBold().LetterSpacing(1.1f).FontColor(Forest800);
+                    .FontSize(7.3f).SemiBold().LetterSpacing(.5f).FontColor(Forest800);
                 column.Item().Height(2).Width(58).Background(Gold);
                 column.Item().Text(project.ProjectName)
-                    .FontSize(ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(1.02f).FontColor(Ink);
+                    .FontSize(ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(1.08f).FontColor(Ink);
 
 
                 column.Item().Element(main => ComposeAdaptiveDossierMain(main, project, planned.DescriptionMarkdown, narrativeLabel));
@@ -667,9 +676,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 column.Item().Row(row =>
                 {
                     row.RelativeItem().Text(planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : narrativeLabel.ToUpperInvariant())
-                        .FontSize(8.4f).SemiBold().LetterSpacing(.6f).FontColor(Forest800);
+                        .FontSize(8.4f).SemiBold().LetterSpacing(.28f).FontColor(Forest800);
                     row.AutoItem().Text($"CONTINUED · PART {planned.ContinuationPart + 1}")
-                        .FontSize(7.2f).SemiBold().LetterSpacing(.55f).FontColor(Slate500);
+                        .FontSize(7.2f).SemiBold().LetterSpacing(.26f).FontColor(Slate500);
                 });
                 column.Item().Height(2).Background(Gold);
 
@@ -833,9 +842,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         };
         var labelLetterSpacing = programmeColumns switch
         {
-            >= 3 => .18f,
-            2 => .3f,
-            _ => .42f
+            >= 3 => .08f,
+            2 => .12f,
+            _ => .16f
         };
 
         container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
@@ -845,7 +854,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             {
                 content.Spacing(6);
                 content.Item().Text("PROGRAMME INFORMATION")
-                    .FontSize(7.2f).SemiBold().LetterSpacing(.75f).FontColor(Forest800);
+                    .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
 
                 foreach (var rowModules in modules.Chunk(programmeColumns))
                 {
@@ -929,7 +938,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             column.Spacing(6);
             column.Item().Text("HARDWARE / TECHNICAL SPECIFICATION")
-                .FontSize(7.7f).SemiBold().LetterSpacing(.7f).FontColor(Forest800);
+                .FontSize(7.7f).SemiBold().LetterSpacing(.14f).FontColor(Forest800);
 
             if (columns == 1)
             {
@@ -1061,7 +1070,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             column.Item().Text(key.ToUpperInvariant())
                 .FontSize(6.7f)
                 .SemiBold()
-                .LetterSpacing(.42f)
+                .LetterSpacing(.18f)
                 .FontColor(Slate500);
             if (emphasize)
             {
@@ -1100,7 +1109,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 column.Item().Text("CAPABILITY DOSSIER")
                     .FontSize(7)
                     .SemiBold()
-                    .LetterSpacing(1f)
+                    .LetterSpacing(.45f)
                     .FontColor(Slate500);
                 column.Item().PaddingTop(5).Text(technicalCategory.ToUpperInvariant())
                     .FontSize(16)
@@ -1111,7 +1120,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         : $"PROJECT REFERENCE · {project.CaseFileNumber}")
                     .FontSize(7.4f)
                     .SemiBold()
-                    .LetterSpacing(.3f)
+                    .LetterSpacing(.14f)
                     .FontColor(Slate500);
             });
         });
@@ -1136,7 +1145,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     row.AutoItem().Text(narrativeLabel.ToUpperInvariant())
                         .FontSize(8.6f)
                         .SemiBold()
-                        .LetterSpacing(.7f)
+                        .LetterSpacing(.14f)
                         .FontColor(Forest900);
                     row.RelativeItem().PaddingLeft(10).AlignMiddle().Height(1).Background(GoldSoft);
                 });
@@ -1239,7 +1248,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     column.Item().PaddingTop(190).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 24));
                     if (!string.IsNullOrWhiteSpace(marking))
                     {
-                        column.Item().PaddingTop(210).Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.8f).FontColor(GoldSoft);
+                        column.Item().PaddingTop(210).Text(marking).FontSize(8.5f).SemiBold().LetterSpacing(.35f).FontColor(GoldSoft);
                     }
                 });
                 layers.Layer().AlignTop().Height(6).Background(Gold);
@@ -1384,7 +1393,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             row.RelativeItem().Text(left)
                 .FontSize(7.6f)
                 .SemiBold()
-                .LetterSpacing(.65f)
+                .LetterSpacing(.24f)
                 .FontColor(Forest800);
             row.AutoItem().Text(right)
                 .FontSize(7.5f)
@@ -1437,7 +1446,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     }
 
     private static TextStyle BaseStyle(TextStyle style)
-        => style.DisableFontFeature(FontFeatures.StandardLigatures);
+        => style
+            .FontFamily(Volatile.Read(ref s_primaryFontFamily))
+            .DisableFontFeature(FontFeatures.StandardLigatures);
 
     private static string ProjectAnchorId(int projectId)
         => $"compendium-project-{projectId.ToString(CultureInfo.InvariantCulture)}";

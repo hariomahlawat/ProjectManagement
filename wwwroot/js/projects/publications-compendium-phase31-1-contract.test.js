@@ -80,9 +80,9 @@ test('phase 31.1 fixes continuation labelling and wide-register collision regres
 });
 
 test('phase 31.1 invalidates stale approvals when the pagination contract changes', () => {
-  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition)/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening)/);
 });
 
 test('phase 31.1 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_adaptive-composition-v12)/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13))/);
 });

@@ -25,6 +25,36 @@
     --pub-shadow: 0 8px 26px rgba(26, 52, 44, .07);
 }
 
+/* Publication proof font: same DM Sans family registered by QuestPDF. */
+@font-face {
+    font-family: "PRISM Publication Sans";
+    src: url("../../fonts/publications/dm-sans/DMSans-Regular.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "PRISM Publication Sans";
+    src: url("../../fonts/publications/dm-sans/DMSans-Medium.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+}
+@font-face {
+    font-family: "PRISM Publication Sans";
+    src: url("../../fonts/publications/dm-sans/DMSans-SemiBold.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: "PRISM Publication Sans";
+    src: url("../../fonts/publications/dm-sans/DMSans-Bold.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+}
+
 .publications-page {
     width: min(100%, 1460px);
     margin-inline: auto;
@@ -3210,6 +3240,7 @@ body.brochure-modal-open { overflow: hidden; }
 }
 .compendium-live-page__sheet {
     position: relative;
+    font-family: "PRISM Publication Sans", "DM Sans", system-ui, sans-serif;
     width: min(100%, 510px);
     aspect-ratio: 595.28 / 841.89;
     overflow: hidden;
@@ -3228,7 +3259,7 @@ body.brochure-modal-open { overflow: hidden; }
     color: #64766f;
     font-size: .42rem;
     font-weight: 700;
-    letter-spacing: .08em;
+    letter-spacing: .035em;
     text-transform: uppercase;
 }
 .compendium-live-page__masthead {
@@ -3244,7 +3275,7 @@ body.brochure-modal-open { overflow: hidden; }
     color: #245b47;
     font-size: .46rem;
     font-weight: 800;
-    letter-spacing: .18em;
+    letter-spacing: .08em;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -3256,7 +3287,7 @@ body.brochure-modal-open { overflow: hidden; }
     background: #eef4ff;
     color: #315e9a;
     font-size: .43rem;
-    letter-spacing: .14em;
+    letter-spacing: .07em;
 }
 .compendium-live-page__masthead > b.is-completed { border-color: #bcd8ca; background: #eaf4ef; color: #205244; }
 .compendium-live-page__sheet h4 {
@@ -3316,7 +3347,7 @@ body.brochure-modal-open { overflow: hidden; }
     color: #4f7063;
 }
 .compendium-live-page__image > div[hidden] { display: none; }
-.compendium-live-page__image > div span { font-size: .38rem; font-weight: 700; letter-spacing: .18em; }
+.compendium-live-page__image > div span { font-size: .38rem; font-weight: 700; letter-spacing: .08em; }
 .compendium-live-page__image > div strong { font-size: .75rem; letter-spacing: .06em; }
 .compendium-live-page__narrative { margin-top: .55rem; }
 .compendium-live-page__narrative > header {
@@ -3329,7 +3360,7 @@ body.brochure-modal-open { overflow: hidden; }
     color: #17382f;
     font-size: .45rem;
     font-weight: 800;
-    letter-spacing: .18em;
+    letter-spacing: .08em;
 }
 .compendium-live-page__narrative > header i { flex: 1 1 auto; height: 1px; background: #e9d9a7; }
 .compendium-live-page__narrative > div {
@@ -3448,6 +3479,15 @@ body.brochure-modal-open { overflow: hidden; }
 }
 
 /* Review mode can deliberately reclaim rail width without hiding structure. */
+.compendium-review-focus-toggle {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.42rem;
+    white-space:nowrap;
+}
+.compendium-review-focus-toggle > i,
+.compendium-review-focus-toggle > span { flex:0 0 auto; }
 .compendium-review-focus-toggle.active {
     border-color: #5f9783;
     background: #edf7f2;
@@ -3743,6 +3783,8 @@ body.brochure-modal-open { overflow: hidden; }
     min-width: 0;
 }
 .compendium-structure-editor-heading > div { min-width: 0; }
+.compendium-structure-editor-heading > a { display:inline-flex; align-items:center; gap:.42rem; }
+.compendium-structure-editor-heading > a > span { display:inline; margin:0; overflow:visible; color:inherit; font-size:inherit; line-height:inherit; white-space:nowrap; }
 .compendium-structure-editor-heading p {
     margin: 0 0 .1rem;
     color: #39715d;
@@ -3756,7 +3798,7 @@ body.brochure-modal-open { overflow: hidden; }
     font-size: clamp(1.25rem, 1.45vw, 1.6rem);
     line-height: 1.1;
 }
-.compendium-structure-editor-heading span {
+.compendium-structure-editor-heading > div > span {
     display: block;
     margin-top: .18rem;
     overflow: hidden;
@@ -4488,8 +4530,9 @@ body.compendium-structure-editor-mode {
 .compendium-cover-editor-heading > div { min-width: 0; }
 .compendium-cover-editor-heading p { margin: 0 0 .1rem; color: var(--pub-green-700); font-size: .66rem; font-weight: 800; letter-spacing: .16em; }
 .compendium-cover-editor-heading h1 { margin: 0; font-size: 1.45rem; line-height: 1.1; }
-.compendium-cover-editor-heading span { display: block; margin-top: .15rem; color: var(--pub-muted); font-size: .78rem; }
-.compendium-cover-editor-heading > a { min-height: 42px; display: inline-flex; align-items: center; gap: .35rem; }
+.compendium-cover-editor-heading > div > span { display: block; margin-top: .15rem; color: var(--pub-muted); font-size: .78rem; }
+.compendium-cover-editor-heading > a { min-height:42px; display:inline-flex; align-items:center; gap:.42rem; }
+.compendium-cover-editor-heading > a > span { display:inline; margin:0; color:inherit; font-size:inherit; line-height:inherit; }
 .compendium-cover-editor-commands { display: flex; align-items: center; gap: .55rem; }
 
 .compendium-cover-editor-summary {
@@ -4617,7 +4660,7 @@ body.compendium-structure-editor-mode {
 .compendium-cover-proof-content { position: absolute; inset: 0; padding: 150px 50px 70px; display: flex; flex-direction: column; gap: 26px; }
 .cover-proof-identity { position: relative; z-index: 4; max-width: 84%; }
 .cover-proof-identity::before { content: ''; display: block; width: 130px; height: 5px; margin-bottom: 16px; background: var(--pub-gold); }
-.cover-proof-identity small { display: block; margin-bottom: 8px; color: #d7bd75; font-size: .62rem; font-weight: 800; letter-spacing: .18em; }
+.cover-proof-identity small { display: block; margin-bottom: 8px; color: #d7bd75; font-size: .62rem; font-weight: 800; letter-spacing: .08em; }
 .cover-proof-identity h3 { margin: 0 0 10px; color: #fff; font-size: clamp(1.65rem, 3vw, 2.4rem); line-height: 1.06; font-weight: 500; }
 .cover-proof-identity p { margin: 0 0 8px; color: #d9e3df; font-size: .9rem; }
 .cover-proof-identity b { color: #e3ca83; font-size: .76rem; }
@@ -4748,7 +4791,7 @@ body.compendium-structure-editor-mode {
     height: 842px;
     min-height: 0;
     aspect-ratio: auto;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: "PRISM Publication Sans", "DM Sans", system-ui, sans-serif;
 }
 .compendium-cover-proof-goldbar { height: 6px; }
 .compendium-cover-proof-content {
@@ -4897,8 +4940,9 @@ body.compendium-structure-editor-mode {
 
 /* Phase 31 — Adaptive project dossier composer */
 .compendium-dossier-controls{padding:.65rem;border:1px solid #dfe9e5;border-radius:10px;background:#f8fbfa}
-.compendium-dossier-layout-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.35rem;margin-top:.45rem}
-.compendium-dossier-layout-options button{min-height:34px;border:1px solid #d7e2de;border-radius:7px;background:#fff;color:#40564d;font-size:.68rem;font-weight:650}
+.compendium-dossier-layout-options{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.35rem;margin-top:.45rem}
+.compendium-dossier-layout-options button{grid-column:span 2;min-width:0;min-height:36px;padding:.35rem .42rem;border:1px solid #d7e2de;border-radius:7px;background:#fff;color:#40564d;font-size:.66rem;font-weight:650;line-height:1.15;white-space:normal;overflow-wrap:anywhere}
+.compendium-dossier-layout-options button:nth-child(n+4){grid-column:span 3}
 .compendium-dossier-layout-options button:hover{border-color:#8ab9a6;background:#f3f8f6}
 .compendium-dossier-layout-options button.active{border-color:#5c9a80;background:#eaf4ef;color:#174836;box-shadow:inset 0 0 0 1px rgba(32,82,68,.08)}
 .compendium-dossier-layout-options button:disabled{opacity:.45;cursor:not-allowed}
@@ -4922,16 +4966,16 @@ body.compendium-structure-editor-mode {
 .compendium-live-page__programme:empty{display:none}
 .compendium-live-page__programme>div{min-width:0}
 .compendium-live-page__programme span,.compendium-live-page__programme strong{display:block}
-.compendium-live-page__programme span{color:#71817b;font-size:.36rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.compendium-live-page__programme span{color:#71817b;font-size:.36rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
 .compendium-live-page__programme strong{margin-top:.08rem;color:#233a31;font-size:.52rem;line-height:1.2}
 .compendium-live-page__programme .ipr strong:before{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:4px;border:1px solid #cfe1d9;border-radius:3px;background:#eaf3ef;color:#205244;font-size:.43rem;font-weight:800;content:attr(data-badge)}
 .compendium-live-page__specifications{margin-top:.55rem;padding-top:.4rem;border-top:1px solid #e9d9a7}
-.compendium-live-page__specifications>header{color:#17382f;font-size:.42rem;font-weight:800;letter-spacing:.16em}
+.compendium-live-page__specifications>header{color:#17382f;font-size:.42rem;font-weight:800;letter-spacing:.08em}
 .compendium-live-page__specifications>div{display:grid;grid-template-columns:repeat(var(--spec-columns,2),minmax(0,1fr));gap:.24rem .65rem;margin-top:.3rem}
 .compendium-live-page__specifications p{position:relative;margin:0;padding-left:.6rem;color:#475569;font-size:.42rem;line-height:1.3}
 .compendium-live-page__specifications p:before{position:absolute;left:0;color:#c9a646;content:'•'}
 
-@media(max-width:1100px){.compendium-dossier-layout-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.compendium-dossier-layout-options{grid-template-columns:repeat(2,minmax(0,1fr))}.compendium-dossier-layout-options button,.compendium-dossier-layout-options button:nth-child(n+4){grid-column:span 1}}
 
 /* Phase 31 — multi-image dossier proof mirrors the PDF's large-primary + supporting stack. */
 .compendium-live-page__sheet:not(.layout-multiimageeditorial) [data-live-page-support-image] {
@@ -5178,4 +5222,10 @@ body.compendium-structure-editor-mode {
     .compendium-cover-proof-tools {
         justify-content: flex-start;
     }
+}
+
+
+/* Production hardening: the fixed output dock occupies reserved rail space instead of covering controls. */
+@media (min-width:1200px) {
+    .compendium-builder-page.has-output-dock:not(.is-review-focus) .compendium-builder-rail { padding-bottom:5.5rem; }
 }

@@ -34,7 +34,7 @@ public sealed record CompendiumReviewFingerprintInput(
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v7-adaptive-composition";
+    private const string ContractVersion = "compendium-review-v8-production-hardening";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {

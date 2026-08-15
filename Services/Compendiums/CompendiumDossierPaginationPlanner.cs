@@ -339,7 +339,9 @@ public static class CompendiumDossierPaginationPlanner
         IReadOnlyList<string> specifications,
         int programmeModuleCount)
     {
-        var idealResidual = ResolveIdealResidualSpace(specifications.Count, programmeModuleCount);
+        var idealResidual = ResolveIdealResidualSpace(
+    specifications.Count,
+    programmeModuleCount);
         var residual = candidate.ResidualSpacePoints;
         var score = 1000f;
 

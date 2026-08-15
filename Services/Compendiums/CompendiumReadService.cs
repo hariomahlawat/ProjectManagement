@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-15_adaptive-composition-v12";
+    public const string BuildStamp = "CompendiumPdf_2026-08-15_production-hardening-v13";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
