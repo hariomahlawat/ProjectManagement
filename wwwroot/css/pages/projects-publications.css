@@ -4984,3 +4984,113 @@ body.compendium-structure-editor-mode {
 .compendium-live-page__sheet.title-medium h4{font-size:.93rem}
 .compendium-live-page__sheet.title-long h4{font-size:.86rem}
 .compendium-live-page__sheet.title-xlong h4{font-size:.79rem}
+
+/* Phase 31.1 — Adaptive pagination and authoring-fidelity hardening */
+.compendium-builder-page .compendium-project-table {
+    min-width: 1280px !important;
+    table-layout: fixed !important;
+}
+.compendium-builder-page .compendium-project-col--project { width: 25%; }
+.compendium-builder-page .compendium-project-col--lifecycle { width: 7%; }
+.compendium-builder-page .compendium-project-col--category { width: 10.5%; }
+.compendium-builder-page .compendium-project-col--technical { width: 10%; }
+.compendium-builder-page .compendium-project-col--narrative { width: 18.5%; }
+.compendium-builder-page .compendium-project-col--arm { width: 10.5%; }
+.compendium-builder-page .compendium-project-col--cost { width: 8.5%; }
+.compendium-builder-page .compendium-project-col--photo { width: 7.5%; }
+.compendium-builder-page .compendium-project-table th.compendium-project-col--project,
+.compendium-builder-page .compendium-project-table td.compendium-project-col--project,
+.compendium-builder-page .compendium-project-table th.compendium-project-col--category,
+.compendium-builder-page .compendium-project-table td.compendium-project-col--category,
+.compendium-builder-page .compendium-project-table th.compendium-project-col--technical,
+.compendium-builder-page .compendium-project-table td.compendium-project-col--technical,
+.compendium-builder-page .compendium-project-table th.compendium-project-col--arm,
+.compendium-builder-page .compendium-project-table td.compendium-project-col--arm {
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+}
+.compendium-builder-page .compendium-project-table td.compendium-project-col--project > strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+.compendium-builder-page .compendium-project-table td.compendium-project-col--lifecycle,
+.compendium-builder-page .compendium-project-table td.compendium-project-col--cost,
+.compendium-builder-page .compendium-project-table td.compendium-project-col--photo {
+    white-space: nowrap;
+}
+
+.compendium-dossier-fit-insight {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .55rem;
+    align-items: start;
+    margin-top: .5rem;
+    padding: .48rem .55rem;
+    border: 1px solid #dce8e3;
+    border-radius: 8px;
+    background: #fff;
+}
+.compendium-dossier-fit-insight > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    min-height: 24px;
+    padding: .2rem .4rem;
+    border-radius: 999px;
+    background: #eaf4ef;
+    color: #205244;
+    font-size: .58rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.compendium-dossier-fit-insight > span.is-continuation {
+    background: #fff7df;
+    color: #8a6816;
+}
+.compendium-dossier-fit-insight > div { min-width: 0; }
+.compendium-dossier-fit-insight strong,
+.compendium-dossier-fit-insight small { display: block; }
+.compendium-dossier-fit-insight strong {
+    color: #30483f;
+    font-size: .63rem;
+    line-height: 1.25;
+}
+.compendium-dossier-fit-insight small {
+    margin-top: .12rem;
+    color: #7b8b84;
+    font-size: .55rem;
+    line-height: 1.35;
+}
+
+.compendium-live-page__narrative > div { max-height: 14rem; }
+.compendium-live-page__sheet.layout-balanced .compendium-live-page__narrative > div { max-height: 18rem; }
+.compendium-live-page__sheet.layout-technical .compendium-live-page__narrative > div { max-height: 18rem; }
+.compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__narrative > div { max-height: 14rem; }
+.compendium-live-page__narrative > div::after { display: none; }
+.compendium-live-page__narrative > div.has-continuation::after { display: block; }
+.compendium-live-page__continuation {
+    display: flex;
+    align-items: center;
+    gap: .28rem;
+    margin-top: .28rem;
+    padding-top: .28rem;
+    border-top: 1px dashed #d8e5df;
+    color: #557266;
+    font-size: .4rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+.compendium-live-page__continuation[hidden] { display: none !important; }
+.compendium-live-page__continuation i { color: #c9a646; }
+
+@media (min-width: 1600px) {
+    .compendium-builder-page .compendium-project-table {
+        min-width: 1280px !important;
+        width: max(100%, 1280px);
+    }
+}

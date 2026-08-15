@@ -80,18 +80,38 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
             {
                 var hasPhoto = project.Images.Any(image => image.Content is { Length: > 0 }) || project.CoverPhoto is { Length: > 0 };
                 var layout = ResolveLayout(project.DescriptionMarkdown, hasPhoto);
-                var specChunks = SplitTechnicalSpecifications(project.TechnicalSpecifications);
-                var firstSpecs = specChunks.Count > 0 && specChunks[0].Sum(item => item.Length) <= 800
-                    ? specChunks[0]
-                    : Array.Empty<string>();
-                var firstBudget = ResolveDossierNarrativeBudget(project.DossierLayout, firstSpecs);
+                var cleanSpecifications = (project.TechnicalSpecifications ?? Array.Empty<string>())
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Take(6)
+                    .ToArray();
+                var firstSpecificationCount = Math.Clamp(
+                    project.DossierFirstPageSpecificationCount,
+                    0,
+                    cleanSpecifications.Length);
+                var firstSpecs = cleanSpecifications.Take(firstSpecificationCount).ToArray();
                 var chunks = CompendiumMarkdownChunker.Split(
                     project.DescriptionMarkdown,
-                    firstBudget,
+                    Math.Max(760, project.DossierFirstPageNarrativeBudget),
                     CompendiumLayoutMetrics.ContinuationDescriptionBudget);
+
+                var remainingSpecChunks = SplitTechnicalSpecifications(cleanSpecifications.Skip(firstSpecificationCount).ToArray()).ToList();
+                IReadOnlyList<string> attachedContinuationSpecifications = Array.Empty<string>();
+                if (chunks.Count > 1
+                    && remainingSpecChunks.Count > 0
+                    && chunks[^1].Length <= 1800
+                    && remainingSpecChunks[0].Sum(item => item.Length) <= 1200)
+                {
+                    attachedContinuationSpecifications = remainingSpecChunks[0];
+                    remainingSpecChunks.RemoveAt(0);
+                }
 
                 for (var index = 0; index < chunks.Count; index++)
                 {
+                    var continuationSpecifications = index == 0
+                        ? firstSpecs
+                        : index == chunks.Count - 1
+                            ? attachedContinuationSpecifications
+                            : Array.Empty<string>();
                     projectSeeds.Add(new ProjectPageSeed(
                         project,
                         category.CategoryName,
@@ -100,11 +120,10 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         layout,
                         firstInCategory && index == 0,
                         index,
-                        index == 0 ? firstSpecs : Array.Empty<string>(),
+                        continuationSpecifications,
                         false));
                 }
 
-                var remainingSpecChunks = firstSpecs.Count > 0 ? specChunks.Skip(1) : specChunks;
                 var continuationIndex = chunks.Count;
                 foreach (var specChunk in remainingSpecChunks)
                 {
@@ -181,21 +200,6 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
         return new CompendiumPagePlan(pages, projectStartPages);
     }
 
-
-    private static int ResolveDossierNarrativeBudget(
-        CompendiumDossierLayout layout,
-        IReadOnlyList<string> firstPageSpecifications)
-    {
-        var baseBudget = layout switch
-        {
-            CompendiumDossierLayout.VisualHero => 1100,
-            CompendiumDossierLayout.MultiImageEditorial => 900,
-            CompendiumDossierLayout.Technical => 1050,
-            _ => 980
-        };
-        var specPressure = firstPageSpecifications.Sum(item => item.Length);
-        return Math.Max(520, baseBudget - Math.Min(420, specPressure / 3));
-    }
 
     private static IReadOnlyList<IReadOnlyList<string>> SplitTechnicalSpecifications(IReadOnlyList<string> specifications)
     {

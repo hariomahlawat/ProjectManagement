@@ -330,6 +330,13 @@ public sealed class IndexModel : PageModel
             dossierLayoutOverride = review.DossierLayoutOverride.ToString(),
             effectiveDossierLayout = review.EffectiveDossierLayout.ToString(),
             review.DossierLayoutReason,
+            review.DossierPressureScore,
+            review.DossierPrimaryImageHeightPoints,
+            review.DossierFirstPageNarrativeBudget,
+            review.DossierFirstPageSpecificationCount,
+            review.EstimatedDossierPageCount,
+            review.DossierPaginationNote,
+            review.DossierPaginationReason,
             review.DossierImageCount,
             dossierImages = review.DossierImages.Select(image => new
             {

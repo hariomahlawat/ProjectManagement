@@ -83,15 +83,15 @@ test('phase 31 supports one to three distinct dossier images with per-slot fit c
 
 test('phase 31 renders adaptive technical specifications rather than fixed empty boxes', () => {
   assert.match(builder, /HARDWARE \/ TECHNICAL SPECIFICATION/);
-  assert.match(builder, /totalLength <= 360 && items\.Length >= 4 \? 3/);
-  assert.match(builder, /totalLength <= 900 && items\.Length >= 3 \? 2/);
+  assert.match(builder, /ResolveTechnicalSpecificationColumns/);
+  assert.match(read('Services/Compendiums/CompendiumDossierPaginationPlanner.cs'), /longest <= 125/);
   assert.match(css, /--spec-columns/);
   assert.match(mainJs, /technicalSpecifications/);
 });
 
 test('phase 31 allows photography to yield space before text and provides deterministic technical continuation pages', () => {
-  assert.match(builder, /CompendiumDossierLayout\.Technical[\s\S]*ComposeDossierImage\(frame, primary, 145\)/);
-  assert.match(pagePlanner, /ResolveDossierNarrativeBudget/);
+  assert.match(builder, /DossierPrimaryImageHeightPoints/);
+  assert.doesNotMatch(pagePlanner, /ResolveDossierNarrativeBudget/);
   assert.match(pagePlanner, /SplitTechnicalSpecifications/);
   assert.match(builder, /TECHNICAL REFERENCE/);
   assert.match(pagePlanner, /IsTechnicalContinuation/);
@@ -110,7 +110,7 @@ test('phase 31 live proof mirrors the modular programme specification and multi-
 });
 
 test('phase 31 review fingerprint invalidates approval when adaptive dossier facts or presentation changes', () => {
-  assert.match(fingerprint, /compendium-review-v5/);
+  assert.match(fingerprint, /compendium-review-v6-adaptive-pagination/);
   assert.match(fingerprint, /DossierLayout/);
   assert.match(fingerprint, /DossierImages/);
   assert.match(fingerprint, /TechnicalSpecifications/);
@@ -119,5 +119,5 @@ test('phase 31 review fingerprint invalidates approval when adaptive dossier fac
 });
 
 test('phase 31 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-14_adaptive-dossier-v10/);
+  assert.match(readService, /CompendiumPdf_2026-08-14_adaptive-pagination-v11/);
 });

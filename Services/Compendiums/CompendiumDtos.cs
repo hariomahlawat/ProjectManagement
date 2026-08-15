@@ -312,6 +312,13 @@ public sealed record CompendiumReviewProjectDto(
     public CompendiumDossierLayout DossierLayoutOverride { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumDossierLayout EffectiveDossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
     public string DossierLayoutReason { get; init; } = string.Empty;
+    public int DossierPressureScore { get; init; }
+    public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
+    public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+    public int DossierFirstPageSpecificationCount { get; init; } = 6;
+    public int EstimatedDossierPageCount { get; init; } = 1;
+    public string DossierPaginationNote { get; init; } = "1 dossier page";
+    public string DossierPaginationReason { get; init; } = string.Empty;
     public int DossierImageCount { get; init; } = 1;
     public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
 }
@@ -361,6 +368,13 @@ public sealed record CompendiumProjectDto(
     public CompendiumDossierLayout DossierLayoutOverride { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumDossierLayout EffectiveDossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
     public string DossierLayoutReason { get; init; } = string.Empty;
+    public int DossierPressureScore { get; init; }
+    public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
+    public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+    public int DossierFirstPageSpecificationCount { get; init; } = 6;
+    public int EstimatedDossierPageCount { get; init; } = 1;
+    public string DossierPaginationNote { get; init; } = "1 dossier page";
+    public string DossierPaginationReason { get; init; } = string.Empty;
     public int DossierImageCount { get; init; } = 1;
     public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
 }
@@ -553,10 +567,22 @@ public static class CompendiumPublicationImagePolicy
         int sourceHeight,
         string? descriptionMarkdown = null,
         CompendiumImageFitMode fitMode = CompendiumImageFitMode.Fill)
+        => CalculateEffectiveDpi(
+            sourceWidth,
+            sourceHeight,
+            FrameWidthPoints,
+            ResolveFrameHeightPoints(descriptionMarkdown),
+            fitMode);
+
+    public static int? CalculateEffectiveDpi(
+        int sourceWidth,
+        int sourceHeight,
+        double frameWidthPoints,
+        double frameHeightPoints,
+        CompendiumImageFitMode fitMode = CompendiumImageFitMode.Fill)
     {
-        if (sourceWidth <= 0 || sourceHeight <= 0) return null;
-        var frameHeight = ResolveFrameHeightPoints(descriptionMarkdown);
-        var targetAspect = FrameWidthPoints / frameHeight;
+        if (sourceWidth <= 0 || sourceHeight <= 0 || frameWidthPoints <= 0 || frameHeightPoints <= 0) return null;
+        var targetAspect = frameWidthPoints / frameHeightPoints;
         var sourceAspect = sourceWidth / (double)sourceHeight;
 
         if (fitMode == CompendiumImageFitMode.Fit)
@@ -565,13 +591,13 @@ public static class CompendiumPublicationImagePolicy
             double displayHeightPoints;
             if (sourceAspect >= targetAspect)
             {
-                displayWidthPoints = FrameWidthPoints;
-                displayHeightPoints = FrameWidthPoints / sourceAspect;
+                displayWidthPoints = frameWidthPoints;
+                displayHeightPoints = frameWidthPoints / sourceAspect;
             }
             else
             {
-                displayHeightPoints = frameHeight;
-                displayWidthPoints = frameHeight * sourceAspect;
+                displayHeightPoints = frameHeightPoints;
+                displayWidthPoints = frameHeightPoints * sourceAspect;
             }
 
             var horizontalFitDpi = sourceWidth / (displayWidthPoints / 72d);
@@ -592,8 +618,8 @@ public static class CompendiumPublicationImagePolicy
             cropHeight = cropWidth / targetAspect;
         }
 
-        var horizontalDpi = cropWidth / (FrameWidthPoints / 72d);
-        var verticalDpi = cropHeight / (frameHeight / 72d);
+        var horizontalDpi = cropWidth / (frameWidthPoints / 72d);
+        var verticalDpi = cropHeight / (frameHeightPoints / 72d);
         return (int)Math.Floor(Math.Min(horizontalDpi, verticalDpi));
     }
 

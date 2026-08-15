@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-14_adaptive-dossier-v10";
+    public const string BuildStamp = "CompendiumPdf_2026-08-14_adaptive-pagination-v11";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -285,13 +285,26 @@ public sealed class CompendiumReadService : ICompendiumReadService
                                      + (cost?.Cost.HasValue == true ? 1 : 0)
                                      + (iprCredentials.Count > 0 ? 1 : 0)
                                      + (technologyTransfer is null ? 0 : 1);
+            var dossierPhotoCount = dossierImages.Count(item => item.PhotoId.HasValue);
             var dossierDecision = CompendiumDossierLayoutPlanner.Resolve(
                 selection.DossierLayout,
-                dossierImages.Count(item => item.PhotoId.HasValue),
+                dossierPhotoCount,
                 narrative.Text,
                 specifications,
                 programmeModuleCount,
                 project.Name);
+            var paginationDecision = CompendiumDossierPaginationPlanner.Resolve(
+                selection.DossierLayout,
+                dossierDecision.Layout,
+                dossierPhotoCount,
+                narrative.Text,
+                specifications,
+                programmeModuleCount,
+                project.Name);
+            var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
+                paginationDecision.Layout,
+                dossierPhotoCount);
+            var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
             var sectionAssignment = ResolveSectionAssignment(selection, sections);
             var probe = resolved.ResolvedPhotoId.HasValue
                 ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
@@ -300,7 +313,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                     probe.Width,
                     probe.Height,
-                    narrative.Text,
+                    dossierFrameWidth,
+                    dossierFrameHeight,
                     resolved.Selection.ImageFitMode)
                 : null;
             var imageQuality = CompendiumPublicationImagePolicy.Classify(effectiveDpi);
@@ -399,9 +413,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 TechnologyTransfer = technologyTransfer,
                 TechnicalSpecifications = specifications,
                 DossierLayoutOverride = selection.DossierLayout,
-                EffectiveDossierLayout = dossierDecision.Layout,
+                EffectiveDossierLayout = paginationDecision.Layout,
                 DossierLayoutReason = dossierDecision.Reason,
-                DossierImageCount = dossierImages.Count(item => item.PhotoId.HasValue),
+                DossierPressureScore = dossierDecision.PressureScore,
+                DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
+                DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
+                DossierFirstPageSpecificationCount = paginationDecision.FirstPageSpecificationCount,
+                EstimatedDossierPageCount = paginationDecision.EstimatedPageCount,
+                DossierPaginationNote = paginationDecision.PaginationNote,
+                DossierPaginationReason = paginationDecision.Reason,
+                DossierImageCount = dossierPhotoCount,
                 DossierImages = dossierImages
             });
         }
@@ -519,10 +540,23 @@ public sealed class CompendiumReadService : ICompendiumReadService
                                  + (cost?.Cost.HasValue == true ? 1 : 0)
                                  + (iprCredentials.Count > 0 ? 1 : 0)
                                  + (technologyTransfer is null ? 0 : 1);
+        var dossierPhotoCount = dossierImages.Count(item => item.PhotoId.HasValue);
         var dossierDecision = CompendiumDossierLayoutPlanner.Resolve(
             selection.DossierLayout,
-            dossierImages.Count(item => item.PhotoId.HasValue),
+            dossierPhotoCount,
             narrative.Text, specifications, programmeModuleCount, project.Name);
+        var paginationDecision = CompendiumDossierPaginationPlanner.Resolve(
+            selection.DossierLayout,
+            dossierDecision.Layout,
+            dossierPhotoCount,
+            narrative.Text,
+            specifications,
+            programmeModuleCount,
+            project.Name);
+        var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
+            paginationDecision.Layout,
+            dossierPhotoCount);
+        var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
         var photoReferences = photoCandidates
             .Select(photo => new BrochurePhotoReference(project.Id, photo.Id))
             .ToArray();
@@ -540,7 +574,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                         probe.Width,
                         probe.Height,
-                        narrative.Text,
+                        dossierFrameWidth,
+                        dossierFrameHeight,
                         selection.ImageFitMode)
                     : null;
                 return new CompendiumReviewPhotoVm(
@@ -564,7 +599,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                 selectedProbe.Width,
                 selectedProbe.Height,
-                narrative.Text,
+                dossierFrameWidth,
+                dossierFrameHeight,
                 resolved.Selection.ImageFitMode)
             : null;
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
@@ -641,8 +677,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             assessment.IsReviewStale,
             resolved.ExplicitPhotoUnavailable)
         {
-            ImageFrameWidthPoints = CompendiumPublicationImagePolicy.FrameWidthPoints,
-            ImageFrameHeightPoints = CompendiumPublicationImagePolicy.ResolveFrameHeightPoints(narrative.Text),
+            ImageFrameWidthPoints = dossierFrameWidth,
+            ImageFrameHeightPoints = dossierFrameHeight,
             NarrativeSource = narrativeSource,
             NarrativeLabel = narrative.Label,
             HasProjectBrief = !string.IsNullOrWhiteSpace(project.ProjectBrief),
@@ -660,9 +696,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
             TechnologyTransfer = technologyTransfer,
             TechnicalSpecifications = specifications,
             DossierLayoutOverride = selection.DossierLayout,
-            EffectiveDossierLayout = dossierDecision.Layout,
+            EffectiveDossierLayout = paginationDecision.Layout,
             DossierLayoutReason = dossierDecision.Reason,
-            DossierImageCount = dossierImages.Count(item => item.PhotoId.HasValue),
+            DossierPressureScore = dossierDecision.PressureScore,
+            DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
+            DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
+            DossierFirstPageSpecificationCount = paginationDecision.FirstPageSpecificationCount,
+            EstimatedDossierPageCount = paginationDecision.EstimatedPageCount,
+            DossierPaginationNote = paginationDecision.PaginationNote,
+            DossierPaginationReason = paginationDecision.Reason,
+            DossierImageCount = dossierPhotoCount,
             DossierImages = dossierImages
         };
     }

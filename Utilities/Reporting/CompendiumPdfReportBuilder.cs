@@ -97,8 +97,15 @@ public sealed record CompendiumPdfProjectSection(
     public bool IsAvailableForProliferation { get; init; }
     public bool? ProliferationAvailability { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public CompendiumDossierLayout DossierLayoutRequested { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
     public string DossierLayoutReason { get; init; } = string.Empty;
+    public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
+    public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+    public int DossierFirstPageSpecificationCount { get; init; } = 6;
+    public int EstimatedDossierPageCount { get; init; } = 1;
+    public string DossierPaginationNote { get; init; } = "1 dossier page";
+    public string DossierPaginationReason { get; init; } = string.Empty;
     public IReadOnlyList<CompendiumPdfProjectImage> Images { get; init; } = Array.Empty<CompendiumPdfProjectImage>();
     public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
@@ -658,9 +665,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     .FontSize(17).SemiBold().LineHeight(1.06f).FontColor(Ink);
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Text(planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : $"{narrativeLabel.ToUpperInvariant()} · CONTINUED")
+                    row.RelativeItem().Text(planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : narrativeLabel.ToUpperInvariant())
                         .FontSize(8.4f).SemiBold().LetterSpacing(.6f).FontColor(Forest800);
-                    row.AutoItem().Text($"CONTINUED · {planned.ContinuationPart + 1}")
+                    row.AutoItem().Text($"CONTINUED · PART {planned.ContinuationPart + 1}")
                         .FontSize(7.2f).SemiBold().LetterSpacing(.55f).FontColor(Slate500);
                 });
                 column.Item().Height(2).Background(Gold);
@@ -705,6 +712,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var primary = images.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary)?.Content
                       ?? project.CoverPhoto;
 
+        var imageHeight = Math.Max(90f, project.DossierPrimaryImageHeightPoints);
         switch (project.DossierLayout)
         {
             case CompendiumDossierLayout.VisualHero:
@@ -712,7 +720,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Spacing(9);
                     if (primary is { Length: > 0 })
-                        column.Item().Element(frame => ComposeDossierImage(frame, primary, 255));
+                        column.Item().Element(frame => ComposeDossierImage(frame, primary, imageHeight));
                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
                 });
                 break;
@@ -722,7 +730,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Spacing(9);
                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
-                    column.Item().Element(mosaic => ComposeDossierMosaic(mosaic, images));
+                    column.Item().Element(mosaic => ComposeDossierMosaic(mosaic, images, imageHeight));
                 });
                 break;
 
@@ -731,7 +739,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Spacing(8);
                     if (primary is { Length: > 0 })
-                        column.Item().Element(frame => ComposeDossierImage(frame, primary, 145));
+                        column.Item().Element(frame => ComposeDossierImage(frame, primary, imageHeight));
                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
                 });
                 break;
@@ -741,7 +749,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     container.Row(row =>
                     {
-                        row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primary, 246));
+                        row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primary, imageHeight));
                         row.ConstantItem(13);
                         row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
                     });
@@ -761,27 +769,31 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             layers.Layer().AlignBottom().Height(3).Background(Gold);
         });
 
-    private static void ComposeDossierMosaic(IContainer container, IReadOnlyList<CompendiumPdfProjectImage> images)
+    private static void ComposeDossierMosaic(
+        IContainer container,
+        IReadOnlyList<CompendiumPdfProjectImage> images,
+        float height)
     {
         var available = images.Where(image => image.Content is { Length: > 0 }).Take(3).ToArray();
         if (available.Length == 0) return;
+        height = Math.Max(120f, height);
         if (available.Length == 1)
         {
-            ComposeDossierImage(container, available[0].Content!, 240);
+            ComposeDossierImage(container, available[0].Content!, height);
             return;
         }
 
-        container.Height(245).Row(row =>
+        container.Height(height).Row(row =>
         {
-            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, 245));
+            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, height));
             row.ConstantItem(7);
             row.RelativeItem(1f).Column(column =>
             {
                 column.Spacing(7);
-                var secondaryHeight = available.Length >= 3 ? 119 : 245;
+                var secondaryHeight = available.Length >= 3 ? Math.Max(52f, (height - 7f) / 2f) : height;
                 column.Item().Element(frame => ComposeDossierImage(frame, available[1].Content!, secondaryHeight));
                 if (available.Length >= 3)
-                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, 119));
+                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, secondaryHeight));
             });
         });
     }
@@ -796,10 +808,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             && !string.Equals(project.ProliferationCostDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
             modules.Add(("Proliferation cost", project.ProliferationCostDisplay, null));
 
-        foreach (var ipr in project.IprCredentials.Take(2))
+        if (project.IprCredentials.Count > 0)
         {
-            var year = ipr.Year.HasValue ? $" · {ipr.Year.Value}" : string.Empty;
-            modules.Add(("IPR", $"{ipr.Type} · {ipr.Status}{year}", ipr.Type.Equals("Copyright", StringComparison.OrdinalIgnoreCase) ? "©" : "IP"));
+            modules.Add(("IPR", BuildIprProgrammeValue(project.IprCredentials), ResolveIprBadge(project.IprCredentials)));
         }
 
         if (project.TechnologyTransfer is not null)
@@ -817,7 +828,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 content.Spacing(6);
                 content.Item().Text("PROGRAMME INFORMATION")
                     .FontSize(7.2f).SemiBold().LetterSpacing(.75f).FontColor(Forest800);
-                foreach (var rowModules in modules.Chunk(modules.Count <= 2 ? 2 : modules.Count <= 4 ? 4 : 3))
+                var programmeColumns = CompendiumDossierPaginationPlanner.ResolveProgrammeColumns(modules.Count);
+                foreach (var rowModules in modules.Chunk(programmeColumns))
                 {
                     content.Item().Row(row =>
                     {
@@ -844,12 +856,42 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         });
     }
 
+    private static string BuildIprProgrammeValue(IReadOnlyList<CompendiumIprCredentialDto> credentials)
+    {
+        var groups = credentials
+            .Where(item => !string.IsNullOrWhiteSpace(item.Type) && !string.IsNullOrWhiteSpace(item.Status))
+            .GroupBy(item => item.Type.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var granted = group.Any(item => item.Status.Equals("Granted", StringComparison.OrdinalIgnoreCase));
+                var status = granted ? "Granted" : "Filed";
+                var years = group.Where(item => item.Year.HasValue)
+                    .Select(item => item.Year!.Value)
+                    .Distinct()
+                    .OrderByDescending(year => year)
+                    .Take(2)
+                    .ToArray();
+                var yearText = years.Length == 0 ? string.Empty : $" · {string.Join("/", years)}";
+                var countText = group.Count() > 1 ? $" · {group.Count()} records" : string.Empty;
+                return $"{group.Key} · {status}{yearText}{countText}";
+            })
+            .ToArray();
+        return groups.Length == 0 ? "Filed / Granted" : string.Join("\n", groups);
+    }
+
+    private static string ResolveIprBadge(IReadOnlyList<CompendiumIprCredentialDto> credentials)
+    {
+        var types = credentials.Select(item => item.Type?.Trim()).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (types.Length == 1 && string.Equals(types[0], "Copyright", StringComparison.OrdinalIgnoreCase)) return "©";
+        if (types.Length == 1 && string.Equals(types[0], "Patent", StringComparison.OrdinalIgnoreCase)) return "IP";
+        return "IPR";
+    }
+
     private static void ComposeTechnicalSpecifications(IContainer container, IReadOnlyList<string> specifications)
     {
         var items = specifications.Where(item => !string.IsNullOrWhiteSpace(item)).Take(6).ToArray();
         if (items.Length == 0) return;
-        var totalLength = items.Sum(item => item.Length);
-        var columns = totalLength <= 360 && items.Length >= 4 ? 3 : totalLength <= 900 && items.Length >= 3 ? 2 : 1;
+        var columns = CompendiumDossierPaginationPlanner.ResolveTechnicalSpecificationColumns(items);
 
         container.Background(White).BorderTop(1).BorderColor(GoldSoft).PaddingTop(6).Column(column =>
         {

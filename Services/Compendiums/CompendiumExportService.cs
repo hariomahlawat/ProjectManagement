@@ -90,7 +90,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     var geometry = ResolveDossierSlotGeometry(
                         project.EffectiveDossierLayout,
                         image.Role,
-                        project.DossierImageCount);
+                        project.DossierImageCount,
+                        project.DossierPrimaryImageHeightPoints);
                     return new BrochurePhotoRenderRequest(
                         project.ProjectId,
                         image.PhotoId!.Value,
@@ -164,8 +165,15 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     TechnicalCategoryDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.TechnicalCategoryName),
                     NarrativeLabel = CompendiumPublicationTextSanitizer.Sanitize(project.NarrativeLabel),
                     ImageFitMode = project.ImageFitMode,
+                    DossierLayoutRequested = project.DossierLayoutOverride,
                     DossierLayout = project.EffectiveDossierLayout,
                     DossierLayoutReason = project.DossierLayoutReason,
+                    DossierPrimaryImageHeightPoints = project.DossierPrimaryImageHeightPoints,
+                    DossierFirstPageNarrativeBudget = project.DossierFirstPageNarrativeBudget,
+                    DossierFirstPageSpecificationCount = project.DossierFirstPageSpecificationCount,
+                    EstimatedDossierPageCount = project.EstimatedDossierPageCount,
+                    DossierPaginationNote = project.DossierPaginationNote,
+                    DossierPaginationReason = project.DossierPaginationReason,
                     Images = renderedDossierImages,
                     SponsoringLineDirectorateDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.SponsoringLineDirectorateDisplay),
                     IprCredentials = project.IprCredentials,
@@ -443,18 +451,42 @@ public sealed class CompendiumExportService : ICompendiumExportService
     private static (int Width, int Height) ResolveDossierSlotGeometry(
         CompendiumDossierLayout layout,
         CompendiumDossierImageRole role,
-        int imageCount)
+        int imageCount,
+        float primaryImageHeightPoints)
     {
         imageCount = Math.Clamp(imageCount, 1, 3);
-        return layout switch
+        primaryImageHeightPoints = Math.Max(90f, primaryImageHeightPoints);
+
+        static int HeightFor(int pixelWidth, float frameWidthPoints, float frameHeightPoints)
+            => Math.Max(320, (int)Math.Round(pixelWidth * frameHeightPoints / Math.Max(1f, frameWidthPoints)));
+
+        if (layout == CompendiumDossierLayout.MultiImageEditorial)
         {
-            CompendiumDossierLayout.VisualHero => (1800, 885),
-            CompendiumDossierLayout.Technical => (1800, 505),
-            CompendiumDossierLayout.MultiImageEditorial when role == CompendiumDossierImageRole.Primary => (1500, 1180),
-            CompendiumDossierLayout.MultiImageEditorial when imageCount >= 3 => (1100, 650),
-            CompendiumDossierLayout.MultiImageEditorial => (1100, 1340),
-            _ => (1350, 1170)
-        };
+            const float mosaicWidth = CompendiumLayoutMetrics.ContentWidthPoints;
+            const float gap = 7f;
+            var usableWidth = mosaicWidth - gap;
+            var primaryWidthPoints = usableWidth * 1.55f / 2.55f;
+            var supportingWidthPoints = usableWidth - primaryWidthPoints;
+            if (role == CompendiumDossierImageRole.Primary)
+            {
+                return (1500, HeightFor(1500, primaryWidthPoints, primaryImageHeightPoints));
+            }
+
+            var supportingHeight = imageCount >= 3
+                ? Math.Max(80f, (primaryImageHeightPoints - gap) / 2f)
+                : primaryImageHeightPoints;
+            return (1100, HeightFor(1100, supportingWidthPoints, supportingHeight));
+        }
+
+        if (layout == CompendiumDossierLayout.Balanced)
+        {
+            const float interColumnGap = 13f;
+            var usableWidth = CompendiumLayoutMetrics.ContentWidthPoints - interColumnGap;
+            var frameWidth = usableWidth * 1.12f / 2f;
+            return (1350, HeightFor(1350, frameWidth, primaryImageHeightPoints));
+        }
+
+        return (1800, HeightFor(1800, CompendiumLayoutMetrics.ContentWidthPoints, primaryImageHeightPoints));
     }
 
     private static (int Width, int Height) ResolveCoverSlotGeometry(

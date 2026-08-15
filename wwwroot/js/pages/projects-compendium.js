@@ -300,6 +300,9 @@
     const reviewImageCountButtons = [...form.querySelectorAll("[data-review-image-count]")];
     const reviewManagePageImages = $("[data-review-manage-page-images]");
     const reviewLayoutReason = $("[data-review-layout-reason]");
+    const reviewPaginationBadge = $("[data-review-pagination-badge]");
+    const reviewPaginationNote = $("[data-review-pagination-note]");
+    const reviewPaginationReason = $("[data-review-pagination-reason]");
     const reviewFocusToggle = $("[data-review-focus-toggle]");
     const livePageZoomButtons = [...form.querySelectorAll("[data-live-page-zoom]")];
 
@@ -317,6 +320,7 @@
     const livePageImageCategory = $("[data-live-page-image-category]");
     const livePageNarrativeLabel = $("[data-live-page-narrative-label]");
     const livePageNarrative = $("[data-live-page-narrative]");
+    const livePageContinuation = $("[data-live-page-continuation]");
     const livePageSpecifications = $("[data-live-page-specifications]");
     const livePageSpecificationList = $("[data-live-page-specification-list]");
 
@@ -979,6 +983,39 @@
         .replace(/\s+/g, " ")
         .trim();
 
+    const aggregateIprCredentials = credentials => {
+        const source = Array.isArray(credentials) ? credentials.filter(item => item?.type && item?.status) : [];
+        if (!source.length) return "";
+        const groups = new Map();
+        source.forEach(item => {
+            const key = String(item.type).trim();
+            const normalizedKey = normalize(key);
+            const current = groups.get(normalizedKey) || { type:key, items:[] };
+            current.items.push(item);
+            groups.set(normalizedKey, current);
+        });
+        return [...groups.values()].map(group => {
+            const granted = group.items.some(item => normalize(item.status) === "granted");
+            const status = granted ? "Granted" : "Filed";
+            const years = [...new Set(group.items.map(item => Number(item.year || 0)).filter(Boolean))].sort((a,b) => b-a).slice(0,2);
+            const count = group.items.length > 1 ? ` · ${group.items.length} records` : "";
+            return `${group.type} · ${status}${years.length ? ` · ${years.join("/")}` : ""}${count}`;
+        }).join(" / ");
+    };
+
+    const resolveSpecificationColumns = specifications => {
+        const items = (Array.isArray(specifications) ? specifications : []).map(item => String(item || "").trim()).filter(Boolean).slice(0,6);
+        if (!items.length) return 1;
+        const total = items.reduce((sum,item) => sum + item.length, 0);
+        const longest = Math.max(...items.map(item => item.length));
+        if (items.length >= 4 && total <= 390 && longest <= 125) return 3;
+        if (items.length >= 3 && total <= 920 && longest <= 285) return 2;
+        if (items.length === 2 && total <= 340 && longest <= 190) return 2;
+        return 1;
+    };
+
+    const resolveProgrammeColumns = count => count <= 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 2;
+
     const renderLivePagePreview = (review, photo) => {
         if (!livePagePreview || !review) return;
         const config = ensureConfig(review.projectId);
@@ -995,15 +1032,24 @@
         const effectiveLayout = normalizeDossierLayout(review.effectiveDossierLayout || config.dossierLayout);
         livePagePreview.classList.remove("layout-automatic","layout-visualhero","layout-balanced","layout-multiimageeditorial","layout-technical");
         livePagePreview.classList.add(`layout-${normalize(effectiveLayout)}`);
+        if (livePageImageFrame) {
+            const imageHeight = Math.max(90, Number(review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
+            const frameWidth = effectiveLayout === "Balanced" ? 283 : 519;
+            livePageImageFrame.style.setProperty("aspect-ratio", `${frameWidth} / ${imageHeight}`, "important");
+        }
 
         const programme = [];
         const sponsor = String(review.sponsoringLineDirectorateDisplay || "").trim();
         if (sponsor && normalize(sponsor) !== "not recorded") programme.push({ label:"Sponsoring line directorate", value:sponsor });
         if (review.proliferationCostLakhs != null && review.proliferationCostDisplay && normalize(review.proliferationCostDisplay) !== "not recorded") programme.push({ label:"Proliferation cost", value:review.proliferationCostDisplay });
-        (review.iprCredentials || []).slice(0,2).forEach(ipr => programme.push({ label:"IPR", value:`${ipr.type} · ${ipr.status}${ipr.year ? ` · ${ipr.year}` : ""}`, badge:normalize(ipr.type)==="copyright" ? "©" : "IP" }));
+        const iprSummary = aggregateIprCredentials(review.iprCredentials);
+        if (iprSummary) {
+            const iprTypes = [...new Set((review.iprCredentials || []).map(item => normalize(item.type)).filter(Boolean))];
+            programme.push({ label:"IPR", value:iprSummary, badge:iprTypes.length === 1 && iprTypes[0] === "copyright" ? "©" : iprTypes.length === 1 && iprTypes[0] === "patent" ? "IP" : "IPR" });
+        }
         if (review.technologyTransfer) programme.push({ label:"Technology transfer", value:`${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}` });
         if (livePageFacts) {
-            livePageFacts.style.setProperty("--programme-columns", String(Math.min(4, Math.max(1, programme.length))));
+            livePageFacts.style.setProperty("--programme-columns", String(resolveProgrammeColumns(programme.length)));
             livePageFacts.innerHTML = programme.map(item => `<div class="${item.badge ? "ipr" : ""}"><span>${escapeHtml(item.label)}</span><strong${item.badge ? ` data-badge="${escapeHtml(item.badge)}"` : ""}>${escapeHtml(item.value)}</strong></div>`).join("");
         }
 
@@ -1039,13 +1085,19 @@
             const plain = narrativePlainText(review.descriptionMarkdown);
             livePageNarrative.textContent = plain || `${review.narrativeLabel || "Project Brief"} not recorded.`;
             livePageNarrative.classList.toggle("is-missing", !plain);
+            livePageNarrative.classList.toggle("has-continuation", Number(review.estimatedDossierPageCount || 1) > 1);
+        }
+        if (livePageContinuation) {
+            const pages = Math.max(1, Number(review.estimatedDossierPageCount || 1));
+            livePageContinuation.hidden = pages <= 1;
+            const copy = livePageContinuation.querySelector("span");
+            if (copy && pages > 1) copy.textContent = `${review.narrativeLabel || "Project Brief"} continues · estimated ${pages} dossier pages`;
         }
 
         const specs = Array.isArray(review.technicalSpecifications) ? review.technicalSpecifications.filter(Boolean) : [];
         if (livePageSpecifications && livePageSpecificationList) {
             livePageSpecifications.hidden = specs.length === 0;
-            const total = specs.reduce((sum,item) => sum + String(item).length, 0);
-            livePageSpecificationList.style.setProperty("--spec-columns", String(total <= 360 && specs.length >= 4 ? 3 : total <= 900 && specs.length >= 3 ? 2 : 1));
+            livePageSpecificationList.style.setProperty("--spec-columns", String(resolveSpecificationColumns(specs)));
             livePageSpecificationList.innerHTML = specs.map(item => `<p>${escapeHtml(item)}</p>`).join("");
         }
     };
@@ -1075,7 +1127,8 @@
         const facts = [];
         if (review.sponsoringLineDirectorateDisplay) facts.push(["Sponsoring line directorate", review.sponsoringLineDirectorateDisplay]);
         if (review.proliferationCostLakhs != null) facts.push(["Proliferation cost", review.proliferationCostDisplay || "Not recorded"]);
-        (review.iprCredentials || []).slice(0,2).forEach(ipr => facts.push(["IPR", `${ipr.type} · ${ipr.status}${ipr.year ? ` · ${ipr.year}` : ""}`]));
+        const reviewIprSummary = aggregateIprCredentials(review.iprCredentials);
+        if (reviewIprSummary) facts.push(["IPR", reviewIprSummary]);
         if (review.technologyTransfer) facts.push(["Technology transfer", `${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}`]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
         if (reviewDescription) reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
@@ -1113,7 +1166,16 @@
             button.classList.toggle("active", requested === Number(config.dossierImageCount || 1));
             button.disabled = requested > Math.max(1, availableDossierPhotos);
         });
-        if (reviewLayoutReason) reviewLayoutReason.textContent = currentLayout === "Automatic" ? `Automatic · ${review.effectiveDossierLayout || "Balanced"}` : `${currentLayout.replace(/([a-z])([A-Z])/g,"$1 $2")} · override`;
+        const estimatedPages = Math.max(1, Number(review.estimatedDossierPageCount || 1));
+        if (reviewLayoutReason) reviewLayoutReason.textContent = currentLayout === "Automatic"
+            ? `Automatic · ${review.effectiveDossierLayout || "Balanced"} · ${estimatedPages} ${estimatedPages === 1 ? "page" : "pages"}`
+            : `${currentLayout.replace(/([a-z])([A-Z])/g,"$1 $2")} · override · ${estimatedPages} ${estimatedPages === 1 ? "page" : "pages"}`;
+        if (reviewPaginationBadge) {
+            reviewPaginationBadge.textContent = `${estimatedPages} ${estimatedPages === 1 ? "page" : "pages"}`;
+            reviewPaginationBadge.classList.toggle("is-continuation", estimatedPages > 1);
+        }
+        if (reviewPaginationNote) reviewPaginationNote.textContent = review.dossierPaginationNote || (estimatedPages === 1 ? "Fits on one dossier page" : `${estimatedPages} dossier pages`);
+        if (reviewPaginationReason) reviewPaginationReason.textContent = review.dossierPaginationReason || review.dossierLayoutReason || "PRISM is balancing photography and readable content.";
 
         if (reviewImageFrame) { const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints; const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints; reviewImageFrame.style.aspectRatio = `${fw} / ${fh}`; }
         const photo = currentReviewPhoto(review);
