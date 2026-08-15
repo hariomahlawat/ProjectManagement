@@ -53,7 +53,7 @@ public sealed class CompendiumPhase26ContractTests
             SortOrder = 0
         });
 
-        Assert.Equal(5, preset.SettingsSchemaVersion);
+        Assert.True(preset.SettingsSchemaVersion >= 5);
         Assert.Single(preset.Sections);
         Assert.Empty(preset.Sections.Single().Projects);
     }

@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 6;
+    private const int CurrentSchemaVersion = 7;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -215,9 +215,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
             var mode = ParseImageMode(item.ImageSelectionMode);
             var primaryPhotoId = item.PrimaryPhotoId;
+            var availablePhotoIds = photoIdsByProject.GetValueOrDefault(projectId) ?? new HashSet<int>();
             if (mode == CompendiumImageSelectionMode.Explicit)
             {
-                var availablePhotoIds = photoIdsByProject.GetValueOrDefault(projectId) ?? new HashSet<int>();
                 if (!primaryPhotoId.HasValue || !availablePhotoIds.Contains(primaryPhotoId.Value))
                 {
                     diagnostics.Add(new CompendiumPresetDiagnostic(
@@ -257,7 +257,17 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     ? CleanOptional(item.CustomSectionName, 120)
                     : CleanOptional(assignedSection.Name, 120),
                 NarrativeSourceOverride = ParseNullableNarrativeSource(item.NarrativeSourceOverride),
-                ImageFitMode = ParseImageFitMode(item.ImageFitMode)
+                ImageFitMode = ParseImageFitMode(item.ImageFitMode),
+                DossierLayout = ParseDossierLayout(item.DossierLayout),
+                DossierImageCount = Math.Clamp(item.DossierImageCount, 1, 3),
+                SupportingPhoto1Id = item.SupportingPhoto1Id is > 0 && availablePhotoIds.Contains(item.SupportingPhoto1Id.Value) ? item.SupportingPhoto1Id : null,
+                SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX),
+                SupportingPhoto1FocalY = ClampFocal(item.SupportingPhoto1FocalY),
+                SupportingPhoto1FitMode = ParseImageFitMode(item.SupportingPhoto1FitMode),
+                SupportingPhoto2Id = item.SupportingPhoto2Id is > 0 && availablePhotoIds.Contains(item.SupportingPhoto2Id.Value) ? item.SupportingPhoto2Id : null,
+                SupportingPhoto2FocalX = ClampFocal(item.SupportingPhoto2FocalX),
+                SupportingPhoto2FocalY = ClampFocal(item.SupportingPhoto2FocalY),
+                SupportingPhoto2FitMode = ParseImageFitMode(item.SupportingPhoto2FitMode)
             });
 
             if (!string.Equals(currentName, item.ProjectNameSnapshot, StringComparison.Ordinal))
@@ -640,6 +650,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryFocalY = item.PrimaryFocalY,
                     ImageSelectionMode = item.ImageSelectionMode,
                     ImageFitMode = item.ImageFitMode,
+                    DossierLayout = item.DossierLayout,
+                    DossierImageCount = item.DossierImageCount,
+                    SupportingPhoto1Id = item.SupportingPhoto1Id,
+                    SupportingPhoto1FocalX = item.SupportingPhoto1FocalX,
+                    SupportingPhoto1FocalY = item.SupportingPhoto1FocalY,
+                    SupportingPhoto1FitMode = item.SupportingPhoto1FitMode,
+                    SupportingPhoto2Id = item.SupportingPhoto2Id,
+                    SupportingPhoto2FocalX = item.SupportingPhoto2FocalX,
+                    SupportingPhoto2FocalY = item.SupportingPhoto2FocalY,
+                    SupportingPhoto2FitMode = item.SupportingPhoto2FitMode,
                     NarrativeSourceOverride = item.NarrativeSourceOverride,
                     CustomSection = assignedSection,
                     CustomSectionName = assignedSection?.Name ?? item.CustomSectionName
@@ -815,6 +835,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             .Where(project => project.ImageSelectionMode == CompendiumImageSelectionMode.Explicit
                               && project.PrimaryPhotoId.HasValue)
             .Select(project => project.PrimaryPhotoId!.Value)
+            .Concat(requestedProjects.Where(project => project.SupportingPhoto1Id.HasValue).Select(project => project.SupportingPhoto1Id!.Value))
+            .Concat(requestedProjects.Where(project => project.SupportingPhoto2Id.HasValue).Select(project => project.SupportingPhoto2Id!.Value))
             .Distinct()
             .ToArray();
         var explicitPhotos = explicitPhotoIds.Length == 0
@@ -838,6 +860,18 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             {
                 throw new InvalidOperationException(
                     $"The selected publication image for {projectNames[project.ProjectId]} is no longer available. Refresh the project review before saving.");
+            }
+        }
+
+        foreach (var project in requestedProjects)
+        {
+            foreach (var supportPhotoId in new[] { project.SupportingPhoto1Id, project.SupportingPhoto2Id }.Where(id => id.HasValue).Select(id => id!.Value))
+            {
+                if (!explicitPhotos.TryGetValue(supportPhotoId, out var supportPhoto) || supportPhoto.ProjectId != project.ProjectId)
+                {
+                    throw new InvalidOperationException(
+                        $"A supporting dossier image for {projectNames[project.ProjectId]} is no longer available. Refresh project review before saving.");
+                }
             }
         }
 
@@ -949,6 +983,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryFocalY = project.PrimaryFocalY,
                     ImageSelectionMode = project.ImageSelectionMode.ToString(),
                     ImageFitMode = project.ImageFitMode.ToString(),
+                    DossierLayout = project.DossierLayout.ToString(),
+                    DossierImageCount = project.DossierImageCount,
+                    SupportingPhoto1Id = project.SupportingPhoto1Id,
+                    SupportingPhoto1FocalX = project.SupportingPhoto1FocalX,
+                    SupportingPhoto1FocalY = project.SupportingPhoto1FocalY,
+                    SupportingPhoto1FitMode = project.SupportingPhoto1FitMode.ToString(),
+                    SupportingPhoto2Id = project.SupportingPhoto2Id,
+                    SupportingPhoto2FocalX = project.SupportingPhoto2FocalX,
+                    SupportingPhoto2FocalY = project.SupportingPhoto2FocalY,
+                    SupportingPhoto2FitMode = project.SupportingPhoto2FitMode.ToString(),
                     NarrativeSourceOverride = project.NarrativeSourceOverride?.ToString(),
                     CustomSection = section,
                     CustomSectionName = section?.Name
@@ -1029,6 +1073,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PrimaryFocalY = ClampFocal(project.PrimaryFocalY),
             ImageSelectionMode = mode,
             ImageFitMode = Enum.IsDefined(project.ImageFitMode) ? project.ImageFitMode : CompendiumImageFitMode.Fill,
+            DossierLayout = Enum.IsDefined(project.DossierLayout) ? project.DossierLayout : CompendiumDossierLayout.Automatic,
+            DossierImageCount = Math.Clamp(project.DossierImageCount, 1, 3),
+            SupportingPhoto1Id = project.SupportingPhoto1Id is > 0 ? project.SupportingPhoto1Id : null,
+            SupportingPhoto1FocalX = ClampFocal(project.SupportingPhoto1FocalX),
+            SupportingPhoto1FocalY = ClampFocal(project.SupportingPhoto1FocalY),
+            SupportingPhoto1FitMode = Enum.IsDefined(project.SupportingPhoto1FitMode) ? project.SupportingPhoto1FitMode : CompendiumImageFitMode.Fill,
+            SupportingPhoto2Id = project.SupportingPhoto2Id is > 0 ? project.SupportingPhoto2Id : null,
+            SupportingPhoto2FocalX = ClampFocal(project.SupportingPhoto2FocalX),
+            SupportingPhoto2FocalY = ClampFocal(project.SupportingPhoto2FocalY),
+            SupportingPhoto2FitMode = Enum.IsDefined(project.SupportingPhoto2FitMode) ? project.SupportingPhoto2FitMode : CompendiumImageFitMode.Fill,
             CustomSectionKey = section?.SectionKey,
             CustomSectionName = section?.Name,
             NarrativeSourceOverride = NormalizeNullableNarrativeSource(project.NarrativeSourceOverride)
@@ -1405,6 +1459,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumImageFitMode.Fill;
+
+    private static CompendiumDossierLayout ParseDossierLayout(string? value)
+        => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumDossierLayout.Automatic;
 
     private static CompendiumFrontCoverTemplate ParseFrontTemplate(string? value)
         => Enum.TryParse<CompendiumFrontCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)

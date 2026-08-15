@@ -44,6 +44,39 @@ public enum CompendiumImageFitMode
     Fit = 1
 }
 
+public enum CompendiumDossierLayout
+{
+    Automatic = 0,
+    VisualHero = 1,
+    Balanced = 2,
+    MultiImageEditorial = 3,
+    Technical = 4
+}
+
+public enum CompendiumDossierImageRole
+{
+    Primary = 0,
+    Supporting1 = 1,
+    Supporting2 = 2
+}
+
+public sealed record CompendiumDossierImageSelection(
+    CompendiumDossierImageRole Role,
+    int? PhotoId,
+    double FocalX,
+    double FocalY,
+    CompendiumImageFitMode FitMode,
+    CompendiumPhotoSelectionSource SelectionSource = CompendiumPhotoSelectionSource.None);
+
+public sealed record CompendiumIprCredentialDto(
+    string Type,
+    string Status,
+    int? Year);
+
+public sealed record CompendiumTechnologyTransferDto(
+    string Status,
+    int? CompletionYear);
+
 public enum CompendiumCoverImageMode
 {
     Automatic = 0,
@@ -188,6 +221,9 @@ public sealed record CompendiumCandidateProjectVm(
     public string ArmServiceDisplay { get; init; } = "Not recorded";
     public string ProliferationCostDisplay { get; init; } = "Not recorded";
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
+    public int TechnicalSpecificationCount { get; init; }
+    public bool HasIpr { get; init; }
+    public bool HasTechnologyTransfer { get; init; }
 }
 
 public sealed record CompendiumProjectSelection(
@@ -206,6 +242,16 @@ public sealed record CompendiumProjectSelection(
     public string? CustomSectionName { get; init; }
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public int DossierImageCount { get; init; } = 1;
+    public int? SupportingPhoto1Id { get; init; }
+    public double SupportingPhoto1FocalX { get; init; } = .5d;
+    public double SupportingPhoto1FocalY { get; init; } = .5d;
+    public CompendiumImageFitMode SupportingPhoto1FitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public int? SupportingPhoto2Id { get; init; }
+    public double SupportingPhoto2FocalX { get; init; } = .5d;
+    public double SupportingPhoto2FocalY { get; init; } = .5d;
+    public CompendiumImageFitMode SupportingPhoto2FitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 public sealed record CompendiumReviewPhotoVm(
@@ -259,6 +305,15 @@ public sealed record CompendiumReviewProjectDto(
     public string? CustomSectionName { get; init; }
     public bool UsesNarrativeOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
+    public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
+    public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
+    public CompendiumDossierLayout DossierLayoutOverride { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumDossierLayout EffectiveDossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
+    public string DossierLayoutReason { get; init; } = string.Empty;
+    public int DossierImageCount { get; init; } = 1;
+    public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
 }
 
 public sealed record CompendiumProjectDto(
@@ -299,6 +354,15 @@ public sealed record CompendiumProjectDto(
     public int PublicationYear { get; init; }
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
+    public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
+    public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
+    public CompendiumDossierLayout DossierLayoutOverride { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumDossierLayout EffectiveDossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
+    public string DossierLayoutReason { get; init; } = string.Empty;
+    public int DossierImageCount { get; init; } = 1;
+    public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
 }
 
 /// <summary>

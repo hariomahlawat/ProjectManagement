@@ -294,6 +294,12 @@ namespace ProjectManagement.Pages.Projects
                 .OrderBy(statement => statement.DisplayOrder)
                 .ThenBy(statement => statement.Id)
                 .ToListAsync(ct);
+            TechnicalSpecificationItems = await _db.ProjectTechnicalSpecificationItems
+                .AsNoTracking()
+                .Where(item => item.ProjectId == project.Id)
+                .OrderBy(item => item.DisplayOrder)
+                .ThenBy(item => item.Id)
+                .ToListAsync(ct);
             InitializeProjectContentEditor(project);
 
             // SECTION: Load only the media needed by the overview. Full libraries are

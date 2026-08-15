@@ -29,6 +29,16 @@ public sealed class ThrowingProjectContentService : IProjectContentService
         CancellationToken cancellationToken = default)
         => throw new InvalidOperationException(UnexpectedCallMessage);
 
+
+    public Task<ProjectContentSaveResult> SaveTechnicalSpecificationsAsync(
+        int projectId,
+        IReadOnlyList<string?> items,
+        string rowVersion,
+        string userId,
+        string userDisplay,
+        CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException(UnexpectedCallMessage);
+
     public Task<ProjectContentSaveResult> SaveDescriptionAsync(
         int projectId,
         string? description,

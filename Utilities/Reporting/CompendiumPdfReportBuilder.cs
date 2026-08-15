@@ -70,6 +70,12 @@ public sealed record CompendiumPdfCategorySection(
     string CategoryName,
     IReadOnlyList<CompendiumPdfProjectSection> Projects);
 
+public sealed record CompendiumPdfProjectImage(
+    CompendiumDossierImageRole Role,
+    byte[]? Content,
+    CompendiumImageFitMode FitMode,
+    int? PhotoId);
+
 public sealed record CompendiumPdfProjectSection(
     int ProjectId,
     string ProjectName,
@@ -91,6 +97,13 @@ public sealed record CompendiumPdfProjectSection(
     public bool IsAvailableForProliferation { get; init; }
     public bool? ProliferationAvailability { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
+    public string DossierLayoutReason { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumPdfProjectImage> Images { get; init; } = Array.Empty<CompendiumPdfProjectImage>();
+    public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
+    public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
+    public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -596,68 +609,28 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var project = planned.Project ?? throw new InvalidOperationException("Project page is missing its project payload.");
         var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
         var publicationKicker = ResolveProjectKicker(project);
+
         container.Page(page =>
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
-            page.Content().PaddingTop(9).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
+            page.Content().PaddingTop(8).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
             {
                 column.Spacing(9);
-
-                // A consistent editorial masthead is used on every project page.  Category changes
-                // are communicated by the running header/index rather than by a one-off heavy banner.
-                column.Item().Row(row =>
-                {
-                    row.RelativeItem().Column(kicker =>
-                    {
-                        kicker.Item().Text(publicationKicker.ToUpperInvariant())
-                            .FontSize(7.4f)
-                            .SemiBold()
-                            .LetterSpacing(1.15f)
-                            .FontColor(Forest800);
-                        kicker.Item().PaddingTop(4).Height(2).Width(58).Background(Gold);
-                    });
-
-                    row.AutoItem().Background(ResolveStatusBackground(project.LifecycleDisplay))
-                        .Border(1).BorderColor(ResolveStatusBorder(project.LifecycleDisplay))
-                        .PaddingHorizontal(8).PaddingVertical(4)
-                        .Text(project.LifecycleDisplay.ToUpperInvariant())
-                        .FontSize(7.1f).SemiBold().LetterSpacing(.55f)
-                        .FontColor(ResolveStatusText(project.LifecycleDisplay));
-                });
-
+                column.Item().Text(publicationKicker.ToUpperInvariant())
+                    .FontSize(7.3f).SemiBold().LetterSpacing(1.1f).FontColor(Forest800);
+                column.Item().Height(2).Width(58).Background(Gold);
                 column.Item().Text(project.ProjectName)
-                    .FontSize(CompendiumLayoutMetrics.ProjectTitleFontSize)
-                    .SemiBold()
-                    .LineHeight(1.04f)
-                    .FontColor(Ink);
+                    .FontSize(ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(1.02f).FontColor(Ink);
 
-                if (!string.IsNullOrWhiteSpace(project.CaseFileNumber))
+
+                column.Item().Element(main => ComposeAdaptiveDossierMain(main, project, planned.DescriptionMarkdown, narrativeLabel));
+                column.Item().Element(programme => ComposeProgrammeInformation(programme, project));
+
+                if (planned.TechnicalSpecifications.Count > 0)
                 {
-                    column.Item().Text($"PROJECT REFERENCE  ·  {project.CaseFileNumber}")
-                        .FontSize(7.4f)
-                        .SemiBold()
-                        .LetterSpacing(.28f)
-                        .FontColor(Slate500);
+                    column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications));
                 }
-
-                column.Item().Element(meta => ComposeProjectMetadata(meta, project));
-
-                if (planned.ProjectLayout != CompendiumProjectLayoutVariant.NoPhoto
-                    && project.CoverPhoto is { Length: > 0 })
-                {
-                    column.Item().Element(frame => ComposeProjectImage(frame, project.CoverPhoto, planned.ProjectLayout));
-                }
-                else
-                {
-                    column.Item().Element(element => ComposeNoPhotoTreatment(element, project));
-                }
-
-                column.Item().Element(description => ComposeDescription(
-                    description,
-                    planned.DescriptionMarkdown,
-                    narrativeLabel,
-                    continuation: false));
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
@@ -678,36 +651,239 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
-            page.Content().PaddingTop(14).Column(column =>
+            page.Content().PaddingTop(12).Column(column =>
             {
-                column.Spacing(11);
+                column.Spacing(10);
                 column.Item().Text(project.ProjectName)
-                    .FontSize(16)
-                    .SemiBold()
-                    .LineHeight(1.08f)
-                    .FontColor(Ink);
+                    .FontSize(17).SemiBold().LineHeight(1.06f).FontColor(Ink);
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Text($"{narrativeLabel} · continued")
-                        .FontSize(10)
-                        .SemiBold()
-                        .FontColor(Forest800);
+                    row.RelativeItem().Text(planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : $"{narrativeLabel.ToUpperInvariant()} · CONTINUED")
+                        .FontSize(8.4f).SemiBold().LetterSpacing(.6f).FontColor(Forest800);
                     row.AutoItem().Text($"CONTINUED · {planned.ContinuationPart + 1}")
-                        .FontSize(7.5f)
-                        .SemiBold()
-                        .LetterSpacing(.6f)
-                        .FontColor(Slate500);
+                        .FontSize(7.2f).SemiBold().LetterSpacing(.55f).FontColor(Slate500);
                 });
                 column.Item().Height(2).Background(Gold);
-                column.Item().Element(description => ComposeDescription(
-                    description,
-                    planned.DescriptionMarkdown,
-                    narrativeLabel,
-                    continuation: true));
+
+                if (!string.IsNullOrWhiteSpace(planned.DescriptionMarkdown))
+                {
+                    column.Item().Element(description => ComposeDescription(
+                        description,
+                        planned.DescriptionMarkdown,
+                        narrativeLabel,
+                        continuation: true));
+                }
+
+                if (planned.TechnicalSpecifications.Count > 0)
+                {
+                    column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications));
+                }
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
     }
+
+    private static float ResolveProjectTitleFontSize(string? title)
+    {
+        var length = title?.Trim().Length ?? 0;
+        return length switch
+        {
+            > 105 => 17.5f,
+            > 76 => 19f,
+            > 54 => 20.5f,
+            _ => 22f
+        };
+    }
+
+    private static void ComposeAdaptiveDossierMain(
+        IContainer container,
+        CompendiumPdfProjectSection project,
+        string narrative,
+        string narrativeLabel)
+    {
+        var images = project.Images.Where(image => image.Content is { Length: > 0 }).ToArray();
+        var primary = images.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary)?.Content
+                      ?? project.CoverPhoto;
+
+        switch (project.DossierLayout)
+        {
+            case CompendiumDossierLayout.VisualHero:
+                container.Column(column =>
+                {
+                    column.Spacing(9);
+                    if (primary is { Length: > 0 })
+                        column.Item().Element(frame => ComposeDossierImage(frame, primary, 255));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
+                });
+                break;
+
+            case CompendiumDossierLayout.MultiImageEditorial when images.Length >= 2:
+                container.Column(column =>
+                {
+                    column.Spacing(9);
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
+                    column.Item().Element(mosaic => ComposeDossierMosaic(mosaic, images));
+                });
+                break;
+
+            case CompendiumDossierLayout.Technical:
+                container.Column(column =>
+                {
+                    column.Spacing(8);
+                    if (primary is { Length: > 0 })
+                        column.Item().Element(frame => ComposeDossierImage(frame, primary, 145));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
+                });
+                break;
+
+            default:
+                if (primary is { Length: > 0 })
+                {
+                    container.Row(row =>
+                    {
+                        row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primary, 246));
+                        row.ConstantItem(13);
+                        row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
+                    });
+                }
+                else
+                {
+                    container.Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false));
+                }
+                break;
+        }
+    }
+
+    private static void ComposeDossierImage(IContainer container, byte[] image, float height)
+        => container.Height(height).Border(1).BorderColor(Slate200).Background(Slate50).Padding(2).Layers(layers =>
+        {
+            layers.PrimaryLayer().Image(image).FitArea();
+            layers.Layer().AlignBottom().Height(3).Background(Gold);
+        });
+
+    private static void ComposeDossierMosaic(IContainer container, IReadOnlyList<CompendiumPdfProjectImage> images)
+    {
+        var available = images.Where(image => image.Content is { Length: > 0 }).Take(3).ToArray();
+        if (available.Length == 0) return;
+        if (available.Length == 1)
+        {
+            ComposeDossierImage(container, available[0].Content!, 240);
+            return;
+        }
+
+        container.Height(245).Row(row =>
+        {
+            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, 245));
+            row.ConstantItem(7);
+            row.RelativeItem(1f).Column(column =>
+            {
+                column.Spacing(7);
+                var secondaryHeight = available.Length >= 3 ? 119 : 245;
+                column.Item().Element(frame => ComposeDossierImage(frame, available[1].Content!, secondaryHeight));
+                if (available.Length >= 3)
+                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, 119));
+            });
+        });
+    }
+
+    private static void ComposeProgrammeInformation(IContainer container, CompendiumPdfProjectSection project)
+    {
+        var modules = new List<(string Label, string Value, string? Badge)>();
+        if (!string.IsNullOrWhiteSpace(project.SponsoringLineDirectorateDisplay)
+            && !string.Equals(project.SponsoringLineDirectorateDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
+            modules.Add(("Sponsoring line directorate", project.SponsoringLineDirectorateDisplay, null));
+        if (!string.IsNullOrWhiteSpace(project.ProliferationCostDisplay)
+            && !string.Equals(project.ProliferationCostDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
+            modules.Add(("Proliferation cost", project.ProliferationCostDisplay, null));
+
+        foreach (var ipr in project.IprCredentials.Take(2))
+        {
+            var year = ipr.Year.HasValue ? $" · {ipr.Year.Value}" : string.Empty;
+            modules.Add(("IPR", $"{ipr.Type} · {ipr.Status}{year}", ipr.Type.Equals("Copyright", StringComparison.OrdinalIgnoreCase) ? "©" : "IP"));
+        }
+
+        if (project.TechnologyTransfer is not null)
+        {
+            var year = project.TechnologyTransfer.CompletionYear.HasValue ? $" · {project.TechnologyTransfer.CompletionYear.Value}" : string.Empty;
+            modules.Add(("Technology transfer", $"{project.TechnologyTransfer.Status}{year}", "ToT"));
+        }
+
+        if (modules.Count == 0) return;
+        container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
+        {
+            column.Item().Height(3).Background(Forest800);
+            column.Item().PaddingHorizontal(10).PaddingVertical(7).Column(content =>
+            {
+                content.Spacing(6);
+                content.Item().Text("PROGRAMME INFORMATION")
+                    .FontSize(7.2f).SemiBold().LetterSpacing(.75f).FontColor(Forest800);
+                foreach (var rowModules in modules.Chunk(modules.Count <= 2 ? 2 : modules.Count <= 4 ? 4 : 3))
+                {
+                    content.Item().Row(row =>
+                    {
+                        foreach (var module in rowModules)
+                        {
+                            row.RelativeItem().PaddingRight(8).Row(cell =>
+                            {
+                                if (!string.IsNullOrWhiteSpace(module.Badge))
+                                {
+                                    cell.ConstantItem(28).AlignMiddle().AlignCenter().Background(Forest100).Border(1).BorderColor("#CFE1D9")
+                                        .PaddingVertical(5).Text(module.Badge!).FontSize(9).SemiBold().FontColor(Forest800);
+                                    cell.ConstantItem(7);
+                                }
+                                cell.RelativeItem().Column(text =>
+                                {
+                                    text.Item().Text(module.Label.ToUpperInvariant()).FontSize(6.5f).SemiBold().LetterSpacing(.42f).FontColor(Slate500);
+                                    text.Item().PaddingTop(2).Text(module.Value).FontSize(9.1f).SemiBold().FontColor(Ink).LineHeight(1.08f);
+                                });
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    private static void ComposeTechnicalSpecifications(IContainer container, IReadOnlyList<string> specifications)
+    {
+        var items = specifications.Where(item => !string.IsNullOrWhiteSpace(item)).Take(6).ToArray();
+        if (items.Length == 0) return;
+        var totalLength = items.Sum(item => item.Length);
+        var columns = totalLength <= 360 && items.Length >= 4 ? 3 : totalLength <= 900 && items.Length >= 3 ? 2 : 1;
+
+        container.Background(White).BorderTop(1).BorderColor(GoldSoft).PaddingTop(6).Column(column =>
+        {
+            column.Spacing(6);
+            column.Item().Text("HARDWARE / TECHNICAL SPECIFICATION")
+                .FontSize(7.7f).SemiBold().LetterSpacing(.7f).FontColor(Forest800);
+
+            if (columns == 1)
+            {
+                foreach (var item in items)
+                    column.Item().Element(cell => ComposeSpecificationBullet(cell, item));
+            }
+            else
+            {
+                foreach (var group in items.Chunk(columns))
+                {
+                    column.Item().Row(row =>
+                    {
+                        foreach (var item in group)
+                        {
+                            row.RelativeItem().PaddingRight(10).Element(cell => ComposeSpecificationBullet(cell, item));
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    private static void ComposeSpecificationBullet(IContainer container, string text)
+        => container.Row(row =>
+        {
+            row.ConstantItem(13).Text("•").FontSize(10).FontColor(Gold);
+            row.RelativeItem().Text(text).FontSize(8.15f).FontColor(Slate700).LineHeight(1.18f);
+        });
 
     private static void ComposeProjectMetadata(IContainer container, CompendiumPdfProjectSection project)
     {

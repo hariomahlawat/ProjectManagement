@@ -100,3 +100,5 @@
 20261208160000_AddCompendiumEditorialComposer
 20261208170000_AddCompendiumFirstClassSections
 20261208180000_AddCompendiumCoverComposer
+
+20261208190000_AddCompendiumAdaptiveDossiers

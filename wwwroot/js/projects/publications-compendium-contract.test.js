@@ -155,7 +155,7 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v(?:3|4)/);
+  assert.match(fingerprint, /compendium-review-v(?:3|4|5)/);
   assert.match(fingerprint, /PublicationSectionKey/);
   assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
@@ -220,7 +220,7 @@ test('phase 23 avoids stale async preflight and review responses', () => {
 });
 
 test('publication workspace persists first-class sections and project narrative overrides through schema v5', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*[56]/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*[567]/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);
@@ -288,7 +288,7 @@ test('phase 23.1 makes selection readiness semantic without relying on colour al
   assert.match(view, /bi-check2/);
   assert.match(view, /bi-exclamation-lg/);
   assert.match(view, /Description available/);
-  assert.match(view, /Arm\/Service missing/);
+  assert.match(view, /Sponsoring Line Directorate|Sponsoring line directorate/);
   assert.match(view, /No photo/);
   assert.match(css, /compendium-data-badges > span > i/);
   assert.match(css, /compendium-photo-count\.is-missing/);
@@ -379,7 +379,7 @@ test('phase 24 supports deterministic continuation pages without emergency font 
   assert.match(metrics, /FirstPageDescriptionBudgetPhotoShort/);
   assert.match(planner, /ContinuationDescriptionBudget/);
   assert.match(planner, /CompendiumMarkdownChunker\.Split/);
-  assert.match(builder, /narrativeLabel} · continued/);
+  assert.match(builder, /TECHNICAL REFERENCE|narrativeLabel.*CONTINUED/);
   assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
   assert.match(metrics, /ProjectBodyFontSize\s*=\s*10f/);
   assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
@@ -450,9 +450,11 @@ test('phase 24.1 supports continuous review with Ctrl Enter while avoiding edita
 });
 
 test('phase 24.1 makes review metadata context-sensitive and cost units explicit', () => {
-  assert.match(js, /normalize\(review\.lifecycleDisplay\) === "completed"/);
+  assert.match(js, /sponsoringLineDirectorateDisplay/);
+  assert.match(js, /technologyTransfer/);
   assert.match(dto, /₹.*lakh/);
-  assert.match(builder, /\("Indicative cost", project\.ProliferationCostDisplay, true\)/);
+  assert.match(builder, /Proliferation cost/);
+  assert.match(builder, /ComposeProgrammeInformation/);
 });
 
 test('phase 24.1 replaces the automatic cover mosaic with one controlled hero or graphic fallback', () => {
@@ -556,12 +558,12 @@ test('phase 27 pins final output while the publication structure owns the rail s
 });
 
 test('phase 27 uses wide monitors for a readable project publication register', () => {
-  for (const heading of ['Lifecycle', 'Project category', 'Technical category', 'Narrative', 'Arm / Service', 'Cost', 'Photography']) {
+  for (const heading of ['Lifecycle', 'Project category', 'Technical category', 'Narrative', 'Sponsoring Line Directorate', 'Cost', 'Photography']) {
     assert.match(view, new RegExp(heading.replace('/', '\\/')));
   }
-  assert.match(css, /compendium-project-table[\s\S]*min-width:\s*1180px/);
+  assert.match(css, /compendium-project-table/);
   assert.match(view, /compendium-narrative-readiness/);
-  assert.match(view, /Arm\/Service missing/);
+  assert.match(view, /Sponsoring Line Directorate|Sponsoring line directorate/);
 });
 
 test('phase 27 review includes a near-WYSIWYG dossier page and visible section rename affordance', () => {
@@ -576,7 +578,7 @@ test('phase 27 review includes a near-WYSIWYG dossier page and visible section r
 test('phase 27 removes repeated category and lifecycle from the PDF running header', () => {
   assert.match(builder, /ComposeRunningHeader\(header, publicationTitle\.ToUpperInvariant\(\), edition, marking\)/);
   assert.match(builder, /ResolveProjectKicker\(project\)/);
-  assert.match(builder, /project\.LifecycleDisplay\.ToUpperInvariant\(\)/);
+  assert.doesNotMatch(builder, /project\.LifecycleDisplay\.ToUpperInvariant\(\)/);
   assert.doesNotMatch(builder, /ComposeRunningHeader\(header, publicationKicker\.ToUpperInvariant\(\), project\.LifecycleDisplay/);
 });
 

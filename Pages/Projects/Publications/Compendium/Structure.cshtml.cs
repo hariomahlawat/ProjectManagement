@@ -87,6 +87,10 @@ public sealed class StructureModel : PageModel
                         primaryFocalY = item?.PrimaryFocalY ?? .5d,
                         imageSelectionMode = item?.ImageSelectionMode.ToString() ?? "Automatic",
                         imageFitMode = item?.ImageFitMode.ToString() ?? "Fill",
+                        dossierLayout = item?.DossierLayout.ToString() ?? "Automatic",
+                        dossierImageCount = item?.DossierImageCount ?? 1,
+                        supportingPhoto1Id = item?.SupportingPhoto1Id, supportingPhoto1FocalX = item?.SupportingPhoto1FocalX ?? .5d, supportingPhoto1FocalY = item?.SupportingPhoto1FocalY ?? .5d, supportingPhoto1FitMode = item?.SupportingPhoto1FitMode.ToString() ?? "Fill",
+                        supportingPhoto2Id = item?.SupportingPhoto2Id, supportingPhoto2FocalX = item?.SupportingPhoto2FocalX ?? .5d, supportingPhoto2FocalY = item?.SupportingPhoto2FocalY ?? .5d, supportingPhoto2FitMode = item?.SupportingPhoto2FitMode.ToString() ?? "Fill",
                         sortOrder = existing?.index ?? int.MaxValue,
                         available = true
                     };
@@ -218,6 +222,16 @@ public sealed class StructureModel : PageModel
                     PrimaryFocalY = ClampFocal(item.FocalY ?? baseConfiguration.PrimaryFocalY),
                     ImageSelectionMode = mode,
                     ImageFitMode = ParseImageFitMode(item.ImageFitMode, baseConfiguration.ImageFitMode),
+                    DossierLayout = ParseDossierLayout(item.DossierLayout, baseConfiguration.DossierLayout),
+                    DossierImageCount = Math.Clamp(item.DossierImageCount ?? baseConfiguration.DossierImageCount, 1, 3),
+                    SupportingPhoto1Id = item.SupportingPhoto1Id ?? baseConfiguration.SupportingPhoto1Id,
+                    SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX ?? baseConfiguration.SupportingPhoto1FocalX),
+                    SupportingPhoto1FocalY = ClampFocal(item.SupportingPhoto1FocalY ?? baseConfiguration.SupportingPhoto1FocalY),
+                    SupportingPhoto1FitMode = ParseImageFitMode(item.SupportingPhoto1FitMode, baseConfiguration.SupportingPhoto1FitMode),
+                    SupportingPhoto2Id = item.SupportingPhoto2Id ?? baseConfiguration.SupportingPhoto2Id,
+                    SupportingPhoto2FocalX = ClampFocal(item.SupportingPhoto2FocalX ?? baseConfiguration.SupportingPhoto2FocalX),
+                    SupportingPhoto2FocalY = ClampFocal(item.SupportingPhoto2FocalY ?? baseConfiguration.SupportingPhoto2FocalY),
+                    SupportingPhoto2FitMode = ParseImageFitMode(item.SupportingPhoto2FitMode, baseConfiguration.SupportingPhoto2FitMode),
                     NarrativeSourceOverride = ParseNarrativeOverride(item.NarrativeSourceOverride) ?? baseConfiguration.NarrativeSourceOverride,
                     CustomSectionKey = section?.SectionKey,
                     CustomSectionName = section?.Name
@@ -335,6 +349,9 @@ public sealed class StructureModel : PageModel
             ? parsed
             : fallback;
 
+    private static CompendiumDossierLayout ParseDossierLayout(string? value, CompendiumDossierLayout fallback)
+        => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
+
     private static CompendiumNarrativeSource? ParseNarrativeOverride(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed)
            && Enum.IsDefined(parsed)
@@ -370,6 +387,10 @@ public sealed class StructureModel : PageModel
         public double? FocalY { get; set; }
         public string? ImageSelectionMode { get; set; }
         public string? ImageFitMode { get; set; }
+        public string? DossierLayout { get; set; }
+        public int? DossierImageCount { get; set; }
+        public int? SupportingPhoto1Id { get; set; } public double? SupportingPhoto1FocalX { get; set; } public double? SupportingPhoto1FocalY { get; set; } public string? SupportingPhoto1FitMode { get; set; }
+        public int? SupportingPhoto2Id { get; set; } public double? SupportingPhoto2FocalX { get; set; } public double? SupportingPhoto2FocalY { get; set; } public string? SupportingPhoto2FitMode { get; set; }
         public string? NarrativeSourceOverride { get; set; }
     }
 }

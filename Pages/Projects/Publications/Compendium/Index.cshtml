@@ -293,7 +293,7 @@
                                         <th scope="col" class="compendium-project-col--category">Project category</th>
                                         <th scope="col" class="compendium-project-col--technical">Technical category</th>
                                         <th scope="col" class="compendium-project-col--narrative">Narrative</th>
-                                        <th scope="col" class="compendium-project-col--arm">Arm / Service</th>
+                                        <th scope="col" class="compendium-project-col--arm">Sponsoring Line Directorate</th>
                                         <th scope="col" class="compendium-project-col--cost">Cost</th>
                                         <th scope="col" class="compendium-project-col--photo">Photography</th>
                                     </tr>
@@ -362,7 +362,7 @@
                                                 </div>
                                             </td>
                                             <td class="compendium-project-col--arm">
-                                                <span class="compendium-table-value @(project.HasArmService ? "is-recorded" : "is-missing")" title="@(project.HasArmService ? "Arm/Service available" : "Arm/Service missing")">
+                                                <span class="compendium-table-value @(project.HasArmService ? "is-recorded" : "is-missing")" title="@(project.HasArmService ? "Sponsoring Line Directorate available" : "Sponsoring Line Directorate missing")">
                                                     <i class="bi @(project.HasArmService ? "bi-check2" : "bi-dash")" aria-hidden="true"></i>
                                                     @project.ArmServiceDisplay
                                                 </span>
@@ -459,17 +459,25 @@
                                                 <b data-live-page-status>ONGOING</b>
                                             </div>
                                             <h4 data-live-page-title>Project title</h4>
-                                            <div class="compendium-live-page__facts" data-live-page-facts></div>
-                                            <div class="compendium-live-page__image" data-live-page-image-frame>
-                                                <img alt="" data-live-page-image hidden />
-                                                <div data-live-page-image-empty>
-                                                    <span>CAPABILITY DOSSIER</span>
-                                                    <strong data-live-page-image-category>PROJECT</strong>
+                                            <div class="compendium-live-page__dossier-main" data-live-page-dossier-main>
+                                                <div class="compendium-live-page__image" data-live-page-image-frame>
+                                                    <img alt="" data-live-page-image hidden />
+                                                    <img alt="" data-live-page-support-image="1" hidden />
+                                                    <img alt="" data-live-page-support-image="2" hidden />
+                                                    <div data-live-page-image-empty>
+                                                        <span>CAPABILITY DOSSIER</span>
+                                                        <strong data-live-page-image-category>PROJECT</strong>
+                                                    </div>
                                                 </div>
+                                                <section class="compendium-live-page__narrative">
+                                                    <header><span data-live-page-narrative-label>PROJECT BRIEF</span><i aria-hidden="true"></i></header>
+                                                    <div data-live-page-narrative></div>
+                                                </section>
                                             </div>
-                                            <section class="compendium-live-page__narrative">
-                                                <header><span data-live-page-narrative-label>PROJECT BRIEF</span><i aria-hidden="true"></i></header>
-                                                <div data-live-page-narrative></div>
+                                            <section class="compendium-live-page__programme" data-live-page-facts></section>
+                                            <section class="compendium-live-page__specifications" data-live-page-specifications hidden>
+                                                <header>HARDWARE / TECHNICAL SPECIFICATION</header>
+                                                <div data-live-page-specification-list></div>
                                             </section>
                                             <footer><span>Simulator Development Division</span><span>Project dossier</span></footer>
                                         </article>
@@ -509,6 +517,26 @@
                                     </section>
 
                                     <section class="compendium-review-information">
+                                        <section class="compendium-dossier-controls" aria-label="Project dossier layout">
+                                            <div class="compendium-review-section-heading"><strong>Page layout</strong><span data-review-layout-reason>Automatic</span></div>
+                                            <div class="compendium-dossier-layout-options" data-review-layout-options>
+                                                <button type="button" data-review-layout="Automatic">Automatic</button>
+                                                <button type="button" data-review-layout="VisualHero">Visual</button>
+                                                <button type="button" data-review-layout="Balanced">Balanced</button>
+                                                <button type="button" data-review-layout="MultiImageEditorial">Multi-image</button>
+                                                <button type="button" data-review-layout="Technical">Technical</button>
+                                            </div>
+                                            <div class="compendium-dossier-photo-count">
+                                                <span>Page photography</span>
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Number of dossier images">
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-image-count="1">1 image</button>
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-image-count="2">2 images</button>
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-image-count="3">3 images</button>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-review-manage-page-images><i class="bi bi-images"></i> Manage page images</button>
+                                                <small>Automatic supporting images remain distinct. Open Manage page images to lock any slot, adjust its Fit/Fill mode or set its focal crop.</small>
+                                            </div>
+                                        </section>
                                         <div class="compendium-review-facts compendium-review-facts--phase23" data-review-facts></div>
                                         <div class="compendium-review-narrative-selector" data-review-narrative-options aria-label="Narrative availability"></div>
                                         <div class="compendium-review-description">
@@ -690,8 +718,15 @@
                 <div class="compendium-photo-modal-layout">
                     <section>
                         <div class="compendium-photo-modal-heading">
-                            <div><strong>Choose image</strong><span>Select the photograph to lock for this Compendium.</span></div>
-                            <button type="button" class="btn btn-sm btn-link" data-photo-use-automatic>Use automatic selection</button>
+                            <div><strong>Choose page image</strong><span>Select or automatically resolve each dossier image slot independently.</span></div>
+                            <div class="compendium-photo-modal-toolbar">
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Dossier image slot" data-photo-role-selector>
+                                    <button type="button" class="btn btn-outline-secondary active" data-photo-role="Primary">Primary</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-photo-role="Supporting1">Supporting 1</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-photo-role="Supporting2">Supporting 2</button>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-link" data-photo-use-automatic>Use automatic selection</button>
+                            </div>
                         </div>
                         <div class="compendium-photo-picker" data-photo-picker></div>
                     </section>
@@ -709,6 +744,14 @@
                         <div class="compendium-crop-status">
                             <span data-photo-crop-selection></span>
                             <span data-photo-crop-quality></span>
+                        </div>
+                        <div class="compendium-photo-slot-fit">
+                            <span>Image treatment</span>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Selected page image fit">
+                                <button type="button" class="btn btn-outline-secondary" data-photo-role-fit="Fill">Fill</button>
+                                <button type="button" class="btn btn-outline-secondary" data-photo-role-fit="Fit">Fit</button>
+                            </div>
+                            <small data-photo-role-fit-help>Fill uses the focal crop. Fit preserves the complete source.</small>
                         </div>
                     </section>
                 </div>

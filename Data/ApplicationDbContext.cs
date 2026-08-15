@@ -41,6 +41,7 @@ namespace ProjectManagement.Data
 
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<ProjectCapabilityStatement> ProjectCapabilityStatements => Set<ProjectCapabilityStatement>();
+        public DbSet<ProjectTechnicalSpecificationItem> ProjectTechnicalSpecificationItems => Set<ProjectTechnicalSpecificationItem>();
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
         public DbSet<ArppIssue> ArppIssues => Set<ArppIssue>();
@@ -686,7 +687,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.BackLogoPlacement).HasMaxLength(24).HasDefaultValue("TopCorners").IsRequired();
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(6).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(7).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
                 entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();
@@ -725,6 +726,14 @@ namespace ProjectManagement.Data
                 entity.Property(item => item.PrimaryFocalY).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.ImageSelectionMode).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
                 entity.Property(item => item.ImageFitMode).HasMaxLength(16).HasDefaultValue("Fill").IsRequired();
+                entity.Property(item => item.DossierLayout).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
+                entity.Property(item => item.DossierImageCount).HasDefaultValue(1).IsRequired();
+                entity.Property(item => item.SupportingPhoto1FocalX).HasDefaultValue(.5d).IsRequired();
+                entity.Property(item => item.SupportingPhoto1FocalY).HasDefaultValue(.5d).IsRequired();
+                entity.Property(item => item.SupportingPhoto1FitMode).HasMaxLength(16).HasDefaultValue("Fill").IsRequired();
+                entity.Property(item => item.SupportingPhoto2FocalX).HasDefaultValue(.5d).IsRequired();
+                entity.Property(item => item.SupportingPhoto2FocalY).HasDefaultValue(.5d).IsRequired();
+                entity.Property(item => item.SupportingPhoto2FitMode).HasMaxLength(16).HasDefaultValue("Fill").IsRequired();
                 entity.Property(item => item.NarrativeSourceOverride).HasMaxLength(32);
                 entity.Property(item => item.CustomSectionName).HasMaxLength(120);
                 entity.HasIndex(item => new { item.PresetId, item.SortOrder }).HasDatabaseName("UX_CompendiumPresetProjects_Preset_SortOrder").IsUnique();
@@ -836,6 +845,24 @@ namespace ProjectManagement.Data
                 entity.HasOne(statement => statement.Project)
                     .WithMany(project => project.CapabilityStatements)
                     .HasForeignKey(statement => statement.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectTechnicalSpecificationItem>(entity =>
+            {
+                entity.ToTable("ProjectTechnicalSpecificationItems", table =>
+                    table.HasCheckConstraint(
+                        "CK_ProjectTechnicalSpecificationItems_DisplayOrder_Positive",
+                        "\"DisplayOrder\" >= 1"));
+                entity.Property(item => item.Text)
+                    .HasMaxLength(ProjectFieldLimits.TechnicalSpecificationItemMaxLength)
+                    .IsRequired();
+                entity.HasIndex(item => new { item.ProjectId, item.DisplayOrder })
+                    .HasDatabaseName("UX_ProjectTechnicalSpecificationItems_Project_Order")
+                    .IsUnique();
+                entity.HasOne(item => item.Project)
+                    .WithMany(project => project.TechnicalSpecificationItems)
+                    .HasForeignKey(item => item.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

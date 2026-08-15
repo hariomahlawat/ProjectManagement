@@ -24,6 +24,14 @@ public interface IProjectContentService
         string userDisplay,
         CancellationToken cancellationToken = default);
 
+    Task<ProjectContentSaveResult> SaveTechnicalSpecificationsAsync(
+        int projectId,
+        IReadOnlyList<string?> items,
+        string rowVersion,
+        string userId,
+        string userDisplay,
+        CancellationToken cancellationToken = default);
+
     Task<ProjectContentSaveResult> SaveDescriptionAsync(
         int projectId,
         string? description,
@@ -85,6 +93,13 @@ public static partial class ProjectContentRules
     }
 
     public static IReadOnlyList<string> NormalizeCapabilities(IEnumerable<string?> values) =>
+        values
+            .Select(value => value?.Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToList();
+
+    public static IReadOnlyList<string> NormalizeTechnicalSpecifications(IEnumerable<string?> values) =>
         values
             .Select(value => value?.Trim())
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -296,6 +311,96 @@ public sealed class ProjectContentService : IProjectContentService
             {
                 ["StatementCount"] = normalized.Count.ToString(),
                 ["Readiness"] = ProjectContentRules.GetCapabilityReadiness(normalized.Count).ToString()
+            });
+
+        return ProjectContentSaveResult.Success();
+    }
+
+    public async Task<ProjectContentSaveResult> SaveTechnicalSpecificationsAsync(
+        int projectId,
+        IReadOnlyList<string?> items,
+        string rowVersion,
+        string userId,
+        string userDisplay,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = ProjectContentRules.NormalizeTechnicalSpecifications(items);
+        if (normalized.Count > ProjectFieldLimits.TechnicalSpecificationMaximumCount)
+        {
+            return ProjectContentSaveResult.Invalid(
+                $"Hardware / Technical Specification can contain a maximum of {ProjectFieldLimits.TechnicalSpecificationMaximumCount} bullet points.");
+        }
+
+        var overLength = normalized.FirstOrDefault(item =>
+            item.Length > ProjectFieldLimits.TechnicalSpecificationItemMaxLength);
+        if (overLength is not null)
+        {
+            return ProjectContentSaveResult.Invalid(
+                $"Each hardware / technical specification bullet must be {ProjectFieldLimits.TechnicalSpecificationItemMaxLength} characters or fewer.");
+        }
+
+        var duplicate = normalized
+            .GroupBy(item => item, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+        {
+            return ProjectContentSaveResult.Invalid("Remove duplicate hardware / technical specification bullets before saving.");
+        }
+
+        if (!TryDecodeRowVersion(rowVersion, out var originalRowVersion))
+        {
+            return ProjectContentSaveResult.Invalid("The project version is invalid. Reload the page and try again.");
+        }
+
+        var project = await LoadTrackedProjectAsync(projectId, originalRowVersion, cancellationToken);
+        if (project is null)
+        {
+            return ProjectContentSaveResult.Missing();
+        }
+
+        var existing = await _db.ProjectTechnicalSpecificationItems
+            .Where(item => item.ProjectId == projectId)
+            .OrderBy(item => item.DisplayOrder)
+            .ThenBy(item => item.Id)
+            .ToListAsync(cancellationToken);
+
+        var sharedCount = Math.Min(existing.Count, normalized.Count);
+        for (var index = 0; index < sharedCount; index++)
+        {
+            existing[index].Text = normalized[index];
+            existing[index].DisplayOrder = index + 1;
+        }
+
+        for (var index = sharedCount; index < normalized.Count; index++)
+        {
+            _db.ProjectTechnicalSpecificationItems.Add(new ProjectTechnicalSpecificationItem
+            {
+                ProjectId = projectId,
+                Text = normalized[index],
+                DisplayOrder = index + 1
+            });
+        }
+
+        if (existing.Count > normalized.Count)
+        {
+            _db.ProjectTechnicalSpecificationItems.RemoveRange(existing.Skip(normalized.Count));
+        }
+
+        Stamp(project, userId);
+        var saveResult = await SaveAsync(cancellationToken);
+        if (!saveResult.Succeeded)
+        {
+            return saveResult;
+        }
+
+        QueueAudit(
+            "Project.Content.TechnicalSpecificationsUpdated",
+            project,
+            userId,
+            userDisplay,
+            new Dictionary<string, string?>
+            {
+                ["ItemCount"] = normalized.Count.ToString()
             });
 
         return ProjectContentSaveResult.Success();

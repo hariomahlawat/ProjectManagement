@@ -4894,3 +4894,93 @@ body.compendium-structure-editor-mode {
 .compendium-cover-quick-hero-actions { display: inline-flex; align-items: center; gap: .35rem; }
 .compendium-cover-quick-hero-actions[hidden] { display: none !important; }
 .compendium-cover-proof-sheet[data-template="FullBleedHero"] .cover-proof-image--full::after { display: none; }
+
+/* Phase 31 — Adaptive project dossier composer */
+.compendium-dossier-controls{padding:.65rem;border:1px solid #dfe9e5;border-radius:10px;background:#f8fbfa}
+.compendium-dossier-layout-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.35rem;margin-top:.45rem}
+.compendium-dossier-layout-options button{min-height:34px;border:1px solid #d7e2de;border-radius:7px;background:#fff;color:#40564d;font-size:.68rem;font-weight:650}
+.compendium-dossier-layout-options button:hover{border-color:#8ab9a6;background:#f3f8f6}
+.compendium-dossier-layout-options button.active{border-color:#5c9a80;background:#eaf4ef;color:#174836;box-shadow:inset 0 0 0 1px rgba(32,82,68,.08)}
+.compendium-dossier-layout-options button:disabled{opacity:.45;cursor:not-allowed}
+.compendium-dossier-photo-count{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #e1ebe7}
+.compendium-dossier-photo-count>span{color:#40564d;font-size:.63rem;font-weight:700}
+.compendium-dossier-photo-count small{flex:1 1 100%;color:#819087;font-size:.56rem}
+.compendium-dossier-photo-count .btn.active{border-color:#5c9a80;background:#eaf4ef;color:#174836}
+
+.compendium-live-page__masthead>b{display:none!important}
+.compendium-live-page__dossier-main{display:grid;grid-template-columns:1fr;gap:.55rem;margin-top:.45rem}
+.compendium-live-page__dossier-main .compendium-live-page__image,
+.compendium-live-page__dossier-main .compendium-live-page__narrative{margin-top:0}
+.compendium-live-page__sheet.layout-balanced .compendium-live-page__dossier-main{grid-template-columns:1.1fr .9fr;align-items:start}
+.compendium-live-page__sheet.layout-balanced .compendium-live-page__image{aspect-ratio:1.34/1!important}
+.compendium-live-page__sheet.layout-balanced .compendium-live-page__narrative>div{max-height:11.5rem}
+.compendium-live-page__sheet.layout-visualhero .compendium-live-page__image{aspect-ratio:1.78/1!important}
+.compendium-live-page__sheet.layout-technical .compendium-live-page__image{aspect-ratio:2.65/1!important}
+.compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__dossier-main{grid-template-columns:1fr}
+.compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__image{aspect-ratio:1.7/1!important}
+.compendium-live-page__programme{display:grid;grid-template-columns:repeat(var(--programme-columns,2),minmax(0,1fr));gap:.42rem .7rem;margin-top:.55rem;padding:.5rem .62rem;border:1px solid #d8e5df;border-top:3px solid #205244;background:#f5f9f7}
+.compendium-live-page__programme:empty{display:none}
+.compendium-live-page__programme>div{min-width:0}
+.compendium-live-page__programme span,.compendium-live-page__programme strong{display:block}
+.compendium-live-page__programme span{color:#71817b;font-size:.36rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.compendium-live-page__programme strong{margin-top:.08rem;color:#233a31;font-size:.52rem;line-height:1.2}
+.compendium-live-page__programme .ipr strong:before{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:4px;border:1px solid #cfe1d9;border-radius:3px;background:#eaf3ef;color:#205244;font-size:.43rem;font-weight:800;content:attr(data-badge)}
+.compendium-live-page__specifications{margin-top:.55rem;padding-top:.4rem;border-top:1px solid #e9d9a7}
+.compendium-live-page__specifications>header{color:#17382f;font-size:.42rem;font-weight:800;letter-spacing:.16em}
+.compendium-live-page__specifications>div{display:grid;grid-template-columns:repeat(var(--spec-columns,2),minmax(0,1fr));gap:.24rem .65rem;margin-top:.3rem}
+.compendium-live-page__specifications p{position:relative;margin:0;padding-left:.6rem;color:#475569;font-size:.42rem;line-height:1.3}
+.compendium-live-page__specifications p:before{position:absolute;left:0;color:#c9a646;content:'•'}
+
+@media(max-width:1100px){.compendium-dossier-layout-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Phase 31 — multi-image dossier proof mirrors the PDF's large-primary + supporting stack. */
+.compendium-live-page__sheet:not(.layout-multiimageeditorial) [data-live-page-support-image] {
+    display: none !important;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__image {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    overflow: hidden;
+    background: #f7faf8;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__image > img {
+    position: static;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    object-fit: cover;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial [data-live-page-image] {
+    grid-column: 1;
+    grid-row: 1 / 3;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial [data-live-page-support-image="1"] {
+    grid-column: 2;
+    grid-row: 1;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial [data-live-page-support-image="2"] {
+    grid-column: 2;
+    grid-row: 2;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial [data-live-page-support-image="2"][hidden] {
+    display: none !important;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial [data-live-page-support-image="2"][hidden] + [data-live-page-image-empty] {
+    display: none;
+}
+.compendium-live-page__sheet.layout-multiimageeditorial[data-dossier-image-count="2"] [data-live-page-support-image="1"] {
+    grid-row: 1 / 3;
+}
+.compendium-photo-modal-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:.45rem;flex-wrap:wrap}
+.compendium-photo-modal-toolbar .btn-group .btn.active{border-color:#5c9a80;background:#eaf4ef;color:#174836}
+.compendium-photo-slot-fit{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #e3ebe7}
+.compendium-photo-slot-fit>span{font-size:.64rem;font-weight:700;color:#40564d}
+.compendium-photo-slot-fit small{flex:1 1 100%;font-size:.56rem;color:#819087}
+.compendium-photo-slot-fit .btn.active{border-color:#5c9a80;background:#eaf4ef;color:#174836}
+.compendium-dossier-photo-count>[data-review-manage-page-images]{margin-left:auto}
+@media(max-width:1180px){.compendium-dossier-photo-count>[data-review-manage-page-images]{margin-left:0}}
+.compendium-live-page__sheet.title-medium h4{font-size:.93rem}
+.compendium-live-page__sheet.title-long h4{font-size:.86rem}
+.compendium-live-page__sheet.title-xlong h4{font-size:.79rem}

@@ -323,6 +323,21 @@ public sealed class IndexModel : PageModel
             review.ExplicitPhotoUnavailable,
             review.ImageFrameWidthPoints,
             review.ImageFrameHeightPoints,
+            review.SponsoringLineDirectorateDisplay,
+            review.IprCredentials,
+            review.TechnologyTransfer,
+            review.TechnicalSpecifications,
+            dossierLayoutOverride = review.DossierLayoutOverride.ToString(),
+            effectiveDossierLayout = review.EffectiveDossierLayout.ToString(),
+            review.DossierLayoutReason,
+            review.DossierImageCount,
+            dossierImages = review.DossierImages.Select(image => new
+            {
+                role = image.Role.ToString(),
+                image.PhotoId, image.FocalX, image.FocalY,
+                fitMode = image.FitMode.ToString(),
+                selectionSource = image.SelectionSource.ToString()
+            }),
             projectUrl = Url.Page("/Projects/Overview", new { id = review.ProjectId }),
             photosUrl = Url.Page("/Projects/Photos/Index", new { id = review.ProjectId }),
             completedEditUrl,
@@ -823,7 +838,17 @@ public sealed class IndexModel : PageModel
                     CustomSectionKey = NormalizeSectionKey(payload.CustomSectionKey),
                     CustomSectionName = Clean(payload.CustomSectionName, 120),
                     NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride),
-                    ImageFitMode = ParseImageFitMode(payload.ImageFitMode)
+                    ImageFitMode = ParseImageFitMode(payload.ImageFitMode),
+                    DossierLayout = ParseDossierLayout(payload.DossierLayout),
+                    DossierImageCount = Math.Clamp(payload.DossierImageCount, 1, 3),
+                    SupportingPhoto1Id = payload.SupportingPhoto1Id is > 0 ? payload.SupportingPhoto1Id : null,
+                    SupportingPhoto1FocalX = ClampFocal(payload.SupportingPhoto1FocalX),
+                    SupportingPhoto1FocalY = ClampFocal(payload.SupportingPhoto1FocalY),
+                    SupportingPhoto1FitMode = ParseImageFitMode(payload.SupportingPhoto1FitMode),
+                    SupportingPhoto2Id = payload.SupportingPhoto2Id is > 0 ? payload.SupportingPhoto2Id : null,
+                    SupportingPhoto2FocalX = ClampFocal(payload.SupportingPhoto2FocalX),
+                    SupportingPhoto2FocalY = ClampFocal(payload.SupportingPhoto2FocalY),
+                    SupportingPhoto2FitMode = ParseImageFitMode(payload.SupportingPhoto2FitMode)
                 };
             })
             .ToArray();
@@ -857,7 +882,17 @@ public sealed class IndexModel : PageModel
                     CustomSectionKey = selection.CustomSectionKey,
                     CustomSectionName = selection.CustomSectionName,
                     NarrativeSourceOverride = selection.NarrativeSourceOverride,
-                    ImageFitMode = selection.ImageFitMode
+                    ImageFitMode = selection.ImageFitMode,
+                    DossierLayout = selection.DossierLayout,
+                    DossierImageCount = selection.DossierImageCount,
+                    SupportingPhoto1Id = selection.SupportingPhoto1Id,
+                    SupportingPhoto1FocalX = selection.SupportingPhoto1FocalX,
+                    SupportingPhoto1FocalY = selection.SupportingPhoto1FocalY,
+                    SupportingPhoto1FitMode = selection.SupportingPhoto1FitMode,
+                    SupportingPhoto2Id = selection.SupportingPhoto2Id,
+                    SupportingPhoto2FocalX = selection.SupportingPhoto2FocalX,
+                    SupportingPhoto2FocalY = selection.SupportingPhoto2FocalY,
+                    SupportingPhoto2FitMode = selection.SupportingPhoto2FitMode
                 })
                 .ToArray())
         {
@@ -908,7 +943,17 @@ public sealed class IndexModel : PageModel
                 CustomSectionKey = selection.CustomSectionKey,
                 CustomSectionName = selection.CustomSectionName,
                 NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString(),
-                ImageFitMode = selection.ImageFitMode.ToString()
+                ImageFitMode = selection.ImageFitMode.ToString(),
+                DossierLayout = selection.DossierLayout.ToString(),
+                DossierImageCount = selection.DossierImageCount,
+                SupportingPhoto1Id = selection.SupportingPhoto1Id,
+                SupportingPhoto1FocalX = selection.SupportingPhoto1FocalX,
+                SupportingPhoto1FocalY = selection.SupportingPhoto1FocalY,
+                SupportingPhoto1FitMode = selection.SupportingPhoto1FitMode.ToString(),
+                SupportingPhoto2Id = selection.SupportingPhoto2Id,
+                SupportingPhoto2FocalX = selection.SupportingPhoto2FocalX,
+                SupportingPhoto2FocalY = selection.SupportingPhoto2FocalY,
+                SupportingPhoto2FitMode = selection.SupportingPhoto2FitMode.ToString()
             }),
             JsonOptions);
 
@@ -1254,6 +1299,11 @@ public sealed class IndexModel : PageModel
             ? parsed
             : CompendiumImageFitMode.Fill;
 
+    private static CompendiumDossierLayout ParseDossierLayout(string? value)
+        => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumDossierLayout.Automatic;
+
     private sealed class CoverSlotKeyComparer : IEqualityComparer<(CompendiumCoverSurface Surface, string SlotKey)>
     {
         public bool Equals((CompendiumCoverSurface Surface, string SlotKey) x, (CompendiumCoverSurface Surface, string SlotKey) y)
@@ -1389,6 +1439,16 @@ public sealed class IndexModel : PageModel
         public string? CustomSectionName { get; set; }
         public string? NarrativeSourceOverride { get; set; }
         public string? ImageFitMode { get; set; }
+        public string? DossierLayout { get; set; }
+        public int DossierImageCount { get; set; } = 1;
+        public int? SupportingPhoto1Id { get; set; }
+        public double SupportingPhoto1FocalX { get; set; } = .5d;
+        public double SupportingPhoto1FocalY { get; set; } = .5d;
+        public string? SupportingPhoto1FitMode { get; set; }
+        public int? SupportingPhoto2Id { get; set; }
+        public double SupportingPhoto2FocalX { get; set; } = .5d;
+        public double SupportingPhoto2FocalY { get; set; } = .5d;
+        public string? SupportingPhoto2FitMode { get; set; }
     }
     public sealed class CompendiumCoverDesignPayload
     {

@@ -43,6 +43,8 @@ public sealed record CompendiumPagePlanItem(
         = CompendiumProjectLayoutVariant.PhotoMedium;
     public bool IsFirstProjectInCategory { get; init; }
     public int ContinuationPart { get; init; }
+    public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
+    public bool IsTechnicalContinuation { get; init; }
 }
 
 public sealed record CompendiumPagePlan(
@@ -76,11 +78,16 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
             var firstInCategory = true;
             foreach (var project in category.Projects)
             {
-                var hasPhoto = project.CoverPhoto is { Length: > 0 };
+                var hasPhoto = project.Images.Any(image => image.Content is { Length: > 0 }) || project.CoverPhoto is { Length: > 0 };
                 var layout = ResolveLayout(project.DescriptionMarkdown, hasPhoto);
+                var specChunks = SplitTechnicalSpecifications(project.TechnicalSpecifications);
+                var firstSpecs = specChunks.Count > 0 && specChunks[0].Sum(item => item.Length) <= 800
+                    ? specChunks[0]
+                    : Array.Empty<string>();
+                var firstBudget = ResolveDossierNarrativeBudget(project.DossierLayout, firstSpecs);
                 var chunks = CompendiumMarkdownChunker.Split(
                     project.DescriptionMarkdown,
-                    CompendiumLayoutMetrics.FirstPageDescriptionBudget(layout),
+                    firstBudget,
                     CompendiumLayoutMetrics.ContinuationDescriptionBudget);
 
                 for (var index = 0; index < chunks.Count; index++)
@@ -92,7 +99,25 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         chunks[index],
                         layout,
                         firstInCategory && index == 0,
-                        index));
+                        index,
+                        index == 0 ? firstSpecs : Array.Empty<string>(),
+                        false));
+                }
+
+                var remainingSpecChunks = firstSpecs.Count > 0 ? specChunks.Skip(1) : specChunks;
+                var continuationIndex = chunks.Count;
+                foreach (var specChunk in remainingSpecChunks)
+                {
+                    projectSeeds.Add(new ProjectPageSeed(
+                        project,
+                        category.CategoryName,
+                        CompendiumPageKind.ProjectContinuation,
+                        string.Empty,
+                        layout,
+                        false,
+                        continuationIndex++,
+                        specChunk,
+                        true));
                 }
 
                 firstInCategory = false;
@@ -146,7 +171,9 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                 DescriptionMarkdown = seed.DescriptionMarkdown,
                 ProjectLayout = seed.Layout,
                 IsFirstProjectInCategory = seed.IsFirstProjectInCategory,
-                ContinuationPart = seed.ContinuationPart
+                ContinuationPart = seed.ContinuationPart,
+                TechnicalSpecifications = seed.TechnicalSpecifications,
+                IsTechnicalContinuation = seed.IsTechnicalContinuation
             });
         }
 
@@ -154,6 +181,49 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
         return new CompendiumPagePlan(pages, projectStartPages);
     }
 
+
+    private static int ResolveDossierNarrativeBudget(
+        CompendiumDossierLayout layout,
+        IReadOnlyList<string> firstPageSpecifications)
+    {
+        var baseBudget = layout switch
+        {
+            CompendiumDossierLayout.VisualHero => 1100,
+            CompendiumDossierLayout.MultiImageEditorial => 900,
+            CompendiumDossierLayout.Technical => 1050,
+            _ => 980
+        };
+        var specPressure = firstPageSpecifications.Sum(item => item.Length);
+        return Math.Max(520, baseBudget - Math.Min(420, specPressure / 3));
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> SplitTechnicalSpecifications(IReadOnlyList<string> specifications)
+    {
+        var clean = (specifications ?? Array.Empty<string>())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Take(6)
+            .ToArray();
+        if (clean.Length == 0) return Array.Empty<IReadOnlyList<string>>();
+
+        const int budget = 3000;
+        var chunks = new List<IReadOnlyList<string>>();
+        var current = new List<string>();
+        var length = 0;
+        foreach (var item in clean)
+        {
+            var cost = item.Length + 50;
+            if (current.Count > 0 && length + cost > budget)
+            {
+                chunks.Add(current.ToArray());
+                current.Clear();
+                length = 0;
+            }
+            current.Add(item);
+            length += cost;
+        }
+        if (current.Count > 0) chunks.Add(current.ToArray());
+        return chunks;
+    }
 
     private static CompendiumProjectLayoutVariant ResolveLayout(string? markdown, bool hasPhoto)
     {
@@ -263,7 +333,9 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
         string DescriptionMarkdown,
         CompendiumProjectLayoutVariant Layout,
         bool IsFirstProjectInCategory,
-        int ContinuationPart);
+        int ContinuationPart,
+        IReadOnlyList<string> TechnicalSpecifications,
+        bool IsTechnicalContinuation);
 
     private sealed record IndexGroupSeed(
         string CategoryName,

@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 6;
+    public int SettingsSchemaVersion { get; set; } = 7;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -155,6 +155,19 @@ public sealed class CompendiumPresetProject
 
     [Required, MaxLength(16)]
     public string ImageFitMode { get; set; } = "Fill";
+
+    [Required, MaxLength(32)]
+    public string DossierLayout { get; set; } = "Automatic";
+
+    public int DossierImageCount { get; set; } = 1;
+    public int? SupportingPhoto1Id { get; set; }
+    public double SupportingPhoto1FocalX { get; set; } = .5d;
+    public double SupportingPhoto1FocalY { get; set; } = .5d;
+    [Required, MaxLength(16)] public string SupportingPhoto1FitMode { get; set; } = "Fill";
+    public int? SupportingPhoto2Id { get; set; }
+    public double SupportingPhoto2FocalX { get; set; } = .5d;
+    public double SupportingPhoto2FocalY { get; set; } = .5d;
+    [Required, MaxLength(16)] public string SupportingPhoto2FitMode { get; set; } = "Fill";
 
     /// <summary>
     /// Optional per-project publication narrative override. Null means inherit the Compendium default.

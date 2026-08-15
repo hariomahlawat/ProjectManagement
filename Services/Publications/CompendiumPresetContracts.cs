@@ -45,6 +45,16 @@ public sealed record CompendiumPresetProjectConfiguration(
     public string? CustomSectionName { get; init; }
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public int DossierImageCount { get; init; } = 1;
+    public int? SupportingPhoto1Id { get; init; }
+    public double SupportingPhoto1FocalX { get; init; } = .5d;
+    public double SupportingPhoto1FocalY { get; init; } = .5d;
+    public CompendiumImageFitMode SupportingPhoto1FitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public int? SupportingPhoto2Id { get; init; }
+    public double SupportingPhoto2FocalX { get; init; } = .5d;
+    public double SupportingPhoto2FocalY { get; init; } = .5d;
+    public CompendiumImageFitMode SupportingPhoto2FitMode { get; init; } = CompendiumImageFitMode.Fill;
 }
 
 public sealed record CompendiumPresetCoverImageConfiguration(

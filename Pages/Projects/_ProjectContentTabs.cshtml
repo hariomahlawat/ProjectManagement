@@ -8,8 +8,10 @@
     var canEdit = Model.CanEditProjectContent;
     var briefIsActive = string.Equals(activeTab, "brief", StringComparison.OrdinalIgnoreCase);
     var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
+    var technicalIsActive = string.Equals(activeTab, "technical", StringComparison.OrdinalIgnoreCase);
     var descriptionIsActive = string.Equals(activeTab, "description", StringComparison.OrdinalIgnoreCase);
     var capabilityEditorCount = Math.Max(1, Model.CapabilityInput.Statements.Count);
+    var technicalEditorCount = Math.Max(1, Model.TechnicalSpecificationInput.Items.Count);
     var briefWordLabel = Model.ProjectBriefWordCount == 1 ? "word" : "words";
     var descriptionCharacterCount = Model.ContentDescriptionInput.Description?.Length ?? 0;
     var descriptionWordLabel = Model.DescriptionWordCount == 1 ? "word" : "words";
@@ -102,6 +104,23 @@
                 @if (Model.CapabilityStatements.Count > 0)
                 {
                     <span class="project-content__count">@Model.CapabilityStatements.Count</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(technicalIsActive ? "active" : null)"
+                    id="content-technical-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#content-technical"
+                    type="button"
+                    role="tab"
+                    aria-controls="content-technical"
+                    aria-selected="@(technicalIsActive.ToString().ToLowerInvariant())"
+                    data-content-tab="technical">
+                Hardware / technical specification
+                @if (Model.TechnicalSpecificationItems.Count > 0)
+                {
+                    <span class="project-content__count">@Model.TechnicalSpecificationItems.Count</span>
                 }
             </button>
         </li>
@@ -328,6 +347,100 @@
                         <button class="btn btn-sm btn-primary" type="submit" data-content-save>
                             <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
                             <span data-content-save-label>Save capabilities</span>
+                        </button>
+                    </div>
+                </form>
+            }
+        </div>
+
+        <div class="tab-pane fade @(technicalIsActive ? "show active" : null)"
+             id="content-technical"
+             role="tabpanel"
+             aria-labelledby="content-technical-tab"
+             tabindex="0">
+            <div class="project-content__view" data-content-view>
+                <div class="project-content__toolbar">
+                    <div class="project-content__guidance">
+                        Record 1–@ProjectFieldLimits.TechnicalSpecificationMaximumCount concise hardware requirement / technical specification bullets. Long bullets are supported; the Compendium adapts the page layout automatically.
+                    </div>
+                    <div class="project-content__toolbar-actions">
+                        <span class="project-content__status @(Model.TechnicalSpecificationItems.Count > 0 ? "is-ready" : "is-neutral")">
+                            @(Model.TechnicalSpecificationItems.Count > 0 ? $"{Model.TechnicalSpecificationItems.Count} recorded" : "Not recorded")
+                        </span>
+                        @if (canEdit)
+                        {
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                                Edit specifications
+                            </button>
+                        }
+                    </div>
+                </div>
+                @if (Model.TechnicalSpecificationItems.Count > 0)
+                {
+                    <ul class="project-content__technical-specs">
+                        @foreach (var item in Model.TechnicalSpecificationItems)
+                        {
+                            <li>@item.Text</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="project-content__empty">
+                        <i class="bi bi-cpu" aria-hidden="true"></i>
+                        <div>
+                            <strong>Hardware / technical specification not recorded</strong>
+                            <span>Add up to six structured bullets for Compendium project dossiers.</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (canEdit)
+            {
+                <form method="post"
+                      asp-page-handler="SaveProjectTechnicalSpecifications"
+                      asp-route-id="@Model.Project.Id"
+                      class="project-content__editor d-none"
+                      data-content-form
+                      data-content-kind="technical"
+                      data-technical-editor
+                      data-technical-max="@ProjectFieldLimits.TechnicalSpecificationMaximumCount">
+                    <input asp-for="TechnicalSpecificationInput.ProjectId" type="hidden" />
+                    <input asp-for="TechnicalSpecificationInput.RowVersion" type="hidden" />
+                    <div class="project-content__capability-list" data-technical-list>
+                        @for (var index = 0; index < technicalEditorCount; index++)
+                        {
+                            var value = index < Model.TechnicalSpecificationInput.Items.Count
+                                ? Model.TechnicalSpecificationInput.Items[index]
+                                : string.Empty;
+                            <div class="project-content__capability-row" data-technical-row>
+                                <span class="project-content__capability-number" data-technical-number>@(index + 1)</span>
+                                <textarea class="form-control"
+                                          name="TechnicalSpecificationInput.Items"
+                                          rows="2"
+                                          maxlength="@ProjectFieldLimits.TechnicalSpecificationItemMaxLength"
+                                          aria-label="Technical specification @(index + 1)">@value</textarea>
+                                <div class="btn-group btn-group-sm project-content__row-actions" role="group" aria-label="Actions for technical specification @(index + 1)">
+                                    <button class="btn btn-outline-secondary" type="button" data-technical-up title="Move up"><i class="bi bi-chevron-up"></i></button>
+                                    <button class="btn btn-outline-secondary" type="button" data-technical-down title="Move down"><i class="bi bi-chevron-down"></i></button>
+                                    <button class="btn btn-outline-danger" type="button" data-technical-remove title="Remove"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="project-content__editor-meta">
+                        <span>Maximum @ProjectFieldLimits.TechnicalSpecificationMaximumCount bullets · @ProjectFieldLimits.TechnicalSpecificationItemMaxLength characters per bullet.</span>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-technical-add>
+                            <i class="bi bi-plus-lg"></i> Add bullet
+                        </button>
+                    </div>
+                    <div class="invalid-feedback d-block d-none" role="alert" aria-live="polite" data-content-error></div>
+                    <div class="project-content__actions">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
+                        <button class="btn btn-sm btn-primary" type="submit" data-content-save>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
+                            <span data-content-save-label>Save specifications</span>
                         </button>
                     </div>
                 </form>

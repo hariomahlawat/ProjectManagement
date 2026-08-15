@@ -625,6 +625,79 @@
         renumber();
     };
 
+    const initializeTechnicalSpecificationEditor = (form) => {
+        const list = form.querySelector('[data-technical-list]');
+        const addButton = form.querySelector('[data-technical-add]');
+        const maximum = parsePositiveInt(form.dataset.technicalMax, 6);
+        if (!list || !addButton) return;
+
+        const initialMarkup = list.innerHTML;
+        const rows = () => [...list.querySelectorAll('[data-technical-row]')];
+        const createRow = () => {
+            const row = document.createElement('div');
+            row.className = 'project-content__capability-row';
+            row.dataset.technicalRow = '';
+            row.innerHTML = `<span class="project-content__capability-number" data-technical-number></span>
+                <textarea class="form-control" name="TechnicalSpecificationInput.Items" rows="2" maxlength="750"></textarea>
+                <div class="btn-group btn-group-sm project-content__row-actions" role="group">
+                    <button class="btn btn-outline-secondary" type="button" data-technical-up title="Move up"><i class="bi bi-chevron-up"></i></button>
+                    <button class="btn btn-outline-secondary" type="button" data-technical-down title="Move down"><i class="bi bi-chevron-down"></i></button>
+                    <button class="btn btn-outline-danger" type="button" data-technical-remove title="Remove"><i class="bi bi-x-lg"></i></button>
+                </div>`;
+            return row;
+        };
+        const ensureOne = () => { if (!rows().length) list.append(createRow()); };
+        const renumber = () => {
+            const current = rows();
+            current.forEach((row, index) => {
+                const number = row.querySelector('[data-technical-number]');
+                const textarea = row.querySelector('textarea');
+                const up = row.querySelector('[data-technical-up]');
+                const down = row.querySelector('[data-technical-down]');
+                if (number) number.textContent = String(index + 1);
+                if (textarea) textarea.setAttribute('aria-label', `Technical specification ${index + 1}`);
+                if (up) up.disabled = index === 0;
+                if (down) down.disabled = index === current.length - 1;
+            });
+            const populated = current.filter(row => row.querySelector('textarea')?.value.trim()).length;
+            addButton.disabled = current.length >= maximum || (current.length > populated && !current.at(-1)?.querySelector('textarea')?.value.trim());
+        };
+
+        dynamicResetters.set(form, () => {
+            list.innerHTML = initialMarkup;
+            ensureOne();
+            renumber();
+        });
+
+        list.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            const row = button?.closest('[data-technical-row]');
+            if (!button || !row || form.dataset.submitting === 'true') return;
+            if (button.matches('[data-technical-up]')) row.previousElementSibling?.before(row);
+            else if (button.matches('[data-technical-down]')) row.nextElementSibling?.after(row);
+            else if (button.matches('[data-technical-remove]')) {
+                if (rows().length === 1) row.querySelector('textarea').value = '';
+                else row.remove();
+                ensureOne();
+            } else return;
+            markDirty(form);
+            renumber();
+        });
+        list.addEventListener('input', () => { markDirty(form); renumber(); });
+        addButton.addEventListener('click', () => {
+            const current = rows();
+            if (current.length >= maximum) return;
+            const last = current.at(-1)?.querySelector('textarea');
+            if (last && !last.value.trim()) { last.focus(); return; }
+            list.append(createRow());
+            markDirty(form);
+            renumber();
+            rows().at(-1)?.querySelector('textarea')?.focus();
+        });
+        ensureOne();
+        renumber();
+    };
+
     const initializeDescriptionEditor = (form) => {
         const textarea = form.querySelector('[data-character-counter]');
         const trigger = form.querySelector('[data-description-preview-trigger]');
@@ -758,6 +831,7 @@
     });
 
     root.querySelectorAll('[data-capability-editor]').forEach(initializeCapabilityEditor);
+    root.querySelectorAll('[data-technical-editor]').forEach(initializeTechnicalSpecificationEditor);
     root.querySelectorAll('[data-description-editor]').forEach(initializeDescriptionEditor);
 
     root.querySelectorAll('[data-bs-toggle="tab"]').forEach((tab) => {

@@ -448,3 +448,22 @@
         max-height: 20rem;
     }
 }
+
+/* Phase 31: structured hardware / technical specification bullets */
+.project-content__technical-specs {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: grid;
+    gap: .55rem;
+    color: var(--bs-body-color);
+}
+
+.project-content__technical-specs li {
+    padding-left: .25rem;
+    line-height: 1.45;
+}
+
+[data-technical-editor] textarea {
+    min-height: 4.5rem;
+    resize: vertical;
+}

@@ -25,7 +25,7 @@ const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
 
 // Phase 30 intentionally replaces the former one-hero cover contract with a controlled composer.
 test('phase 30 persists first class front/back cover composition through schema v6', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*6/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*[67]/);
   assert.match(model, /ICollection<CompendiumPresetCoverImage>\s+CoverImages/);
   assert.match(model, /ICollection<CompendiumPresetPhotoPreference>\s+PhotoPreferences/);
   assert.match(model, /FrontCoverTemplate/);
@@ -83,7 +83,7 @@ test('phase 30 gives project dossier imagery fit/fill parity across review and P
   assert.match(mainView, /data-review-image-fit/);
   assert.match(mainJs, /imageFitMode/);
   assert.match(dto, /ImageFitMode/);
-  assert.match(exportService, /project\.ImageFitMode == CompendiumImageFitMode\.Fit/);
+  assert.match(exportService, /(?:project\.ImageFitMode|image\.FitMode) == CompendiumImageFitMode\.Fit/);
   assert.match(builder, /public CompendiumImageFitMode ImageFitMode/);
 });
 

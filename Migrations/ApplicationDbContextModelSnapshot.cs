@@ -5032,6 +5032,37 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectTechnicalSpecificationItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(750)
+                        .HasColumnType("character varying(750)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "DisplayOrder")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectTechnicalSpecificationItems_Project_Order");
+
+                    b.ToTable("ProjectTechnicalSpecificationItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProjectTechnicalSpecificationItems_DisplayOrder_Positive", "\"DisplayOrder\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePreset", b =>
                 {
                     b.Property<long>("Id")
@@ -5400,7 +5431,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(6);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(7);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
@@ -5437,6 +5468,16 @@ namespace ProjectManagement.Migrations
                     b.Property<long?>("CustomSectionId").HasColumnType("bigint");
                     b.Property<string>("ImageSelectionMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
                     b.Property<string>("ImageFitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
+                    b.Property<string>("DossierLayout").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
+                    b.Property<int>("DossierImageCount").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(1);
+                    b.Property<int?>("SupportingPhoto1Id").HasColumnType("integer");
+                    b.Property<double>("SupportingPhoto1FocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<double>("SupportingPhoto1FocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<string>("SupportingPhoto1FitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
+                    b.Property<int?>("SupportingPhoto2Id").HasColumnType("integer");
+                    b.Property<double>("SupportingPhoto2FocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<double>("SupportingPhoto2FocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
+                    b.Property<string>("SupportingPhoto2FitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
                     b.Property<string>("CustomSectionName").HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NarrativeSourceOverride").HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<double>("PrimaryFocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
@@ -9062,6 +9103,17 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectTechnicalSpecificationItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany("TechnicalSpecificationItems")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePreset", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "CreatedByUser")
@@ -10038,6 +10090,8 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.Navigation("CapabilityStatements");
+
+                    b.Navigation("TechnicalSpecificationItems");
 
                     b.Navigation("Documents");
 

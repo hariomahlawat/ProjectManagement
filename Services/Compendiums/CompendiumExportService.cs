@@ -83,19 +83,29 @@ public sealed class CompendiumExportService : ICompendiumExportService
         }
 
         var renderRequests = publicationProjects
-            .Where(project => project.CoverPhotoId.HasValue)
-            .Select(project => new BrochurePhotoRenderRequest(
-                project.ProjectId,
-                project.CoverPhotoId!.Value,
-                project.PrimaryFocalX,
-                project.PrimaryFocalY,
-                CompendiumPublicationImagePolicy.RenderWidthPixels,
-                CompendiumPublicationImagePolicy.ResolveRenderHeightPixels(CompendiumPublicationTextSanitizer.Sanitize(project.DescriptionMarkdown)))
-            {
-                FitMode = project.ImageFitMode == CompendiumImageFitMode.Fit
-                    ? BrochurePhotoFitMode.Fit
-                    : BrochurePhotoFitMode.Fill
-            })
+            .SelectMany(project => project.DossierImages
+                .Where(image => image.PhotoId.HasValue)
+                .Select(image =>
+                {
+                    var geometry = ResolveDossierSlotGeometry(
+                        project.EffectiveDossierLayout,
+                        image.Role,
+                        project.DossierImageCount);
+                    return new BrochurePhotoRenderRequest(
+                        project.ProjectId,
+                        image.PhotoId!.Value,
+                        image.FocalX,
+                        image.FocalY,
+                        geometry.Width,
+                        geometry.Height)
+                    {
+                        FitMode = image.FitMode == CompendiumImageFitMode.Fit
+                            ? BrochurePhotoFitMode.Fit
+                            : BrochurePhotoFitMode.Fill
+                    };
+                }))
+            .GroupBy(request => request.PhotoId)
+            .Select(group => group.First())
             .ToArray();
 
         IReadOnlyDictionary<int, BrochurePublicationImage> renderedPhotos;
@@ -123,18 +133,16 @@ public sealed class CompendiumExportService : ICompendiumExportService
             var projects = new List<CompendiumPdfProjectSection>(group.Projects.Count);
             foreach (var project in group.Projects)
             {
-                var photoBytes = project.CoverPhotoId.HasValue
-                                 && renderedPhotos.TryGetValue(project.CoverPhotoId.Value, out var rendered)
-                    ? rendered.Content
-                    : null;
-
-                if (project.CoverPhotoId.HasValue && photoBytes is null)
-                {
-                    _logger.LogWarning(
-                        "Compendium publication photo could not be rendered. ProjectId={ProjectId}, PhotoId={PhotoId}.",
-                        project.ProjectId,
-                        project.CoverPhotoId.Value);
-                }
+                var renderedDossierImages = project.DossierImages
+                    .Where(image => image.PhotoId.HasValue)
+                    .Select(image => new CompendiumPdfProjectImage(
+                        image.Role,
+                        renderedPhotos.TryGetValue(image.PhotoId!.Value, out var rendered) ? rendered.Content : null,
+                        image.FitMode,
+                        image.PhotoId))
+                    .ToArray();
+                var primaryImage = renderedDossierImages.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary);
+                var photoBytes = primaryImage?.Content;
 
                 projects.Add(new CompendiumPdfProjectSection(
                     project.ProjectId,
@@ -155,7 +163,14 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     ProliferationAvailability = project.ProliferationAvailability,
                     TechnicalCategoryDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.TechnicalCategoryName),
                     NarrativeLabel = CompendiumPublicationTextSanitizer.Sanitize(project.NarrativeLabel),
-                    ImageFitMode = project.ImageFitMode
+                    ImageFitMode = project.ImageFitMode,
+                    DossierLayout = project.EffectiveDossierLayout,
+                    DossierLayoutReason = project.DossierLayoutReason,
+                    Images = renderedDossierImages,
+                    SponsoringLineDirectorateDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.SponsoringLineDirectorateDisplay),
+                    IprCredentials = project.IprCredentials,
+                    TechnologyTransfer = project.TechnologyTransfer,
+                    TechnicalSpecifications = project.TechnicalSpecifications.Select(CompendiumPublicationTextSanitizer.Sanitize).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray()
                 });
             }
 
@@ -422,6 +437,24 @@ public sealed class CompendiumExportService : ICompendiumExportService
             .Select(group => group.OrderByDescending(item => item.Priority).First())
             .OrderByDescending(item => item.Priority)
             .ToArray();
+    }
+
+
+    private static (int Width, int Height) ResolveDossierSlotGeometry(
+        CompendiumDossierLayout layout,
+        CompendiumDossierImageRole role,
+        int imageCount)
+    {
+        imageCount = Math.Clamp(imageCount, 1, 3);
+        return layout switch
+        {
+            CompendiumDossierLayout.VisualHero => (1800, 885),
+            CompendiumDossierLayout.Technical => (1800, 505),
+            CompendiumDossierLayout.MultiImageEditorial when role == CompendiumDossierImageRole.Primary => (1500, 1180),
+            CompendiumDossierLayout.MultiImageEditorial when imageCount >= 3 => (1100, 650),
+            CompendiumDossierLayout.MultiImageEditorial => (1100, 1340),
+            _ => (1350, 1170)
+        };
     }
 
     private static (int Width, int Height) ResolveCoverSlotGeometry(

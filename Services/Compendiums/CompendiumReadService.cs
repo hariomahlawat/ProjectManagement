@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Services;
@@ -20,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-14_cover-fidelity-v9";
+    public const string BuildStamp = "CompendiumPdf_2026-08-14_adaptive-dossier-v10";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -63,6 +64,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.ProjectBrief,
                 project.Description,
                 project.ArmService,
+                project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
                 project.YearOfDevelopment,
                 project.CompletedYear,
                 project.CompletedOn,
@@ -77,6 +79,27 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
         var projectIds = projects.Select(project => project.Id).ToArray();
         var capabilitiesByProject = await LoadCapabilityStatementsAsync(projectIds, cancellationToken);
+        var technicalSpecificationCounts = await _db.ProjectTechnicalSpecificationItems
+            .AsNoTracking()
+            .Where(item => projectIds.Contains(item.ProjectId))
+            .GroupBy(item => item.ProjectId)
+            .ToDictionaryAsync(group => group.Key, group => group.Count(), cancellationToken);
+        var iprProjectIds = await _db.IprRecords
+            .AsNoTracking()
+            .Where(item => item.ProjectId.HasValue
+                           && projectIds.Contains(item.ProjectId.Value)
+                           && (item.Status == IprStatus.Filed || item.Status == IprStatus.Granted))
+            .Select(item => item.ProjectId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var iprProjectSet = iprProjectIds.ToHashSet();
+        var totProjectIds = await _db.ProjectTots
+            .AsNoTracking()
+            .Where(item => projectIds.Contains(item.ProjectId)
+                           && (item.Status == ProjectTotStatus.InProgress || item.Status == ProjectTotStatus.Completed))
+            .Select(item => item.ProjectId)
+            .ToListAsync(cancellationToken);
+        var totProjectSet = totProjectIds.ToHashSet();
         var availability = await _db.ProjectTechStatuses
             .AsNoTracking()
             .Where(status => projectIds.Contains(status.ProjectId))
@@ -120,7 +143,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     project.TechnicalCategory,
                     availableForProliferation == true,
                     !string.IsNullOrWhiteSpace(project.Description),
-                    !string.IsNullOrWhiteSpace(project.ArmService),
+                    !string.IsNullOrWhiteSpace(project.SponsoringLineDirectorate) || !string.IsNullOrWhiteSpace(project.ArmService),
                     productionCost.HasValue,
                     projectPhotos.Count,
                     defaultPhotoId,
@@ -134,8 +157,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     DescriptionWordCount = CountWords(project.Description),
                     PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
                     TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
-                    ArmServiceDisplay = NormalizeDisplay(project.ArmService, "Not recorded"),
-                    ProliferationCostDisplay = CompendiumPublicationImagePolicy.FormatCost(productionCost)
+                    ArmServiceDisplay = NormalizeDisplay(project.SponsoringLineDirectorate ?? project.ArmService, "Not recorded"),
+                    ProliferationCostDisplay = CompendiumPublicationImagePolicy.FormatCost(productionCost),
+                    TechnicalSpecificationCount = technicalSpecificationCounts.GetValueOrDefault(project.Id),
+                    HasIpr = iprProjectSet.Contains(project.Id),
+                    HasTechnologyTransfer = totProjectSet.Contains(project.Id)
                 };
             })
             .ToArray();
@@ -180,6 +206,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var rowsById = rows.ToDictionary(project => project.Id);
         var availableProjectIds = rows.Select(project => project.Id).ToArray();
         var capabilitiesByProject = await LoadCapabilityStatementsAsync(availableProjectIds, cancellationToken);
+        var specificationsByProject = await LoadTechnicalSpecificationsAsync(availableProjectIds, cancellationToken);
+        var iprByProject = await LoadIprCredentialsAsync(availableProjectIds, cancellationToken);
+        var totByProject = await LoadTechnologyTransferAsync(availableProjectIds, cancellationToken);
 
         var availability = availableProjectIds.Length == 0
             ? new Dictionary<int, bool?>()
@@ -247,6 +276,22 @@ public sealed class CompendiumReadService : ICompendiumReadService
             var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
             var effectiveNarrativeSource = selection.NarrativeSourceOverride ?? NormalizeNarrativeSource(request.NarrativeSource);
             var narrative = ResolveNarrative(project, capabilities, effectiveNarrativeSource);
+            var specifications = specificationsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
+            var iprCredentials = iprByProject.GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
+            var technologyTransfer = totByProject.GetValueOrDefault(project.Id);
+            var sponsoringDirectorate = NormalizeOptional(project.SponsoringLineDirectorate) ?? NormalizeOptional(project.ArmService) ?? string.Empty;
+            var dossierImages = ResolveDossierImages(project, selection, projectPhotos, resolved);
+            var programmeModuleCount = (string.IsNullOrWhiteSpace(sponsoringDirectorate) ? 0 : 1)
+                                     + (cost?.Cost.HasValue == true ? 1 : 0)
+                                     + (iprCredentials.Count > 0 ? 1 : 0)
+                                     + (technologyTransfer is null ? 0 : 1);
+            var dossierDecision = CompendiumDossierLayoutPlanner.Resolve(
+                selection.DossierLayout,
+                dossierImages.Count(item => item.PhotoId.HasValue),
+                narrative.Text,
+                specifications,
+                programmeModuleCount,
+                project.Name);
             var sectionAssignment = ResolveSectionAssignment(selection, sections);
             var probe = resolved.ResolvedPhotoId.HasValue
                 ? probes.GetValueOrDefault(resolved.ResolvedPhotoId.Value)
@@ -266,7 +311,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 project.ProjectCategory,
                 project.TechnicalCategory,
-                project.ArmService,
+                sponsoringDirectorate,
                 completionYear,
                 availableForProliferation,
                 cost?.Cost,
@@ -279,7 +324,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 NarrativeSource = effectiveNarrativeSource,
                 PublicationSectionKey = sectionAssignment.SectionKey,
                 PublicationSectionName = sectionAssignment.SectionName,
-                ImageFitMode = resolved.Selection.ImageFitMode
+                ImageFitMode = resolved.Selection.ImageFitMode,
+                DossierLayout = selection.DossierLayout,
+                DossierImages = dossierImages,
+                TechnicalSpecifications = specifications,
+                IprCredentials = iprCredentials,
+                TechnologyTransfer = technologyTransfer
             });
 
             var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
@@ -287,7 +337,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.Name,
                 project.LifecycleStatus,
                 completionYear,
-                project.ArmService,
+                sponsoringDirectorate,
                 narrative.Text,
                 cost?.Cost,
                 availableForProliferation,
@@ -343,7 +393,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
                 PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
                 TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
-                ImageFitMode = resolved.Selection.ImageFitMode
+                ImageFitMode = resolved.Selection.ImageFitMode,
+                SponsoringLineDirectorateDisplay = sponsoringDirectorate,
+                IprCredentials = iprCredentials,
+                TechnologyTransfer = technologyTransfer,
+                TechnicalSpecifications = specifications,
+                DossierLayoutOverride = selection.DossierLayout,
+                EffectiveDossierLayout = dossierDecision.Layout,
+                DossierLayoutReason = dossierDecision.Reason,
+                DossierImageCount = dossierImages.Count(item => item.PhotoId.HasValue),
+                DossierImages = dossierImages
             });
         }
 
@@ -436,6 +495,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var capabilitiesByProject = await LoadCapabilityStatementsAsync(new[] { project.Id }, cancellationToken);
         var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
         var narrative = ResolveNarrative(project, capabilities, narrativeSource);
+        var specifications = (await LoadTechnicalSpecificationsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<string>();
+        var iprCredentials = (await LoadIprCredentialsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
+        var technologyTransfer = (await LoadTechnologyTransferAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id);
+        var sponsoringDirectorate = NormalizeOptional(project.SponsoringLineDirectorate) ?? NormalizeOptional(project.ArmService) ?? string.Empty;
 
         var availability = await _db.ProjectTechStatuses
             .AsNoTracking()
@@ -451,6 +514,15 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
         var photoCandidates = await LoadPhotoCandidatesAsync(new[] { project.Id }, cancellationToken);
         var resolved = ResolveSelection(project, selection, photoCandidates);
+        var dossierImages = ResolveDossierImages(project, selection, photoCandidates, resolved);
+        var programmeModuleCount = (string.IsNullOrWhiteSpace(sponsoringDirectorate) ? 0 : 1)
+                                 + (cost?.Cost.HasValue == true ? 1 : 0)
+                                 + (iprCredentials.Count > 0 ? 1 : 0)
+                                 + (technologyTransfer is null ? 0 : 1);
+        var dossierDecision = CompendiumDossierLayoutPlanner.Resolve(
+            selection.DossierLayout,
+            dossierImages.Count(item => item.PhotoId.HasValue),
+            narrative.Text, specifications, programmeModuleCount, project.Name);
         var photoReferences = photoCandidates
             .Select(photo => new BrochurePhotoReference(project.Id, photo.Id))
             .ToArray();
@@ -502,7 +574,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             project.LifecycleStatus,
             project.ProjectCategory,
             project.TechnicalCategory,
-            project.ArmService,
+            sponsoringDirectorate,
             completionYear,
             availability,
             cost?.Cost,
@@ -515,14 +587,19 @@ public sealed class CompendiumReadService : ICompendiumReadService
             NarrativeSource = narrativeSource,
             PublicationSectionKey = selection.CustomSectionKey,
             PublicationSectionName = selection.CustomSectionName,
-            ImageFitMode = resolved.Selection.ImageFitMode
+            ImageFitMode = resolved.Selection.ImageFitMode,
+            DossierLayout = selection.DossierLayout,
+            DossierImages = dossierImages,
+            TechnicalSpecifications = specifications,
+            IprCredentials = iprCredentials,
+            TechnologyTransfer = technologyTransfer
         });
         var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
             project.Id,
             project.Name,
             project.LifecycleStatus,
             completionYear,
-            project.ArmService,
+            sponsoringDirectorate,
             narrative.Text,
             cost?.Cost,
             availability,
@@ -577,7 +654,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
             CustomSectionKey = NormalizeSectionKey(selection.CustomSectionKey),
             CustomSectionName = NormalizeCustomSection(selection.CustomSectionName),
             UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
-            ImageFitMode = resolved.Selection.ImageFitMode
+            ImageFitMode = resolved.Selection.ImageFitMode,
+            SponsoringLineDirectorateDisplay = sponsoringDirectorate,
+            IprCredentials = iprCredentials,
+            TechnologyTransfer = technologyTransfer,
+            TechnicalSpecifications = specifications,
+            DossierLayoutOverride = selection.DossierLayout,
+            EffectiveDossierLayout = dossierDecision.Layout,
+            DossierLayoutReason = dossierDecision.Reason,
+            DossierImageCount = dossierImages.Count(item => item.PhotoId.HasValue),
+            DossierImages = dossierImages
         };
     }
 
@@ -700,6 +786,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.CompletedOn,
                 project.CreatedAt,
                 project.CoverPhotoId,
+                project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
                 project.Category != null ? project.Category.Name : null,
                 project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
                 project.TechnicalCategory != null ? project.TechnicalCategory.SortOrder : int.MaxValue))
@@ -824,6 +911,189 @@ public sealed class CompendiumReadService : ICompendiumReadService
             CompendiumPhotoSelectionSource.FirstAvailable);
     }
 
+    private static IReadOnlyList<CompendiumDossierImageSelection> ResolveDossierImages(
+        PublicationRow project,
+        CompendiumProjectSelection rawSelection,
+        IReadOnlyList<PhotoCandidate> candidates,
+        ResolvedSelection primary)
+    {
+        var selection = NormalizeSelection(rawSelection);
+        var requestedCount = Math.Clamp(selection.DossierImageCount, 1, 3);
+        var result = new List<CompendiumDossierImageSelection>(requestedCount)
+        {
+            new(
+                CompendiumDossierImageRole.Primary,
+                primary.ResolvedPhotoId,
+                selection.FocalX,
+                selection.FocalY,
+                selection.ImageFitMode,
+                primary.PhotoSelectionSource)
+        };
+
+        if (requestedCount == 1)
+        {
+            return result;
+        }
+
+        var used = result.Where(item => item.PhotoId.HasValue).Select(item => item.PhotoId!.Value).ToHashSet();
+        var ranked = RankAutomaticPhotos(project.CoverPhotoId, candidates).ToList();
+
+        CompendiumDossierImageSelection ResolveSupporting(
+            CompendiumDossierImageRole role,
+            int? explicitPhotoId,
+            double focalX,
+            double focalY,
+            CompendiumImageFitMode fitMode)
+        {
+            int? photoId = null;
+            var source = CompendiumPhotoSelectionSource.None;
+            if (explicitPhotoId is > 0 && candidates.Any(item => item.Id == explicitPhotoId.Value) && !used.Contains(explicitPhotoId.Value))
+            {
+                photoId = explicitPhotoId;
+                source = CompendiumPhotoSelectionSource.ExplicitPublication;
+            }
+            else
+            {
+                var fallback = ranked.FirstOrDefault(item => !used.Contains(item.Id));
+                if (fallback is not null)
+                {
+                    photoId = fallback.Id;
+                    source = fallback.Id == project.CoverPhotoId
+                        ? CompendiumPhotoSelectionSource.ProjectCover
+                        : fallback.IsCover
+                            ? CompendiumPhotoSelectionSource.MarkedCover
+                            : CompendiumPhotoSelectionSource.FirstAvailable;
+                }
+            }
+
+            if (photoId.HasValue)
+            {
+                used.Add(photoId.Value);
+            }
+
+            return new CompendiumDossierImageSelection(
+                role,
+                photoId,
+                ClampFocal(focalX),
+                ClampFocal(focalY),
+                Enum.IsDefined(fitMode) ? fitMode : CompendiumImageFitMode.Fill,
+                source);
+        }
+
+        result.Add(ResolveSupporting(
+            CompendiumDossierImageRole.Supporting1,
+            selection.SupportingPhoto1Id,
+            selection.SupportingPhoto1FocalX,
+            selection.SupportingPhoto1FocalY,
+            selection.SupportingPhoto1FitMode));
+
+        if (requestedCount >= 3)
+        {
+            result.Add(ResolveSupporting(
+                CompendiumDossierImageRole.Supporting2,
+                selection.SupportingPhoto2Id,
+                selection.SupportingPhoto2FocalX,
+                selection.SupportingPhoto2FocalY,
+                selection.SupportingPhoto2FitMode));
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<PhotoCandidate> RankAutomaticPhotos(
+        int? projectCoverPhotoId,
+        IReadOnlyList<PhotoCandidate> candidates)
+        => candidates
+            .OrderBy(candidate => projectCoverPhotoId.HasValue && candidate.Id == projectCoverPhotoId.Value ? 0 : candidate.IsCover ? 1 : 2)
+            .ThenBy(candidate => candidate.IsLowResolution)
+            .ThenBy(candidate => candidate.Ordinal)
+            .ThenByDescending(candidate => candidate.UpdatedUtc);
+
+    private async Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> LoadTechnicalSpecificationsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, IReadOnlyList<string>>();
+        }
+
+        var rows = await _db.ProjectTechnicalSpecificationItems
+            .AsNoTracking()
+            .Where(item => projectIds.Contains(item.ProjectId))
+            .OrderBy(item => item.ProjectId)
+            .ThenBy(item => item.DisplayOrder)
+            .Select(item => new { item.ProjectId, item.Text })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(item => item.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group.Select(item => item.Text.Trim()).Where(text => text.Length > 0).Take(ProjectFieldLimits.TechnicalSpecificationMaximumCount).ToArray());
+    }
+
+    private async Task<IReadOnlyDictionary<int, IReadOnlyList<CompendiumIprCredentialDto>>> LoadIprCredentialsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, IReadOnlyList<CompendiumIprCredentialDto>>();
+        }
+
+        var rows = await _db.IprRecords
+            .AsNoTracking()
+            .Where(item => item.ProjectId.HasValue
+                           && projectIds.Contains(item.ProjectId.Value)
+                           && (item.Status == IprStatus.Filed || item.Status == IprStatus.Granted))
+            .Select(item => new
+            {
+                ProjectId = item.ProjectId!.Value,
+                item.Type,
+                item.Status,
+                item.FiledAtUtc,
+                item.GrantedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(item => item.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<CompendiumIprCredentialDto>)group
+                    .OrderByDescending(item => item.Status == IprStatus.Granted)
+                    .ThenBy(item => item.Type)
+                    .Select(item => new CompendiumIprCredentialDto(
+                        item.Type == IprType.Copyright ? "Copyright" : "Patent",
+                        item.Status == IprStatus.Granted ? "Granted" : "Filed",
+                        (item.Status == IprStatus.Granted ? item.GrantedAtUtc : item.FiledAtUtc)?.Year))
+                    .ToArray());
+    }
+
+    private async Task<IReadOnlyDictionary<int, CompendiumTechnologyTransferDto>> LoadTechnologyTransferAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, CompendiumTechnologyTransferDto>();
+        }
+
+        var rows = await _db.ProjectTots
+            .AsNoTracking()
+            .Where(item => projectIds.Contains(item.ProjectId)
+                           && (item.Status == ProjectTotStatus.InProgress || item.Status == ProjectTotStatus.Completed))
+            .Select(item => new { item.ProjectId, item.Status, item.CompletedOn })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(
+            item => item.ProjectId,
+            item => new CompendiumTechnologyTransferDto(
+                item.Status == ProjectTotStatus.Completed ? "Completed" : "In progress",
+                item.Status == ProjectTotStatus.Completed ? item.CompletedOn.HasValue ? item.CompletedOn.Value.Year : null : null));
+    }
+
     private async Task<int> CountCandidatesAsync(CancellationToken cancellationToken)
         => await _db.Projects
             .AsNoTracking()
@@ -874,7 +1144,17 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 : null,
             ImageFitMode = Enum.IsDefined(selection.ImageFitMode)
                 ? selection.ImageFitMode
-                : CompendiumImageFitMode.Fill
+                : CompendiumImageFitMode.Fill,
+            DossierLayout = Enum.IsDefined(selection.DossierLayout) ? selection.DossierLayout : CompendiumDossierLayout.Automatic,
+            DossierImageCount = Math.Clamp(selection.DossierImageCount, 1, 3),
+            SupportingPhoto1Id = selection.SupportingPhoto1Id is > 0 ? selection.SupportingPhoto1Id : null,
+            SupportingPhoto1FocalX = ClampFocal(selection.SupportingPhoto1FocalX),
+            SupportingPhoto1FocalY = ClampFocal(selection.SupportingPhoto1FocalY),
+            SupportingPhoto1FitMode = Enum.IsDefined(selection.SupportingPhoto1FitMode) ? selection.SupportingPhoto1FitMode : CompendiumImageFitMode.Fill,
+            SupportingPhoto2Id = selection.SupportingPhoto2Id is > 0 ? selection.SupportingPhoto2Id : null,
+            SupportingPhoto2FocalX = ClampFocal(selection.SupportingPhoto2FocalX),
+            SupportingPhoto2FocalY = ClampFocal(selection.SupportingPhoto2FocalY),
+            SupportingPhoto2FitMode = Enum.IsDefined(selection.SupportingPhoto2FitMode) ? selection.SupportingPhoto2FitMode : CompendiumImageFitMode.Fill
         };
 
     private static PublicationStructureResult BuildPublicationStructure(
@@ -1186,6 +1466,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         string? ProjectBrief,
         string? Description,
         string? ArmService,
+        string? SponsoringLineDirectorate,
         short? YearOfDevelopment,
         int? CompletedYear,
         DateOnly? CompletedOn,
@@ -1205,6 +1486,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         DateOnly? CompletedOn,
         DateTime CreatedAt,
         int? CoverPhotoId,
+        string? SponsoringLineDirectorate,
         string? ProjectCategory,
         string? TechnicalCategory,
         int TechnicalCategorySortOrder)

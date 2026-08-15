@@ -10,11 +10,14 @@ public partial class OverviewModel
 {
     private static readonly HashSet<string> ValidContentTabs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "brief", "capabilities", "description"
+        "brief", "capabilities", "technical", "description"
     };
 
     public IReadOnlyList<ProjectCapabilityStatement> CapabilityStatements { get; private set; }
         = Array.Empty<ProjectCapabilityStatement>();
+
+    public IReadOnlyList<ProjectTechnicalSpecificationItem> TechnicalSpecificationItems { get; private set; }
+        = Array.Empty<ProjectTechnicalSpecificationItem>();
 
     public string? ProjectBriefHtml { get; private set; }
     public int ProjectBriefWordCount { get; private set; }
@@ -35,6 +38,9 @@ public partial class OverviewModel
     public ProjectCapabilitiesContentInput CapabilityInput { get; set; } = new();
 
     [BindProperty]
+    public ProjectTechnicalSpecificationsContentInput TechnicalSpecificationInput { get; set; } = new();
+
+    [BindProperty]
     public ProjectDescriptionContentInput ContentDescriptionInput { get; set; } = new();
 
     public sealed class ProjectBriefContentInput
@@ -52,6 +58,15 @@ public partial class OverviewModel
     {
         public int ProjectId { get; set; }
         public List<string?> Statements { get; set; } = new();
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class ProjectTechnicalSpecificationsContentInput
+    {
+        public int ProjectId { get; set; }
+        public List<string?> Items { get; set; } = new();
 
         [Required]
         public string RowVersion { get; set; } = string.Empty;
@@ -114,6 +129,30 @@ public partial class OverviewModel
             ct);
 
         return ProjectContentResult(result, id, "capabilities", "Capability overview saved.");
+    }
+
+    public async Task<IActionResult> OnPostSaveProjectTechnicalSpecificationsAsync(int id, CancellationToken ct)
+    {
+        if (!CanCurrentUserEditProjectContent())
+        {
+            return Forbid();
+        }
+
+        if (TechnicalSpecificationInput.ProjectId != id)
+        {
+            return BadRequest();
+        }
+
+        var (userId, userDisplay) = await GetContentEditorIdentityAsync();
+        var result = await _projectContentService.SaveTechnicalSpecificationsAsync(
+            id,
+            TechnicalSpecificationInput.Items,
+            TechnicalSpecificationInput.RowVersion,
+            userId,
+            userDisplay,
+            ct);
+
+        return ProjectContentResult(result, id, "technical", "Hardware / technical specification saved.");
     }
 
     public async Task<IActionResult> OnPostSaveProjectDescriptionAsync(int id, CancellationToken ct)
@@ -185,7 +224,9 @@ public partial class OverviewModel
                 ? "brief"
                 : CapabilityStatements.Count > 0
                     ? "capabilities"
-                    : "description";
+                    : TechnicalSpecificationItems.Count > 0
+                        ? "technical"
+                        : "description";
         }
         else
         {
@@ -202,6 +243,12 @@ public partial class OverviewModel
         {
             ProjectId = project.Id,
             Statements = CapabilityStatements.Select(statement => (string?)statement.Statement).ToList(),
+            RowVersion = ProjectContentRowVersion
+        };
+        TechnicalSpecificationInput = new ProjectTechnicalSpecificationsContentInput
+        {
+            ProjectId = project.Id,
+            Items = TechnicalSpecificationItems.Select(item => (string?)item.Text).ToList(),
             RowVersion = ProjectContentRowVersion
         };
         ContentDescriptionInput = new ProjectDescriptionContentInput

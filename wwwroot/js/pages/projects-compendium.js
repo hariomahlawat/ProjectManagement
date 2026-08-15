@@ -40,6 +40,7 @@
     const normalizeNarrative = value => ({ projectbrief: "ProjectBrief", capabilityoverview: "CapabilityOverview", projectdescription: "ProjectDescription" }[normalize(value)] || "ProjectBrief");
     const normalizeGrouping = value => ({ technicalcategory: "TechnicalCategory", none: "None", customsections: "CustomSections" }[normalize(value)] || "TechnicalCategory");
     const normalizeSort = value => ({ manual: "Manual", latestfirst: "LatestFirst", alphabetical: "Alphabetical" }[normalize(value)] || "Manual");
+    const normalizeDossierLayout = value => ({ automatic: "Automatic", visualhero: "VisualHero", balanced: "Balanced", multiimageeditorial: "MultiImageEditorial", technical: "Technical" }[normalize(value)] || "Automatic");
     const editorialState = {
         narrativeSource: normalizeNarrative(narrativeInput?.value),
         groupingMode: normalizeGrouping(groupingInput?.value),
@@ -145,7 +146,17 @@
                 customSectionKey: cleanSectionKey(item.customSectionKey) || null,
                 customSectionName: cleanSectionName(item.customSectionName) || null,
                 narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null,
-                imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill"
+                imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill",
+                dossierLayout: normalizeDossierLayout(item.dossierLayout),
+                dossierImageCount: Math.max(1, Math.min(3, Number(item.dossierImageCount || 1))),
+                supportingPhoto1Id: Number(item.supportingPhoto1Id || 0) || null,
+                supportingPhoto1FocalX: roundFocal(item.supportingPhoto1FocalX),
+                supportingPhoto1FocalY: roundFocal(item.supportingPhoto1FocalY),
+                supportingPhoto1FitMode: normalize(item.supportingPhoto1FitMode) === "fit" ? "fit" : "fill",
+                supportingPhoto2Id: Number(item.supportingPhoto2Id || 0) || null,
+                supportingPhoto2FocalX: roundFocal(item.supportingPhoto2FocalX),
+                supportingPhoto2FocalY: roundFocal(item.supportingPhoto2FocalY),
+                supportingPhoto2FitMode: normalize(item.supportingPhoto2FitMode) === "fit" ? "fit" : "fill"
             });
         });
     }
@@ -162,7 +173,11 @@
                 customSectionKey: null,
                 customSectionName: null,
                 narrativeSourceOverride: null,
-                imageFitMode: "fill"
+                imageFitMode: "fill",
+                dossierLayout: "Automatic",
+                dossierImageCount: 1,
+                supportingPhoto1Id: null, supportingPhoto1FocalX: .5, supportingPhoto1FocalY: .5, supportingPhoto1FitMode: "fill",
+                supportingPhoto2Id: null, supportingPhoto2FocalX: .5, supportingPhoto2FocalY: .5, supportingPhoto2FitMode: "fill"
             });
         }
         return configById.get(projectId);
@@ -281,6 +296,10 @@
     const reviewUseAutomatic = $("[data-review-use-automatic]");
     const reviewUseCover = $("[data-review-use-cover]");
     const reviewImageFitButtons = [...form.querySelectorAll("[data-review-image-fit]")];
+    const reviewLayoutButtons = [...form.querySelectorAll("[data-review-layout]")];
+    const reviewImageCountButtons = [...form.querySelectorAll("[data-review-image-count]")];
+    const reviewManagePageImages = $("[data-review-manage-page-images]");
+    const reviewLayoutReason = $("[data-review-layout-reason]");
     const reviewFocusToggle = $("[data-review-focus-toggle]");
     const livePageZoomButtons = [...form.querySelectorAll("[data-live-page-zoom]")];
 
@@ -293,10 +312,13 @@
     const livePageFacts = $("[data-live-page-facts]");
     const livePageImageFrame = $("[data-live-page-image-frame]");
     const livePageImage = $("[data-live-page-image]");
+    const livePageSupportImages = [...form.querySelectorAll("[data-live-page-support-image]")];
     const livePageImageEmpty = $("[data-live-page-image-empty]");
     const livePageImageCategory = $("[data-live-page-image-category]");
     const livePageNarrativeLabel = $("[data-live-page-narrative-label]");
     const livePageNarrative = $("[data-live-page-narrative]");
+    const livePageSpecifications = $("[data-live-page-specifications]");
+    const livePageSpecificationList = $("[data-live-page-specification-list]");
 
     const coverPreview = $("[data-cover-preview]");
     const coverPreviewImage = $("[data-cover-preview-image]");
@@ -362,6 +384,10 @@
     const photoUseAutomatic = document.querySelector("[data-photo-use-automatic]");
     const photoResetCrop = document.querySelector("[data-photo-reset-crop]");
     const photoManageLink = document.querySelector("[data-photo-manage-link]");
+    const photoRoleButtons = [...document.querySelectorAll("[data-photo-role]")];
+    const photoRoleFitButtons = [...document.querySelectorAll("[data-photo-role-fit]")];
+    const photoRoleFitHelp = document.querySelector("[data-photo-role-fit-help]");
+    let activePhotoRole = "Primary";
 
     const bootstrapModal = id => {
         const node = document.getElementById(id);
@@ -410,6 +436,16 @@
             customSectionName: section?.name || null,
             narrativeSourceOverride: config.narrativeSourceOverride || null,
             imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
+            dossierLayout: normalizeDossierLayout(config.dossierLayout),
+            dossierImageCount: Math.max(1, Math.min(3, Number(config.dossierImageCount || 1))),
+            supportingPhoto1Id: config.supportingPhoto1Id || null,
+            supportingPhoto1FocalX: roundFocal(config.supportingPhoto1FocalX),
+            supportingPhoto1FocalY: roundFocal(config.supportingPhoto1FocalY),
+            supportingPhoto1FitMode: config.supportingPhoto1FitMode === "fit" ? "Fit" : "Fill",
+            supportingPhoto2Id: config.supportingPhoto2Id || null,
+            supportingPhoto2FocalX: roundFocal(config.supportingPhoto2FocalX),
+            supportingPhoto2FocalY: roundFocal(config.supportingPhoto2FocalY),
+            supportingPhoto2FitMode: config.supportingPhoto2FitMode === "fit" ? "Fit" : "Fill",
             ...(includeReviewFingerprint ? { reviewFingerprint: config.reviewFingerprint || null } : {})
         };
     });
@@ -492,7 +528,13 @@
                 customSectionKey: config.customSectionKey || null,
                 customSectionName: config.customSectionName || null,
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
-                imageFitMode: config.imageFitMode || "fill"
+                imageFitMode: config.imageFitMode || "fill",
+                dossierLayout: config.dossierLayout || "Automatic",
+                dossierImageCount: config.dossierImageCount || 1,
+                supportingPhoto1Id: config.supportingPhoto1Id || null,
+                supportingPhoto1FocalX: roundFocal(config.supportingPhoto1FocalX), supportingPhoto1FocalY: roundFocal(config.supportingPhoto1FocalY), supportingPhoto1FitMode: config.supportingPhoto1FitMode || "fill",
+                supportingPhoto2Id: config.supportingPhoto2Id || null,
+                supportingPhoto2FocalX: roundFocal(config.supportingPhoto2FocalX), supportingPhoto2FocalY: roundFocal(config.supportingPhoto2FocalY), supportingPhoto2FitMode: config.supportingPhoto2FitMode || "fill"
             };
             const state = stateFor(id) || {};
             const findings = findingsFor(id);
@@ -559,6 +601,12 @@
             config.customSectionName = section?.name || null;
             config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
             config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
+            config.dossierLayout = normalizeDossierLayout(incoming.dossierLayout);
+            config.dossierImageCount = Math.max(1, Math.min(3, Number(incoming.dossierImageCount || 1)));
+            config.supportingPhoto1Id = Number(incoming.supportingPhoto1Id || 0) || null;
+            config.supportingPhoto1FocalX = roundFocal(incoming.supportingPhoto1FocalX); config.supportingPhoto1FocalY = roundFocal(incoming.supportingPhoto1FocalY); config.supportingPhoto1FitMode = normalize(incoming.supportingPhoto1FitMode) === "fit" ? "fit" : "fill";
+            config.supportingPhoto2Id = Number(incoming.supportingPhoto2Id || 0) || null;
+            config.supportingPhoto2FocalX = roundFocal(incoming.supportingPhoto2FocalX); config.supportingPhoto2FocalY = roundFocal(incoming.supportingPhoto2FocalY); config.supportingPhoto2FitMode = normalize(incoming.supportingPhoto2FitMode) === "fit" ? "fit" : "fill";
         });
 
         if (snapshot.editorialState) {
@@ -935,55 +983,70 @@
         if (!livePagePreview || !review) return;
         const config = ensureConfig(review.projectId);
         const sectionName = review.customSectionName || review.technicalCategoryName || "Project dossier";
-        const lifecycleValue = review.lifecycleDisplay || "Ongoing";
-        const completed = normalize(lifecycleValue) === "completed";
         if (livePagePublication) livePagePublication.textContent = String(form.elements["Input.Title"]?.value || "Simulators Compendium").trim().toUpperCase() || "SIMULATORS COMPENDIUM";
         if (livePageEdition) livePageEdition.textContent = String(form.elements["Input.Edition"]?.value || "Capability dossier").trim() || "Capability dossier";
         if (livePageKicker) livePageKicker.textContent = sectionName.toUpperCase();
-        if (livePageStatus) {
-            livePageStatus.textContent = lifecycleValue.toUpperCase();
-            livePageStatus.classList.toggle("is-completed", completed);
-            livePageStatus.classList.toggle("is-ongoing", !completed);
-        }
         if (livePageTitle) livePageTitle.textContent = review.projectName || "Project";
+        const titleLength = String(review.projectName || "").trim().length;
+        livePagePreview.classList.toggle("title-medium", titleLength > 54 && titleLength <= 76);
+        livePagePreview.classList.toggle("title-long", titleLength > 76 && titleLength <= 105);
+        livePagePreview.classList.toggle("title-xlong", titleLength > 105);
 
-        const facts = [];
-        if (review.projectCategoryName) facts.push(["Project category", review.projectCategoryName]);
-        if (review.technicalCategoryName) facts.push(["Technical category", review.technicalCategoryName]);
-        if (completed && String(review.completionDisplay || "").trim()) facts.push(["Completed", review.completionDisplay]);
-        if (review.armServiceDisplay && normalize(review.armServiceDisplay) !== "not recorded") facts.push(["Arm / Service", review.armServiceDisplay]);
-        if (review.proliferationAvailability !== null && review.proliferationAvailability !== undefined) facts.push(["Proliferation", review.proliferationAvailability ? "Available" : "Not available"]);
-        if (review.proliferationAvailability === true && review.proliferationCostDisplay && normalize(review.proliferationCostDisplay) !== "not recorded") facts.push(["Indicative cost", review.proliferationCostDisplay]);
+        const effectiveLayout = normalizeDossierLayout(review.effectiveDossierLayout || config.dossierLayout);
+        livePagePreview.classList.remove("layout-automatic","layout-visualhero","layout-balanced","layout-multiimageeditorial","layout-technical");
+        livePagePreview.classList.add(`layout-${normalize(effectiveLayout)}`);
+
+        const programme = [];
+        const sponsor = String(review.sponsoringLineDirectorateDisplay || "").trim();
+        if (sponsor && normalize(sponsor) !== "not recorded") programme.push({ label:"Sponsoring line directorate", value:sponsor });
+        if (review.proliferationCostLakhs != null && review.proliferationCostDisplay && normalize(review.proliferationCostDisplay) !== "not recorded") programme.push({ label:"Proliferation cost", value:review.proliferationCostDisplay });
+        (review.iprCredentials || []).slice(0,2).forEach(ipr => programme.push({ label:"IPR", value:`${ipr.type} · ${ipr.status}${ipr.year ? ` · ${ipr.year}` : ""}`, badge:normalize(ipr.type)==="copyright" ? "©" : "IP" }));
+        if (review.technologyTransfer) programme.push({ label:"Technology transfer", value:`${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}` });
         if (livePageFacts) {
-            livePageFacts.dataset.factCount = String(facts.length);
-            livePageFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+            livePageFacts.style.setProperty("--programme-columns", String(Math.min(4, Math.max(1, programme.length))));
+            livePageFacts.innerHTML = programme.map(item => `<div class="${item.badge ? "ipr" : ""}"><span>${escapeHtml(item.label)}</span><strong${item.badge ? ` data-badge="${escapeHtml(item.badge)}"` : ""}>${escapeHtml(item.value)}</strong></div>`).join("");
         }
 
-        if (livePageImageFrame) {
-            const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints;
-            const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints;
-            livePageImageFrame.style.aspectRatio = `${fw} / ${fh}`;
-        }
-        if (livePageImage && livePageImageEmpty) {
-            if (photo?.previewUrl) {
-                livePageImage.src = photo.previewUrl;
-                livePageImage.style.objectFit = config.imageFitMode === "fit" ? "contain" : "cover";
-                livePageImage.style.objectPosition = config.imageFitMode === "fit" ? "50% 50%" : `${clamp(config.focalX) * 100}% ${clamp(config.focalY) * 100}%`;
-                livePageImage.alt = `${review.projectName} publication preview`;
-                livePageImage.hidden = false;
-                livePageImageEmpty.hidden = true;
-            } else {
-                livePageImage.removeAttribute("src");
-                livePageImage.hidden = true;
-                livePageImageEmpty.hidden = false;
-                if (livePageImageCategory) livePageImageCategory.textContent = (review.technicalCategoryName || sectionName).toUpperCase();
-            }
-        }
+        const resolvedImages = Array.isArray(review.dossierImages) ? review.dossierImages : [];
+        const resolvedImageCount = resolvedImages.filter(item => Number(item?.photoId || 0) > 0).length;
+        livePagePreview.dataset.dossierImageCount = String(resolvedImageCount);
+        const photoForRole = role => {
+            const slot = resolvedImages.find(item => normalize(item.role) === normalize(role));
+            const id = Number(slot?.photoId || 0);
+            return id ? review.photos?.find(item => Number(item.photoId) === id) || null : null;
+        };
+        const primaryPhoto = photoForRole("Primary") || photo;
+        const applyPreviewImage = (element, sourcePhoto, slot) => {
+            if (!element) return;
+            if (!sourcePhoto?.previewUrl) { element.hidden = true; element.removeAttribute("src"); return; }
+            const fit = normalize(slot?.fitMode || config.imageFitMode) === "fit";
+            element.src = sourcePhoto.previewUrl;
+            element.style.objectFit = fit ? "contain" : "cover";
+            element.style.objectPosition = fit ? "50% 50%" : `${clamp(slot?.focalX ?? config.focalX) * 100}% ${clamp(slot?.focalY ?? config.focalY) * 100}%`;
+            element.hidden = false;
+        };
+        const primarySlot = resolvedImages.find(item => normalize(item.role) === "primary");
+        applyPreviewImage(livePageImage, primaryPhoto, primarySlot);
+        livePageSupportImages.forEach((element,index) => {
+            const role = index === 0 ? "Supporting1" : "Supporting2";
+            applyPreviewImage(element, photoForRole(role), resolvedImages.find(item => normalize(item.role) === normalize(role)));
+        });
+        if (livePageImageEmpty) livePageImageEmpty.hidden = Boolean(primaryPhoto?.previewUrl);
+        if (!primaryPhoto && livePageImageCategory) livePageImageCategory.textContent = (review.technicalCategoryName || sectionName).toUpperCase();
+
         if (livePageNarrativeLabel) livePageNarrativeLabel.textContent = String(review.narrativeLabel || "Project Brief").toUpperCase();
         if (livePageNarrative) {
             const plain = narrativePlainText(review.descriptionMarkdown);
             livePageNarrative.textContent = plain || `${review.narrativeLabel || "Project Brief"} not recorded.`;
             livePageNarrative.classList.toggle("is-missing", !plain);
+        }
+
+        const specs = Array.isArray(review.technicalSpecifications) ? review.technicalSpecifications.filter(Boolean) : [];
+        if (livePageSpecifications && livePageSpecificationList) {
+            livePageSpecifications.hidden = specs.length === 0;
+            const total = specs.reduce((sum,item) => sum + String(item).length, 0);
+            livePageSpecificationList.style.setProperty("--spec-columns", String(total <= 360 && specs.length >= 4 ? 3 : total <= 900 && specs.length >= 3 ? 2 : 1));
+            livePageSpecificationList.innerHTML = specs.map(item => `<p>${escapeHtml(item)}</p>`).join("");
         }
     };
 
@@ -1009,15 +1072,11 @@
             else { reviewState.textContent = "Ready"; reviewState.classList.add("is-reviewed"); }
         }
 
-        const facts = [
-            ["Lifecycle", review.lifecycleDisplay || "Not recorded"],
-            ["Project category", review.projectCategoryName || "Not recorded"],
-            ["Technical category", review.technicalCategoryName || "Not recorded"],
-            ["Arm / Service", review.armServiceDisplay || "Not recorded"]
-        ];
-        if (normalize(review.lifecycleDisplay) === "completed" && String(review.completionDisplay || "").trim()) facts.push(["Completed", review.completionDisplay]);
-        if (review.proliferationAvailability !== null && review.proliferationAvailability !== undefined) facts.push(["Proliferation", availabilityLabel(review.proliferationAvailability)]);
-        if (review.proliferationAvailability === true || review.proliferationCostLakhs != null) facts.push(["Indicative cost", review.proliferationCostDisplay || "Not recorded"]);
+        const facts = [];
+        if (review.sponsoringLineDirectorateDisplay) facts.push(["Sponsoring line directorate", review.sponsoringLineDirectorateDisplay]);
+        if (review.proliferationCostLakhs != null) facts.push(["Proliferation cost", review.proliferationCostDisplay || "Not recorded"]);
+        (review.iprCredentials || []).slice(0,2).forEach(ipr => facts.push(["IPR", `${ipr.type} · ${ipr.status}${ipr.year ? ` · ${ipr.year}` : ""}`]));
+        if (review.technologyTransfer) facts.push(["Technology transfer", `${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}`]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
         if (reviewDescription) reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
         if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = review.narrativeLabel || "Project Brief";
@@ -1041,6 +1100,20 @@
             reviewEdit.hidden = !review.completedEditUrl;
             if (review.completedEditUrl) reviewEdit.href = review.completedEditUrl;
         }
+
+        const currentLayout = normalizeDossierLayout(config.dossierLayout || review.dossierLayoutOverride);
+        const availableDossierPhotos = Math.max(0, (review.photos || []).filter(item => item.isUsable !== false).length);
+        reviewLayoutButtons.forEach(button => {
+            const layout = normalizeDossierLayout(button.dataset.reviewLayout);
+            button.classList.toggle("active", layout === currentLayout);
+            button.disabled = layout === "MultiImageEditorial" && availableDossierPhotos < 2;
+        });
+        reviewImageCountButtons.forEach(button => {
+            const requested = Number(button.dataset.reviewImageCount || 1);
+            button.classList.toggle("active", requested === Number(config.dossierImageCount || 1));
+            button.disabled = requested > Math.max(1, availableDossierPhotos);
+        });
+        if (reviewLayoutReason) reviewLayoutReason.textContent = currentLayout === "Automatic" ? `Automatic · ${review.effectiveDossierLayout || "Balanced"}` : `${currentLayout.replace(/([a-z])([A-Z])/g,"$1 $2")} · override`;
 
         if (reviewImageFrame) { const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints; const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints; reviewImageFrame.style.aspectRatio = `${fw} / ${fh}`; }
         const photo = currentReviewPhoto(review);
@@ -1283,14 +1356,81 @@
         const y = Math.max(0, Math.min(sourceHeight-cropHeight, clamp(focalY)*sourceHeight - cropHeight/2));
         return { x, y, width: cropWidth, height: cropHeight };
     };
+    const roleLabel = role => normalize(role) === "supporting1" ? "Supporting 1" : normalize(role) === "supporting2" ? "Supporting 2" : "Primary";
+    const roleMinimumImageCount = role => normalize(role) === "supporting2" ? 3 : normalize(role) === "supporting1" ? 2 : 1;
+    const roleConfigState = (config, role = activePhotoRole) => {
+        const key = normalize(role);
+        if (key === "supporting1") return {
+            photoId: config.supportingPhoto1Id,
+            focalX: config.supportingPhoto1FocalX,
+            focalY: config.supportingPhoto1FocalY,
+            fitMode: config.supportingPhoto1FitMode,
+            explicit: Number(config.supportingPhoto1Id || 0) > 0
+        };
+        if (key === "supporting2") return {
+            photoId: config.supportingPhoto2Id,
+            focalX: config.supportingPhoto2FocalX,
+            focalY: config.supportingPhoto2FocalY,
+            fitMode: config.supportingPhoto2FitMode,
+            explicit: Number(config.supportingPhoto2Id || 0) > 0
+        };
+        return {
+            photoId: config.imageSelectionMode === "explicit" ? config.primaryPhotoId : null,
+            focalX: config.focalX,
+            focalY: config.focalY,
+            fitMode: config.imageFitMode,
+            explicit: config.imageSelectionMode === "explicit" && Number(config.primaryPhotoId || 0) > 0
+        };
+    };
+    const setRolePhoto = (config, role, photoId) => {
+        const key = normalize(role);
+        if (key === "supporting1") {
+            config.supportingPhoto1Id = photoId || null;
+            config.supportingPhoto1FocalX = .5; config.supportingPhoto1FocalY = .5;
+        } else if (key === "supporting2") {
+            config.supportingPhoto2Id = photoId || null;
+            config.supportingPhoto2FocalX = .5; config.supportingPhoto2FocalY = .5;
+        } else {
+            config.imageSelectionMode = photoId ? "explicit" : "automatic";
+            config.primaryPhotoId = photoId || null;
+            config.focalX = .5; config.focalY = .5;
+        }
+        config.dossierImageCount = Math.max(Number(config.dossierImageCount || 1), roleMinimumImageCount(role));
+    };
+    const setRoleFocal = (config, role, focalX, focalY) => {
+        const key = normalize(role);
+        if (key === "supporting1") { config.supportingPhoto1FocalX = roundFocal(focalX); config.supportingPhoto1FocalY = roundFocal(focalY); }
+        else if (key === "supporting2") { config.supportingPhoto2FocalX = roundFocal(focalX); config.supportingPhoto2FocalY = roundFocal(focalY); }
+        else { config.focalX = roundFocal(focalX); config.focalY = roundFocal(focalY); }
+    };
+    const setRoleFit = (config, role, fitMode) => {
+        const next = normalize(fitMode) === "fit" ? "fit" : "fill";
+        const key = normalize(role);
+        if (key === "supporting1") config.supportingPhoto1FitMode = next;
+        else if (key === "supporting2") config.supportingPhoto2FitMode = next;
+        else config.imageFitMode = next;
+    };
+    const resolvedDossierSlot = (review, role) => (review?.dossierImages || []).find(item => normalize(item.role) === normalize(role)) || null;
+    const resolvedPhotoIdForRole = (review, config, role) => {
+        const state = roleConfigState(config, role);
+        if (state.explicit && Number(state.photoId || 0) > 0) return Number(state.photoId);
+        const slot = resolvedDossierSlot(review, role);
+        if (Number(slot?.photoId || 0) > 0) return Number(slot.photoId);
+        return normalize(role) === "primary" ? Number(review?.resolvedPhotoId || 0) || null : null;
+    };
     const positionCropOverlay = () => {
         if (!photoCropStage || !photoCropImage || !photoCropFrame || !photoFocalMarker || !activeReviewId) return;
         const metrics = sourceMetrics(photoCropStage, photoCropImage);
         if (!metrics) return;
         const config = ensureConfig(activeReviewId);
-        const crop = cropForFocal(metrics.sourceWidth, metrics.sourceHeight, config.focalX, config.focalY);
-        photoFocalMarker.style.left = `${metrics.offsetX + clamp(config.focalX)*metrics.renderedWidth}px`;
-        photoFocalMarker.style.top = `${metrics.offsetY + clamp(config.focalY)*metrics.renderedHeight}px`;
+        const roleState = roleConfigState(config);
+        const isFit = normalize(roleState.fitMode) === "fit";
+        photoCropFrame.hidden = isFit;
+        photoFocalMarker.hidden = isFit;
+        if (isFit) return;
+        const crop = cropForFocal(metrics.sourceWidth, metrics.sourceHeight, roleState.focalX, roleState.focalY);
+        photoFocalMarker.style.left = `${metrics.offsetX + clamp(roleState.focalX)*metrics.renderedWidth}px`;
+        photoFocalMarker.style.top = `${metrics.offsetY + clamp(roleState.focalY)*metrics.renderedHeight}px`;
         photoCropFrame.style.left = `${metrics.offsetX + crop.x*metrics.scale}px`;
         photoCropFrame.style.top = `${metrics.offsetY + crop.y*metrics.scale}px`;
         photoCropFrame.style.width = `${crop.width*metrics.scale}px`;
@@ -1300,30 +1440,52 @@
     const photoForModal = () => {
         if (!activeReviewData || !activeReviewId) return null;
         const config = ensureConfig(activeReviewId);
-        const id = config.imageSelectionMode === "explicit" && config.primaryPhotoId
-            ? config.primaryPhotoId
-            : activeReviewData.resolvedPhotoId;
+        const id = resolvedPhotoIdForRole(activeReviewData, config, activePhotoRole);
         return activeReviewData.photos?.find(photo => Number(photo.photoId) === Number(id)) || null;
     };
     const renderPhotoModal = () => {
         if (!activeReviewData || !activeReviewId) return;
         const config = ensureConfig(activeReviewId);
-        if (photoModalProject) photoModalProject.textContent = activeReviewData.projectName;
+        const roleState = roleConfigState(config);
+        const selectedId = resolvedPhotoIdForRole(activeReviewData, config, activePhotoRole);
+        const resolvedSlot = resolvedDossierSlot(activeReviewData, activePhotoRole);
+        if (photoModalProject) photoModalProject.textContent = `${activeReviewData.projectName} · ${roleLabel(activePhotoRole)} image`;
         if (photoManageLink) photoManageLink.href = activeReviewData.photosUrl || `/Projects/Photos/Index?id=${activeReviewId}`;
-        const resolvedId = Number(activeReviewData.resolvedPhotoId || 0);
+        const usablePhotoCount = Math.max(0, (activeReviewData.photos || []).filter(item => item.isUsable !== false).length);
+        photoRoleButtons.forEach(button => {
+            const active = normalize(button.dataset.photoRole) === normalize(activePhotoRole);
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+            button.disabled = roleMinimumImageCount(button.dataset.photoRole) > Math.max(1, usablePhotoCount);
+        });
+        photoRoleFitButtons.forEach(button => {
+            const active = normalize(button.dataset.photoRoleFit) === normalize(roleState.fitMode);
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        if (photoRoleFitHelp) photoRoleFitHelp.textContent = normalize(roleState.fitMode) === "fit"
+            ? "Fit preserves the complete source; crop controls are intentionally unavailable."
+            : "Fill uses the focal point to crop the source into this page slot.";
         if (photoPicker) {
             const photos = Array.isArray(activeReviewData.photos) ? activeReviewData.photos : [];
             if (!photos.length) {
                 photoPicker.innerHTML = '<div class="compendium-photo-picker-empty"><i class="bi bi-image"></i><strong>No project photographs</strong><span>Add a suitable photograph to the project, then return to the Compendium.</span></div>';
             } else {
                 photoPicker.innerHTML = photos.map(photo => {
-                    const explicitSelected = config.imageSelectionMode === "explicit" && Number(config.primaryPhotoId) === Number(photo.photoId);
-                    const automaticCurrent = config.imageSelectionMode === "automatic" && Number(photo.photoId) === resolvedId;
+                    const explicitSelected = roleState.explicit && Number(roleState.photoId) === Number(photo.photoId);
+                    const automaticCurrent = !roleState.explicit && Number(photo.photoId) === Number(selectedId);
+                    const primaryId = resolvedPhotoIdForRole(activeReviewData, config, "Primary");
+                    const support1Id = resolvedPhotoIdForRole(activeReviewData, config, "Supporting1");
+                    const support2Id = resolvedPhotoIdForRole(activeReviewData, config, "Supporting2");
+                    const usedElsewhere = [primaryId, support1Id, support2Id].some((id, index) => {
+                        const roleAtIndex = ["Primary","Supporting1","Supporting2"][index];
+                        return normalize(roleAtIndex) !== normalize(activePhotoRole) && Number(id || 0) === Number(photo.photoId);
+                    });
                     const dpi = effectiveDpi(photo), quality = classifyDpi(dpi);
-                    return `<button type="button" class="compendium-photo-choice${explicitSelected ? " is-selected" : ""}${automaticCurrent ? " is-automatic" : ""}" data-photo-id="${photo.photoId}" ${photo.isUsable === false ? "disabled" : ""}>
+                    return `<button type="button" class="compendium-photo-choice${explicitSelected ? " is-selected" : ""}${automaticCurrent ? " is-automatic" : ""}" data-photo-id="${photo.photoId}" ${photo.isUsable === false || usedElsewhere ? "disabled" : ""}>
                         <span class="compendium-photo-choice__image"><img src="${escapeHtml(photo.thumbnailUrl || photo.previewUrl || "")}" alt="" loading="lazy" /></span>
-                        <span class="compendium-photo-choice__copy"><strong>${escapeHtml(photo.caption || `Project photograph ${photo.photoId}`)}</strong><small>${photo.width}×${photo.height} · ${escapeHtml(qualityLabel(quality, dpi))}</small></span>
-                        <span class="compendium-photo-choice__badges">${photo.isCover ? '<span>Cover</span>' : ''}${automaticCurrent ? '<span>Automatic</span>' : ''}${explicitSelected ? '<span>Selected</span>' : ''}</span>
+                        <span class="compendium-photo-choice__copy"><strong>${escapeHtml(photo.caption || `Project photograph ${photo.photoId}`)}</strong><small>${photo.width}×${photo.height} · ${escapeHtml(qualityLabel(quality, dpi))}${usedElsewhere ? " · already used on this page" : ""}</small></span>
+                        <span class="compendium-photo-choice__badges">${photo.isCover ? '<span>Project cover</span>' : ''}${automaticCurrent ? '<span>Automatic</span>' : ''}${explicitSelected ? '<span>Locked</span>' : ''}</span>
                     </button>`;
                 }).join("");
             }
@@ -1343,14 +1505,16 @@
             }
         }
         const dpi = effectiveDpi(photo), quality = classifyDpi(dpi);
+        const sourceLabel = roleState.explicit ? "Locked" : (Number(resolvedSlot?.photoId || 0) > 0 ? "Automatic" : "No");
         if (photoCropSelection) photoCropSelection.textContent = photo
-            ? `${config.imageSelectionMode === "explicit" ? "Locked publication image" : "Automatic publication image"} · focal ${Math.round(config.focalX*100)}% / ${Math.round(config.focalY*100)}%`
-            : "No publication image selected";
+            ? `${sourceLabel} ${roleLabel(activePhotoRole).toLowerCase()} image · focal ${Math.round(roleState.focalX*100)}% / ${Math.round(roleState.focalY*100)}%`
+            : `No ${roleLabel(activePhotoRole).toLowerCase()} image is currently available`;
         if (photoCropQuality) photoCropQuality.textContent = photo ? qualityLabel(quality, dpi) : "";
-        if (photoResetCrop) photoResetCrop.disabled = !photo;
+        if (photoResetCrop) photoResetCrop.disabled = !photo || normalize(roleState.fitMode) === "fit";
     };
-    const openPhotoEditor = async focusCrop => {
+    const openPhotoEditor = async (focusCrop, role = "Primary") => {
         if (!activeReviewId) return;
+        activePhotoRole = role;
         const review = activeReviewData && Number(activeReviewData.projectId) === Number(activeReviewId)
             ? activeReviewData
             : await loadReview(activeReviewId);
@@ -1369,7 +1533,7 @@
     };
 
     const findingTitle = finding => ({
-        missingArmService: "Arm / Service not recorded",
+        missingArmService: "Sponsoring Line Directorate not recorded",
         missingCost: "Proliferation cost incomplete",
         zeroCost: "Zero proliferation cost",
         missingDescription: "Selected narrative missing",
@@ -1923,6 +2087,26 @@
         if (button && activeReviewId) setProjectNarrativeSource(activeReviewId, button.dataset.reviewNarrativeValue);
     });
 
+    reviewLayoutButtons.forEach(button => button.addEventListener("click", () => {
+        if (!activeReviewId) return;
+        const config = ensureConfig(activeReviewId);
+        const next = normalizeDossierLayout(button.dataset.reviewLayout);
+        if (next === "MultiImageEditorial" && Number(config.dossierImageCount || 1) < 2) return;
+        if (config.dossierLayout === next) return;
+        config.dossierLayout = next;
+        publicationConfigChanged(activeReviewId);
+    }));
+    reviewImageCountButtons.forEach(button => button.addEventListener("click", () => {
+        if (!activeReviewId) return;
+        const config = ensureConfig(activeReviewId);
+        const next = Math.max(1, Math.min(3, Number(button.dataset.reviewImageCount || 1)));
+        if (config.dossierImageCount === next) return;
+        config.dossierImageCount = next;
+        if (next < 2) { config.supportingPhoto1Id = null; config.supportingPhoto2Id = null; if (config.dossierLayout === "MultiImageEditorial") config.dossierLayout = "Automatic"; }
+        if (next < 3) config.supportingPhoto2Id = null;
+        publicationConfigChanged(activeReviewId);
+    }));
+
     reviewPrevious?.addEventListener("click", () => { activeFindingQueue = []; navigateReview(-1); });
     reviewNext?.addEventListener("click", () => { activeFindingQueue = []; navigateReview(1); });
     reviewNextAttention?.addEventListener("click", goNextAttention);
@@ -1943,8 +2127,9 @@
         if (nextId) { activeReviewId = nextId; window.setTimeout(() => loadReview(nextId), 40); }
     };
     reviewMarkReviewed?.addEventListener("click", reviewAndAdvance);
-    reviewChangeImage?.addEventListener("click", () => openPhotoEditor(false));
-    reviewAdjustCrop?.addEventListener("click", () => openPhotoEditor(true));
+    reviewChangeImage?.addEventListener("click", () => openPhotoEditor(false, "Primary"));
+    reviewAdjustCrop?.addEventListener("click", () => openPhotoEditor(true, "Primary"));
+    reviewManagePageImages?.addEventListener("click", () => openPhotoEditor(false, "Primary"));
     reviewImageFitButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
@@ -1980,42 +2165,64 @@
     coverAutomatic?.addEventListener("click", () => { coverState.imageMode = "automatic"; coverState.heroProjectId = null; coverState.heroPhotoId = null; coverState.focalX = 0.5; coverState.focalY = 0.5; coverChanged(); });
     coverNone?.addEventListener("click", () => { coverState.imageMode = "none"; coverState.heroProjectId = null; coverState.heroPhotoId = null; coverState.focalX = 0.5; coverState.focalY = 0.5; coverChanged(); });
 
+    photoRoleButtons.forEach(button => button.addEventListener("click", () => {
+        activePhotoRole = button.dataset.photoRole || "Primary";
+        renderPhotoModal();
+    }));
+    photoRoleFitButtons.forEach(button => button.addEventListener("click", () => {
+        if (!activeReviewId) return;
+        const config = ensureConfig(activeReviewId);
+        setRoleFit(config, activePhotoRole, button.dataset.photoRoleFit);
+        publicationConfigChanged(activeReviewId, { refreshReview: false });
+        renderPhotoModal();
+        scheduleReviewRefresh();
+    }));
     photoPicker?.addEventListener("click", event => {
         const choice = event.target.closest("[data-photo-id]");
         if (!choice || !activeReviewId) return;
         const photoId = Number(choice.dataset.photoId || 0); if (!photoId) return;
         const config = ensureConfig(activeReviewId);
-        config.imageSelectionMode = "explicit"; config.primaryPhotoId = photoId; config.focalX = 0.5; config.focalY = 0.5;
+        setRolePhoto(config, activePhotoRole, photoId);
         publicationConfigChanged(activeReviewId, { refreshReview: false });
-        const selectedPhoto = activeReviewData?.photos?.find(photo => Number(photo.photoId) === photoId);
-        if (selectedPhoto && activeReviewData) activeReviewData = { ...activeReviewData, resolvedPhotoId: photoId, imageSelectionMode: "explicit", focalX: 0.5, focalY: 0.5 };
+        if (activeReviewData) {
+            if (normalize(activePhotoRole) === "primary") {
+                activeReviewData = { ...activeReviewData, resolvedPhotoId: photoId, imageSelectionMode: "explicit", focalX: .5, focalY: .5 };
+            }
+        }
         renderPhotoModal();
         scheduleReviewRefresh();
     });
     photoUseAutomatic?.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
-        config.imageSelectionMode = "automatic"; config.primaryPhotoId = null; config.focalX = 0.5; config.focalY = 0.5;
+        setRolePhoto(config, activePhotoRole, null);
         publicationConfigChanged(activeReviewId, { refreshReview: false });
         scheduleReviewRefresh();
         window.setTimeout(renderPhotoModal, 240);
     });
     photoResetCrop?.addEventListener("click", () => {
         if (!activeReviewId || !photoForModal()) return;
-        const config = ensureConfig(activeReviewId); config.focalX = 0.5; config.focalY = 0.5;
+        const config = ensureConfig(activeReviewId);
+        const roleState = roleConfigState(config);
+        if (normalize(roleState.fitMode) === "fit") return;
+        setRoleFocal(config, activePhotoRole, .5, .5);
         publicationConfigChanged(activeReviewId, { refreshReview: false }); renderPhotoModal(); scheduleReviewRefresh();
     });
     photoCropStage?.addEventListener("click", event => {
         if (!activeReviewId || !photoForModal() || !photoCropImage) return;
+        const config = ensureConfig(activeReviewId);
+        const roleState = roleConfigState(config);
+        if (normalize(roleState.fitMode) === "fit") return;
         const metrics = sourceMetrics(photoCropStage, photoCropImage); if (!metrics) return;
         const rect = photoCropStage.getBoundingClientRect();
         const px = event.clientX - rect.left, py = event.clientY - rect.top;
         const sourceX = (px - metrics.offsetX) / metrics.renderedWidth;
         const sourceY = (py - metrics.offsetY) / metrics.renderedHeight;
         if (sourceX < 0 || sourceX > 1 || sourceY < 0 || sourceY > 1) return;
-        const config = ensureConfig(activeReviewId); config.focalX = roundFocal(sourceX); config.focalY = roundFocal(sourceY);
+        setRoleFocal(config, activePhotoRole, sourceX, sourceY);
         publicationConfigChanged(activeReviewId, { refreshReview: false }); positionCropOverlay();
-        if (photoCropSelection) photoCropSelection.textContent = `${config.imageSelectionMode === "explicit" ? "Locked publication image" : "Automatic publication image"} · focal ${Math.round(config.focalX*100)}% / ${Math.round(config.focalY*100)}%`;
+        const next = roleConfigState(config);
+        if (photoCropSelection) photoCropSelection.textContent = `${next.explicit ? "Locked" : "Automatic"} ${roleLabel(activePhotoRole).toLowerCase()} image · focal ${Math.round(next.focalX*100)}% / ${Math.round(next.focalY*100)}%`;
         scheduleReviewRefresh();
     });
     window.addEventListener("resize", () => { if (photoModalNode?.classList.contains("show")) positionCropOverlay(); });

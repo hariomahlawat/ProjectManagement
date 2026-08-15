@@ -23,5 +23,11 @@ namespace ProjectManagement.Models
         public const int CapabilityStatementMaxLength = 500;
         public const int CapabilityRecommendedMinimumCount = 5;
         public const int CapabilityMaximumCount = 8;
+
+        // SECTION: Hardware requirement / technical specification
+        // Compendium-facing structured bullets. The publication supports 1-6 items and
+        // dynamically chooses single/two/three-column treatment from rendered text pressure.
+        public const int TechnicalSpecificationMaximumCount = 6;
+        public const int TechnicalSpecificationItemMaxLength = 750;
     }
 }

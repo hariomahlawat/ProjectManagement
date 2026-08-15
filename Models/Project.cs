@@ -137,6 +137,7 @@ namespace ProjectManagement.Models
         private ICollection<Remark> _remarks = new List<Remark>();
         private ICollection<ProjectDocument> _documents = new List<ProjectDocument>();
         private ICollection<ProjectCapabilityStatement> _capabilityStatements = new List<ProjectCapabilityStatement>();
+        private ICollection<ProjectTechnicalSpecificationItem> _technicalSpecificationItems = new List<ProjectTechnicalSpecificationItem>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -180,6 +181,12 @@ namespace ProjectManagement.Models
         {
             get => _capabilityStatements;
             set => _capabilityStatements = value ?? new List<ProjectCapabilityStatement>();
+        }
+
+        public ICollection<ProjectTechnicalSpecificationItem> TechnicalSpecificationItems
+        {
+            get => _technicalSpecificationItems;
+            set => _technicalSpecificationItems = value ?? new List<ProjectTechnicalSpecificationItem>();
         }
 
         public int? CoverPhotoId { get; set; }
