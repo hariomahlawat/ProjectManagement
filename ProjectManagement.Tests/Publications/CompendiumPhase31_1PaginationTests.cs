@@ -59,7 +59,8 @@ public sealed class CompendiumPhase31_1PaginationTests
 
         Assert.Equal(1, pagination.EstimatedPageCount);
         Assert.False(pagination.UsesContinuation);
-        Assert.True(pagination.PrimaryImageHeightPoints <= CompendiumDossierPaginationPlanner.PreferredImageHeight(pagination.Layout, 1));
+        Assert.True(pagination.PrimaryImageHeightPoints <= CompendiumDossierPaginationPlanner.MaximumImageHeight(pagination.Layout, 1));
+        Assert.True(pagination.NarrativeFontScale >= 1f);
     }
 
     [Fact]

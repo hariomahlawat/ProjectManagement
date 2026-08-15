@@ -5094,3 +5094,88 @@ body.compendium-structure-editor-mode {
         width: max(100%, 1280px);
     }
 }
+
+/* Phase 32 — Adaptive composition and editorial polish */
+.compendium-live-page__narrative > div {
+    font-size: calc(.49rem * var(--narrative-scale, 1));
+    line-height: 1.38;
+}
+.compendium-live-page__specifications p {
+    font-size: .45rem;
+    line-height: 1.34;
+}
+.compendium-live-page__programme[data-programme-columns="3"] span {
+    font-size: .34rem;
+    letter-spacing: .045em;
+}
+.compendium-live-page__programme[data-programme-columns="2"] span {
+    letter-spacing: .075em;
+}
+.compendium-live-page__programme .ipr strong::before {
+    width: 19px;
+    height: 19px;
+    font-size: .45rem;
+}
+
+.compendium-dossier-photo-usage {
+    display: grid;
+    gap: .08rem;
+    width: 100%;
+    margin-top: .45rem;
+    padding: .42rem .5rem;
+    border: 1px solid #dce8e3;
+    border-radius: .45rem;
+    background: #f8fbf9;
+}
+.compendium-dossier-photo-usage strong {
+    color: #315247;
+    font-size: .61rem;
+    font-weight: 750;
+    line-height: 1.25;
+}
+.compendium-dossier-photo-usage span {
+    color: #7a8b84;
+    font-size: .55rem;
+    line-height: 1.35;
+}
+.compendium-dossier-photo-count .btn.is-retained {
+    border-style: dashed;
+    border-color: #91a79d;
+    background: #f7faf8;
+    color: #587168;
+}
+.compendium-dossier-photo-count .btn.is-retained::after {
+    content: ' retained';
+    font-size: .49rem;
+    font-weight: 600;
+    opacity: .82;
+}
+
+.compendium-cover-proof-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .55rem;
+    flex-wrap: wrap;
+}
+.compendium-cover-proof-tools .btn-group .btn.active {
+    border-color: #5c9a80;
+    background: #eaf4ef;
+    color: #174836;
+}
+.compendium-cover-proof-stage {
+    scrollbar-gutter: stable both-edges;
+}
+.compendium-cover-proof-sheet {
+    min-height: 0 !important;
+    transition: zoom .14s ease;
+}
+.compendium-cover-proof-sheet[data-proof-zoom="fit"] {
+    box-shadow: 0 10px 30px rgba(31, 51, 44, .12);
+}
+
+@media (max-width: 900px) {
+    .compendium-cover-proof-tools {
+        justify-content: flex-start;
+    }
+}

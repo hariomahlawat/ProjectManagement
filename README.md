@@ -1,6 +1,22 @@
-# PRISM Phase 30 CS0136 Hotfix
+# PRISM Publications Phase 32 — CS1503 Hotfix
 
-Replace only:
-`Services/Publications/BrochurePhotoService.cs`
+## Build error fixed
 
-Fix: the Fit rendering branch used a local variable named `output`, while the enclosing try block later declared another `output`. C# declaration-space rules produce CS0136. The Fit branch now uses `fitOutput`; behavior is otherwise unchanged.
+`Services/Compendiums/CompendiumDossierPaginationPlanner.cs`, line 100:
+
+```csharp
+ResolveIdealResidualSpace(specifications.Count, programmeModuleCount)
+```
+
+was invalid because `specifications` in `Resolve(...)` is a `string[]`. `Count` therefore binds to the LINQ extension-method group rather than an `int` property.
+
+It is corrected to:
+
+```csharp
+ResolveIdealResidualSpace(specifications.Length, programmeModuleCount)
+```
+
+No behavioural change is intended beyond resolving the compile error.
+
+## Apply
+Copy `Services/Compendiums/CompendiumDossierPaginationPlanner.cs` over the same file in the project and rebuild.

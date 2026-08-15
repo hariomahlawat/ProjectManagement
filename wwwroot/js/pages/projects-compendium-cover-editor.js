@@ -29,6 +29,7 @@
         rowVersion: boot.preset?.rowVersion || '',
         activeSurface: 'front',
         proofSurface: 'front',
+        proofZoom: 'fit',
         activeSlot: null,
         photoCache: new Map(),
         previewCache: new Map(),
@@ -271,6 +272,45 @@
 
     function projectName(projectId) { return state.projects.find(item => Number(item.projectId) === Number(projectId))?.projectName || ''; }
 
+    function applyProofZoom(resetScroll = false) {
+        const stage = by('.compendium-cover-proof-stage');
+        const sheet = by('[data-cover-proof-sheet]');
+        if (!stage || !sheet) return;
+
+        let scale = 1;
+        if (state.proofZoom === '75') scale = .75;
+        else if (state.proofZoom === '100') scale = 1;
+        else {
+            const style = window.getComputedStyle(stage);
+            const horizontalPadding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+            const verticalPadding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+            const availableWidth = Math.max(260, stage.clientWidth - horizontalPadding - 8);
+            const availableHeight = Math.max(280, stage.clientHeight - verticalPadding - 8);
+            scale = Math.min(1, availableWidth / 595, availableHeight / 842);
+            scale = Math.max(.34, scale);
+        }
+
+        sheet.style.zoom = String(scale);
+        sheet.dataset.proofZoom = state.proofZoom;
+        all('[data-cover-proof-zoom]').forEach(button => {
+            const active = button.dataset.coverProofZoom === state.proofZoom;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+
+        if (resetScroll) {
+            window.requestAnimationFrame(() => {
+                const horizontal = Math.max(0, (stage.scrollWidth - stage.clientWidth) / 2);
+                stage.scrollTo({ top: 0, left: horizontal, behavior: 'auto' });
+            });
+        }
+    }
+
+    function resetProofViewport() {
+        state.proofZoom = 'fit';
+        applyProofZoom(true);
+    }
+
     function renderProof() {
         const surface = state.proofSurface;
         const front = surface === 'front';
@@ -320,6 +360,7 @@
                 default: content.innerHTML = identity; break;
             }
         }
+        applyProofZoom(false);
         void hydrateVisibleSlotPreviews(surface);
     }
 
@@ -621,14 +662,27 @@
         return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
     }
 
-    all('[data-cover-surface]').forEach(button => button.addEventListener('click', () => { state.activeSurface = button.dataset.coverSurface; state.proofSurface = state.activeSurface; updateInspector(); }));
-    all('[data-cover-proof-surface]').forEach(button => button.addEventListener('click', () => { state.proofSurface = button.dataset.coverProofSurface; renderProof(); }));
+    all('[data-cover-surface]').forEach(button => button.addEventListener('click', () => {
+        state.activeSurface = button.dataset.coverSurface;
+        state.proofSurface = state.activeSurface;
+        updateInspector();
+        resetProofViewport();
+    }));
+    all('[data-cover-proof-surface]').forEach(button => button.addEventListener('click', () => {
+        state.proofSurface = button.dataset.coverProofSurface;
+        renderProof();
+        resetProofViewport();
+    }));
+    all('[data-cover-proof-zoom]').forEach(button => button.addEventListener('click', () => {
+        state.proofZoom = button.dataset.coverProofZoom || 'fit';
+        applyProofZoom(false);
+    }));
     all('[data-cover-template]').forEach(button => button.addEventListener('click', () => {
         if (isFront()) state.design.frontTemplate = button.dataset.coverTemplate;
         else state.design.backTemplate = button.dataset.coverTemplate;
         requiredSlots().forEach(key => ensureSlot(state.activeSurface, key));
         clearAutomaticResolutions(state.activeSurface);
-        setDirty(); updateInspector();
+        setDirty(); updateInspector(); resetProofViewport();
     }));
     all('[data-cover-override]').forEach(button => button.addEventListener('click', () => {
         const field = button.dataset.coverOverride;
@@ -717,6 +771,17 @@
     document.querySelector('[data-cover-save-return]')?.addEventListener('click', async () => { if (await save()) goBack(); });
     window.addEventListener('beforeunload', event => { if (state.dirty) { event.preventDefault(); event.returnValue = ''; } });
 
+    const proofStage = by('.compendium-cover-proof-stage');
+    if (proofStage && 'ResizeObserver' in window) {
+        const proofResizeObserver = new ResizeObserver(() => {
+            if (state.proofZoom === 'fit') applyProofZoom(false);
+        });
+        proofResizeObserver.observe(proofStage);
+    } else {
+        window.addEventListener('resize', () => { if (state.proofZoom === 'fit') applyProofZoom(false); });
+    }
+
     updateInspector();
     setDirty();
+    resetProofViewport();
 })();

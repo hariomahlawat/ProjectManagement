@@ -169,6 +169,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     DossierLayout = project.EffectiveDossierLayout,
                     DossierLayoutReason = project.DossierLayoutReason,
                     DossierPrimaryImageHeightPoints = project.DossierPrimaryImageHeightPoints,
+                    DossierNarrativeFontScale = project.DossierNarrativeFontScale,
                     DossierFirstPageNarrativeBudget = project.DossierFirstPageNarrativeBudget,
                     DossierFirstPageSpecificationCount = project.DossierFirstPageSpecificationCount,
                     EstimatedDossierPageCount = project.EstimatedDossierPageCount,

@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-14_adaptive-pagination-v11";
+    public const string BuildStamp = "CompendiumPdf_2026-08-15_adaptive-composition-v12";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -417,6 +417,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 DossierLayoutReason = dossierDecision.Reason,
                 DossierPressureScore = dossierDecision.PressureScore,
                 DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
+                DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
                 DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
                 DossierFirstPageSpecificationCount = paginationDecision.FirstPageSpecificationCount,
                 EstimatedDossierPageCount = paginationDecision.EstimatedPageCount,
@@ -700,6 +701,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DossierLayoutReason = dossierDecision.Reason,
             DossierPressureScore = dossierDecision.PressureScore,
             DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
+            DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
             DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
             DossierFirstPageSpecificationCount = paginationDecision.FirstPageSpecificationCount,
             EstimatedDossierPageCount = paginationDecision.EstimatedPageCount,

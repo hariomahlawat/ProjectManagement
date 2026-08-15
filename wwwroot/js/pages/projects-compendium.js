@@ -299,6 +299,8 @@
     const reviewLayoutButtons = [...form.querySelectorAll("[data-review-layout]")];
     const reviewImageCountButtons = [...form.querySelectorAll("[data-review-image-count]")];
     const reviewManagePageImages = $("[data-review-manage-page-images]");
+    const reviewPhotoUsageSummary = $("[data-review-photo-usage-summary]");
+    const reviewPhotoUsageDetail = $("[data-review-photo-usage-detail]");
     const reviewLayoutReason = $("[data-review-layout-reason]");
     const reviewPaginationBadge = $("[data-review-pagination-badge]");
     const reviewPaginationNote = $("[data-review-pagination-note]");
@@ -1008,9 +1010,9 @@
         if (!items.length) return 1;
         const total = items.reduce((sum,item) => sum + item.length, 0);
         const longest = Math.max(...items.map(item => item.length));
-        if (items.length >= 4 && total <= 390 && longest <= 125) return 3;
-        if (items.length >= 3 && total <= 920 && longest <= 285) return 2;
-        if (items.length === 2 && total <= 340 && longest <= 190) return 2;
+        if (items.length >= 4 && total <= 300 && longest <= 78) return 3;
+        if (items.length >= 3 && total <= 760 && longest <= 175) return 2;
+        if (items.length === 2 && total <= 280 && longest <= 145) return 2;
         return 1;
     };
 
@@ -1030,6 +1032,8 @@
         livePagePreview.classList.toggle("title-xlong", titleLength > 105);
 
         const effectiveLayout = normalizeDossierLayout(review.effectiveDossierLayout || config.dossierLayout);
+        const narrativeScale = Math.max(1, Math.min(1.08, Number(review.dossierNarrativeFontScale || 1)));
+        livePagePreview.style.setProperty("--narrative-scale", String(narrativeScale));
         livePagePreview.classList.remove("layout-automatic","layout-visualhero","layout-balanced","layout-multiimageeditorial","layout-technical");
         livePagePreview.classList.add(`layout-${normalize(effectiveLayout)}`);
         if (livePageImageFrame) {
@@ -1049,7 +1053,9 @@
         }
         if (review.technologyTransfer) programme.push({ label:"Technology transfer", value:`${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}` });
         if (livePageFacts) {
-            livePageFacts.style.setProperty("--programme-columns", String(resolveProgrammeColumns(programme.length)));
+            const programmeColumns = resolveProgrammeColumns(programme.length);
+            livePageFacts.style.setProperty("--programme-columns", String(programmeColumns));
+            livePageFacts.dataset.programmeColumns = String(programmeColumns);
             livePageFacts.innerHTML = programme.map(item => `<div class="${item.badge ? "ipr" : ""}"><span>${escapeHtml(item.label)}</span><strong${item.badge ? ` data-badge="${escapeHtml(item.badge)}"` : ""}>${escapeHtml(item.value)}</strong></div>`).join("");
         }
 
@@ -1155,7 +1161,19 @@
         }
 
         const currentLayout = normalizeDossierLayout(config.dossierLayout || review.dossierLayoutOverride);
+        const effectiveLayout = normalizeDossierLayout(review.effectiveDossierLayout || currentLayout);
         const availableDossierPhotos = Math.max(0, (review.photos || []).filter(item => item.isUsable !== false).length);
+        const configuredImageCount = Math.max(1, Math.min(3, Number(config.dossierImageCount || 1)));
+        const resolvedImages = Array.isArray(review.dossierImages)
+            ? review.dossierImages.filter(item => Number(item?.photoId || 0) > 0)
+            : [];
+        const resolvedImageCount = resolvedImages.length;
+        const explicitSingleImageLayout = ["VisualHero", "Balanced", "Technical"].includes(currentLayout);
+        const displayedImageCount = effectiveLayout === "MultiImageEditorial"
+            ? Math.max(0, Math.min(3, resolvedImageCount))
+            : Math.min(1, resolvedImageCount);
+        const supportingImageCount = Math.max(0, resolvedImageCount - displayedImageCount);
+
         reviewLayoutButtons.forEach(button => {
             const layout = normalizeDossierLayout(button.dataset.reviewLayout);
             button.classList.toggle("active", layout === currentLayout);
@@ -1163,9 +1181,42 @@
         });
         reviewImageCountButtons.forEach(button => {
             const requested = Number(button.dataset.reviewImageCount || 1);
-            button.classList.toggle("active", requested === Number(config.dossierImageCount || 1));
-            button.disabled = requested > Math.max(1, availableDossierPhotos);
+            const available = requested <= Math.max(1, availableDossierPhotos);
+            button.classList.remove("is-retained");
+            if (explicitSingleImageLayout) {
+                button.classList.toggle("active", requested === 1);
+                button.classList.toggle("is-retained", requested === configuredImageCount && configuredImageCount > 1);
+                button.disabled = true;
+                button.title = requested === configuredImageCount && configuredImageCount > 1
+                    ? `${configuredImageCount} curated images are retained, but ${currentLayout.replace(/([a-z])([A-Z])/g,"$1 $2")} displays one image.`
+                    : "This layout intentionally displays one primary image. Supporting selections are preserved.";
+            } else {
+                button.classList.toggle("active", requested === configuredImageCount);
+                button.disabled = !available;
+                button.title = available ? `${requested} curated page image${requested === 1 ? "" : "s"}` : "Not enough usable project photographs are available.";
+            }
         });
+        if (reviewPhotoUsageSummary && reviewPhotoUsageDetail) {
+            if (resolvedImageCount <= 0) {
+                reviewPhotoUsageSummary.textContent = "No usable page image";
+                reviewPhotoUsageDetail.textContent = "Choose a project photograph to establish the dossier image treatment.";
+            } else if (effectiveLayout === "MultiImageEditorial") {
+                reviewPhotoUsageSummary.textContent = `${displayedImageCount} image${displayedImageCount === 1 ? "" : "s"} displayed`;
+                reviewPhotoUsageDetail.textContent = displayedImageCount > 1
+                    ? "Multi-image layout is using the curated supporting photographs."
+                    : "Add a supporting image to unlock the full Multi-image composition.";
+            } else if (supportingImageCount > 0) {
+                reviewPhotoUsageSummary.textContent = `1 image displayed · ${supportingImageCount} supporting image${supportingImageCount === 1 ? "" : "s"} retained`;
+                reviewPhotoUsageDetail.textContent = currentLayout === "Automatic"
+                    ? "Supporting images remain available if Automatic resolves to Multi-image."
+                    : "Supporting images are preserved non-destructively and will reappear in Automatic or Multi-image layout.";
+            } else {
+                reviewPhotoUsageSummary.textContent = "1 image displayed";
+                reviewPhotoUsageDetail.textContent = effectiveLayout === "MultiImageEditorial"
+                    ? "Add supporting imagery for a richer multi-image composition."
+                    : "The current composition is intentionally single-image.";
+            }
+        }
         const estimatedPages = Math.max(1, Number(review.estimatedDossierPageCount || 1));
         if (reviewLayoutReason) reviewLayoutReason.textContent = currentLayout === "Automatic"
             ? `Automatic · ${review.effectiveDossierLayout || "Balanced"} · ${estimatedPages} ${estimatedPages === 1 ? "page" : "pages"}`
@@ -2153,7 +2204,11 @@
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
         const next = normalizeDossierLayout(button.dataset.reviewLayout);
-        if (next === "MultiImageEditorial" && Number(config.dossierImageCount || 1) < 2) return;
+        if (next === "MultiImageEditorial" && Number(config.dossierImageCount || 1) < 2) {
+            // Multi-image is a layout choice, not a trap door: when enough usable photography exists,
+            // promote the curated slot count to two and let PRISM resolve the supporting image.
+            config.dossierImageCount = 2;
+        }
         if (config.dossierLayout === next) return;
         config.dossierLayout = next;
         publicationConfigChanged(activeReviewId);

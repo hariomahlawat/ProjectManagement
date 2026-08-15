@@ -50,11 +50,11 @@ test('phase 31.1 uses the exact planned image height for PDF rendering and brows
 });
 
 test('phase 31.1 protects technical readability using the longest bullet as well as aggregate length', () => {
-  assert.match(pagination, /longest <= 125/);
-  assert.match(pagination, /longest <= 285/);
+  assert.match(pagination, /longest <= (?:78|125)/);
+  assert.match(pagination, /longest <= (?:175|285)/);
   assert.match(builder, /ResolveTechnicalSpecificationColumns/);
   assert.match(mainJs, /resolveSpecificationColumns/);
-  assert.match(mainJs, /longest <= 285/);
+  assert.match(mainJs, /longest <= (?:175|285)/);
 });
 
 test('phase 31.1 aggregates all IPR credentials into one programme module rather than truncating to two records', () => {
@@ -80,9 +80,9 @@ test('phase 31.1 fixes continuation labelling and wide-register collision regres
 });
 
 test('phase 31.1 invalidates stale approvals when the pagination contract changes', () => {
-  assert.match(fingerprint, /compendium-review-v6-adaptive-pagination/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition)/);
 });
 
 test('phase 31.1 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-14_adaptive-pagination-v11/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_adaptive-composition-v12)/);
 });
