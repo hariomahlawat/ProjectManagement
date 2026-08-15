@@ -176,7 +176,13 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     DossierPaginationNote = project.DossierPaginationNote,
                     DossierPaginationReason = project.DossierPaginationReason,
                     Images = renderedDossierImages,
-                    SponsoringLineDirectorateDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.SponsoringLineDirectorateDisplay),
+                    ProgrammeModules = project.ProgrammeModules
+                        .Select(module => module with
+                        {
+                            Label = CompendiumPublicationTextSanitizer.Sanitize(module.Label),
+                            Value = CompendiumPublicationTextSanitizer.Sanitize(module.Value)
+                        })
+                        .ToArray(),
                     IprCredentials = project.IprCredentials,
                     TechnologyTransfer = project.TechnologyTransfer,
                     TechnicalSpecifications = project.TechnicalSpecifications.Select(CompendiumPublicationTextSanitizer.Sanitize).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray()

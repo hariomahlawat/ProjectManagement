@@ -108,7 +108,7 @@ public sealed record CompendiumPdfProjectSection(
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
     public IReadOnlyList<CompendiumPdfProjectImage> Images { get; init; } = Array.Empty<CompendiumPdfProjectImage>();
-    public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
@@ -175,6 +175,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var crest = TryLoadAsset("img/logos/artrac.png");
         var sddMark = TryLoadAsset("img/logos/sdd.png");
         var footerLogo = sddMark;
+        var programmeIcons = LoadProgrammeIcons();
         var plan = context.Plan ?? new CompendiumPagePlanner().Plan(context);
 
         var document = Document
@@ -191,7 +192,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                             ComposeIndexPage(container, planned, title, edition, issuer, marking, footerLogo, plan.IndexPageCount);
                             break;
                         case CompendiumPageKind.Project:
-                            ComposeProjectPage(container, planned, title, edition, issuer, marking, footerLogo);
+                            ComposeProjectPage(container, planned, title, edition, issuer, marking, footerLogo, programmeIcons);
                             break;
                         case CompendiumPageKind.ProjectContinuation:
                             ComposeProjectContinuationPage(container, planned, title, edition, issuer, marking, footerLogo);
@@ -621,7 +622,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string edition,
         string issuer,
         string? marking,
-        byte[]? footerLogo)
+        byte[]? footerLogo,
+        IReadOnlyDictionary<string, string> programmeIcons)
     {
         var project = planned.Project ?? throw new InvalidOperationException("Project page is missing its project payload.");
         var narrativeLabel = NormalizeNarrativeLabel(project.NarrativeLabel);
@@ -642,7 +644,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
 
                 column.Item().Element(main => ComposeAdaptiveDossierMain(main, project, planned.DescriptionMarkdown, narrativeLabel));
-                column.Item().Element(programme => ComposeProgrammeInformation(programme, project));
+                column.Item().Element(programme => ComposeProgrammeInformation(programme, project, programmeIcons));
 
                 if (planned.TechnicalSpecifications.Count > 0)
                 {
@@ -810,27 +812,18 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         });
     }
 
-    private static void ComposeProgrammeInformation(IContainer container, CompendiumPdfProjectSection project)
+    private static void ComposeProgrammeInformation(
+        IContainer container,
+        CompendiumPdfProjectSection project,
+        IReadOnlyDictionary<string, string> programmeIcons)
     {
-        var modules = new List<(string Label, string Value, string? Badge)>();
-        if (!string.IsNullOrWhiteSpace(project.SponsoringLineDirectorateDisplay)
-            && !string.Equals(project.SponsoringLineDirectorateDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
-            modules.Add(("Sponsoring line directorate", project.SponsoringLineDirectorateDisplay, null));
-        if (!string.IsNullOrWhiteSpace(project.ProliferationCostDisplay)
-            && !string.Equals(project.ProliferationCostDisplay, "Not recorded", StringComparison.OrdinalIgnoreCase))
-            modules.Add(("Proliferation cost", project.ProliferationCostDisplay, null));
-
-        if (project.IprCredentials.Count > 0)
-        {
-            modules.Add(("IPR", BuildIprProgrammeValue(project.IprCredentials), ResolveIprBadge(project.IprCredentials)));
-        }
-
-        if (project.TechnologyTransfer is not null)
-        {
-            var year = project.TechnologyTransfer.CompletionYear.HasValue ? $" · {project.TechnologyTransfer.CompletionYear.Value}" : string.Empty;
-            modules.Add(("Technology transfer", $"{project.TechnologyTransfer.Status}{year}", "ToT"));
-        }
-
+        var modules = project.ProgrammeModules.Count > 0
+            ? project.ProgrammeModules
+            : CompendiumProgrammeInformation.Resolve(
+                project.ArmServiceDisplay,
+                project.ProliferationCostDisplay,
+                project.IprCredentials,
+                project.TechnologyTransfer);
         if (modules.Count == 0) return;
 
         var programmeColumns = CompendiumDossierPaginationPlanner.ResolveProgrammeColumns(modules.Count);
@@ -864,17 +857,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         {
                             row.RelativeItem().PaddingRight(8).Row(cell =>
                             {
-                                if (!string.IsNullOrWhiteSpace(module.Badge))
-                                {
-                                    cell.ConstantItem(30).AlignMiddle().AlignCenter()
-                                        .Background(Forest100).Border(1).BorderColor("#CFE1D9")
-                                        .PaddingVertical(5)
-                                        .Text(module.Badge!)
-                                        .FontSize(string.Equals(module.Badge, "ToT", StringComparison.OrdinalIgnoreCase) ? 9.4f : 9.1f)
-                                        .SemiBold()
-                                        .FontColor(Forest800);
-                                    cell.ConstantItem(7);
-                                }
+                                cell.ConstantItem(22).Height(22).AlignMiddle().Element(iconTile =>
+                                    ComposeProgrammeIcon(iconTile, module, programmeIcons));
+                                cell.ConstantItem(7);
 
                                 cell.RelativeItem().Column(text =>
                                 {
@@ -897,35 +882,38 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         });
     }
 
-    private static string BuildIprProgrammeValue(IReadOnlyList<CompendiumIprCredentialDto> credentials)
+    private static void ComposeProgrammeIcon(
+        IContainer container,
+        CompendiumProgrammeModuleDto module,
+        IReadOnlyDictionary<string, string> programmeIcons)
     {
-        var groups = credentials
-            .Where(item => !string.IsNullOrWhiteSpace(item.Type) && !string.IsNullOrWhiteSpace(item.Status))
-            .GroupBy(item => item.Type.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(group =>
-            {
-                var granted = group.Any(item => item.Status.Equals("Granted", StringComparison.OrdinalIgnoreCase));
-                var status = granted ? "Granted" : "Filed";
-                var years = group.Where(item => item.Year.HasValue)
-                    .Select(item => item.Year!.Value)
-                    .Distinct()
-                    .OrderByDescending(year => year)
-                    .Take(2)
-                    .ToArray();
-                var yearText = years.Length == 0 ? string.Empty : $" · {string.Join("/", years)}";
-                var countText = group.Count() > 1 ? $" · {group.Count()} records" : string.Empty;
-                return $"{group.Key} · {status}{yearText}{countText}";
-            })
-            .ToArray();
-        return groups.Length == 0 ? "Filed / Granted" : string.Join("\n", groups);
-    }
+        var (background, border, fallbackColor) = module.Tone.ToLowerInvariant() switch
+        {
+            "maroon" => ("#F8EEEE", "#E4C8C8", "#8B3A3A"),
+            "green" => ("#EEF7F2", "#CCE4D7", "#27825B"),
+            "blue" => ("#EEF5FC", "#CADCF1", "#3275C7"),
+            _ => ("#FBF5E5", "#E8D7A6", "#B88916")
+        };
 
-    private static string ResolveIprBadge(IReadOnlyList<CompendiumIprCredentialDto> credentials)
-    {
-        var types = credentials.Select(item => item.Type?.Trim()).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if (types.Length == 1 && string.Equals(types[0], "Copyright", StringComparison.OrdinalIgnoreCase)) return "©";
-        if (types.Length == 1 && string.Equals(types[0], "Patent", StringComparison.OrdinalIgnoreCase)) return "IP";
-        return "IPR";
+        container.Background(background).Border(1).BorderColor(border).Padding(3).Element(icon =>
+        {
+            if (programmeIcons.TryGetValue(module.IconKey, out var svg) && !string.IsNullOrWhiteSpace(svg))
+            {
+                icon.Svg(svg).FitArea();
+                return;
+            }
+
+            icon.AlignCenter().AlignMiddle().Text(module.Kind switch
+                {
+                    CompendiumProgrammeModuleKind.ArmsServices => "A/S",
+                    CompendiumProgrammeModuleKind.ProliferationCost => "₹",
+                    CompendiumProgrammeModuleKind.TechnologyTransfer => "↔",
+                    _ => "IPR"
+                })
+                .FontSize(6.2f)
+                .SemiBold()
+                .FontColor(fallbackColor);
+        });
     }
 
     private static void ComposeTechnicalSpecifications(IContainer container, IReadOnlyList<string> specifications)
@@ -1467,6 +1455,52 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 return null;
             }
             return File.ReadAllBytes(path);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to load compendium PDF asset {RelativeAssetPath}.", relativeUnderWwwRoot);
+            return null;
+        }
+    }
+
+    private IReadOnlyDictionary<string, string> LoadProgrammeIcons()
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in new[]
+                 {
+                     "arms-services",
+                     "proliferation-cost",
+                     "ipr-filed",
+                     "ipr-granted",
+                     "ipr-mixed",
+                     "technology-transfer"
+                 })
+        {
+            var svg = TryLoadTextAsset($"images/publications/compendium-icons/{key}.svg");
+            if (!string.IsNullOrWhiteSpace(svg))
+            {
+                result[key] = svg;
+            }
+        }
+
+        return result;
+    }
+
+    private string? TryLoadTextAsset(string relativeUnderWwwRoot)
+    {
+        try
+        {
+            var relative = relativeUnderWwwRoot.Trim().Replace('\\', '/');
+            var path = Path.Combine(
+                _environment.WebRootPath,
+                relative.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path))
+            {
+                _logger.LogWarning("Compendium PDF asset was not found at {AssetPath}.", path);
+                return null;
+            }
+
+            return File.ReadAllText(path);
         }
         catch (Exception exception)
         {

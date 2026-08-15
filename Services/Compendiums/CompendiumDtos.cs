@@ -305,7 +305,7 @@ public sealed record CompendiumReviewProjectDto(
     public string? CustomSectionName { get; init; }
     public bool UsesNarrativeOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
-    public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
@@ -362,7 +362,7 @@ public sealed record CompendiumProjectDto(
     public int PublicationYear { get; init; }
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
-    public string SponsoringLineDirectorateDisplay { get; init; } = string.Empty;
+    public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();

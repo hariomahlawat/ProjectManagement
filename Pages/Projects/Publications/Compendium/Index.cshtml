@@ -293,7 +293,7 @@
                                         <th scope="col" class="compendium-project-col--category">Project category</th>
                                         <th scope="col" class="compendium-project-col--technical">Technical category</th>
                                         <th scope="col" class="compendium-project-col--narrative">Narrative</th>
-                                        <th scope="col" class="compendium-project-col--arm">Sponsoring Line Directorate</th>
+                                        <th scope="col" class="compendium-project-col--arm">Arms / Services</th>
                                         <th scope="col" class="compendium-project-col--cost">Cost</th>
                                         <th scope="col" class="compendium-project-col--photo">Photography</th>
                                     </tr>
@@ -362,7 +362,7 @@
                                                 </div>
                                             </td>
                                             <td class="compendium-project-col--arm">
-                                                <span class="compendium-table-value @(project.HasArmService ? "is-recorded" : "is-missing")" title="@(project.HasArmService ? "Sponsoring Line Directorate available" : "Sponsoring Line Directorate missing")">
+                                                <span class="compendium-table-value @(project.HasArmService ? "is-recorded" : "is-missing")" title="@(project.HasArmService ? "Arms / Services available" : "Arms / Services missing")">
                                                     <i class="bi @(project.HasArmService ? "bi-check2" : "bi-dash")" aria-hidden="true"></i>
                                                     @project.ArmServiceDisplay
                                                 </span>

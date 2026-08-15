@@ -14,6 +14,7 @@ const dto = read('Services/Compendiums/CompendiumDtos.cs');
 const service = read('Services/Compendiums/CompendiumReadService.cs');
 const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
 const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
+const programme = read('Services/Compendiums/CompendiumProgrammeInformation.cs');
 const exportService = read('Services/Compendiums/CompendiumExportService.cs');
 const planner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
 const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
@@ -155,7 +156,7 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening)/);
+  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography)/);
   assert.match(fingerprint, /PublicationSectionKey/);
   assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
@@ -288,7 +289,7 @@ test('phase 23.1 makes selection readiness semantic without relying on colour al
   assert.match(view, /bi-check2/);
   assert.match(view, /bi-exclamation-lg/);
   assert.match(view, /Description available/);
-  assert.match(view, /Sponsoring Line Directorate|Sponsoring line directorate/);
+  assert.match(view, /Arms \/ Services/);
   assert.match(view, /No photo/);
   assert.match(css, /compendium-data-badges > span > i/);
   assert.match(css, /compendium-photo-count\.is-missing/);
@@ -450,10 +451,10 @@ test('phase 24.1 supports continuous review with Ctrl Enter while avoiding edita
 });
 
 test('phase 24.1 makes review metadata context-sensitive and cost units explicit', () => {
-  assert.match(js, /sponsoringLineDirectorateDisplay/);
-  assert.match(js, /technologyTransfer/);
+  assert.match(js, /programmeModules/);
+  assert.match(programme, /Technology transfer/);
   assert.match(dto, /₹.*lakh/);
-  assert.match(builder, /Proliferation cost/);
+  assert.match(programme, /Proliferation cost/);
   assert.match(builder, /ComposeProgrammeInformation/);
 });
 
@@ -558,12 +559,12 @@ test('phase 27 pins final output while the publication structure owns the rail s
 });
 
 test('phase 27 uses wide monitors for a readable project publication register', () => {
-  for (const heading of ['Lifecycle', 'Project category', 'Technical category', 'Narrative', 'Sponsoring Line Directorate', 'Cost', 'Photography']) {
+  for (const heading of ['Lifecycle', 'Project category', 'Technical category', 'Narrative', 'Arms / Services', 'Cost', 'Photography']) {
     assert.match(view, new RegExp(heading.replace('/', '\\/')));
   }
   assert.match(css, /compendium-project-table/);
   assert.match(view, /compendium-narrative-readiness/);
-  assert.match(view, /Sponsoring Line Directorate|Sponsoring line directorate/);
+  assert.match(view, /Arms \/ Services/);
 });
 
 test('phase 27 review includes a near-WYSIWYG dossier page and visible section rename affordance', () => {

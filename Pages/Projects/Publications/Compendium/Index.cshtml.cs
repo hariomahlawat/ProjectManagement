@@ -323,7 +323,7 @@ public sealed class IndexModel : PageModel
             review.ExplicitPhotoUnavailable,
             review.ImageFrameWidthPoints,
             review.ImageFrameHeightPoints,
-            review.SponsoringLineDirectorateDisplay,
+            review.ProgrammeModules,
             review.IprCredentials,
             review.TechnologyTransfer,
             review.TechnicalSpecifications,

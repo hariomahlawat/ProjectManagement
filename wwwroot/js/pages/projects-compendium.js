@@ -13,6 +13,15 @@
     const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, c => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
     })[c]);
+    const programmeIconKeys = new Set([
+        "arms-services", "proliferation-cost", "ipr-filed", "ipr-granted", "ipr-mixed", "technology-transfer"
+    ]);
+    const programmeIconUrl = key => programmeIconKeys.has(String(key || ""))
+        ? `/images/publications/compendium-icons/${key}.svg`
+        : "";
+    const programmeModules = review => Array.isArray(review?.programmeModules)
+        ? review.programmeModules.filter(module => module && String(module.label || "").trim() && String(module.value || "").trim())
+        : [];
     const roundFocal = value => Number(clamp(value).toFixed(4));
     const formToken = () => form.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
     const setControlDisabled = (control, disabled) => {
@@ -985,26 +994,6 @@
         .replace(/\s+/g, " ")
         .trim();
 
-    const aggregateIprCredentials = credentials => {
-        const source = Array.isArray(credentials) ? credentials.filter(item => item?.type && item?.status) : [];
-        if (!source.length) return "";
-        const groups = new Map();
-        source.forEach(item => {
-            const key = String(item.type).trim();
-            const normalizedKey = normalize(key);
-            const current = groups.get(normalizedKey) || { type:key, items:[] };
-            current.items.push(item);
-            groups.set(normalizedKey, current);
-        });
-        return [...groups.values()].map(group => {
-            const granted = group.items.some(item => normalize(item.status) === "granted");
-            const status = granted ? "Granted" : "Filed";
-            const years = [...new Set(group.items.map(item => Number(item.year || 0)).filter(Boolean))].sort((a,b) => b-a).slice(0,2);
-            const count = group.items.length > 1 ? ` · ${group.items.length} records` : "";
-            return `${group.type} · ${status}${years.length ? ` · ${years.join("/")}` : ""}${count}`;
-        }).join(" / ");
-    };
-
     const resolveSpecificationColumns = specifications => {
         const items = (Array.isArray(specifications) ? specifications : []).map(item => String(item || "").trim()).filter(Boolean).slice(0,6);
         if (!items.length) return 1;
@@ -1042,21 +1031,19 @@
             livePageImageFrame.style.setProperty("aspect-ratio", `${frameWidth} / ${imageHeight}`, "important");
         }
 
-        const programme = [];
-        const sponsor = String(review.sponsoringLineDirectorateDisplay || "").trim();
-        if (sponsor && normalize(sponsor) !== "not recorded") programme.push({ label:"Sponsoring line directorate", value:sponsor });
-        if (review.proliferationCostLakhs != null && review.proliferationCostDisplay && normalize(review.proliferationCostDisplay) !== "not recorded") programme.push({ label:"Proliferation cost", value:review.proliferationCostDisplay });
-        const iprSummary = aggregateIprCredentials(review.iprCredentials);
-        if (iprSummary) {
-            const iprTypes = [...new Set((review.iprCredentials || []).map(item => normalize(item.type)).filter(Boolean))];
-            programme.push({ label:"IPR", value:iprSummary, badge:iprTypes.length === 1 && iprTypes[0] === "copyright" ? "©" : iprTypes.length === 1 && iprTypes[0] === "patent" ? "IP" : "IPR" });
-        }
-        if (review.technologyTransfer) programme.push({ label:"Technology transfer", value:`${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}` });
+        const programme = programmeModules(review);
         if (livePageFacts) {
             const programmeColumns = resolveProgrammeColumns(programme.length);
             livePageFacts.style.setProperty("--programme-columns", String(programmeColumns));
             livePageFacts.dataset.programmeColumns = String(programmeColumns);
-            livePageFacts.innerHTML = programme.map(item => `<div class="${item.badge ? "ipr" : ""}"><span>${escapeHtml(item.label)}</span><strong${item.badge ? ` data-badge="${escapeHtml(item.badge)}"` : ""}>${escapeHtml(item.value)}</strong></div>`).join("");
+            livePageFacts.innerHTML = programme.map(item => {
+                const iconUrl = programmeIconUrl(item.iconKey);
+                const tone = ["maroon", "green", "gold", "blue"].includes(String(item.tone || "")) ? item.tone : "gold";
+                return `<div class="compendium-live-page__programme-item tone-${tone}">`
+                    + `<span class="compendium-live-page__programme-icon" aria-hidden="true">${iconUrl ? `<img src="${iconUrl}" alt="">` : ""}</span>`
+                    + `<span class="compendium-live-page__programme-copy"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></span>`
+                    + `</div>`;
+            }).join("");
         }
 
         const resolvedImages = Array.isArray(review.dossierImages) ? review.dossierImages : [];
@@ -1130,12 +1117,7 @@
             else { reviewState.textContent = "Ready"; reviewState.classList.add("is-reviewed"); }
         }
 
-        const facts = [];
-        if (review.sponsoringLineDirectorateDisplay) facts.push(["Sponsoring line directorate", review.sponsoringLineDirectorateDisplay]);
-        if (review.proliferationCostLakhs != null) facts.push(["Proliferation cost", review.proliferationCostDisplay || "Not recorded"]);
-        const reviewIprSummary = aggregateIprCredentials(review.iprCredentials);
-        if (reviewIprSummary) facts.push(["IPR", reviewIprSummary]);
-        if (review.technologyTransfer) facts.push(["Technology transfer", `${review.technologyTransfer.status}${review.technologyTransfer.completionYear ? ` · ${review.technologyTransfer.completionYear}` : ""}`]);
+        const facts = programmeModules(review).map(module => [module.label, module.value]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
         if (reviewDescription) reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
         if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = review.narrativeLabel || "Project Brief";
@@ -1646,7 +1628,7 @@
     };
 
     const findingTitle = finding => ({
-        missingArmService: "Sponsoring Line Directorate not recorded",
+        missingArmService: "Arms / Services not recorded",
         missingCost: "Proliferation cost incomplete",
         zeroCost: "Zero proliferation cost",
         missingDescription: "Selected narrative missing",

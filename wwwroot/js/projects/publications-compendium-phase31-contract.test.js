@@ -23,6 +23,7 @@ const migration = read('Migrations/20261208190000_AddCompendiumAdaptiveDossiers.
 const snapshot = read('Migrations/ApplicationDbContextModelSnapshot.cs');
 const preset = read('Services/Publications/CompendiumPresetService.cs');
 const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
+const programme = read('Services/Compendiums/CompendiumProgrammeInformation.cs');
 
 // Phase 31 replaces the ERP-style facts grid with four adaptive dossier families.
 test('phase 31 exposes four controlled dossier families with Automatic as the default authoring mode', () => {
@@ -63,9 +64,10 @@ test('phase 31 resolves programme information from live PRISM data and omits abs
   assert.match(readService, /IprStatus\.Filed \|\| item\.Status == IprStatus\.Granted/);
   assert.match(readService, /ProjectTotStatus\.InProgress \|\| item\.Status == ProjectTotStatus\.Completed/);
   assert.match(builder, /ComposeProgrammeInformation/);
-  assert.match(builder, /Sponsoring line directorate/);
-  assert.match(builder, /Proliferation cost/);
-  assert.match(builder, /Technology transfer/);
+  assert.match(builder, /CompendiumProgrammeInformation\.Resolve/);
+  assert.match(builder, /ProgrammeModules/);
+  assert.match(programme, /Proliferation cost/);
+  assert.match(programme, /Technology transfer/);
   assert.match(builder, /if \(modules\.Count == 0\) return/);
 });
 
@@ -110,7 +112,7 @@ test('phase 31 live proof mirrors the modular programme specification and multi-
 });
 
 test('phase 31 review fingerprint invalidates approval when adaptive dossier facts or presentation changes', () => {
-  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening)/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography)/);
   assert.match(fingerprint, /DossierLayout/);
   assert.match(fingerprint, /DossierImages/);
   assert.match(fingerprint, /TechnicalSpecifications/);
@@ -119,5 +121,5 @@ test('phase 31 review fingerprint invalidates approval when adaptive dossier fac
 });
 
 test('phase 31 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13))/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v14))/);
 });

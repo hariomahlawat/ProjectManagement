@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-15_production-hardening-v13";
+    public const string BuildStamp = "CompendiumPdf_2026-08-15_programme-iconography-v14";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -143,7 +143,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     project.TechnicalCategory,
                     availableForProliferation == true,
                     !string.IsNullOrWhiteSpace(project.Description),
-                    !string.IsNullOrWhiteSpace(project.SponsoringLineDirectorate) || !string.IsNullOrWhiteSpace(project.ArmService),
+                    !string.IsNullOrWhiteSpace(project.ArmService),
                     productionCost.HasValue,
                     projectPhotos.Count,
                     defaultPhotoId,
@@ -157,7 +157,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                     DescriptionWordCount = CountWords(project.Description),
                     PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
                     TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
-                    ArmServiceDisplay = NormalizeDisplay(project.SponsoringLineDirectorate ?? project.ArmService, "Not recorded"),
+                    ArmServiceDisplay = NormalizeDisplay(project.ArmService, "Not recorded"),
                     ProliferationCostDisplay = CompendiumPublicationImagePolicy.FormatCost(productionCost),
                     TechnicalSpecificationCount = technicalSpecificationCounts.GetValueOrDefault(project.Id),
                     HasIpr = iprProjectSet.Contains(project.Id),
@@ -279,12 +279,14 @@ public sealed class CompendiumReadService : ICompendiumReadService
             var specifications = specificationsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
             var iprCredentials = iprByProject.GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
             var technologyTransfer = totByProject.GetValueOrDefault(project.Id);
-            var sponsoringDirectorate = NormalizeOptional(project.SponsoringLineDirectorate) ?? NormalizeOptional(project.ArmService) ?? string.Empty;
+            var armService = NormalizeOptional(project.ArmService) ?? string.Empty;
             var dossierImages = ResolveDossierImages(project, selection, projectPhotos, resolved);
-            var programmeModuleCount = (string.IsNullOrWhiteSpace(sponsoringDirectorate) ? 0 : 1)
-                                     + (cost?.Cost.HasValue == true ? 1 : 0)
-                                     + (iprCredentials.Count > 0 ? 1 : 0)
-                                     + (technologyTransfer is null ? 0 : 1);
+            var programmeModules = CompendiumProgrammeInformation.Resolve(
+                armService,
+                CompendiumPublicationImagePolicy.FormatCost(cost?.Cost),
+                iprCredentials,
+                technologyTransfer);
+            var programmeModuleCount = programmeModules.Count;
             var dossierPhotoCount = dossierImages.Count(item => item.PhotoId.HasValue);
             var dossierDecision = CompendiumDossierLayoutPlanner.Resolve(
                 selection.DossierLayout,
@@ -325,7 +327,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.LifecycleStatus,
                 project.ProjectCategory,
                 project.TechnicalCategory,
-                sponsoringDirectorate,
+                armService,
                 completionYear,
                 availableForProliferation,
                 cost?.Cost,
@@ -351,7 +353,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.Name,
                 project.LifecycleStatus,
                 completionYear,
-                sponsoringDirectorate,
+                armService,
                 narrative.Text,
                 cost?.Cost,
                 availableForProliferation,
@@ -408,7 +410,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 PublicationYear = ResolvePublicationYear(project.LifecycleStatus, project.YearOfDevelopment, project.CompletedYear, project.CompletedOn, project.CreatedAt),
                 TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
                 ImageFitMode = resolved.Selection.ImageFitMode,
-                SponsoringLineDirectorateDisplay = sponsoringDirectorate,
+                ProgrammeModules = programmeModules,
                 IprCredentials = iprCredentials,
                 TechnologyTransfer = technologyTransfer,
                 TechnicalSpecifications = specifications,
@@ -520,7 +522,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var specifications = (await LoadTechnicalSpecificationsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<string>();
         var iprCredentials = (await LoadIprCredentialsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
         var technologyTransfer = (await LoadTechnologyTransferAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id);
-        var sponsoringDirectorate = NormalizeOptional(project.SponsoringLineDirectorate) ?? NormalizeOptional(project.ArmService) ?? string.Empty;
+        var armService = NormalizeOptional(project.ArmService) ?? string.Empty;
 
         var availability = await _db.ProjectTechStatuses
             .AsNoTracking()
@@ -537,10 +539,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var photoCandidates = await LoadPhotoCandidatesAsync(new[] { project.Id }, cancellationToken);
         var resolved = ResolveSelection(project, selection, photoCandidates);
         var dossierImages = ResolveDossierImages(project, selection, photoCandidates, resolved);
-        var programmeModuleCount = (string.IsNullOrWhiteSpace(sponsoringDirectorate) ? 0 : 1)
-                                 + (cost?.Cost.HasValue == true ? 1 : 0)
-                                 + (iprCredentials.Count > 0 ? 1 : 0)
-                                 + (technologyTransfer is null ? 0 : 1);
+        var programmeModules = CompendiumProgrammeInformation.Resolve(
+            armService,
+            CompendiumPublicationImagePolicy.FormatCost(cost?.Cost),
+            iprCredentials,
+            technologyTransfer);
+        var programmeModuleCount = programmeModules.Count;
         var dossierPhotoCount = dossierImages.Count(item => item.PhotoId.HasValue);
         var dossierDecision = CompendiumDossierLayoutPlanner.Resolve(
             selection.DossierLayout,
@@ -611,7 +615,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             project.LifecycleStatus,
             project.ProjectCategory,
             project.TechnicalCategory,
-            sponsoringDirectorate,
+            armService,
             completionYear,
             availability,
             cost?.Cost,
@@ -636,7 +640,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             project.Name,
             project.LifecycleStatus,
             completionYear,
-            sponsoringDirectorate,
+            armService,
             narrative.Text,
             cost?.Cost,
             availability,
@@ -692,7 +696,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             CustomSectionName = NormalizeCustomSection(selection.CustomSectionName),
             UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
             ImageFitMode = resolved.Selection.ImageFitMode,
-            SponsoringLineDirectorateDisplay = sponsoringDirectorate,
+            ProgrammeModules = programmeModules,
             IprCredentials = iprCredentials,
             TechnologyTransfer = technologyTransfer,
             TechnicalSpecifications = specifications,

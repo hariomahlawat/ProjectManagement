@@ -17,6 +17,7 @@ const mainJs = read('wwwroot/js/pages/projects-compendium.js');
 const css = read('wwwroot/css/pages/projects-publications.css');
 const dto = read('Services/Compendiums/CompendiumDtos.cs');
 const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
+const programme = read('Services/Compendiums/CompendiumProgrammeInformation.cs');
 
 test('phase 31.1 replaces fixed character budgets with a shared geometry-aware fit planner', () => {
   assert.match(pagination, /UsableContentHeightPoints/);
@@ -59,8 +60,9 @@ test('phase 31.1 protects technical readability using the longest bullet as well
 
 test('phase 31.1 aggregates all IPR credentials into one programme module rather than truncating to two records', () => {
   assert.doesNotMatch(builder, /IprCredentials\.Take\(2\)/);
-  assert.match(builder, /BuildIprProgrammeValue/);
-  assert.match(mainJs, /aggregateIprCredentials/);
+  assert.match(programme, /BuildIprValue/);
+  assert.match(programme, /CompendiumIprVisualState\.Mixed/);
+  assert.match(mainJs, /programmeModules/);
   assert.doesNotMatch(mainJs, /iprCredentials \|\| \[\]\)\.slice\(0,2\)/);
 });
 
@@ -80,9 +82,9 @@ test('phase 31.1 fixes continuation labelling and wide-register collision regres
 });
 
 test('phase 31.1 invalidates stale approvals when the pagination contract changes', () => {
-  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening)/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography)/);
 });
 
 test('phase 31.1 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13))/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v14))/);
 });

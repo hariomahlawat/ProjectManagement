@@ -4964,11 +4964,16 @@ body.compendium-structure-editor-mode {
 .compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__image{aspect-ratio:1.7/1!important}
 .compendium-live-page__programme{display:grid;grid-template-columns:repeat(var(--programme-columns,2),minmax(0,1fr));gap:.42rem .7rem;margin-top:.55rem;padding:.5rem .62rem;border:1px solid #d8e5df;border-top:3px solid #205244;background:#f5f9f7}
 .compendium-live-page__programme:empty{display:none}
-.compendium-live-page__programme>div{min-width:0}
-.compendium-live-page__programme span,.compendium-live-page__programme strong{display:block}
-.compendium-live-page__programme span{color:#71817b;font-size:.36rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
-.compendium-live-page__programme strong{margin-top:.08rem;color:#233a31;font-size:.52rem;line-height:1.2}
-.compendium-live-page__programme .ipr strong:before{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:4px;border:1px solid #cfe1d9;border-radius:3px;background:#eaf3ef;color:#205244;font-size:.43rem;font-weight:800;content:attr(data-badge)}
+.compendium-live-page__programme-item{display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;gap:.38rem;min-width:0}
+.compendium-live-page__programme-icon{display:grid;width:22px;height:22px;place-items:center;border:1px solid #e8d7a6;border-radius:5px;background:#fbf5e5}
+.compendium-live-page__programme-icon img{display:block;width:16px;height:16px;object-fit:contain}
+.compendium-live-page__programme-item.tone-maroon .compendium-live-page__programme-icon{border-color:#e4c8c8;background:#f8eeee}
+.compendium-live-page__programme-item.tone-green .compendium-live-page__programme-icon{border-color:#cce4d7;background:#eef7f2}
+.compendium-live-page__programme-item.tone-blue .compendium-live-page__programme-icon{border-color:#cadcf1;background:#eef5fc}
+.compendium-live-page__programme-copy{display:block;min-width:0}
+.compendium-live-page__programme-copy>span,.compendium-live-page__programme-copy>strong{display:block}
+.compendium-live-page__programme-copy>span{color:#71817b;font-size:.36rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.compendium-live-page__programme-copy>strong{margin-top:.08rem;color:#233a31;font-size:.52rem;line-height:1.2;white-space:pre-line}
 .compendium-live-page__specifications{margin-top:.55rem;padding-top:.4rem;border-top:1px solid #e9d9a7}
 .compendium-live-page__specifications>header{color:#17382f;font-size:.42rem;font-weight:800;letter-spacing:.08em}
 .compendium-live-page__specifications>div{display:grid;grid-template-columns:repeat(var(--spec-columns,2),minmax(0,1fr));gap:.24rem .65rem;margin-top:.3rem}
@@ -5148,17 +5153,12 @@ body.compendium-structure-editor-mode {
     font-size: .45rem;
     line-height: 1.34;
 }
-.compendium-live-page__programme[data-programme-columns="3"] span {
+.compendium-live-page__programme[data-programme-columns="3"] .compendium-live-page__programme-copy > span {
     font-size: .34rem;
     letter-spacing: .045em;
 }
-.compendium-live-page__programme[data-programme-columns="2"] span {
+.compendium-live-page__programme[data-programme-columns="2"] .compendium-live-page__programme-copy > span {
     letter-spacing: .075em;
-}
-.compendium-live-page__programme .ipr strong::before {
-    width: 19px;
-    height: 19px;
-    font-size: .45rem;
 }
 
 .compendium-dossier-photo-usage {

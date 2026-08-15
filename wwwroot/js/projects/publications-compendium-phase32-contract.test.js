@@ -60,13 +60,14 @@ test('phase 32 distinguishes curated photography from images displayed by the se
   assert.match(css, /btn\.is-retained/);
 });
 
-test('phase 32 adapts programme labels and strengthens compact IPR and ToT badges', () => {
+test('phase 32 adapts programme labels and uses coloured programme icon tiles', () => {
   assert.match(builder, /labelFontSize/);
   assert.match(builder, /labelLetterSpacing/);
-  assert.match(builder, /9\.4f/);
+  assert.match(builder, /ComposeProgrammeIcon/);
   assert.match(mainJs, /dataset\.programmeColumns/);
+  assert.match(mainJs, /programmeIconUrl/);
   assert.match(css, /data-programme-columns="3"/);
-  assert.match(css, /compendium-live-page__programme \.ipr strong::before/);
+  assert.match(css, /compendium-live-page__programme-icon/);
 });
 
 test('phase 32 gives the cover proof Fit 75 and 100 percent controls with viewport reset', () => {
@@ -81,6 +82,6 @@ test('phase 32 gives the cover proof Fit 75 and 100 percent controls with viewpo
 });
 
 test('phase 32 advances review and PDF composition identities', () => {
-  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening)/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13)/);
+  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening|9-programme-iconography)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v14)/);
 });

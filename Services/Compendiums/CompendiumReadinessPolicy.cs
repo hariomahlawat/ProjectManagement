@@ -112,7 +112,7 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         if (string.IsNullOrWhiteSpace(context.ArmService))
         {
             issues.Add(CompendiumPublicationIssue.MissingArmService);
-            Information("missingArmService", "Sponsoring Line Directorate is not recorded.");
+            Information("missingArmService", "Arms / Services is not recorded.");
         }
 
         if (context.ProliferationAvailability == true && !context.ProliferationCostLakhs.HasValue)
