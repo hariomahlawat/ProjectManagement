@@ -452,9 +452,10 @@ public static class CompendiumDossierPaginationPlanner
     {
         if (moduleCount <= 0) return 0f;
         var rows = (int)Math.Ceiling((double)moduleCount / Math.Max(1, columns));
-        // Coloured programme icons use a 22-point tile. The additional reserve covers wrapped
-        // Arms / Services and mixed IPR values without creating a near-boundary PDF overflow.
-        return 31f + rows * 38f;
+        // Coloured programme icons use a 22-point tile and a 2.25-point section rule. The
+        // additional reserve covers wrapped Arms / Services and mixed IPR values without
+        // creating a near-boundary PDF overflow.
+        return 30.25f + rows * 38f;
     }
 
     private static float EstimateSpecificationHeight(IReadOnlyList<string> specifications, int columns)

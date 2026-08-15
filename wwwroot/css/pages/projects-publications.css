@@ -4962,13 +4962,17 @@ body.compendium-structure-editor-mode {
 .compendium-live-page__sheet.layout-technical .compendium-live-page__image{aspect-ratio:2.65/1!important}
 .compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__dossier-main{grid-template-columns:1fr}
 .compendium-live-page__sheet.layout-multiimageeditorial .compendium-live-page__image{aspect-ratio:1.7/1!important}
-.compendium-live-page__programme{display:grid;grid-template-columns:repeat(var(--programme-columns,2),minmax(0,1fr));gap:.42rem .7rem;margin-top:.55rem;padding:.5rem .62rem;border:1px solid #d8e5df;border-top:3px solid #205244;background:#f5f9f7}
+.compendium-live-page__programme{display:grid;grid-template-columns:repeat(var(--programme-columns,2),minmax(0,1fr));gap:.42rem .7rem;margin-top:.55rem;padding:.5rem .62rem;border:1px solid #d8e5df;border-top:2px solid #205244;background:#f5f9f7}
 .compendium-live-page__programme:empty{display:none}
+.compendium-live-page__programme-heading{grid-column:1/-1;margin:0;color:#205244;font-size:.38rem;font-weight:800;letter-spacing:.1em;line-height:1.15;text-transform:uppercase}
+.compendium-live-page__programme.is-compact-single{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.compendium-live-page__programme.is-compact-single .compendium-live-page__programme-item{grid-column:1}
 .compendium-live-page__programme-item{display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;gap:.38rem;min-width:0}
-.compendium-live-page__programme-icon{display:grid;width:22px;height:22px;place-items:center;border:1px solid #e8d7a6;border-radius:5px;background:#fbf5e5}
+.compendium-live-page__programme-icon{display:grid;width:22px;height:22px;place-items:center;border:1px solid #e8d7a6;border-radius:2px;background:#fbf5e5}
 .compendium-live-page__programme-icon img{display:block;width:16px;height:16px;object-fit:contain}
 .compendium-live-page__programme-item.tone-maroon .compendium-live-page__programme-icon{border-color:#e4c8c8;background:#f8eeee}
 .compendium-live-page__programme-item.tone-green .compendium-live-page__programme-icon{border-color:#cce4d7;background:#eef7f2}
+.compendium-live-page__programme-item.tone-gold .compendium-live-page__programme-icon{border-color:#e8d7a6;background:#fbf5e5}
 .compendium-live-page__programme-item.tone-blue .compendium-live-page__programme-icon{border-color:#cadcf1;background:#eef5fc}
 .compendium-live-page__programme-copy{display:block;min-width:0}
 .compendium-live-page__programme-copy>span,.compendium-live-page__programme-copy>strong{display:block}

@@ -136,6 +136,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     private const string Slate100 = "#F1F5F9";
     private const string Slate50 = "#F8FAFC";
     private const string White = "#FFFFFF";
+    private const float ProgrammeTopRuleHeight = 2.25f;
 
     private readonly IWebHostEnvironment _environment;
     private readonly IPublicationFontService _fontService;
@@ -840,9 +841,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             _ => .16f
         };
 
+        var useHalfWidthSingleModule = modules.Count == 1
+                                       && IsCompactSingleProgrammeModule(modules[0]);
+
         container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
         {
-            column.Item().Height(3).Background(Forest800);
+            // The rule deliberately remains heavier than dossier dividers, but no longer
+            // overpowers the compact programme-information typography.
+            column.Item().Height(ProgrammeTopRuleHeight).Background(Forest800);
             column.Item().PaddingHorizontal(10).PaddingVertical(7).Column(content =>
             {
                 content.Spacing(6);
@@ -876,11 +882,21 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                                 });
                             });
                         }
+
+                        // A single short fact should read as a compact publication module,
+                        // rather than stretching visually across an otherwise empty band.
+                        if (useHalfWidthSingleModule)
+                        {
+                            row.RelativeItem();
+                        }
                     });
                 }
             });
         });
     }
+
+    private static bool IsCompactSingleProgrammeModule(CompendiumProgrammeModuleDto module)
+        => !module.Value.Contains('\n') && module.Value.Trim().Length <= 48;
 
     private static void ComposeProgrammeIcon(
         IContainer container,

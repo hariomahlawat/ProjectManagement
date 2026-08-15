@@ -121,5 +121,5 @@ test('phase 31 review fingerprint invalidates approval when adaptive dossier fac
 });
 
 test('phase 31 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v14))/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]))/);
 });

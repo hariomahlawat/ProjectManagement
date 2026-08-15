@@ -86,5 +86,5 @@ test('phase 31.1 invalidates stale approvals when the pagination contract change
 });
 
 test('phase 31.1 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v14))/);
+  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]))/);
 });

@@ -16,8 +16,9 @@
     const programmeIconKeys = new Set([
         "arms-services", "proliferation-cost", "ipr-filed", "ipr-granted", "ipr-mixed", "technology-transfer"
     ]);
+    const programmeIconVersion = "v15";
     const programmeIconUrl = key => programmeIconKeys.has(String(key || ""))
-        ? `/images/publications/compendium-icons/${key}.svg`
+        ? `/images/publications/compendium-icons/${key}.svg?v=${programmeIconVersion}`
         : "";
     const programmeModules = review => Array.isArray(review?.programmeModules)
         ? review.programmeModules.filter(module => module && String(module.label || "").trim() && String(module.value || "").trim())
@@ -1006,6 +1007,10 @@
     };
 
     const resolveProgrammeColumns = count => count <= 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 2;
+    const isCompactSingleProgrammeModule = module => {
+        const value = String(module?.value || "").trim();
+        return value.length <= 48 && !value.includes("\n");
+    };
 
     const renderLivePagePreview = (review, photo) => {
         if (!livePagePreview || !review) return;
@@ -1036,7 +1041,11 @@
             const programmeColumns = resolveProgrammeColumns(programme.length);
             livePageFacts.style.setProperty("--programme-columns", String(programmeColumns));
             livePageFacts.dataset.programmeColumns = String(programmeColumns);
-            livePageFacts.innerHTML = programme.map(item => {
+            livePageFacts.dataset.programmeCount = String(programme.length);
+            livePageFacts.classList.toggle(
+                "is-compact-single",
+                programme.length === 1 && isCompactSingleProgrammeModule(programme[0]));
+            const items = programme.map(item => {
                 const iconUrl = programmeIconUrl(item.iconKey);
                 const tone = ["maroon", "green", "gold", "blue"].includes(String(item.tone || "")) ? item.tone : "gold";
                 return `<div class="compendium-live-page__programme-item tone-${tone}">`
@@ -1044,6 +1053,9 @@
                     + `<span class="compendium-live-page__programme-copy"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></span>`
                     + `</div>`;
             }).join("");
+            livePageFacts.innerHTML = programme.length
+                ? `<header class="compendium-live-page__programme-heading">PROGRAMME INFORMATION</header>${items}`
+                : "";
         }
 
         const resolvedImages = Array.isArray(review.dossierImages) ? review.dossierImages : [];
