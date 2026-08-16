@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const VERSION = 1;
+    const VERSION = 2;
     const PREFIX = "prism:compendium:structure:";
     const MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
@@ -49,9 +49,21 @@
                 const source = snapshot.configs[id] || snapshot.configs[String(id)] || {};
                 configs[id] = {
                     primaryPhotoId: asNumber(source.primaryPhotoId) > 0 ? asNumber(source.primaryPhotoId) : null,
-                    focalX: Number.isFinite(Number(source.focalX)) ? Number(source.focalX) : .5,
-                    focalY: Number.isFinite(Number(source.focalY)) ? Number(source.focalY) : .5,
+                    focalX: Number.isFinite(Number(source.focalX)) ? Math.max(0, Math.min(1, Number(source.focalX))) : .5,
+                    focalY: Number.isFinite(Number(source.focalY)) ? Math.max(0, Math.min(1, Number(source.focalY))) : .5,
                     imageSelectionMode: normalize(source.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
+                    imageFitMode: normalize(source.imageFitMode) === "fit" ? "fit" : "fill",
+                    dossierLayout: ({ automatic:"Automatic", visualhero:"VisualHero", balanced:"Balanced", multiimageeditorial:"MultiImageEditorial", technical:"Technical" }[normalize(source.dossierLayout)] || "Automatic"),
+                    balancedTextFlowMode: normalize(source.balancedTextFlowMode) === "sidecolumn" ? "SideColumn" : "FlowBelowImage",
+                    dossierImageCount: Math.max(1, Math.min(3, asNumber(source.dossierImageCount) || 1)),
+                    supportingPhoto1Id: asNumber(source.supportingPhoto1Id) > 0 ? asNumber(source.supportingPhoto1Id) : null,
+                    supportingPhoto1FocalX: Number.isFinite(Number(source.supportingPhoto1FocalX)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto1FocalX))) : .5,
+                    supportingPhoto1FocalY: Number.isFinite(Number(source.supportingPhoto1FocalY)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto1FocalY))) : .5,
+                    supportingPhoto1FitMode: normalize(source.supportingPhoto1FitMode) === "fit" ? "fit" : "fill",
+                    supportingPhoto2Id: asNumber(source.supportingPhoto2Id) > 0 ? asNumber(source.supportingPhoto2Id) : null,
+                    supportingPhoto2FocalX: Number.isFinite(Number(source.supportingPhoto2FocalX)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto2FocalX))) : .5,
+                    supportingPhoto2FocalY: Number.isFinite(Number(source.supportingPhoto2FocalY)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto2FocalY))) : .5,
+                    supportingPhoto2FitMode: normalize(source.supportingPhoto2FitMode) === "fit" ? "fit" : "fill",
                     reviewFingerprint: String(source.reviewFingerprint || "").trim() || null,
                     customSectionKey: cleanKey(source.customSectionKey) || null,
                     customSectionName: cleanName(source.customSectionName) || null,

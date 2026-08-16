@@ -45,19 +45,11 @@
     const initialSignature = () => JSON.stringify({ design: state.design, preferences: state.preferences });
     let savedSignature = initialSignature();
 
-    const frontSlots = {
-        InstitutionalHero: ['Hero'],
-        FullBleedHero: ['Hero'],
-        EditorialSplit: ['Hero', 'Secondary1'],
-        Triptych: ['Hero', 'Secondary1', 'Secondary2'],
-        Minimal: []
-    };
-    const backSlots = {
-        MinimalInstitutional: [],
-        ImageEcho: ['Hero'],
-        PortfolioStrip: ['Hero', 'Secondary1', 'Secondary2'],
-        TypographyOnly: [],
-        Clean: []
+    const coverPolicy = boot.coverPolicy || { front: [], back: [] };
+    const templatePolicy = (surface, template = null) => {
+        const list = surface === 'front' ? coverPolicy.front : coverPolicy.back;
+        const name = template || currentTemplate(surface);
+        return (Array.isArray(list) ? list : []).find(item => item.template === name) || { slots: [], requiredSlots: [], minimumDistinctImages: 0, fillOnly: false };
     };
 
     function normaliseDesign(value) {
@@ -120,8 +112,33 @@
     function surfacePrefix(surface = state.activeSurface) { return surface === 'front' ? 'front' : 'back'; }
     function isFront(surface = state.activeSurface) { return surface === 'front'; }
     function currentTemplate(surface = state.activeSurface) { return isFront(surface) ? state.design.frontTemplate : state.design.backTemplate; }
-    function requiredSlots(surface = state.activeSurface) {
-        return (isFront(surface) ? frontSlots : backSlots)[currentTemplate(surface)] || [];
+    function templateSlots(surface = state.activeSurface) {
+        const policy = templatePolicy(surface);
+        if (Array.isArray(policy.slots)) return policy.slots;
+        // Backward compatibility for a stale page bootstrap while deploying Phase 36.
+        return Array.isArray(policy.requiredSlots) ? policy.requiredSlots : [];
+    }
+    function strictRequiredSlots(surface = state.activeSurface) {
+        const policy = templatePolicy(surface);
+        return Array.isArray(policy.requiredSlots) ? policy.requiredSlots : [];
+    }
+    function isFillOnlyTemplate(surface = state.activeSurface) { return templatePolicy(surface).fillOnly === true; }
+    function isQuartet(surface = state.activeSurface) { return surface === 'front' && currentTemplate(surface) === 'PortfolioQuartet'; }
+    function quartetResolved() {
+        if (!isQuartet('front')) return true;
+        const refs = new Set();
+        for (const key of strictRequiredSlots('front')) {
+            const slot = ensureSlot('front', key);
+            if (slot.imageMode === 'None' || !slot.previewUrl) return false;
+            const auto = state.autoResolved.get(automaticSlotKey('front', key));
+            const projectId = Number(slot.imageMode === 'Explicit' ? slot.projectId : auto?.projectId);
+            const photoId = Number(slot.imageMode === 'Explicit' ? slot.photoId : auto?.photoId);
+            if (!projectId || !photoId) return false;
+            const ref = `${projectId}:${photoId}`;
+            if (refs.has(ref)) return false;
+            refs.add(ref);
+        }
+        return refs.size === 4;
     }
     function findSlot(surface, slotKey) {
         return state.design.images.find(item => item.surface.toLowerCase() === surface && item.slotKey.toLowerCase() === slotKey.toLowerCase());
@@ -139,7 +156,7 @@
         const signature = initialSignature();
         state.dirty = signature !== savedSignature;
         const save = by('[data-cover-save]');
-        if (save) save.disabled = !state.dirty || !boot.canManage;
+        if (save) save.disabled = !state.dirty || !boot.canManage || !quartetResolved();
         const saveState = by('[data-cover-save-state]');
         if (saveState) {
             saveState.classList.toggle('is-modified', state.dirty);
@@ -182,7 +199,15 @@
         by('[data-cover-front-templates]').hidden = !front;
         by('[data-cover-back-templates]').hidden = front;
         const list = front ? by('[data-cover-front-templates]') : by('[data-cover-back-templates]');
-        list?.querySelectorAll('[data-cover-template]').forEach(button => button.classList.toggle('active', button.dataset.coverTemplate === currentTemplate(surface)));
+        list?.querySelectorAll('[data-cover-template]').forEach(button => {
+            button.classList.toggle('active', button.dataset.coverTemplate === currentTemplate(surface));
+            if (button.dataset.coverTemplate === 'PortfolioQuartet') {
+                button.disabled = boot.portfolioQuartetEligible !== true;
+                button.title = button.disabled
+                    ? `Portfolio Quartet requires four usable photographs; ${Number(boot.portfolioQuartetUsablePhotoCount || 0)} currently resolved.`
+                    : 'Four-image cover with independent focal crops.';
+            }
+        });
 
         ['title', 'subtitle', 'edition', 'eyebrow'].forEach(field => {
             const fieldName = titleCase(field);
@@ -237,11 +262,12 @@
         const host = by('[data-cover-slot-list]');
         const section = by('[data-cover-image-section]');
         if (!host || !section) return;
-        const slots = requiredSlots();
+        const slots = templateSlots();
         section.hidden = slots.length === 0;
         host.innerHTML = '';
         slots.forEach((slotKey, index) => {
             const slot = ensureSlot(state.activeSurface, slotKey);
+            if (isFillOnlyTemplate()) slot.fitMode = 'Fill';
             const row = document.createElement('article');
             row.className = 'compendium-cover-slot-card';
             row.dataset.coverSlotKey = slotKey;
@@ -264,7 +290,7 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-choose-slot="${slotKey}"><i class="bi bi-images"></i> Change</button>
                     <div class="btn-group btn-group-sm" role="group" aria-label="Image fit">
                         <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fill' ? 'active' : ''}" data-cover-fit="Fill" data-cover-slot="${slotKey}">Fill</button>
-                        <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fit' ? 'active' : ''}" data-cover-fit="Fit" data-cover-slot="${slotKey}">Fit</button>
+                        <button type="button" class="btn btn-outline-secondary ${slot.fitMode === 'Fit' ? 'active' : ''}" data-cover-fit="Fit" data-cover-slot="${slotKey}" ${isFillOnlyTemplate() ? 'disabled title="Portfolio Quartet uses Fill only"' : ''}>Fit</button>
                     </div>
                     <button type="button" class="btn btn-sm btn-link" data-cover-crop-slot="${slotKey}" ${slot.imageMode === 'None' || !slot.previewUrl || slot.fitMode === 'Fit' ? 'disabled' : ''}>Adjust crop</button>
                 </div>`;
@@ -337,7 +363,7 @@
         const subtitle = currentShow(surface, 'Subtitle') ? currentText(surface, 'Subtitle') : '';
         const edition = currentShow(surface, 'Edition') ? currentText(surface, 'Edition') : '';
         const eyebrow = clean(state.design[`${surfacePrefix(surface)}Eyebrow`]);
-        const slots = requiredSlots(surface).map(key => ensureSlot(surface, key));
+        const slots = templateSlots(surface).map(key => ensureSlot(surface, key));
         const tile = (slot, cls = '') => {
             if (!slot) return '';
             const src = slot.previewUrl;
@@ -349,8 +375,19 @@
         if (front) {
             switch (template) {
                 case 'FullBleedHero': content.innerHTML = `${tile(slots[0], 'cover-proof-image--full')}${identity}`; break;
-                case 'EditorialSplit': content.innerHTML = `${identity}<div class="cover-proof-split">${tile(slots[0])}${tile(slots[1])}</div>`; break;
-                case 'Triptych': content.innerHTML = `${identity}<div class="cover-proof-triptych">${slots.map(slot => tile(slot)).join('')}</div>`; break;
+                case 'EditorialSplit': {
+                    const visible = slots.filter(slot => slot.previewUrl);
+                    const rendered = visible.length ? visible : slots;
+                    content.innerHTML = `${identity}<div class="cover-proof-split ${rendered.length === 1 ? 'is-single' : ''}">${rendered.map(slot => tile(slot)).join('')}</div>`;
+                    break;
+                }
+                case 'Triptych': {
+                    const visible = slots.filter(slot => slot.previewUrl);
+                    const rendered = visible.length ? visible : slots;
+                    content.innerHTML = `${identity}<div class="cover-proof-triptych is-${rendered.length}">${rendered.map(slot => tile(slot)).join('')}</div>`;
+                    break;
+                }
+                case 'PortfolioQuartet': content.innerHTML = `${identity}<div class="cover-proof-quartet">${tile(slots[0], 'cover-proof-quartet__hero')}<div class="cover-proof-quartet__stack">${slots.slice(1).map(slot => tile(slot)).join('')}</div></div>`; break;
                 case 'Minimal': content.innerHTML = identity; break;
                 default: content.innerHTML = `${identity}${tile(slots[0], 'cover-proof-image--institutional')}`; break;
             }
@@ -402,7 +439,7 @@
         const hydrationVersion = (state.hydrationVersions.get(surface) || 0) + 1;
         state.hydrationVersions.set(surface, hydrationVersion);
         const isCurrentHydration = () => state.hydrationVersions.get(surface) === hydrationVersion;
-        const slots = requiredSlots(surface).map(key => ensureSlot(surface, key));
+        const slots = templateSlots(surface).map(key => ensureSlot(surface, key));
         let changed = false;
         const usedPhotos = new Set();
         const usedProjects = new Set();
@@ -429,7 +466,7 @@
                 let projectId = slot.projectId;
                 let photoId = slot.photoId;
                 if (slot.imageMode !== 'Explicit') {
-                    const preferred = chooseAutomaticCandidate(usedProjects, usedPhotos);
+                    const preferred = chooseAutomaticCandidate(surface, usedProjects, usedPhotos);
                     projectId = preferred?.projectId || null;
                     photoId = preferred?.photoId || null;
                 }
@@ -439,7 +476,7 @@
                 let photo = photoId ? photos.find(item => Number(item.photoId) === Number(photoId)) : null;
                 photo ??= photos.find(item => item.isCover && !usedPhotos.has(`${Number(projectId)}:${Number(item.photoId)}`));
                 photo ??= photos.find(item => !usedPhotos.has(`${Number(projectId)}:${Number(item.photoId)}`));
-                photo ??= photos.find(item => item.isCover) || photos[0];
+                if (!isQuartet(surface)) photo ??= photos.find(item => item.isCover) || photos[0];
                 if (!photo) continue;
                 slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
                 slot.sourceWidth = photo.width;
@@ -458,6 +495,7 @@
         if (changed && isCurrentHydration()) {
             renderProof();
             if (surface === state.activeSurface) renderSlotsWithoutHydration();
+            setDirty();
         }
     }
 
@@ -467,7 +505,7 @@
         renderSlots();
     }
 
-    function chooseAutomaticCandidate(usedProjects = new Set(), usedPhotos = new Set()) {
+    function chooseAutomaticCandidate(surface, usedProjects = new Set(), usedPhotos = new Set()) {
         const candidates = [];
         const seen = new Set();
         const add = (candidate, priority) => {
@@ -490,7 +528,7 @@
         candidates.sort((a, b) => b.priority - a.priority);
         return candidates.find(item => !usedProjects.has(item.projectId) && (!item.photoId || !usedPhotos.has(`${item.projectId}:${item.photoId}`)))
             || candidates.find(item => !item.photoId || !usedPhotos.has(`${item.projectId}:${item.photoId}`))
-            || candidates[0]
+            || (isQuartet(surface) ? null : candidates[0])
             || null;
     }
 
@@ -511,6 +549,12 @@
         if (grid) grid.innerHTML = '';
         const photoState = portalBy('[data-cover-photo-state]');
         if (photoState) photoState.textContent = 'Select a project to view its publication photographs.';
+        const noneButton = portalBy('[data-cover-slot-none]');
+        if (noneButton) {
+            const required = isQuartet(state.activeSurface);
+            noneButton.disabled = required;
+            noneButton.title = required ? 'Portfolio Quartet requires all four image slots.' : '';
+        }
         modal('compendiumCoverPhotoModal')?.show();
         if (selectedProjectId) await renderProjectPhotos(selectedProjectId);
     }
@@ -669,6 +713,10 @@
 
     async function save() {
         if (!boot.canManage || !state.dirty) return true;
+        if (!quartetResolved()) {
+            window.alert('Portfolio Quartet requires four distinct usable photographs before it can be saved.');
+            return false;
+        }
         const button = by('[data-cover-save]');
         if (button) button.disabled = true;
         try {
@@ -725,9 +773,13 @@
         applyProofZoom(false);
     }));
     all('[data-cover-template]').forEach(button => button.addEventListener('click', () => {
+        if (button.disabled) return;
         if (isFront()) state.design.frontTemplate = button.dataset.coverTemplate;
         else state.design.backTemplate = button.dataset.coverTemplate;
-        requiredSlots().forEach(key => ensureSlot(state.activeSurface, key));
+        templateSlots().forEach(key => {
+            const slot = ensureSlot(state.activeSurface, key);
+            if (isFillOnlyTemplate()) slot.fitMode = 'Fill';
+        });
         clearAutomaticResolutions(state.activeSurface);
         setDirty(); updateInspector(); resetProofViewport();
     }));
@@ -784,7 +836,8 @@
         const fit = event.target.closest('[data-cover-fit]');
         if (fit) {
             const slot = ensureSlot(state.activeSurface, fit.dataset.coverSlot);
-            slot.fitMode = fit.dataset.coverFit;
+            if (isFillOnlyTemplate() && fit.dataset.coverFit === 'Fit') return;
+            slot.fitMode = isFillOnlyTemplate() ? 'Fill' : fit.dataset.coverFit;
             setDirty(); renderSlots(); renderProof(); return;
         }
         const crop = event.target.closest('[data-cover-crop-slot]');
@@ -794,7 +847,7 @@
     portalBy('[data-cover-project-select]')?.addEventListener('change', event => { if (event.target.value) void renderProjectPhotos(Number(event.target.value)); });
     portalBy('[data-cover-project-search]')?.addEventListener('input', applyProjectSearch);
     portalBy('[data-cover-slot-auto]')?.addEventListener('click', () => setSlotMode('Automatic'));
-    portalBy('[data-cover-slot-none]')?.addEventListener('click', () => setSlotMode('None'));
+    portalBy('[data-cover-slot-none]')?.addEventListener('click', event => { if (!event.currentTarget.disabled) setSlotMode('None'); });
 
     portalBy('[data-cover-crop-stage]')?.addEventListener('click', event => {
         if (!state.activeSlot) return;

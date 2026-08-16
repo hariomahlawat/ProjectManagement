@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 7;
+    public int SettingsSchemaVersion { get; set; } = 8;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -158,6 +158,9 @@ public sealed class CompendiumPresetProject
 
     [Required, MaxLength(32)]
     public string DossierLayout { get; set; } = "Automatic";
+
+    [Required, MaxLength(32)]
+    public string BalancedTextFlowMode { get; set; } = "FlowBelowImage";
 
     public int DossierImageCount { get; set; } = 1;
     public int? SupportingPhoto1Id { get; set; }

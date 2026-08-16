@@ -117,6 +117,7 @@ public sealed class IndexModel : PageModel
         var coverFindings = await EvaluateCoverReadinessAsync(
             request.CoverDesign,
             request.PhotoPreferences,
+            data.Groups.SelectMany(group => group.Projects).ToArray(),
             cancellationToken);
         var coverBlockers = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Blocker);
         var coverWarnings = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Warning);
@@ -171,6 +172,7 @@ public sealed class IndexModel : PageModel
     private async Task<IReadOnlyList<CompendiumFindingDto>> EvaluateCoverReadinessAsync(
         CompendiumCoverDesign? design,
         IReadOnlyList<CompendiumPhotoPreference>? preferences,
+        IReadOnlyList<CompendiumProjectDto> projects,
         CancellationToken cancellationToken)
     {
         if (design is null)
@@ -240,6 +242,68 @@ public sealed class IndexModel : PageModel
                 CompendiumFindingSeverity.Warning,
                 "coverHeroUsesFallback",
                 "Automatic front-cover imagery has no photograph marked Cover suitable. PRISM will use ranked fallback imagery; curate a cover-suitable image for stronger editorial control."));
+        }
+
+        if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
+        {
+            var requiredKeys = CompendiumCoverTemplatePolicy.RequiredSlotKeys(
+                CompendiumCoverSurface.Front, design.FrontTemplate, design.BackTemplate);
+            var frontSlots = design.Images
+                .Where(item => item.Surface == CompendiumCoverSurface.Front)
+                .ToDictionary(item => item.SlotKey, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var key in requiredKeys)
+            {
+                if (!frontSlots.TryGetValue(key, out var slot) || slot.ImageMode == CompendiumCoverImageMode.None)
+                {
+                    findings.Add(new CompendiumFindingDto(
+                        CompendiumFindingSeverity.Blocker,
+                        "portfolioQuartetIncomplete",
+                        $"Portfolio Quartet requires {CoverSlotDisplay(key)}. Restore the image slot before final issue."));
+                }
+            }
+
+            var explicitQuartetRefs = frontSlots.Values
+                .Where(item => requiredKeys.Contains(item.SlotKey, StringComparer.OrdinalIgnoreCase))
+                .Where(item => item.ImageMode == CompendiumCoverImageMode.Explicit && item.ProjectId is > 0 && item.PhotoId is > 0)
+                .Select(item => (item.ProjectId!.Value, item.PhotoId!.Value))
+                .ToArray();
+            if (explicitQuartetRefs.Distinct().Count() != explicitQuartetRefs.Length)
+            {
+                findings.Add(new CompendiumFindingDto(
+                    CompendiumFindingSeverity.Blocker,
+                    "portfolioQuartetDuplicate",
+                    "Portfolio Quartet cannot repeat the same photograph in more than one slot."));
+            }
+
+            var candidateReferences = new List<BrochurePhotoReference>();
+            var selectedProjectIds = projects.Select(item => item.ProjectId).ToHashSet();
+            candidateReferences.AddRange(explicitQuartetRefs.Select(item => new BrochurePhotoReference(item.Item1, item.Item2)));
+            candidateReferences.AddRange((preferences ?? Array.Empty<CompendiumPhotoPreference>())
+                .Where(item => selectedProjectIds.Contains(item.ProjectId))
+                .Where(item => item.PreferredForPublication || item.SuitableForCoverHero)
+                .Select(item => new BrochurePhotoReference(item.ProjectId, item.PhotoId)));
+            candidateReferences.AddRange(projects
+                .Where(item => item.CoverPhotoId is > 0)
+                .Select(item => new BrochurePhotoReference(item.ProjectId, item.CoverPhotoId!.Value)));
+
+            IReadOnlyDictionary<int, BrochurePhotoProbe> candidateProbes = candidateReferences.Count == 0
+                ? new Dictionary<int, BrochurePhotoProbe>()
+                : await _photoService.ProbeAsync(candidateReferences.Distinct().ToArray(), cancellationToken);
+            var usableDistinct = candidateReferences
+                .Where(reference => candidateProbes.TryGetValue(reference.PhotoId, out var probe)
+                                    && probe.ProjectId == reference.ProjectId
+                                    && probe.IsReady)
+                .Select(reference => (reference.ProjectId, reference.PhotoId))
+                .Distinct()
+                .Count();
+            if (usableDistinct < CompendiumCoverTemplatePolicy.MinimumDistinctImages(design.FrontTemplate))
+            {
+                findings.Add(new CompendiumFindingDto(
+                    CompendiumFindingSeverity.Blocker,
+                    "portfolioQuartetInsufficientImages",
+                    "Portfolio Quartet requires four distinct resolvable photographs. Select or curate additional usable imagery before final issue."));
+            }
         }
 
         return findings;
@@ -327,6 +391,16 @@ public sealed class IndexModel : PageModel
             review.IprCredentials,
             review.TechnologyTransfer,
             review.TechnicalSpecifications,
+            review.DossierSpecificationColumns,
+            review.DossierProgrammeColumns,
+            balancedTextFlowMode = review.BalancedTextFlowMode.ToString(),
+            narrativeFlow = new
+            {
+                mode = review.NarrativeFlow.Mode.ToString(),
+                review.NarrativeFlow.SideSegment,
+                review.NarrativeFlow.BelowImageSegment,
+                review.NarrativeFlow.ContinuationSegments
+            },
             dossierLayoutOverride = review.DossierLayoutOverride.ToString(),
             effectiveDossierLayout = review.EffectiveDossierLayout.ToString(),
             review.DossierLayoutReason,
@@ -848,6 +922,7 @@ public sealed class IndexModel : PageModel
                     NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride),
                     ImageFitMode = ParseImageFitMode(payload.ImageFitMode),
                     DossierLayout = ParseDossierLayout(payload.DossierLayout),
+                    BalancedTextFlowMode = ParseBalancedTextFlowMode(payload.BalancedTextFlowMode),
                     DossierImageCount = Math.Clamp(payload.DossierImageCount, 1, 3),
                     SupportingPhoto1Id = payload.SupportingPhoto1Id is > 0 ? payload.SupportingPhoto1Id : null,
                     SupportingPhoto1FocalX = ClampFocal(payload.SupportingPhoto1FocalX),
@@ -892,6 +967,7 @@ public sealed class IndexModel : PageModel
                     NarrativeSourceOverride = selection.NarrativeSourceOverride,
                     ImageFitMode = selection.ImageFitMode,
                     DossierLayout = selection.DossierLayout,
+                    BalancedTextFlowMode = selection.BalancedTextFlowMode,
                     DossierImageCount = selection.DossierImageCount,
                     SupportingPhoto1Id = selection.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = selection.SupportingPhoto1FocalX,
@@ -953,6 +1029,7 @@ public sealed class IndexModel : PageModel
                 NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString(),
                 ImageFitMode = selection.ImageFitMode.ToString(),
                 DossierLayout = selection.DossierLayout.ToString(),
+                BalancedTextFlowMode = selection.BalancedTextFlowMode.ToString(),
                 DossierImageCount = selection.DossierImageCount,
                 SupportingPhoto1Id = selection.SupportingPhoto1Id,
                 SupportingPhoto1FocalX = selection.SupportingPhoto1FocalX,
@@ -1312,6 +1389,11 @@ public sealed class IndexModel : PageModel
             ? parsed
             : CompendiumDossierLayout.Automatic;
 
+    private static CompendiumBalancedTextFlowMode ParseBalancedTextFlowMode(string? value)
+        => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumBalancedTextFlowMode.FlowBelowImage;
+
     private sealed class CoverSlotKeyComparer : IEqualityComparer<(CompendiumCoverSurface Surface, string SlotKey)>
     {
         public bool Equals((CompendiumCoverSurface Surface, string SlotKey) x, (CompendiumCoverSurface Surface, string SlotKey) y)
@@ -1448,6 +1530,7 @@ public sealed class IndexModel : PageModel
         public string? NarrativeSourceOverride { get; set; }
         public string? ImageFitMode { get; set; }
         public string? DossierLayout { get; set; }
+        public string? BalancedTextFlowMode { get; set; }
         public int DossierImageCount { get; set; } = 1;
         public int? SupportingPhoto1Id { get; set; }
         public double SupportingPhoto1FocalX { get; set; } = .5d;

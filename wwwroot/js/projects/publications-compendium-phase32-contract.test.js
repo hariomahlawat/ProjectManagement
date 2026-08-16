@@ -33,17 +33,17 @@ test('phase 32 makes narrative typography part of the shared composition contrac
   assert.match(dto, /DossierNarrativeFontScale/);
   assert.match(readService, /DossierNarrativeFontScale = paginationDecision\.NarrativeFontScale/);
   assert.match(exportService, /project\.DossierNarrativeFontScale/);
-  assert.match(builder, /narrativeFontScale: project\.DossierNarrativeFontScale/);
+  assert.match(builder, /project\.DossierNarrativeFontScale/);
   assert.match(pageModel, /review\.DossierNarrativeFontScale/);
   assert.match(mainJs, /dossierNarrativeFontScale/);
   assert.match(css, /--narrative-scale/);
 });
 
 test('phase 32 is conservative with technical specification columns and improves readable type', () => {
-  assert.match(pagination, /longest <= 78/);
-  assert.match(pagination, /longest <= 175/);
-  assert.match(mainJs, /longest <= 78/);
-  assert.match(mainJs, /longest <= 175/);
+  assert.match(pagination, /EstimatedLines\(item, 24\) <= 2/);
+  assert.match(pagination, /EstimatedLines\(item, 37\) <= 4/);
+  assert.match(mainJs, /review\.dossierSpecificationColumns/);
+  assert.doesNotMatch(mainJs, /function resolveSpecificationColumns/);
   assert.match(builder, /FontSize\(8\.75f\)/);
   assert.match(builder, /LineHeight\(1\.22f\)/);
   assert.match(css, /compendium-live-page__specifications p[\s\S]*font-size:\s*\.45rem/);
@@ -82,6 +82,6 @@ test('phase 32 gives the cover proof Fit 75 and 100 percent controls with viewpo
 });
 
 test('phase 32 advances review and PDF composition identities', () => {
-  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate)/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17)/);
+  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18)/);
 });

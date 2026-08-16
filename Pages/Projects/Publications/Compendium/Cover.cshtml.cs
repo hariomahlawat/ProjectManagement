@@ -79,6 +79,8 @@ public sealed class CoverModel : PageModel
                 })
                 .ToArray();
 
+            var quartetUsablePhotos = await ResolveUsableCoverPhotosAsync(loaded.Configuration, cancellationToken, 4);
+
             BootstrapJson = JsonSerializer.Serialize(new
             {
                 preset = new
@@ -96,6 +98,9 @@ public sealed class CoverModel : PageModel
                     edition = loaded.Configuration.Edition
                 },
                 coverDesign = ToClientCoverDesign(loaded.Configuration.CoverDesign, loaded.Configuration.Cover),
+                coverPolicy = CompendiumCoverTemplatePolicy.BuildClientContract(),
+                portfolioQuartetEligible = quartetUsablePhotos.Count >= 4,
+                portfolioQuartetUsablePhotoCount = quartetUsablePhotos.Count,
                 photoPreferences = loaded.Configuration.PhotoPreferences,
                 projects,
                 returnUrl = (Url.Page("/Projects/Publications/Compendium/Index", new { presetId = PresetId, resumeCover = 1 })
@@ -142,7 +147,10 @@ public sealed class CoverModel : PageModel
                 CustomSectionKey = project.CustomSectionKey,
                 CustomSectionName = project.CustomSectionName,
                 NarrativeSourceOverride = project.NarrativeSourceOverride,
-                ImageFitMode = project.ImageFitMode
+                ImageFitMode = project.ImageFitMode,
+                DossierLayout = project.DossierLayout,
+                BalancedTextFlowMode = project.BalancedTextFlowMode,
+                DossierImageCount = project.DossierImageCount
             };
 
             var review = await _readService.GetReviewProjectAsync(
@@ -220,6 +228,11 @@ public sealed class CoverModel : PageModel
             var loaded = await _presetService.LoadAsync(presetId, cancellationToken);
             var design = ParseCoverDesign(coverJson, loaded.Configuration.Cover);
             var preferences = ParsePreferences(photoPreferencesJson);
+            if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
+            {
+                var usable = await ResolveUsableCoverPhotosAsync(loaded.Configuration, cancellationToken, int.MaxValue);
+                ValidatePortfolioQuartet(design, usable);
+            }
             var legacyCover = DeriveLegacyCover(design);
 
             var configuration = loaded.Configuration with
@@ -371,9 +384,17 @@ public sealed class CoverModel : PageModel
             };
         }
 
+        var frontTemplate = ParseEnum(payload.FrontTemplate, CompendiumFrontCoverTemplate.InstitutionalHero);
+        if (frontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
+        {
+            images = images.Select(item => item.Surface == CompendiumCoverSurface.Front
+                ? item with { FitMode = CompendiumImageFitMode.Fill }
+                : item).ToArray();
+        }
+
         return new CompendiumCoverDesignConfiguration
         {
-            FrontTemplate = ParseEnum(payload.FrontTemplate, CompendiumFrontCoverTemplate.InstitutionalHero),
+            FrontTemplate = frontTemplate,
             BackTemplate = ParseEnum(payload.BackTemplate, CompendiumBackCoverTemplate.MinimalInstitutional),
             FrontTitle = Clean(payload.FrontTitle, 120),
             FrontSubtitle = Clean(payload.FrontSubtitle, 160),
@@ -443,6 +464,60 @@ public sealed class CoverModel : PageModel
                 hero.PhotoId,
                 hero.FocalX,
                 hero.FocalY);
+    }
+
+    private async Task<HashSet<(int ProjectId, int PhotoId)>> ResolveUsableCoverPhotosAsync(
+        CompendiumPresetConfiguration configuration,
+        CancellationToken cancellationToken,
+        int maximumCount)
+    {
+        var result = new HashSet<(int ProjectId, int PhotoId)>();
+        maximumCount = Math.Max(1, maximumCount);
+        foreach (var project in configuration.Projects)
+        {
+            if (result.Count >= maximumCount) break;
+            var selection = new CompendiumProjectSelection(
+                project.ProjectId, project.PrimaryPhotoId, project.PrimaryFocalX, project.PrimaryFocalY, project.ImageSelectionMode)
+            {
+                NarrativeSourceOverride = project.NarrativeSourceOverride,
+                ImageFitMode = project.ImageFitMode,
+                DossierLayout = project.DossierLayout,
+                BalancedTextFlowMode = project.BalancedTextFlowMode,
+                DossierImageCount = project.DossierImageCount
+            };
+            var review = await _readService.GetReviewProjectAsync(
+                selection, project.NarrativeSourceOverride ?? configuration.NarrativeSource, cancellationToken);
+            if (review is null) continue;
+            foreach (var photo in review.Photos.Where(photo => photo.IsUsable))
+            {
+                result.Add((project.ProjectId, photo.PhotoId));
+                if (result.Count >= maximumCount) break;
+            }
+        }
+        return result;
+    }
+
+    private static void ValidatePortfolioQuartet(
+        CompendiumCoverDesignConfiguration design,
+        IReadOnlySet<(int ProjectId, int PhotoId)> usable)
+    {
+        var required = CompendiumCoverTemplatePolicy.RequiredSlotKeys(
+            CompendiumCoverSurface.Front, design.FrontTemplate, design.BackTemplate);
+        var slots = design.Images.Where(item => item.Surface == CompendiumCoverSurface.Front)
+            .ToDictionary(item => item.SlotKey, StringComparer.OrdinalIgnoreCase);
+        var explicitPhotos = new HashSet<(int ProjectId, int PhotoId)>();
+        foreach (var key in required)
+        {
+            if (!slots.TryGetValue(key, out var slot) || slot.ImageMode == CompendiumCoverImageMode.None)
+                throw new InvalidOperationException("Portfolio Quartet requires all four image slots to remain active.");
+            if (slot.ImageMode != CompendiumCoverImageMode.Explicit) continue;
+            if (slot.ProjectId is not int projectId || slot.PhotoId is not int photoId || !usable.Contains((projectId, photoId)))
+                throw new InvalidOperationException($"Portfolio Quartet image '{key}' is no longer usable. Choose another photograph.");
+            if (!explicitPhotos.Add((projectId, photoId)))
+                throw new InvalidOperationException("Portfolio Quartet cannot repeat the same photograph in more than one slot.");
+        }
+        if (usable.Count < 4)
+            throw new InvalidOperationException("Portfolio Quartet requires at least four distinct usable photographs before it can be saved.");
     }
 
     private string ActorUserId()

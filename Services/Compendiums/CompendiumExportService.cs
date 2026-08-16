@@ -102,7 +102,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     {
                         FitMode = image.FitMode == CompendiumImageFitMode.Fit
                             ? BrochurePhotoFitMode.Fit
-                            : BrochurePhotoFitMode.Fill
+                            : BrochurePhotoFitMode.Fill,
+                        PadFitToTarget = false
                     };
                 }))
             .GroupBy(request => request.PhotoId)
@@ -172,6 +173,10 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     DossierNarrativeFontScale = project.DossierNarrativeFontScale,
                     DossierFirstPageNarrativeBudget = project.DossierFirstPageNarrativeBudget,
                     DossierFirstPageSpecificationCount = project.DossierFirstPageSpecificationCount,
+                    DossierSpecificationColumns = project.DossierSpecificationColumns,
+                    DossierProgrammeColumns = project.DossierProgrammeColumns,
+                    BalancedTextFlowMode = project.BalancedTextFlowMode,
+                    NarrativeFlow = project.NarrativeFlow,
                     EstimatedDossierPageCount = project.EstimatedDossierPageCount,
                     DossierPaginationNote = project.DossierPaginationNote,
                     DossierPaginationReason = project.DossierPaginationReason,
@@ -244,11 +249,23 @@ public sealed class CompendiumExportService : ICompendiumExportService
             .GroupBy(item => (item.ProjectId, item.PhotoId))
             .Select(group => group.Last())
             .ToArray();
-        var requiredSlots = RequiredCoverSlots(configured.FrontTemplate, configured.BackTemplate);
+        var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(configured.FrontTemplate, configured.BackTemplate);
+        var strictQuartet = configured.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet;
         var configuredBySlot = configured.Images
             .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
             .ToDictionary(group => group.Key, group => group.First());
         var candidates = BuildAutomaticCoverCandidates(projects, preferences);
+        if (strictQuartet && candidates.Count > 0)
+        {
+            var probes = await _photoService.ProbeAsync(
+                candidates.Select(item => new BrochurePhotoReference(item.ProjectId, item.PhotoId)).Distinct().ToArray(),
+                cancellationToken);
+            candidates = candidates
+                .Where(item => probes.TryGetValue(item.PhotoId, out var probe)
+                               && probe.ProjectId == item.ProjectId
+                               && probe.IsReady)
+                .ToArray();
+        }
         var used = new HashSet<(int ProjectId, int PhotoId)>();
         var usedProjects = new HashSet<int>();
         var rendered = new List<CompendiumPdfCoverImage>();
@@ -266,9 +283,12 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 .5d,
                 CompendiumImageFitMode.Fill);
 
+            var effectiveFitMode = CompendiumCoverTemplatePolicy.NormalizeFitMode(required.Surface, configured.FrontTemplate, slot.FitMode);
             if (slot.ImageMode == CompendiumCoverImageMode.None)
             {
-                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, slot.FitMode));
+                if (strictQuartet && required.Surface == CompendiumCoverSurface.Front)
+                    throw new InvalidOperationException("Portfolio Quartet requires four valid photographs; image slots cannot be disabled.");
+                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
                 continue;
             }
 
@@ -284,23 +304,27 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 }
 
                 candidate = new CoverCandidate(explicitProject, explicitPhoto, slot.FocalX, slot.FocalY, 1000);
+                if (strictQuartet && used.Contains((explicitProject, explicitPhoto)))
+                    throw new InvalidOperationException("Portfolio Quartet requires four different photographs; the same photograph is assigned to more than one slot.");
             }
             else
             {
                 candidate = candidates.FirstOrDefault(item =>
                                 !used.Contains((item.ProjectId, item.PhotoId))
                                 && !usedProjects.Contains(item.ProjectId))
-                            ?? candidates.FirstOrDefault(item => !used.Contains((item.ProjectId, item.PhotoId)))
-                            ?? candidates.FirstOrDefault();
+                            ?? candidates.FirstOrDefault(item => !used.Contains((item.ProjectId, item.PhotoId)));
+                if (!strictQuartet) candidate ??= candidates.FirstOrDefault();
             }
 
             if (candidate is null)
             {
-                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, slot.FitMode));
+                if (strictQuartet && required.Surface == CompendiumCoverSurface.Front)
+                    throw new InvalidOperationException("Portfolio Quartet requires four distinct usable photographs, but fewer than four can currently be resolved.");
+                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
                 continue;
             }
 
-            var geometry = ResolveCoverSlotGeometry(configured.FrontTemplate, configured.BackTemplate, required.Surface, required.SlotKey);
+            var geometry = CompendiumCoverTemplatePolicy.ResolveGeometry(configured.FrontTemplate, configured.BackTemplate, required.Surface, required.SlotKey);
             try
             {
                 var image = await _photoService.RenderAsync(
@@ -312,7 +336,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
                         geometry.Width,
                         geometry.Height)
                     {
-                        FitMode = slot.FitMode == CompendiumImageFitMode.Fit ? BrochurePhotoFitMode.Fit : BrochurePhotoFitMode.Fill
+                        FitMode = effectiveFitMode == CompendiumImageFitMode.Fit ? BrochurePhotoFitMode.Fit : BrochurePhotoFitMode.Fill,
+                        PadFitToTarget = false
                     },
                     cancellationToken);
                 if (slot.ImageMode == CompendiumCoverImageMode.Explicit
@@ -326,7 +351,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     required.Surface,
                     required.SlotKey,
                     image?.Content,
-                    slot.FitMode,
+                    effectiveFitMode,
                     candidate.ProjectId,
                     candidate.PhotoId));
                 if (image?.Content is { Length: > 0 })
@@ -344,8 +369,19 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 _logger.LogWarning(exception,
                     "Compendium cover image could not be rendered. Surface={Surface}, Slot={Slot}, ProjectId={ProjectId}, PhotoId={PhotoId}.",
                     required.Surface, required.SlotKey, candidate.ProjectId, candidate.PhotoId);
-                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, slot.FitMode));
+                if (strictQuartet && required.Surface == CompendiumCoverSurface.Front)
+                    throw new InvalidOperationException($"Portfolio Quartet image '{required.SlotKey}' could not be rendered. Choose another photograph.");
+                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
             }
+        }
+
+        if (strictQuartet)
+        {
+            var quartet = rendered.Where(image => image.Surface == CompendiumCoverSurface.Front).ToArray();
+            if (quartet.Length < 4 || quartet.Any(image => image.Content is not { Length: > 0 })
+                || quartet.Where(image => image.ProjectId.HasValue && image.PhotoId.HasValue)
+                    .Select(image => (image.ProjectId!.Value, image.PhotoId!.Value)).Distinct().Count() < 4)
+                throw new InvalidOperationException("Portfolio Quartet requires four distinct, resolvable photographs before final issue.");
         }
 
         return new CompendiumPdfCoverDesign(configured.FrontTemplate, configured.BackTemplate, rendered)
@@ -389,31 +425,6 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     request.CoverFocalY,
                     CompendiumImageFitMode.Fill)
             });
-
-    private static IReadOnlyList<(CompendiumCoverSurface Surface, string SlotKey)> RequiredCoverSlots(
-        CompendiumFrontCoverTemplate front,
-        CompendiumBackCoverTemplate back)
-    {
-        var result = new List<(CompendiumCoverSurface, string)>();
-        if (front is not CompendiumFrontCoverTemplate.Minimal)
-        {
-            result.Add((CompendiumCoverSurface.Front, "Hero"));
-            if (front is CompendiumFrontCoverTemplate.EditorialSplit or CompendiumFrontCoverTemplate.Triptych)
-                result.Add((CompendiumCoverSurface.Front, "Secondary1"));
-            if (front is CompendiumFrontCoverTemplate.Triptych)
-                result.Add((CompendiumCoverSurface.Front, "Secondary2"));
-        }
-        if (back is CompendiumBackCoverTemplate.ImageEcho or CompendiumBackCoverTemplate.PortfolioStrip)
-        {
-            result.Add((CompendiumCoverSurface.Back, "Hero"));
-            if (back is CompendiumBackCoverTemplate.PortfolioStrip)
-            {
-                result.Add((CompendiumCoverSurface.Back, "Secondary1"));
-                result.Add((CompendiumCoverSurface.Back, "Secondary2"));
-            }
-        }
-        return result;
-    }
 
     private static IReadOnlyList<CoverCandidate> BuildAutomaticCoverCandidates(
         IReadOnlyList<CompendiumProjectDto> projects,
@@ -494,31 +505,6 @@ public sealed class CompendiumExportService : ICompendiumExportService
         }
 
         return (1800, HeightFor(1800, CompendiumLayoutMetrics.ContentWidthPoints, primaryImageHeightPoints));
-    }
-
-    private static (int Width, int Height) ResolveCoverSlotGeometry(
-        CompendiumFrontCoverTemplate front,
-        CompendiumBackCoverTemplate back,
-        CompendiumCoverSurface surface,
-        string slot)
-    {
-        if (surface == CompendiumCoverSurface.Front)
-        {
-            return front switch
-            {
-                CompendiumFrontCoverTemplate.FullBleedHero => (1800, 2546),
-                CompendiumFrontCoverTemplate.EditorialSplit when string.Equals(slot, "Hero", StringComparison.OrdinalIgnoreCase) => (1400, 1700),
-                CompendiumFrontCoverTemplate.EditorialSplit => (700, 1700),
-                CompendiumFrontCoverTemplate.Triptych => (700, 1500),
-                _ => (CompendiumCoverImagePolicy.RenderWidthPixels, CompendiumCoverImagePolicy.RenderHeightPixels)
-            };
-        }
-        return back switch
-        {
-            CompendiumBackCoverTemplate.ImageEcho => (1800, 1800),
-            CompendiumBackCoverTemplate.PortfolioStrip => (700, 1100),
-            _ => (CompendiumCoverImagePolicy.RenderWidthPixels, CompendiumCoverImagePolicy.RenderHeightPixels)
-        };
     }
 
     private sealed record CoverCandidate(int ProjectId, int PhotoId, double FocalX, double FocalY, int Priority);

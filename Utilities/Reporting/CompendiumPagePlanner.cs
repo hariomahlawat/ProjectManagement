@@ -89,14 +89,28 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                     0,
                     cleanSpecifications.Length);
                 var firstSpecs = cleanSpecifications.Take(firstSpecificationCount).ToArray();
-                var chunks = CompendiumMarkdownChunker.Split(
-                    project.DescriptionMarkdown,
-                    Math.Max(760, project.DossierFirstPageNarrativeBudget),
-                    CompendiumLayoutMetrics.ContinuationDescriptionBudget);
+                var flow = project.NarrativeFlow;
+                if (string.IsNullOrWhiteSpace(flow.SideSegment)
+                    && string.IsNullOrWhiteSpace(flow.BelowImageSegment)
+                    && flow.ContinuationSegments.Count == 0
+                    && !string.IsNullOrWhiteSpace(project.DescriptionMarkdown))
+                {
+                    flow = CompendiumDossierNarrativeFlowPlanner.Resolve(
+                        project.DescriptionMarkdown,
+                        project.BalancedTextFlowMode,
+                        project.DossierLayout,
+                        hasPhoto,
+                        project.DossierPrimaryImageHeightPoints,
+                        project.DossierNarrativeFontScale,
+                        project.DossierFirstPageNarrativeBudget);
+                }
+                var firstNarrative = string.Join("\n\n", new[] { flow.SideSegment, flow.BelowImageSegment }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+                var chunks = new[] { firstNarrative }.Concat(flow.ContinuationSegments).ToArray();
 
                 var remainingSpecChunks = SplitTechnicalSpecifications(cleanSpecifications.Skip(firstSpecificationCount).ToArray()).ToList();
                 IReadOnlyList<string> attachedContinuationSpecifications = Array.Empty<string>();
-                if (chunks.Count > 1
+                if (chunks.Length > 1
                     && remainingSpecChunks.Count > 0
                     && chunks[^1].Length <= 1800
                     && remainingSpecChunks[0].Sum(item => item.Length) <= 1200)
@@ -105,11 +119,11 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                     remainingSpecChunks.RemoveAt(0);
                 }
 
-                for (var index = 0; index < chunks.Count; index++)
+                for (var index = 0; index < chunks.Length; index++)
                 {
                     var continuationSpecifications = index == 0
                         ? firstSpecs
-                        : index == chunks.Count - 1
+                        : index == chunks.Length - 1
                             ? attachedContinuationSpecifications
                             : Array.Empty<string>();
                     projectSeeds.Add(new ProjectPageSeed(
@@ -124,7 +138,7 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         false));
                 }
 
-                var continuationIndex = chunks.Count;
+                var continuationIndex = chunks.Length;
                 foreach (var specChunk in remainingSpecChunks)
                 {
                     projectSeeds.Add(new ProjectPageSeed(

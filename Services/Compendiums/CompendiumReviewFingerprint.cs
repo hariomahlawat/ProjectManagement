@@ -26,6 +26,7 @@ public sealed record CompendiumReviewFingerprintInput(
     public string? PublicationSectionName { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
@@ -34,7 +35,7 @@ public sealed record CompendiumReviewFingerprintInput(
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v10-sponsoring-line-directorate";
+    private const string ContractVersion = "compendium-review-v11-balanced-text-flow";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
@@ -62,6 +63,7 @@ public static class CompendiumReviewFingerprint
             Clamp(input.FocalX).ToString("0.0000", CultureInfo.InvariantCulture),
             Clamp(input.FocalY).ToString("0.0000", CultureInfo.InvariantCulture),
             input.DossierLayout.ToString(),
+            input.BalancedTextFlowMode.ToString(),
             CanonicalDossierImages(input.DossierImages),
             CanonicalList(input.TechnicalSpecifications),
             CanonicalIpr(input.IprCredentials),

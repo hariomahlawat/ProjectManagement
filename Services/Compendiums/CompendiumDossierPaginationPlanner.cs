@@ -38,7 +38,8 @@ public static class CompendiumDossierPaginationPlanner
         string? narrative,
         IReadOnlyList<string>? technicalSpecifications,
         int programmeModuleCount,
-        string? projectName)
+        string? projectName,
+        int? primaryImageEffectiveDpi = null)
     {
         availablePhotoCount = Math.Clamp(availablePhotoCount, 0, 3);
         var cleanNarrative = CleanText(narrative);
@@ -57,7 +58,7 @@ public static class CompendiumDossierPaginationPlanner
 
         foreach (var layout in layouts)
         {
-            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount))
+            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi))
             {
                 foreach (var narrativeScale in CandidateNarrativeScales(cleanNarrative))
                 {
@@ -139,7 +140,7 @@ public static class CompendiumDossierPaginationPlanner
         // use its most compact image treatment and normal narrative scale, keep the narrative together
         // where possible, then move technical specifications before splitting narrative into a tiny orphan page.
         var fallbackLayout = layouts[0];
-        var compactHeight = CandidateImageHeights(fallbackLayout, availablePhotoCount).Last();
+        var compactHeight = CandidateImageHeights(fallbackLayout, availablePhotoCount, primaryImageEffectiveDpi).Last();
         var withoutSpecs = Evaluate(
             fallbackLayout,
             compactHeight,
@@ -215,23 +216,17 @@ public static class CompendiumDossierPaginationPlanner
             .ToArray();
         if (items.Length == 0) return 1;
 
-        var total = items.Sum(item => item.Length);
-        var longest = items.Max(item => item.Length);
+        // Three columns are only safe when every requirement remains a compact two-line item.
+        // The estimate intentionally uses the narrow three-column measure rather than aggregate length.
+        static int EstimatedLines(string value, int charactersPerLine)
+            => Math.Max(1, (int)Math.Ceiling((double)CleanText(value).Length / charactersPerLine));
 
-        // Three columns are deliberately reserved for short specification fragments. A single
-        // descriptive requirement should never be squeezed merely because the total set is small.
-        if (items.Length >= 4 && total <= 300 && longest <= 78)
-        {
+        if (items.Length >= 3 && items.All(item => EstimatedLines(item, 24) <= 2))
             return 3;
-        }
-        if (items.Length >= 3 && total <= 760 && longest <= 175)
-        {
+
+        if (items.Length >= 2 && items.All(item => EstimatedLines(item, 37) <= 4))
             return 2;
-        }
-        if (items.Length == 2 && total <= 280 && longest <= 145)
-        {
-            return 2;
-        }
+
         return 1;
     }
 
@@ -348,8 +343,8 @@ public static class CompendiumDossierPaginationPlanner
         // A small editorial reserve is healthy. Large unexplained blank areas and near-zero reserve
         // are both penalised, which turns "fits" into an actual composition-quality decision.
         score -= Math.Abs(residual - idealResidual) * 1.08f;
-        if (residual > 175f) score -= (residual - 175f) * .92f;
-        if (residual < 18f) score -= (18f - residual) * 2.4f;
+        if (residual > 80f) score -= (residual - 80f) * 1.18f;
+        if (residual < 45f) score -= (45f - residual) * 3.1f;
 
         if (candidate.Layout == initiallyResolved) score += explicitLayout ? 120f : 44f;
         else if (!explicitLayout) score -= 5f;
@@ -384,7 +379,7 @@ public static class CompendiumDossierPaginationPlanner
     }
 
     private static float ResolveIdealResidualSpace(int specificationCount, int programmeModuleCount)
-        => specificationCount > 0 ? 48f : programmeModuleCount > 0 ? 62f : 76f;
+        => specificationCount > 0 ? 54f : programmeModuleCount > 0 ? 64f : 72f;
 
     private static IReadOnlyList<CompendiumDossierLayout> BuildCandidateLayouts(
         CompendiumDossierLayout initiallyResolved,
@@ -412,16 +407,25 @@ public static class CompendiumDossierPaginationPlanner
 
     private static IReadOnlyList<float> CandidateImageHeights(
         CompendiumDossierLayout layout,
-        int availablePhotoCount)
+        int availablePhotoCount,
+        int? primaryImageEffectiveDpi)
     {
         if (availablePhotoCount <= 0) return new[] { 0f };
-        return layout switch
+        IReadOnlyList<float> values = layout switch
         {
             CompendiumDossierLayout.VisualHero => new[] { 315f, 285f, 255f, 230f, 205f, 185f },
             CompendiumDossierLayout.MultiImageEditorial => new[] { 275f, 260f, 245f, 220f, 200f, 185f },
             CompendiumDossierLayout.Technical => new[] { 175f, 160f, 145f, 125f, 105f },
             _ => new[] { 270f, 255f, 246f, 225f, 205f, 185f }
         };
+
+        if (primaryImageEffectiveDpi is not > 0) return values;
+        const int acceptedPrintDpi = 150;
+        var preferred = PreferredImageHeight(layout, availablePhotoCount);
+        var growth = Math.Max(1d, primaryImageEffectiveDpi.Value / (double)acceptedPrintDpi);
+        var safeMaximum = preferred * (float)growth;
+        var filtered = values.Where(value => value <= safeMaximum + .1f).ToArray();
+        return filtered.Length > 0 ? filtered : new[] { values[^1] };
     }
 
     private static IReadOnlyList<float> CandidateNarrativeScales(string narrative)

@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 7;
+    private const int CurrentSchemaVersion = 8;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -259,6 +259,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 NarrativeSourceOverride = ParseNullableNarrativeSource(item.NarrativeSourceOverride),
                 ImageFitMode = ParseImageFitMode(item.ImageFitMode),
                 DossierLayout = ParseDossierLayout(item.DossierLayout),
+                BalancedTextFlowMode = preset.SettingsSchemaVersion < 8
+                    ? CompendiumBalancedTextFlowMode.SideColumn
+                    : ParseBalancedTextFlowMode(item.BalancedTextFlowMode, CompendiumBalancedTextFlowMode.SideColumn),
                 DossierImageCount = Math.Clamp(item.DossierImageCount, 1, 3),
                 SupportingPhoto1Id = item.SupportingPhoto1Id is > 0 && availablePhotoIds.Contains(item.SupportingPhoto1Id.Value) ? item.SupportingPhoto1Id : null,
                 SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX),
@@ -651,6 +654,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     ImageSelectionMode = item.ImageSelectionMode,
                     ImageFitMode = item.ImageFitMode,
                     DossierLayout = item.DossierLayout,
+                    BalancedTextFlowMode = item.BalancedTextFlowMode,
                     DossierImageCount = item.DossierImageCount,
                     SupportingPhoto1Id = item.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = item.SupportingPhoto1FocalX,
@@ -984,6 +988,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     ImageSelectionMode = project.ImageSelectionMode.ToString(),
                     ImageFitMode = project.ImageFitMode.ToString(),
                     DossierLayout = project.DossierLayout.ToString(),
+                    BalancedTextFlowMode = project.BalancedTextFlowMode.ToString(),
                     DossierImageCount = project.DossierImageCount,
                     SupportingPhoto1Id = project.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = project.SupportingPhoto1FocalX,
@@ -1074,6 +1079,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             ImageSelectionMode = mode,
             ImageFitMode = Enum.IsDefined(project.ImageFitMode) ? project.ImageFitMode : CompendiumImageFitMode.Fill,
             DossierLayout = Enum.IsDefined(project.DossierLayout) ? project.DossierLayout : CompendiumDossierLayout.Automatic,
+            BalancedTextFlowMode = Enum.IsDefined(project.BalancedTextFlowMode)
+                ? project.BalancedTextFlowMode
+                : CompendiumBalancedTextFlowMode.FlowBelowImage,
             DossierImageCount = Math.Clamp(project.DossierImageCount, 1, 3),
             SupportingPhoto1Id = project.SupportingPhoto1Id is > 0 ? project.SupportingPhoto1Id : null,
             SupportingPhoto1FocalX = ClampFocal(project.SupportingPhoto1FocalX),
@@ -1464,6 +1472,13 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumDossierLayout.Automatic;
+
+    private static CompendiumBalancedTextFlowMode ParseBalancedTextFlowMode(
+        string? value,
+        CompendiumBalancedTextFlowMode fallback)
+        => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : fallback;
 
     private static CompendiumFrontCoverTemplate ParseFrontTemplate(string? value)
         => Enum.TryParse<CompendiumFrontCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)

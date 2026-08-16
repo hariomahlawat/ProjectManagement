@@ -25,7 +25,7 @@ const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
 
 // Phase 30 intentionally replaces the former one-hero cover contract with a controlled composer.
 test('phase 30 persists first class front/back cover composition through schema v6', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*[67]/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*[678]/);
   assert.match(model, /ICollection<CompendiumPresetCoverImage>\s+CoverImages/);
   assert.match(model, /ICollection<CompendiumPresetPhotoPreference>\s+PhotoPreferences/);
   assert.match(model, /FrontCoverTemplate/);
@@ -69,14 +69,14 @@ test('phase 30 makes cover identity publication-controlled rather than renderer 
 test('phase 30 supports single and multi image covers with independent fit and crop', () => {
   assert.match(dto, /CompendiumFrontCoverTemplate[\s\S]*EditorialSplit[\s\S]*Triptych/);
   assert.match(dto, /CompendiumImageFitMode[\s\S]*Fill[\s\S]*Fit/);
-  assert.match(coverJs, /Secondary1/);
-  assert.match(coverJs, /Secondary2/);
+  assert.match(coverJs, /templateSlots/);
+  assert.match(exportService, /CompendiumCoverTemplatePolicy\.ResolveGeometry/);
   assert.match(coverJs, /data-cover-fit/);
   assert.match(coverJs, /focalX/);
   assert.match(coverJs, /focalY/);
   assert.match(photoService, /BrochurePhotoFitMode\.Fit/);
   assert.match(photoService, /DrawImage/);
-  assert.match(exportService, /ResolveCoverSlotGeometry/);
+  assert.match(exportService, /CompendiumCoverTemplatePolicy\.ResolveGeometry/);
 });
 
 test('phase 30 gives project dossier imagery fit/fill parity across review and PDF', () => {

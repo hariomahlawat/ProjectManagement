@@ -5229,3 +5229,33 @@ body.compendium-structure-editor-mode {
 @media (min-width:1200px) {
     .compendium-builder-page.has-output-dock:not(.is-review-focus) .compendium-builder-rail { padding-bottom:5.5rem; }
 }
+
+/* Phase 36 — final composition and image fidelity */
+.cover-template-mini--quartet{display:grid!important;grid-template-columns:2fr 1fr;gap:2px;padding:3px!important}
+.cover-template-mini--quartet>i{display:block;min-height:32px!important;background:linear-gradient(145deg,#65857a,#b7c4bf)}
+.cover-template-mini--quartet>span{display:grid;grid-template-rows:repeat(3,1fr);gap:2px}
+.cover-template-mini--quartet>span>i{display:block;min-height:0!important;background:linear-gradient(145deg,#77958b,#c0cbc7)}
+.cover-proof-quartet{display:grid;grid-template-columns:2fr 1fr;gap:4px;margin-top:auto;height:488px;background:#102a23}
+.cover-proof-quartet__hero{height:488px!important;min-height:0}
+.cover-proof-quartet__stack{display:grid;grid-template-rows:repeat(3,1fr);gap:4px;min-height:0}
+.cover-proof-quartet__stack .cover-proof-image{height:auto!important;min-height:0}
+.cover-proof-split.is-single{grid-template-columns:1fr!important}
+.cover-proof-split.is-single .cover-proof-image{grid-column:1/-1!important}
+.cover-proof-triptych.is-1{grid-template-columns:1fr!important}
+.cover-proof-triptych.is-2{grid-template-columns:repeat(2,1fr)!important}
+.cover-proof-triptych.is-1 .cover-proof-image,.cover-proof-triptych.is-2 .cover-proof-image{height:431px}
+.compendium-cover-template-list button:disabled{cursor:not-allowed;opacity:.48}
+
+.compendium-live-page__image.is-fit{border-color:transparent!important;background:transparent!important;box-shadow:none!important}
+.compendium-live-page__image.is-fit:after{display:none!important}
+.compendium-live-page__image.is-fit img{background:transparent!important}
+.compendium-review-image-frame.is-fit{border-color:transparent!important;background:transparent!important;box-shadow:none!important}
+.compendium-review-image-frame.is-fit img{background:transparent!important}
+.compendium-live-page__below-flow{grid-column:1/-1;margin-top:.1rem}
+.compendium-live-page__below-flow[hidden]{display:none!important}
+.compendium-live-page__below-flow{color:#475569;font-size:calc(.49rem * var(--narrative-scale,1));line-height:1.38;white-space:pre-line}
+.compendium-text-flow-control{display:grid;grid-template-columns:auto auto;align-items:center;gap:.32rem .75rem;padding:.55rem .65rem;border:1px solid #d8e5df;border-radius:.65rem;background:#f8fbfa}
+.compendium-text-flow-control[hidden]{display:none!important}
+.compendium-text-flow-control>span{font-size:.68rem;font-weight:750;color:#17382f}
+.compendium-text-flow-control>small{grid-column:1/-1;font-size:.57rem;line-height:1.35;color:#64748b}
+.compendium-text-flow-control .btn-group{justify-self:end;flex:0 0 auto}

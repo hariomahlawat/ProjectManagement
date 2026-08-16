@@ -51,6 +51,7 @@
     const normalizeGrouping = value => ({ technicalcategory: "TechnicalCategory", none: "None", customsections: "CustomSections" }[normalize(value)] || "TechnicalCategory");
     const normalizeSort = value => ({ manual: "Manual", latestfirst: "LatestFirst", alphabetical: "Alphabetical" }[normalize(value)] || "Manual");
     const normalizeDossierLayout = value => ({ automatic: "Automatic", visualhero: "VisualHero", balanced: "Balanced", multiimageeditorial: "MultiImageEditorial", technical: "Technical" }[normalize(value)] || "Automatic");
+    const normalizeBalancedTextFlowMode = value => normalize(value) === "sidecolumn" ? "SideColumn" : "FlowBelowImage";
     const editorialState = {
         narrativeSource: normalizeNarrative(narrativeInput?.value),
         groupingMode: normalizeGrouping(groupingInput?.value),
@@ -158,6 +159,7 @@
                 narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null,
                 imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill",
                 dossierLayout: normalizeDossierLayout(item.dossierLayout),
+                balancedTextFlowMode: normalizeBalancedTextFlowMode(item.balancedTextFlowMode),
                 dossierImageCount: Math.max(1, Math.min(3, Number(item.dossierImageCount || 1))),
                 supportingPhoto1Id: Number(item.supportingPhoto1Id || 0) || null,
                 supportingPhoto1FocalX: roundFocal(item.supportingPhoto1FocalX),
@@ -185,6 +187,7 @@
                 narrativeSourceOverride: null,
                 imageFitMode: "fill",
                 dossierLayout: "Automatic",
+                balancedTextFlowMode: "FlowBelowImage",
                 dossierImageCount: 1,
                 supportingPhoto1Id: null, supportingPhoto1FocalX: .5, supportingPhoto1FocalY: .5, supportingPhoto1FitMode: "fill",
                 supportingPhoto2Id: null, supportingPhoto2FocalX: .5, supportingPhoto2FocalY: .5, supportingPhoto2FitMode: "fill"
@@ -307,6 +310,8 @@
     const reviewUseCover = $("[data-review-use-cover]");
     const reviewImageFitButtons = [...form.querySelectorAll("[data-review-image-fit]")];
     const reviewLayoutButtons = [...form.querySelectorAll("[data-review-layout]")];
+    const reviewTextFlowControl = $("[data-review-text-flow]");
+    const reviewTextFlowButtons = [...form.querySelectorAll("[data-review-text-flow-mode]")];
     const reviewImageCountButtons = [...form.querySelectorAll("[data-review-image-count]")];
     const reviewManagePageImages = $("[data-review-manage-page-images]");
     const reviewPhotoUsageSummary = $("[data-review-photo-usage-summary]");
@@ -332,6 +337,7 @@
     const livePageImageCategory = $("[data-live-page-image-category]");
     const livePageNarrativeLabel = $("[data-live-page-narrative-label]");
     const livePageNarrative = $("[data-live-page-narrative]");
+    const livePageBelowFlow = $("[data-live-page-below-flow]");
     const livePageContinuation = $("[data-live-page-continuation]");
     const livePageSpecifications = $("[data-live-page-specifications]");
     const livePageSpecificationList = $("[data-live-page-specification-list]");
@@ -453,6 +459,7 @@
             narrativeSourceOverride: config.narrativeSourceOverride || null,
             imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
             dossierLayout: normalizeDossierLayout(config.dossierLayout),
+            balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
             dossierImageCount: Math.max(1, Math.min(3, Number(config.dossierImageCount || 1))),
             supportingPhoto1Id: config.supportingPhoto1Id || null,
             supportingPhoto1FocalX: roundFocal(config.supportingPhoto1FocalX),
@@ -546,6 +553,7 @@
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
                 imageFitMode: config.imageFitMode || "fill",
                 dossierLayout: config.dossierLayout || "Automatic",
+                balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
                 dossierImageCount: config.dossierImageCount || 1,
                 supportingPhoto1Id: config.supportingPhoto1Id || null,
                 supportingPhoto1FocalX: roundFocal(config.supportingPhoto1FocalX), supportingPhoto1FocalY: roundFocal(config.supportingPhoto1FocalY), supportingPhoto1FitMode: config.supportingPhoto1FitMode || "fill",
@@ -618,6 +626,7 @@
             config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
             config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
             config.dossierLayout = normalizeDossierLayout(incoming.dossierLayout);
+            config.balancedTextFlowMode = normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode);
             config.dossierImageCount = Math.max(1, Math.min(3, Number(incoming.dossierImageCount || 1)));
             config.supportingPhoto1Id = Number(incoming.supportingPhoto1Id || 0) || null;
             config.supportingPhoto1FocalX = roundFocal(incoming.supportingPhoto1FocalX); config.supportingPhoto1FocalY = roundFocal(incoming.supportingPhoto1FocalY); config.supportingPhoto1FitMode = normalize(incoming.supportingPhoto1FitMode) === "fit" ? "fit" : "fill";
@@ -995,18 +1004,6 @@
         .replace(/\s+/g, " ")
         .trim();
 
-    const resolveSpecificationColumns = specifications => {
-        const items = (Array.isArray(specifications) ? specifications : []).map(item => String(item || "").trim()).filter(Boolean).slice(0,6);
-        if (!items.length) return 1;
-        const total = items.reduce((sum,item) => sum + item.length, 0);
-        const longest = Math.max(...items.map(item => item.length));
-        if (items.length >= 4 && total <= 300 && longest <= 78) return 3;
-        if (items.length >= 3 && total <= 760 && longest <= 175) return 2;
-        if (items.length === 2 && total <= 280 && longest <= 145) return 2;
-        return 1;
-    };
-
-    const resolveProgrammeColumns = count => count <= 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 2;
     const isCompactSingleProgrammeModule = module => {
         const value = String(module?.value || "").trim();
         return value.length <= 48 && !value.includes("\n");
@@ -1038,7 +1035,7 @@
 
         const programme = programmeModules(review);
         if (livePageFacts) {
-            const programmeColumns = resolveProgrammeColumns(programme.length);
+            const programmeColumns = Math.max(1, Math.min(3, Number(review.dossierProgrammeColumns || 1)));
             livePageFacts.style.setProperty("--programme-columns", String(programmeColumns));
             livePageFacts.dataset.programmeColumns = String(programmeColumns);
             livePageFacts.dataset.programmeCount = String(programme.length);
@@ -1077,6 +1074,8 @@
             element.hidden = false;
         };
         const primarySlot = resolvedImages.find(item => normalize(item.role) === "primary");
+        const primaryFit = normalize(primarySlot?.fitMode || config.imageFitMode) === "fit";
+        livePageImageFrame?.classList.toggle("is-fit", primaryFit);
         applyPreviewImage(livePageImage, primaryPhoto, primarySlot);
         livePageSupportImages.forEach((element,index) => {
             const role = index === 0 ? "Supporting1" : "Supporting2";
@@ -1086,23 +1085,32 @@
         if (!primaryPhoto && livePageImageCategory) livePageImageCategory.textContent = (review.technicalCategoryName || sectionName).toUpperCase();
 
         if (livePageNarrativeLabel) livePageNarrativeLabel.textContent = String(review.narrativeLabel || "Project Brief").toUpperCase();
+        const flow = review.narrativeFlow || {};
+        const flowMode = normalizeBalancedTextFlowMode(flow.mode || review.balancedTextFlowMode || config.balancedTextFlowMode);
+        const flowBelow = effectiveLayout === "Balanced" && flowMode === "FlowBelowImage";
+        const sidePlain = narrativePlainText(flow.sideSegment || (!flowBelow ? review.descriptionMarkdown : ""));
+        const belowPlain = flowBelow ? narrativePlainText(flow.belowImageSegment) : "";
         if (livePageNarrative) {
-            const plain = narrativePlainText(review.descriptionMarkdown);
-            livePageNarrative.textContent = plain || `${review.narrativeLabel || "Project Brief"} not recorded.`;
-            livePageNarrative.classList.toggle("is-missing", !plain);
-            livePageNarrative.classList.toggle("has-continuation", Number(review.estimatedDossierPageCount || 1) > 1);
+            livePageNarrative.textContent = sidePlain || (!belowPlain ? `${review.narrativeLabel || "Project Brief"} not recorded.` : "");
+            livePageNarrative.classList.toggle("is-missing", !sidePlain && !belowPlain);
+            livePageNarrative.classList.toggle("has-continuation", Array.isArray(flow.continuationSegments) && flow.continuationSegments.length > 0);
+        }
+        if (livePageBelowFlow) {
+            livePageBelowFlow.hidden = !belowPlain;
+            livePageBelowFlow.textContent = belowPlain;
         }
         if (livePageContinuation) {
-            const pages = Math.max(1, Number(review.estimatedDossierPageCount || 1));
-            livePageContinuation.hidden = pages <= 1;
+            const continuationCount = Array.isArray(flow.continuationSegments) ? flow.continuationSegments.length : Math.max(0, Number(review.estimatedDossierPageCount || 1) - 1);
+            const pages = Math.max(1, 1 + continuationCount);
+            livePageContinuation.hidden = continuationCount <= 0;
             const copy = livePageContinuation.querySelector("span");
-            if (copy && pages > 1) copy.textContent = `${review.narrativeLabel || "Project Brief"} continues · estimated ${pages} dossier pages`;
+            if (copy && continuationCount > 0) copy.textContent = `${review.narrativeLabel || "Project Brief"} continues · ${pages} dossier pages`;
         }
 
         const specs = Array.isArray(review.technicalSpecifications) ? review.technicalSpecifications.filter(Boolean) : [];
         if (livePageSpecifications && livePageSpecificationList) {
             livePageSpecifications.hidden = specs.length === 0;
-            livePageSpecificationList.style.setProperty("--spec-columns", String(resolveSpecificationColumns(specs)));
+            livePageSpecificationList.style.setProperty("--spec-columns", String(Math.max(1, Math.min(3, Number(review.dossierSpecificationColumns || 1)))));
             livePageSpecificationList.innerHTML = specs.map(item => `<p>${escapeHtml(item)}</p>`).join("");
         }
     };
@@ -1173,6 +1181,11 @@
             button.classList.toggle("active", layout === currentLayout);
             button.disabled = layout === "MultiImageEditorial" && availableDossierPhotos < 2;
         });
+        if (reviewTextFlowControl) reviewTextFlowControl.hidden = effectiveLayout !== "Balanced";
+        reviewTextFlowButtons.forEach(button => {
+            const mode = normalizeBalancedTextFlowMode(button.dataset.reviewTextFlowMode);
+            button.classList.toggle("active", mode === normalizeBalancedTextFlowMode(config.balancedTextFlowMode));
+        });
         reviewImageCountButtons.forEach(button => {
             const requested = Number(button.dataset.reviewImageCount || 1);
             const available = requested <= Math.max(1, availableDossierPhotos);
@@ -1222,7 +1235,7 @@
         if (reviewPaginationNote) reviewPaginationNote.textContent = review.dossierPaginationNote || (estimatedPages === 1 ? "Fits on one dossier page" : `${estimatedPages} dossier pages`);
         if (reviewPaginationReason) reviewPaginationReason.textContent = review.dossierPaginationReason || review.dossierLayoutReason || "PRISM is balancing photography and readable content.";
 
-        if (reviewImageFrame) { const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints; const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints; reviewImageFrame.style.aspectRatio = `${fw} / ${fh}`; }
+        if (reviewImageFrame) { const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints; const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints; reviewImageFrame.style.aspectRatio = `${fw} / ${fh}`; reviewImageFrame.classList.toggle("is-fit", config.imageFitMode === "fit"); }
         const photo = currentReviewPhoto(review);
         if (reviewImage && reviewImageEmpty) {
             if (photo?.previewUrl) {
@@ -2211,7 +2224,15 @@
         config.dossierLayout = next;
         publicationConfigChanged(activeReviewId);
     }));
-    reviewImageCountButtons.forEach(button => button.addEventListener("click", () => {
+    reviewTextFlowButtons.forEach(button => button.addEventListener("click", () => {
+        if (!activeReviewId) return;
+        const config = ensureConfig(activeReviewId);
+        const next = normalizeBalancedTextFlowMode(button.dataset.reviewTextFlowMode);
+        if (normalizeBalancedTextFlowMode(config.balancedTextFlowMode) === next) return;
+        config.balancedTextFlowMode = next;
+        publicationConfigChanged(activeReviewId);
+    }));
+        reviewImageCountButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
         const next = Math.max(1, Math.min(3, Number(button.dataset.reviewImageCount || 1)));

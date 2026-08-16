@@ -320,12 +320,19 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 var height = Math.Max(1, (int)Math.Round(sourceHeight * scale));
                 image.Mutate(context => context.Resize(width, height));
 
-                using var canvas = new Image<Rgba32>(request.TargetWidth, request.TargetHeight, Color.White);
-                var x = (request.TargetWidth - width) / 2;
-                var y = (request.TargetHeight - height) / 2;
-                canvas.Mutate(context => context.DrawImage(image, new Point(x, y), 1f));
                 using var fitOutput = new MemoryStream();
-                canvas.Save(fitOutput, new JpegEncoder { Quality = 91 });
+                if (request.PadFitToTarget)
+                {
+                    using var canvas = new Image<Rgba32>(request.TargetWidth, request.TargetHeight, Color.White);
+                    var x = (request.TargetWidth - width) / 2;
+                    var y = (request.TargetHeight - height) / 2;
+                    canvas.Mutate(context => context.DrawImage(image, new Point(x, y), 1f));
+                    canvas.Save(fitOutput, new JpegEncoder { Quality = 91 });
+                }
+                else
+                {
+                    image.Save(fitOutput, new JpegEncoder { Quality = 91 });
+                }
 
                 var fitQuality = DetermineQuality(sourceWidth, sourceHeight);
                 return new BrochurePublicationImage(

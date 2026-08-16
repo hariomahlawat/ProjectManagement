@@ -102,3 +102,4 @@
 20261208180000_AddCompendiumCoverComposer
 
 20261208190000_AddCompendiumAdaptiveDossiers
+20261208200000_AddCompendiumBalancedTextFlow

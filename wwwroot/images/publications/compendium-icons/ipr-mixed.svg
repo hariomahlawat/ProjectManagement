@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-  <path d="M6.25 2.75h7.15L18 7.35v11.4a2 2 0 0 1-2 2H6.25a2 2 0 0 1-2-2v-14a2 2 0 0 1 2-2Z" stroke="#B88916" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M13.4 2.75v4.6H18M7.75 8.6h3.15M7.75 12h2.7" stroke="#B88916" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M14.65 12.05a3.2 3.2 0 0 0 0 6.4v-6.4Z" fill="#B88916"/>
-  <circle cx="14.65" cy="15.25" r="3.2" stroke="#B88916" stroke-width="1.8"/>
-  <path d="m12.95 17.95-.55 3.05 2.25-1.35L16.9 21l-.55-3.05" stroke="#B88916" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M6.25 2.75h7.15L18 7.35v11.4a2 2 0 0 1-2 2H6.25a2 2 0 0 1-2-2v-14a2 2 0 0 1 2-2Z" stroke="#A97712" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M13.4 2.75v4.6H18M7.75 8.6h3.15M7.75 12h2.7" stroke="#A97712" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M14.65 12.05a3.2 3.2 0 0 0 0 6.4v-6.4Z" fill="#A97712"/>
+  <circle cx="14.65" cy="15.25" r="3.2" stroke="#A97712" stroke-width="1.8"/>
+  <path d="m12.95 17.95-.55 3.05 2.25-1.35L16.9 21l-.55-3.05" stroke="#A97712" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

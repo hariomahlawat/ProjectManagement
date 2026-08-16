@@ -33,6 +33,9 @@
         alphabetical: "Alphabetical"
     }[normalize(value)] || "Manual");
 
+    const normalizeDossierLayout = value => ({ automatic: "Automatic", visualhero: "VisualHero", balanced: "Balanced", multiimageeditorial: "MultiImageEditorial", technical: "Technical" }[normalize(value)] || "Automatic");
+    const normalizeBalancedTextFlowMode = value => normalize(value) === "sidecolumn" ? "SideColumn" : "FlowBelowImage";
+
     const candidates = Array.isArray(boot.projects) ? boot.projects : [];
     const projectById = new Map(candidates.map(project => [Number(project.projectId), {
         ...project,
@@ -68,7 +71,7 @@
             focalY: clamp(project.primaryFocalY),
             imageSelectionMode: normalize(project.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
             imageFitMode: normalize(project.imageFitMode) === "fit" ? "fit" : "fill",
-            dossierLayout: normalizeDossierLayout(project.dossierLayout), dossierImageCount: Math.max(1,Math.min(3,Number(project.dossierImageCount||1))),
+            dossierLayout: normalizeDossierLayout(project.dossierLayout), balancedTextFlowMode:normalizeBalancedTextFlowMode(project.balancedTextFlowMode), dossierImageCount: Math.max(1,Math.min(3,Number(project.dossierImageCount||1))),
             supportingPhoto1Id:Number(project.supportingPhoto1Id||0)||null, supportingPhoto1FocalX:clamp(project.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(project.supportingPhoto1FocalY), supportingPhoto1FitMode:normalize(project.supportingPhoto1FitMode)==="fit"?"fit":"fill",
             supportingPhoto2Id:Number(project.supportingPhoto2Id||0)||null, supportingPhoto2FocalX:clamp(project.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(project.supportingPhoto2FocalY), supportingPhoto2FitMode:normalize(project.supportingPhoto2FitMode)==="fit"?"fit":"fill",
             reviewFingerprint: null,
@@ -110,7 +113,7 @@
                 focalY: clamp(incoming.focalY),
                 imageSelectionMode: normalize(incoming.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
                 imageFitMode: normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill",
-                dossierLayout: normalizeDossierLayout(incoming.dossierLayout), dossierImageCount:Math.max(1,Math.min(3,Number(incoming.dossierImageCount||1))),
+                dossierLayout: normalizeDossierLayout(incoming.dossierLayout), balancedTextFlowMode:normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode), dossierImageCount:Math.max(1,Math.min(3,Number(incoming.dossierImageCount||1))),
                 supportingPhoto1Id:Number(incoming.supportingPhoto1Id||0)||null, supportingPhoto1FocalX:clamp(incoming.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(incoming.supportingPhoto1FocalY), supportingPhoto1FitMode:normalize(incoming.supportingPhoto1FitMode)==="fit"?"fit":"fill",
                 supportingPhoto2Id:Number(incoming.supportingPhoto2Id||0)||null, supportingPhoto2FocalX:clamp(incoming.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(incoming.supportingPhoto2FocalY), supportingPhoto2FitMode:normalize(incoming.supportingPhoto2FitMode)==="fit"?"fit":"fill",
                 reviewFingerprint: String(incoming.reviewFingerprint || "").trim() || null,
@@ -130,7 +133,7 @@
                 focalX: .5,
                 focalY: .5,
                 imageSelectionMode: "automatic",
-                imageFitMode: "fill", dossierLayout:"Automatic", dossierImageCount:1,
+                imageFitMode: "fill", dossierLayout:"Automatic", balancedTextFlowMode:"FlowBelowImage", dossierImageCount:1,
                 supportingPhoto1Id:null, supportingPhoto1FocalX:.5, supportingPhoto1FocalY:.5, supportingPhoto1FitMode:"fill",
                 supportingPhoto2Id:null, supportingPhoto2FocalX:.5, supportingPhoto2FocalY:.5, supportingPhoto2FitMode:"fill",
                 reviewFingerprint: null,
@@ -553,7 +556,7 @@
                 focalX: clamp(config.focalX),
                 focalY: clamp(config.focalY),
                 imageSelectionMode: config.imageSelectionMode,
-                imageFitMode: config.imageFitMode || "fill", dossierLayout:config.dossierLayout||"Automatic", dossierImageCount:config.dossierImageCount||1,
+                imageFitMode: config.imageFitMode || "fill", dossierLayout:config.dossierLayout||"Automatic", balancedTextFlowMode:normalizeBalancedTextFlowMode(config.balancedTextFlowMode), dossierImageCount:config.dossierImageCount||1,
                 supportingPhoto1Id:config.supportingPhoto1Id||null, supportingPhoto1FocalX:clamp(config.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(config.supportingPhoto1FocalY), supportingPhoto1FitMode:config.supportingPhoto1FitMode||"fill",
                 supportingPhoto2Id:config.supportingPhoto2Id||null, supportingPhoto2FocalX:clamp(config.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(config.supportingPhoto2FocalY), supportingPhoto2FitMode:config.supportingPhoto2FitMode||"fill",
                 reviewFingerprint: config.reviewFingerprint || null,
@@ -934,7 +937,7 @@
                 focalY: clamp(config.focalY),
                 imageSelectionMode: config.imageSelectionMode === "explicit" ? "Explicit" : "Automatic",
                 imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
-                dossierLayout:config.dossierLayout||"Automatic", dossierImageCount:config.dossierImageCount||1,
+                dossierLayout:config.dossierLayout||"Automatic", balancedTextFlowMode:normalizeBalancedTextFlowMode(config.balancedTextFlowMode), dossierImageCount:config.dossierImageCount||1,
                 supportingPhoto1Id:config.supportingPhoto1Id||null, supportingPhoto1FocalX:clamp(config.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(config.supportingPhoto1FocalY), supportingPhoto1FitMode:config.supportingPhoto1FitMode==="fit"?"Fit":"Fill",
                 supportingPhoto2Id:config.supportingPhoto2Id||null, supportingPhoto2FocalX:clamp(config.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(config.supportingPhoto2FocalY), supportingPhoto2FitMode:config.supportingPhoto2FitMode==="fit"?"Fit":"Fill",
                 narrativeSourceOverride: config.narrativeSourceOverride || null

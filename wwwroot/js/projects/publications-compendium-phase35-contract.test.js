@@ -62,8 +62,8 @@ test('phase 35 evaluates readiness and review identity against the same authorit
   assert.match(readiness, /"missingSponsoringLineDirectorate"/);
   assert.match(fingerprint, /string\? SponsoringLineDirectorate/);
   assert.match(fingerprint, /Clean\(input\.SponsoringLineDirectorate\)/);
-  assert.match(fingerprint, /compendium-review-v10-sponsoring-line-directorate/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_programme-particulars-v17/);
+  assert.match(fingerprint, /compendium-review-v(?:10-sponsoring-line-directorate|11-balanced-text-flow)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-particulars-v17|final-composition-v18)/);
 });
 
 test('phase 35 removes nested icon tiles while retaining a stable alignment column', () => {
@@ -94,5 +94,5 @@ test('phase 35 retains coloured local vectors and the programme panel as the sol
   assert.match(builder, /"maroon" => "#8B3A3A"/);
   assert.match(builder, /"green" => "#27825B"/);
   assert.match(builder, /"blue" => "#3275C7"/);
-  assert.match(builder, /_ => "#B88916"/);
+  assert.match(builder, /_ => "#A97712"/);
 });

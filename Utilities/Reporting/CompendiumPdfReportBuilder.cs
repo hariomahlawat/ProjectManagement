@@ -104,6 +104,10 @@ public sealed record CompendiumPdfProjectSection(
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
+    public int DossierSpecificationColumns { get; init; } = 1;
+    public int DossierProgrammeColumns { get; init; } = 1;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = new(CompendiumBalancedTextFlowMode.FlowBelowImage, string.Empty, string.Empty, Array.Empty<string>());
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
@@ -245,6 +249,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var hero = frontImages.GetValueOrDefault("Hero")?.Content ?? legacyHero;
         var secondary1 = frontImages.GetValueOrDefault("Secondary1")?.Content;
         var secondary2 = frontImages.GetValueOrDefault("Secondary2")?.Content;
+        var secondary3 = frontImages.GetValueOrDefault("Secondary3")?.Content;
 
         var displayTitle = design.ShowFrontTitle ? NormalizeOptional(design.FrontTitle) ?? title : null;
         var displaySubtitle = design.ShowFrontSubtitle ? NormalizeOptional(design.FrontSubtitle) ?? subtitle : null;
@@ -263,6 +268,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 break;
             case CompendiumFrontCoverTemplate.Triptych:
                 ComposeTriptychCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero, secondary1, secondary2, crest, sddMark,
+                    design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo);
+                break;
+            case CompendiumFrontCoverTemplate.PortfolioQuartet:
+                ComposePortfolioQuartetCover(container, displayTitle, displaySubtitle, displayEdition, eyebrow, marking, hero, secondary1, secondary2, secondary3, crest, sddMark,
                     design.FrontLogoPlacement, design.ShowFrontLeftLogo, design.ShowFrontRightLogo);
                 break;
             case CompendiumFrontCoverTemplate.Minimal:
@@ -392,11 +401,20 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     top.Item().PaddingTop(50).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 31));
                     if (!string.IsNullOrWhiteSpace(marking)) top.Item().PaddingTop(14).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
                 });
-                column.Item().Height(471).Padding(0).Row(row =>
+                column.Item().Height(471).Padding(0).Element(images =>
                 {
-                    row.RelativeItem(2).Element(cell => ComposeCoverTile(cell, hero));
-                    row.ConstantItem(4).Background(Forest950);
-                    row.RelativeItem(1).Element(cell => ComposeCoverTile(cell, secondary));
+                    var available = new[] { hero, secondary }.Where(image => image is { Length: > 0 }).ToArray();
+                    if (available.Length <= 1)
+                    {
+                        ComposeCoverTile(images, available.FirstOrDefault());
+                        return;
+                    }
+                    images.Row(row =>
+                    {
+                        row.RelativeItem(2).Element(cell => ComposeCoverTile(cell, available[0]));
+                        row.ConstantItem(4).Background(Forest950);
+                        row.RelativeItem(1).Element(cell => ComposeCoverTile(cell, available[1]));
+                    });
                 });
                 column.Item().Height(16).Background(Forest900);
             });
@@ -433,13 +451,64 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     top.Item().PaddingTop(48).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 29));
                     if (!string.IsNullOrWhiteSpace(marking)) top.Item().PaddingTop(12).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
                 });
-                column.Item().Height(431).Row(row =>
+                column.Item().Height(431).Element(images =>
                 {
-                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, hero));
-                    row.ConstantItem(3).Background(Forest950);
-                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, secondary1));
-                    row.ConstantItem(3).Background(Forest950);
-                    row.RelativeItem().Element(cell => ComposeCoverTile(cell, secondary2));
+                    var available = new[] { hero, secondary1, secondary2 }.Where(image => image is { Length: > 0 }).ToArray();
+                    if (available.Length <= 1)
+                    {
+                        ComposeCoverTile(images, available.FirstOrDefault());
+                        return;
+                    }
+                    images.Row(row =>
+                    {
+                        for (var index = 0; index < available.Length; index++)
+                        {
+                            if (index > 0) row.ConstantItem(3).Background(Forest950);
+                            row.RelativeItem().Element(cell => ComposeCoverTile(cell, available[index]));
+                        }
+                    });
+                });
+                column.Item().Height(16).Background(Forest900);
+            });
+        });
+    }
+
+    private static void ComposePortfolioQuartetCover(
+        IDocumentContainer container,
+        string? title, string? subtitle, string? edition, string? eyebrow, string? marking,
+        byte[]? hero, byte[]? secondary1, byte[]? secondary2, byte[]? secondary3,
+        byte[]? crest, byte[]? sddMark, CompendiumCoverLogoPlacement logoPlacement, bool showLeftLogo, bool showRightLogo)
+    {
+        var images = new[] { hero, secondary1, secondary2, secondary3 };
+        if (images.Any(image => image is not { Length: > 0 }))
+            throw new InvalidOperationException("Portfolio Quartet requires four rendered cover photographs.");
+
+        container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor(White));
+            page.Content().Column(column =>
+            {
+                column.Item().Height(338).Background(Forest950).PaddingHorizontal(52).PaddingTop(42).Column(top =>
+                {
+                    top.Item().Element(row => ComposeCoverLogos(row, crest, sddMark, logoPlacement, showLeftLogo, showRightLogo));
+                    top.Item().PaddingTop(38).Element(identity => ComposeCoverIdentity(identity, eyebrow, title, subtitle, edition, 28));
+                    if (!string.IsNullOrWhiteSpace(marking)) top.Item().PaddingTop(10).Text(marking).FontSize(8.2f).SemiBold().FontColor(GoldSoft);
+                });
+                column.Item().Height(488).Row(row =>
+                {
+                    row.RelativeItem(2).Element(cell => ComposeCoverTile(cell, hero));
+                    row.ConstantItem(4).Background(Forest950);
+                    row.RelativeItem(1).Column(stack =>
+                    {
+                        stack.Item().Height(160).Element(cell => ComposeCoverTile(cell, secondary1));
+                        stack.Item().Height(4).Background(Forest950);
+                        stack.Item().Height(160).Element(cell => ComposeCoverTile(cell, secondary2));
+                        stack.Item().Height(4).Background(Forest950);
+                        stack.Item().Height(160).Element(cell => ComposeCoverTile(cell, secondary3));
+                    });
                 });
                 column.Item().Height(16).Background(Forest900);
             });
@@ -537,7 +606,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         container.Page(page =>
         {
             ConfigureStandardPage(page);
-            page.Header().Element(header => ComposeRunningHeader(header, "COMPENDIUM INDEX", edition, marking));
+            page.Header().Element(header => ComposeRunningHeader(header, "SDD SIMULATORS COMPENDIUM", edition, marking));
             page.Content().PaddingTop(12).Column(content =>
             {
                 content.Spacing(12);
@@ -649,7 +718,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 if (planned.TechnicalSpecifications.Count > 0)
                 {
-                    column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications));
+                    column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications, project.DossierSpecificationColumns));
                 }
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
@@ -696,7 +765,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 if (planned.TechnicalSpecifications.Count > 0)
                 {
-                    column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications));
+                    column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications, project.DossierSpecificationColumns));
                 }
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
@@ -722,67 +791,91 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string narrativeLabel)
     {
         var images = project.Images.Where(image => image.Content is { Length: > 0 }).ToArray();
-        var primary = images.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary)?.Content
-                      ?? project.CoverPhoto;
-
+        var primaryImage = images.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary);
+        var primaryBytes = primaryImage?.Content ?? project.CoverPhoto;
+        var primaryFit = primaryImage?.FitMode ?? project.ImageFitMode;
         var imageHeight = Math.Max(90f, project.DossierPrimaryImageHeightPoints);
+
         switch (project.DossierLayout)
         {
             case CompendiumDossierLayout.VisualHero:
                 container.Column(column =>
                 {
                     column.Spacing(9);
-                    if (primary is { Length: > 0 })
-                        column.Item().Element(frame => ComposeDossierImage(frame, primary, imageHeight));
-                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false, narrativeFontScale: project.DossierNarrativeFontScale));
+                    if (primaryBytes is { Length: > 0 })
+                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
                 });
-                break;
+                return;
 
             case CompendiumDossierLayout.MultiImageEditorial when images.Length >= 2:
                 container.Column(column =>
                 {
                     column.Spacing(9);
-                    // Keep browser proof and final PDF in the same editorial order: imagery establishes
-                    // the project first, followed by the selected publication narrative.
                     column.Item().Element(mosaic => ComposeDossierMosaic(mosaic, images, imageHeight));
-                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false, narrativeFontScale: project.DossierNarrativeFontScale));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
                 });
-                break;
+                return;
 
             case CompendiumDossierLayout.Technical:
                 container.Column(column =>
                 {
                     column.Spacing(8);
-                    if (primary is { Length: > 0 })
-                        column.Item().Element(frame => ComposeDossierImage(frame, primary, imageHeight));
-                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false, narrativeFontScale: project.DossierNarrativeFontScale));
+                    if (primaryBytes is { Length: > 0 })
+                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
                 });
-                break;
-
-            default:
-                if (primary is { Length: > 0 })
-                {
-                    container.Row(row =>
-                    {
-                        row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primary, imageHeight));
-                        row.ConstantItem(13);
-                        row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false, narrativeFontScale: project.DossierNarrativeFontScale));
-                    });
-                }
-                else
-                {
-                    container.Element(text => ComposeDescription(text, narrative, narrativeLabel, continuation: false, narrativeFontScale: project.DossierNarrativeFontScale));
-                }
-                break;
+                return;
         }
+
+        if (primaryBytes is not { Length: > 0 })
+        {
+            container.Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+            return;
+        }
+
+        var flow = project.NarrativeFlow;
+        if (project.BalancedTextFlowMode == CompendiumBalancedTextFlowMode.FlowBelowImage)
+        {
+            container.Column(column =>
+            {
+                column.Spacing(8);
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+                    row.ConstantItem(13);
+                    row.RelativeItem(.88f).Element(text => ComposeDescription(
+                        text, flow.SideSegment, narrativeLabel, false, project.DossierNarrativeFontScale));
+                });
+                if (!string.IsNullOrWhiteSpace(flow.BelowImageSegment))
+                    column.Item().Element(text => ComposeDescription(
+                        text, flow.BelowImageSegment, narrativeLabel, false, project.DossierNarrativeFontScale, showHeading: false));
+            });
+            return;
+        }
+
+        container.Row(row =>
+        {
+            row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+            row.ConstantItem(13);
+            row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+        });
     }
 
-    private static void ComposeDossierImage(IContainer container, byte[] image, float height)
-        => container.Height(height).Border(1).BorderColor(Slate200).Background(Slate50).Padding(2).Layers(layers =>
+    private static void ComposeDossierImage(IContainer container, byte[] image, float height, CompendiumImageFitMode fitMode)
+    {
+        if (fitMode == CompendiumImageFitMode.Fit)
+        {
+            container.Height(height).AlignCenter().AlignMiddle().Image(image).FitArea();
+            return;
+        }
+
+        container.Height(height).Layers(layers =>
         {
             layers.PrimaryLayer().Image(image).FitArea();
-            layers.Layer().AlignBottom().Height(3).Background(Gold);
+            layers.Layer().AlignBottom().Height(2).Background(Gold);
         });
+    }
 
     private static void ComposeDossierMosaic(
         IContainer container,
@@ -794,21 +887,21 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         height = Math.Max(120f, height);
         if (available.Length == 1)
         {
-            ComposeDossierImage(container, available[0].Content!, height);
+            ComposeDossierImage(container, available[0].Content!, height, available[0].FitMode);
             return;
         }
 
         container.Height(height).Row(row =>
         {
-            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, height));
+            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, height, available[0].FitMode));
             row.ConstantItem(7);
             row.RelativeItem(1f).Column(column =>
             {
                 column.Spacing(7);
                 var secondaryHeight = available.Length >= 3 ? Math.Max(52f, (height - 7f) / 2f) : height;
-                column.Item().Element(frame => ComposeDossierImage(frame, available[1].Content!, secondaryHeight));
+                column.Item().Element(frame => ComposeDossierImage(frame, available[1].Content!, secondaryHeight, available[1].FitMode));
                 if (available.Length >= 3)
-                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, secondaryHeight));
+                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, secondaryHeight, available[2].FitMode));
             });
         });
     }
@@ -827,7 +920,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 project.TechnologyTransfer);
         if (modules.Count == 0) return;
 
-        var programmeColumns = CompendiumDossierPaginationPlanner.ResolveProgrammeColumns(modules.Count);
+        var programmeColumns = Math.Clamp(project.DossierProgrammeColumns, 1, 3);
         var labelFontSize = programmeColumns switch
         {
             >= 3 => 6.05f,
@@ -908,7 +1001,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             "maroon" => "#8B3A3A",
             "green" => "#27825B",
             "blue" => "#3275C7",
-            _ => "#B88916"
+            _ => "#A97712"
         };
 
         // The programme panel already supplies the visual container. Keeping the icon column
@@ -934,11 +1027,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         });
     }
 
-    private static void ComposeTechnicalSpecifications(IContainer container, IReadOnlyList<string> specifications)
+    private static void ComposeTechnicalSpecifications(IContainer container, IReadOnlyList<string> specifications, int plannedColumns)
     {
         var items = specifications.Where(item => !string.IsNullOrWhiteSpace(item)).Take(6).ToArray();
         if (items.Length == 0) return;
-        var columns = CompendiumDossierPaginationPlanner.ResolveTechnicalSpecificationColumns(items);
+        var columns = Math.Clamp(plannedColumns, 1, 3);
 
         container.Background(White).BorderTop(1).BorderColor(GoldSoft).PaddingTop(6).Column(column =>
         {
@@ -1137,14 +1230,15 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string markdown,
         string narrativeLabel,
         bool continuation,
-        float narrativeFontScale = 1f)
+        float narrativeFontScale = 1f,
+        bool showHeading = true)
     {
         narrativeLabel = NormalizeNarrativeLabel(narrativeLabel);
         narrativeFontScale = continuation ? 1f : Math.Clamp(narrativeFontScale, 1f, 1.08f);
         container.Column(column =>
         {
             column.Spacing(7);
-            if (!continuation)
+            if (!continuation && showHeading)
             {
                 column.Item().Row(row =>
                 {

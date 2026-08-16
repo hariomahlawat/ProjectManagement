@@ -42,9 +42,9 @@ test('phase 34 preserves disciplined category colours without mixed clip-art acc
   assert.deepEqual([...new Set(icons.arms.match(/#[0-9A-F]{6}/gi))], ['#8B3A3A']);
   assert.deepEqual([...new Set(icons.cost.match(/#[0-9A-F]{6}/gi))], ['#27825B']);
   assert.deepEqual([...new Set(icons.transfer.match(/#[0-9A-F]{6}/gi))], ['#3275C7']);
-  assert.deepEqual([...new Set(icons.filed.match(/#[0-9A-F]{6}/gi))], ['#B88916']);
-  assert.deepEqual([...new Set(icons.mixed.match(/#[0-9A-F]{6}/gi))], ['#B88916']);
-  assert.deepEqual([...new Set(icons.granted.match(/#[0-9A-F]{6}/gi))], ['#B88916', '#FFFFFF']);
+  assert.deepEqual([...new Set(icons.filed.match(/#[0-9A-F]{6}/gi))], ['#A97712']);
+  assert.deepEqual([...new Set(icons.mixed.match(/#[0-9A-F]{6}/gi))], ['#A97712']);
+  assert.deepEqual([...new Set(icons.granted.match(/#[0-9A-F]{6}/gi))], ['#A97712', '#FFFFFF']);
   for (const svg of [icons.filed, icons.granted, icons.mixed]) {
     assert.doesNotMatch(svg, /#27825B/i, 'IPR state must not introduce an unrelated green badge');
   }
@@ -58,8 +58,8 @@ test('phase 34 differentiates filed, granted and mixed IPR within one document-s
   }
 
   assert.match(icons.filed, /M14\.65 13\.7v1\.7l1\.1\.65/);
-  assert.doesNotMatch(icons.filed, /fill="#B88916"/);
-  assert.match(icons.granted, /fill="#B88916"/);
+  assert.doesNotMatch(icons.filed, /fill="#A97712"/);
+  assert.match(icons.granted, /fill="#A97712"/);
   assert.match(icons.granted, /stroke="#FFFFFF"/);
   assert.match(icons.mixed, /M14\.65 12\.05a3\.2 3\.2 0 0 0 0 6\.4v-6\.4Z/);
   assert.doesNotMatch(icons.mixed, /stroke="#FFFFFF"/);
@@ -96,6 +96,6 @@ test('phase 34 keeps semantic keys stable across subsequent programme refinement
     assert.ok(resolver.includes(`"${key}"`), `resolver must retain ${key}`);
   }
 
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17)/);
-  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17|final-composition-v18)/);
+  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow)/);
 });

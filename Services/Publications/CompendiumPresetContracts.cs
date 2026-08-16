@@ -46,6 +46,7 @@ public sealed record CompendiumPresetProjectConfiguration(
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public int DossierImageCount { get; init; } = 1;
     public int? SupportingPhoto1Id { get; init; }
     public double SupportingPhoto1FocalX { get; init; } = .5d;

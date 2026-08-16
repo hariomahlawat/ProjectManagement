@@ -156,7 +156,7 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate)/);
+  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow)/);
   assert.match(fingerprint, /PublicationSectionKey/);
   assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
@@ -221,7 +221,7 @@ test('phase 23 avoids stale async preflight and review responses', () => {
 });
 
 test('publication workspace persists first-class sections and project narrative overrides through schema v5', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*[567]/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*[5678]/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);
@@ -378,8 +378,8 @@ test('phase 24 supports deterministic continuation pages without emergency font 
   assert.match(metrics, /FirstPageDescriptionBudgetPhotoLong/);
   assert.match(metrics, /FirstPageDescriptionBudgetPhotoMedium/);
   assert.match(metrics, /FirstPageDescriptionBudgetPhotoShort/);
-  assert.match(planner, /ContinuationDescriptionBudget/);
-  assert.match(planner, /CompendiumMarkdownChunker\.Split/);
+  assert.match(planner, /project\.NarrativeFlow|CompendiumDossierNarrativeFlowPlanner/);
+  assert.match(read('Services/Compendiums/CompendiumDossierNarrativeFlowPlanner.cs'), /SplitNatural/);
   assert.match(builder, /TECHNICAL REFERENCE|narrativeLabel.*CONTINUED/);
   assert.match(metrics, /ProjectBodyMinimumFontSize\s*=\s*9\.5f/);
   assert.match(metrics, /ProjectBodyFontSize\s*=\s*10f/);

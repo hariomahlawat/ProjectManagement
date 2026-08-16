@@ -413,6 +413,8 @@ public sealed record BrochurePhotoRenderRequest(
     int TargetHeight = 1080)
 {
     public BrochurePhotoFitMode FitMode { get; init; } = BrochurePhotoFitMode.Fill;
+    /// <summary>Compatibility switch. Brochures keep the historic padded Fit canvas; Compendium opts out.</summary>
+    public bool PadFitToTarget { get; init; } = true;
 }
 
 public enum BrochurePhotoFitMode

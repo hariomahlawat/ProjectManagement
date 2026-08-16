@@ -53,6 +53,12 @@ public enum CompendiumDossierLayout
     Technical = 4
 }
 
+public enum CompendiumBalancedTextFlowMode
+{
+    SideColumn = 0,
+    FlowBelowImage = 1
+}
+
 public enum CompendiumDossierImageRole
 {
     Primary = 0,
@@ -90,7 +96,8 @@ public enum CompendiumFrontCoverTemplate
     FullBleedHero = 1,
     EditorialSplit = 2,
     Triptych = 3,
-    Minimal = 4
+    Minimal = 4,
+    PortfolioQuartet = 5
 }
 
 public enum CompendiumBackCoverTemplate
@@ -243,6 +250,7 @@ public sealed record CompendiumProjectSelection(
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public int DossierImageCount { get; init; } = 1;
     public int? SupportingPhoto1Id { get; init; }
     public double SupportingPhoto1FocalX { get; init; } = .5d;
@@ -317,6 +325,10 @@ public sealed record CompendiumReviewProjectDto(
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
+    public int DossierSpecificationColumns { get; init; } = 1;
+    public int DossierProgrammeColumns { get; init; } = 1;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = new(CompendiumBalancedTextFlowMode.FlowBelowImage, string.Empty, string.Empty, Array.Empty<string>());
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
@@ -374,6 +386,10 @@ public sealed record CompendiumProjectDto(
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
+    public int DossierSpecificationColumns { get; init; } = 1;
+    public int DossierProgrammeColumns { get; init; } = 1;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = new(CompendiumBalancedTextFlowMode.FlowBelowImage, string.Empty, string.Empty, Array.Empty<string>());
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
