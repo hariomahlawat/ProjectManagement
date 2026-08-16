@@ -1,21 +1,30 @@
-Data/ApplicationDbContext.cs
-Migrations/20261208160000_AddCompendiumEditorialComposer.cs
-Migrations/ApplicationDbContextModelSnapshot.cs
-Migrations/immutable-migration-ids.txt
-Models/Publications/CompendiumPreset.cs
-Pages/Projects/Publications/Compendium/Index.cshtml
-Pages/Projects/Publications/Compendium/Index.cshtml.cs
-Services/Compendiums/CompendiumDtos.cs
-Services/Compendiums/CompendiumExportService.cs
-Services/Compendiums/CompendiumReadService.cs
-Services/Compendiums/CompendiumReadinessPolicy.cs
-Services/Compendiums/CompendiumReviewFingerprint.cs
-Services/Compendiums/ICompendiumExportService.cs
-Services/Compendiums/ICompendiumReadService.cs
-Services/Publications/CompendiumPresetContracts.cs
-Services/Publications/CompendiumPresetService.cs
-Utilities/Reporting/CompendiumPdfReportBuilder.cs
-tools/Test-PrismPublicationsPhase25.ps1
-wwwroot/css/pages/projects-publications.css
-wwwroot/js/pages/projects-compendium.js
-wwwroot/js/projects/publications-compendium-contract.test.js
+PRISM – Projects Reports Framework / ARPP FY Project Update
+READY-TO-PASTE FILE MANIFEST
+
+Copy the contents of this folder over the root of your existing ProjectManagement source tree, preserving folders.
+No database migration is required.
+
+Changed / new source files:
+  Pages/Projects/Reports/ArppFyUpdate.cshtml
+  Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
+  Pages/Projects/Reports/Index.cshtml
+  Pages/Projects/Reports/Index.cshtml.cs
+  Program.cs
+  ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+  ProjectManagement.Tests/Reports/ProjectStageMaturityOrderTests.cs
+  ProjectManagement.Tests/Reports/ProjectSupplyOrderValueResolverTests.cs
+  Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
+  Services/ProjectBriefings/ProjectBriefingExternalStatusService.cs
+  Services/ProjectBriefings/ProjectBriefingStageOrder.cs
+  Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
+  Services/Projects/ProjectFormalUpdateFactsResolver.cs
+  Services/Projects/ProjectStageMaturityOrder.cs
+  Services/Projects/ProjectSupplyOrderValueResolver.cs
+  Services/Remarks/ProjectLatestExternalRemarkService.cs
+  Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
+  Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
+  Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExportService.cs
+  Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+  Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
+  Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+  wwwroot/css/pages/projects-reports.css

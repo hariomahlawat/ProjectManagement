@@ -1,0 +1,70 @@
+@page "/Projects/Reports"
+@model ProjectManagement.Pages.Projects.Reports.IndexModel
+@using ProjectManagement.Utilities
+@{
+    ViewData["Title"] = "Project Reports";
+    var latestFy = Model.AvailableFinancialYears.FirstOrDefault();
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
+}
+
+<div class="project-reports-page">
+    <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
+        <a asp-page="/Projects/Index">Projects</a>
+        <span>/</span>
+        <span>Reports</span>
+    </nav>
+
+    <header class="project-reports-hero">
+        <div>
+            <p class="project-reports-eyebrow">PROJECT REPORTING</p>
+            <h1>Reports</h1>
+            <p>Generate formal project returns directly from authoritative PRISM and published ARPP records.</p>
+        </div>
+    </header>
+
+    <section class="project-report-grid" aria-label="Available project reports">
+        <article class="project-report-card">
+            <div class="project-report-card__icon" aria-hidden="true">
+                <i class="bi bi-table"></i>
+            </div>
+            <div class="project-report-card__body">
+                <div class="project-report-card__meta">ARPP / PPP · FY return</div>
+                <h2>ARPP FY Project Update</h2>
+                <p>ARPP-approved projects for the selected financial year with IPA/ARPP listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
+                <div class="project-report-card__facts">
+                    <span><i class="bi bi-sort-down-alt"></i> Stage-maturity order</span>
+                    <span><i class="bi bi-file-earmark-word"></i> Word</span>
+                    <span><i class="bi bi-file-earmark-pdf"></i> PDF</span>
+                    <span><i class="bi bi-file-earmark-excel"></i> Excel</span>
+                </div>
+                @if (latestFy > 0)
+                {
+                    <a class="btn btn-primary" asp-page="./ArppFyUpdate" asp-route-financialYearStart="@latestFy">
+                        Open report
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                }
+                else
+                {
+                    <button class="btn btn-secondary" type="button" disabled>No published ARPP data</button>
+                }
+            </div>
+            @if (latestFy > 0)
+            {
+                <div class="project-report-card__availability">
+                    Latest available: <strong>FY @FinancialYearHelper.Format(latestFy)</strong>
+                </div>
+            }
+        </article>
+    </section>
+
+    <section class="project-reports-principle">
+        <i class="bi bi-shield-check" aria-hidden="true"></i>
+        <div>
+            <strong>One authoritative data model per report.</strong>
+            <p>The browser preview and all export formats use the same resolved report rows and ordering.</p>
+        </div>
+    </section>
+</div>

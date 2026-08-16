@@ -1,26 +1,25 @@
-PRISM ERP — IPR Register Filter Scope Completion
-Validation record
+PRISM – ARPP FY PROJECT UPDATE
+STATIC VALIDATION RESULT
 
-PASSED
-- JavaScript syntax: wwwroot/js/project-office-reports/ipr/index.js
-- Focused IPR frontend tests: 21 passed, 0 failed
-- C# delimiter/static structural checks for all modified C# files
-- Razor selected-tag balance checks for the modified page and new partials
-- CSS delimiter/brace checks
-- ProjectManagement.csproj XML parse
-- git diff --check
-- Implementation patch clean-apply check against the latest integrated baseline
-- Patched verification files matched all 17 replacement files byte-for-byte
-- ZIP integrity test
+PASS  Ready-to-paste package source matches the implemented working tree.
+PASS  No database migration files changed.
+PASS  No merge-conflict markers in packaged source.
+PASS  Completed projects are excluded from the current-stage query.
+PASS  Completed lifecycle status is authoritative before any stage classification.
+PASS  PDC is emitted only when current stage is Development.
+PASS  Supply Order amount resolves PNC first, then L1.
+PASS  Supply Order amount has no AoN or IPA fallback.
+PASS  ARPP No. uses PPP Number.
+PASS  Establishment is fixed as SDD.
+PASS  Report population uses selected-FY ApprovedRows (New / CL / CF current position).
+PASS  First listing date is resolved through ARPP IPA stage authority (first published occurrence).
+PASS  Word, PDF and Excel exporters consume the same report read model as the browser preview.
+PASS  ZIP integrity checked successfully.
 
-NOT RUN
-- .NET Release build
-- xUnit IPR suite
-Reason: the .NET SDK is not installed in the preparation environment.
+BUILD / TEST LIMITATION
+The preparation environment does not contain the .NET SDK, therefore a real dotnet build and xUnit execution could not be performed here. Run these commands on the development machine before deployment:
 
-FULL REPOSITORY JAVASCRIPT SUITE
-- Attempted, but not reported as passed because the repository's jsdom dependency is not installed.
-- The dependency-free focused IPR suite completed successfully: 21/21.
-
-DATABASE
-- No migration required.
+  Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+  dotnet restore .\ProjectManagement.csproj
+  dotnet build .\ProjectManagement.csproj
+  dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj --filter "FullyQualifiedName~ProjectManagement.Tests.Reports"

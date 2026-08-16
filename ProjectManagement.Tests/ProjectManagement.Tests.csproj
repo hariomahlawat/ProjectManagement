@@ -178,6 +178,12 @@
     <None Include="..\Services\ProjectBriefings\ProjectBriefingExternalStatusService.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingExternalStatusService.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\Remarks\ProjectLatestExternalRemarkService.cs"
+          Link="TestData\ProjectBriefing\ProjectLatestExternalRemarkService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\Projects\ProjectFormalUpdateFactsResolver.cs"
+          Link="TestData\ProjectBriefing\ProjectFormalUpdateFactsResolver.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\ProjectBriefingUpdateSheetFactsResolver.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingUpdateSheetFactsResolver.cs"
           CopyToOutputDirectory="PreserveNewest" />

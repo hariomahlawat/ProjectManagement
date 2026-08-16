@@ -177,10 +177,9 @@ public class ActionTaskPageTests
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
         var task = await setup.Db.ActionTasks.SingleAsync();
-        page.UpdateInput = new IndexModel.AddTaskUpdateInput
+        page.UpdateInput = new TaskRemarkInput
         {
             TaskId = task.Id,
-            RowVersion = Convert.ToBase64String(task.RowVersion),
             UpdateType = ActionTaskUpdateTypes.Comment,
             Body = "Trial completed; observations will follow.",
             Files = new List<IFormFile>()
@@ -205,10 +204,9 @@ public class ActionTaskPageTests
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
         var task = await setup.Db.ActionTasks.SingleAsync();
-        page.UpdateInput = new IndexModel.AddTaskUpdateInput
+        page.UpdateInput = new TaskRemarkInput
         {
             TaskId = task.Id,
-            RowVersion = Convert.ToBase64String(task.RowVersion),
             UpdateType = ActionTaskUpdateTypes.Conference,
             Body = "Complete the pending action by Friday.",
             Files = new List<IFormFile>()
@@ -231,7 +229,7 @@ public class ActionTaskPageTests
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
         var task = await setup.Db.ActionTasks.SingleAsync();
-        page.UpdateInput = new IndexModel.AddTaskUpdateInput
+        page.UpdateInput = new TaskRemarkInput
         {
             TaskId = task.Id,
             UpdateType = ActionTaskUpdateTypes.Progress,

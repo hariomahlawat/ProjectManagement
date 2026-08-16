@@ -1,0 +1,321 @@
+using System.Globalization;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using W = DocumentFormat.OpenXml.Wordprocessing;
+
+namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
+
+public sealed class ArppFyProjectUpdateWordBuilder
+{
+    private const string Font = "Arial";
+    private const string Ink = "1F2937";
+    private const string Muted = "526174";
+    private const string Navy = "17365D";
+    private const string HeaderFill = "E8EEF5";
+    private const string Border = "8A99A8";
+    private const string White = "FFFFFF";
+
+    private static readonly int[] Widths =
+        [500, 800, 2800, 1100, 850, 700, 650, 950, 1400, 950, 750, 4550];
+    private static readonly int TableWidth = Widths.Sum();
+
+    public byte[] Build(ArppFyProjectUpdateReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+
+        using var stream = new MemoryStream();
+        using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, autoSave: true))
+        {
+            document.PackageProperties.Title = $"ARPP FY {report.FinancialYearDisplay} Project Update";
+            document.PackageProperties.Subject = "ARPP approved projects and current update";
+            document.PackageProperties.Creator = "PRISM ERP";
+            document.PackageProperties.LastModifiedBy = "PRISM ERP";
+            document.PackageProperties.Created = report.GeneratedAtUtc.UtcDateTime;
+            document.PackageProperties.Modified = report.GeneratedAtUtc.UtcDateTime;
+
+            var mainPart = document.AddMainDocumentPart();
+            mainPart.Document = new W.Document(new W.Body());
+            AddStyles(mainPart);
+            AddSettings(mainPart);
+
+            var footerPart = mainPart.AddNewPart<FooterPart>();
+            footerPart.Footer = BuildFooter();
+            footerPart.Footer.Save();
+
+            var body = mainPart.Document.Body!;
+            body.Append(Paragraph(
+                $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}",
+                24,
+                bold: true,
+                color: Navy,
+                align: W.JustificationValues.Center,
+                after: 40));
+            body.Append(Paragraph(
+                "PROJECT UPDATE",
+                20,
+                bold: true,
+                color: Ink,
+                align: W.JustificationValues.Center,
+                after: 90));
+
+            body.Append(BuildTable(report.Rows));
+            body.Append(BuildSectionProperties(mainPart, footerPart));
+            mainPart.Document.Save();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static W.Table BuildTable(IReadOnlyList<ArppFyProjectUpdateRow> rows)
+    {
+        var table = new W.Table(
+            new W.TableProperties(
+                new W.TableWidth { Width = TableWidth.ToString(CultureInfo.InvariantCulture), Type = W.TableWidthUnitValues.Dxa },
+                new W.TableLayout { Type = W.TableLayoutValues.Fixed },
+                new W.TableBorders(
+                    new W.TopBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+                    new W.LeftBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+                    new W.BottomBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+                    new W.RightBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+                    new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
+                    new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 })));
+
+        table.Append(new W.TableGrid(Widths.Select(width => new W.GridColumn
+        {
+            Width = width.ToString(CultureInfo.InvariantCulture)
+        })));
+
+        table.Append(BuildHeaderRowOne());
+        table.Append(BuildHeaderRowTwo());
+
+        foreach (var row in rows)
+        {
+            var properties = new W.TableRowProperties(new W.CantSplit());
+            var tableRow = new W.TableRow(properties);
+
+            tableRow.Append(
+                Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), Widths[0], align: W.JustificationValues.Center),
+                Cell(row.PppNumber ?? "—", Widths[1], align: W.JustificationValues.Center),
+                Cell(row.ProjectName, Widths[2], bold: true),
+                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center),
+                Cell(row.DfpdsSchedule ?? "—", Widths[4], align: W.JustificationValues.Center),
+                Cell(row.Cfa ?? "—", Widths[5], align: W.JustificationValues.Center),
+                Cell(row.Establishment, Widths[6], align: W.JustificationValues.Center),
+                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center),
+                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center),
+                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center),
+                Cell(row.ProjectCaseDisplay, Widths[10], align: W.JustificationValues.Center),
+                Cell(row.LatestExternalRemark ?? "—", Widths[11]));
+
+            table.Append(tableRow);
+        }
+
+        return table;
+    }
+
+    private static W.TableRow BuildHeaderRowOne()
+    {
+        var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
+        row.Append(
+            MergedHeader("Ser No.", Widths[0], restart: true),
+            MergedHeader("ARPP No.", Widths[1], restart: true),
+            MergedHeader("Name of Project", Widths[2], restart: true),
+            MergedHeader("Dt of Grant of IPA / ARPP Listing", Widths[3], restart: true),
+            MergedHeader("Sch", Widths[4], restart: true),
+            MergedHeader("CFA", Widths[5], restart: true),
+            MergedHeader("Est", Widths[6], restart: true),
+            SpanHeader("Status", Widths[7] + Widths[8] + Widths[9], 3),
+            MergedHeader("Proj Case", Widths[10], restart: true),
+            MergedHeader("Remarks", Widths[11], restart: true));
+        return row;
+    }
+
+    private static W.TableRow BuildHeaderRowTwo()
+    {
+        var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
+        row.Append(
+            MergedHeader(string.Empty, Widths[0], restart: false),
+            MergedHeader(string.Empty, Widths[1], restart: false),
+            MergedHeader(string.Empty, Widths[2], restart: false),
+            MergedHeader(string.Empty, Widths[3], restart: false),
+            MergedHeader(string.Empty, Widths[4], restart: false),
+            MergedHeader(string.Empty, Widths[5], restart: false),
+            MergedHeader(string.Empty, Widths[6], restart: false),
+            Header("AoN", Widths[7]),
+            Header("SO amt & dt", Widths[8]),
+            Header("PDC dt", Widths[9]),
+            MergedHeader(string.Empty, Widths[10], restart: false),
+            MergedHeader(string.Empty, Widths[11], restart: false));
+        return row;
+    }
+
+    private static W.TableCell MergedHeader(string text, int width, bool restart)
+    {
+        var properties = BaseCellProperties(width, HeaderFill);
+        properties.Append(new W.VerticalMerge
+        {
+            Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
+        });
+        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+    }
+
+    private static W.TableCell SpanHeader(string text, int width, int span)
+    {
+        var properties = BaseCellProperties(width, HeaderFill);
+        properties.Append(new W.GridSpan { Val = span });
+        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+    }
+
+    private static W.TableCell Header(string text, int width)
+        => new(
+            BaseCellProperties(width, HeaderFill),
+            Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+
+    private static W.TableCell Cell(
+        string text,
+        int width,
+        bool bold = false,
+        W.JustificationValues? align = null)
+        => new(
+            BaseCellProperties(width, null),
+            Paragraph(
+                text,
+                15,
+                bold: bold,
+                color: Ink,
+                align: align ?? W.JustificationValues.Left,
+                after: 0));
+
+    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
+    {
+        var properties = new W.TableCellProperties(
+            new W.TableCellWidth { Width = width.ToString(CultureInfo.InvariantCulture), Type = W.TableWidthUnitValues.Dxa },
+            new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Center });
+
+        if (!string.IsNullOrWhiteSpace(fill))
+        {
+            properties.Append(new W.Shading { Fill = fill, Val = W.ShadingPatternValues.Clear });
+        }
+
+        return properties;
+    }
+
+    private static string Date(DateOnly? value)
+        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+
+    private static string SupplyOrder(ArppFyProjectUpdateRow row)
+    {
+        var amount = row.SupplyOrderAmountInCrores.HasValue
+            ? $"₹{row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture)} Cr"
+            : null;
+        var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
+        return amount is not null && date is not null
+            ? $"{amount}\n{date}"
+            : amount ?? date ?? "—";
+    }
+
+    private static W.Paragraph Paragraph(
+        string text,
+        int fontSizeHalfPoints,
+        bool bold = false,
+        string color = Ink,
+        W.JustificationValues? align = null,
+        int after = 0)
+    {
+        var resolvedAlign = align ?? W.JustificationValues.Left;
+
+        var paragraph = new W.Paragraph(
+            new W.ParagraphProperties(
+                new W.Justification { Val = resolvedAlign },
+                new W.SpacingBetweenLines
+                {
+                    Before = "0",
+                    After = after.ToString(CultureInfo.InvariantCulture),
+                    Line = "205",
+                    LineRule = W.LineSpacingRuleValues.Auto
+                }));
+
+        var runProperties = new W.RunProperties(
+            new W.RunFonts { Ascii = Font, HighAnsi = Font, EastAsia = Font, ComplexScript = Font },
+            new W.Color { Val = color },
+            new W.FontSize { Val = fontSizeHalfPoints.ToString(CultureInfo.InvariantCulture) },
+            new W.FontSizeComplexScript { Val = fontSizeHalfPoints.ToString(CultureInfo.InvariantCulture) });
+        if (bold)
+        {
+            runProperties.Append(new W.Bold(), new W.BoldComplexScript());
+        }
+
+        var run = new W.Run(runProperties);
+        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal).Split('\n');
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (index > 0) run.Append(new W.Break());
+            run.Append(new W.Text(lines[index]) { Space = SpaceProcessingModeValues.Preserve });
+        }
+        paragraph.Append(run);
+        return paragraph;
+    }
+
+    private static void AddStyles(MainDocumentPart mainPart)
+    {
+        var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
+        stylesPart.Styles = new W.Styles(
+            new W.Style(
+                new W.StyleName { Val = "Normal" },
+                new W.StyleRunProperties(
+                    new W.RunFonts { Ascii = Font, HighAnsi = Font, EastAsia = Font, ComplexScript = Font },
+                    new W.Color { Val = Ink },
+                    new W.FontSize { Val = "16" },
+                    new W.FontSizeComplexScript { Val = "16" }))
+            {
+                Type = W.StyleValues.Paragraph,
+                StyleId = "Normal",
+                Default = true
+            });
+        stylesPart.Styles.Save();
+    }
+
+    private static void AddSettings(MainDocumentPart mainPart)
+    {
+        var settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
+        settingsPart.Settings = new W.Settings(new W.UpdateFieldsOnOpen { Val = true });
+        settingsPart.Settings.Save();
+    }
+
+    private static W.Footer BuildFooter()
+    {
+        var paragraph = new W.Paragraph(
+            new W.ParagraphProperties(new W.Justification { Val = W.JustificationValues.Right }));
+        paragraph.Append(new W.Run(new W.Text("PRISM ERP · SDD   |   Page ")));
+        paragraph.Append(new W.SimpleField { Instruction = "PAGE" });
+        paragraph.Append(new W.Run(new W.Text(" of ")));
+        paragraph.Append(new W.SimpleField { Instruction = "NUMPAGES" });
+        return new W.Footer(paragraph);
+    }
+
+    private static W.SectionProperties BuildSectionProperties(MainDocumentPart mainPart, FooterPart footerPart)
+        => new(
+            new W.FooterReference
+            {
+                Type = W.HeaderFooterValues.Default,
+                Id = mainPart.GetIdOfPart(footerPart)
+            },
+            new W.PageSize
+            {
+                Width = 16838U,
+                Height = 11906U,
+                Orient = W.PageOrientationValues.Landscape
+            },
+            new W.PageMargin
+            {
+                Top = 420,
+                Right = 420U,
+                Bottom = 480,
+                Left = 420U,
+                Header = 240U,
+                Footer = 240U,
+                Gutter = 0U
+            },
+            new W.Columns { Space = "240" },
+            new W.DocGrid { LinePitch = 300 });
+}

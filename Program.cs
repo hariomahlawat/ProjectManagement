@@ -83,6 +83,7 @@ using ProjectManagement.Services.ProjectBriefings.Presentation;
 using ProjectManagement.Services.Publications;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Reports.ProgressReview;
+using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
@@ -637,6 +638,18 @@ builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummar
 builder.Services.AddScoped<ProliferationDataQualityService>();
 builder.Services.AddScoped<ProliferationChronologyQualityService>();
 builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
+
+// SECTION: Shared formal project reporting facts
+builder.Services.AddScoped<IProjectFormalUpdateFactsResolver, ProjectFormalUpdateFactsResolver>();
+builder.Services.AddScoped<IProjectSupplyOrderValueResolver, ProjectSupplyOrderValueResolver>();
+builder.Services.AddScoped<IProjectLatestExternalRemarkService, ProjectLatestExternalRemarkService>();
+
+// SECTION: Project reports
+builder.Services.AddScoped<IArppFyProjectUpdateService, ArppFyProjectUpdateService>();
+builder.Services.AddScoped<IArppFyProjectUpdateExportService, ArppFyProjectUpdateExportService>();
+builder.Services.AddScoped<ArppFyProjectUpdateWordBuilder>();
+builder.Services.AddScoped<ArppFyProjectUpdatePdfBuilder>();
+builder.Services.AddScoped<ArppFyProjectUpdateExcelBuilder>();
 
 // SECTION: Project briefing decks
 builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();

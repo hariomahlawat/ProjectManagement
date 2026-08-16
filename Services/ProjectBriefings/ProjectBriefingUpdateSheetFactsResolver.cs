@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Arpp;
-using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -38,14 +38,27 @@ public sealed record ProjectBriefingUpdateSheetFacts(
 
 /// <summary>
 /// Resolves the authoritative factual fields required by the formal project-update-sheet layout.
-/// All reads are performed in bounded batch queries so deck generation does not create an N+1 query pattern.
+/// Generic procurement facts are delegated to <see cref="IProjectFormalUpdateFactsResolver"/>
+/// so the briefing deck and formal reports cannot drift on AoN, SO date or Development PDC.
 /// </summary>
 public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUpdateSheetFactsResolver
 {
     private readonly ApplicationDbContext _db;
+    private readonly IProjectFormalUpdateFactsResolver _formalFactsResolver;
 
+    // Preserves direct construction used by older tests and integration code.
     public ProjectBriefingUpdateSheetFactsResolver(ApplicationDbContext db)
-        => _db = db ?? throw new ArgumentNullException(nameof(db));
+        : this(db, new ProjectFormalUpdateFactsResolver(db))
+    {
+    }
+
+    public ProjectBriefingUpdateSheetFactsResolver(
+        ApplicationDbContext db,
+        IProjectFormalUpdateFactsResolver formalFactsResolver)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _formalFactsResolver = formalFactsResolver ?? throw new ArgumentNullException(nameof(formalFactsResolver));
+    }
 
     public async Task<IReadOnlyDictionary<int, ProjectBriefingUpdateSheetFacts>> ResolveAsync(
         IReadOnlyCollection<int> projectIds,
@@ -56,6 +69,8 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
         {
             return new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
         }
+
+        var formalFacts = await _formalFactsResolver.ResolveAsync(ids, cancellationToken);
 
         var projectRows = await _db.Projects
             .AsNoTracking()
@@ -70,68 +85,6 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
                     : null
             })
             .ToListAsync(cancellationToken);
-
-        var stageRows = await _db.ProjectStages
-            .AsNoTracking()
-            .Where(stage => ids.Contains(stage.ProjectId)
-                && (stage.StageCode == StageCodes.AON || stage.StageCode == StageCodes.DEVP))
-            .Select(stage => new
-            {
-                stage.Id,
-                stage.ProjectId,
-                stage.StageCode,
-                stage.SortOrder,
-                stage.CompletedOn,
-                stage.PlannedDue
-            })
-            .ToListAsync(cancellationToken);
-
-        var aonDates = stageRows
-            .Where(stage => stage.StageCode == StageCodes.AON)
-            .GroupBy(stage => stage.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(stage => stage.CompletedOn.HasValue)
-                    .ThenByDescending(stage => stage.CompletedOn)
-                    .ThenByDescending(stage => stage.SortOrder)
-                    .ThenByDescending(stage => stage.Id)
-                    .Select(stage => stage.CompletedOn)
-                    .FirstOrDefault());
-
-        var developmentPdcs = stageRows
-            .Where(stage => stage.StageCode == StageCodes.DEVP)
-            .GroupBy(stage => stage.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(stage => stage.PlannedDue.HasValue)
-                    .ThenByDescending(stage => stage.PlannedDue)
-                    .ThenByDescending(stage => stage.SortOrder)
-                    .ThenByDescending(stage => stage.Id)
-                    .Select(stage => stage.PlannedDue)
-                    .FirstOrDefault());
-
-        var supplyOrderDates = await _db.ProjectSupplyOrderFacts
-            .AsNoTracking()
-            .Where(fact => ids.Contains(fact.ProjectId))
-            .Select(fact => new
-            {
-                fact.Id,
-                fact.ProjectId,
-                fact.SupplyOrderDate,
-                fact.CreatedOnUtc
-            })
-            .ToListAsync(cancellationToken);
-        var supplyOrderByProject = supplyOrderDates
-            .GroupBy(fact => fact.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(fact => fact.CreatedOnUtc)
-                    .ThenByDescending(fact => fact.Id)
-                    .Select(fact => (DateOnly?)fact.SupplyOrderDate)
-                    .FirstOrDefault());
 
         var jdpRows = await _db.IndustryPartnerProjects
             .AsNoTracking()
@@ -189,15 +142,17 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
             row =>
             {
                 arppByProject.TryGetValue(row.Id, out var arpp);
+                formalFacts.TryGetValue(row.Id, out var formal);
                 var officer = FormatOfficer(row.OfficerRank, row.OfficerFullName);
+
                 return new ProjectBriefingUpdateSheetFacts(
                     arpp?.Category == ArppCategory.Delisted ? null : NormalizeNullable(arpp?.PppNumber),
                     NormalizeNullable(arpp?.Fund),
                     NormalizeNullable(arpp?.DfpdsSchedule),
                     NormalizeNullable(arpp?.Cfa),
-                    aonDates.GetValueOrDefault(row.Id),
-                    supplyOrderByProject.GetValueOrDefault(row.Id),
-                    developmentPdcs.GetValueOrDefault(row.Id),
+                    formal?.AonDate,
+                    formal?.SupplyOrderDate,
+                    formal?.DevelopmentPdcDate,
                     jdpsByProject.GetValueOrDefault(row.Id) ?? Array.Empty<string>(),
                     officer.Display,
                     officer.IsComplete,

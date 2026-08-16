@@ -49,7 +49,7 @@ public sealed class BrochurePrintCompactPlannerTests
     public void Plan_NineProjectStressFixture_UsesDenseNinePointGeometryBeforeAddingAProjectSheet()
     {
         var planner = new BrochurePrintPagePlanner(new NineProjectStressMeasurementService());
-        var projects = Enumerable.Range(1, 9).Select(PlanningItem).ToArray();
+        var projects = Enumerable.Range(1, 9).Select(index => PlanningItem(index)).ToArray();
 
         var plan = planner.Plan(
             projects,
@@ -131,7 +131,7 @@ public sealed class BrochurePrintCompactPlannerTests
     public void PlanWithSmartFlow_DoesNotSuggestCosmeticReorderWithoutMaterialGain()
     {
         var planner = new BrochurePrintPagePlanner(new UniformFixtureMeasurementService());
-        var projects = Enumerable.Range(1, 6).Select(PlanningItem).ToArray();
+        var projects = Enumerable.Range(1, 6).Select(index => PlanningItem(index)).ToArray();
 
         var plan = planner.PlanWithSmartFlow(
             projects,
@@ -214,7 +214,7 @@ public sealed class BrochurePrintCompactPlannerTests
     public void ResidualPolish_DoesNotChangePageMembershipOrderOrMeasuredImageWidth()
     {
         var planner = new BrochurePrintPagePlanner(new UniformFixtureMeasurementService());
-        var projects = Enumerable.Range(1, 5).Select(PlanningItem).ToArray();
+        var projects = Enumerable.Range(1, 5).Select(index => PlanningItem(index)).ToArray();
 
         var plan = planner.Plan(
             projects,
@@ -238,7 +238,7 @@ public sealed class BrochurePrintCompactPlannerTests
     public void Plan_PacksNonFinalSheetsForwardAndLeavesResidualOnFinalSheet()
     {
         var planner = new BrochurePrintPagePlanner(new UniformFixtureMeasurementService());
-        var projects = Enumerable.Range(1, 5).Select(PlanningItem).ToArray();
+        var projects = Enumerable.Range(1, 5).Select(index => PlanningItem(index)).ToArray();
 
         var plan = planner.Plan(
             projects,
@@ -267,7 +267,7 @@ public sealed class BrochurePrintCompactPlannerTests
     public void Plan_AllowsMeasuredFiveUpSheetWithoutReducingTypography()
     {
         var planner = new BrochurePrintPagePlanner(new FiveUpFixtureMeasurementService());
-        var projects = Enumerable.Range(1, 5).Select(PlanningItem).ToArray();
+        var projects = Enumerable.Range(1, 5).Select(index => PlanningItem(index)).ToArray();
 
         var plan = planner.Plan(
             projects,

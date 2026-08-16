@@ -1,5 +1,6 @@
-using System;
-using System.IO;
+using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.Remarks;
 using Xunit;
 
 namespace ProjectManagement.Tests.ProjectBriefings;
@@ -7,58 +8,39 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 public sealed class ProjectBriefingDependencyInjectionTests
 {
     [Fact]
-    public void Program_RegistersUpdateSheetFactsResolverBeforeDataService()
+    public void ExternalStatusAdapter_HasOneUnambiguousDependencyInjectionConstructor()
     {
-        var program = ReadRepoFile("Program.cs");
+        var constructors = typeof(ProjectBriefingExternalStatusService).GetConstructors();
+        var constructor = Assert.Single(constructors);
+        var parameter = Assert.Single(constructor.GetParameters());
 
-        const string resolverRegistration =
-            "builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();";
-        const string dataServiceRegistration =
-            "builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();";
-
-        var resolverIndex = program.IndexOf(resolverRegistration, StringComparison.Ordinal);
-        var dataServiceIndex = program.IndexOf(dataServiceRegistration, StringComparison.Ordinal);
-
-        Assert.True(resolverIndex >= 0,
-            "The Project Update Sheet facts resolver must be registered in dependency injection.");
-        Assert.True(dataServiceIndex > resolverIndex,
-            "Register the facts resolver before ProjectBriefingDataService for a clear dependency order.");
+        Assert.Equal(typeof(IProjectLatestExternalRemarkService), parameter.ParameterType);
     }
 
     [Fact]
-    public void Program_RegistersInstitutionalProfileServiceBeforeBriefingDataService()
+    public void ExternalStatusAdapter_CanBeValidatedAndResolvedByDefaultContainer()
     {
-        var program = ReadRepoFile("Program.cs");
+        var services = new ServiceCollection();
+        services.AddScoped<IProjectLatestExternalRemarkService, StubLatestExternalRemarkService>();
+        services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
 
-        const string profileRegistration =
-            "builder.Services.AddScoped<IProjectBriefingInstitutionalProfileService, ProjectBriefingInstitutionalProfileService>();";
-        const string dataServiceRegistration =
-            "builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();";
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+        using var scope = provider.CreateScope();
 
-        var profileIndex = program.IndexOf(profileRegistration, StringComparison.Ordinal);
-        var dataServiceIndex = program.IndexOf(dataServiceRegistration, StringComparison.Ordinal);
-
-        Assert.True(profileIndex >= 0,
-            "The SDD institutional profile snapshot service must be registered in dependency injection.");
-        Assert.True(dataServiceIndex > profileIndex,
-            "Register the institutional profile service before ProjectBriefingDataService.");
+        var resolved = scope.ServiceProvider.GetRequiredService<IProjectBriefingExternalStatusService>();
+        Assert.IsType<ProjectBriefingExternalStatusService>(resolved);
     }
 
-    private static string ReadRepoFile(params string[] relativePath)
+    private sealed class StubLatestExternalRemarkService : IProjectLatestExternalRemarkService
     {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            var candidate = Path.Combine(current.FullName, Path.Combine(relativePath));
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate);
-            }
-
-            current = current.Parent;
-        }
-
-        throw new FileNotFoundException(
-            $"Could not locate repository file: {Path.Combine(relativePath)}");
+        public Task<IReadOnlyDictionary<int, ProjectLatestExternalRemark>> GetLatestAsync(
+            IReadOnlyCollection<int> projectIds,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<int, ProjectLatestExternalRemark>>(
+                new Dictionary<int, ProjectLatestExternalRemark>());
     }
 }

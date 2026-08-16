@@ -1,0 +1,208 @@
+@page "/Projects/Reports/ArppFyUpdate"
+@model ProjectManagement.Pages.Projects.Reports.ArppFyUpdateModel
+@using System.Globalization
+@using ProjectManagement.Services.Projects
+@using ProjectManagement.Services.Reports.ArppFyProjectUpdate
+@using ProjectManagement.Utilities
+@{
+    ViewData["Title"] = "ARPP FY Project Update";
+    var report = Model.Report;
+    string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+    string SupplyOrder(ArppFyProjectUpdateRow row)
+    {
+        var amount = row.SupplyOrderAmountInCrores.HasValue
+            ? $"₹{row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture)} Cr"
+            : null;
+        var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
+        return amount is not null && date is not null ? $"{amount} · {date}" : amount ?? date ?? "—";
+    }
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
+}
+
+<div class="project-reports-page project-reports-page--workspace">
+    <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
+        <a asp-page="/Projects/Index">Projects</a>
+        <span>/</span>
+        <a asp-page="./Index">Reports</a>
+        <span>/</span>
+        <span>ARPP FY Project Update</span>
+    </nav>
+
+    <header class="report-workspace-header">
+        <div>
+            <p class="project-reports-eyebrow">ARPP / PPP · FORMAL FY RETURN</p>
+            <h1>ARPP FY Project Update</h1>
+            <p>Approved New, CL and CF projects from the selected FY's latest published ARPP position.</p>
+        </div>
+
+        @if (Model.AvailableFinancialYears.Count > 0)
+        {
+            <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
+                <label for="financialYearStart">Financial Year</label>
+                <div class="input-group input-group-sm">
+                    <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
+                        @foreach (var year in Model.AvailableFinancialYears)
+                        {
+                            <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
+                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                        <span class="visually-hidden">Refresh report</span>
+                    </button>
+                </div>
+            </form>
+        }
+    </header>
+
+    @if (Model.AvailableFinancialYears.Count == 0)
+    {
+        <section class="report-empty-state">
+            <i class="bi bi-journal-x" aria-hidden="true"></i>
+            <h2>No published ARPP data</h2>
+            <p>Publish an ARPP document before generating this report.</p>
+            <a class="btn btn-outline-primary" asp-page="/Projects/Arpp/Index">Open ARPP / PPP</a>
+        </section>
+    }
+    else if (report is null)
+    {
+        <section class="report-empty-state">
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            <h2>Report unavailable</h2>
+            <p>The selected FY could not be resolved from the published ARPP library.</p>
+        </section>
+    }
+    else
+    {
+        <section class="report-command-strip" aria-label="Report controls">
+            <div class="report-kpis">
+                <div><span>Projects</span><strong>@report.Rows.Count</strong></div>
+                <div><span>Completed</span><strong>@report.CompletedCount</strong></div>
+                <div><span>Ongoing / exceptions</span><strong>@report.OngoingCount</strong></div>
+                <div class="@(report.WarningCount > 0 ? "has-warning" : string.Empty)"><span>Data warnings</span><strong>@report.WarningCount</strong></div>
+            </div>
+            <div class="report-export-actions">
+                <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                   asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
+                   aria-disabled="@(!report.CanExport)">
+                    <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                </a>
+                <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                   asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
+                   aria-disabled="@(!report.CanExport)">
+                    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                </a>
+                <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                   asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
+                   aria-disabled="@(!report.CanExport)">
+                    <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+                </a>
+            </div>
+        </section>
+
+        @if (report.Warnings.Count > 0)
+        {
+            <details class="report-preflight" @(report.WarningCount > 0 ? "open" : null)>
+                <summary>
+                    <span class="report-preflight__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span>
+                    <span>
+                        <strong>Publication preflight</strong>
+                        <small>@report.WarningCount warning@(report.WarningCount == 1 ? "" : "s") before issue</small>
+                    </span>
+                    <i class="bi bi-chevron-down report-preflight__chevron" aria-hidden="true"></i>
+                </summary>
+                <div class="report-preflight__body">
+                    @foreach (var warning in report.Warnings)
+                    {
+                        <div class="report-preflight__item">
+                            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                            <span>@warning.Message</span>
+                            @if (warning.ProjectId.HasValue)
+                            {
+                                <a asp-page="/Projects/Overview" asp-route-id="@warning.ProjectId.Value" target="_blank" rel="noopener noreferrer">Open project</a>
+                            }
+                        </div>
+                    }
+                </div>
+            </details>
+        }
+
+        <section class="formal-report-card" aria-label="ARPP FY project update preview">
+            <header class="formal-report-card__header">
+                <div>
+                    <span>FY @report.FinancialYearDisplay</span>
+                    <h2>ARPP Approved Projects – Project Update</h2>
+                </div>
+                <small>Rows are ordered by lifecycle maturity. Completed projects are classified directly from project lifecycle status and do not use stage history.</small>
+            </header>
+
+            @if (report.Rows.Count == 0)
+            {
+                <div class="formal-report-empty">No linked approved New / CL / CF projects are available for this FY.</div>
+            }
+            else
+            {
+                <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable report table">
+                    <table class="formal-report-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" class="col-serial">Ser No.</th>
+                                <th rowspan="2" class="col-arpp">ARPP No.</th>
+                                <th rowspan="2" class="col-project">Name of Project</th>
+                                <th rowspan="2" class="col-date">Dt of Grant of IPA / ARPP Listing</th>
+                                <th rowspan="2" class="col-sch">Sch</th>
+                                <th rowspan="2" class="col-cfa">CFA</th>
+                                <th rowspan="2" class="col-est">Est</th>
+                                <th colspan="3" class="col-status">Status</th>
+                                <th rowspan="2" class="col-case">Proj Case</th>
+                                <th rowspan="2" class="col-remarks">Remarks</th>
+                            </tr>
+                            <tr>
+                                <th class="col-aon">AoN</th>
+                                <th class="col-so">SO amt &amp; dt</th>
+                                <th class="col-pdc">PDC dt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in report.Rows)
+                            {
+                                <tr>
+                                    <td class="text-center">@row.SerialNumber</td>
+                                    <td class="text-center text-nowrap">@(row.PppNumber ?? "—")</td>
+                                    <td class="formal-report-project" title="Current position: @row.StageDisplay">
+                                        <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
+                                    </td>
+                                    <td class="text-center">@Date(row.FirstArppListingDate)</td>
+                                    <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>
+                                    <td class="text-center">@(row.Cfa ?? "—")</td>
+                                    <td class="text-center">@row.Establishment</td>
+                                    <td class="text-center">@Date(row.AonDate)</td>
+                                    <td class="text-center formal-report-so">
+                                        @if (row.SupplyOrderAmountInCrores.HasValue)
+                                        {
+                                            <strong>₹@row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture) Cr</strong>
+                                            @if (row.SupplyOrderDate.HasValue)
+                                            {
+                                                <span>@Date(row.SupplyOrderDate)</span>
+                                            }
+                                            <small>@(row.SupplyOrderAmountBasis == ProjectSupplyOrderValueBasis.Pnc ? "PNC" : "L1")</small>
+                                        }
+                                        else
+                                        {
+                                            <span>@SupplyOrder(row)</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">@Date(row.DevelopmentPdcDate)</td>
+                                    <td class="text-center"><span class="report-case-badge">@row.ProjectCaseDisplay</span></td>
+                                    <td class="formal-report-remarks">@(row.LatestExternalRemark ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>

@@ -1,0 +1,3133 @@
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml
+@@ -0,0 +1,208 @@
++@page "/Projects/Reports/ArppFyUpdate"
++@model ProjectManagement.Pages.Projects.Reports.ArppFyUpdateModel
++@using System.Globalization
++@using ProjectManagement.Services.Projects
++@using ProjectManagement.Services.Reports.ArppFyProjectUpdate
++@using ProjectManagement.Utilities
++@{
++    ViewData["Title"] = "ARPP FY Project Update";
++    var report = Model.Report;
++    string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
++    string SupplyOrder(ArppFyProjectUpdateRow row)
++    {
++        var amount = row.SupplyOrderAmountInCrores.HasValue
++            ? $"₹{row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture)} Cr"
++            : null;
++        var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
++        return amount is not null && date is not null ? $"{amount} · {date}" : amount ?? date ?? "—";
++    }
++}
++@section Styles {
++    <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
++}
++
++<div class="project-reports-page project-reports-page--workspace">
++    <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
++        <a asp-page="/Projects/Index">Projects</a>
++        <span>/</span>
++        <a asp-page="./Index">Reports</a>
++        <span>/</span>
++        <span>ARPP FY Project Update</span>
++    </nav>
++
++    <header class="report-workspace-header">
++        <div>
++            <p class="project-reports-eyebrow">ARPP / PPP · FORMAL FY RETURN</p>
++            <h1>ARPP FY Project Update</h1>
++            <p>Approved New, CL and CF projects from the selected FY's latest published ARPP position.</p>
++        </div>
++
++        @if (Model.AvailableFinancialYears.Count > 0)
++        {
++            <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
++                <label for="financialYearStart">Financial Year</label>
++                <div class="input-group input-group-sm">
++                    <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
++                        @foreach (var year in Model.AvailableFinancialYears)
++                        {
++                            <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
++                        }
++                    </select>
++                    <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
++                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
++                        <span class="visually-hidden">Refresh report</span>
++                    </button>
++                </div>
++            </form>
++        }
++    </header>
++
++    @if (Model.AvailableFinancialYears.Count == 0)
++    {
++        <section class="report-empty-state">
++            <i class="bi bi-journal-x" aria-hidden="true"></i>
++            <h2>No published ARPP data</h2>
++            <p>Publish an ARPP document before generating this report.</p>
++            <a class="btn btn-outline-primary" asp-page="/Projects/Arpp/Index">Open ARPP / PPP</a>
++        </section>
++    }
++    else if (report is null)
++    {
++        <section class="report-empty-state">
++            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
++            <h2>Report unavailable</h2>
++            <p>The selected FY could not be resolved from the published ARPP library.</p>
++        </section>
++    }
++    else
++    {
++        <section class="report-command-strip" aria-label="Report controls">
++            <div class="report-kpis">
++                <div><span>Projects</span><strong>@report.Rows.Count</strong></div>
++                <div><span>Completed</span><strong>@report.CompletedCount</strong></div>
++                <div><span>Ongoing / exceptions</span><strong>@report.OngoingCount</strong></div>
++                <div class="@(report.WarningCount > 0 ? "has-warning" : string.Empty)"><span>Data warnings</span><strong>@report.WarningCount</strong></div>
++            </div>
++            <div class="report-export-actions">
++                <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                   asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
++                   aria-disabled="@(!report.CanExport)">
++                    <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
++                </a>
++                <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                   asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
++                   aria-disabled="@(!report.CanExport)">
++                    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
++                </a>
++                <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                   asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
++                   aria-disabled="@(!report.CanExport)">
++                    <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
++                </a>
++            </div>
++        </section>
++
++        @if (report.Warnings.Count > 0)
++        {
++            <details class="report-preflight" @(report.WarningCount > 0 ? "open" : null)>
++                <summary>
++                    <span class="report-preflight__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span>
++                    <span>
++                        <strong>Publication preflight</strong>
++                        <small>@report.WarningCount warning@(report.WarningCount == 1 ? "" : "s") before issue</small>
++                    </span>
++                    <i class="bi bi-chevron-down report-preflight__chevron" aria-hidden="true"></i>
++                </summary>
++                <div class="report-preflight__body">
++                    @foreach (var warning in report.Warnings)
++                    {
++                        <div class="report-preflight__item">
++                            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
++                            <span>@warning.Message</span>
++                            @if (warning.ProjectId.HasValue)
++                            {
++                                <a asp-page="/Projects/Overview" asp-route-id="@warning.ProjectId.Value" target="_blank" rel="noopener noreferrer">Open project</a>
++                            }
++                        </div>
++                    }
++                </div>
++            </details>
++        }
++
++        <section class="formal-report-card" aria-label="ARPP FY project update preview">
++            <header class="formal-report-card__header">
++                <div>
++                    <span>FY @report.FinancialYearDisplay</span>
++                    <h2>ARPP Approved Projects – Project Update</h2>
++                </div>
++                <small>Rows are ordered by lifecycle maturity. Completed projects are classified directly from project lifecycle status and do not use stage history.</small>
++            </header>
++
++            @if (report.Rows.Count == 0)
++            {
++                <div class="formal-report-empty">No linked approved New / CL / CF projects are available for this FY.</div>
++            }
++            else
++            {
++                <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable report table">
++                    <table class="formal-report-table">
++                        <thead>
++                            <tr>
++                                <th rowspan="2" class="col-serial">Ser No.</th>
++                                <th rowspan="2" class="col-arpp">ARPP No.</th>
++                                <th rowspan="2" class="col-project">Name of Project</th>
++                                <th rowspan="2" class="col-date">Dt of Grant of IPA / ARPP Listing</th>
++                                <th rowspan="2" class="col-sch">Sch</th>
++                                <th rowspan="2" class="col-cfa">CFA</th>
++                                <th rowspan="2" class="col-est">Est</th>
++                                <th colspan="3" class="col-status">Status</th>
++                                <th rowspan="2" class="col-case">Proj Case</th>
++                                <th rowspan="2" class="col-remarks">Remarks</th>
++                            </tr>
++                            <tr>
++                                <th class="col-aon">AoN</th>
++                                <th class="col-so">SO amt &amp; dt</th>
++                                <th class="col-pdc">PDC dt</th>
++                            </tr>
++                        </thead>
++                        <tbody>
++                            @foreach (var row in report.Rows)
++                            {
++                                <tr>
++                                    <td class="text-center">@row.SerialNumber</td>
++                                    <td class="text-center text-nowrap">@(row.PppNumber ?? "—")</td>
++                                    <td class="formal-report-project" title="Current position: @row.StageDisplay">
++                                        <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
++                                    </td>
++                                    <td class="text-center">@Date(row.FirstArppListingDate)</td>
++                                    <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>
++                                    <td class="text-center">@(row.Cfa ?? "—")</td>
++                                    <td class="text-center">@row.Establishment</td>
++                                    <td class="text-center">@Date(row.AonDate)</td>
++                                    <td class="text-center formal-report-so">
++                                        @if (row.SupplyOrderAmountInCrores.HasValue)
++                                        {
++                                            <strong>₹@row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture) Cr</strong>
++                                            @if (row.SupplyOrderDate.HasValue)
++                                            {
++                                                <span>@Date(row.SupplyOrderDate)</span>
++                                            }
++                                            <small>@(row.SupplyOrderAmountBasis == ProjectSupplyOrderValueBasis.Pnc ? "PNC" : "L1")</small>
++                                        }
++                                        else
++                                        {
++                                            <span>@SupplyOrder(row)</span>
++                                        }
++                                    </td>
++                                    <td class="text-center">@Date(row.DevelopmentPdcDate)</td>
++                                    <td class="text-center"><span class="report-case-badge">@row.ProjectCaseDisplay</span></td>
++                                    <td class="formal-report-remarks">@(row.LatestExternalRemark ?? "—")</td>
++                                </tr>
++                            }
++                        </tbody>
++                    </table>
++                </div>
++            }
++        </section>
++    }
++</div>
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
+@@ -0,0 +1,79 @@
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.RazorPages;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++namespace ProjectManagement.Pages.Projects.Reports;
++
++[Authorize(Policy = ProjectOfficeReportsPolicies.ViewArpp)]
++public sealed class ArppFyUpdateModel : PageModel
++{
++    private readonly IArppFyProjectUpdateService _reportService;
++    private readonly IArppFyProjectUpdateExportService _exportService;
++
++    public ArppFyUpdateModel(
++        IArppFyProjectUpdateService reportService,
++        IArppFyProjectUpdateExportService exportService)
++    {
++        _reportService = reportService ?? throw new ArgumentNullException(nameof(reportService));
++        _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
++    }
++
++    [BindProperty(SupportsGet = true)]
++    public int? FinancialYearStart { get; set; }
++
++    public IReadOnlyList<int> AvailableFinancialYears { get; private set; } = Array.Empty<int>();
++    public ArppFyProjectUpdateReport? Report { get; private set; }
++
++    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
++    {
++        AvailableFinancialYears = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
++        if (AvailableFinancialYears.Count == 0)
++        {
++            return Page();
++        }
++
++        var selected = FinancialYearStart.HasValue && AvailableFinancialYears.Contains(FinancialYearStart.Value)
++            ? FinancialYearStart.Value
++            : AvailableFinancialYears[0];
++        FinancialYearStart = selected;
++        Report = await _reportService.BuildAsync(selected, cancellationToken);
++        return Page();
++    }
++
++    public Task<IActionResult> OnGetWordAsync(int financialYearStart, CancellationToken cancellationToken)
++        => ExportAsync(financialYearStart, _exportService.BuildWord, cancellationToken);
++
++    public Task<IActionResult> OnGetPdfAsync(int financialYearStart, CancellationToken cancellationToken)
++        => ExportAsync(financialYearStart, _exportService.BuildPdf, cancellationToken);
++
++    public Task<IActionResult> OnGetExcelAsync(int financialYearStart, CancellationToken cancellationToken)
++        => ExportAsync(financialYearStart, _exportService.BuildExcel, cancellationToken);
++
++    private async Task<IActionResult> ExportAsync(
++        int financialYearStart,
++        Func<ArppFyProjectUpdateReport, ArppFyProjectUpdateFile> exporter,
++        CancellationToken cancellationToken)
++    {
++        var available = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
++        if (!available.Contains(financialYearStart))
++        {
++            return NotFound();
++        }
++
++        var report = await _reportService.BuildAsync(financialYearStart, cancellationToken);
++        if (report is null)
++        {
++            return NotFound();
++        }
++
++        if (!report.CanExport)
++        {
++            return BadRequest("The selected financial year has no linked approved projects to export.");
++        }
++
++        var file = exporter(report);
++        return File(file.Content, file.ContentType, file.FileName);
++    }
++}
+--- a/Pages/Projects/Reports/Index.cshtml
++++ b/Pages/Projects/Reports/Index.cshtml
+@@ -0,0 +1,70 @@
++@page "/Projects/Reports"
++@model ProjectManagement.Pages.Projects.Reports.IndexModel
++@using ProjectManagement.Utilities
++@{
++    ViewData["Title"] = "Project Reports";
++    var latestFy = Model.AvailableFinancialYears.FirstOrDefault();
++}
++@section Styles {
++    <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
++}
++
++<div class="project-reports-page">
++    <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
++        <a asp-page="/Projects/Index">Projects</a>
++        <span>/</span>
++        <span>Reports</span>
++    </nav>
++
++    <header class="project-reports-hero">
++        <div>
++            <p class="project-reports-eyebrow">PROJECT REPORTING</p>
++            <h1>Reports</h1>
++            <p>Generate formal project returns directly from authoritative PRISM and published ARPP records.</p>
++        </div>
++    </header>
++
++    <section class="project-report-grid" aria-label="Available project reports">
++        <article class="project-report-card">
++            <div class="project-report-card__icon" aria-hidden="true">
++                <i class="bi bi-table"></i>
++            </div>
++            <div class="project-report-card__body">
++                <div class="project-report-card__meta">ARPP / PPP · FY return</div>
++                <h2>ARPP FY Project Update</h2>
++                <p>ARPP-approved projects for the selected financial year with IPA/ARPP listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
++                <div class="project-report-card__facts">
++                    <span><i class="bi bi-sort-down-alt"></i> Stage-maturity order</span>
++                    <span><i class="bi bi-file-earmark-word"></i> Word</span>
++                    <span><i class="bi bi-file-earmark-pdf"></i> PDF</span>
++                    <span><i class="bi bi-file-earmark-excel"></i> Excel</span>
++                </div>
++                @if (latestFy > 0)
++                {
++                    <a class="btn btn-primary" asp-page="./ArppFyUpdate" asp-route-financialYearStart="@latestFy">
++                        Open report
++                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
++                    </a>
++                }
++                else
++                {
++                    <button class="btn btn-secondary" type="button" disabled>No published ARPP data</button>
++                }
++            </div>
++            @if (latestFy > 0)
++            {
++                <div class="project-report-card__availability">
++                    Latest available: <strong>FY @FinancialYearHelper.Format(latestFy)</strong>
++                </div>
++            }
++        </article>
++    </section>
++
++    <section class="project-reports-principle">
++        <i class="bi bi-shield-check" aria-hidden="true"></i>
++        <div>
++            <strong>One authoritative data model per report.</strong>
++            <p>The browser preview and all export formats use the same resolved report rows and ordering.</p>
++        </div>
++    </section>
++</div>
+--- a/Pages/Projects/Reports/Index.cshtml.cs
++++ b/Pages/Projects/Reports/Index.cshtml.cs
+@@ -0,0 +1,20 @@
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc.RazorPages;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++namespace ProjectManagement.Pages.Projects.Reports;
++
++[Authorize(Policy = ProjectOfficeReportsPolicies.ViewArpp)]
++public sealed class IndexModel : PageModel
++{
++    private readonly IArppFyProjectUpdateService _reportService;
++
++    public IndexModel(IArppFyProjectUpdateService reportService)
++        => _reportService = reportService ?? throw new ArgumentNullException(nameof(reportService));
++
++    public IReadOnlyList<int> AvailableFinancialYears { get; private set; } = Array.Empty<int>();
++
++    public async Task OnGetAsync(CancellationToken cancellationToken)
++        => AvailableFinancialYears = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
++}
+--- a/Program.cs
++++ b/Program.cs
+@@ -83,6 +83,7 @@
+ using ProjectManagement.Services.Publications;
+ using ProjectManagement.Services.Remarks;
+ using ProjectManagement.Services.Reports.ProgressReview;
++using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
+ using ProjectManagement.Services.Scheduling;
+ using ProjectManagement.Services.Stages;
+ using ProjectManagement.Services.Text;
+@@ -638,6 +639,18 @@
+ builder.Services.AddScoped<ProliferationChronologyQualityService>();
+ builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
+ 
++// SECTION: Shared formal project reporting facts
++builder.Services.AddScoped<IProjectFormalUpdateFactsResolver, ProjectFormalUpdateFactsResolver>();
++builder.Services.AddScoped<IProjectSupplyOrderValueResolver, ProjectSupplyOrderValueResolver>();
++builder.Services.AddScoped<IProjectLatestExternalRemarkService, ProjectLatestExternalRemarkService>();
++
++// SECTION: Project reports
++builder.Services.AddScoped<IArppFyProjectUpdateService, ArppFyProjectUpdateService>();
++builder.Services.AddScoped<IArppFyProjectUpdateExportService, ArppFyProjectUpdateExportService>();
++builder.Services.AddScoped<ArppFyProjectUpdateWordBuilder>();
++builder.Services.AddScoped<ArppFyProjectUpdatePdfBuilder>();
++builder.Services.AddScoped<ArppFyProjectUpdateExcelBuilder>();
++
+ // SECTION: Project briefing decks
+ builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
+ builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+@@ -0,0 +1,70 @@
++using ClosedXML.Excel;
++using DocumentFormat.OpenXml.Packaging;
++using ProjectManagement.Models;
++using ProjectManagement.Models.Arpp;
++using ProjectManagement.Services.Projects;
++using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class ArppFyProjectUpdateExportTests
++{
++    [Fact]
++    public void Word_and_excel_builders_emit_valid_landscape_report_files()
++    {
++        var report = SampleReport();
++
++        var word = new ArppFyProjectUpdateWordBuilder().Build(report);
++        Assert.NotEmpty(word);
++        using (var stream = new MemoryStream(word))
++        using (var document = WordprocessingDocument.Open(stream, false))
++        {
++            Assert.NotNull(document.MainDocumentPart?.Document?.Body);
++            var text = document.MainDocumentPart!.Document.Body!.InnerText;
++            Assert.Contains("ARPP APPROVED PROJECTS", text, StringComparison.Ordinal);
++            Assert.Contains("Sample Simulator", text, StringComparison.Ordinal);
++        }
++
++        var excel = new ArppFyProjectUpdateExcelBuilder().Build(report);
++        Assert.NotEmpty(excel);
++        using var excelStream = new MemoryStream(excel);
++        using var workbook = new XLWorkbook(excelStream);
++        var worksheet = workbook.Worksheet("ARPP Project Update");
++        Assert.Equal("Status", worksheet.Cell(3, 8).GetString());
++        Assert.Equal("SO amt & dt", worksheet.Cell(4, 9).GetString());
++        Assert.Equal("Sample Simulator", worksheet.Cell(5, 3).GetString());
++    }
++
++    private static ArppFyProjectUpdateReport SampleReport()
++        => new(
++            2026,
++            new DateTimeOffset(2026, 8, 16, 12, 0, 0, TimeSpan.Zero),
++            new[]
++            {
++                new ArppFyProjectUpdateRow(
++                    1,
++                    10,
++                    "33",
++                    "Sample Simulator",
++                    new DateOnly(2025, 4, 10),
++                    "Sch 4",
++                    "DG EME",
++                    "SDD",
++                    new DateOnly(2025, 6, 1),
++                    23_500_000m,
++                    ProjectSupplyOrderValueBasis.Pnc,
++                    new DateOnly(2026, 7, 14),
++                    new DateOnly(2027, 1, 31),
++                    ArppCategory.CarryForward,
++                    "Development progressing as planned.",
++                    new DateOnly(2026, 8, 10),
++                    ProjectLifecycleStatus.Active,
++                    false,
++                    "DEVP",
++                    "Development",
++                    ProjectStageMaturityOrder.Development)
++            },
++            Array.Empty<ArppFyReportWarning>(),
++            0);
++}
+--- a/ProjectManagement.Tests/Reports/ProjectStageMaturityOrderTests.cs
++++ b/ProjectManagement.Tests/Reports/ProjectStageMaturityOrderTests.cs
+@@ -0,0 +1,32 @@
++using ProjectManagement.Models;
++using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.Projects;
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class ProjectStageMaturityOrderTests
++{
++    [Fact]
++    public void Completed_lifecycle_overrides_any_stage_code()
++    {
++        Assert.Equal(
++            ProjectStageMaturityOrder.Completed,
++            ProjectStageMaturityOrder.Resolve(ProjectLifecycleStatus.Completed, StageCodes.FS));
++        Assert.Equal(
++            ProjectStageMaturityOrder.Completed,
++            ProjectStageMaturityOrder.Resolve(ProjectLifecycleStatus.Completed, StageCodes.DEVP));
++    }
++
++    [Fact]
++    public void Ongoing_stages_are_ranked_maturity_first()
++    {
++        Assert.True(ProjectStageMaturityOrder.Development < ProjectStageMaturityOrder.SupplyOrder);
++        Assert.True(ProjectStageMaturityOrder.SupplyOrder < ProjectStageMaturityOrder.Pnc);
++        Assert.True(ProjectStageMaturityOrder.Pnc < ProjectStageMaturityOrder.AcceptanceOfNecessity);
++        Assert.True(ProjectStageMaturityOrder.AcceptanceOfNecessity < ProjectStageMaturityOrder.InPrincipleApproval);
++        Assert.Equal(
++            ProjectStageMaturityOrder.Unknown,
++            ProjectStageMaturityOrder.Resolve(ProjectLifecycleStatus.Active, "UNMAPPED"));
++    }
++}
+--- a/ProjectManagement.Tests/Reports/ProjectSupplyOrderValueResolverTests.cs
++++ b/ProjectManagement.Tests/Reports/ProjectSupplyOrderValueResolverTests.cs
+@@ -0,0 +1,89 @@
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Data;
++using ProjectManagement.Models;
++using ProjectManagement.Services.Projects;
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class ProjectSupplyOrderValueResolverTests
++{
++    [Fact]
++    public async Task Pnc_cost_wins_over_l1_cost()
++    {
++        await using var db = CreateContext();
++        db.ProjectCommercialFacts.Add(new ProjectCommercialFact
++        {
++            ProjectId = 1,
++            L1Cost = 25_000_000m,
++            CreatedByUserId = "test",
++            CreatedOnUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
++        });
++        db.ProjectPncFacts.Add(new ProjectPncFact
++        {
++            ProjectId = 1,
++            PncCost = 23_500_000m,
++            CreatedByUserId = "test",
++            CreatedOnUtc = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
++        });
++        await db.SaveChangesAsync();
++
++        var result = await new ProjectSupplyOrderValueResolver(db).ResolveAsync([1]);
++
++        Assert.Equal(23_500_000m, result[1].AmountInRupees);
++        Assert.Equal(ProjectSupplyOrderValueBasis.Pnc, result[1].Basis);
++    }
++
++    [Fact]
++    public async Task L1_is_used_only_when_positive_pnc_is_absent()
++    {
++        await using var db = CreateContext();
++        db.ProjectCommercialFacts.Add(new ProjectCommercialFact
++        {
++            ProjectId = 1,
++            L1Cost = 17_000_000m,
++            CreatedByUserId = "test",
++            CreatedOnUtc = DateTime.UtcNow
++        });
++        await db.SaveChangesAsync();
++
++        var result = await new ProjectSupplyOrderValueResolver(db).ResolveAsync([1]);
++
++        Assert.Equal(17_000_000m, result[1].AmountInRupees);
++        Assert.Equal(ProjectSupplyOrderValueBasis.L1, result[1].Basis);
++    }
++
++    [Fact]
++    public async Task Resolver_does_not_fallback_to_aon_or_ipa()
++    {
++        await using var db = CreateContext();
++        db.ProjectAonFacts.Add(new ProjectAonFact
++        {
++            ProjectId = 1,
++            AonCost = 40_000_000m,
++            CreatedByUserId = "test",
++            CreatedOnUtc = DateTime.UtcNow
++        });
++        db.ProjectIpaFacts.Add(new ProjectIpaFact
++        {
++            ProjectId = 1,
++            IpaCost = 45_000_000m,
++            CreatedByUserId = "test",
++            CreatedOnUtc = DateTime.UtcNow
++        });
++        await db.SaveChangesAsync();
++
++        var result = await new ProjectSupplyOrderValueResolver(db).ResolveAsync([1]);
++
++        Assert.False(result[1].IsAvailable);
++        Assert.Equal(ProjectSupplyOrderValueBasis.None, result[1].Basis);
++    }
++
++    private static ApplicationDbContext CreateContext()
++    {
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseInMemoryDatabase(Guid.NewGuid().ToString())
++            .Options;
++        return new ApplicationDbContext(options);
++    }
++}
+--- a/Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
++++ b/Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
+@@ -1,4 +1,5 @@
+ using System.Collections.Generic;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Models.Navigation;
+ 
+@@ -44,6 +45,14 @@
+         },
+         new()
+         {
++            Text = "Reports",
++            Page = "/Projects/Reports/Index",
++            ActivePagePrefix = "/Projects/Reports/",
++            Icon = "bi-file-earmark-bar-graph",
++            AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewArpp
++        },
++        new()
++        {
+             Text = "Analytics",
+             Page = "/Analytics/Index",
+             Icon = "bi-graph-up"
+--- a/Services/ProjectBriefings/ProjectBriefingExternalStatusService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingExternalStatusService.cs
+@@ -1,6 +1,5 @@
+-using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Data;
+-using ProjectManagement.Models.Remarks;
++using ProjectManagement.Services.Remarks;
+ 
+ namespace ProjectManagement.Services.ProjectBriefings;
+ 
+@@ -18,71 +17,35 @@
+         CancellationToken cancellationToken = default);
+ }
+ 
++/// <summary>
++/// Briefing adapter over the shared formal-output external remark reader.
++/// </summary>
+ public sealed class ProjectBriefingExternalStatusService : IProjectBriefingExternalStatusService
+ {
+-    private readonly ApplicationDbContext _db;
++    private readonly IProjectLatestExternalRemarkService _remarkService;
+ 
++    // Preserves direct construction used by older tests and integration code.
+     public ProjectBriefingExternalStatusService(ApplicationDbContext db)
++        : this(new ProjectLatestExternalRemarkService(db))
+     {
+-        _db = db ?? throw new ArgumentNullException(nameof(db));
+     }
++
++    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
++    public ProjectBriefingExternalStatusService(IProjectLatestExternalRemarkService remarkService)
++        => _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
+ 
+     public async Task<IReadOnlyDictionary<int, ProjectBriefingExternalStatus>> GetLatestAsync(
+         IReadOnlyCollection<int> projectIds,
+         CancellationToken cancellationToken = default)
+     {
+-        var ids = projectIds
+-            .Where(id => id > 0)
+-            .Distinct()
+-            .ToArray();
+-
+-        if (ids.Length == 0)
+-        {
+-            return new Dictionary<int, ProjectBriefingExternalStatus>();
+-        }
+-
+-        var rows = await _db.Remarks
+-            .AsNoTracking()
+-            .Where(remark => ids.Contains(remark.ProjectId)
+-                && !remark.IsDeleted
+-                && remark.Type == RemarkType.External
+-                && remark.Scope == RemarkScope.General
+-                && remark.Body != null
+-                && remark.Body.Trim() != string.Empty)
+-            .Select(remark => new
+-            {
+-                remark.Id,
+-                remark.ProjectId,
+-                remark.Body,
+-                remark.EventDate,
+-                remark.CreatedAtUtc,
+-                remark.LastEditedAtUtc
+-            })
+-            .ToListAsync(cancellationToken);
+-
+-        return rows
+-            .GroupBy(row => row.ProjectId)
+-            .ToDictionary(
+-                group => group.Key,
+-                group =>
+-                {
+-                    var latest = group
+-                        .OrderByDescending(row => row.LastEditedAtUtc ?? row.CreatedAtUtc)
+-                        .ThenByDescending(row => row.Id)
+-                        .First();
+-
+-                    return new ProjectBriefingExternalStatus(
+-                        latest.ProjectId,
+-                        latest.Id,
+-                        Normalize(latest.Body),
+-                        latest.EventDate,
+-                        latest.LastEditedAtUtc ?? latest.CreatedAtUtc);
+-                });
++        var rows = await _remarkService.GetLatestAsync(projectIds, cancellationToken);
++        return rows.ToDictionary(
++            pair => pair.Key,
++            pair => new ProjectBriefingExternalStatus(
++                pair.Value.ProjectId,
++                pair.Value.RemarkId,
++                pair.Value.Body,
++                pair.Value.EventDate,
++                pair.Value.EffectiveAtUtc));
+     }
+-
+-    private static string Normalize(string value)
+-        => string.Join(" ", value
+-            .Replace("\r", " ", StringComparison.Ordinal)
+-            .Replace("\n", " ", StringComparison.Ordinal)
+-            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+ }
+--- a/Services/ProjectBriefings/ProjectBriefingStageOrder.cs
++++ b/Services/ProjectBriefings/ProjectBriefingStageOrder.cs
+@@ -1,96 +1,45 @@
+ using ProjectManagement.Models;
+-using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.Projects;
+ 
+ namespace ProjectManagement.Services.ProjectBriefings;
+ 
+ /// <summary>
+-/// Defines the authoritative maturity-first sequence used by the project briefing
+-/// builder and every briefing export. The sequence is the current SDD workflow in
+-/// reverse progression, with completed projects placed first.
++/// Briefing compatibility facade over the application-wide project maturity
++/// ordering contract. Keeping this type preserves existing briefing APIs and
++/// tests while reports and briefings now share one canonical stage sequence.
+ /// </summary>
+ public static class ProjectBriefingStageOrder
+ {
+-    public const string CompletedCode = "COMPLETED";
++    public const string CompletedCode = ProjectStageMaturityOrder.CompletedCode;
+ 
+-    public const int Completed = 0;
+-    public const int TransferOfTechnology = 10;
+-    public const int Payment = 20;
+-    public const int AcceptanceTesting = 30;
+-    public const int Development = 40;
+-    public const int SupplyOrder = 50;
+-    public const int EasApproval = 60;
+-    public const int Pnc = 70;
+-    public const int CommercialBidOpening = 80;
+-    public const int Benchmarking = 90;
+-    public const int TechnicalEvaluation = 100;
+-    public const int BiddingTendering = 110;
+-    public const int AcceptanceOfNecessity = 120;
+-    public const int InPrincipleApproval = 130;
+-    public const int SowVetting = 140;
+-    public const int FeasibilityStudy = 150;
+-    public const int Unknown = 10_000;
++    public const int Completed = ProjectStageMaturityOrder.Completed;
++    public const int TransferOfTechnology = ProjectStageMaturityOrder.TransferOfTechnology;
++    public const int Payment = ProjectStageMaturityOrder.Payment;
++    public const int AcceptanceTesting = ProjectStageMaturityOrder.AcceptanceTesting;
++    public const int Development = ProjectStageMaturityOrder.Development;
++    public const int SupplyOrder = ProjectStageMaturityOrder.SupplyOrder;
++    public const int EasApproval = ProjectStageMaturityOrder.EasApproval;
++    public const int Pnc = ProjectStageMaturityOrder.Pnc;
++    public const int CommercialBidOpening = ProjectStageMaturityOrder.CommercialBidOpening;
++    public const int Benchmarking = ProjectStageMaturityOrder.Benchmarking;
++    public const int TechnicalEvaluation = ProjectStageMaturityOrder.TechnicalEvaluation;
++    public const int BiddingTendering = ProjectStageMaturityOrder.BiddingTendering;
++    public const int AcceptanceOfNecessity = ProjectStageMaturityOrder.AcceptanceOfNecessity;
++    public const int InPrincipleApproval = ProjectStageMaturityOrder.InPrincipleApproval;
++    public const int SowVetting = ProjectStageMaturityOrder.SowVetting;
++    public const int FeasibilityStudy = ProjectStageMaturityOrder.FeasibilityStudy;
++    public const int Unknown = ProjectStageMaturityOrder.Unknown;
+ 
+     private static readonly IReadOnlyList<ProjectBriefingStageDefinition> CanonicalStages =
+-        Array.AsReadOnly(new[]
+-        {
+-            new ProjectBriefingStageDefinition(CompletedCode, "Completed", Completed),
+-            new ProjectBriefingStageDefinition(StageCodes.TOT, "Transfer of Technology", TransferOfTechnology),
+-            new ProjectBriefingStageDefinition(StageCodes.PAYMENT, "Payment", Payment),
+-            new ProjectBriefingStageDefinition(StageCodes.ATP, "Acceptance Testing", AcceptanceTesting),
+-            new ProjectBriefingStageDefinition(StageCodes.DEVP, "Development", Development),
+-            new ProjectBriefingStageDefinition(StageCodes.SO, "Supply Order", SupplyOrder),
+-            new ProjectBriefingStageDefinition(StageCodes.EAS, "EAS Approval", EasApproval),
+-            new ProjectBriefingStageDefinition(StageCodes.PNC, "Price Negotiation", Pnc),
+-            new ProjectBriefingStageDefinition(StageCodes.COB, "Commercial Opening", CommercialBidOpening),
+-            new ProjectBriefingStageDefinition(StageCodes.BM, "Benchmarking", Benchmarking),
+-            new ProjectBriefingStageDefinition(StageCodes.TEC, "Technical Evaluation", TechnicalEvaluation),
+-            new ProjectBriefingStageDefinition(StageCodes.BID, "Bidding / Tendering", BiddingTendering),
+-            new ProjectBriefingStageDefinition(StageCodes.AON, "Acceptance of Necessity", AcceptanceOfNecessity),
+-            new ProjectBriefingStageDefinition(StageCodes.IPA, "In-Principle Approval", InPrincipleApproval),
+-            new ProjectBriefingStageDefinition(StageCodes.SOW, "Scope of Work Vetting", SowVetting),
+-            new ProjectBriefingStageDefinition(StageCodes.FS, "Feasibility Study", FeasibilityStudy)
+-        });
++        Array.AsReadOnly(ProjectStageMaturityOrder.Stages
++            .Select(stage => new ProjectBriefingStageDefinition(stage.Code, stage.Label, stage.Order))
++            .ToArray());
+ 
+-    /// <summary>
+-    /// Complete presentation catalogue, including stages with no selected projects.
+-    /// </summary>
+     public static IReadOnlyList<ProjectBriefingStageDefinition> Stages => CanonicalStages;
+ 
+     public static int Resolve(ProjectLifecycleStatus lifecycleStatus, string? stageCode)
+-    {
+-        if (lifecycleStatus == ProjectLifecycleStatus.Completed
+-            || string.Equals(stageCode, CompletedCode, StringComparison.OrdinalIgnoreCase))
+-        {
+-            return Completed;
+-        }
++        => ProjectStageMaturityOrder.Resolve(lifecycleStatus, stageCode);
+ 
+-        return stageCode?.Trim().ToUpperInvariant() switch
+-        {
+-            StageCodes.TOT => TransferOfTechnology,
+-            StageCodes.PAYMENT => Payment,
+-            StageCodes.ATP => AcceptanceTesting,
+-            StageCodes.DEVP => Development,
+-            StageCodes.SO => SupplyOrder,
+-            StageCodes.EAS => EasApproval,
+-            StageCodes.PNC => Pnc,
+-            StageCodes.COB => CommercialBidOpening,
+-            StageCodes.BM => Benchmarking,
+-            StageCodes.TEC => TechnicalEvaluation,
+-            StageCodes.BID => BiddingTendering,
+-            StageCodes.AON => AcceptanceOfNecessity,
+-            StageCodes.IPA => InPrincipleApproval,
+-            StageCodes.SOW => SowVetting,
+-            StageCodes.FS => FeasibilityStudy,
+-            _ => Unknown
+-        };
+-    }
+-
+-    /// <summary>
+-    /// Builds the visible stage summary in canonical maturity order. Valid workflow
+-    /// stages remain available through <see cref="Stages"/>, but stages with no
+-    /// selected projects are omitted from the briefing. Unmapped stages are
+-    /// consolidated into one exception row.
+-    /// </summary>
+     public static IReadOnlyList<ProjectBriefingSummaryPoint> BuildSummary(
+         IEnumerable<int> stageOrders)
+     {
+--- a/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
++++ b/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
+@@ -1,7 +1,7 @@
+ using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Data;
+ using ProjectManagement.Models.Arpp;
+-using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.Projects;
+ 
+ namespace ProjectManagement.Services.ProjectBriefings;
+ 
+@@ -38,14 +38,27 @@
+ 
+ /// <summary>
+ /// Resolves the authoritative factual fields required by the formal project-update-sheet layout.
+-/// All reads are performed in bounded batch queries so deck generation does not create an N+1 query pattern.
++/// Generic procurement facts are delegated to <see cref="IProjectFormalUpdateFactsResolver"/>
++/// so the briefing deck and formal reports cannot drift on AoN, SO date or Development PDC.
+ /// </summary>
+ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUpdateSheetFactsResolver
+ {
+     private readonly ApplicationDbContext _db;
++    private readonly IProjectFormalUpdateFactsResolver _formalFactsResolver;
+ 
++    // Preserves direct construction used by older tests and integration code.
+     public ProjectBriefingUpdateSheetFactsResolver(ApplicationDbContext db)
+-        => _db = db ?? throw new ArgumentNullException(nameof(db));
++        : this(db, new ProjectFormalUpdateFactsResolver(db))
++    {
++    }
++
++    public ProjectBriefingUpdateSheetFactsResolver(
++        ApplicationDbContext db,
++        IProjectFormalUpdateFactsResolver formalFactsResolver)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _formalFactsResolver = formalFactsResolver ?? throw new ArgumentNullException(nameof(formalFactsResolver));
++    }
+ 
+     public async Task<IReadOnlyDictionary<int, ProjectBriefingUpdateSheetFacts>> ResolveAsync(
+         IReadOnlyCollection<int> projectIds,
+@@ -56,6 +69,8 @@
+         {
+             return new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
+         }
++
++        var formalFacts = await _formalFactsResolver.ResolveAsync(ids, cancellationToken);
+ 
+         var projectRows = await _db.Projects
+             .AsNoTracking()
+@@ -70,68 +85,6 @@
+                     : null
+             })
+             .ToListAsync(cancellationToken);
+-
+-        var stageRows = await _db.ProjectStages
+-            .AsNoTracking()
+-            .Where(stage => ids.Contains(stage.ProjectId)
+-                && (stage.StageCode == StageCodes.AON || stage.StageCode == StageCodes.DEVP))
+-            .Select(stage => new
+-            {
+-                stage.Id,
+-                stage.ProjectId,
+-                stage.StageCode,
+-                stage.SortOrder,
+-                stage.CompletedOn,
+-                stage.PlannedDue
+-            })
+-            .ToListAsync(cancellationToken);
+-
+-        var aonDates = stageRows
+-            .Where(stage => stage.StageCode == StageCodes.AON)
+-            .GroupBy(stage => stage.ProjectId)
+-            .ToDictionary(
+-                group => group.Key,
+-                group => group
+-                    .OrderByDescending(stage => stage.CompletedOn.HasValue)
+-                    .ThenByDescending(stage => stage.CompletedOn)
+-                    .ThenByDescending(stage => stage.SortOrder)
+-                    .ThenByDescending(stage => stage.Id)
+-                    .Select(stage => stage.CompletedOn)
+-                    .FirstOrDefault());
+-
+-        var developmentPdcs = stageRows
+-            .Where(stage => stage.StageCode == StageCodes.DEVP)
+-            .GroupBy(stage => stage.ProjectId)
+-            .ToDictionary(
+-                group => group.Key,
+-                group => group
+-                    .OrderByDescending(stage => stage.PlannedDue.HasValue)
+-                    .ThenByDescending(stage => stage.PlannedDue)
+-                    .ThenByDescending(stage => stage.SortOrder)
+-                    .ThenByDescending(stage => stage.Id)
+-                    .Select(stage => stage.PlannedDue)
+-                    .FirstOrDefault());
+-
+-        var supplyOrderDates = await _db.ProjectSupplyOrderFacts
+-            .AsNoTracking()
+-            .Where(fact => ids.Contains(fact.ProjectId))
+-            .Select(fact => new
+-            {
+-                fact.Id,
+-                fact.ProjectId,
+-                fact.SupplyOrderDate,
+-                fact.CreatedOnUtc
+-            })
+-            .ToListAsync(cancellationToken);
+-        var supplyOrderByProject = supplyOrderDates
+-            .GroupBy(fact => fact.ProjectId)
+-            .ToDictionary(
+-                group => group.Key,
+-                group => group
+-                    .OrderByDescending(fact => fact.CreatedOnUtc)
+-                    .ThenByDescending(fact => fact.Id)
+-                    .Select(fact => (DateOnly?)fact.SupplyOrderDate)
+-                    .FirstOrDefault());
+ 
+         var jdpRows = await _db.IndustryPartnerProjects
+             .AsNoTracking()
+@@ -189,15 +142,17 @@
+             row =>
+             {
+                 arppByProject.TryGetValue(row.Id, out var arpp);
++                formalFacts.TryGetValue(row.Id, out var formal);
+                 var officer = FormatOfficer(row.OfficerRank, row.OfficerFullName);
++
+                 return new ProjectBriefingUpdateSheetFacts(
+                     arpp?.Category == ArppCategory.Delisted ? null : NormalizeNullable(arpp?.PppNumber),
+                     NormalizeNullable(arpp?.Fund),
+                     NormalizeNullable(arpp?.DfpdsSchedule),
+                     NormalizeNullable(arpp?.Cfa),
+-                    aonDates.GetValueOrDefault(row.Id),
+-                    supplyOrderByProject.GetValueOrDefault(row.Id),
+-                    developmentPdcs.GetValueOrDefault(row.Id),
++                    formal?.AonDate,
++                    formal?.SupplyOrderDate,
++                    formal?.DevelopmentPdcDate,
+                     jdpsByProject.GetValueOrDefault(row.Id) ?? Array.Empty<string>(),
+                     officer.Display,
+                     officer.IsComplete,
+--- a/Services/Projects/ProjectFormalUpdateFactsResolver.cs
++++ b/Services/Projects/ProjectFormalUpdateFactsResolver.cs
+@@ -0,0 +1,115 @@
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Data;
++using ProjectManagement.Models.Stages;
++
++namespace ProjectManagement.Services.Projects;
++
++public sealed record ProjectFormalUpdateFacts(
++    DateOnly? AonDate,
++    DateOnly? SupplyOrderDate,
++    DateOnly? DevelopmentPdcDate);
++
++public interface IProjectFormalUpdateFactsResolver
++{
++    Task<IReadOnlyDictionary<int, ProjectFormalUpdateFacts>> ResolveAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default);
++}
++
++/// <summary>
++/// Resolves procurement facts that are reused by formal reports and briefing
++/// update sheets. The resolver intentionally returns raw factual values only;
++/// each consumer decides whether a value is applicable to its current lifecycle
++/// context (for example, a Development PDC is shown only while Development is
++/// the current stage).
++/// </summary>
++public sealed class ProjectFormalUpdateFactsResolver : IProjectFormalUpdateFactsResolver
++{
++    private readonly ApplicationDbContext _db;
++
++    public ProjectFormalUpdateFactsResolver(ApplicationDbContext db)
++        => _db = db ?? throw new ArgumentNullException(nameof(db));
++
++    public async Task<IReadOnlyDictionary<int, ProjectFormalUpdateFacts>> ResolveAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(projectIds);
++
++        var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
++        if (ids.Length == 0)
++        {
++            return new Dictionary<int, ProjectFormalUpdateFacts>();
++        }
++
++        var stageRows = await _db.ProjectStages
++            .AsNoTracking()
++            .Where(stage => ids.Contains(stage.ProjectId)
++                && (stage.StageCode == StageCodes.AON || stage.StageCode == StageCodes.DEVP))
++            .Select(stage => new
++            {
++                stage.Id,
++                stage.ProjectId,
++                stage.StageCode,
++                stage.SortOrder,
++                stage.CompletedOn,
++                stage.PlannedDue
++            })
++            .ToListAsync(cancellationToken);
++
++        var aonDates = stageRows
++            .Where(stage => stage.StageCode == StageCodes.AON)
++            .GroupBy(stage => stage.ProjectId)
++            .ToDictionary(
++                group => group.Key,
++                group => group
++                    .OrderByDescending(stage => stage.CompletedOn.HasValue)
++                    .ThenByDescending(stage => stage.CompletedOn)
++                    .ThenByDescending(stage => stage.SortOrder)
++                    .ThenByDescending(stage => stage.Id)
++                    .Select(stage => stage.CompletedOn)
++                    .FirstOrDefault());
++
++        var developmentPdcs = stageRows
++            .Where(stage => stage.StageCode == StageCodes.DEVP)
++            .GroupBy(stage => stage.ProjectId)
++            .ToDictionary(
++                group => group.Key,
++                group => group
++                    .OrderByDescending(stage => stage.PlannedDue.HasValue)
++                    .ThenByDescending(stage => stage.PlannedDue)
++                    .ThenByDescending(stage => stage.SortOrder)
++                    .ThenByDescending(stage => stage.Id)
++                    .Select(stage => stage.PlannedDue)
++                    .FirstOrDefault());
++
++        var supplyOrderRows = await _db.ProjectSupplyOrderFacts
++            .AsNoTracking()
++            .Where(fact => ids.Contains(fact.ProjectId))
++            .Select(fact => new
++            {
++                fact.Id,
++                fact.ProjectId,
++                fact.SupplyOrderDate,
++                fact.CreatedOnUtc
++            })
++            .ToListAsync(cancellationToken);
++
++        var supplyOrderDates = supplyOrderRows
++            .GroupBy(fact => fact.ProjectId)
++            .ToDictionary(
++                group => group.Key,
++                group => group
++                    .OrderByDescending(fact => fact.CreatedOnUtc)
++                    .ThenByDescending(fact => fact.Id)
++                    .Select(fact => (DateOnly?)fact.SupplyOrderDate)
++                    .FirstOrDefault());
++
++        return ids.ToDictionary(
++            projectId => projectId,
++            projectId => new ProjectFormalUpdateFacts(
++                aonDates.GetValueOrDefault(projectId),
++                supplyOrderDates.GetValueOrDefault(projectId),
++                developmentPdcs.GetValueOrDefault(projectId)));
++    }
++}
+--- a/Services/Projects/ProjectStageMaturityOrder.cs
++++ b/Services/Projects/ProjectStageMaturityOrder.cs
+@@ -0,0 +1,90 @@
++using ProjectManagement.Models;
++using ProjectManagement.Models.Stages;
++
++namespace ProjectManagement.Services.Projects;
++
++/// <summary>
++/// Canonical maturity-first ordering for project lifecycle reporting.
++/// Lower values represent a more mature position. A project that is explicitly
++/// marked Completed always wins over stage history; callers must not infer a
++/// current stage for a completed project.
++/// </summary>
++public static class ProjectStageMaturityOrder
++{
++    public const string CompletedCode = "COMPLETED";
++
++    public const int Completed = 0;
++    public const int TransferOfTechnology = 10;
++    public const int Payment = 20;
++    public const int AcceptanceTesting = 30;
++    public const int Development = 40;
++    public const int SupplyOrder = 50;
++    public const int EasApproval = 60;
++    public const int Pnc = 70;
++    public const int CommercialBidOpening = 80;
++    public const int Benchmarking = 90;
++    public const int TechnicalEvaluation = 100;
++    public const int BiddingTendering = 110;
++    public const int AcceptanceOfNecessity = 120;
++    public const int InPrincipleApproval = 130;
++    public const int SowVetting = 140;
++    public const int FeasibilityStudy = 150;
++    public const int Unknown = 10_000;
++
++    private static readonly IReadOnlyList<ProjectStageMaturityDefinition> CanonicalStages =
++        Array.AsReadOnly(new[]
++        {
++            new ProjectStageMaturityDefinition(CompletedCode, "Completed", Completed),
++            new ProjectStageMaturityDefinition(StageCodes.TOT, "Transfer of Technology", TransferOfTechnology),
++            new ProjectStageMaturityDefinition(StageCodes.PAYMENT, "Payment", Payment),
++            new ProjectStageMaturityDefinition(StageCodes.ATP, "Acceptance Testing", AcceptanceTesting),
++            new ProjectStageMaturityDefinition(StageCodes.DEVP, "Development", Development),
++            new ProjectStageMaturityDefinition(StageCodes.SO, "Supply Order", SupplyOrder),
++            new ProjectStageMaturityDefinition(StageCodes.EAS, "EAS Approval", EasApproval),
++            new ProjectStageMaturityDefinition(StageCodes.PNC, "Price Negotiation", Pnc),
++            new ProjectStageMaturityDefinition(StageCodes.COB, "Commercial Opening", CommercialBidOpening),
++            new ProjectStageMaturityDefinition(StageCodes.BM, "Benchmarking", Benchmarking),
++            new ProjectStageMaturityDefinition(StageCodes.TEC, "Technical Evaluation", TechnicalEvaluation),
++            new ProjectStageMaturityDefinition(StageCodes.BID, "Bidding / Tendering", BiddingTendering),
++            new ProjectStageMaturityDefinition(StageCodes.AON, "Acceptance of Necessity", AcceptanceOfNecessity),
++            new ProjectStageMaturityDefinition(StageCodes.IPA, "In-Principle Approval", InPrincipleApproval),
++            new ProjectStageMaturityDefinition(StageCodes.SOW, "Scope of Work Vetting", SowVetting),
++            new ProjectStageMaturityDefinition(StageCodes.FS, "Feasibility Study", FeasibilityStudy)
++        });
++
++    public static IReadOnlyList<ProjectStageMaturityDefinition> Stages => CanonicalStages;
++
++    public static int Resolve(ProjectLifecycleStatus lifecycleStatus, string? stageCode)
++    {
++        if (lifecycleStatus == ProjectLifecycleStatus.Completed
++            || string.Equals(stageCode, CompletedCode, StringComparison.OrdinalIgnoreCase))
++        {
++            return Completed;
++        }
++
++        return stageCode?.Trim().ToUpperInvariant() switch
++        {
++            StageCodes.TOT => TransferOfTechnology,
++            StageCodes.PAYMENT => Payment,
++            StageCodes.ATP => AcceptanceTesting,
++            StageCodes.DEVP => Development,
++            StageCodes.SO => SupplyOrder,
++            StageCodes.EAS => EasApproval,
++            StageCodes.PNC => Pnc,
++            StageCodes.COB => CommercialBidOpening,
++            StageCodes.BM => Benchmarking,
++            StageCodes.TEC => TechnicalEvaluation,
++            StageCodes.BID => BiddingTendering,
++            StageCodes.AON => AcceptanceOfNecessity,
++            StageCodes.IPA => InPrincipleApproval,
++            StageCodes.SOW => SowVetting,
++            StageCodes.FS => FeasibilityStudy,
++            _ => Unknown
++        };
++    }
++
++    public static string LabelFor(int order)
++        => CanonicalStages.FirstOrDefault(stage => stage.Order == order)?.Label ?? "Stage unresolved";
++}
++
++public sealed record ProjectStageMaturityDefinition(string Code, string Label, int Order);
+--- a/Services/Projects/ProjectSupplyOrderValueResolver.cs
++++ b/Services/Projects/ProjectSupplyOrderValueResolver.cs
+@@ -0,0 +1,106 @@
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Data;
++
++namespace ProjectManagement.Services.Projects;
++
++public enum ProjectSupplyOrderValueBasis
++{
++    None = 0,
++    Pnc = 1,
++    L1 = 2
++}
++
++public sealed record ProjectSupplyOrderValue(
++    decimal? AmountInRupees,
++    ProjectSupplyOrderValueBasis Basis)
++{
++    public bool IsAvailable => AmountInRupees is > 0m;
++
++    public static ProjectSupplyOrderValue Missing { get; } =
++        new(null, ProjectSupplyOrderValueBasis.None);
++}
++
++public interface IProjectSupplyOrderValueResolver
++{
++    Task<IReadOnlyDictionary<int, ProjectSupplyOrderValue>> ResolveAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default);
++}
++
++/// <summary>
++/// Resolves the formal Supply Order amount using the SDD reporting rule:
++/// latest positive PNC cost, otherwise latest positive L1 cost. AoN and IPA are
++/// deliberately not valid fallbacks because they must never be represented as
++/// an issued Supply Order value.
++/// </summary>
++public sealed class ProjectSupplyOrderValueResolver : IProjectSupplyOrderValueResolver
++{
++    private readonly ApplicationDbContext _db;
++
++    public ProjectSupplyOrderValueResolver(ApplicationDbContext db)
++        => _db = db ?? throw new ArgumentNullException(nameof(db));
++
++    public async Task<IReadOnlyDictionary<int, ProjectSupplyOrderValue>> ResolveAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(projectIds);
++
++        var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
++        if (ids.Length == 0)
++        {
++            return new Dictionary<int, ProjectSupplyOrderValue>();
++        }
++
++        var pncRows = await _db.ProjectPncFacts
++            .AsNoTracking()
++            .Where(fact => ids.Contains(fact.ProjectId) && fact.PncCost > 0m)
++            .Select(fact => new CostRow(fact.ProjectId, fact.PncCost, fact.CreatedOnUtc, fact.Id))
++            .ToListAsync(cancellationToken);
++
++        var l1Rows = await _db.ProjectCommercialFacts
++            .AsNoTracking()
++            .Where(fact => ids.Contains(fact.ProjectId) && fact.L1Cost > 0m)
++            .Select(fact => new CostRow(fact.ProjectId, fact.L1Cost, fact.CreatedOnUtc, fact.Id))
++            .ToListAsync(cancellationToken);
++
++        var pnc = Latest(pncRows);
++        var l1 = Latest(l1Rows);
++        var result = new Dictionary<int, ProjectSupplyOrderValue>(ids.Length);
++
++        foreach (var projectId in ids)
++        {
++            if (pnc.TryGetValue(projectId, out var pncAmount))
++            {
++                result[projectId] = new ProjectSupplyOrderValue(pncAmount, ProjectSupplyOrderValueBasis.Pnc);
++            }
++            else if (l1.TryGetValue(projectId, out var l1Amount))
++            {
++                result[projectId] = new ProjectSupplyOrderValue(l1Amount, ProjectSupplyOrderValueBasis.L1);
++            }
++            else
++            {
++                result[projectId] = ProjectSupplyOrderValue.Missing;
++            }
++        }
++
++        return result;
++    }
++
++    private static Dictionary<int, decimal> Latest(IEnumerable<CostRow> rows)
++        => rows
++            .GroupBy(row => row.ProjectId)
++            .ToDictionary(
++                group => group.Key,
++                group => group
++                    .OrderByDescending(row => row.CreatedOnUtc)
++                    .ThenByDescending(row => row.Id)
++                    .First()
++                    .AmountInRupees);
++
++    private sealed record CostRow(
++        int ProjectId,
++        decimal AmountInRupees,
++        DateTime CreatedOnUtc,
++        int Id);
++}
+--- a/Services/Remarks/ProjectLatestExternalRemarkService.cs
++++ b/Services/Remarks/ProjectLatestExternalRemarkService.cs
+@@ -0,0 +1,89 @@
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Data;
++using ProjectManagement.Models.Remarks;
++
++namespace ProjectManagement.Services.Remarks;
++
++public sealed record ProjectLatestExternalRemark(
++    int ProjectId,
++    int RemarkId,
++    string Body,
++    DateOnly EventDate,
++    DateTime EffectiveAtUtc);
++
++public interface IProjectLatestExternalRemarkService
++{
++    Task<IReadOnlyDictionary<int, ProjectLatestExternalRemark>> GetLatestAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default);
++}
++
++/// <summary>
++/// Authoritative reader for the latest External / General project remark used
++/// by formal outputs. "Latest" follows the existing briefing rule: the most
++/// recently edited remark, otherwise the most recently created remark.
++/// </summary>
++public sealed class ProjectLatestExternalRemarkService : IProjectLatestExternalRemarkService
++{
++    private readonly ApplicationDbContext _db;
++
++    public ProjectLatestExternalRemarkService(ApplicationDbContext db)
++        => _db = db ?? throw new ArgumentNullException(nameof(db));
++
++    public async Task<IReadOnlyDictionary<int, ProjectLatestExternalRemark>> GetLatestAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(projectIds);
++
++        var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
++        if (ids.Length == 0)
++        {
++            return new Dictionary<int, ProjectLatestExternalRemark>();
++        }
++
++        var rows = await _db.Remarks
++            .AsNoTracking()
++            .Where(remark => ids.Contains(remark.ProjectId)
++                && !remark.IsDeleted
++                && remark.Type == RemarkType.External
++                && remark.Scope == RemarkScope.General
++                && remark.Body != null
++                && remark.Body.Trim() != string.Empty)
++            .Select(remark => new
++            {
++                remark.Id,
++                remark.ProjectId,
++                remark.Body,
++                remark.EventDate,
++                remark.CreatedAtUtc,
++                remark.LastEditedAtUtc
++            })
++            .ToListAsync(cancellationToken);
++
++        return rows
++            .GroupBy(row => row.ProjectId)
++            .ToDictionary(
++                group => group.Key,
++                group =>
++                {
++                    var latest = group
++                        .OrderByDescending(row => row.LastEditedAtUtc ?? row.CreatedAtUtc)
++                        .ThenByDescending(row => row.Id)
++                        .First();
++
++                    return new ProjectLatestExternalRemark(
++                        latest.ProjectId,
++                        latest.Id,
++                        Normalize(latest.Body),
++                        latest.EventDate,
++                        latest.LastEditedAtUtc ?? latest.CreatedAtUtc);
++                });
++    }
++
++    private static string Normalize(string value)
++        => string.Join(" ", value
++            .Replace("\r", " ", StringComparison.Ordinal)
++            .Replace("\n", " ", StringComparison.Ordinal)
++            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
++}
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
+@@ -0,0 +1,89 @@
++using ProjectManagement.Models;
++using ProjectManagement.Models.Arpp;
++using ProjectManagement.Services.Projects;
++using ProjectManagement.Utilities;
++
++namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++public enum ArppFyReportWarningSeverity
++{
++    Info = 0,
++    Warning = 1
++}
++
++public sealed record ArppFyReportWarning(
++    string Code,
++    ArppFyReportWarningSeverity Severity,
++    string Message,
++    int? ProjectId = null,
++    string? ProjectName = null);
++
++public sealed record ArppFyProjectUpdateRow(
++    int SerialNumber,
++    int ProjectId,
++    string? PppNumber,
++    string ProjectName,
++    DateOnly? FirstArppListingDate,
++    string? DfpdsSchedule,
++    string? Cfa,
++    string Establishment,
++    DateOnly? AonDate,
++    decimal? SupplyOrderAmountInRupees,
++    ProjectSupplyOrderValueBasis SupplyOrderAmountBasis,
++    DateOnly? SupplyOrderDate,
++    DateOnly? DevelopmentPdcDate,
++    ArppCategory ProjectCase,
++    string? LatestExternalRemark,
++    DateOnly? LatestExternalRemarkEventDate,
++    ProjectLifecycleStatus LifecycleStatus,
++    bool IsArchived,
++    string? CurrentStageCode,
++    string CurrentStageLabel,
++    int StageOrder)
++{
++    public decimal? SupplyOrderAmountInCrores => SupplyOrderAmountInRupees is > 0m
++        ? SupplyOrderAmountInRupees.Value / 10_000_000m
++        : null;
++
++    public string ProjectCaseDisplay => ArppDisplayNames.For(ProjectCase);
++
++    public string StageDisplay => LifecycleStatus == ProjectLifecycleStatus.Completed
++        ? "Completed"
++        : CurrentStageLabel;
++}
++
++public sealed record ArppFyProjectUpdateReport(
++    int FinancialYearStart,
++    DateTimeOffset GeneratedAtUtc,
++    IReadOnlyList<ArppFyProjectUpdateRow> Rows,
++    IReadOnlyList<ArppFyReportWarning> Warnings,
++    int UnlinkedPublishedRowCount)
++{
++    public string FinancialYearDisplay => FinancialYearHelper.Format(FinancialYearStart);
++    public int CompletedCount => Rows.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed);
++    public int OngoingCount => Rows.Count - CompletedCount;
++    public int WarningCount => Warnings.Count(warning => warning.Severity == ArppFyReportWarningSeverity.Warning);
++    public bool CanExport => Rows.Count > 0;
++}
++
++public sealed record ArppFyProjectUpdateFile(
++    byte[] Content,
++    string ContentType,
++    string FileName);
++
++public interface IArppFyProjectUpdateService
++{
++    Task<IReadOnlyList<int>> GetAvailableFinancialYearsAsync(
++        CancellationToken cancellationToken = default);
++
++    Task<ArppFyProjectUpdateReport?> BuildAsync(
++        int financialYearStart,
++        CancellationToken cancellationToken = default);
++}
++
++public interface IArppFyProjectUpdateExportService
++{
++    ArppFyProjectUpdateFile BuildWord(ArppFyProjectUpdateReport report);
++    ArppFyProjectUpdateFile BuildPdf(ArppFyProjectUpdateReport report);
++    ArppFyProjectUpdateFile BuildExcel(ArppFyProjectUpdateReport report);
++}
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
+@@ -0,0 +1,168 @@
++using System.Globalization;
++using ClosedXML.Excel;
++
++namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++public sealed class ArppFyProjectUpdateExcelBuilder
++{
++    private const int ColumnCount = 12;
++    private const int HeaderRowOne = 3;
++    private const int HeaderRowTwo = 4;
++    private const int FirstDataRow = 5;
++
++    public byte[] Build(ArppFyProjectUpdateReport report)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++
++        using var workbook = new XLWorkbook();
++        var worksheet = workbook.Worksheets.Add("ARPP Project Update");
++        worksheet.Style.Font.FontName = "Arial";
++        worksheet.Style.Font.FontSize = 9;
++
++        var title = worksheet.Range(1, 1, 1, ColumnCount).Merge();
++        title.Value = $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}";
++        title.Style.Font.Bold = true;
++        title.Style.Font.FontSize = 15;
++        title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
++        title.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++        title.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
++        worksheet.Row(1).Height = 24;
++
++        var subtitle = worksheet.Range(2, 1, 2, ColumnCount).Merge();
++        subtitle.Value = "PROJECT UPDATE";
++        subtitle.Style.Font.Bold = true;
++        subtitle.Style.Font.FontSize = 11;
++        subtitle.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++        worksheet.Row(2).Height = 20;
++
++        BuildHeader(worksheet);
++
++        var rowIndex = FirstDataRow;
++        foreach (var row in report.Rows)
++        {
++            worksheet.Cell(rowIndex, 1).SetValue(row.SerialNumber);
++            worksheet.Cell(rowIndex, 2).SetValue(row.PppNumber ?? string.Empty);
++            worksheet.Cell(rowIndex, 3).SetValue(row.ProjectName);
++            SetDate(worksheet.Cell(rowIndex, 4), row.FirstArppListingDate);
++            worksheet.Cell(rowIndex, 5).SetValue(row.DfpdsSchedule ?? string.Empty);
++            worksheet.Cell(rowIndex, 6).SetValue(row.Cfa ?? string.Empty);
++            worksheet.Cell(rowIndex, 7).SetValue(row.Establishment);
++            SetDate(worksheet.Cell(rowIndex, 8), row.AonDate);
++            worksheet.Cell(rowIndex, 9).SetValue(SupplyOrderText(row));
++            SetDate(worksheet.Cell(rowIndex, 10), row.DevelopmentPdcDate);
++            worksheet.Cell(rowIndex, 11).SetValue(row.ProjectCaseDisplay);
++            worksheet.Cell(rowIndex, 12).SetValue(row.LatestExternalRemark ?? string.Empty);
++            rowIndex++;
++        }
++
++        var lastDataRow = Math.Max(HeaderRowTwo, rowIndex - 1);
++        var tableRange = worksheet.Range(HeaderRowOne, 1, lastDataRow, ColumnCount);
++        tableRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
++        tableRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
++        tableRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#8A99A8");
++        tableRange.Style.Border.InsideBorderColor = XLColor.FromHtml("#AAB7C6");
++        tableRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
++
++        if (lastDataRow >= FirstDataRow)
++        {
++            var data = worksheet.Range(FirstDataRow, 1, lastDataRow, ColumnCount);
++            data.Style.Alignment.WrapText = true;
++            worksheet.Range(FirstDataRow, 1, lastDataRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++            worksheet.Range(FirstDataRow, 4, lastDataRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++            worksheet.Range(FirstDataRow, 3, lastDataRow, 3).Style.Font.Bold = true;
++        }
++
++        ApplyColumnWidths(worksheet);
++        worksheet.SheetView.FreezeRows(HeaderRowTwo);
++        worksheet.SheetView.FreezeColumns(3);
++        worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
++        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
++        worksheet.PageSetup.FitToPages(1, 0);
++        worksheet.PageSetup.Margins.Top = 0.3;
++        worksheet.PageSetup.Margins.Bottom = 0.4;
++        worksheet.PageSetup.Margins.Left = 0.25;
++        worksheet.PageSetup.Margins.Right = 0.25;
++        worksheet.PageSetup.SetRowsToRepeatAtTop(HeaderRowOne, HeaderRowTwo);
++        worksheet.PageSetup.Footer.Left.AddText("PRISM ERP · Simulator Development Division");
++        worksheet.PageSetup.Footer.Right.AddText("Page &P of &N");
++
++        using var stream = new MemoryStream();
++        workbook.SaveAs(stream);
++        return stream.ToArray();
++    }
++
++    private static void BuildHeader(IXLWorksheet worksheet)
++    {
++        MergeVertical(worksheet, 1, "Ser No.");
++        MergeVertical(worksheet, 2, "ARPP No.");
++        MergeVertical(worksheet, 3, "Name of Project");
++        MergeVertical(worksheet, 4, "Dt of Grant of IPA / ARPP Listing");
++        MergeVertical(worksheet, 5, "Sch");
++        MergeVertical(worksheet, 6, "CFA");
++        MergeVertical(worksheet, 7, "Est");
++
++        var status = worksheet.Range(HeaderRowOne, 8, HeaderRowOne, 10).Merge();
++        status.Value = "Status";
++        worksheet.Cell(HeaderRowTwo, 8).Value = "AoN";
++        worksheet.Cell(HeaderRowTwo, 9).Value = "SO amt & dt";
++        worksheet.Cell(HeaderRowTwo, 10).Value = "PDC dt";
++
++        MergeVertical(worksheet, 11, "Proj Case");
++        MergeVertical(worksheet, 12, "Remarks");
++
++        var header = worksheet.Range(HeaderRowOne, 1, HeaderRowTwo, ColumnCount);
++        header.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8EEF5");
++        header.Style.Font.Bold = true;
++        header.Style.Font.FontColor = XLColor.FromHtml("#17365D");
++        header.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++        header.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
++        header.Style.Alignment.WrapText = true;
++        worksheet.Row(HeaderRowOne).Height = 22;
++        worksheet.Row(HeaderRowTwo).Height = 22;
++    }
++
++    private static void MergeVertical(IXLWorksheet worksheet, int column, string text)
++    {
++        var range = worksheet.Range(HeaderRowOne, column, HeaderRowTwo, column).Merge();
++        range.Value = text;
++    }
++
++    private static void SetDate(IXLCell cell, DateOnly? value)
++    {
++        if (!value.HasValue)
++        {
++            cell.Clear(XLClearOptions.Contents);
++            return;
++        }
++
++        cell.Value = value.Value.ToDateTime(TimeOnly.MinValue);
++        cell.Style.DateFormat.Format = "dd mmm yyyy";
++    }
++
++    private static string SupplyOrderText(ArppFyProjectUpdateRow row)
++    {
++        var amount = row.SupplyOrderAmountInCrores.HasValue
++            ? $"₹{row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture)} Cr"
++            : null;
++        var date = row.SupplyOrderDate?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
++        return amount is not null && date is not null
++            ? $"{amount}\n{date}"
++            : amount ?? date ?? string.Empty;
++    }
++
++    private static void ApplyColumnWidths(IXLWorksheet worksheet)
++    {
++        worksheet.Column(1).Width = 7;
++        worksheet.Column(2).Width = 12;
++        worksheet.Column(3).Width = 34;
++        worksheet.Column(4).Width = 17;
++        worksheet.Column(5).Width = 12;
++        worksheet.Column(6).Width = 10;
++        worksheet.Column(7).Width = 8;
++        worksheet.Column(8).Width = 14;
++        worksheet.Column(9).Width = 19;
++        worksheet.Column(10).Width = 14;
++        worksheet.Column(11).Width = 11;
++        worksheet.Column(12).Width = 58;
++    }
++}
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExportService.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExportService.cs
+@@ -0,0 +1,46 @@
++using System.Globalization;
++
++namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++public sealed class ArppFyProjectUpdateExportService : IArppFyProjectUpdateExportService
++{
++    private const string WordContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
++    private const string PdfContentType = "application/pdf";
++    private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
++
++    private readonly ArppFyProjectUpdateWordBuilder _wordBuilder;
++    private readonly ArppFyProjectUpdatePdfBuilder _pdfBuilder;
++    private readonly ArppFyProjectUpdateExcelBuilder _excelBuilder;
++
++    public ArppFyProjectUpdateExportService(
++        ArppFyProjectUpdateWordBuilder wordBuilder,
++        ArppFyProjectUpdatePdfBuilder pdfBuilder,
++        ArppFyProjectUpdateExcelBuilder excelBuilder)
++    {
++        _wordBuilder = wordBuilder ?? throw new ArgumentNullException(nameof(wordBuilder));
++        _pdfBuilder = pdfBuilder ?? throw new ArgumentNullException(nameof(pdfBuilder));
++        _excelBuilder = excelBuilder ?? throw new ArgumentNullException(nameof(excelBuilder));
++    }
++
++    public ArppFyProjectUpdateFile BuildWord(ArppFyProjectUpdateReport report)
++        => Build(report, "docx", WordContentType, _wordBuilder.Build(report));
++
++    public ArppFyProjectUpdateFile BuildPdf(ArppFyProjectUpdateReport report)
++        => Build(report, "pdf", PdfContentType, _pdfBuilder.Build(report));
++
++    public ArppFyProjectUpdateFile BuildExcel(ArppFyProjectUpdateReport report)
++        => Build(report, "xlsx", ExcelContentType, _excelBuilder.Build(report));
++
++    private static ArppFyProjectUpdateFile Build(
++        ArppFyProjectUpdateReport report,
++        string extension,
++        string contentType,
++        byte[] content)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++        var fy = report.FinancialYearDisplay.Replace('-', '_');
++        var stamp = report.GeneratedAtUtc.ToUniversalTime().ToString("yyyyMMdd_HHmm", CultureInfo.InvariantCulture);
++        var fileName = $"ARPP_Project_Update_FY_{fy}_{stamp}.{extension}";
++        return new ArppFyProjectUpdateFile(content, contentType, fileName);
++    }
++}
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+@@ -0,0 +1,175 @@
++using System.Globalization;
++using QuestPDF.Fluent;
++using QuestPDF.Helpers;
++using QuestPDF.Infrastructure;
++
++namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++public sealed class ArppFyProjectUpdatePdfBuilder
++{
++    private const string Ink = "#1F2937";
++    private const string Muted = "#526174";
++    private const string Navy = "#17365D";
++    private const string HeaderFill = "#E8EEF5";
++    private const string Border = "#8A99A8";
++
++    static ArppFyProjectUpdatePdfBuilder()
++    {
++        QuestPDF.Settings.License = LicenseType.Community;
++    }
++
++    public byte[] Build(ArppFyProjectUpdateReport report)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++
++        var document = Document.Create(container =>
++        {
++            container.Page(page =>
++            {
++                page.Size(PageSizes.A4.Landscape());
++                page.Margin(22);
++                page.DefaultTextStyle(style => style.FontSize(7.2f).FontColor(Ink));
++
++                page.Header().PaddingBottom(8).Column(header =>
++                {
++                    header.Item().AlignCenter().Text($"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}")
++                        .FontSize(13)
++                        .Bold()
++                        .FontColor(Navy);
++                    header.Item().AlignCenter().Text("PROJECT UPDATE")
++                        .FontSize(10)
++                        .SemiBold();
++                });
++
++                page.Content().Table(table =>
++                {
++                    table.ColumnsDefinition(columns =>
++                    {
++                        columns.RelativeColumn(0.55f);
++                        columns.RelativeColumn(0.85f);
++                        columns.RelativeColumn(2.7f);
++                        columns.RelativeColumn(1.2f);
++                        columns.RelativeColumn(0.9f);
++                        columns.RelativeColumn(0.75f);
++                        columns.RelativeColumn(0.65f);
++                        columns.RelativeColumn(1.0f);
++                        columns.RelativeColumn(1.5f);
++                        columns.RelativeColumn(1.0f);
++                        columns.RelativeColumn(0.8f);
++                        columns.RelativeColumn(4.25f);
++                    });
++
++                    table.Header(header =>
++                    {
++                        HeaderCell(header.Cell().RowSpan(2), "Ser No.");
++                        HeaderCell(header.Cell().RowSpan(2), "ARPP No.");
++                        HeaderCell(header.Cell().RowSpan(2), "Name of Project");
++                        HeaderCell(header.Cell().RowSpan(2), "Dt of Grant of IPA / ARPP Listing");
++                        HeaderCell(header.Cell().RowSpan(2), "Sch");
++                        HeaderCell(header.Cell().RowSpan(2), "CFA");
++                        HeaderCell(header.Cell().RowSpan(2), "Est");
++                        HeaderCell(header.Cell().ColumnSpan(3), "Status");
++                        HeaderCell(header.Cell().RowSpan(2), "Proj Case");
++                        HeaderCell(header.Cell().RowSpan(2), "Remarks");
++
++                        HeaderCell(header.Cell(), "AoN");
++                        HeaderCell(header.Cell(), "SO amt & dt");
++                        HeaderCell(header.Cell(), "PDC dt");
++                    });
++
++                    foreach (var row in report.Rows)
++                    {
++                        BodyCell(table.Cell(), row.SerialNumber.ToString(CultureInfo.InvariantCulture), center: true);
++                        BodyCell(table.Cell(), row.PppNumber ?? "—", center: true);
++                        BodyCell(table.Cell(), row.ProjectName, bold: true);
++                        BodyCell(table.Cell(), Date(row.FirstArppListingDate), center: true);
++                        BodyCell(table.Cell(), row.DfpdsSchedule ?? "—", center: true);
++                        BodyCell(table.Cell(), row.Cfa ?? "—", center: true);
++                        BodyCell(table.Cell(), row.Establishment, center: true);
++                        BodyCell(table.Cell(), Date(row.AonDate), center: true);
++                        BodyCell(table.Cell(), SupplyOrder(row), center: true);
++                        BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
++                        BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);
++                        BodyCell(table.Cell(), row.LatestExternalRemark ?? "—");
++                    }
++                });
++
++                page.Footer().PaddingTop(5).Row(footer =>
++                {
++                    footer.RelativeItem().Text("PRISM ERP · Simulator Development Division")
++                        .FontSize(6.5f)
++                        .FontColor(Muted);
++                    footer.ConstantItem(100).AlignRight().Text(text =>
++                    {
++                        text.DefaultTextStyle(style => style.FontSize(6.5f).FontColor(Muted));
++                        text.Span("Page ");
++                        text.CurrentPageNumber();
++                        text.Span(" of ");
++                        text.TotalPages();
++                    });
++                });
++            });
++        })
++        .WithMetadata(new DocumentMetadata
++        {
++            Title = $"ARPP FY {report.FinancialYearDisplay} Project Update",
++            Author = "Simulator Development Division",
++            Subject = "ARPP approved projects and current update",
++            Creator = "PRISM ERP",
++            Producer = "PRISM ERP",
++            CreationDate = report.GeneratedAtUtc,
++            ModifiedDate = report.GeneratedAtUtc
++        });
++
++        return document.GeneratePdf();
++    }
++
++    private static void HeaderCell(IContainer container, string text)
++        => container
++            .Border(0.6f)
++            .BorderColor(Border)
++            .Background(HeaderFill)
++            .PaddingVertical(4)
++            .PaddingHorizontal(3)
++            .AlignMiddle()
++            .AlignCenter()
++            .Text(text)
++            .FontSize(6.8f)
++            .Bold()
++            .FontColor(Navy);
++
++    private static void BodyCell(IContainer container, string text, bool center = false, bool bold = false)
++    {
++        var cell = container
++            .Border(0.45f)
++            .BorderColor(Border)
++            .PaddingVertical(3.5f)
++            .PaddingHorizontal(3)
++            .AlignMiddle();
++
++        if (center)
++        {
++            cell = cell.AlignCenter();
++        }
++
++        var content = cell.Text(text).FontSize(6.7f).FontColor(Ink);
++        if (bold)
++        {
++            content.Bold();
++        }
++    }
++
++    private static string Date(DateOnly? value)
++        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
++
++    private static string SupplyOrder(ArppFyProjectUpdateRow row)
++    {
++        var amount = row.SupplyOrderAmountInCrores.HasValue
++            ? $"₹{row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture)} Cr"
++            : null;
++        var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
++        return amount is not null && date is not null
++            ? $"{amount}\n{date}"
++            : amount ?? date ?? "—";
++    }
++}
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
+@@ -0,0 +1,461 @@
++using System.Text.RegularExpressions;
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Data;
++using ProjectManagement.Models;
++using ProjectManagement.Models.Execution;
++using ProjectManagement.Models.Arpp;
++using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.Arpp;
++using ProjectManagement.Services.Projects;
++using ProjectManagement.Services.Remarks;
++
++namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++/// <summary>
++/// Builds the FY-specific ARPP project update from the published ARPP current
++/// position and live PRISM project facts. Membership is controlled by the
++/// selected FY's published New/CL/CF position; lifecycle state controls only
++/// ordering and applicability of current-stage fields.
++/// </summary>
++public sealed class ArppFyProjectUpdateService : IArppFyProjectUpdateService
++{
++    private readonly ApplicationDbContext _db;
++    private readonly IArppLibraryService _arppLibrary;
++    private readonly IArppIpaStageAuthorityService _ipaAuthority;
++    private readonly IProjectFormalUpdateFactsResolver _formalFactsResolver;
++    private readonly IProjectSupplyOrderValueResolver _supplyOrderValueResolver;
++    private readonly IProjectLatestExternalRemarkService _externalRemarkService;
++    private readonly IWorkflowStageMetadataProvider _workflowStages;
++    private readonly IClock _clock;
++
++    public ArppFyProjectUpdateService(
++        ApplicationDbContext db,
++        IArppLibraryService arppLibrary,
++        IArppIpaStageAuthorityService ipaAuthority,
++        IProjectFormalUpdateFactsResolver formalFactsResolver,
++        IProjectSupplyOrderValueResolver supplyOrderValueResolver,
++        IProjectLatestExternalRemarkService externalRemarkService,
++        IWorkflowStageMetadataProvider workflowStages,
++        IClock clock)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _arppLibrary = arppLibrary ?? throw new ArgumentNullException(nameof(arppLibrary));
++        _ipaAuthority = ipaAuthority ?? throw new ArgumentNullException(nameof(ipaAuthority));
++        _formalFactsResolver = formalFactsResolver ?? throw new ArgumentNullException(nameof(formalFactsResolver));
++        _supplyOrderValueResolver = supplyOrderValueResolver ?? throw new ArgumentNullException(nameof(supplyOrderValueResolver));
++        _externalRemarkService = externalRemarkService ?? throw new ArgumentNullException(nameof(externalRemarkService));
++        _workflowStages = workflowStages ?? throw new ArgumentNullException(nameof(workflowStages));
++        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
++    }
++
++    public async Task<IReadOnlyList<int>> GetAvailableFinancialYearsAsync(
++        CancellationToken cancellationToken = default)
++    {
++        var navigation = await _arppLibrary.GetNavigationAsync(null, cancellationToken);
++        return navigation.FinancialYears
++            .Select(year => year.FinancialYearStart)
++            .Distinct()
++            .OrderByDescending(year => year)
++            .ToArray();
++    }
++
++    public async Task<ArppFyProjectUpdateReport?> BuildAsync(
++        int financialYearStart,
++        CancellationToken cancellationToken = default)
++    {
++        var currentPosition = await _arppLibrary.GetCurrentPositionAsync(
++            financialYearStart,
++            query: null,
++            cancellationToken);
++        if (currentPosition is null)
++        {
++            return null;
++        }
++
++        var approvedRows = currentPosition.ApprovedRows;
++        var projectIds = approvedRows
++            .Select(row => row.ProjectId)
++            .Distinct()
++            .ToArray();
++
++        if (projectIds.Length == 0)
++        {
++            var noRowsWarnings = BuildGlobalWarnings(currentPosition.TotalUnlinkedDocumentRows);
++            return new ArppFyProjectUpdateReport(
++                financialYearStart,
++                _clock.UtcNow.ToUniversalTime(),
++                Array.Empty<ArppFyProjectUpdateRow>(),
++                noRowsWarnings,
++                currentPosition.TotalUnlinkedDocumentRows);
++        }
++
++        var projects = await _db.Projects
++            .AsNoTracking()
++            .Where(project => projectIds.Contains(project.Id) && !project.IsDeleted)
++            .Select(project => new ProjectSnapshot(
++                project.Id,
++                project.Name,
++                project.LifecycleStatus,
++                project.IsArchived,
++                project.WorkflowVersion))
++            .ToListAsync(cancellationToken);
++        var projectById = projects.ToDictionary(project => project.Id);
++
++        // Hard rule: completed projects are never included in the current-stage query.
++        var stageEligibleIds = projects
++            .Where(project => project.LifecycleStatus == ProjectLifecycleStatus.Active && !project.IsArchived)
++            .Select(project => project.Id)
++            .ToArray();
++
++        var stageRows = stageEligibleIds.Length == 0
++            ? new List<StageSnapshot>()
++            : await _db.ProjectStages
++                .AsNoTracking()
++                .Where(stage => stageEligibleIds.Contains(stage.ProjectId))
++                .Select(stage => new StageSnapshot(
++                    stage.Id,
++                    stage.ProjectId,
++                    stage.StageCode,
++                    stage.SortOrder,
++                    stage.Status,
++                    stage.PlannedStart,
++                    stage.PlannedDue,
++                    stage.ActualStart,
++                    stage.CompletedOn))
++                .ToListAsync(cancellationToken);
++        var stagesByProject = stageRows
++            .GroupBy(stage => stage.ProjectId)
++            .ToDictionary(group => group.Key, group => group.ToArray());
++
++        var firstListing = await _ipaAuthority.ResolveManyAsync(projectIds, cancellationToken);
++        var formalFacts = await _formalFactsResolver.ResolveAsync(projectIds, cancellationToken);
++        var supplyValues = await _supplyOrderValueResolver.ResolveAsync(projectIds, cancellationToken);
++        var externalRemarks = await _externalRemarkService.GetLatestAsync(projectIds, cancellationToken);
++
++        var warnings = BuildGlobalWarnings(currentPosition.TotalUnlinkedDocumentRows).ToList();
++        var candidates = new List<RowCandidate>(approvedRows.Count);
++
++        foreach (var arpp in approvedRows)
++        {
++            if (!projectById.TryGetValue(arpp.ProjectId, out var project))
++            {
++                warnings.Add(new ArppFyReportWarning(
++                    "PROJECT_NOT_AVAILABLE",
++                    ArppFyReportWarningSeverity.Warning,
++                    $"{arpp.ProjectName}: the linked PRISM project is no longer available and was excluded from the report.",
++                    arpp.ProjectId,
++                    arpp.ProjectName));
++                continue;
++            }
++
++            var stage = ResolveStage(project, stagesByProject.GetValueOrDefault(project.Id));
++            firstListing.TryGetValue(project.Id, out var listing);
++            formalFacts.TryGetValue(project.Id, out var facts);
++            supplyValues.TryGetValue(project.Id, out var supplyValue);
++            externalRemarks.TryGetValue(project.Id, out var externalRemark);
++            supplyValue ??= ProjectSupplyOrderValue.Missing;
++
++            var pdc = string.Equals(stage.Code, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
++                ? facts?.DevelopmentPdcDate
++                : null;
++
++            var candidate = new RowCandidate(
++                project.Id,
++                NormalizeNullable(arpp.PppNumber),
++                project.Name,
++                listing?.IssueDate,
++                NormalizeNullable(arpp.DfpdsSchedule),
++                NormalizeNullable(arpp.Cfa),
++                facts?.AonDate,
++                supplyValue.AmountInRupees,
++                supplyValue.Basis,
++                facts?.SupplyOrderDate,
++                pdc,
++                arpp.Category,
++                externalRemark?.Body,
++                externalRemark?.EventDate,
++                project.LifecycleStatus,
++                project.IsArchived,
++                stage.Code,
++                stage.Label,
++                stage.Order,
++                stage.IsWorkflowConcludedWhileActive);
++
++            candidates.Add(candidate);
++            AddProjectWarnings(warnings, candidate);
++        }
++
++        var ordered = candidates
++            .OrderBy(row => row.StageOrder)
++            .ThenBy(row => row.PppNumber, PppNumberComparer.Instance)
++            .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
++            .Select((row, index) => new ArppFyProjectUpdateRow(
++                index + 1,
++                row.ProjectId,
++                row.PppNumber,
++                row.ProjectName,
++                row.FirstArppListingDate,
++                row.DfpdsSchedule,
++                row.Cfa,
++                "SDD",
++                row.AonDate,
++                row.SupplyOrderAmountInRupees,
++                row.SupplyOrderAmountBasis,
++                row.SupplyOrderDate,
++                row.DevelopmentPdcDate,
++                row.ProjectCase,
++                row.LatestExternalRemark,
++                row.LatestExternalRemarkEventDate,
++                row.LifecycleStatus,
++                row.IsArchived,
++                row.CurrentStageCode,
++                row.CurrentStageLabel,
++                row.StageOrder))
++            .ToArray();
++
++        return new ArppFyProjectUpdateReport(
++            financialYearStart,
++            _clock.UtcNow.ToUniversalTime(),
++            ordered,
++            warnings,
++            currentPosition.TotalUnlinkedDocumentRows);
++    }
++
++    private ResolvedStage ResolveStage(ProjectSnapshot project, IReadOnlyList<StageSnapshot>? stageRows)
++    {
++        // Explicit completion is authoritative. Do not consult stage history.
++        if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
++        {
++            return new ResolvedStage(
++                ProjectStageMaturityOrder.CompletedCode,
++                "Completed",
++                ProjectStageMaturityOrder.Completed,
++                false);
++        }
++
++        if (project.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
++        {
++            return new ResolvedStage(null, "Cancelled", ProjectStageMaturityOrder.Unknown, false);
++        }
++
++        if (project.IsArchived)
++        {
++            return new ResolvedStage(null, "Archived", ProjectStageMaturityOrder.Unknown, false);
++        }
++
++        var projectForResolver = new Project
++        {
++            Id = project.Id,
++            WorkflowVersion = project.WorkflowVersion,
++            LifecycleStatus = project.LifecycleStatus,
++            ProjectStages = (stageRows ?? Array.Empty<StageSnapshot>())
++                .Select(stage => new ProjectStage
++                {
++                    Id = stage.Id,
++                    ProjectId = stage.ProjectId,
++                    StageCode = stage.StageCode,
++                    SortOrder = stage.SortOrder,
++                    Status = stage.Status,
++                    PlannedStart = stage.PlannedStart,
++                    PlannedDue = stage.PlannedDue,
++                    ActualStart = stage.ActualStart,
++                    CompletedOn = stage.CompletedOn
++                })
++                .ToList()
++        };
++
++        var lifecycleStages = ProjectLifecyclePositionResolver.BuildProjectStages(projectForResolver, _workflowStages);
++        var position = ProjectLifecyclePositionResolver.Resolve(lifecycleStages);
++        var resolved = position.CurrentStage ?? position.LastCompletedStage;
++
++        if (resolved is null)
++        {
++            return new ResolvedStage(null, "Stage unresolved", ProjectStageMaturityOrder.Unknown, false);
++        }
++
++        return new ResolvedStage(
++            resolved.Code,
++            resolved.Name,
++            ProjectStageMaturityOrder.Resolve(project.LifecycleStatus, resolved.Code),
++            position.IsConcluded);
++    }
++
++    private static IReadOnlyList<ArppFyReportWarning> BuildGlobalWarnings(int unlinkedRows)
++    {
++        if (unlinkedRows <= 0)
++        {
++            return Array.Empty<ArppFyReportWarning>();
++        }
++
++        return new[]
++        {
++            new ArppFyReportWarning(
++                "UNLINKED_ARPP_ROWS",
++                ArppFyReportWarningSeverity.Warning,
++                $"{unlinkedRows} published ARPP row{(unlinkedRows == 1 ? " is" : "s are")} not linked to a PRISM project and cannot be included in this report.")
++        };
++    }
++
++    private static void AddProjectWarnings(List<ArppFyReportWarning> warnings, RowCandidate row)
++    {
++        void Add(string code, string message) => warnings.Add(new ArppFyReportWarning(
++            code,
++            ArppFyReportWarningSeverity.Warning,
++            $"{row.ProjectName}: {message}",
++            row.ProjectId,
++            row.ProjectName));
++
++        if (string.IsNullOrWhiteSpace(row.PppNumber))
++        {
++            Add("PPP_NUMBER_MISSING", "PPP Number / ARPP No. is not recorded in the current published FY position.");
++        }
++
++        if (!row.FirstArppListingDate.HasValue)
++        {
++            Add("FIRST_LISTING_DATE_MISSING", "the first published IPA/ARPP listing date could not be resolved.");
++        }
++
++        if (row.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
++        {
++            Add("ARPP_LIFECYCLE_CANCELLED", "the current ARPP position is approved, but the PRISM project is marked Cancelled.");
++        }
++        else if (row.IsArchived && row.LifecycleStatus != ProjectLifecycleStatus.Completed)
++        {
++            Add("ARPP_LIFECYCLE_ARCHIVED", "the current ARPP position is approved, but the PRISM project is archived.");
++        }
++
++        if (row.IsWorkflowConcludedWhileActive)
++        {
++            Add("ACTIVE_WORKFLOW_CONCLUDED", "all procurement stages are terminal, but the project lifecycle is still Active.");
++        }
++
++        var isCompleted = row.LifecycleStatus == ProjectLifecycleStatus.Completed;
++        var hasReachedAon = isCompleted || row.StageOrder <= ProjectStageMaturityOrder.AcceptanceOfNecessity;
++        if (hasReachedAon && !row.AonDate.HasValue)
++        {
++            Add("AON_DATE_MISSING", "AoN date is not recorded although the project has reached or passed AoN.");
++        }
++
++        var hasReachedSupplyOrder = isCompleted || row.StageOrder <= ProjectStageMaturityOrder.SupplyOrder;
++        if (hasReachedSupplyOrder)
++        {
++            if (row.SupplyOrderAmountInRupees is not > 0m && row.SupplyOrderDate.HasValue)
++            {
++                Add("SO_AMOUNT_MISSING", "Supply Order date is available, but neither a positive PNC cost nor L1 cost is available for SO amount.");
++            }
++            else if (row.SupplyOrderAmountInRupees is > 0m && !row.SupplyOrderDate.HasValue)
++            {
++                Add("SO_DATE_MISSING", "Supply Order amount can be resolved, but Supply Order date is not recorded.");
++            }
++            else if (row.SupplyOrderAmountInRupees is not > 0m && !row.SupplyOrderDate.HasValue)
++            {
++                Add("SO_DETAILS_MISSING", "Supply Order amount/date are not recorded although the project has reached or passed Supply Order.");
++            }
++        }
++
++        if (string.Equals(row.CurrentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
++            && !row.DevelopmentPdcDate.HasValue)
++        {
++            Add("DEVELOPMENT_PDC_MISSING", "current stage is Development, but Development PDC is not recorded.");
++        }
++
++        if (string.IsNullOrWhiteSpace(row.LatestExternalRemark))
++        {
++            Add("EXTERNAL_REMARK_MISSING", "no External / General project remark is available for the Remarks column.");
++        }
++    }
++
++    private static string? NormalizeNullable(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            ? null
++            : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
++
++    private sealed record ProjectSnapshot(
++        int Id,
++        string Name,
++        ProjectLifecycleStatus LifecycleStatus,
++        bool IsArchived,
++        string WorkflowVersion);
++
++    private sealed record StageSnapshot(
++        int Id,
++        int ProjectId,
++        string StageCode,
++        int SortOrder,
++        StageStatus Status,
++        DateOnly? PlannedStart,
++        DateOnly? PlannedDue,
++        DateOnly? ActualStart,
++        DateOnly? CompletedOn);
++
++    private sealed record ResolvedStage(
++        string? Code,
++        string Label,
++        int Order,
++        bool IsWorkflowConcludedWhileActive);
++
++    private sealed record RowCandidate(
++        int ProjectId,
++        string? PppNumber,
++        string ProjectName,
++        DateOnly? FirstArppListingDate,
++        string? DfpdsSchedule,
++        string? Cfa,
++        DateOnly? AonDate,
++        decimal? SupplyOrderAmountInRupees,
++        ProjectSupplyOrderValueBasis SupplyOrderAmountBasis,
++        DateOnly? SupplyOrderDate,
++        DateOnly? DevelopmentPdcDate,
++        ArppCategory ProjectCase,
++        string? LatestExternalRemark,
++        DateOnly? LatestExternalRemarkEventDate,
++        ProjectLifecycleStatus LifecycleStatus,
++        bool IsArchived,
++        string? CurrentStageCode,
++        string CurrentStageLabel,
++        int StageOrder,
++        bool IsWorkflowConcludedWhileActive);
++
++    private sealed class PppNumberComparer : IComparer<string?>
++    {
++        public static PppNumberComparer Instance { get; } = new();
++
++        public int Compare(string? x, string? y)
++        {
++            if (ReferenceEquals(x, y)) return 0;
++            if (string.IsNullOrWhiteSpace(x)) return 1;
++            if (string.IsNullOrWhiteSpace(y)) return -1;
++
++            var xParts = Regex.Split(x.Trim(), @"(\d+)");
++            var yParts = Regex.Split(y.Trim(), @"(\d+)");
++            var commonLength = Math.Min(xParts.Length, yParts.Length);
++
++            for (var index = 0; index < commonLength; index++)
++            {
++                var xPart = xParts[index];
++                var yPart = yParts[index];
++
++                if (long.TryParse(xPart, out var xNumber)
++                    && long.TryParse(yPart, out var yNumber))
++                {
++                    var numericComparison = xNumber.CompareTo(yNumber);
++                    if (numericComparison != 0) return numericComparison;
++
++                    // Keep otherwise equal values deterministic when one side uses
++                    // leading zeroes (for example 7 versus 007).
++                    var widthComparison = xPart.Length.CompareTo(yPart.Length);
++                    if (widthComparison != 0) return widthComparison;
++                    continue;
++                }
++
++                var textComparison = StringComparer.OrdinalIgnoreCase.Compare(xPart, yPart);
++                if (textComparison != 0) return textComparison;
++            }
++
++            var lengthComparison = xParts.Length.CompareTo(yParts.Length);
++            return lengthComparison != 0
++                ? lengthComparison
++                : StringComparer.OrdinalIgnoreCase.Compare(x, y);
++        }
++    }
++}
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -0,0 +1,313 @@
++using System.Globalization;
++using DocumentFormat.OpenXml;
++using DocumentFormat.OpenXml.Packaging;
++using W = DocumentFormat.OpenXml.Wordprocessing;
++
++namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
++
++public sealed class ArppFyProjectUpdateWordBuilder
++{
++    private const string Font = "Arial";
++    private const string Ink = "1F2937";
++    private const string Muted = "526174";
++    private const string Navy = "17365D";
++    private const string HeaderFill = "E8EEF5";
++    private const string Border = "8A99A8";
++    private const string White = "FFFFFF";
++
++    private static readonly int[] Widths =
++        [500, 800, 2800, 1100, 850, 700, 650, 950, 1400, 950, 750, 4550];
++    private static readonly int TableWidth = Widths.Sum();
++
++    public byte[] Build(ArppFyProjectUpdateReport report)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++
++        using var stream = new MemoryStream();
++        using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, autoSave: true))
++        {
++            document.PackageProperties.Title = $"ARPP FY {report.FinancialYearDisplay} Project Update";
++            document.PackageProperties.Subject = "ARPP approved projects and current update";
++            document.PackageProperties.Creator = "PRISM ERP";
++            document.PackageProperties.LastModifiedBy = "PRISM ERP";
++            document.PackageProperties.Created = report.GeneratedAtUtc.UtcDateTime;
++            document.PackageProperties.Modified = report.GeneratedAtUtc.UtcDateTime;
++
++            var mainPart = document.AddMainDocumentPart();
++            mainPart.Document = new W.Document(new W.Body());
++            AddStyles(mainPart);
++            AddSettings(mainPart);
++
++            var footerPart = mainPart.AddNewPart<FooterPart>();
++            footerPart.Footer = BuildFooter();
++            footerPart.Footer.Save();
++
++            var body = mainPart.Document.Body!;
++            body.Append(Paragraph(
++                $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}",
++                24,
++                bold: true,
++                color: Navy,
++                align: W.JustificationValues.Center,
++                after: 40));
++            body.Append(Paragraph(
++                "PROJECT UPDATE",
++                20,
++                bold: true,
++                color: Ink,
++                align: W.JustificationValues.Center,
++                after: 90));
++
++            body.Append(BuildTable(report.Rows));
++            body.Append(BuildSectionProperties(mainPart, footerPart));
++            mainPart.Document.Save();
++        }
++
++        return stream.ToArray();
++    }
++
++    private static W.Table BuildTable(IReadOnlyList<ArppFyProjectUpdateRow> rows)
++    {
++        var table = new W.Table(
++            new W.TableProperties(
++                new W.TableWidth { Width = TableWidth.ToString(CultureInfo.InvariantCulture), Type = W.TableWidthUnitValues.Dxa },
++                new W.TableLayout { Type = W.TableLayoutValues.Fixed },
++                new W.TableBorders(
++                    new W.TopBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++                    new W.LeftBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++                    new W.BottomBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++                    new W.RightBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++                    new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
++                    new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 })));
++
++        table.Append(new W.TableGrid(Widths.Select(width => new W.GridColumn
++        {
++            Width = width.ToString(CultureInfo.InvariantCulture)
++        })));
++
++        table.Append(BuildHeaderRowOne());
++        table.Append(BuildHeaderRowTwo());
++
++        foreach (var row in rows)
++        {
++            var properties = new W.TableRowProperties(new W.CantSplit());
++            var tableRow = new W.TableRow(properties);
++
++            tableRow.Append(
++                Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), Widths[0], align: W.JustificationValues.Center),
++                Cell(row.PppNumber ?? "—", Widths[1], align: W.JustificationValues.Center),
++                Cell(row.ProjectName, Widths[2], bold: true),
++                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center),
++                Cell(row.DfpdsSchedule ?? "—", Widths[4], align: W.JustificationValues.Center),
++                Cell(row.Cfa ?? "—", Widths[5], align: W.JustificationValues.Center),
++                Cell(row.Establishment, Widths[6], align: W.JustificationValues.Center),
++                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center),
++                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center),
++                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center),
++                Cell(row.ProjectCaseDisplay, Widths[10], align: W.JustificationValues.Center),
++                Cell(row.LatestExternalRemark ?? "—", Widths[11]));
++
++            table.Append(tableRow);
++        }
++
++        return table;
++    }
++
++    private static W.TableRow BuildHeaderRowOne()
++    {
++        var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
++        row.Append(
++            MergedHeader("Ser No.", Widths[0], restart: true),
++            MergedHeader("ARPP No.", Widths[1], restart: true),
++            MergedHeader("Name of Project", Widths[2], restart: true),
++            MergedHeader("Dt of Grant of IPA / ARPP Listing", Widths[3], restart: true),
++            MergedHeader("Sch", Widths[4], restart: true),
++            MergedHeader("CFA", Widths[5], restart: true),
++            MergedHeader("Est", Widths[6], restart: true),
++            SpanHeader("Status", Widths[7] + Widths[8] + Widths[9], 3),
++            MergedHeader("Proj Case", Widths[10], restart: true),
++            MergedHeader("Remarks", Widths[11], restart: true));
++        return row;
++    }
++
++    private static W.TableRow BuildHeaderRowTwo()
++    {
++        var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
++        row.Append(
++            MergedHeader(string.Empty, Widths[0], restart: false),
++            MergedHeader(string.Empty, Widths[1], restart: false),
++            MergedHeader(string.Empty, Widths[2], restart: false),
++            MergedHeader(string.Empty, Widths[3], restart: false),
++            MergedHeader(string.Empty, Widths[4], restart: false),
++            MergedHeader(string.Empty, Widths[5], restart: false),
++            MergedHeader(string.Empty, Widths[6], restart: false),
++            Header("AoN", Widths[7]),
++            Header("SO amt & dt", Widths[8]),
++            Header("PDC dt", Widths[9]),
++            MergedHeader(string.Empty, Widths[10], restart: false),
++            MergedHeader(string.Empty, Widths[11], restart: false));
++        return row;
++    }
++
++    private static W.TableCell MergedHeader(string text, int width, bool restart)
++    {
++        var properties = BaseCellProperties(width, HeaderFill);
++        properties.Append(new W.VerticalMerge
++        {
++            Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
++        });
++        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
++    }
++
++    private static W.TableCell SpanHeader(string text, int width, int span)
++    {
++        var properties = BaseCellProperties(width, HeaderFill);
++        properties.Append(new W.GridSpan { Val = span });
++        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
++    }
++
++    private static W.TableCell Header(string text, int width)
++        => new(
++            BaseCellProperties(width, HeaderFill),
++            Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
++
++    private static W.TableCell Cell(
++        string text,
++        int width,
++        bool bold = false,
++        W.JustificationValues align = W.JustificationValues.Left)
++        => new(
++            BaseCellProperties(width, null),
++            Paragraph(text, 15, bold: bold, color: Ink, align: align, after: 0));
++
++    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
++    {
++        var properties = new W.TableCellProperties(
++            new W.TableCellWidth { Width = width.ToString(CultureInfo.InvariantCulture), Type = W.TableWidthUnitValues.Dxa },
++            new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Center });
++
++        if (!string.IsNullOrWhiteSpace(fill))
++        {
++            properties.Append(new W.Shading { Fill = fill, Val = W.ShadingPatternValues.Clear });
++        }
++
++        return properties;
++    }
++
++    private static string Date(DateOnly? value)
++        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
++
++    private static string SupplyOrder(ArppFyProjectUpdateRow row)
++    {
++        var amount = row.SupplyOrderAmountInCrores.HasValue
++            ? $"₹{row.SupplyOrderAmountInCrores.Value.ToString("0.##", CultureInfo.InvariantCulture)} Cr"
++            : null;
++        var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
++        return amount is not null && date is not null
++            ? $"{amount}\n{date}"
++            : amount ?? date ?? "—";
++    }
++
++    private static W.Paragraph Paragraph(
++        string text,
++        int fontSizeHalfPoints,
++        bool bold = false,
++        string color = Ink,
++        W.JustificationValues align = W.JustificationValues.Left,
++        int after = 0)
++    {
++        var paragraph = new W.Paragraph(
++            new W.ParagraphProperties(
++                new W.Justification { Val = align },
++                new W.SpacingBetweenLines
++                {
++                    Before = "0",
++                    After = after.ToString(CultureInfo.InvariantCulture),
++                    Line = "205",
++                    LineRule = W.LineSpacingRuleValues.Auto
++                }));
++
++        var runProperties = new W.RunProperties(
++            new W.RunFonts { Ascii = Font, HighAnsi = Font, EastAsia = Font, ComplexScript = Font },
++            new W.Color { Val = color },
++            new W.FontSize { Val = fontSizeHalfPoints.ToString(CultureInfo.InvariantCulture) },
++            new W.FontSizeComplexScript { Val = fontSizeHalfPoints.ToString(CultureInfo.InvariantCulture) });
++        if (bold)
++        {
++            runProperties.Append(new W.Bold(), new W.BoldComplexScript());
++        }
++
++        var run = new W.Run(runProperties);
++        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal).Split('\n');
++        for (var index = 0; index < lines.Length; index++)
++        {
++            if (index > 0) run.Append(new W.Break());
++            run.Append(new W.Text(lines[index]) { Space = SpaceProcessingModeValues.Preserve });
++        }
++        paragraph.Append(run);
++        return paragraph;
++    }
++
++    private static void AddStyles(MainDocumentPart mainPart)
++    {
++        var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
++        stylesPart.Styles = new W.Styles(
++            new W.Style(
++                new W.StyleName { Val = "Normal" },
++                new W.StyleRunProperties(
++                    new W.RunFonts { Ascii = Font, HighAnsi = Font, EastAsia = Font, ComplexScript = Font },
++                    new W.Color { Val = Ink },
++                    new W.FontSize { Val = "16" },
++                    new W.FontSizeComplexScript { Val = "16" }))
++            {
++                Type = W.StyleValues.Paragraph,
++                StyleId = "Normal",
++                Default = true
++            });
++        stylesPart.Styles.Save();
++    }
++
++    private static void AddSettings(MainDocumentPart mainPart)
++    {
++        var settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
++        settingsPart.Settings = new W.Settings(new W.UpdateFieldsOnOpen { Val = true });
++        settingsPart.Settings.Save();
++    }
++
++    private static W.Footer BuildFooter()
++    {
++        var paragraph = new W.Paragraph(
++            new W.ParagraphProperties(new W.Justification { Val = W.JustificationValues.Right }));
++        paragraph.Append(new W.Run(new W.Text("PRISM ERP · SDD   |   Page ")));
++        paragraph.Append(new W.SimpleField { Instruction = "PAGE" });
++        paragraph.Append(new W.Run(new W.Text(" of ")));
++        paragraph.Append(new W.SimpleField { Instruction = "NUMPAGES" });
++        return new W.Footer(paragraph);
++    }
++
++    private static W.SectionProperties BuildSectionProperties(MainDocumentPart mainPart, FooterPart footerPart)
++        => new(
++            new W.FooterReference
++            {
++                Type = W.HeaderFooterValues.Default,
++                Id = mainPart.GetIdOfPart(footerPart)
++            },
++            new W.PageSize
++            {
++                Width = 16838U,
++                Height = 11906U,
++                Orient = W.PageOrientationValues.Landscape
++            },
++            new W.PageMargin
++            {
++                Top = 420,
++                Right = 420U,
++                Bottom = 480,
++                Left = 420U,
++                Header = 240U,
++                Footer = 240U,
++                Gutter = 0U
++            },
++            new W.Columns { Space = "240" },
++            new W.DocGrid { LinePitch = 300 });
++}
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -0,0 +1,441 @@
++.project-reports-page {
++    --reports-navy: #17365d;
++    --reports-ink: #172033;
++    --reports-muted: #64748b;
++    --reports-border: #d8e0e8;
++    --reports-soft: #f5f7fa;
++    --reports-blue-soft: #eef4fb;
++    --reports-warning: #a16207;
++    --reports-warning-soft: #fff8e8;
++    width: min(100%, 1680px);
++    margin: 0 auto;
++    padding: 1rem 1.25rem 2rem;
++    color: var(--reports-ink);
++}
++
++.project-reports-page--workspace {
++    width: 100%;
++    max-width: none;
++    padding-inline: clamp(.75rem, 1.6vw, 1.5rem);
++}
++
++.project-reports-breadcrumb {
++    display: flex;
++    align-items: center;
++    gap: .45rem;
++    margin-bottom: .7rem;
++    color: var(--reports-muted);
++    font-size: .78rem;
++}
++
++.project-reports-breadcrumb a {
++    color: #315d8c;
++    text-decoration: none;
++}
++
++.project-reports-breadcrumb a:hover { text-decoration: underline; }
++
++.project-reports-hero,
++.report-workspace-header {
++    display: flex;
++    align-items: flex-end;
++    justify-content: space-between;
++    gap: 1rem;
++    padding: .35rem 0 1rem;
++}
++
++.project-reports-eyebrow {
++    margin: 0 0 .28rem;
++    color: #56718f;
++    font-size: .69rem;
++    font-weight: 800;
++    letter-spacing: .11em;
++}
++
++.project-reports-hero h1,
++.report-workspace-header h1 {
++    margin: 0;
++    color: var(--reports-navy);
++    font-size: clamp(1.65rem, 2.1vw, 2.2rem);
++    font-weight: 750;
++    letter-spacing: -.025em;
++}
++
++.project-reports-hero p:last-child,
++.report-workspace-header > div > p:last-child {
++    max-width: 780px;
++    margin: .35rem 0 0;
++    color: var(--reports-muted);
++    font-size: .92rem;
++}
++
++.project-report-grid {
++    display: grid;
++    grid-template-columns: minmax(0, 760px);
++    gap: 1rem;
++}
++
++.project-report-card {
++    position: relative;
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr);
++    gap: 1rem;
++    padding: 1.1rem;
++    border: 1px solid var(--reports-border);
++    border-radius: 14px;
++    background: #fff;
++    box-shadow: 0 8px 24px rgba(23, 54, 93, .05);
++}
++
++.project-report-card__icon {
++    display: grid;
++    place-items: center;
++    width: 46px;
++    height: 46px;
++    border-radius: 12px;
++    background: var(--reports-blue-soft);
++    color: var(--reports-navy);
++    font-size: 1.2rem;
++}
++
++.project-report-card__meta {
++    color: #60758d;
++    font-size: .68rem;
++    font-weight: 800;
++    letter-spacing: .08em;
++    text-transform: uppercase;
++}
++
++.project-report-card h2 {
++    margin: .18rem 0 .35rem;
++    color: var(--reports-navy);
++    font-size: 1.15rem;
++}
++
++.project-report-card p {
++    margin: 0;
++    color: var(--reports-muted);
++    font-size: .86rem;
++    line-height: 1.52;
++}
++
++.project-report-card__facts {
++    display: flex;
++    flex-wrap: wrap;
++    gap: .45rem .85rem;
++    margin: .75rem 0 .9rem;
++    color: #51657b;
++    font-size: .76rem;
++}
++
++.project-report-card__facts span { display: inline-flex; align-items: center; gap: .32rem; }
++.project-report-card__availability {
++    grid-column: 1 / -1;
++    margin: .1rem 0 -.15rem 3.9rem;
++    color: var(--reports-muted);
++    font-size: .74rem;
++}
++
++.project-reports-principle {
++    display: flex;
++    align-items: flex-start;
++    gap: .7rem;
++    max-width: 760px;
++    margin-top: 1rem;
++    padding: .8rem .9rem;
++    border-left: 3px solid #8ca6c1;
++    background: var(--reports-soft);
++    color: #526174;
++    font-size: .8rem;
++}
++
++.project-reports-principle i { color: var(--reports-navy); font-size: 1rem; }
++.project-reports-principle strong { color: var(--reports-ink); }
++.project-reports-principle p { margin: .14rem 0 0; }
++
++.report-toolbar__fy {
++    min-width: 230px;
++}
++
++.report-toolbar__fy label {
++    display: block;
++    margin-bottom: .3rem;
++    color: var(--reports-muted);
++    font-size: .7rem;
++    font-weight: 700;
++    letter-spacing: .04em;
++    text-transform: uppercase;
++}
++
++.report-command-strip {
++    position: sticky;
++    top: var(--app-sticky-offset, 0px);
++    z-index: 8;
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: 1rem;
++    margin-bottom: .75rem;
++    padding: .58rem .7rem;
++    border: 1px solid var(--reports-border);
++    border-radius: 10px;
++    background: rgba(255, 255, 255, .97);
++    box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
++    backdrop-filter: blur(8px);
++}
++
++.report-kpis {
++    display: flex;
++    align-items: center;
++    flex-wrap: wrap;
++    gap: 0;
++}
++
++.report-kpis > div {
++    min-width: 96px;
++    padding: .08rem .85rem;
++    border-right: 1px solid #e4e9ef;
++}
++
++.report-kpis > div:first-child { padding-left: .3rem; }
++.report-kpis > div:last-child { border-right: 0; }
++.report-kpis span {
++    display: block;
++    color: var(--reports-muted);
++    font-size: .64rem;
++    font-weight: 700;
++    text-transform: uppercase;
++    letter-spacing: .035em;
++}
++
++.report-kpis strong {
++    display: block;
++    margin-top: .05rem;
++    color: var(--reports-navy);
++    font-size: 1rem;
++}
++
++.report-kpis .has-warning strong { color: var(--reports-warning); }
++.report-export-actions { display: flex; gap: .42rem; flex-wrap: wrap; }
++.report-export-actions .btn { display: inline-flex; align-items: center; gap: .3rem; }
++
++.report-preflight {
++    margin-bottom: .75rem;
++    border: 1px solid #ead9ae;
++    border-radius: 10px;
++    background: #fffdf8;
++    overflow: hidden;
++}
++
++.report-preflight > summary {
++    display: flex;
++    align-items: center;
++    gap: .65rem;
++    padding: .65rem .75rem;
++    cursor: pointer;
++    list-style: none;
++}
++
++.report-preflight > summary::-webkit-details-marker { display: none; }
++.report-preflight__icon {
++    display: grid;
++    place-items: center;
++    width: 30px;
++    height: 30px;
++    flex: 0 0 auto;
++    border-radius: 8px;
++    background: var(--reports-warning-soft);
++    color: var(--reports-warning);
++}
++
++.report-preflight summary strong { display: block; font-size: .83rem; color: #614b13; }
++.report-preflight summary small { display: block; margin-top: .04rem; color: #866d31; font-size: .71rem; }
++.report-preflight__chevron { margin-left: auto; color: #927735; transition: transform .16s ease; }
++.report-preflight[open] .report-preflight__chevron { transform: rotate(180deg); }
++
++.report-preflight__body {
++    max-height: 260px;
++    overflow: auto;
++    border-top: 1px solid #efe2bf;
++    background: #fff;
++}
++
++.report-preflight__item {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    align-items: start;
++    gap: .5rem;
++    padding: .55rem .75rem;
++    border-bottom: 1px solid #f0f2f5;
++    color: #4f5967;
++    font-size: .76rem;
++}
++
++.report-preflight__item:last-child { border-bottom: 0; }
++.report-preflight__item > i { margin-top: .05rem; color: #b27916; }
++.report-preflight__item a { white-space: nowrap; font-weight: 650; text-decoration: none; }
++
++.formal-report-card {
++    border: 1px solid #cfd8e2;
++    border-radius: 10px;
++    background: #fff;
++    box-shadow: 0 8px 24px rgba(15, 23, 42, .045);
++    overflow: hidden;
++}
++
++.formal-report-card__header {
++    display: flex;
++    align-items: flex-end;
++    justify-content: space-between;
++    gap: 1.25rem;
++    padding: .72rem .85rem;
++    border-bottom: 1px solid var(--reports-border);
++    background: #fbfcfd;
++}
++
++.formal-report-card__header span {
++    color: #60758d;
++    font-size: .66rem;
++    font-weight: 800;
++    letter-spacing: .08em;
++    text-transform: uppercase;
++}
++
++.formal-report-card__header h2 {
++    margin: .12rem 0 0;
++    color: var(--reports-navy);
++    font-size: 1rem;
++}
++
++.formal-report-card__header small {
++    max-width: 620px;
++    color: var(--reports-muted);
++    font-size: .68rem;
++    text-align: right;
++}
++
++.formal-report-scroll {
++    max-width: 100%;
++    overflow: auto;
++    scrollbar-gutter: stable;
++}
++
++.formal-report-table {
++    width: 100%;
++    min-width: 1540px;
++    border-collapse: separate;
++    border-spacing: 0;
++    table-layout: fixed;
++    font-size: .72rem;
++    line-height: 1.35;
++}
++
++.formal-report-table th,
++.formal-report-table td {
++    padding: .45rem .42rem;
++    border-right: 1px solid #d6dde5;
++    border-bottom: 1px solid #d6dde5;
++    vertical-align: middle;
++    overflow-wrap: anywhere;
++}
++
++.formal-report-table th:first-child,
++.formal-report-table td:first-child { border-left: 0; }
++.formal-report-table th:last-child,
++.formal-report-table td:last-child { border-right: 0; }
++
++.formal-report-table thead th {
++    position: sticky;
++    z-index: 4;
++    color: #213f62;
++    background: #e8eef5;
++    font-size: .67rem;
++    font-weight: 750;
++    text-align: center;
++    line-height: 1.25;
++}
++
++.formal-report-table thead tr:first-child th { top: 0; }
++.formal-report-table thead tr:nth-child(2) th { top: 34px; z-index: 5; }
++.formal-report-table tbody tr:hover td { background: #f8fbfe; }
++
++.formal-report-table .col-serial { width: 58px; }
++.formal-report-table .col-arpp { width: 85px; }
++.formal-report-table .col-project { width: 250px; }
++.formal-report-table .col-date { width: 126px; }
++.formal-report-table .col-sch { width: 92px; }
++.formal-report-table .col-cfa { width: 76px; }
++.formal-report-table .col-est { width: 62px; }
++.formal-report-table .col-aon { width: 104px; }
++.formal-report-table .col-so { width: 140px; }
++.formal-report-table .col-pdc { width: 104px; }
++.formal-report-table .col-case { width: 78px; }
++.formal-report-table .col-remarks { width: 360px; }
++
++.formal-report-project a {
++    color: #244d78;
++    font-weight: 700;
++    text-decoration: none;
++}
++
++.formal-report-project a:hover { text-decoration: underline; }
++.formal-report-so strong,
++.formal-report-so span,
++.formal-report-so small { display: block; }
++.formal-report-so strong { color: #263f59; font-size: .72rem; }
++.formal-report-so span { margin-top: .08rem; }
++.formal-report-so small { margin-top: .08rem; color: #7a8794; font-size: .6rem; font-weight: 700; }
++.formal-report-remarks { vertical-align: top !important; color: #3d4854; }
++
++.report-case-badge {
++    display: inline-block;
++    min-width: 28px;
++    padding: .12rem .3rem;
++    border: 1px solid #c9d5e2;
++    border-radius: 999px;
++    background: #f7f9fb;
++    color: #405974;
++    font-size: .64rem;
++    font-weight: 800;
++}
++
++.formal-report-empty,
++.report-empty-state {
++    padding: 2.6rem 1rem;
++    color: var(--reports-muted);
++    text-align: center;
++}
++
++.report-empty-state {
++    border: 1px dashed #cdd7e2;
++    border-radius: 12px;
++    background: #fbfcfd;
++}
++
++.report-empty-state > i { font-size: 1.6rem; color: #7f93a9; }
++.report-empty-state h2 { margin: .45rem 0 .25rem; color: var(--reports-navy); font-size: 1.05rem; }
++.report-empty-state p { margin: 0 0 .8rem; font-size: .82rem; }
++
++@media (max-width: 900px) {
++    .project-reports-page { padding-inline: .75rem; }
++    .project-reports-hero,
++    .report-workspace-header,
++    .report-command-strip,
++    .formal-report-card__header { align-items: stretch; flex-direction: column; }
++    .report-toolbar__fy { width: 100%; min-width: 0; }
++    .report-export-actions { width: 100%; }
++    .formal-report-card__header small { max-width: none; text-align: left; }
++    .project-report-card { grid-template-columns: 1fr; }
++    .project-report-card__availability { margin-left: 0; }
++}
++
++@media print {
++    .project-reports-breadcrumb,
++    .report-workspace-header,
++    .report-command-strip,
++    .report-preflight,
++    .formal-report-card__header { display: none !important; }
++    .project-reports-page { padding: 0; }
++    .formal-report-card { border: 0; box-shadow: none; }
++    .formal-report-scroll { overflow: visible; }
++}

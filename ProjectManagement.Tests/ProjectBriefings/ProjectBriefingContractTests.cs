@@ -135,13 +135,17 @@ public sealed class ProjectBriefingContractTests
     [Fact]
     public void ExternalStatusResolver_UsesExternalGeneralRemarksOnly()
     {
-        var source = Read("ProjectBriefingExternalStatusService.cs");
+        // The authoritative query now lives in the shared formal-output reader.
+        // The briefing service is intentionally only an adapter over that reader.
+        var source = Read("ProjectLatestExternalRemarkService.cs");
+        var adapter = Read("ProjectBriefingExternalStatusService.cs");
 
         Assert.Contains("remark.Type == RemarkType.External", source, StringComparison.Ordinal);
         Assert.Contains("remark.Scope == RemarkScope.General", source, StringComparison.Ordinal);
         Assert.Contains("!remark.IsDeleted", source, StringComparison.Ordinal);
         Assert.Contains("row.LastEditedAtUtc ?? row.CreatedAtUtc", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RemarkType.Internal", source, StringComparison.Ordinal);
+        Assert.Contains("IProjectLatestExternalRemarkService", adapter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -159,13 +163,16 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Include cover slide", page, StringComparison.Ordinal);
         Assert.Contains("Include portfolio-summary slide", page, StringComparison.Ordinal);
 
-        Assert.Contains("StageCodes.AON", resolver, StringComparison.Ordinal);
-        Assert.Contains("StageCodes.DEVP", resolver, StringComparison.Ordinal);
+        var formalFacts = Read("ProjectFormalUpdateFactsResolver.cs");
+
+        Assert.Contains("IProjectFormalUpdateFactsResolver", resolver, StringComparison.Ordinal);
+        Assert.Contains("StageCodes.AON", formalFacts, StringComparison.Ordinal);
+        Assert.Contains("StageCodes.DEVP", formalFacts, StringComparison.Ordinal);
         Assert.Contains("project.LeadPoUser.Rank", resolver, StringComparison.Ordinal);
         Assert.Contains("project.LeadPoUser.FullName", resolver, StringComparison.Ordinal);
         Assert.Contains("project.SponsoringLineDirectorate.Name", resolver, StringComparison.Ordinal);
         Assert.Contains("link.IndustryPartner.Name", resolver, StringComparison.Ordinal);
-        Assert.Contains("ProjectSupplyOrderFacts", resolver, StringComparison.Ordinal);
+        Assert.Contains("ProjectSupplyOrderFacts", formalFacts, StringComparison.Ordinal);
         Assert.Contains("ArppPublishedEntries", resolver, StringComparison.Ordinal);
 
         Assert.Contains("RenderProjectUpdateSheet", composer, StringComparison.Ordinal);

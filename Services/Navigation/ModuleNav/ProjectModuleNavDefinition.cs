@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.Navigation;
 
@@ -41,6 +42,14 @@ public static class ProjectModuleNavDefinition
             Page = "/Projects/Arpp/Index",
             ActivePagePrefix = "/Projects/Arpp/",
             Icon = "bi-journal-check"
+        },
+        new()
+        {
+            Text = "Reports",
+            Page = "/Projects/Reports/Index",
+            ActivePagePrefix = "/Projects/Reports/",
+            Icon = "bi-file-earmark-bar-graph",
+            AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewArpp
         },
         new()
         {
