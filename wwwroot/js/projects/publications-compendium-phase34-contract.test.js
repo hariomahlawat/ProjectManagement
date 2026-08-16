@@ -96,6 +96,6 @@ test('phase 34 keeps semantic keys stable across subsequent programme refinement
     assert.ok(resolver.includes(`"${key}"`), `resolver must retain ${key}`);
   }
 
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_physical-composition-v20)/);
-  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21))/);
+  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints)/);
 });

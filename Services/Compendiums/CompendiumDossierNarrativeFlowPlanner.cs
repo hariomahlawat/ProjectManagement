@@ -20,13 +20,15 @@ public sealed record CompendiumDossierNarrativeFlowPlan(
     public float SideRegionHeightPoints { get; init; }
     public float SideUsedHeightPoints { get; init; }
     public float SideRemainingHeightPoints { get; init; }
+    public float SideOverflowHeightPoints { get; init; }
+    public float SideBalanceRatio { get; init; } = 1f;
     public float SideUtilizationRatio { get; init; }
     public int EstimatedPageCount => 1 + ContinuationSegments.Count;
     public bool Continues => ContinuationSegments.Count > 0;
 }
 
 /// <summary>
-/// Deterministic narrative segmentation for Compendium dossier pages. Phase 37.1 keeps the
+/// Deterministic narrative segmentation for Compendium dossier pages. Phase 37.2 keeps the
 /// paragraph-first / sentence-second editorial rule, adding complete sentences sentence-by-sentence when they
 /// physically fit. Decisions use DM Sans measurements at the actual side-column width; words and
 /// sentences are never sliced.
@@ -97,18 +99,21 @@ public static class CompendiumDossierNarrativeFlowPlanner
 
         if (mode == CompendiumBalancedTextFlowMode.SideColumn)
         {
-            var used = CompendiumDossierTextMeasurementService.Measure(
+            var measuredHeight = CompendiumDossierTextMeasurementService.Measure(
                 firstPage, sideColumnWidthPoints, narrativeFontScale, includeHeading: true).HeightPoints;
             var region = Math.Max(1f, primaryImageHeightPoints);
+            var balance = CompendiumDossierEditorialPolicy.AssessSideColumn(region, measuredHeight);
             return new(mode, firstPage, string.Empty, continuations)
             {
                 EffectiveAlignment = narrativeAlignment,
                 SideAlignment = sideAlignment,
                 BelowAlignment = fullWidthAlignment,
                 SideRegionHeightPoints = region,
-                SideUsedHeightPoints = Math.Min(region, used),
-                SideRemainingHeightPoints = Math.Max(0f, region - used),
-                SideUtilizationRatio = region <= 0 ? 1f : Math.Clamp(used / region, 0f, 1f)
+                SideUsedHeightPoints = Math.Min(region, measuredHeight),
+                SideRemainingHeightPoints = balance.UnderfillHeightPoints,
+                SideOverflowHeightPoints = balance.OverflowHeightPoints,
+                SideBalanceRatio = balance.BalanceRatio,
+                SideUtilizationRatio = region <= 0 ? 1f : Math.Clamp(measuredHeight / region, 0f, 1f)
             };
         }
 

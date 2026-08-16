@@ -41,8 +41,8 @@ test('phase 36 introduces the quartet and balanced text-flow contracts with sche
   assert.match(preset, /CurrentSchemaVersion\s*=\s*[89]/);
   assert.match(migration, /BalancedTextFlowMode/);
   assert.match(migration, /defaultValue:\s*"SideColumn"/);
-  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_physical-composition-v20)/);
+  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21))/);
 });
 
 test('phase 36 centralises cover slots and enforces a four-photo Fill-only Portfolio Quartet', () => {

@@ -1,3 +1,4 @@
+using System.Text;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.Compendiums;
@@ -20,6 +21,7 @@ public sealed record CompendiumProjectReadinessContext(
     string? SubmittedReviewFingerprint)
 {
     public string NarrativeLabel { get; init; } = "Project description";
+    public string? DossierEditorialWarning { get; init; }
 }
 
 public sealed record CompendiumProjectReadinessAssessment(
@@ -150,6 +152,11 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(context.DossierEditorialWarning))
+        {
+            Warning("dossierCompositionImbalance", context.DossierEditorialWarning.Trim());
+        }
+
         if (context.LifecycleStatus == ProjectLifecycleStatus.Completed && !context.CompletionYear.HasValue)
         {
             issues.Add(CompendiumPublicationIssue.MissingCompletionYear);
@@ -212,20 +219,11 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
 
         if (paragraphs.Length < 2)
         {
-            // Some stored project briefs are plain text without paragraph breaks. Detect an
-            // immediately repeated long sentence block without trying to rewrite the source.
-            var compact = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-            var midpoint = compact.Length / 2;
-            if (compact.Length >= 320)
-            {
-                var first = compact[..midpoint].Trim();
-                var second = compact[midpoint..].Trim();
-                if (first.Length >= 120 && string.Equals(first, second, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-            return false;
+            // Some stored project briefs are plain text without paragraph breaks. Compare word
+            // sequences around the midpoint so punctuation/spacing differences do not hide an
+            // accidentally duplicated long block. This is deliberately conservative: the repeated
+            // halves must be almost identical before publication preflight raises a warning.
+            return ContainsRepeatedLongWordBlock(value);
         }
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -236,6 +234,40 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
                 return true;
             }
         }
+        return false;
+    }
+
+    private static bool ContainsRepeatedLongWordBlock(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            builder.Append(char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : ' ');
+        }
+
+        var words = builder.ToString()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length < 50) return false;
+
+        var midpoint = words.Length / 2;
+        for (var split = Math.Max(20, midpoint - 4); split <= Math.Min(words.Length - 20, midpoint + 4); split++)
+        {
+            var leftLength = split;
+            var rightLength = words.Length - split;
+            if (Math.Abs(leftLength - rightLength) > 8) continue;
+
+            var compared = Math.Min(leftLength, rightLength);
+            var matches = 0;
+            for (var index = 0; index < compared; index++)
+            {
+                if (string.Equals(words[index], words[split + index], StringComparison.Ordinal))
+                    matches++;
+            }
+
+            if (compared >= 25 && matches / (double)compared >= .94d)
+                return true;
+        }
+
         return false;
     }
 }

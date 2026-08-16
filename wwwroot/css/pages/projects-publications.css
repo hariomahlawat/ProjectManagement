@@ -5283,3 +5283,35 @@ body.compendium-structure-editor-mode {
     max-height: none !important;
     overflow: visible;
 }
+
+/* ==========================================================================
+   Compendium Phase 37.2 — editorial constraint hardening
+   ========================================================================== */
+.compendium-builder-page .compendium-composer__grid {
+    grid-template-columns: 1.12fr 1fr .9fr .9fr;
+}
+.compendium-dossier-fit-insight.is-warning {
+    border-color: #e8cf91;
+    background: #fffaf0;
+}
+.compendium-dossier-fit-insight.is-warning > span {
+    background: #f8e8bc;
+    color: #765814;
+}
+.compendium-dossier-fit-insight.is-warning strong { color: #6e5215; }
+.compendium-dossier-fit-insight.is-warning small { color: #806b3c; }
+
+@media (max-width: 1320px) {
+    .compendium-builder-page .compendium-composer__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .compendium-builder-page .compendium-composer__control:nth-child(odd) { border-left: 0; }
+    .compendium-builder-page .compendium-composer__control:nth-child(n+3) { border-top: 1px solid #e1ebe7; }
+}
+@media (max-width: 820px) {
+    .compendium-builder-page .compendium-composer__grid { grid-template-columns: 1fr; }
+    .compendium-builder-page .compendium-composer__control + .compendium-composer__control {
+        border-left: 0;
+        border-top: 1px solid #e1ebe7;
+    }
+}

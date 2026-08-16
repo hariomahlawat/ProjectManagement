@@ -409,6 +409,8 @@ public sealed class IndexModel : PageModel
                 review.NarrativeFlow.SideRegionHeightPoints,
                 review.NarrativeFlow.SideUsedHeightPoints,
                 review.NarrativeFlow.SideRemainingHeightPoints,
+                review.NarrativeFlow.SideOverflowHeightPoints,
+                review.NarrativeFlow.SideBalanceRatio,
                 review.NarrativeFlow.SideUtilizationRatio
             },
             dossierLayoutOverride = review.DossierLayoutOverride.ToString(),
@@ -422,6 +424,7 @@ public sealed class IndexModel : PageModel
             review.EstimatedDossierPageCount,
             review.DossierPaginationNote,
             review.DossierPaginationReason,
+            review.DossierEditorialWarning,
             review.DossierImageCount,
             dossierImages = review.DossierImages.Select(image => new
             {

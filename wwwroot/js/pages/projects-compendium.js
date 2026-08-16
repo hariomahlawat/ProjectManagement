@@ -324,6 +324,7 @@
     const reviewPhotoUsageSummary = $("[data-review-photo-usage-summary]");
     const reviewPhotoUsageDetail = $("[data-review-photo-usage-detail]");
     const reviewLayoutReason = $("[data-review-layout-reason]");
+    const reviewPaginationInsight = $("[data-review-pagination-insight]");
     const reviewPaginationBadge = $("[data-review-pagination-badge]");
     const reviewPaginationNote = $("[data-review-pagination-note]");
     const reviewPaginationReason = $("[data-review-pagination-reason]");
@@ -1277,8 +1278,15 @@
             reviewPaginationBadge.textContent = `${estimatedPages} ${estimatedPages === 1 ? "page" : "pages"}`;
             reviewPaginationBadge.classList.toggle("is-continuation", estimatedPages > 1);
         }
-        if (reviewPaginationNote) reviewPaginationNote.textContent = review.dossierPaginationNote || (estimatedPages === 1 ? "Fits on one dossier page" : `${estimatedPages} dossier pages`);
-        if (reviewPaginationReason) reviewPaginationReason.textContent = review.dossierPaginationReason || review.dossierLayoutReason || "PRISM is balancing photography and readable content.";
+        const editorialWarning = String(review.dossierEditorialWarning || "").trim();
+        if (reviewPaginationInsight) reviewPaginationInsight.classList.toggle("is-warning", Boolean(editorialWarning));
+        if (reviewPaginationNote) reviewPaginationNote.textContent = editorialWarning
+            ? "Layout needs editorial attention"
+            : review.dossierPaginationNote || (estimatedPages === 1 ? "Fits on one dossier page" : `${estimatedPages} dossier pages`);
+        if (reviewPaginationReason) reviewPaginationReason.textContent = editorialWarning
+            || review.dossierPaginationReason
+            || review.dossierLayoutReason
+            || "PRISM is balancing photography and readable content.";
 
         if (reviewImageFrame) { const fw = Number(review.imageFrameWidthPoints || frameWidthPoints) || frameWidthPoints; const fh = Number(review.imageFrameHeightPoints || frameHeightPoints) || frameHeightPoints; reviewImageFrame.style.aspectRatio = `${fw} / ${fh}`; reviewImageFrame.classList.toggle("is-fit", config.imageFitMode === "fit"); }
         const photo = currentReviewPhoto(review);

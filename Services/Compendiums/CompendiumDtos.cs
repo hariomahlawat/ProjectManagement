@@ -346,6 +346,7 @@ public sealed record CompendiumReviewProjectDto(
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
+    public string? DossierEditorialWarning { get; init; }
     public int DossierImageCount { get; init; } = 1;
     public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
 }
@@ -409,6 +410,7 @@ public sealed record CompendiumProjectDto(
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
+    public string? DossierEditorialWarning { get; init; }
     public int DossierImageCount { get; init; } = 1;
     public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
 }

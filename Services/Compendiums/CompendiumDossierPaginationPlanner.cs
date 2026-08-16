@@ -3,10 +3,11 @@ using System.Text.RegularExpressions;
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
-/// Shared A4 dossier composition planner used by browser review and PDF planning. Phase 37.1
-/// evaluates one-page candidates against physically measured narrative/specification geometry,
-/// source-aware Fit image height, image fidelity and deliberate editorial reserve. Automatic layouts
-/// remain print-protective; explicit publisher choices are retained whenever geometrically possible.
+/// Shared A4 dossier composition planner used by browser review and PDF planning. Phase 37.2
+/// separates physical feasibility from editorial validity: one-page candidates are measured first,
+/// then rejected from Automatic selection when Fill imagery becomes token-sized or a Balanced Side
+/// Column produces a material image/text imbalance. Explicit publisher choices remain available,
+/// but unsafe editorial combinations surface a publication warning instead of being silently approved.
 /// </summary>
 public static class CompendiumDossierPaginationPlanner
 {
@@ -33,7 +34,9 @@ public static class CompendiumDossierPaginationPlanner
         int EstimatedPageCount,
         bool UsesContinuation,
         string Reason,
-        string PaginationNote);
+        string PaginationNote,
+        bool HasEditorialWarning = false,
+        string? EditorialWarning = null);
 
     public static Decision Resolve(
         CompendiumDossierLayout requested,
@@ -76,7 +79,7 @@ public static class CompendiumDossierPaginationPlanner
 
         foreach (var layout in layouts)
         {
-            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi, protectPrintFidelity: true))
+            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi, protectPrintFidelity: !explicitLayout))
             {
                 foreach (var narrativeScale in CandidateNarrativeScales(cleanNarrative))
                 {
@@ -116,12 +119,21 @@ public static class CompendiumDossierPaginationPlanner
             }
         }
 
-        if (validCandidates.Count > 0)
+        var editorialCandidates = validCandidates
+            .Where(candidate => candidate.IsEditoriallyValid)
+            .ToArray();
+        var selectableCandidates = editorialCandidates.Length > 0
+            ? editorialCandidates
+            : explicitLayout
+                ? validCandidates.ToArray()
+                : Array.Empty<Candidate>();
+
+        if (selectableCandidates.Length > 0)
         {
-            var best = validCandidates
+            var best = selectableCandidates
                 .OrderByDescending(candidate => candidate.CompositionScore)
                 .ThenBy(candidate => Math.Abs(candidate.ResidualSpacePoints - ResolveIdealResidualSpace(specifications.Length, programmeModuleCount)))
-                .ThenBy(candidate => candidate.SideRemainingHeightPoints)
+                .ThenBy(candidate => candidate.SideOverflowHeightPoints + candidate.SideRemainingHeightPoints)
                 .ThenByDescending(candidate => candidate.ImageHeight)
                 .First();
 
@@ -149,7 +161,7 @@ public static class CompendiumDossierPaginationPlanner
                         ? $"{Display(best.Layout)} retained; available page space was invested in larger photography and more readable narrative typography"
                         : expandedPhotography
                             ? $"{Display(best.Layout)} retained; available page space was invested in larger photography"
-                            : reducedPhotography && qualityConstrained
+                            : reducedPhotography && qualityConstrained && !explicitLayout
                                 ? $"{Display(best.Layout)} retained; photography was reduced to protect print fidelity"
                                 : reducedPhotography
                                     ? $"{Display(best.Layout)} retained; photography was reduced to preserve readable one-page content"
@@ -170,16 +182,69 @@ public static class CompendiumDossierPaginationPlanner
                 explicitLayout && !changedLayout
                     ? $"Publisher-selected {Display(best.Layout)} retained; {reason.ToLowerInvariant()}"
                     : reason,
-                $"1 dossier page · {Display(best.Layout)} · optimised");
+                best.IsEditoriallyValid
+                    ? $"1 dossier page · {Display(best.Layout)} · optimised"
+                    : $"1 dossier page · {Display(best.Layout)} · publisher review required",
+                HasEditorialWarning: !best.IsEditoriallyValid,
+                EditorialWarning: best.EditorialWarning);
         }
 
         var fallbackLayout = layouts[0];
-        var compactHeight = CandidateImageHeights(
-            fallbackLayout,
-            availablePhotoCount,
-            primaryImageEffectiveDpi,
-            protectPrintFidelity: true).Last();
-        var withoutSpecs = Evaluate(
+        IReadOnlyList<float> fallbackHeights = Array.Empty<float>();
+        Candidate? fallbackEvaluation = null;
+
+        foreach (var candidateLayout in layouts)
+        {
+            var candidateHeights = CandidateImageHeights(
+                candidateLayout,
+                availablePhotoCount,
+                primaryImageEffectiveDpi,
+                protectPrintFidelity: !explicitLayout);
+            if (candidateHeights.Count == 0) continue;
+
+            var candidateCompactHeight = candidateHeights[^1];
+            var candidateEvaluation = Evaluate(
+                candidateLayout,
+                candidateCompactHeight,
+                1f,
+                availablePhotoCount,
+                cleanNarrative,
+                Array.Empty<string>(),
+                programmeModuleCount,
+                projectName,
+                1,
+                programmeColumns,
+                balancedTextFlowMode,
+                primaryImageSourceWidth,
+                primaryImageSourceHeight,
+                primaryImageFitMode,
+                measurementSession);
+
+            if (fallbackEvaluation is null)
+            {
+                fallbackLayout = candidateLayout;
+                fallbackHeights = candidateHeights;
+                fallbackEvaluation = candidateEvaluation;
+            }
+
+            if (explicitLayout || candidateEvaluation.IsEditoriallyValid)
+            {
+                fallbackLayout = candidateLayout;
+                fallbackHeights = candidateHeights;
+                fallbackEvaluation = candidateEvaluation;
+                break;
+            }
+        }
+
+        if (fallbackHeights.Count == 0)
+        {
+            fallbackHeights = new[] { availablePhotoCount > 0
+                ? CompendiumDossierEditorialPolicy.MinimumEditorialFillHeightPoints(fallbackLayout)
+                : 0f };
+        }
+
+        var compactHeight = fallbackHeights[^1];
+        var withoutSpecs = fallbackEvaluation ?? Evaluate(
             fallbackLayout,
             compactHeight,
             1f,
@@ -242,8 +307,10 @@ public static class CompendiumDossierPaginationPlanner
             true,
             explicitLayout
                 ? $"Publisher-selected {Display(fallbackLayout)} requires controlled continuation at the current content volume"
-                : $"Content exceeds the safe one-page envelope after photography is reduced; {continuationReason}",
-            $"{estimatedPages} dossier pages · {continuationReason}");
+                : $"Content exceeds the safe one-page editorial envelope; {continuationReason}",
+            $"{estimatedPages} dossier pages · {continuationReason}",
+            HasEditorialWarning: !withoutSpecs.IsEditoriallyValid,
+            EditorialWarning: withoutSpecs.EditorialWarning);
     }
 
     public static int ResolveTechnicalSpecificationColumns(IReadOnlyList<string>? specifications)
@@ -344,6 +411,10 @@ public static class CompendiumDossierPaginationPlanner
         var hasPhoto = availablePhotoCount > 0 && imageHeight > 0f;
         var fixedGaps = 31f;
         float sideRemaining = 0f;
+        float sideOverflow = 0f;
+        float sideBalanceRatio = 1f;
+        var sideColumnBalanced = true;
+        string? sideColumnWarning = null;
 
         var frameWidth = ResolvePrimaryFrameWidthPoints(layout, availablePhotoCount);
         var geometryFitMode = layout == CompendiumDossierLayout.MultiImageEditorial
@@ -384,6 +455,12 @@ public static class CompendiumDossierPaginationPlanner
             var sideWidth = ResolveBalancedSideWidthPoints(availablePhotoCount);
             var narrativeHeight = measurementSession.Measure(
                 narrative, sideWidth, narrativeFontScale, includeHeading: true).HeightPoints;
+            var balance = CompendiumDossierEditorialPolicy.AssessSideColumn(renderedImageHeight, narrativeHeight);
+            sideRemaining = balance.UnderfillHeightPoints;
+            sideOverflow = balance.OverflowHeightPoints;
+            sideBalanceRatio = balance.BalanceRatio;
+            sideColumnBalanced = balance.IsEditoriallyBalanced;
+            sideColumnWarning = balance.Warning;
             mainHeight = Math.Max(renderedImageHeight, narrativeHeight);
             var available = PhysicalContentHeightPoints - titleHeight - programmeHeight - specificationHeight - fixedGaps;
             capacity = EstimateNarrativeCapacityCharacters(available, 42, narrativeFontScale);
@@ -398,6 +475,14 @@ public static class CompendiumDossierPaginationPlanner
         }
 
         var totalHeight = titleHeight + mainHeight + programmeHeight + specificationHeight + fixedGaps;
+        var imageGeometryValid = CompendiumDossierEditorialPolicy.IsImageGeometryEditoriallyValid(
+            layout, geometryFitMode, hasPhoto, renderedImageHeight);
+        var editorialWarning = !imageGeometryValid
+            ? $"The {Display(layout)} Fill treatment would reduce the publication image below the editorial minimum. Use a larger image treatment, Fit, or controlled continuation."
+            : sideColumnBalanced
+                ? null
+                : sideColumnWarning;
+
         return new Candidate(
             layout,
             imageHeight,
@@ -407,7 +492,11 @@ public static class CompendiumDossierPaginationPlanner
             totalHeight,
             capacity)
         {
-            SideRemainingHeightPoints = sideRemaining
+            SideRemainingHeightPoints = sideRemaining,
+            SideOverflowHeightPoints = sideOverflow,
+            SideBalanceRatio = sideBalanceRatio,
+            IsEditoriallyValid = imageGeometryValid && sideColumnBalanced,
+            EditorialWarning = editorialWarning
         };
     }
 
@@ -462,6 +551,20 @@ public static class CompendiumDossierPaginationPlanner
             else if (candidate.SideRemainingHeightPoints > 40f) score -= (candidate.SideRemainingHeightPoints - 40f) * 1.8f;
         }
 
+        if (candidate.Layout == CompendiumDossierLayout.Balanced
+            && balancedTextFlowMode == CompendiumBalancedTextFlowMode.SideColumn)
+        {
+            if (candidate.SideOverflowHeightPoints <= CompendiumDossierEditorialPolicy.PreferredSideBalanceTolerancePoints
+                && candidate.SideRemainingHeightPoints <= CompendiumDossierEditorialPolicy.PreferredSideBalanceTolerancePoints)
+            {
+                score += 28f;
+            }
+
+            score -= candidate.SideOverflowHeightPoints * 2.6f;
+            score -= candidate.SideRemainingHeightPoints * 1.7f;
+            if (!candidate.IsEditoriallyValid) score -= 420f;
+        }
+
         var narrativeLength = narrative.Length;
         if (candidate.Layout == CompendiumDossierLayout.VisualHero && narrativeLength <= 1750 && availablePhotoCount > 0) score += 13f;
         if (candidate.Layout == CompendiumDossierLayout.VisualHero && narrativeLength > 2500) score -= 24f;
@@ -512,10 +615,10 @@ public static class CompendiumDossierPaginationPlanner
         if (availablePhotoCount <= 0) return new[] { 0f };
         IReadOnlyList<float> values = layout switch
         {
-            CompendiumDossierLayout.VisualHero => new[] { 330f, 315f, 285f, 255f, 230f, 205f, 185f, 160f, 135f, 110f },
-            CompendiumDossierLayout.MultiImageEditorial => new[] { 285f, 275f, 260f, 245f, 220f, 200f, 185f, 160f, 135f, 110f },
+            CompendiumDossierLayout.VisualHero => new[] { 330f, 315f, 285f, 255f, 230f, 205f, 185f },
+            CompendiumDossierLayout.MultiImageEditorial => new[] { 285f, 275f, 260f, 245f, 220f, 200f, 185f },
             CompendiumDossierLayout.Technical => new[] { 185f, 175f, 160f, 145f, 125f, 105f, 90f, 82f },
-            _ => new[] { 300f, 285f, 270f, 255f, 246f, 225f, 205f, 185f, 165f, 145f, 125f, 105f, 96f }
+            _ => new[] { 300f, 285f, 270f, 255f, 246f, 225f, 205f, 185f, 165f }
         };
 
         if (!protectPrintFidelity || primaryImageEffectiveDpi is not > 0) return values;
@@ -524,7 +627,7 @@ public static class CompendiumDossierPaginationPlanner
             PreferredImageHeight(layout, availablePhotoCount),
             primaryImageEffectiveDpi);
         var filtered = values.Where(value => value <= safeMaximum + .1f).ToArray();
-        return filtered.Length > 0 ? filtered : new[] { values[^1] };
+        return filtered;
     }
 
     private static IReadOnlyList<float> CandidateNarrativeScales(string narrative)
@@ -632,6 +735,10 @@ public static class CompendiumDossierPaginationPlanner
     {
         public int CompositionScore { get; init; }
         public float SideRemainingHeightPoints { get; init; }
+        public float SideOverflowHeightPoints { get; init; }
+        public float SideBalanceRatio { get; init; } = 1f;
+        public bool IsEditoriallyValid { get; init; } = true;
+        public string? EditorialWarning { get; init; }
         public float ResidualSpacePoints => Math.Max(0f, PhysicalContentHeightPoints - TotalHeightPoints);
     }
 }

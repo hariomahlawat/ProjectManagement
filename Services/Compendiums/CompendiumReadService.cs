@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-16_physical-composition-v20";
+    public const string BuildStamp = "CompendiumPdf_2026-08-16_editorial-constraints-v21";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -389,7 +389,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 fingerprint,
                 resolved.Selection.ReviewFingerprint)
             {
-                NarrativeLabel = narrative.Label
+                NarrativeLabel = narrative.Label,
+                DossierEditorialWarning = paginationDecision.EditorialWarning
             });
 
             findings.AddRange(assessment.Findings);
@@ -455,6 +456,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 EstimatedDossierPageCount = Math.Max(paginationDecision.EstimatedPageCount, narrativeFlow.EstimatedPageCount),
                 DossierPaginationNote = paginationDecision.PaginationNote,
                 DossierPaginationReason = paginationDecision.Reason,
+                DossierEditorialWarning = paginationDecision.EditorialWarning,
                 DossierImageCount = dossierPhotoCount,
                 DossierImages = dossierImages
             });
@@ -717,7 +719,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             fingerprint,
             resolved.Selection.ReviewFingerprint)
         {
-            NarrativeLabel = narrative.Label
+            NarrativeLabel = narrative.Label,
+            DossierEditorialWarning = paginationDecision.EditorialWarning
         });
 
         return new CompendiumReviewProjectDto(
@@ -782,6 +785,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             EstimatedDossierPageCount = Math.Max(paginationDecision.EstimatedPageCount, narrativeFlow.EstimatedPageCount),
             DossierPaginationNote = paginationDecision.PaginationNote,
             DossierPaginationReason = paginationDecision.Reason,
+            DossierEditorialWarning = paginationDecision.EditorialWarning,
             DossierImageCount = dossierPhotoCount,
             DossierImages = dossierImages
         };

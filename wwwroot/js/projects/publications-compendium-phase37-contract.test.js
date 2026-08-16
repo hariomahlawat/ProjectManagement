@@ -63,7 +63,7 @@ test('phase 37 jointly evaluates multiple image heights instead of freezing the 
   assert.match(pagination, /CompendiumDossierLayout\.Balanced[\s\S]*300f[\s\S]*285f[\s\S]*270f[\s\S]*255f/);
   assert.match(pagination, /AssessSideFlow\([\s\S]*narrative[\s\S]*renderedImageHeight[\s\S]*narrativeFontScale/);
   assert.match(pagination, /OrderByDescending\(candidate => candidate\.CompositionScore\)/);
-  assert.match(pagination, /ThenBy\(candidate => candidate\.SideRemainingHeightPoints\)/);
+  assert.match(pagination, /ThenBy\(candidate => candidate\.Side(?:OverflowHeightPoints \+ candidate\.SideRemainingHeightPoints|RemainingHeightPoints)\)/);
 });
 
 test('phase 37 provides publication default and per-project narrative alignment without unsafe narrow-column justification', () => {
@@ -127,9 +127,9 @@ test('phase 37 preserves alignment through Structure Editor handoff and persiste
 });
 
 test('phase 37 binds typography changes into review and publication identities', () => {
-  assert.match(fingerprint, /compendium-review-v(?:12-professional-typesetting|13-physical-measurement)/);
+  assert.match(fingerprint, /compendium-review-v(?:12-professional-typesetting|13-physical-measurement|14-editorial-constraints)/);
   assert.match(fingerprint, /input\.NarrativeAlignment\.ToString\(\)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_composition-hardening-v19|CompendiumPdf_2026-08-16_physical-composition-v20)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_composition-hardening-v19|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21))/);
   assert.match(indexPage, /NarrativeAlignmentOverride/);
   assert.match(indexPage, /DefaultNarrativeAlignment/);
 });
