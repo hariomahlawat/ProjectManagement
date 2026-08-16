@@ -107,6 +107,7 @@ public sealed record CompendiumPdfProjectSection(
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = CompendiumDossierNarrativeFlowPlan.Empty;
@@ -940,6 +941,22 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 project.TechnologyTransfer);
         if (modules.Count == 0) return;
 
+        if (CompendiumProjectParticularsLayoutPolicy.Normalize(project.ProjectParticularsStyle)
+            == CompendiumProjectParticularsStyle.Minimal)
+        {
+            ComposeProjectParticularsMinimal(container, project, modules, programmeIcons);
+            return;
+        }
+
+        ComposeProjectParticularsPanel(container, project, modules, programmeIcons);
+    }
+
+    private static void ComposeProjectParticularsPanel(
+        IContainer container,
+        CompendiumPdfProjectSection project,
+        IReadOnlyList<CompendiumProgrammeModuleDto> modules,
+        IReadOnlyDictionary<string, string> programmeIcons)
+    {
         var programmeColumns = Math.Clamp(project.DossierProgrammeColumns, 1, 3);
         var labelFontSize = programmeColumns switch
         {
@@ -966,8 +983,6 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
         container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
         {
-            // The rule deliberately remains heavier than dossier dividers, but no longer
-            // overpowers the compact programme-information typography.
             column.Item().Height(ProgrammeTopRuleHeight).Background(Forest800);
             column.Item().PaddingHorizontal(10).PaddingVertical(panelPaddingVertical).Column(content =>
             {
@@ -1003,8 +1018,6 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                             });
                         }
 
-                        // A single short fact should read as a compact publication module,
-                        // rather than stretching visually across an otherwise empty band.
                         if (useHalfWidthSingleModule)
                         {
                             row.RelativeItem();
@@ -1012,6 +1025,68 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     });
                 }
             });
+        });
+    }
+
+    private static void ComposeProjectParticularsMinimal(
+        IContainer container,
+        CompendiumPdfProjectSection project,
+        IReadOnlyList<CompendiumProgrammeModuleDto> modules,
+        IReadOnlyDictionary<string, string> programmeIcons)
+    {
+        var programmeColumns = Math.Clamp(project.DossierProgrammeColumns, 1, Math.Min(4, modules.Count));
+        var labelFontSize = programmeColumns switch
+        {
+            >= 4 => 5.55f,
+            3 => 5.75f,
+            _ => 6f
+        };
+        var valueFontSize = programmeColumns >= 4 ? 8.4f : 8.8f;
+        var useHalfWidthSingleModule = modules.Count == 1 && IsCompactSingleProgrammeModule(modules[0]);
+
+        container.Column(column =>
+        {
+            column.Spacing(7f);
+            column.Item().Row(header =>
+            {
+                header.AutoItem().Text("PROJECT PARTICULARS")
+                    .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
+                header.ConstantItem(9f);
+                header.RelativeItem().PaddingTop(4.4f).Height(1f).Background(GoldSoft);
+            });
+
+            foreach (var rowModules in modules.Chunk(programmeColumns))
+            {
+                column.Item().Row(row =>
+                {
+                    foreach (var module in rowModules)
+                    {
+                        row.RelativeItem().PaddingRight(programmeColumns >= 4 ? 5f : 10f).Row(cell =>
+                        {
+                            cell.ConstantItem(19).Height(19).AlignMiddle().Element(iconTile =>
+                                ComposeProgrammeIcon(iconTile, module, programmeIcons));
+                            cell.ConstantItem(6);
+                            cell.RelativeItem().Column(text =>
+                            {
+                                text.Item().Text(module.Label.ToUpperInvariant())
+                                    .FontSize(labelFontSize)
+                                    .SemiBold()
+                                    .LetterSpacing(programmeColumns >= 4 ? .04f : .1f)
+                                    .FontColor(Slate500);
+                                text.Item().PaddingTop(1.6f).Text(module.Value)
+                                    .FontSize(valueFontSize)
+                                    .SemiBold()
+                                    .FontColor(Ink)
+                                    .LineHeight(1.08f);
+                            });
+                        });
+                    }
+
+                    var missing = programmeColumns - rowModules.Length;
+                    for (var i = 0; i < missing; i++) row.RelativeItem();
+                    if (useHalfWidthSingleModule) row.RelativeItem();
+                });
+            }
         });
     }
 

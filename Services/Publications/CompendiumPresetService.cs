@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 10;
+    private const int CurrentSchemaVersion = 11;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -393,6 +393,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             DefaultNarrativeAlignment = preset.SettingsSchemaVersion < 9
                 ? CompendiumNarrativeAlignment.Left
                 : ParseNarrativeAlignment(preset.DefaultNarrativeAlignment, CompendiumNarrativeAlignment.Left),
+            ProjectParticularsStyle = preset.SettingsSchemaVersion < 11
+                ? CompendiumProjectParticularsStyle.Panel
+                : ParseProjectParticularsStyle(preset.ProjectParticularsStyle),
             GroupingMode = ParseGroupingMode(preset.GroupingMode),
             SortMode = ParseSortMode(preset.SortMode),
             Sections = sectionConfigurations
@@ -692,6 +695,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             HandlingMarking = source.HandlingMarking,
             NarrativeSource = source.NarrativeSource,
             DefaultNarrativeAlignment = source.DefaultNarrativeAlignment,
+            ProjectParticularsStyle = source.ProjectParticularsStyle,
             GroupingMode = source.GroupingMode,
             SortMode = source.SortMode,
             CoverImageMode = source.CoverImageMode,
@@ -1064,6 +1068,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PhotoPreferences = NormalizePhotoPreferences(configuration.PhotoPreferences, projects.Select(project => project.ProjectId).ToArray()),
             NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource),
             DefaultNarrativeAlignment = NormalizeNarrativeAlignment(configuration.DefaultNarrativeAlignment),
+            ProjectParticularsStyle = NormalizeProjectParticularsStyle(configuration.ProjectParticularsStyle),
             GroupingMode = NormalizeGroupingMode(configuration.GroupingMode),
             SortMode = NormalizeSortMode(configuration.SortMode),
             Sections = sections.ToArray()
@@ -1169,6 +1174,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         preset.HandlingMarking = configuration.HandlingMarking;
         preset.NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource).ToString();
         preset.DefaultNarrativeAlignment = NormalizeNarrativeAlignment(configuration.DefaultNarrativeAlignment).ToString();
+        preset.ProjectParticularsStyle = NormalizeProjectParticularsStyle(configuration.ProjectParticularsStyle).ToString();
         preset.GroupingMode = NormalizeGroupingMode(configuration.GroupingMode).ToString();
         preset.SortMode = NormalizeSortMode(configuration.SortMode).ToString();
         preset.CoverImageMode = configuration.Cover.ImageMode.ToString();
@@ -1460,6 +1466,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             ? parsed
             : CompendiumNarrativeSource.ProjectBrief;
 
+    private static CompendiumProjectParticularsStyle ParseProjectParticularsStyle(string? value)
+        => Enum.TryParse<CompendiumProjectParticularsStyle>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumProjectParticularsStyle.Panel;
+
     private static CompendiumGroupingMode ParseGroupingMode(string? value)
         => Enum.TryParse<CompendiumGroupingMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
@@ -1472,6 +1483,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
     private static CompendiumNarrativeSource NormalizeNarrativeSource(CompendiumNarrativeSource value)
         => Enum.IsDefined(value) ? value : CompendiumNarrativeSource.ProjectBrief;
+
+    private static CompendiumProjectParticularsStyle NormalizeProjectParticularsStyle(CompendiumProjectParticularsStyle value)
+        => CompendiumProjectParticularsLayoutPolicy.Normalize(value);
 
     private static CompendiumGroupingMode NormalizeGroupingMode(CompendiumGroupingMode value)
         => Enum.IsDefined(value) ? value : CompendiumGroupingMode.TechnicalCategory;

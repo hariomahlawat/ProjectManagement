@@ -5425,6 +5425,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("BackLogoPlacement").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("TopCorners");
                     b.Property<string>("NarrativeSource").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("ProjectBrief");
                     b.Property<string>("DefaultNarrativeAlignment").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("Left");
+                    b.Property<string>("ProjectParticularsStyle").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("Panel");
                     b.Property<string>("GroupingMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("TechnicalCategory");
                     b.Property<string>("SortMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Manual");
                     b.Property<bool>("IsActive").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
@@ -5432,7 +5433,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(10);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(11);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");

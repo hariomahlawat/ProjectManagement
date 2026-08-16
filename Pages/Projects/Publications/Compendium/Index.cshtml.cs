@@ -133,6 +133,7 @@ public sealed class IndexModel : PageModel
             groupingMode = data.GroupingMode.ToString(),
             sortMode = data.SortMode.ToString(),
             narrativeSource = data.NarrativeSource.ToString(),
+            projectParticularsStyle = data.ProjectParticularsStyle.ToString(),
             canGenerate = data.Preflight.CanGenerate && coverBlockers == 0,
             reviewed = data.Groups.SelectMany(group => group.Projects).Count(project => project.IsReviewed),
             allReviewed = data.Preflight.SelectedProjectCount > 0
@@ -335,6 +336,7 @@ public sealed class IndexModel : PageModel
             selection,
             selection.NarrativeSourceOverride ?? ParseNarrativeSource(Input.NarrativeSource),
             ParseNarrativeAlignment(Input.NarrativeAlignment),
+            ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
             cancellationToken);
         if (review is null)
         {
@@ -376,6 +378,7 @@ public sealed class IndexModel : PageModel
             review.UsesNarrativeOverride,
             narrativeAlignment = review.NarrativeAlignment.ToString(),
             review.UsesNarrativeAlignmentOverride,
+            projectParticularsStyle = review.ProjectParticularsStyle.ToString(),
             review.ResolvedPhotoId,
             photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
             imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
@@ -666,6 +669,7 @@ public sealed class IndexModel : PageModel
                 {
                     NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
                     DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+                    ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
                     GroupingMode = ParseGroupingMode(Input.GroupingMode),
                     SortMode = ParseSortMode(Input.SortMode),
                     Sections = ParseSections(),
@@ -748,6 +752,7 @@ public sealed class IndexModel : PageModel
                 Input.PhotoPreferencesJson = SerializePhotoPreferences(loaded.Configuration.PhotoPreferences);
                 Input.NarrativeSource = loaded.Configuration.NarrativeSource.ToString();
                 Input.NarrativeAlignment = loaded.Configuration.DefaultNarrativeAlignment.ToString();
+                Input.ProjectParticularsStyle = loaded.Configuration.ProjectParticularsStyle.ToString();
                 Input.GroupingMode = loaded.Configuration.GroupingMode.ToString();
                 Input.SortMode = loaded.Configuration.SortMode.ToString();
                 Input.CustomSectionsJson = SerializeSections(loaded.Configuration.Sections.Select(section =>
@@ -839,6 +844,10 @@ public sealed class IndexModel : PageModel
         {
             Input.NarrativeAlignment = nameof(CompendiumNarrativeAlignment.Left);
         }
+        if (string.IsNullOrWhiteSpace(Input.ProjectParticularsStyle))
+        {
+            Input.ProjectParticularsStyle = nameof(CompendiumProjectParticularsStyle.Panel);
+        }
         if (string.IsNullOrWhiteSpace(Input.GroupingMode))
         {
             Input.GroupingMode = nameof(CompendiumGroupingMode.TechnicalCategory);
@@ -858,6 +867,7 @@ public sealed class IndexModel : PageModel
         Input.HandlingMarking = Clean(Input.HandlingMarking, 80);
         Input.NarrativeSource = ParseNarrativeSource(Input.NarrativeSource).ToString();
         Input.NarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment).ToString();
+        Input.ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle).ToString();
         Input.GroupingMode = ParseGroupingMode(Input.GroupingMode).ToString();
         Input.SortMode = ParseSortMode(Input.SortMode).ToString();
         Input.CoverImageMode = ParseCoverImageMode(Input.CoverImageMode).ToString();
@@ -976,6 +986,7 @@ public sealed class IndexModel : PageModel
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+            ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
             Sections = ParseSections(),
@@ -1019,6 +1030,7 @@ public sealed class IndexModel : PageModel
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+            ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
             Sections = ParseSections()
@@ -1434,6 +1446,11 @@ public sealed class IndexModel : PageModel
             ? parsed
             : CompendiumBalancedTextFlowMode.FlowBelowImage;
 
+    private static CompendiumProjectParticularsStyle ParseProjectParticularsStyle(string? value)
+        => Enum.TryParse<CompendiumProjectParticularsStyle>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumProjectParticularsStyle.Panel;
+
     private static CompendiumNarrativeAlignment ParseNarrativeAlignment(string? value)
         => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
@@ -1555,6 +1572,9 @@ public sealed class IndexModel : PageModel
 
         [StringLength(24)]
         public string NarrativeAlignment { get; set; } = nameof(CompendiumNarrativeAlignment.Left);
+
+        [StringLength(24)]
+        public string ProjectParticularsStyle { get; set; } = nameof(CompendiumProjectParticularsStyle.Panel);
 
         [StringLength(32)]
         public string GroupingMode { get; set; } = nameof(CompendiumGroupingMode.TechnicalCategory);

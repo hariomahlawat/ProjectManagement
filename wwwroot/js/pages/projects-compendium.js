@@ -46,6 +46,7 @@
     const sectionsInput = form.querySelector("[data-custom-sections]");
     const narrativeInput = form.querySelector("[data-narrative-source]");
     const narrativeAlignmentInput = form.querySelector("[data-narrative-alignment]");
+    const particularsStyleInput = form.querySelector("[data-project-particulars-style]");
     const groupingInput = form.querySelector("[data-grouping-mode]");
     const sortInput = form.querySelector("[data-sort-mode]");
     const normalizeNarrative = value => ({ projectbrief: "ProjectBrief", capabilityoverview: "CapabilityOverview", projectdescription: "ProjectDescription" }[normalize(value)] || "ProjectBrief");
@@ -54,9 +55,11 @@
     const normalizeDossierLayout = value => ({ automatic: "Automatic", visualhero: "VisualHero", balanced: "Balanced", multiimageeditorial: "MultiImageEditorial", technical: "Technical" }[normalize(value)] || "Automatic");
     const normalizeBalancedTextFlowMode = value => normalize(value) === "sidecolumn" ? "SideColumn" : "FlowBelowImage";
     const normalizeNarrativeAlignment = value => normalize(value) === "justified" ? "Justified" : "Left";
+    const normalizeProjectParticularsStyle = value => normalize(value) === "minimal" ? "Minimal" : "Panel";
     const editorialState = {
         narrativeSource: normalizeNarrative(narrativeInput?.value),
         narrativeAlignment: normalizeNarrativeAlignment(narrativeAlignmentInput?.value),
+        projectParticularsStyle: normalizeProjectParticularsStyle(particularsStyleInput?.value),
         groupingMode: normalizeGrouping(groupingInput?.value),
         sortMode: normalizeSort(sortInput?.value)
     };
@@ -280,6 +283,7 @@
     const composerNote = $("[data-composer-note]");
     const narrativeButtons = [...form.querySelectorAll("[data-narrative-value]")];
     const narrativeAlignmentButtons = [...form.querySelectorAll("[data-narrative-alignment-value]")];
+    const particularsStyleButtons = [...form.querySelectorAll("[data-particulars-style-value]")];
     const groupingButtons = [...form.querySelectorAll("[data-grouping-value]")];
     const sortButtons = [...form.querySelectorAll("[data-sort-value]")];
     const structureViewTools = $("[data-structure-view-tools]");
@@ -497,6 +501,7 @@
         if (sectionsInput) sectionsInput.value = JSON.stringify(serializeSections());
         if (narrativeInput) narrativeInput.value = editorialState.narrativeSource;
         if (narrativeAlignmentInput) narrativeAlignmentInput.value = editorialState.narrativeAlignment;
+        if (particularsStyleInput) particularsStyleInput.value = editorialState.projectParticularsStyle;
         if (groupingInput) groupingInput.value = editorialState.groupingMode;
         if (sortInput) sortInput.value = editorialState.sortMode;
         if (activeIdInput) activeIdInput.value = activePresetId ? String(activePresetId) : "";
@@ -518,6 +523,7 @@
         handlingMarking: String(form.elements["Input.HandlingMarking"]?.value || "").trim(),
         narrativeSource: editorialState.narrativeSource,
         narrativeAlignment: editorialState.narrativeAlignment,
+        projectParticularsStyle: editorialState.projectParticularsStyle,
         groupingMode: editorialState.groupingMode,
         sortMode: editorialState.sortMode,
         cover: { imageMode: coverState.imageMode, heroProjectId: coverState.imageMode === "explicit" ? coverState.heroProjectId : null, heroPhotoId: coverState.imageMode === "explicit" ? coverState.heroPhotoId : null, focalX: roundFocal(coverState.focalX), focalY: roundFocal(coverState.focalY) },
@@ -661,6 +667,7 @@
         if (snapshot.editorialState) {
             editorialState.narrativeSource = normalizeNarrative(snapshot.editorialState.narrativeSource);
             editorialState.narrativeAlignment = normalizeNarrativeAlignment(snapshot.editorialState.narrativeAlignment);
+            editorialState.projectParticularsStyle = normalizeProjectParticularsStyle(snapshot.editorialState.projectParticularsStyle);
             editorialState.groupingMode = normalizeGrouping(snapshot.editorialState.groupingMode);
             editorialState.sortMode = normalizeSort(snapshot.editorialState.sortMode);
         }
@@ -875,6 +882,11 @@
     const renderEditorialControls = () => {
         narrativeButtons.forEach(button => button.classList.toggle("active", normalizeNarrative(button.dataset.narrativeValue) === editorialState.narrativeSource));
         narrativeAlignmentButtons.forEach(button => button.classList.toggle("active", normalizeNarrativeAlignment(button.dataset.narrativeAlignmentValue) === editorialState.narrativeAlignment));
+        particularsStyleButtons.forEach(button => {
+            const active = normalizeProjectParticularsStyle(button.dataset.particularsStyleValue) === editorialState.projectParticularsStyle;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
         groupingButtons.forEach(button => button.classList.toggle("active", normalizeGrouping(button.dataset.groupingValue) === editorialState.groupingMode));
         sortButtons.forEach(button => button.classList.toggle("active", normalizeSort(button.dataset.sortValue) === editorialState.sortMode));
         const customMode = editorialState.groupingMode === "CustomSections";
@@ -1099,10 +1111,14 @@
 
         const programme = programmeModules(review);
         if (livePageFacts) {
-            const programmeColumns = Math.max(1, Math.min(3, Number(review.dossierProgrammeColumns || 1)));
+            const particularsStyle = normalizeProjectParticularsStyle(review.projectParticularsStyle || editorialState.projectParticularsStyle);
+            const programmeColumns = Math.max(1, Math.min(4, Number(review.dossierProgrammeColumns || 1)));
             livePageFacts.style.setProperty("--programme-columns", String(programmeColumns));
             livePageFacts.dataset.programmeColumns = String(programmeColumns);
             livePageFacts.dataset.programmeCount = String(programme.length);
+            livePageFacts.dataset.particularsStyle = particularsStyle;
+            livePageFacts.classList.toggle("is-minimal", particularsStyle === "Minimal");
+            livePageFacts.classList.toggle("is-panel", particularsStyle === "Panel");
             livePageFacts.classList.toggle(
                 "is-compact-single",
                 programme.length === 1 && isCompactSingleProgrammeModule(programme[0]));
@@ -1536,6 +1552,16 @@
         if (next === editorialState.narrativeAlignment) return;
         editorialState.narrativeAlignment = next;
         orderedIds.filter(id => !ensureConfig(id).narrativeAlignmentOverride).forEach(invalidateProjectReview);
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const changeProjectParticularsStyle = value => {
+        const next = normalizeProjectParticularsStyle(value);
+        if (next === editorialState.projectParticularsStyle) return;
+        editorialState.projectParticularsStyle = next;
+        orderedIds.forEach(invalidateProjectReview);
         activeReviewData = null;
         syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
         if (activeReviewId) loadReview(activeReviewId);
@@ -2311,6 +2337,7 @@
 
     narrativeButtons.forEach(button => button.addEventListener("click", () => changeNarrativeSource(button.dataset.narrativeValue)));
     narrativeAlignmentButtons.forEach(button => button.addEventListener("click", () => changeNarrativeAlignment(button.dataset.narrativeAlignmentValue)));
+    particularsStyleButtons.forEach(button => button.addEventListener("click", () => changeProjectParticularsStyle(button.dataset.particularsStyleValue)));
     groupingButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeGrouping(button.dataset.groupingValue); if (next === editorialState.groupingMode) return; editorialState.groupingMode = next; publicationStructureChanged(); }));
     sortButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeSort(button.dataset.sortValue); if (next === editorialState.sortMode) return; editorialState.sortMode = next; publicationStructureChanged(); if (activeReviewId) loadReview(activeReviewId); }));
     structureCollapseAll?.addEventListener("click", () => {

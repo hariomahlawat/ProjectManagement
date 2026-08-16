@@ -60,6 +60,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 {
                     NarrativeSource = request.NarrativeSource,
                     DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
+                    ProjectParticularsStyle = request.ProjectParticularsStyle,
                     GroupingMode = request.GroupingMode,
                     SortMode = request.SortMode,
                     Sections = request.Sections,
@@ -177,6 +178,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     DossierFirstPageSpecificationCount = project.DossierFirstPageSpecificationCount,
                     DossierSpecificationColumns = project.DossierSpecificationColumns,
                     DossierProgrammeColumns = project.DossierProgrammeColumns,
+                    ProjectParticularsStyle = project.ProjectParticularsStyle,
                     BalancedTextFlowMode = project.BalancedTextFlowMode,
                     NarrativeAlignment = project.NarrativeAlignment,
                     NarrativeFlow = project.NarrativeFlow,

@@ -126,6 +126,7 @@ public sealed class StructureModel : PageModel
                 },
                 canManage = CanManagePresets,
                 narrativeAlignment = loaded.Configuration.DefaultNarrativeAlignment.ToString(),
+                projectParticularsStyle = loaded.Configuration.ProjectParticularsStyle.ToString(),
                 groupingMode = loaded.Configuration.GroupingMode.ToString(),
                 sortMode = loaded.Configuration.SortMode.ToString(),
                 sections,
@@ -268,7 +269,8 @@ public sealed class StructureModel : PageModel
             {
                 Projects = ordered,
                 Sections = sections,
-                Cover = cover
+                Cover = cover,
+                ProjectParticularsStyle = ParseProjectParticularsStyle(payload.ProjectParticularsStyle, loaded.Configuration.ProjectParticularsStyle)
             };
 
             var result = await _presetService.UpdateAsync(
@@ -380,6 +382,13 @@ public sealed class StructureModel : PageModel
         return clean.Length == 0 ? null : clean;
     }
 
+    private static CompendiumProjectParticularsStyle ParseProjectParticularsStyle(
+        string? value,
+        CompendiumProjectParticularsStyle fallback)
+        => Enum.TryParse<CompendiumProjectParticularsStyle>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : fallback;
+
     private JsonResult JsonError(int statusCode, string message, string? code = null)
     {
         Response.StatusCode = statusCode;
@@ -388,6 +397,7 @@ public sealed class StructureModel : PageModel
 
     public sealed class StructureSavePayload
     {
+        public string? ProjectParticularsStyle { get; set; }
         public IReadOnlyList<StructureSectionPayload>? Sections { get; set; }
         public IReadOnlyList<StructureProjectPayload>? Projects { get; set; }
     }

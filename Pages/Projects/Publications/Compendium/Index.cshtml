@@ -118,6 +118,7 @@
         <input asp-for="Input.CustomSectionsJson" type="hidden" data-custom-sections />
         <input asp-for="Input.NarrativeSource" type="hidden" data-narrative-source />
         <input asp-for="Input.NarrativeAlignment" type="hidden" data-narrative-alignment />
+        <input asp-for="Input.ProjectParticularsStyle" type="hidden" data-project-particulars-style />
         <input asp-for="Input.GroupingMode" type="hidden" data-grouping-mode />
         <input asp-for="Input.SortMode" type="hidden" data-sort-mode />
         <input asp-for="PresetId" type="hidden" data-active-preset-id />
@@ -215,6 +216,23 @@
                                         <button type="button" data-sort-value="LatestFirst" title="Completed projects use completion chronology; ongoing projects use project/development year.">Latest first</button>
                                         <button type="button" data-sort-value="Alphabetical">A–Z</button>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="compendium-composer__presentation" aria-label="Publication presentation">
+                                <div class="compendium-composer__presentation-copy">
+                                    <span>Presentation</span>
+                                    <strong>Project particulars</strong>
+                                    <small>Choose one consistent treatment for every project dossier.</small>
+                                </div>
+                                <div class="compendium-particulars-style-options" role="group" aria-label="Project particulars style">
+                                    <button type="button" data-particulars-style-value="Panel">
+                                        <span class="compendium-particulars-style-thumb is-panel" aria-hidden="true"><i></i><b></b><b></b><b></b><b></b></span>
+                                        <span><strong>Panel</strong><small>Structured institutional panel</small></span>
+                                    </button>
+                                    <button type="button" data-particulars-style-value="Minimal">
+                                        <span class="compendium-particulars-style-thumb is-minimal" aria-hidden="true"><i></i><b></b><b></b><b></b><b></b></span>
+                                        <span><strong>Minimal</strong><small>Lighter editorial treatment</small></span>
+                                    </button>
                                 </div>
                             </div>
                             <p class="compendium-composer__note" data-composer-note>Technical categories remain authoritative project data. Publication sections only change this Compendium.</p>

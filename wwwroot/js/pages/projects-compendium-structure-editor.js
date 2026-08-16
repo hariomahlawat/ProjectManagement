@@ -46,6 +46,7 @@
 
     let groupingMode = normalizeGrouping(boot.groupingMode);
     let sortMode = normalizeSort(boot.sortMode);
+    let projectParticularsStyle = normalize(boot.projectParticularsStyle) === "minimal" ? "Minimal" : "Panel";
     let rowVersion = String(boot?.preset?.rowVersion || "");
     const canManage = Boolean(boot.canManage);
 
@@ -103,6 +104,7 @@
         if (incomingHandoff.editorialState) {
             groupingMode = normalizeGrouping(incomingHandoff.editorialState.groupingMode || groupingMode);
             sortMode = normalizeSort(incomingHandoff.editorialState.sortMode || sortMode);
+            projectParticularsStyle = normalize(incomingHandoff.editorialState.projectParticularsStyle || projectParticularsStyle) === "minimal" ? "Minimal" : "Panel";
         }
         if (incomingHandoff.rowVersion) rowVersion = incomingHandoff.rowVersion;
         orderedIds.forEach(id => {
@@ -582,6 +584,7 @@
             editorialState: {
                 narrativeSource: incomingHandoff?.editorialState?.narrativeSource || "ProjectBrief",
                 narrativeAlignment: incomingHandoff?.editorialState?.narrativeAlignment || boot.narrativeAlignment || "Left",
+                projectParticularsStyle,
                 groupingMode,
                 sortMode
             },
@@ -933,6 +936,7 @@
     });
 
     const structurePayload = () => ({
+        projectParticularsStyle,
         sections: customSections.map((section, index) => ({ sectionKey: section.sectionKey, name: section.name, sortOrder: index })),
         projects: orderedIds.map(id => {
             const config = ensureConfig(id);

@@ -101,6 +101,7 @@
                 ? {
                     narrativeSource: String(snapshot.editorialState.narrativeSource || "ProjectBrief"),
                     narrativeAlignment: normalize(snapshot.editorialState.narrativeAlignment) === "justified" ? "Justified" : "Left",
+                    projectParticularsStyle: normalize(snapshot.editorialState.projectParticularsStyle) === "minimal" ? "Minimal" : "Panel",
                     groupingMode: String(snapshot.editorialState.groupingMode || "TechnicalCategory"),
                     sortMode: String(snapshot.editorialState.sortMode || "Manual")
                 }

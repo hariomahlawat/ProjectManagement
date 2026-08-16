@@ -51,7 +51,9 @@ public static class CompendiumDossierPaginationPlanner
         int? primaryImageSourceWidth = null,
         int? primaryImageSourceHeight = null,
         CompendiumImageFitMode primaryImageFitMode = CompendiumImageFitMode.Fill,
-        string? additionalNote = null)
+        string? additionalNote = null,
+        IReadOnlyList<CompendiumProgrammeModuleDto>? programmeModules = null,
+        CompendiumProjectParticularsStyle projectParticularsStyle = CompendiumProjectParticularsStyle.Panel)
     {
         availablePhotoCount = Math.Clamp(availablePhotoCount, 0, 3);
         var cleanNarrative = CleanText(narrative);
@@ -62,11 +64,18 @@ public static class CompendiumDossierPaginationPlanner
             .Take(6)
             .ToArray();
         programmeModuleCount = Math.Clamp(programmeModuleCount, 0, 4);
+        projectParticularsStyle = CompendiumProjectParticularsLayoutPolicy.Normalize(projectParticularsStyle);
 
         var specificationColumns = ResolveTechnicalSpecificationColumns(specifications);
-        var programmeColumns = ResolveProgrammeColumns(programmeModuleCount);
         var explicitLayout = requested != CompendiumDossierLayout.Automatic;
         var measurementSession = new CompendiumDossierTextMeasurementService.Session();
+        var particularsLayout = programmeModules is { Count: > 0 }
+            ? CompendiumProjectParticularsLayoutPolicy.Resolve(projectParticularsStyle, programmeModules, measurementSession)
+            : ResolveLegacyParticularsLayout(projectParticularsStyle, programmeModuleCount);
+        var programmeColumns = particularsLayout.Columns > 0
+            ? particularsLayout.Columns
+            : ResolveProgrammeColumns(programmeModuleCount);
+        var programmeHeight = particularsLayout.HeightPoints;
 
         if (!explicitLayout
             && !CompendiumImageQualityPolicy.IsAutomaticLayoutAllowed(initiallyResolved, primaryImageEffectiveDpi))
@@ -96,6 +105,7 @@ public static class CompendiumDossierPaginationPlanner
                         projectName,
                         specificationColumns,
                         programmeColumns,
+                        programmeHeight,
                         balancedTextFlowMode,
                         primaryImageSourceWidth,
                         primaryImageSourceHeight,
@@ -218,6 +228,7 @@ public static class CompendiumDossierPaginationPlanner
                 projectName,
                 1,
                 programmeColumns,
+                programmeHeight,
                 balancedTextFlowMode,
                 primaryImageSourceWidth,
                 primaryImageSourceHeight,
@@ -260,6 +271,7 @@ public static class CompendiumDossierPaginationPlanner
             projectName,
             1,
             programmeColumns,
+            programmeHeight,
             balancedTextFlowMode,
             primaryImageSourceWidth,
             primaryImageSourceHeight,
@@ -288,6 +300,7 @@ public static class CompendiumDossierPaginationPlanner
                     projectName,
                     specificationColumns,
                     programmeColumns,
+                    programmeHeight,
                     balancedTextFlowMode,
                     primaryImageSourceWidth,
                     primaryImageSourceHeight,
@@ -591,6 +604,7 @@ public static class CompendiumDossierPaginationPlanner
         string? projectName,
         int specificationColumns,
         int programmeColumns,
+        float programmeHeight,
         CompendiumBalancedTextFlowMode balancedTextFlowMode,
         int? primaryImageSourceWidth,
         int? primaryImageSourceHeight,
@@ -600,7 +614,7 @@ public static class CompendiumDossierPaginationPlanner
     {
         narrativeFontScale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
         var titleHeight = EstimateTitleBlockHeight(projectName);
-        var programmeHeight = EstimateProgrammeHeight(programmeModuleCount, programmeColumns);
+        programmeHeight = Math.Max(0f, programmeHeight);
         var specificationHeight = EstimateSpecificationHeight(specifications, specificationColumns, measurementSession);
         var additionalNoteHeight = EstimateAdditionalNoteHeight(additionalNote, narrativeFontScale, measurementSession);
         var hasPhoto = availablePhotoCount > 0 && imageHeight > 0f;
@@ -875,11 +889,32 @@ public static class CompendiumDossierPaginationPlanner
         return 62f + extraLines * 17f;
     }
 
-    private static float EstimateProgrammeHeight(int moduleCount, int columns)
+    private static CompendiumProjectParticularsLayoutPolicy.Layout ResolveLegacyParticularsLayout(
+        CompendiumProjectParticularsStyle style,
+        int moduleCount)
+    {
+        if (moduleCount <= 0)
+            return new CompendiumProjectParticularsLayoutPolicy.Layout(style, 0, 0, 0f, false);
+        var columns = ResolveProgrammeColumns(moduleCount);
+        var rows = (int)Math.Ceiling((double)moduleCount / Math.Max(1, columns));
+        var height = EstimateProgrammeHeight(moduleCount, columns, style);
+        return new CompendiumProjectParticularsLayoutPolicy.Layout(style, columns, rows, height, moduleCount == 1);
+    }
+
+    private static float EstimateProgrammeHeight(
+        int moduleCount,
+        int columns,
+        CompendiumProjectParticularsStyle style = CompendiumProjectParticularsStyle.Panel)
     {
         if (moduleCount <= 0) return 0f;
         var rows = (int)Math.Ceiling((double)moduleCount / Math.Max(1, columns));
-        // Responsive particulars: one fact is a compact strip; larger sets earn additional rows.
+        if (CompendiumProjectParticularsLayoutPolicy.Normalize(style) == CompendiumProjectParticularsStyle.Minimal)
+        {
+            return 16f + rows * 24f + Math.Max(0, rows - 1) * 8f;
+        }
+
+        // Backward-compatible count-only estimate for legacy callers. Production authored dossiers
+        // pass the real module set and therefore use the physical shared layout policy above.
         return moduleCount switch
         {
             1 => 52f,

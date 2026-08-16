@@ -688,7 +688,8 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.DefaultNarrativeAlignment).HasMaxLength(24).HasDefaultValue("Left").IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(10).IsRequired();
+                entity.Property(preset => preset.ProjectParticularsStyle).HasMaxLength(24).HasDefaultValue("Panel").IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(11).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
                 entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();

@@ -69,6 +69,16 @@ public enum CompendiumNarrativeAlignment
     Justified = 1
 }
 
+/// <summary>
+/// Publication-level visual treatment for the recurring Project Particulars block. The style is
+/// intentionally global to a Compendium so every dossier shares one coherent publication language.
+/// </summary>
+public enum CompendiumProjectParticularsStyle
+{
+    Panel = 0,
+    Minimal = 1
+}
+
 public enum CompendiumDossierImageRole
 {
     Primary = 0,
@@ -334,6 +344,7 @@ public sealed record CompendiumReviewProjectDto(
     public bool UsesNarrativeOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
@@ -402,6 +413,7 @@ public sealed record CompendiumProjectDto(
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
@@ -519,6 +531,7 @@ public sealed record CompendiumPublicationRequest(
     public IReadOnlyList<int> ProjectIds => Projects.Select(project => project.ProjectId).ToArray();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public IReadOnlyList<CompendiumPublicationSection> Sections { get; init; } = Array.Empty<CompendiumPublicationSection>();
@@ -538,6 +551,7 @@ public sealed record CompendiumPdfDataDto(
     public string Edition { get; init; } = string.Empty;
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public CompendiumCoverDesign? CoverDesign { get; init; }

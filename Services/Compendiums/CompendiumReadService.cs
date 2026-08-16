@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-16_final-editorial-v22";
+    public const string BuildStamp = "CompendiumPdf_2026-08-16_particulars-style-v23";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -259,6 +259,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         }
 
         var publicationProjects = new List<CompendiumProjectDto>(rows.Count);
+        var projectParticularsStyle = NormalizeProjectParticularsStyle(request.ProjectParticularsStyle);
         for (var sortOrder = 0; sortOrder < selections.Count; sortOrder++)
         {
             var selection = selections[sortOrder];
@@ -318,7 +319,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 probe?.Width,
                 probe?.Height,
                 resolved.Selection.ImageFitMode,
-                selection.AdditionalNote);
+                selection.AdditionalNote,
+                programmeModules,
+                projectParticularsStyle);
             var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
                 paginationDecision.Layout,
                 dossierPhotoCount);
@@ -368,6 +371,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 DossierLayout = selection.DossierLayout,
                 BalancedTextFlowMode = selection.BalancedTextFlowMode,
                 NarrativeAlignment = effectiveNarrativeAlignment,
+                ProjectParticularsStyle = projectParticularsStyle,
                 DossierImages = dossierImages,
                 TechnicalSpecifications = specifications,
                 IprCredentials = iprCredentials,
@@ -440,6 +444,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 TechnicalCategorySortOrder = project.TechnicalCategorySortOrder,
                 ImageFitMode = resolved.Selection.ImageFitMode,
                 ProgrammeModules = programmeModules,
+                ProjectParticularsStyle = projectParticularsStyle,
                 IprCredentials = iprCredentials,
                 TechnologyTransfer = technologyTransfer,
                 TechnicalSpecifications = specifications,
@@ -535,21 +540,31 @@ public sealed class CompendiumReadService : ICompendiumReadService
     public Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
         CancellationToken cancellationToken = default)
-        => GetReviewProjectAsync(selection, CompendiumNarrativeSource.ProjectBrief, CompendiumNarrativeAlignment.Left, cancellationToken);
+        => GetReviewProjectAsync(selection, CompendiumNarrativeSource.ProjectBrief, CompendiumNarrativeAlignment.Left, CompendiumProjectParticularsStyle.Panel, cancellationToken);
 
     public Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
         CompendiumNarrativeSource narrativeSource,
         CancellationToken cancellationToken = default)
-        => GetReviewProjectAsync(selection, narrativeSource, CompendiumNarrativeAlignment.Left, cancellationToken);
+        => GetReviewProjectAsync(selection, narrativeSource, CompendiumNarrativeAlignment.Left, CompendiumProjectParticularsStyle.Panel, cancellationToken);
+
+    public Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
+        CompendiumProjectSelection selection,
+        CompendiumNarrativeSource narrativeSource,
+        CompendiumNarrativeAlignment defaultNarrativeAlignment,
+        CancellationToken cancellationToken = default)
+        => GetReviewProjectAsync(
+            selection, narrativeSource, defaultNarrativeAlignment, CompendiumProjectParticularsStyle.Panel, cancellationToken);
 
     public async Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
         CompendiumNarrativeSource narrativeSource,
         CompendiumNarrativeAlignment defaultNarrativeAlignment,
+        CompendiumProjectParticularsStyle projectParticularsStyle,
         CancellationToken cancellationToken = default)
     {
         selection = NormalizeSelection(selection);
+        projectParticularsStyle = NormalizeProjectParticularsStyle(projectParticularsStyle);
         if (selection.ProjectId <= 0)
         {
             return null;
@@ -636,7 +651,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
             selectedProbe?.Width,
             selectedProbe?.Height,
             resolved.Selection.ImageFitMode,
-            selection.AdditionalNote);
+            selection.AdditionalNote,
+            programmeModules,
+            projectParticularsStyle);
         var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
             paginationDecision.Layout,
             dossierPhotoCount);
@@ -707,6 +724,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DossierLayout = selection.DossierLayout,
             BalancedTextFlowMode = selection.BalancedTextFlowMode,
             NarrativeAlignment = effectiveNarrativeAlignment,
+            ProjectParticularsStyle = projectParticularsStyle,
             DossierImages = dossierImages,
             TechnicalSpecifications = specifications,
             IprCredentials = iprCredentials,
@@ -777,6 +795,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             UsesNarrativeOverride = selection.NarrativeSourceOverride.HasValue,
             ImageFitMode = resolved.Selection.ImageFitMode,
             ProgrammeModules = programmeModules,
+            ProjectParticularsStyle = projectParticularsStyle,
             IprCredentials = iprCredentials,
             TechnologyTransfer = technologyTransfer,
             TechnicalSpecifications = specifications,
@@ -898,6 +917,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             Edition = NormalizeDisplay(request.Edition, $"Capability Edition · {istYear}"),
             NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource),
             DefaultNarrativeAlignment = CompendiumNarrativeTypographyPolicy.Normalize(request.DefaultNarrativeAlignment),
+            ProjectParticularsStyle = NormalizeProjectParticularsStyle(request.ProjectParticularsStyle),
             GroupingMode = NormalizeGroupingMode(request.GroupingMode),
             SortMode = NormalizeSortMode(request.SortMode),
             CoverDesign = request.CoverDesign
@@ -1545,6 +1565,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
     private static CompendiumNarrativeSource NormalizeNarrativeSource(CompendiumNarrativeSource source)
         => Enum.IsDefined(source) ? source : CompendiumNarrativeSource.ProjectBrief;
+
+    private static CompendiumProjectParticularsStyle NormalizeProjectParticularsStyle(CompendiumProjectParticularsStyle style)
+        => CompendiumProjectParticularsLayoutPolicy.Normalize(style);
 
     private static CompendiumGroupingMode NormalizeGroupingMode(CompendiumGroupingMode mode)
         => Enum.IsDefined(mode) ? mode : CompendiumGroupingMode.TechnicalCategory;

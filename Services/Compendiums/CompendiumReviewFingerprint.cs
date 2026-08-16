@@ -28,6 +28,7 @@ public sealed record CompendiumReviewFingerprintInput(
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public IReadOnlyList<CompendiumDossierImageSelection> DossierImages { get; init; } = Array.Empty<CompendiumDossierImageSelection>();
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
@@ -37,7 +38,7 @@ public sealed record CompendiumReviewFingerprintInput(
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v15-additional-note-final-hardening";
+    private const string ContractVersion = "compendium-review-v16-particulars-style";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
@@ -67,6 +68,7 @@ public static class CompendiumReviewFingerprint
             input.DossierLayout.ToString(),
             input.BalancedTextFlowMode.ToString(),
             input.NarrativeAlignment.ToString(),
+            CompendiumProjectParticularsLayoutPolicy.Normalize(input.ProjectParticularsStyle).ToString(),
             NormalizeNarrative(input.AdditionalNote),
             CanonicalDossierImages(input.DossierImages),
             CanonicalList(input.TechnicalSpecifications),

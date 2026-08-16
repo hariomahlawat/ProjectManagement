@@ -65,8 +65,8 @@ test('phase 37.1 makes Markdown paragraph typography caller-controlled', () => {
 });
 
 test('phase 37.1 binds renderer change to a new review and PDF identity without a schema migration', () => {
-  assert.match(fingerprint, /(?:compendium-review-v13-physical-measurement|compendium-review-v14-editorial-constraints|15-additional-note-final-hardening)/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22)/);
+  assert.match(fingerprint, /(?:compendium-review-v13-physical-measurement|compendium-review-v14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23)/);
 });
 
 

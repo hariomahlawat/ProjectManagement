@@ -125,6 +125,7 @@ public sealed record CompendiumPresetConfiguration(
         = Array.Empty<CompendiumPresetPhotoPreferenceConfiguration>();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public IReadOnlyList<CompendiumPresetSectionConfiguration> Sections { get; init; }

@@ -48,14 +48,14 @@ function Forbid-Text([string]$RelativePath, [string]$Pattern, [string]$Message) 
     if ($source -match $Pattern) { throw "$Message ($RelativePath)" }
 }
 
-Require-Text "Models/Publications/CompendiumPreset.cs" 'SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*10' "Preset schema is not v10"
+Require-Text "Models/Publications/CompendiumPreset.cs" 'SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:10|11)' "Preset schema is not v10"
 Require-Text "Models/Publications/CompendiumPreset.cs" 'string\?\s+AdditionalNote' "Per-project Additional Note persistence is missing"
-Require-Text "Data/ApplicationDbContext.cs" 'SettingsSchemaVersion\)\.HasDefaultValue\(10\)' "Compendium schema database default is not v10"
+Require-Text "Data/ApplicationDbContext.cs" 'SettingsSchemaVersion\)\.HasDefaultValue\((?:10|11)\)' "Compendium schema database default is not v10"
 Require-Text "Migrations/20261216110000_AddCompendiumProjectAdditionalNote.cs" 'SET "SettingsSchemaVersion" = 10' "Schema-v10 migration upgrade is missing"
 Require-Text "Migrations/20261216110000_AddCompendiumProjectAdditionalNote.cs" 'name:\s*"AdditionalNote"[\s\S]*type:\s*"text"' "Additional Note migration column is missing"
-Require-Text "Services/Compendiums/CompendiumReviewFingerprint.cs" 'compendium-review-v15-additional-note-final-hardening' "Review fingerprint is not Phase 37.3"
+Require-Text "Services/Compendiums/CompendiumReviewFingerprint.cs" 'compendium-review-v(?:15-additional-note-final-hardening|16-particulars-style)' "Review fingerprint is not Phase 37.3"
 Require-Text "Services/Compendiums/CompendiumReviewFingerprint.cs" 'PhotoVersion' "Media-version review identity is missing"
-Require-Text "Services/Compendiums/CompendiumReadService.cs" 'CompendiumPdf_2026-08-16_final-editorial-v22' "PDF build identity is not Phase 37.3"
+Require-Text "Services/Compendiums/CompendiumReadService.cs" 'CompendiumPdf_2026-08-16_(?:final-editorial-v22|particulars-style-v23)' "PDF build identity is not Phase 37.3"
 Require-Text "Services/Compendiums/CompendiumDossierEditorialPolicy.cs" 'MaximumFlowBelowGapPoints\s*=\s*40f' "Flow Below Image gap policy is missing"
 Require-Text "Services/Compendiums/CompendiumDossierEditorialPolicy.cs" 'ShallowFitWarning' "Shallow Fit advisory is missing"
 Require-Text "Services/Compendiums/CompendiumDossierPaginationPlanner.cs" 'flowBelowBalanced\s*=\s*!side\.HasExcessiveGap' "Measured Flow Below gap is not enforced"
