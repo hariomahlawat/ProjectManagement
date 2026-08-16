@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-15_composition-hardening-v19";
+    public const string BuildStamp = "CompendiumPdf_2026-08-16_physical-composition-v20";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -314,7 +314,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 programmeModuleCount,
                 project.Name,
                 planningDpi,
-                selection.BalancedTextFlowMode);
+                selection.BalancedTextFlowMode,
+                probe?.Width,
+                probe?.Height,
+                resolved.Selection.ImageFitMode);
             var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
                 paginationDecision.Layout,
                 dossierPhotoCount);
@@ -619,7 +622,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
             programmeModuleCount,
             project.Name,
             planningDpi,
-            selection.BalancedTextFlowMode);
+            selection.BalancedTextFlowMode,
+            selectedProbe?.Width,
+            selectedProbe?.Height,
+            resolved.Selection.ImageFitMode);
         var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
             paginationDecision.Layout,
             dossierPhotoCount);

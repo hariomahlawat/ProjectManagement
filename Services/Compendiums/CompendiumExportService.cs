@@ -475,7 +475,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
         float primaryImageHeightPoints)
     {
         imageCount = Math.Clamp(imageCount, 1, 3);
-        primaryImageHeightPoints = Math.Max(90f, primaryImageHeightPoints);
+        primaryImageHeightPoints = Math.Max(1f, primaryImageHeightPoints);
 
         static int HeightFor(int pixelWidth, float frameWidthPoints, float frameHeightPoints)
             => Math.Max(320, (int)Math.Round(pixelWidth * frameHeightPoints / Math.Max(1f, frameWidthPoints)));

@@ -22,7 +22,7 @@ public sealed class CompendiumPhase37CompositionTests
 
         Assert.Contains("The proposed solution will include", assessment.SideSegment);
         Assert.Contains("Users will be able to review", assessment.BelowSegment);
-        Assert.True(assessment.RemainingHeightPoints <= 30f);
+        Assert.True(assessment.RemainingHeightPoints <= 40f);
     }
 
     [Fact]

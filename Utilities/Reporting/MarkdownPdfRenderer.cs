@@ -11,6 +11,13 @@ using QuestPDF.Infrastructure;
 namespace ProjectManagement.Utilities.Reporting;
 
 // SECTION: Render Markdown content into QuestPDF components without HTML conversion.
+internal sealed record MarkdownPdfTypography(
+    float BodyFontSize = 10f,
+    float BodyLineHeight = 1.25f,
+    float BlockSpacing = 6f,
+    float HeadingScale = 1f,
+    string BodyFontColor = "#0F172A");
+
 internal static class MarkdownPdfRenderer
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
@@ -21,28 +28,29 @@ internal static class MarkdownPdfRenderer
         .UseTaskLists()
         .Build();
 
-    public static void Render(IContainer container, string markdown, bool justifyParagraphs = false)
+    public static void Render(IContainer container, string markdown, bool justifyParagraphs = false, MarkdownPdfTypography? typography = null)
     {
+        typography ??= new MarkdownPdfTypography();
         var source = string.IsNullOrWhiteSpace(markdown) ? "Not recorded" : markdown;
         var doc = Markdig.Markdown.Parse(source, Pipeline);
 
         container.Column(col =>
         {
-            col.Spacing(6);
+            col.Spacing(typography.BlockSpacing);
 
             foreach (var block in doc)
             {
                 switch (block)
                 {
                     case QuoteBlock quote:
-                        RenderQuoteBlock(col, quote);
+                        RenderQuoteBlock(col, quote, typography);
                         break;
 
                     case HeadingBlock heading:
                         col.Item().Text(text =>
                         {
                             text.DefaultTextStyle(BaseTextStyle
-                                .FontSize(HeadingSize(heading.Level))
+                                .FontSize(HeadingSize(heading.Level) * typography.HeadingScale)
                                 .SemiBold()
                                 .FontColor("#0F172A"));
                             RenderInlines(text, heading.Inline);
@@ -53,9 +61,9 @@ internal static class MarkdownPdfRenderer
                         col.Item().Text(text =>
                         {
                             text.DefaultTextStyle(BaseTextStyle
-                                .FontSize(10)
-                                .FontColor("#0F172A")
-                                .LineHeight(1.25f));
+                                .FontSize(typography.BodyFontSize)
+                                .FontColor(typography.BodyFontColor)
+                                .LineHeight(typography.BodyLineHeight));
                             if (justifyParagraphs)
                             {
                                 text.Justify();
@@ -65,7 +73,7 @@ internal static class MarkdownPdfRenderer
                         break;
 
                     case ListBlock list:
-                        RenderList(col, list, 0);
+                        RenderList(col, list, 0, typography);
                         break;
 
                     case FencedCodeBlock fenced:
@@ -82,8 +90,8 @@ internal static class MarkdownPdfRenderer
 
                     default:
                         col.Item().Text(block.ToString() ?? string.Empty)
-                            .FontSize(10)
-                            .FontColor("#0F172A");
+                            .FontSize(typography.BodyFontSize)
+                            .FontColor(typography.BodyFontColor);
                         break;
                 }
             }
@@ -99,7 +107,7 @@ internal static class MarkdownPdfRenderer
         _ => 11
     };
 
-    private static void RenderList(ColumnDescriptor col, ListBlock list, int depth)
+    private static void RenderList(ColumnDescriptor col, ListBlock list, int depth, MarkdownPdfTypography typography)
     {
         var index = int.TryParse(list.OrderedStart?.ToString(), out var parsedIndex) ? parsedIndex : 1;
 
@@ -115,7 +123,7 @@ internal static class MarkdownPdfRenderer
 
             col.Item().PaddingLeft(depth * 14).Row(row =>
             {
-                row.ConstantItem(18).Text(prefix).FontSize(10).FontColor("#0F172A");
+                row.ConstantItem(18).Text(prefix).FontSize(typography.BodyFontSize).FontColor(typography.BodyFontColor);
                 row.RelativeItem().Column(itemCol =>
                 {
                     itemCol.Spacing(4);
@@ -128,15 +136,15 @@ internal static class MarkdownPdfRenderer
                                 itemCol.Item().Text(text =>
                                 {
                                     text.DefaultTextStyle(BaseTextStyle
-                                        .FontSize(10)
-                                        .FontColor("#0F172A")
-                                        .LineHeight(1.25f));
+                                        .FontSize(typography.BodyFontSize)
+                                        .FontColor(typography.BodyFontColor)
+                                        .LineHeight(typography.BodyLineHeight));
                                     RenderInlines(text, paragraph.Inline);
                                 });
                                 break;
 
                             case ListBlock nested:
-                                RenderList(itemCol, nested, depth + 1);
+                                RenderList(itemCol, nested, depth + 1, typography);
                                 break;
 
                             case FencedCodeBlock fenced:
@@ -149,8 +157,8 @@ internal static class MarkdownPdfRenderer
 
                             default:
                                 itemCol.Item().Text(block.ToString() ?? string.Empty)
-                                    .FontSize(10)
-                                    .FontColor("#0F172A");
+                                    .FontSize(typography.BodyFontSize)
+                                    .FontColor(typography.BodyFontColor);
                                 break;
                         }
                     }
@@ -159,7 +167,7 @@ internal static class MarkdownPdfRenderer
         }
     }
 
-    private static void RenderQuoteBlock(ColumnDescriptor col, QuoteBlock quote)
+    private static void RenderQuoteBlock(ColumnDescriptor col, QuoteBlock quote, MarkdownPdfTypography typography)
     {
         // SECTION: Block quote rendering with support for nested markdown blocks.
         col.Item().Element(box =>
@@ -172,7 +180,7 @@ internal static class MarkdownPdfRenderer
                 .PaddingRight(10)
                 .Column(quoteColumn =>
                 {
-                    quoteColumn.Spacing(6);
+                    quoteColumn.Spacing(typography.BlockSpacing);
 
                     foreach (var block in quote)
                     {
@@ -182,19 +190,19 @@ internal static class MarkdownPdfRenderer
                                 quoteColumn.Item().Text(text =>
                                 {
                                     text.DefaultTextStyle(BaseTextStyle
-                                        .FontSize(10)
-                                        .FontColor("#0F172A")
-                                        .LineHeight(1.25f));
+                                        .FontSize(typography.BodyFontSize)
+                                        .FontColor(typography.BodyFontColor)
+                                        .LineHeight(typography.BodyLineHeight));
                                     RenderInlines(text, paragraph.Inline);
                                 });
                                 break;
 
                             case ListBlock list:
-                                RenderList(quoteColumn, list, 0);
+                                RenderList(quoteColumn, list, 0, typography);
                                 break;
 
                             case QuoteBlock nestedQuote:
-                                RenderQuoteBlock(quoteColumn, nestedQuote);
+                                RenderQuoteBlock(quoteColumn, nestedQuote, typography);
                                 break;
 
                             case FencedCodeBlock fenced:
@@ -207,8 +215,8 @@ internal static class MarkdownPdfRenderer
 
                             default:
                                 quoteColumn.Item().Text(block.ToString() ?? string.Empty)
-                                    .FontSize(10)
-                                    .FontColor("#0F172A");
+                                    .FontSize(typography.BodyFontSize)
+                                    .FontColor(typography.BodyFontColor);
                                 break;
                         }
                     }

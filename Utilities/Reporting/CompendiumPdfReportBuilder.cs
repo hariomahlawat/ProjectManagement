@@ -796,7 +796,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var primaryImage = images.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary);
         var primaryBytes = primaryImage?.Content ?? project.CoverPhoto;
         var primaryFit = primaryImage?.FitMode ?? project.ImageFitMode;
-        var imageHeight = Math.Max(90f, project.DossierPrimaryImageHeightPoints);
+        var imageHeight = Math.Max(1f, project.DossierPrimaryImageHeightPoints);
 
         switch (project.DossierLayout)
         {
@@ -862,7 +862,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
             row.ConstantItem(13);
-            row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
+            row.RelativeItem(.88f).Element(text => ComposeDescription(
+                text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale,
+                narrativeAlignment: flow.SideAlignment));
         });
     }
 
@@ -1246,7 +1248,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         CompendiumNarrativeAlignment narrativeAlignment = CompendiumNarrativeAlignment.Left)
     {
         narrativeLabel = NormalizeNarrativeLabel(narrativeLabel);
-        narrativeFontScale = continuation ? 1f : Math.Clamp(narrativeFontScale, 1f, 1.08f);
+        narrativeFontScale = continuation ? 1f : CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
         container.Column(column =>
         {
             column.Spacing(7);
@@ -1272,17 +1274,26 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 return;
             }
 
+            var bodyFontSize = continuation
+                ? CompendiumLayoutMetrics.ContinuationBodyFontSize
+                : CompendiumLayoutMetrics.ProjectBodyFontSize * narrativeFontScale;
+            var typography = new MarkdownPdfTypography(
+                BodyFontSize: bodyFontSize,
+                BodyLineHeight: CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
+                BlockSpacing: CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
+                HeadingScale: continuation ? 1f : narrativeFontScale,
+                BodyFontColor: Slate700);
+
             column.Item()
                 .DefaultTextStyle(style => BaseStyle(style)
-                    .FontSize(continuation
-                        ? CompendiumLayoutMetrics.ContinuationBodyFontSize
-                        : CompendiumLayoutMetrics.ProjectBodyFontSize * narrativeFontScale)
+                    .FontSize(bodyFontSize)
                     .FontColor(Slate700)
-                    .LineHeight(1.25f))
+                    .LineHeight(CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier))
                 .Element(element => MarkdownPdfRenderer.Render(
                     element,
                     markdown,
-                    justifyParagraphs: narrativeAlignment == CompendiumNarrativeAlignment.Justified));
+                    justifyParagraphs: narrativeAlignment == CompendiumNarrativeAlignment.Justified,
+                    typography: typography));
         });
     }
 

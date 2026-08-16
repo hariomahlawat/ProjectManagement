@@ -80,8 +80,8 @@ function Forbid-Text([string]$RelativePath, [string]$Pattern, [string]$Message) 
 
 Require-Text "Services/Compendiums/CompendiumDtos.cs" 'enum CompendiumNarrativeAlignment' "Narrative-alignment contract is missing"
 Require-Text "Services/Publications/CompendiumPresetService.cs" 'CurrentSchemaVersion\s*=\s*9' "Preset schema is not v9"
-Require-Text "Services/Compendiums/CompendiumReviewFingerprint.cs" 'compendium-review-v12-professional-typesetting' "Review fingerprint is not Phase 37"
-Require-Text "Services/Compendiums/CompendiumReadService.cs" 'CompendiumPdf_2026-08-15_composition-hardening-v19' "PDF build identity is not Phase 37"
+Require-Text "Services/Compendiums/CompendiumReviewFingerprint.cs" 'compendium-review-v(?:12-professional-typesetting|13-physical-measurement)' "Review fingerprint is not Phase 37 or its 37.1 successor"
+Require-Text "Services/Compendiums/CompendiumReadService.cs" 'CompendiumPdf_2026-08-(?:15_composition-hardening-v19|16_physical-composition-v20)' "PDF build identity is not Phase 37 or its 37.1 successor"
 Require-Text "Services/Compendiums/CompendiumDossierNarrativeFlowPlanner.cs" 'sentence-by-sentence' "Sentence-fill Balanced flow is missing"
 Require-Text "Services/Compendiums/CompendiumDossierNarrativeFlowPlanner.cs" 'SideRemainingHeightPoints' "Balanced side-utilisation metrics are missing"
 Forbid-Text "Services/Compendiums/CompendiumDossierNarrativeFlowPlanner.cs" 'Substring\(' "Narrative flow must not character-slice text"

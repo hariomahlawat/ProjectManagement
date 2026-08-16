@@ -25,7 +25,7 @@ public sealed class CompendiumPhase32CompositionTests
         Assert.Equal(1, decision.EstimatedPageCount);
         Assert.False(decision.UsesContinuation);
         Assert.True(decision.PrimaryImageHeightPoints >= CompendiumDossierPaginationPlanner.PreferredImageHeight(decision.Layout, 1));
-        Assert.InRange(decision.NarrativeFontScale, 1f, 1.08f);
+        Assert.InRange(decision.NarrativeFontScale, 1f, CompendiumNarrativeTypographyPolicy.MaximumScale);
         Assert.Contains("optimised", decision.PaginationNote.ToLowerInvariant());
     }
 

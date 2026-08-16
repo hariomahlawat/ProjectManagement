@@ -1022,13 +1022,20 @@
         return review.photos.find(photo => Number(photo.photoId) === Number(review.resolvedPhotoId)) || null;
     };
 
-    const narrativePlainText = value => String(value || "")
-        .replace(/```[\s\S]*?```/g, " ")
-        .replace(/[*_`#>]/g, "")
-        .replace(/^\s*[-+]\s+/gm, "")
-        .replace(/^\s*\d+[.)]\s+/gm, "")
-        .replace(/\s+/g, " ")
-        .trim();
+    const narrativePlainText = value => {
+        const normalized = String(value || "")
+            .replace(/\r\n?/g, "\n")
+            .replace(/```[\s\S]*?```/g, " ")
+            .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+            .replace(/[*_`#>]/g, "")
+            .replace(/^\s*[-+]\s+/gm, "")
+            .replace(/^\s*\d+[.)]\s+/gm, "");
+        return normalized
+            .split(/\n\s*\n/)
+            .map(paragraph => paragraph.replace(/[ \t]*\n[ \t]*/g, " ").replace(/[ \t]+/g, " ").trim())
+            .filter(Boolean)
+            .join("\n\n");
+    };
 
     const isCompactSingleProgrammeModule = module => {
         const value = String(module?.value || "").trim();
@@ -1049,12 +1056,12 @@
         livePagePreview.classList.toggle("title-xlong", titleLength > 105);
 
         const effectiveLayout = normalizeDossierLayout(review.effectiveDossierLayout || config.dossierLayout);
-        const narrativeScale = Math.max(1, Math.min(1.08, Number(review.dossierNarrativeFontScale || 1)));
+        const narrativeScale = Math.max(1, Number(review.dossierNarrativeFontScale || 1));
         livePagePreview.style.setProperty("--narrative-scale", String(narrativeScale));
         livePagePreview.classList.remove("layout-automatic","layout-visualhero","layout-balanced","layout-multiimageeditorial","layout-technical");
         livePagePreview.classList.add(`layout-${normalize(effectiveLayout)}`);
         if (livePageImageFrame) {
-            const imageHeight = Math.max(90, Number(review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
+            const imageHeight = Math.max(1, Number(review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
             const frameWidth = effectiveLayout === "Balanced" ? 283 : 519;
             livePageImageFrame.style.setProperty("aspect-ratio", `${frameWidth} / ${imageHeight}`, "important");
         }

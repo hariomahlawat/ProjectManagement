@@ -5271,3 +5271,15 @@ body.compendium-structure-editor-mode {
 [data-live-page-narrative].is-justified,.compendium-live-page__below-flow.is-justified,.compendium-review-description-text.is-justified{text-align:justify;text-align-last:left}
 [data-live-page-narrative].is-justified,.compendium-live-page__below-flow.is-justified{word-spacing:normal;hyphens:none}
 .compendium-live-page__programme.is-compact-single{padding-top:.28rem;padding-bottom:.28rem;min-height:0}
+
+
+/* Phase 37.1 — server-owned physical narrative proof parity */
+.compendium-live-page__narrative > div,
+.compendium-live-page__below-flow {
+    line-height: 1.25;
+    white-space: pre-line;
+}
+.compendium-live-page__narrative > div {
+    max-height: none !important;
+    overflow: visible;
+}

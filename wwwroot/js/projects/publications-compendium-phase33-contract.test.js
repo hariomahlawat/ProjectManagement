@@ -88,6 +88,6 @@ test('phase 33 keeps the fixed output dock from consuming the final working cont
 });
 
 test('phase 33 advances review and PDF identities so existing approvals do not mask changed presentation', () => {
-  assert.match(fingerprint, /compendium-review-v(?:8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting)/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)/);
+  assert.match(fingerprint, /compendium-review-v(?:8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_physical-composition-v20)/);
 });

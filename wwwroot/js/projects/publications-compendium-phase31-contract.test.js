@@ -112,7 +112,7 @@ test('phase 31 live proof mirrors the modular programme specification and multi-
 });
 
 test('phase 31 review fingerprint invalidates approval when adaptive dossier facts or presentation changes', () => {
-  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting)/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement)/);
   assert.match(fingerprint, /DossierLayout/);
   assert.match(fingerprint, /DossierImages/);
   assert.match(fingerprint, /TechnicalSpecifications/);
@@ -121,5 +121,5 @@ test('phase 31 review fingerprint invalidates approval when adaptive dossier fac
 });
 
 test('phase 31 advances the publication build identity', () => {
-  assert.match(readService, /CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19))/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19))|CompendiumPdf_2026-08-16_physical-composition-v20)/);
 });

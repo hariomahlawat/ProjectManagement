@@ -26,24 +26,22 @@ public sealed record CompendiumDossierNarrativeFlowPlan(
 }
 
 /// <summary>
-/// Deterministic narrative segmentation for Compendium dossier pages. Phase 37 fills the Balanced
-/// side region paragraph-first and then sentence-by-sentence before flowing the remainder across
-/// the full page width. Words and sentences are never sliced to satisfy a heuristic.
+/// Deterministic narrative segmentation for Compendium dossier pages. Phase 37.1 keeps the
+/// paragraph-first / sentence-second editorial rule, adding complete sentences sentence-by-sentence when they
+/// physically fit. Decisions use DM Sans measurements at the actual side-column width; words and
+/// sentences are never sliced.
 /// </summary>
 public static class CompendiumDossierNarrativeFlowPlanner
 {
     private const int ContinuationBudget = 3300;
-    private const float SideHeadingReservePoints = 29f;
-    private const float SideCharactersPerLine = 39f;
-    private const float NarrativeLineHeightPoints = 12.5f;
-    private const float ParagraphGapPoints = 5f;
 
     private static readonly Regex ParagraphBreak = new(@"\n\s*\n", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SentenceBreak = new(@"(?<=[.!?])\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex InitialismEnding = new(@"(?:\b[A-Za-z]\.){2,}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly HashSet<string> NonTerminalAbbreviations = new(StringComparer.OrdinalIgnoreCase)
     {
-        "e.g.", "i.e.", "dr.", "mr.", "mrs.", "ms.", "prof.", "no.", "fig.", "ref.", "refs.", "para.", "sec."
+        "e.g.", "i.e.", "dr.", "mr.", "mrs.", "ms.", "prof.", "no.", "nos.", "fig.", "ref.", "refs.", "para.", "sec.",
+        "stn.", "bn.", "regt.", "sqn.", "inf.", "arty.", "eqpt.", "wpn.", "dept.", "div.", "bde.", "hq.", "approx."
     };
 
     public sealed record SideAssessment(
@@ -99,8 +97,9 @@ public static class CompendiumDossierNarrativeFlowPlanner
 
         if (mode == CompendiumBalancedTextFlowMode.SideColumn)
         {
-            var used = EstimateTextHeight(firstPage, narrativeFontScale, includeHeading: true);
-            var region = Math.Max(120f, primaryImageHeightPoints);
+            var used = CompendiumDossierTextMeasurementService.Measure(
+                firstPage, sideColumnWidthPoints, narrativeFontScale, includeHeading: true).HeightPoints;
+            var region = Math.Max(1f, primaryImageHeightPoints);
             return new(mode, firstPage, string.Empty, continuations)
             {
                 EffectiveAlignment = narrativeAlignment,
@@ -113,7 +112,7 @@ public static class CompendiumDossierNarrativeFlowPlanner
             };
         }
 
-        var assessment = AssessSideFlow(firstPage, primaryImageHeightPoints, narrativeFontScale);
+        var assessment = AssessSideFlow(firstPage, primaryImageHeightPoints, narrativeFontScale, sideColumnWidthPoints);
         return new(mode, assessment.SideSegment, assessment.BelowSegment, continuations)
         {
             EffectiveAlignment = narrativeAlignment,
@@ -133,16 +132,19 @@ public static class CompendiumDossierNarrativeFlowPlanner
     public static SideAssessment AssessSideFlow(
         string? firstPageNarrative,
         float imageHeightPoints,
-        float narrativeFontScale)
+        float narrativeFontScale,
+        float sideColumnWidthPoints = 223f,
+        CompendiumDossierTextMeasurementService.Session? measurementSession = null)
     {
         var clean = Normalize(firstPageNarrative);
-        var region = Math.Max(120f, imageHeightPoints);
+        var region = Math.Max(1f, imageHeightPoints);
         if (clean.Length == 0)
             return new(string.Empty, string.Empty, region, 0f, region, 0f);
 
-        var sideBudget = ResolveSideBudget(region, narrativeFontScale);
-        var split = SplitAtNaturalBoundary(clean, sideBudget);
-        var used = EstimateTextHeight(split.Head, narrativeFontScale, includeHeading: true);
+        measurementSession ??= new CompendiumDossierTextMeasurementService.Session();
+        var split = SplitToMeasuredHeight(clean, region, sideColumnWidthPoints, narrativeFontScale, measurementSession);
+        var used = measurementSession.Measure(
+            split.Head, sideColumnWidthPoints, narrativeFontScale, includeHeading: true).HeightPoints;
         used = Math.Min(region, used);
         var remaining = Math.Max(0f, region - used);
         return new(
@@ -247,49 +249,6 @@ public static class CompendiumDossierNarrativeFlowPlanner
         }
     }
 
-    private static (string Head, string Tail) SplitAtNaturalBoundary(string text, int budget)
-    {
-        if (text.Length <= budget) return (text, string.Empty);
-        var paragraphs = GetParagraphs(text);
-        if (paragraphs.Count == 0) return (string.Empty, text);
-
-        var head = new List<string>();
-        var used = 0;
-        for (var index = 0; index < paragraphs.Count; index++)
-        {
-            var paragraph = paragraphs[index];
-            var separator = head.Count == 0 ? 0 : 2;
-            var projected = used + separator + paragraph.Length;
-            if (projected <= budget)
-            {
-                head.Add(paragraph);
-                used = projected;
-                continue;
-            }
-
-            // Phase 37 improvement: after intact paragraphs, consume complete sentences from the
-            // next paragraph when they fit. This is what eliminates the large blank side-column gap.
-            var remainingBudget = Math.Max(0, budget - used - separator);
-            var sentenceSplit = SplitParagraphAtSentenceBoundary(paragraph, remainingBudget);
-            if (!string.IsNullOrWhiteSpace(sentenceSplit.Head))
-            {
-                head.Add(sentenceSplit.Head);
-                var tailParts = new List<string>();
-                if (!string.IsNullOrWhiteSpace(sentenceSplit.Tail)) tailParts.Add(sentenceSplit.Tail);
-                tailParts.AddRange(paragraphs.Skip(index + 1));
-                return (
-                    string.Join("\n\n", head).Trim(),
-                    string.Join("\n\n", tailParts.Where(value => value.Length > 0)).Trim());
-            }
-
-            return (
-                string.Join("\n\n", head).Trim(),
-                string.Join("\n\n", paragraphs.Skip(index)).Trim());
-        }
-
-        return (string.Join("\n\n", head).Trim(), string.Empty);
-    }
-
     private static (string Head, string Tail) SplitParagraphAtSentenceBoundary(string paragraph, int budget)
     {
         if (budget <= 0) return (string.Empty, paragraph.Trim());
@@ -315,26 +274,62 @@ public static class CompendiumDossierNarrativeFlowPlanner
             string.Join(" ", sentences.Skip(index)).Trim());
     }
 
-    private static int ResolveSideBudget(float imageHeightPoints, float narrativeFontScale)
+    private static (string Head, string Tail) SplitToMeasuredHeight(
+        string text,
+        float availableHeightPoints,
+        float widthPoints,
+        float narrativeFontScale,
+        CompendiumDossierTextMeasurementService.Session measurementSession)
     {
-        var scale = Math.Clamp(narrativeFontScale, 1f, 1.10f);
-        var usableHeight = Math.Max(70f, Math.Max(120f, imageHeightPoints) - SideHeadingReservePoints);
-        var usableLines = Math.Max(5, (int)Math.Floor(usableHeight / (NarrativeLineHeightPoints * scale)));
-        // A small safety factor keeps the deterministic character estimate on the conservative side.
-        return Math.Clamp((int)Math.Floor(usableLines * SideCharactersPerLine * .965d), 220, 1100);
+        var paragraphs = GetParagraphs(text);
+        if (paragraphs.Count == 0) return (string.Empty, text);
+
+        var head = new List<string>();
+        for (var index = 0; index < paragraphs.Count; index++)
+        {
+            var paragraph = paragraphs[index];
+            var wholeCandidate = JoinParagraphs(head.Append(paragraph));
+            if (measurementSession.Fits(
+                    wholeCandidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: true))
+            {
+                head.Add(paragraph);
+                continue;
+            }
+
+            var sentences = GetSentences(paragraph);
+            var acceptedSentences = new List<string>();
+            for (var sentenceIndex = 0; sentenceIndex < sentences.Count; sentenceIndex++)
+            {
+                var sentenceCandidate = string.Join(" ", acceptedSentences.Append(sentences[sentenceIndex])).Trim();
+                var candidateParagraphs = head.Concat(new[] { sentenceCandidate });
+                var candidate = JoinParagraphs(candidateParagraphs);
+                if (!measurementSession.Fits(
+                        candidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: true))
+                {
+                    break;
+                }
+
+                acceptedSentences.Add(sentences[sentenceIndex]);
+            }
+
+            if (acceptedSentences.Count > 0)
+            {
+                head.Add(string.Join(" ", acceptedSentences));
+                var tail = new List<string>();
+                var remainingSentenceText = string.Join(" ", sentences.Skip(acceptedSentences.Count)).Trim();
+                if (remainingSentenceText.Length > 0) tail.Add(remainingSentenceText);
+                tail.AddRange(paragraphs.Skip(index + 1));
+                return (JoinParagraphs(head), JoinParagraphs(tail));
+            }
+
+            return (JoinParagraphs(head), JoinParagraphs(paragraphs.Skip(index)));
+        }
+
+        return (JoinParagraphs(head), string.Empty);
     }
 
-    private static float EstimateTextHeight(string? text, float narrativeFontScale, bool includeHeading)
-    {
-        var clean = Normalize(text);
-        if (clean.Length == 0) return 0f;
-        var scale = Math.Clamp(narrativeFontScale, 1f, 1.10f);
-        var paragraphs = GetParagraphs(clean);
-        var lines = paragraphs.Sum(paragraph => Math.Max(1, (int)Math.Ceiling(paragraph.Length / SideCharactersPerLine)));
-        return (includeHeading ? SideHeadingReservePoints : 0f)
-               + lines * NarrativeLineHeightPoints * scale
-               + Math.Max(0, paragraphs.Count - 1) * ParagraphGapPoints;
-    }
+    private static string JoinParagraphs(IEnumerable<string> paragraphs)
+        => string.Join("\n\n", paragraphs.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())).Trim();
 
     private static int JoinedLength(IReadOnlyList<string> values, string separator)
         => values.Count == 0 ? 0 : values.Sum(value => value.Length) + separator.Length * Math.Max(0, values.Count - 1);
