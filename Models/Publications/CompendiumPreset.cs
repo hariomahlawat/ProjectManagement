@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 9;
+    public int SettingsSchemaVersion { get; set; } = 10;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -167,6 +167,9 @@ public sealed class CompendiumPresetProject
 
     [MaxLength(24)]
     public string? NarrativeAlignmentOverride { get; set; }
+
+    /// <summary>Optional publisher-authored note printed as the final substantive block of this dossier.</summary>
+    public string? AdditionalNote { get; set; }
 
     public int DossierImageCount { get; set; } = 1;
     public int? SupportingPhoto1Id { get; set; }

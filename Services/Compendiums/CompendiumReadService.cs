@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-16_editorial-constraints-v21";
+    public const string BuildStamp = "CompendiumPdf_2026-08-16_final-editorial-v22";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -317,7 +317,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 selection.BalancedTextFlowMode,
                 probe?.Width,
                 probe?.Height,
-                resolved.Selection.ImageFitMode);
+                resolved.Selection.ImageFitMode,
+                selection.AdditionalNote);
             var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
                 paginationDecision.Layout,
                 dossierPhotoCount);
@@ -341,7 +342,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 paginationDecision.NarrativeFontScale,
                 paginationDecision.FirstPageNarrativeBudget,
                 effectiveNarrativeAlignment,
-                CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount));
+                CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount),
+                paginationDecision.FirstPageNarrativeHeightPoints);
             var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
             var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
                 project.Id,
@@ -369,7 +371,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 DossierImages = dossierImages,
                 TechnicalSpecifications = specifications,
                 IprCredentials = iprCredentials,
-                TechnologyTransfer = technologyTransfer
+                TechnologyTransfer = technologyTransfer,
+                AdditionalNote = selection.AdditionalNote
             });
 
             var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
@@ -390,7 +393,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 resolved.Selection.ReviewFingerprint)
             {
                 NarrativeLabel = narrative.Label,
-                DossierEditorialWarning = paginationDecision.EditorialWarning
+                DossierEditorialWarning = paginationDecision.EditorialWarning,
+                AdditionalNote = selection.AdditionalNote
             });
 
             findings.AddRange(assessment.Findings);
@@ -446,12 +450,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
                 DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
                 DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
+                DossierFirstPageNarrativeHeightPoints = paginationDecision.FirstPageNarrativeHeightPoints,
                 DossierFirstPageSpecificationCount = paginationDecision.FirstPageSpecificationCount,
                 DossierSpecificationColumns = paginationDecision.SpecificationColumns,
                 DossierProgrammeColumns = paginationDecision.ProgrammeColumns,
                 BalancedTextFlowMode = selection.BalancedTextFlowMode,
                 NarrativeAlignment = effectiveNarrativeAlignment,
                 UsesNarrativeAlignmentOverride = selection.NarrativeAlignmentOverride.HasValue,
+                AdditionalNote = selection.AdditionalNote,
+                AdditionalNoteCharacterCount = CompendiumPublicationNotePolicy.Normalize(selection.AdditionalNote).Length,
+                AdditionalNoteMeasuredHeightPoints = MeasureAdditionalNoteHeight(selection.AdditionalNote, paginationDecision.NarrativeFontScale),
                 NarrativeFlow = narrativeFlow,
                 EstimatedDossierPageCount = Math.Max(paginationDecision.EstimatedPageCount, narrativeFlow.EstimatedPageCount),
                 DossierPaginationNote = paginationDecision.PaginationNote,
@@ -627,7 +635,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             selection.BalancedTextFlowMode,
             selectedProbe?.Width,
             selectedProbe?.Height,
-            resolved.Selection.ImageFitMode);
+            resolved.Selection.ImageFitMode,
+            selection.AdditionalNote);
         var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
             paginationDecision.Layout,
             dossierPhotoCount);
@@ -672,7 +681,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var narrativeFlow = CompendiumDossierNarrativeFlowPlanner.Resolve(
             narrative.Text, selection.BalancedTextFlowMode, paginationDecision.Layout, dossierPhotoCount > 0,
             paginationDecision.PrimaryImageHeightPoints, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget,
-            effectiveNarrativeAlignment, CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount));
+            effectiveNarrativeAlignment, CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount),
+            paginationDecision.FirstPageNarrativeHeightPoints);
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
         var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
             project.Id,
@@ -700,7 +710,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DossierImages = dossierImages,
             TechnicalSpecifications = specifications,
             IprCredentials = iprCredentials,
-            TechnologyTransfer = technologyTransfer
+            TechnologyTransfer = technologyTransfer,
+            AdditionalNote = selection.AdditionalNote
         });
         var assessment = _readinessPolicy.Evaluate(new CompendiumProjectReadinessContext(
             project.Id,
@@ -720,7 +731,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             resolved.Selection.ReviewFingerprint)
         {
             NarrativeLabel = narrative.Label,
-            DossierEditorialWarning = paginationDecision.EditorialWarning
+            DossierEditorialWarning = paginationDecision.EditorialWarning,
+            AdditionalNote = selection.AdditionalNote
         });
 
         return new CompendiumReviewProjectDto(
@@ -775,12 +787,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
             DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
             DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
+            DossierFirstPageNarrativeHeightPoints = paginationDecision.FirstPageNarrativeHeightPoints,
             DossierFirstPageSpecificationCount = paginationDecision.FirstPageSpecificationCount,
             DossierSpecificationColumns = paginationDecision.SpecificationColumns,
             DossierProgrammeColumns = paginationDecision.ProgrammeColumns,
             BalancedTextFlowMode = selection.BalancedTextFlowMode,
             NarrativeAlignment = effectiveNarrativeAlignment,
             UsesNarrativeAlignmentOverride = selection.NarrativeAlignmentOverride.HasValue,
+            AdditionalNote = selection.AdditionalNote,
+            AdditionalNoteCharacterCount = CompendiumPublicationNotePolicy.Normalize(selection.AdditionalNote).Length,
+            AdditionalNoteMeasuredHeightPoints = MeasureAdditionalNoteHeight(selection.AdditionalNote, paginationDecision.NarrativeFontScale),
             NarrativeFlow = narrativeFlow,
             EstimatedDossierPageCount = Math.Max(paginationDecision.EstimatedPageCount, narrativeFlow.EstimatedPageCount),
             DossierPaginationNote = paginationDecision.PaginationNote,
@@ -1043,15 +1059,24 @@ public sealed class CompendiumReadService : ICompendiumReadService
     {
         var selection = NormalizeSelection(rawSelection);
         var requestedCount = Math.Clamp(selection.DossierImageCount, 1, 3);
+        CompendiumDossierImageSelection WithMetadata(CompendiumDossierImageSelection image)
+        {
+            if (image.PhotoId is not int photoId) return image;
+            var candidate = candidates.FirstOrDefault(item => item.Id == photoId);
+            return candidate is null
+                ? image
+                : image with { PhotoVersion = candidate.Version, SourceWidth = candidate.Width, SourceHeight = candidate.Height };
+        }
+
         var result = new List<CompendiumDossierImageSelection>(requestedCount)
         {
-            new(
+            WithMetadata(new(
                 CompendiumDossierImageRole.Primary,
                 primary.ResolvedPhotoId,
                 selection.FocalX,
                 selection.FocalY,
                 selection.ImageFitMode,
-                primary.PhotoSelectionSource)
+                primary.PhotoSelectionSource))
         };
 
         if (requestedCount == 1)
@@ -1095,13 +1120,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 used.Add(photoId.Value);
             }
 
-            return new CompendiumDossierImageSelection(
+            return WithMetadata(new CompendiumDossierImageSelection(
                 role,
                 photoId,
                 ClampFocal(focalX),
                 ClampFocal(focalY),
                 Enum.IsDefined(fitMode) ? fitMode : CompendiumImageFitMode.Fill,
-                source);
+                source));
         }
 
         result.Add(ResolveSupporting(
@@ -1235,6 +1260,19 @@ public sealed class CompendiumReadService : ICompendiumReadService
                                    && project.LifecycleStatus == ProjectLifecycleStatus.Completed,
                 cancellationToken);
 
+    private static float MeasureAdditionalNoteHeight(string? note, float narrativeScale)
+    {
+        var clean = CompendiumPublicationNotePolicy.Normalize(note);
+        if (clean.Length == 0) return 0f;
+        return new CompendiumDossierTextMeasurementService.Session().MeasureAtFontSize(
+            clean,
+            519f,
+            CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeScale),
+            CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
+            CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
+            leadingReservePoints: 23f).HeightPoints;
+    }
+
     private static IReadOnlyList<CompendiumProjectSelection> NormalizeSelections(
         IReadOnlyList<CompendiumProjectSelection>? selections)
     {
@@ -1277,6 +1315,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                                          && Enum.IsDefined(selection.NarrativeAlignmentOverride.Value)
                 ? selection.NarrativeAlignmentOverride
                 : null,
+            AdditionalNote = CompendiumPublicationNotePolicy.Normalize(selection.AdditionalNote) is { Length: > 0 } note ? note : null,
             DossierImageCount = Math.Clamp(selection.DossierImageCount, 1, 3),
             SupportingPhoto1Id = selection.SupportingPhoto1Id is > 0 ? selection.SupportingPhoto1Id : null,
             SupportingPhoto1FocalX = ClampFocal(selection.SupportingPhoto1FocalX),

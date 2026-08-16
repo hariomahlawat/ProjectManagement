@@ -4980,6 +4980,15 @@ body.compendium-structure-editor-mode {
 .compendium-live-page__specifications p{position:relative;margin:0;padding-left:.6rem;color:#475569;font-size:.42rem;line-height:1.3}
 .compendium-live-page__specifications p:before{position:absolute;left:0;color:#c9a646;content:'•'}
 
+.compendium-live-page__additional-note{margin-top:.58rem;padding-top:.42rem;border-top:1px solid #e9d9a7}
+.compendium-live-page__additional-note>header{color:#17382f;font-size:.42rem;font-weight:800;letter-spacing:.08em}
+.compendium-live-page__additional-note>div{margin-top:.28rem;color:#475569;font-size:calc(.49rem * var(--narrative-scale,1));line-height:1.25}
+.compendium-live-page__additional-note>div p{margin:0 0 .24rem}
+.compendium-live-page__additional-note>div p:last-child{margin-bottom:0}
+.compendium-live-page__additional-note>div ul,.compendium-live-page__additional-note>div ol{margin:.12rem 0 .24rem;padding-left:1rem}
+.compendium-live-page__additional-note>div.is-justified p{text-align:justify;text-align-last:left;word-spacing:normal;hyphens:none}
+.compendium-live-page__additional-note>div.is-justified li{text-align:left}
+
 @media(max-width:680px){.compendium-dossier-layout-options{grid-template-columns:repeat(2,minmax(0,1fr))}.compendium-dossier-layout-options button,.compendium-dossier-layout-options button:nth-child(n+4){grid-column:span 1}}
 
 /* Phase 31 — multi-image dossier proof mirrors the PDF's large-primary + supporting stack. */
@@ -5268,6 +5277,16 @@ body.compendium-structure-editor-mode {
 .compendium-narrative-alignment-control{display:grid;gap:.38rem;padding:.7rem .75rem;border:1px solid #dce7e2;border-radius:.65rem;background:#fbfdfc}
 .compendium-narrative-alignment-control>span{font-size:.74rem;font-weight:700;color:#17372e}
 .compendium-narrative-alignment-control small{font-size:.68rem;line-height:1.35;color:#718078}
+
+.compendium-additional-note-control{display:grid;gap:.45rem;padding:.72rem .75rem;border:1px solid #dce7e2;border-radius:.65rem;background:#fbfdfc}
+.compendium-additional-note-control>label{display:grid;gap:.08rem;margin:0}
+.compendium-additional-note-control>label>span{font-size:.74rem;font-weight:700;color:#17372e}
+.compendium-additional-note-control>label>small{font-size:.62rem;line-height:1.35;color:#718078}
+.compendium-additional-note-control textarea{width:100%;min-height:5.7rem;max-height:13rem;resize:vertical;border:1px solid #cfded7;border-radius:.55rem;background:#fff;padding:.58rem .62rem;color:#253b33;font-size:.72rem;line-height:1.42}
+.compendium-additional-note-control textarea:focus{outline:0;border-color:#4d8875;box-shadow:0 0 0 .16rem rgba(35,102,81,.11)}
+.compendium-additional-note-control__meta{display:flex;align-items:flex-start;justify-content:space-between;gap:.65rem;font-size:.59rem;line-height:1.35;color:#718078}
+.compendium-additional-note-control__meta [data-review-additional-note-advisory]{max-width:72%;text-align:right;color:#9a6b11}
+.compendium-additional-note-control__meta [data-review-additional-note-advisory].is-strong{color:#9c4b12;font-weight:650}
 [data-live-page-narrative].is-justified,.compendium-live-page__below-flow.is-justified,.compendium-review-description-text.is-justified{text-align:justify;text-align-last:left}
 [data-live-page-narrative].is-justified,.compendium-live-page__below-flow.is-justified{word-spacing:normal;hyphens:none}
 .compendium-live-page__programme.is-compact-single{padding-top:.28rem;padding-bottom:.28rem;min-height:0}

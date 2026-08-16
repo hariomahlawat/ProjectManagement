@@ -68,6 +68,6 @@ test('phase 37.2 restores compact four-column publication composition on desktop
 });
 
 test('phase 37.2 invalidates old review/render identity without a schema migration', () => {
-  assert.match(fingerprint, /compendium-review-v14-editorial-constraints/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_editorial-constraints-v21/);
+  assert.match(fingerprint, /compendium-review-v(?:14-editorial-constraints|15-additional-note-final-hardening)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:editorial-constraints-v21|final-editorial-v22)/);
 });

@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const VERSION = 3;
+    const VERSION = 4;
     const PREFIX = "prism:compendium:structure:";
     const MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
@@ -68,7 +68,8 @@
                     customSectionKey: cleanKey(source.customSectionKey) || null,
                     customSectionName: cleanName(source.customSectionName) || null,
                     narrativeSourceOverride: source.narrativeSourceOverride ? String(source.narrativeSourceOverride) : null,
-                    narrativeAlignmentOverride: normalize(source.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(source.narrativeAlignmentOverride) === "left" ? "Left" : null
+                    narrativeAlignmentOverride: normalize(source.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(source.narrativeAlignmentOverride) === "left" ? "Left" : null,
+                    additionalNote: String(source.additionalNote || "").trim() || null
                 };
             });
         }

@@ -1,5 +1,4 @@
 using ProjectManagement.Services.Compendiums;
-using System.Text.RegularExpressions;
 
 namespace ProjectManagement.Utilities.Reporting;
 
@@ -44,7 +43,9 @@ public sealed record CompendiumPagePlanItem(
     public bool IsFirstProjectInCategory { get; init; }
     public int ContinuationPart { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
+    public string AdditionalNoteMarkdown { get; init; } = string.Empty;
     public bool IsTechnicalContinuation { get; init; }
+    public bool IsAdditionalNoteContinuation { get; init; }
 }
 
 public sealed record CompendiumPagePlan(
@@ -78,6 +79,7 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
             var firstInCategory = true;
             foreach (var project in category.Projects)
             {
+                var projectSeedStartIndex = projectSeeds.Count;
                 var hasPhoto = project.Images.Any(image => image.Content is { Length: > 0 }) || project.CoverPhoto is { Length: > 0 };
                 var layout = ResolveLayout(project.DescriptionMarkdown, hasPhoto);
                 var cleanSpecifications = (project.TechnicalSpecifications ?? Array.Empty<string>())
@@ -104,22 +106,37 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         project.DossierNarrativeFontScale,
                         project.DossierFirstPageNarrativeBudget,
                         project.NarrativeAlignment,
-                        CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(project.Images.Count));
+                        CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(project.Images.Count),
+                        project.DossierFirstPageNarrativeHeightPoints);
                 }
                 var firstNarrative = string.Join("\n\n", new[] { flow.SideSegment, flow.BelowImageSegment }
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
                 var chunks = new[] { firstNarrative }.Concat(flow.ContinuationSegments).ToArray();
 
-                var remainingSpecChunks = SplitTechnicalSpecifications(cleanSpecifications.Skip(firstSpecificationCount).ToArray()).ToList();
+                var remainingSpecChunks = CompendiumDossierPaginationPlanner
+                    .SplitTechnicalSpecificationsForPhysicalPages(
+                        cleanSpecifications.Skip(firstSpecificationCount).ToArray(),
+                        project.DossierSpecificationColumns,
+                        CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints)
+                    .ToList();
                 IReadOnlyList<string> attachedContinuationSpecifications = Array.Empty<string>();
                 if (chunks.Length > 1
                     && remainingSpecChunks.Count > 0
-                    && chunks[^1].Length <= 1800
-                    && remainingSpecChunks[0].Sum(item => item.Length) <= 1200)
+                    && CompendiumDossierPaginationPlanner.CanShareContinuationPage(
+                        chunks[^1],
+                        remainingSpecChunks[0],
+                        project.DossierSpecificationColumns,
+                        project.DossierNarrativeFontScale))
                 {
                     attachedContinuationSpecifications = remainingSpecChunks[0];
                     remainingSpecChunks.RemoveAt(0);
                 }
+
+                var additionalNote = CompendiumPublicationNotePolicy.Normalize(project.AdditionalNote);
+                var keepNoteOnFirstPage = additionalNote.Length > 0
+                    && project.EstimatedDossierPageCount <= 1
+                    && chunks.Length == 1
+                    && remainingSpecChunks.Count == 0;
 
                 for (var index = 0; index < chunks.Length; index++)
                 {
@@ -137,6 +154,8 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         firstInCategory && index == 0,
                         index,
                         continuationSpecifications,
+                        index == 0 && keepNoteOnFirstPage ? additionalNote : string.Empty,
+                        false,
                         false));
                 }
 
@@ -152,7 +171,57 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         false,
                         continuationIndex++,
                         specChunk,
-                        true));
+                        string.Empty,
+                        true,
+                        false));
+                }
+
+                if (additionalNote.Length > 0 && !keepNoteOnFirstPage)
+                {
+                    var noteChunks = CompendiumDossierNarrativeFlowPlanner.SplitForPhysicalPages(
+                            additionalNote,
+                            519f,
+                            CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
+                            project.DossierNarrativeFontScale,
+                            includeHeading: false)
+                        .ToList();
+
+                    // When the last continuation page has genuine measured room, append the first
+                    // note chunk there. The note remains the final substantive block and a new page
+                    // is created only when the physical page cannot accommodate it safely.
+                    if (noteChunks.Count > 0
+                        && projectSeeds.Count > projectSeedStartIndex
+                        && projectSeeds[^1].Project.ProjectId == project.ProjectId
+                        && projectSeeds[^1].Kind == CompendiumPageKind.ProjectContinuation)
+                    {
+                        var last = projectSeeds[^1];
+                        if (CompendiumDossierPaginationPlanner.CanShareContinuationPage(
+                                last.DescriptionMarkdown,
+                                last.TechnicalSpecifications,
+                                project.DossierSpecificationColumns,
+                                project.DossierNarrativeFontScale,
+                                noteChunks[0]))
+                        {
+                            projectSeeds[^1] = last with { AdditionalNoteMarkdown = noteChunks[0] };
+                            noteChunks.RemoveAt(0);
+                        }
+                    }
+
+                    foreach (var noteChunk in noteChunks)
+                    {
+                        projectSeeds.Add(new ProjectPageSeed(
+                            project,
+                            category.CategoryName,
+                            CompendiumPageKind.ProjectContinuation,
+                            string.Empty,
+                            layout,
+                            false,
+                            continuationIndex++,
+                            Array.Empty<string>(),
+                            noteChunk,
+                            false,
+                            true));
+                    }
                 }
 
                 firstInCategory = false;
@@ -208,7 +277,9 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                 IsFirstProjectInCategory = seed.IsFirstProjectInCategory,
                 ContinuationPart = seed.ContinuationPart,
                 TechnicalSpecifications = seed.TechnicalSpecifications,
-                IsTechnicalContinuation = seed.IsTechnicalContinuation
+                AdditionalNoteMarkdown = seed.AdditionalNoteMarkdown,
+                IsTechnicalContinuation = seed.IsTechnicalContinuation,
+                IsAdditionalNoteContinuation = seed.IsAdditionalNoteContinuation
             });
         }
 
@@ -216,34 +287,6 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
         return new CompendiumPagePlan(pages, projectStartPages);
     }
 
-
-    private static IReadOnlyList<IReadOnlyList<string>> SplitTechnicalSpecifications(IReadOnlyList<string> specifications)
-    {
-        var clean = (specifications ?? Array.Empty<string>())
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Take(6)
-            .ToArray();
-        if (clean.Length == 0) return Array.Empty<IReadOnlyList<string>>();
-
-        const int budget = 3000;
-        var chunks = new List<IReadOnlyList<string>>();
-        var current = new List<string>();
-        var length = 0;
-        foreach (var item in clean)
-        {
-            var cost = item.Length + 50;
-            if (current.Count > 0 && length + cost > budget)
-            {
-                chunks.Add(current.ToArray());
-                current.Clear();
-                length = 0;
-            }
-            current.Add(item);
-            length += cost;
-        }
-        if (current.Count > 0) chunks.Add(current.ToArray());
-        return chunks;
-    }
 
     private static CompendiumProjectLayoutVariant ResolveLayout(string? markdown, bool hasPhoto)
     {
@@ -355,149 +398,13 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
         bool IsFirstProjectInCategory,
         int ContinuationPart,
         IReadOnlyList<string> TechnicalSpecifications,
-        bool IsTechnicalContinuation);
+        string AdditionalNoteMarkdown,
+        bool IsTechnicalContinuation,
+        bool IsAdditionalNoteContinuation);
 
     private sealed record IndexGroupSeed(
         string CategoryName,
         IReadOnlyList<CompendiumPdfProjectSection> Projects);
 
     private sealed record IndexPageSeed(IReadOnlyList<IndexGroupSeed> Groups);
-}
-
-internal static class CompendiumMarkdownChunker
-{
-    private static readonly Regex ParagraphBreakRegex = new(
-        @"\n\s*\n",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    private static readonly Regex SentenceBreakRegex = new(
-        @"(?<=[.!?])\s+",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    private static readonly Regex MarkdownPunctuationRegex = new(
-        @"[*_`#>\-]",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    public static IReadOnlyList<string> Split(
-        string? markdown,
-        int firstBudget,
-        int continuationBudget)
-    {
-        var clean = (markdown ?? string.Empty).Replace("\r\n", "\n").Trim();
-        if (clean.Length == 0)
-        {
-            return new[] { string.Empty };
-        }
-
-        var blocks = ParagraphBreakRegex
-            .Split(clean)
-            .Select(block => block.Trim())
-            .Where(block => block.Length > 0)
-            .SelectMany(block => SplitOversizedBlock(block, Math.Max(firstBudget, continuationBudget)))
-            .ToList();
-
-        var result = new List<string>();
-        var current = new List<string>();
-        var currentLength = 0;
-        var budget = firstBudget;
-
-        foreach (var block in blocks)
-        {
-            var blockLength = EstimateLength(block);
-            var separator = current.Count == 0 ? 0 : 2;
-            if (current.Count > 0 && currentLength + separator + blockLength > budget)
-            {
-                result.Add(string.Join("\n\n", current));
-                current.Clear();
-                currentLength = 0;
-                budget = continuationBudget;
-            }
-
-            if (blockLength > budget && current.Count == 0)
-            {
-                foreach (var fragment in SplitOversizedBlock(block, budget))
-                {
-                    if (EstimateLength(fragment) <= budget)
-                    {
-                        result.Add(fragment);
-                    }
-                    else
-                    {
-                        result.Add(fragment[..Math.Min(fragment.Length, budget)]);
-                    }
-                    budget = continuationBudget;
-                }
-                continue;
-            }
-
-            current.Add(block);
-            currentLength += separator + blockLength;
-        }
-
-        if (current.Count > 0)
-        {
-            result.Add(string.Join("\n\n", current));
-        }
-
-        return result.Count == 0 ? new[] { clean } : result;
-    }
-
-    private static IEnumerable<string> SplitOversizedBlock(string block, int budget)
-    {
-        if (EstimateLength(block) <= budget)
-        {
-            yield return block;
-            yield break;
-        }
-
-        var sentences = SentenceBreakRegex.Split(block);
-        if (sentences.Length > 1)
-        {
-            var current = new List<string>();
-            var length = 0;
-            foreach (var sentence in sentences)
-            {
-                var estimate = EstimateLength(sentence);
-                if (current.Count > 0 && length + 1 + estimate > budget)
-                {
-                    yield return string.Join(" ", current);
-                    current.Clear();
-                    length = 0;
-                }
-
-                current.Add(sentence);
-                length += (length == 0 ? 0 : 1) + estimate;
-            }
-
-            if (current.Count > 0)
-            {
-                yield return string.Join(" ", current);
-            }
-            yield break;
-        }
-
-        var words = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var wordBuffer = new List<string>();
-        var wordLength = 0;
-        foreach (var word in words)
-        {
-            if (wordBuffer.Count > 0 && wordLength + 1 + word.Length > budget)
-            {
-                yield return string.Join(" ", wordBuffer);
-                wordBuffer.Clear();
-                wordLength = 0;
-            }
-
-            wordBuffer.Add(word);
-            wordLength += (wordLength == 0 ? 0 : 1) + word.Length;
-        }
-
-        if (wordBuffer.Count > 0)
-        {
-            yield return string.Join(" ", wordBuffer);
-        }
-    }
-
-    private static int EstimateLength(string value)
-        => MarkdownPunctuationRegex.Replace(value, string.Empty).Length;
 }

@@ -188,7 +188,7 @@
                                 <div class="compendium-composer__control">
                                     <div class="compendium-composer__label"><i class="bi bi-file-text"></i><span><strong>Project narrative</strong><small>Used on every project dossier.</small></span></div>
                                     <div class="compendium-segmented" role="group" aria-label="Project narrative source">
-                                        <button type="button" data-narrative-value="ProjectBrief">Project brief <span>Recommended</span></button>
+                                        <button type="button" data-narrative-value="ProjectBrief">Project brief <span>Default</span></button>
                                         <button type="button" data-narrative-value="CapabilityOverview">Capability overview</button>
                                         <button type="button" data-narrative-value="ProjectDescription">Description</button>
                                     </div>
@@ -492,6 +492,10 @@
                                                 <header>HARDWARE / TECHNICAL SPECIFICATION</header>
                                                 <div data-live-page-specification-list></div>
                                             </section>
+                                            <section class="compendium-live-page__additional-note" data-live-page-additional-note hidden>
+                                                <header>ADDITIONAL NOTE</header>
+                                                <div data-live-page-additional-note-text></div>
+                                            </section>
                                             <footer><span>Simulator Development Division</span><span>Project dossier</span></footer>
                                         </article>
                                     </div>
@@ -555,6 +559,20 @@
                                                     <button type="button" class="btn btn-outline-secondary" data-review-narrative-alignment="Justified">Justified</button>
                                                 </div>
                                                 <small>Justified text is used in wide narrative regions. Narrow Balanced side columns remain left aligned when needed for clean word spacing.</small>
+                                            </div>
+                                            <div class="compendium-additional-note-control">
+                                                <label for="compendium-project-additional-note">
+                                                    <span>Additional note</span>
+                                                    <small>Optional note printed at the end of this project dossier.</small>
+                                                </label>
+                                                <textarea id="compendium-project-additional-note"
+                                                          rows="4"
+                                                          data-review-additional-note
+                                                          placeholder="Optional note to appear at the end of this project dossier."></textarea>
+                                                <div class="compendium-additional-note-control__meta">
+                                                    <span data-review-additional-note-count>0 characters</span>
+                                                    <span data-review-additional-note-advisory hidden></span>
+                                                </div>
                                             </div>
                                             <div class="compendium-dossier-fit-insight" data-review-pagination-insight>
                                                 <span data-review-pagination-badge>1 page</span>

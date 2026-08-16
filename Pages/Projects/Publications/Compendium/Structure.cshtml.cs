@@ -83,6 +83,7 @@ public sealed class StructureModel : PageModel
                         customSectionName = item?.CustomSectionName,
                         narrativeSourceOverride = item?.NarrativeSourceOverride?.ToString(),
                         narrativeAlignmentOverride = item?.NarrativeAlignmentOverride?.ToString(),
+                        additionalNote = item?.AdditionalNote,
                         primaryPhotoId = item?.PrimaryPhotoId,
                         primaryFocalX = item?.PrimaryFocalX ?? .5d,
                         primaryFocalY = item?.PrimaryFocalY ?? .5d,
@@ -228,6 +229,7 @@ public sealed class StructureModel : PageModel
                     DossierLayout = ParseDossierLayout(item.DossierLayout, baseConfiguration.DossierLayout),
                     BalancedTextFlowMode = ParseBalancedTextFlowMode(item.BalancedTextFlowMode, baseConfiguration.BalancedTextFlowMode),
                     NarrativeAlignmentOverride = ParseNarrativeAlignmentOverride(item.NarrativeAlignmentOverride) ?? baseConfiguration.NarrativeAlignmentOverride,
+                    AdditionalNote = NormalizeAdditionalNote(item.AdditionalNote),
                     DossierImageCount = Math.Clamp(item.DossierImageCount ?? baseConfiguration.DossierImageCount, 1, 3),
                     SupportingPhoto1Id = item.SupportingPhoto1Id ?? baseConfiguration.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX ?? baseConfiguration.SupportingPhoto1FocalX),
@@ -372,6 +374,11 @@ public sealed class StructureModel : PageModel
             ? parsed
             : null;
 
+    private static string? NormalizeAdditionalNote(string? value)
+    {
+        var clean = CompendiumPublicationNotePolicy.Normalize(value);
+        return clean.Length == 0 ? null : clean;
+    }
 
     private JsonResult JsonError(int statusCode, string message, string? code = null)
     {
@@ -408,5 +415,6 @@ public sealed class StructureModel : PageModel
         public int? SupportingPhoto2Id { get; set; } public double? SupportingPhoto2FocalX { get; set; } public double? SupportingPhoto2FocalY { get; set; } public string? SupportingPhoto2FitMode { get; set; }
         public string? NarrativeSourceOverride { get; set; }
         public string? NarrativeAlignmentOverride { get; set; }
+        public string? AdditionalNote { get; set; }
     }
 }

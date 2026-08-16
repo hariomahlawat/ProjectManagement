@@ -161,6 +161,7 @@
                 customSectionName: cleanSectionName(item.customSectionName) || null,
                 narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null,
                 narrativeAlignmentOverride: item.narrativeAlignmentOverride ? normalizeNarrativeAlignment(item.narrativeAlignmentOverride) : null,
+                additionalNote: String(item.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
                 imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill",
                 dossierLayout: normalizeDossierLayout(item.dossierLayout),
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(item.balancedTextFlowMode),
@@ -190,6 +191,7 @@
                 customSectionName: null,
                 narrativeSourceOverride: null,
                 narrativeAlignmentOverride: null,
+                additionalNote: null,
                 imageFitMode: "fill",
                 dossierLayout: "Automatic",
                 balancedTextFlowMode: "FlowBelowImage",
@@ -233,6 +235,7 @@
     let reviewRequestController = null;
     let reviewRequestRevision = 0;
     let reviewRefreshTimer = null;
+    let additionalNoteRefreshTimer = null;
     let preflightTimer = null;
     let preflightController = null;
     let preflightRevision = 0;
@@ -319,6 +322,9 @@
     const reviewTextFlowControl = $("[data-review-text-flow]");
     const reviewTextFlowButtons = [...form.querySelectorAll("[data-review-text-flow-mode]")];
     const reviewNarrativeAlignmentButtons = [...form.querySelectorAll("[data-review-narrative-alignment]")];
+    const reviewAdditionalNote = $("[data-review-additional-note]");
+    const reviewAdditionalNoteCount = $("[data-review-additional-note-count]");
+    const reviewAdditionalNoteAdvisory = $("[data-review-additional-note-advisory]");
     const reviewImageCountButtons = [...form.querySelectorAll("[data-review-image-count]")];
     const reviewManagePageImages = $("[data-review-manage-page-images]");
     const reviewPhotoUsageSummary = $("[data-review-photo-usage-summary]");
@@ -349,6 +355,8 @@
     const livePageContinuation = $("[data-live-page-continuation]");
     const livePageSpecifications = $("[data-live-page-specifications]");
     const livePageSpecificationList = $("[data-live-page-specification-list]");
+    const livePageAdditionalNote = $("[data-live-page-additional-note]");
+    const livePageAdditionalNoteText = $("[data-live-page-additional-note-text]");
 
     const coverPreview = $("[data-cover-preview]");
     const coverPreviewImage = $("[data-cover-preview-image]");
@@ -466,6 +474,7 @@
             customSectionName: section?.name || null,
             narrativeSourceOverride: config.narrativeSourceOverride || null,
             narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
+            additionalNote: String(config.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
             imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
             dossierLayout: normalizeDossierLayout(config.dossierLayout),
             balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
@@ -563,6 +572,7 @@
                 customSectionName: config.customSectionName || null,
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
                 narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
+                additionalNote: String(config.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
                 imageFitMode: config.imageFitMode || "fill",
                 dossierLayout: config.dossierLayout || "Automatic",
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
@@ -637,6 +647,7 @@
             config.customSectionName = section?.name || null;
             config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
             config.narrativeAlignmentOverride = incoming.narrativeAlignmentOverride ? normalizeNarrativeAlignment(incoming.narrativeAlignmentOverride) : null;
+            config.additionalNote = String(incoming.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null;
             config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
             config.dossierLayout = normalizeDossierLayout(incoming.dossierLayout);
             config.balancedTextFlowMode = normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode);
@@ -1038,6 +1049,25 @@
             .join("\n\n");
     };
 
+    const normalizeAdditionalNote = value => String(value || "").replace(/\r\n?/g, "\n").trim();
+    const additionalNoteAdvisory = value => {
+        const length = normalizeAdditionalNote(value).length;
+        if (length > 1000) return { text: "This note is lengthy. Consider moving detailed information into the Project Brief where appropriate.", strong: true };
+        if (length > 600) return { text: "This note is becoming lengthy. Consider keeping it focused on supplementary publication information.", strong: false };
+        return null;
+    };
+    const renderAdditionalNoteMeta = value => {
+        const note = normalizeAdditionalNote(value);
+        if (reviewAdditionalNoteCount) reviewAdditionalNoteCount.textContent = `${note.length} character${note.length === 1 ? "" : "s"}`;
+        const advisory = additionalNoteAdvisory(note);
+        if (reviewAdditionalNoteAdvisory) {
+            reviewAdditionalNoteAdvisory.hidden = !advisory;
+            reviewAdditionalNoteAdvisory.textContent = advisory?.text || "";
+            reviewAdditionalNoteAdvisory.classList.toggle("is-strong", Boolean(advisory?.strong));
+        }
+        return note;
+    };
+
     const isCompactSingleProgrammeModule = module => {
         const value = String(module?.value || "").trim();
         return value.length <= 48 && !value.includes("\n");
@@ -1149,6 +1179,14 @@
             livePageSpecificationList.style.setProperty("--spec-columns", String(Math.max(1, Math.min(3, Number(review.dossierSpecificationColumns || 1)))));
             livePageSpecificationList.innerHTML = specs.map(item => `<p>${escapeHtml(item)}</p>`).join("");
         }
+        const additionalNote = normalizeAdditionalNote(config.additionalNote !== undefined ? config.additionalNote : review.additionalNote);
+        if (livePageAdditionalNote && livePageAdditionalNoteText) {
+            livePageAdditionalNote.hidden = additionalNote.length === 0;
+            livePageAdditionalNoteText.innerHTML = additionalNote ? formatDescription(additionalNote) : "";
+            livePageAdditionalNoteText.classList.toggle(
+                "is-justified",
+                normalizeNarrativeAlignment(review.narrativeAlignment || config.narrativeAlignmentOverride || editorialState.narrativeAlignment) === "Justified");
+        }
     };
 
     const renderReviewData = review => {
@@ -1232,6 +1270,9 @@
                 : normalizeNarrativeAlignment(value) === normalizeNarrativeAlignment(config.narrativeAlignmentOverride || "");
             button.classList.toggle("active", active);
         });
+        const additionalNote = normalizeAdditionalNote(config.additionalNote !== undefined ? config.additionalNote : review.additionalNote);
+        if (reviewAdditionalNote && document.activeElement !== reviewAdditionalNote) reviewAdditionalNote.value = additionalNote;
+        renderAdditionalNoteMeta(additionalNote);
         reviewImageCountButtons.forEach(button => {
             const requested = Number(button.dataset.reviewImageCount || 1);
             const available = requested <= Math.max(1, availableDossierPhotos);
@@ -1743,7 +1784,11 @@
         reviewRequired: "Project review required",
         projectChangedAfterReview: "Project changed after review",
         customSectionUnassigned: "Custom section assignment required",
-        projectUnavailable: "Selected project unavailable"
+        projectUnavailable: "Selected project unavailable",
+        duplicateNarrativeParagraph: "Possible duplicated narrative content",
+        additionalNoteLong: "Additional note is lengthy",
+        additionalNoteLength: "Additional note length advisory",
+        dossierEditorialWarning: "Layout needs editorial attention"
     }[finding.code] || finding.message || "Publication finding");
 
     const findingProjectAction = finding => {
@@ -2313,6 +2358,30 @@
         if (!activeReviewId) return;
         setProjectNarrativeAlignment(activeReviewId, button.dataset.reviewNarrativeAlignment);
     }));
+    reviewAdditionalNote?.addEventListener("input", () => {
+        if (!activeReviewId) return;
+        const projectId = Number(activeReviewId);
+        const config = ensureConfig(projectId);
+        const note = normalizeAdditionalNote(reviewAdditionalNote.value);
+        if ((config.additionalNote || "") === note) {
+            renderAdditionalNoteMeta(note);
+            return;
+        }
+        config.additionalNote = note;
+        renderAdditionalNoteMeta(note);
+        if (livePageAdditionalNote && livePageAdditionalNoteText) {
+            livePageAdditionalNote.hidden = note.length === 0;
+            livePageAdditionalNoteText.innerHTML = note ? formatDescription(note) : "";
+            livePageAdditionalNoteText.classList.toggle(
+                "is-justified",
+                normalizeNarrativeAlignment(activeReviewData?.narrativeAlignment || config.narrativeAlignmentOverride || editorialState.narrativeAlignment) === "Justified");
+        }
+        publicationConfigChanged(projectId, { refreshReview: false });
+        window.clearTimeout(additionalNoteRefreshTimer);
+        additionalNoteRefreshTimer = window.setTimeout(() => {
+            if (Number(activeReviewId) === projectId) loadReview(projectId);
+        }, 420);
+    });
         reviewImageCountButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);

@@ -103,6 +103,7 @@ public sealed record CompendiumPdfProjectSection(
     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+    public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
@@ -116,6 +117,7 @@ public sealed record CompendiumPdfProjectSection(
     public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
+    public string? AdditionalNote { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
 }
 
@@ -721,6 +723,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications, project.DossierSpecificationColumns));
                 }
+
+                if (!string.IsNullOrWhiteSpace(planned.AdditionalNoteMarkdown))
+                {
+                    column.Item().Element(note => ComposeAdditionalNote(note, planned.AdditionalNoteMarkdown, project.NarrativeAlignment, project.DossierNarrativeFontScale));
+                }
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
@@ -748,7 +755,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     .FontSize(17).SemiBold().LineHeight(1.06f).FontColor(Ink);
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Text(planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : narrativeLabel.ToUpperInvariant())
+                    row.RelativeItem().Text(planned.IsAdditionalNoteContinuation
+                            ? "ADDITIONAL NOTE"
+                            : planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : narrativeLabel.ToUpperInvariant())
                         .FontSize(8.4f).SemiBold().LetterSpacing(.28f).FontColor(Forest800);
                     row.AutoItem().Text($"CONTINUED · PART {planned.ContinuationPart + 1}")
                         .FontSize(7.2f).SemiBold().LetterSpacing(.26f).FontColor(Slate500);
@@ -768,6 +777,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 if (planned.TechnicalSpecifications.Count > 0)
                 {
                     column.Item().Element(specs => ComposeTechnicalSpecifications(specs, planned.TechnicalSpecifications, project.DossierSpecificationColumns));
+                }
+
+                if (!string.IsNullOrWhiteSpace(planned.AdditionalNoteMarkdown))
+                {
+                    column.Item().Element(note => ComposeAdditionalNote(note, planned.AdditionalNoteMarkdown, project.NarrativeAlignment, project.DossierNarrativeFontScale, showHeading: !planned.IsAdditionalNoteContinuation));
                 }
             });
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
@@ -1079,6 +1093,37 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             row.ConstantItem(13).Text("•").FontSize(10.2f).FontColor(Gold);
             row.RelativeItem().Text(text).FontSize(8.75f).FontColor(Slate700).LineHeight(1.22f);
         });
+
+    private static void ComposeAdditionalNote(
+        IContainer container,
+        string noteMarkdown,
+        CompendiumNarrativeAlignment alignment,
+        float narrativeFontScale,
+        bool showHeading = true)
+    {
+        if (string.IsNullOrWhiteSpace(noteMarkdown)) return;
+        container.Column(column =>
+        {
+            column.Spacing(5);
+            if (showHeading)
+            {
+                column.Item().BorderTop(1).BorderColor(GoldSoft).PaddingTop(7).Row(row =>
+                {
+                    row.AutoItem().Text("ADDITIONAL NOTE")
+                        .FontSize(7.4f).SemiBold().LetterSpacing(.34f).FontColor(Forest800);
+                    row.RelativeItem().PaddingLeft(10).AlignMiddle().Height(1).Background(GoldSoft);
+                });
+            }
+            column.Item().Element(text => ComposeDescription(
+                text,
+                noteMarkdown,
+                "Additional Note",
+                continuation: false,
+                narrativeFontScale: narrativeFontScale,
+                showHeading: false,
+                narrativeAlignment: alignment));
+        });
+    }
 
     private static void ComposeProjectMetadata(IContainer container, CompendiumPdfProjectSection project)
     {

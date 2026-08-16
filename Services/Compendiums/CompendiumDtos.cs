@@ -82,7 +82,14 @@ public sealed record CompendiumDossierImageSelection(
     double FocalX,
     double FocalY,
     CompendiumImageFitMode FitMode,
-    CompendiumPhotoSelectionSource SelectionSource = CompendiumPhotoSelectionSource.None);
+    CompendiumPhotoSelectionSource SelectionSource = CompendiumPhotoSelectionSource.None)
+{
+    /// <summary>Media version participates in review identity so a reprocessed/replaced image stales review.</summary>
+    public int? PhotoVersion { get; init; }
+    public int? SourceWidth { get; init; }
+    public int? SourceHeight { get; init; }
+}
+
 
 public sealed record CompendiumIprCredentialDto(
     string Type,
@@ -263,6 +270,7 @@ public sealed record CompendiumProjectSelection(
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     /// <summary>Null inherits the publication-level narrative alignment.</summary>
     public CompendiumNarrativeAlignment? NarrativeAlignmentOverride { get; init; }
+    public string? AdditionalNote { get; init; }
     public int DossierImageCount { get; init; } = 1;
     public int? SupportingPhoto1Id { get; init; }
     public double SupportingPhoto1FocalX { get; init; } = .5d;
@@ -336,12 +344,16 @@ public sealed record CompendiumReviewProjectDto(
     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+    public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public bool UsesNarrativeAlignmentOverride { get; init; }
+    public string? AdditionalNote { get; init; }
+    public int AdditionalNoteCharacterCount { get; init; }
+    public float AdditionalNoteMeasuredHeightPoints { get; init; }
     public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = CompendiumDossierNarrativeFlowPlan.Empty;
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
@@ -400,12 +412,16 @@ public sealed record CompendiumProjectDto(
     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+    public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;
     public int DossierFirstPageSpecificationCount { get; init; } = 6;
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
     public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public bool UsesNarrativeAlignmentOverride { get; init; }
+    public string? AdditionalNote { get; init; }
+    public int AdditionalNoteCharacterCount { get; init; }
+    public float AdditionalNoteMeasuredHeightPoints { get; init; }
     public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = CompendiumDossierNarrativeFlowPlan.Empty;
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";

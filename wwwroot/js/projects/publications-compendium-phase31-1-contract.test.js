@@ -51,8 +51,8 @@ test('phase 31.1 uses the exact planned image height for PDF rendering and brows
 });
 
 test('phase 31.1 protects technical readability using the longest bullet as well as aggregate length', () => {
-  assert.match(pagination, /EstimatedLines\(item, 24\) <= 2/);
-  assert.match(pagination, /EstimatedLines\(item, 37\) <= 4/);
+  assert.match(pagination, /MeasureAtFontSize\([\s\S]*LineCount <= maximumLines/);
+  assert.match(pagination, /FitsColumns\(2, 4\)/);
   assert.match(builder, /project\.DossierSpecificationColumns/);
   assert.match(mainJs, /review\.dossierSpecificationColumns/);
   assert.doesNotMatch(mainJs, /function resolveSpecificationColumns/);
@@ -82,9 +82,9 @@ test('phase 31.1 fixes continuation labelling and wide-register collision regres
 });
 
 test('phase 31.1 invalidates stale approvals when the pagination contract changes', () => {
-  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints)/);
+  assert.match(fingerprint, /compendium-review-v(?:6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening)/);
 });
 
 test('phase 31.1 advances the publication build identity', () => {
-  assert.match(readService, /(?:CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19))|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21))/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-(?:14_adaptive-pagination-v11|15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19))|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22))/);
 });

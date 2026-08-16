@@ -22,6 +22,7 @@ public sealed record CompendiumProjectReadinessContext(
 {
     public string NarrativeLabel { get; init; } = "Project description";
     public string? DossierEditorialWarning { get; init; }
+    public string? AdditionalNote { get; init; }
 }
 
 public sealed record CompendiumProjectReadinessAssessment(
@@ -152,6 +153,15 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             }
         }
 
+        var noteAdvisory = CompendiumPublicationNotePolicy.EditorialAdvisory(context.AdditionalNote);
+        if (!string.IsNullOrWhiteSpace(noteAdvisory))
+        {
+            if (CompendiumPublicationNotePolicy.Normalize(context.AdditionalNote).Length > CompendiumPublicationNotePolicy.StrongAdvisoryCharacterCount)
+                Warning("additionalNoteLong", noteAdvisory);
+            else
+                Information("additionalNoteLength", noteAdvisory);
+        }
+
         if (!string.IsNullOrWhiteSpace(context.DossierEditorialWarning))
         {
             Warning("dossierCompositionImbalance", context.DossierEditorialWarning.Trim());
@@ -213,28 +223,43 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\r", "\n", StringComparison.Ordinal)
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(paragraph => string.Join(' ', paragraph.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim())
-            .Where(paragraph => paragraph.Length >= 80)
+            .Select(NormalizeForSimilarity)
+            .Where(paragraph => paragraph.Length >= 120)
             .ToArray();
 
-        if (paragraphs.Length < 2)
+        for (var left = 0; left < paragraphs.Length; left++)
         {
-            // Some stored project briefs are plain text without paragraph breaks. Compare word
-            // sequences around the midpoint so punctuation/spacing differences do not hide an
-            // accidentally duplicated long block. This is deliberately conservative: the repeated
-            // halves must be almost identical before publication preflight raises a warning.
-            return ContainsRepeatedLongWordBlock(value);
-        }
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var paragraph in paragraphs)
-        {
-            if (!seen.Add(paragraph))
+            for (var right = left + 1; right < paragraphs.Length; right++)
             {
-                return true;
+                if (Similarity(paragraphs[left], paragraphs[right]) >= .92d)
+                    return true;
             }
         }
-        return false;
+
+        return paragraphs.Length < 2 && ContainsRepeatedLongWordBlock(value);
+    }
+
+    private static string NormalizeForSimilarity(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+            builder.Append(char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : ' ');
+        return string.Join(' ', builder.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static double Similarity(string left, string right)
+    {
+        var leftWords = left.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var rightWords = right.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (leftWords.Length < 20 || rightWords.Length < 20) return 0d;
+        var compared = Math.Min(leftWords.Length, rightWords.Length);
+        if (Math.Abs(leftWords.Length - rightWords.Length) > Math.Max(6, compared / 8)) return 0d;
+        var matches = 0;
+        for (var index = 0; index < compared; index++)
+        {
+            if (string.Equals(leftWords[index], rightWords[index], StringComparison.Ordinal)) matches++;
+        }
+        return matches / (double)compared;
     }
 
     private static bool ContainsRepeatedLongWordBlock(string value)

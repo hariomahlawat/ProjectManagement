@@ -173,6 +173,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     DossierPrimaryImageHeightPoints = project.DossierPrimaryImageHeightPoints,
                     DossierNarrativeFontScale = project.DossierNarrativeFontScale,
                     DossierFirstPageNarrativeBudget = project.DossierFirstPageNarrativeBudget,
+                    DossierFirstPageNarrativeHeightPoints = project.DossierFirstPageNarrativeHeightPoints,
                     DossierFirstPageSpecificationCount = project.DossierFirstPageSpecificationCount,
                     DossierSpecificationColumns = project.DossierSpecificationColumns,
                     DossierProgrammeColumns = project.DossierProgrammeColumns,
@@ -192,6 +193,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                         .ToArray(),
                     IprCredentials = project.IprCredentials,
                     TechnologyTransfer = project.TechnologyTransfer,
+                    AdditionalNote = CompendiumPublicationTextSanitizer.Sanitize(project.AdditionalNote),
                     TechnicalSpecifications = project.TechnicalSpecifications.Select(CompendiumPublicationTextSanitizer.Sanitize).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray()
                 });
             }

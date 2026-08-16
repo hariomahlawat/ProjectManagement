@@ -40,8 +40,8 @@ test('phase 32 makes narrative typography part of the shared composition contrac
 });
 
 test('phase 32 is conservative with technical specification columns and improves readable type', () => {
-  assert.match(pagination, /EstimatedLines\(item, 24\) <= 2/);
-  assert.match(pagination, /EstimatedLines\(item, 37\) <= 4/);
+  assert.match(pagination, /MeasureAtFontSize\([\s\S]*LineCount <= maximumLines/);
+  assert.match(pagination, /FitsColumns\(2, 4\)/);
   assert.match(mainJs, /review\.dossierSpecificationColumns/);
   assert.doesNotMatch(mainJs, /function resolveSpecificationColumns/);
   assert.match(builder, /FontSize\(8\.75f\)/);
@@ -82,6 +82,6 @@ test('phase 32 gives the cover proof Fit 75 and 100 percent controls with viewpo
 });
 
 test('phase 32 advances review and PDF composition identities', () => {
-  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21))/);
+  assert.match(fingerprint, /compendium-review-v(?:7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:adaptive-composition-v12|production-hardening-v13|programme-iconography-v1[45]|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22))/);
 });

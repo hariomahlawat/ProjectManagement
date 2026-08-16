@@ -953,6 +953,7 @@ public sealed class IndexModel : PageModel
                     CustomSectionName = Clean(payload.CustomSectionName, 120),
                     NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride),
                     NarrativeAlignmentOverride = ParseNullableNarrativeAlignment(payload.NarrativeAlignmentOverride),
+                    AdditionalNote = NormalizeAdditionalNote(payload.AdditionalNote),
                     ImageFitMode = ParseImageFitMode(payload.ImageFitMode),
                     DossierLayout = ParseDossierLayout(payload.DossierLayout),
                     BalancedTextFlowMode = ParseBalancedTextFlowMode(payload.BalancedTextFlowMode),
@@ -1000,6 +1001,7 @@ public sealed class IndexModel : PageModel
                     CustomSectionName = selection.CustomSectionName,
                     NarrativeSourceOverride = selection.NarrativeSourceOverride,
                     NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride,
+                    AdditionalNote = selection.AdditionalNote,
                     ImageFitMode = selection.ImageFitMode,
                     DossierLayout = selection.DossierLayout,
                     BalancedTextFlowMode = selection.BalancedTextFlowMode,
@@ -1064,6 +1066,7 @@ public sealed class IndexModel : PageModel
                 CustomSectionName = selection.CustomSectionName,
                 NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString(),
                 NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride?.ToString(),
+                AdditionalNote = selection.AdditionalNote,
                 ImageFitMode = selection.ImageFitMode.ToString(),
                 DossierLayout = selection.DossierLayout.ToString(),
                 BalancedTextFlowMode = selection.BalancedTextFlowMode.ToString(),
@@ -1492,6 +1495,12 @@ public sealed class IndexModel : PageModel
     private static double ClampFocal(double value)
         => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
 
+    private static string? NormalizeAdditionalNote(string? value)
+    {
+        var clean = CompendiumPublicationNotePolicy.Normalize(value);
+        return clean.Length == 0 ? null : clean;
+    }
+
     private static string? CleanFingerprint(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1579,6 +1588,7 @@ public sealed class IndexModel : PageModel
         public string? CustomSectionName { get; set; }
         public string? NarrativeSourceOverride { get; set; }
         public string? NarrativeAlignmentOverride { get; set; }
+        public string? AdditionalNote { get; set; }
         public string? ImageFitMode { get; set; }
         public string? DossierLayout { get; set; }
         public string? BalancedTextFlowMode { get; set; }

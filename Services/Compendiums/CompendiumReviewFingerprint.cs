@@ -32,11 +32,12 @@ public sealed record CompendiumReviewFingerprintInput(
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
+    public string? AdditionalNote { get; init; }
 }
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v14-editorial-constraints";
+    private const string ContractVersion = "compendium-review-v15-additional-note-final-hardening";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
@@ -66,6 +67,7 @@ public static class CompendiumReviewFingerprint
             input.DossierLayout.ToString(),
             input.BalancedTextFlowMode.ToString(),
             input.NarrativeAlignment.ToString(),
+            NormalizeNarrative(input.AdditionalNote),
             CanonicalDossierImages(input.DossierImages),
             CanonicalList(input.TechnicalSpecifications),
             CanonicalIpr(input.IprCredentials),
@@ -97,6 +99,9 @@ public static class CompendiumReviewFingerprint
                 image.Role.ToString(),
                 image.PhotoId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
                 image.FitMode.ToString(),
+                image.PhotoVersion?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                image.SourceWidth?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                image.SourceHeight?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
                 Clamp(image.FocalX).ToString("0.0000", CultureInfo.InvariantCulture),
                 Clamp(image.FocalY).ToString("0.0000", CultureInfo.InvariantCulture)
             })));

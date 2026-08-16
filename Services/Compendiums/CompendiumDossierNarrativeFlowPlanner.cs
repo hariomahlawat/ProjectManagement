@@ -28,7 +28,7 @@ public sealed record CompendiumDossierNarrativeFlowPlan(
 }
 
 /// <summary>
-/// Deterministic narrative segmentation for Compendium dossier pages. Phase 37.2 keeps the
+/// Deterministic narrative segmentation for Compendium dossier pages. Phase 37.3 keeps the
 /// paragraph-first / sentence-second editorial rule, adding complete sentences sentence-by-sentence when they
 /// physically fit. Decisions use DM Sans measurements at the actual side-column width; words and
 /// sentences are never sliced.
@@ -36,6 +36,7 @@ public sealed record CompendiumDossierNarrativeFlowPlan(
 public static class CompendiumDossierNarrativeFlowPlanner
 {
     private const int ContinuationBudget = 3300;
+    private const float FullNarrativeWidthPoints = 519f;
 
     private static readonly Regex ParagraphBreak = new(@"\n\s*\n", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SentenceBreak = new(@"(?<=[.!?])\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -54,7 +55,7 @@ public static class CompendiumDossierNarrativeFlowPlanner
         float RemainingHeightPoints,
         float UtilizationRatio)
     {
-        public bool HasExcessiveGap => RemainingHeightPoints > 40f && !string.IsNullOrWhiteSpace(BelowSegment);
+        public bool HasExcessiveGap => RemainingHeightPoints > CompendiumDossierEditorialPolicy.MaximumFlowBelowGapPoints && !string.IsNullOrWhiteSpace(BelowSegment);
     }
 
     public static CompendiumDossierNarrativeFlowPlan Resolve(
@@ -66,7 +67,8 @@ public static class CompendiumDossierNarrativeFlowPlanner
         float narrativeFontScale,
         int firstPageNarrativeBudget,
         CompendiumNarrativeAlignment narrativeAlignment = CompendiumNarrativeAlignment.Left,
-        float sideColumnWidthPoints = 223f)
+        float sideColumnWidthPoints = 223f,
+        float firstPageNarrativeHeightPoints = 0f)
     {
         var clean = Normalize(narrative);
         narrativeAlignment = CompendiumNarrativeTypographyPolicy.Normalize(narrativeAlignment);
@@ -81,15 +83,39 @@ public static class CompendiumDossierNarrativeFlowPlanner
             };
         }
 
-        var chunks = SplitNatural(clean, Math.Max(760, firstPageNarrativeBudget), ContinuationBudget);
-        var firstPage = chunks[0];
-        var continuations = chunks.Skip(1).ToArray();
         var fullWidthAlignment = CompendiumNarrativeTypographyPolicy.ResolveFullWidthAlignment(narrativeAlignment);
         var sideAlignment = CompendiumNarrativeTypographyPolicy.ResolveSideAlignment(narrativeAlignment, sideColumnWidthPoints);
+        var physicalFirstPage = firstPageNarrativeHeightPoints > .5f;
+        var measurementSession = physicalFirstPage ? new CompendiumDossierTextMeasurementService.Session() : null;
 
         if (layout != CompendiumDossierLayout.Balanced || !hasPrimaryImage)
         {
-            return new(mode, firstPage, string.Empty, continuations)
+            if (physicalFirstPage)
+            {
+                var split = SplitToMeasuredHeight(
+                    clean,
+                    firstPageNarrativeHeightPoints,
+                    FullNarrativeWidthPoints,
+                    narrativeFontScale,
+                    measurementSession!,
+                    includeHeading: true);
+                var firstPage = split.Head;
+                var continuations = SplitForPhysicalPages(
+                    split.Tail,
+                    FullNarrativeWidthPoints,
+                    CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
+                    narrativeFontScale,
+                    includeHeading: false);
+                return new(mode, firstPage, string.Empty, continuations)
+                {
+                    EffectiveAlignment = narrativeAlignment,
+                    SideAlignment = fullWidthAlignment,
+                    BelowAlignment = fullWidthAlignment
+                };
+            }
+
+            var chunks = SplitNatural(clean, Math.Max(760, firstPageNarrativeBudget), ContinuationBudget);
+            return new(mode, chunks[0], string.Empty, chunks.Skip(1).ToArray())
             {
                 EffectiveAlignment = narrativeAlignment,
                 SideAlignment = fullWidthAlignment,
@@ -99,6 +125,32 @@ public static class CompendiumDossierNarrativeFlowPlanner
 
         if (mode == CompendiumBalancedTextFlowMode.SideColumn)
         {
+            string firstPage;
+            IReadOnlyList<string> continuations;
+            if (physicalFirstPage)
+            {
+                var split = SplitToMeasuredHeight(
+                    clean,
+                    firstPageNarrativeHeightPoints,
+                    sideColumnWidthPoints,
+                    narrativeFontScale,
+                    measurementSession!,
+                    includeHeading: true);
+                firstPage = split.Head;
+                continuations = SplitForPhysicalPages(
+                    split.Tail,
+                    FullNarrativeWidthPoints,
+                    CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
+                    narrativeFontScale,
+                    includeHeading: false);
+            }
+            else
+            {
+                var chunks = SplitNatural(clean, Math.Max(760, firstPageNarrativeBudget), ContinuationBudget);
+                firstPage = chunks[0];
+                continuations = chunks.Skip(1).ToArray();
+            }
+
             var measuredHeight = CompendiumDossierTextMeasurementService.Measure(
                 firstPage, sideColumnWidthPoints, narrativeFontScale, includeHeading: true).HeightPoints;
             var region = Math.Max(1f, primaryImageHeightPoints);
@@ -117,16 +169,52 @@ public static class CompendiumDossierNarrativeFlowPlanner
             };
         }
 
-        var assessment = AssessSideFlow(firstPage, primaryImageHeightPoints, narrativeFontScale, sideColumnWidthPoints);
-        return new(mode, assessment.SideSegment, assessment.BelowSegment, continuations)
+        if (physicalFirstPage)
+        {
+            var assessment = AssessSideFlow(
+                clean,
+                primaryImageHeightPoints,
+                narrativeFontScale,
+                sideColumnWidthPoints,
+                measurementSession);
+            var belowSplit = SplitToMeasuredHeight(
+                assessment.BelowSegment,
+                firstPageNarrativeHeightPoints,
+                FullNarrativeWidthPoints,
+                narrativeFontScale,
+                measurementSession!,
+                includeHeading: false);
+            var continuations = SplitForPhysicalPages(
+                belowSplit.Tail,
+                FullNarrativeWidthPoints,
+                CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
+                narrativeFontScale,
+                includeHeading: false);
+            return new(mode, assessment.SideSegment, belowSplit.Head, continuations)
+            {
+                EffectiveAlignment = narrativeAlignment,
+                SideAlignment = sideAlignment,
+                BelowAlignment = fullWidthAlignment,
+                SideRegionHeightPoints = assessment.RegionHeightPoints,
+                SideUsedHeightPoints = assessment.UsedHeightPoints,
+                SideRemainingHeightPoints = assessment.RemainingHeightPoints,
+                SideUtilizationRatio = assessment.UtilizationRatio
+            };
+        }
+
+        var legacyChunks = SplitNatural(clean, Math.Max(760, firstPageNarrativeBudget), ContinuationBudget);
+        var legacyFirstPage = legacyChunks[0];
+        var legacyContinuations = legacyChunks.Skip(1).ToArray();
+        var legacyAssessment = AssessSideFlow(legacyFirstPage, primaryImageHeightPoints, narrativeFontScale, sideColumnWidthPoints);
+        return new(mode, legacyAssessment.SideSegment, legacyAssessment.BelowSegment, legacyContinuations)
         {
             EffectiveAlignment = narrativeAlignment,
             SideAlignment = sideAlignment,
             BelowAlignment = fullWidthAlignment,
-            SideRegionHeightPoints = assessment.RegionHeightPoints,
-            SideUsedHeightPoints = assessment.UsedHeightPoints,
-            SideRemainingHeightPoints = assessment.RemainingHeightPoints,
-            SideUtilizationRatio = assessment.UtilizationRatio
+            SideRegionHeightPoints = legacyAssessment.RegionHeightPoints,
+            SideUsedHeightPoints = legacyAssessment.UsedHeightPoints,
+            SideRemainingHeightPoints = legacyAssessment.RemainingHeightPoints,
+            SideUtilizationRatio = legacyAssessment.UtilizationRatio
         };
     }
 
@@ -279,12 +367,46 @@ public static class CompendiumDossierNarrativeFlowPlanner
             string.Join(" ", sentences.Skip(index)).Trim());
     }
 
+    /// <summary>
+    /// Splits an auxiliary publication block into physical pages using paragraph/sentence boundaries.
+    /// A pathological single oversized sentence is kept intact; publication text is never word- or
+    /// character-sliced simply to satisfy pagination.
+    /// </summary>
+    public static IReadOnlyList<string> SplitForPhysicalPages(
+        string? text,
+        float widthPoints,
+        float pageHeightPoints,
+        float narrativeFontScale = 1f,
+        bool includeHeading = false)
+    {
+        var remaining = Normalize(text);
+        if (remaining.Length == 0) return Array.Empty<string>();
+        var result = new List<string>();
+        var measurement = new CompendiumDossierTextMeasurementService.Session();
+        var guard = 0;
+        while (remaining.Length > 0 && guard++ < 100)
+        {
+            var split = SplitToMeasuredHeight(remaining, pageHeightPoints, widthPoints, narrativeFontScale, measurement, includeHeading);
+            if (!string.IsNullOrWhiteSpace(split.Head))
+            {
+                result.Add(split.Head.Trim());
+                remaining = split.Tail.Trim();
+                continue;
+            }
+
+            result.Add(remaining);
+            break;
+        }
+        return result;
+    }
+
     private static (string Head, string Tail) SplitToMeasuredHeight(
         string text,
         float availableHeightPoints,
         float widthPoints,
         float narrativeFontScale,
-        CompendiumDossierTextMeasurementService.Session measurementSession)
+        CompendiumDossierTextMeasurementService.Session measurementSession,
+        bool includeHeading = true)
     {
         var paragraphs = GetParagraphs(text);
         if (paragraphs.Count == 0) return (string.Empty, text);
@@ -295,7 +417,7 @@ public static class CompendiumDossierNarrativeFlowPlanner
             var paragraph = paragraphs[index];
             var wholeCandidate = JoinParagraphs(head.Append(paragraph));
             if (measurementSession.Fits(
-                    wholeCandidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: true))
+                    wholeCandidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: includeHeading))
             {
                 head.Add(paragraph);
                 continue;
@@ -309,7 +431,7 @@ public static class CompendiumDossierNarrativeFlowPlanner
                 var candidateParagraphs = head.Concat(new[] { sentenceCandidate });
                 var candidate = JoinParagraphs(candidateParagraphs);
                 if (!measurementSession.Fits(
-                        candidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: true))
+                        candidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: includeHeading))
                 {
                     break;
                 }

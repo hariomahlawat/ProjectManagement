@@ -688,7 +688,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.DefaultNarrativeAlignment).HasMaxLength(24).HasDefaultValue("Left").IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(9).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(10).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
                 entity.HasIndex(preset => preset.NormalizedName).HasDatabaseName("UX_CompendiumPresets_NormalizedName").IsUnique();
@@ -730,6 +730,7 @@ namespace ProjectManagement.Data
                 entity.Property(item => item.DossierLayout).HasMaxLength(32).HasDefaultValue("Automatic").IsRequired();
                 entity.Property(item => item.BalancedTextFlowMode).HasMaxLength(32).HasDefaultValue("SideColumn").IsRequired();
                 entity.Property(item => item.NarrativeAlignmentOverride).HasMaxLength(24);
+                entity.Property(item => item.AdditionalNote).HasColumnType("text");
                 entity.Property(item => item.DossierImageCount).HasDefaultValue(1).IsRequired();
                 entity.Property(item => item.SupportingPhoto1FocalX).HasDefaultValue(.5d).IsRequired();
                 entity.Property(item => item.SupportingPhoto1FocalY).HasDefaultValue(.5d).IsRequired();

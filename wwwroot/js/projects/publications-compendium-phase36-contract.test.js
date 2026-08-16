@@ -37,12 +37,12 @@ const compact = value => value.replace(/\s+/g, ' ');
 test('phase 36 introduces the quartet and balanced text-flow contracts with schema-safe identity bumps', () => {
   assert.match(dtos, /PortfolioQuartet\s*=\s*5/);
   assert.match(dtos, /enum CompendiumBalancedTextFlowMode[\s\S]*SideColumn\s*=\s*0[\s\S]*FlowBelowImage\s*=\s*1/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*[89]/);
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*[89]/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:[89]|10)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[89]|10)/);
   assert.match(migration, /BalancedTextFlowMode/);
   assert.match(migration, /defaultValue:\s*"SideColumn"/);
-  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21))/);
+  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22))/);
 });
 
 test('phase 36 centralises cover slots and enforces a four-photo Fill-only Portfolio Quartet', () => {
@@ -87,7 +87,7 @@ test('phase 36 owns Balanced narrative segmentation on the server and sends exac
 });
 
 test('phase 36 uses server-selected technical/programme columns and quality-aware residual-space scoring', () => {
-  assert.match(pagination, /EstimatedLines\(item, 24\) <= 2/);
+  assert.match(pagination, /MeasureAtFontSize\([\s\S]*LineCount <= maximumLines/);
   assert.match(pagination, /ResolveIdealResidualSpace/);
   assert.match(imageQualityPolicy, /AcceptablePrintDpi\s*=\s*150/);
   assert.match(pagination, /CompendiumImageQualityPolicy\.AcceptablePrintDpi/);
@@ -109,7 +109,7 @@ test('phase 36 makes Compendium Fit frameless without changing Brochure defaults
 });
 
 test('phase 36 preserves flow and phase-35 dossier image state through Structure Editor handoff', () => {
-  assert.match(structureState, /const VERSION = [23]/);
+  assert.match(structureState, /const VERSION = [234]/);
   for (const field of [
     'balancedTextFlowMode', 'dossierImageCount', 'supportingPhoto1Id', 'supportingPhoto1FocalX',
     'supportingPhoto1FocalY', 'supportingPhoto1FitMode', 'supportingPhoto2Id',

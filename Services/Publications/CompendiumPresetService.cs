@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 9;
+    private const int CurrentSchemaVersion = 10;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -265,6 +265,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 NarrativeAlignmentOverride = preset.SettingsSchemaVersion < 9
                     ? null
                     : ParseNullableNarrativeAlignment(item.NarrativeAlignmentOverride),
+                AdditionalNote = preset.SettingsSchemaVersion < 10 ? null : NormalizeAdditionalNote(item.AdditionalNote),
                 DossierImageCount = Math.Clamp(item.DossierImageCount, 1, 3),
                 SupportingPhoto1Id = item.SupportingPhoto1Id is > 0 && availablePhotoIds.Contains(item.SupportingPhoto1Id.Value) ? item.SupportingPhoto1Id : null,
                 SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX),
@@ -662,6 +663,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     DossierLayout = item.DossierLayout,
                     BalancedTextFlowMode = item.BalancedTextFlowMode,
                     NarrativeAlignmentOverride = item.NarrativeAlignmentOverride,
+                    AdditionalNote = item.AdditionalNote,
                     DossierImageCount = item.DossierImageCount,
                     SupportingPhoto1Id = item.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = item.SupportingPhoto1FocalX,
@@ -998,6 +1000,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     DossierLayout = project.DossierLayout.ToString(),
                     BalancedTextFlowMode = project.BalancedTextFlowMode.ToString(),
                     NarrativeAlignmentOverride = project.NarrativeAlignmentOverride?.ToString(),
+                    AdditionalNote = NormalizeAdditionalNote(project.AdditionalNote),
                     DossierImageCount = project.DossierImageCount,
                     SupportingPhoto1Id = project.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = project.SupportingPhoto1FocalX,
@@ -1093,6 +1096,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 ? project.BalancedTextFlowMode
                 : CompendiumBalancedTextFlowMode.FlowBelowImage,
             NarrativeAlignmentOverride = NormalizeNullableNarrativeAlignment(project.NarrativeAlignmentOverride),
+            AdditionalNote = NormalizeAdditionalNote(project.AdditionalNote),
             DossierImageCount = Math.Clamp(project.DossierImageCount, 1, 3),
             SupportingPhoto1Id = project.SupportingPhoto1Id is > 0 ? project.SupportingPhoto1Id : null,
             SupportingPhoto1FocalX = ClampFocal(project.SupportingPhoto1FocalX),
@@ -1106,6 +1110,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CustomSectionName = section?.Name,
             NarrativeSourceOverride = NormalizeNullableNarrativeSource(project.NarrativeSourceOverride)
         };
+    }
+
+    private static string? NormalizeAdditionalNote(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+        return normalized.Length == 0 ? null : normalized;
     }
 
     private static IReadOnlyList<CompendiumPresetSectionConfiguration> NormalizeSections(

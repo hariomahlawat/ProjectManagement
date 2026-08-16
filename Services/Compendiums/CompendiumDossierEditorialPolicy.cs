@@ -1,7 +1,7 @@
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
-/// Editorial validity rules applied before residual-space optimisation. Phase 37.2 deliberately
+/// Editorial validity rules applied before residual-space optimisation. Phase 37.3 retains the
 /// separates "physically fits" from "looks publishable": a one-page candidate may fit the A4
 /// envelope and still be rejected if the photograph has been reduced to a token strip or a
 /// Balanced side column produces a large unmatched text tower/void beside the image.
@@ -13,6 +13,8 @@ public static class CompendiumDossierEditorialPolicy
     public const float MaximumSideUnderfillAbsolutePoints = 72f;
     public const float MaximumSideOverflowFraction = .18f;
     public const float MaximumSideUnderfillFraction = .26f;
+    public const float MaximumFlowBelowGapPoints = 40f;
+    public const float ShallowFitWarningHeightPoints = 72f;
 
     public sealed record SideColumnAssessment(
         float ImageHeightPoints,
@@ -47,6 +49,18 @@ public static class CompendiumDossierEditorialPolicy
             return true;
 
         return renderedImageHeightPoints + .1f >= MinimumEditorialFillHeightPoints(layout);
+    }
+
+
+    public static string? ShallowFitWarning(
+        CompendiumImageFitMode fitMode,
+        bool hasPhoto,
+        float renderedImageHeightPoints)
+    {
+        if (!hasPhoto || fitMode != CompendiumImageFitMode.Fit || renderedImageHeightPoints >= ShallowFitWarningHeightPoints)
+            return null;
+
+        return "The complete Fit image becomes very shallow at this layout width. Consider Fill or a wider image layout if the visual is important.";
     }
 
     public static SideColumnAssessment AssessSideColumn(float imageHeightPoints, float narrativeHeightPoints)

@@ -4,8 +4,9 @@ using SkiaSharp;
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
-/// Physical narrative measurement for Compendium dossier planning. Text is measured with the
-/// publication's DM Sans face when available and falls back to the platform Skia face otherwise.
+/// Physical narrative measurement for Compendium dossier planning. Authoritative measurements use
+/// the same bundled DM Sans regular face as the publication renderer. A different platform font is
+/// never silently substituted because that would make pagination depend on the host machine.
 /// Measurements are expressed in PDF points; one Skia text unit is treated as one point so the
 /// planner and QuestPDF share the same physical coordinate system.
 /// </summary>
@@ -15,6 +16,7 @@ public static class CompendiumDossierTextMeasurementService
     private static readonly Regex MarkdownLink = new(@"!?\[([^\]]*)\]\([^\)]*\)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex MarkdownNoise = new(@"(^|\s)[#>]+\s?|[*_`~]", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
     private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex ListItemPrefix = new(@"^\s*(?:[-+*]\s+|\d+[.)]\s+)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Lazy<SKTypeface> RegularTypeface = new(LoadRegularTypeface, LazyThreadSafetyMode.ExecutionAndPublication);
 
     public sealed record Measurement(
@@ -143,12 +145,9 @@ public static class CompendiumDossierTextMeasurementService
         paragraphSpacingPoints = Math.Max(0f, paragraphSpacingPoints);
         leadingReservePoints = Math.Max(0f, leadingReservePoints);
         var lineHeight = fontSizePoints * lineHeightMultiplier;
-        var paragraphs = ParagraphBreak.Split(normalized)
-            .Select(CleanMarkdownInline)
-            .Where(value => value.Length > 0)
-            .ToArray();
+        var blocks = BuildMeasurementBlocks(normalized);
 
-        if (paragraphs.Length == 0)
+        if (blocks.Count == 0)
         {
             return leadingReservePoints > 0f
                 ? new Measurement(leadingReservePoints, 0, 0)
@@ -163,16 +162,20 @@ public static class CompendiumDossierTextMeasurementService
         };
 
         var lines = 0;
-        foreach (var paragraph in paragraphs)
+        foreach (var block in blocks)
         {
-            lines += MeasureWrappedLineCount(paragraph, widthPoints, paint);
+            // Markdown list items render with an 18-point bullet/number gutter in QuestPDF.
+            // Measure their text against the same reduced line width so Additional Notes and
+            // narrative lists cannot silently consume more physical height than the planner saw.
+            var blockWidth = block.IsListItem ? Math.Max(24f, widthPoints - 18f) : widthPoints;
+            lines += MeasureWrappedLineCount(block.Text, blockWidth, paint);
         }
 
         var height = lines * lineHeight
-                     + Math.Max(0, paragraphs.Length - 1) * paragraphSpacingPoints
+                     + Math.Max(0, blocks.Count - 1) * paragraphSpacingPoints
                      + leadingReservePoints;
 
-        return new Measurement(height, lines, paragraphs.Length);
+        return new Measurement(height, lines, blocks.Count);
     }
 
     public static bool Fits(
@@ -184,6 +187,35 @@ public static class CompendiumDossierTextMeasurementService
         float tolerancePoints = .75f)
         => Measure(markdown, widthPoints, narrativeFontScale, includeHeading).HeightPoints
            <= Math.Max(0f, availableHeightPoints) + Math.Max(0f, tolerancePoints);
+
+    private sealed record MeasurementBlock(string Text, bool IsListItem);
+
+    private static IReadOnlyList<MeasurementBlock> BuildMeasurementBlocks(string normalized)
+    {
+        var result = new List<MeasurementBlock>();
+        foreach (var rawBlock in ParagraphBreak.Split(normalized))
+        {
+            if (string.IsNullOrWhiteSpace(rawBlock)) continue;
+            var lines = rawBlock.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n');
+            var containsListItem = lines.Any(line => ListItemPrefix.IsMatch(line));
+            if (!containsListItem)
+            {
+                var paragraph = CleanMarkdownInline(rawBlock);
+                if (paragraph.Length > 0) result.Add(new MeasurementBlock(paragraph, false));
+                continue;
+            }
+
+            foreach (var rawLine in lines)
+            {
+                if (string.IsNullOrWhiteSpace(rawLine)) continue;
+                var isListItem = ListItemPrefix.IsMatch(rawLine);
+                var content = isListItem ? ListItemPrefix.Replace(rawLine, string.Empty) : rawLine;
+                content = CleanMarkdownInline(content);
+                if (content.Length > 0) result.Add(new MeasurementBlock(content, isListItem));
+            }
+        }
+        return result;
+    }
 
     private static int MeasureWrappedLineCount(string paragraph, float widthPoints, SKPaint paint)
     {
@@ -237,30 +269,39 @@ public static class CompendiumDossierTextMeasurementService
 
     private static SKTypeface LoadRegularTypeface()
     {
-        foreach (var path in CandidateFontPaths())
+        var attempted = new List<string>();
+        foreach (var path in CandidateFontPaths().Distinct(StringComparer.OrdinalIgnoreCase))
         {
+            attempted.Add(path);
             try
             {
                 if (!File.Exists(path)) continue;
                 var typeface = SKTypeface.FromFile(path);
                 if (typeface is not null) return typeface;
             }
-            catch
+            catch (Exception ex)
             {
-                // Measurement remains deterministic through Skia's fallback typeface. The PDF
-                // renderer separately reports font-registration failures during publication build.
+                throw new InvalidOperationException(
+                    $"The Compendium publication font could not be loaded from '{path}'. "
+                    + "Physical page measurement cannot safely fall back to a different host font.",
+                    ex);
             }
         }
 
-        return SKTypeface.Default;
+        throw new InvalidOperationException(
+            "The bundled DM Sans Regular font required for authoritative Compendium measurement was not found. "
+            + $"Checked: {string.Join("; ", attempted)}");
     }
 
     private static IEnumerable<string> CandidateFontPaths()
     {
         var relative = Path.Combine("wwwroot", "fonts", "publications", "dm-sans", "DMSans-Regular.ttf");
-        var current = Directory.GetCurrentDirectory();
-        yield return Path.Combine(current, relative);
+        yield return Path.Combine(Directory.GetCurrentDirectory(), relative);
         yield return Path.Combine(AppContext.BaseDirectory, relative);
         yield return Path.Combine(AppContext.BaseDirectory, "fonts", "publications", "dm-sans", "DMSans-Regular.ttf");
+
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var depth = 0; directory is not null && depth < 7; depth++, directory = directory.Parent)
+            yield return Path.Combine(directory.FullName, relative);
     }
 }

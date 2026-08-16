@@ -5432,7 +5432,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(9);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(10);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
@@ -5483,6 +5483,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("CustomSectionName").HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NarrativeSourceOverride").HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<string>("NarrativeAlignmentOverride").HasMaxLength(24).HasColumnType("character varying(24)");
+                    b.Property<string>("AdditionalNote").HasColumnType("text");
                     b.Property<double>("PrimaryFocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
                     b.Property<double>("PrimaryFocalY").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);
                     b.Property<int?>("PrimaryPhotoId").HasColumnType("integer");
