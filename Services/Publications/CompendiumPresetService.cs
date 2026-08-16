@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 11;
+    private const int CurrentSchemaVersion = 12;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -356,6 +356,14 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         {
             FrontTemplate = ParseFrontTemplate(preset.FrontCoverTemplate),
             BackTemplate = ParseBackTemplate(preset.BackCoverTemplate),
+            PublicationTheme = preset.SettingsSchemaVersion < 12
+                ? CompendiumPublicationTheme.InstitutionalGreen
+                : ParsePublicationTheme(preset.PublicationTheme),
+            BackgroundTreatment = preset.SettingsSchemaVersion < 12
+                ? CompendiumCoverBackgroundTreatment.Solid
+                : CompendiumCoverIdentityPolicy.NormalizeTreatmentForTheme(
+                    ParsePublicationTheme(preset.PublicationTheme),
+                    ParseCoverBackgroundTreatment(preset.CoverBackgroundTreatment)),
             FrontTitle = CleanOptional(preset.FrontCoverTitle, 120),
             FrontSubtitle = CleanOptional(preset.FrontCoverSubtitle, 160),
             FrontEdition = CleanOptional(preset.FrontCoverEdition, 80),
@@ -705,6 +713,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CoverFocalY = source.CoverFocalY,
             FrontCoverTemplate = source.FrontCoverTemplate,
             BackCoverTemplate = source.BackCoverTemplate,
+            PublicationTheme = source.PublicationTheme,
+            CoverBackgroundTreatment = source.CoverBackgroundTreatment,
             FrontCoverTitle = source.FrontCoverTitle,
             FrontCoverSubtitle = source.FrontCoverSubtitle,
             FrontCoverEdition = source.FrontCoverEdition,
@@ -1189,6 +1199,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         var design = NormalizeCoverDesign(configuration.CoverDesign, configuration.Cover);
         preset.FrontCoverTemplate = design.FrontTemplate.ToString();
         preset.BackCoverTemplate = design.BackTemplate.ToString();
+        preset.PublicationTheme = design.PublicationTheme.ToString();
+        preset.CoverBackgroundTreatment = design.BackgroundTreatment.ToString();
         preset.FrontCoverTitle = CleanOptional(design.FrontTitle, 120);
         preset.FrontCoverSubtitle = CleanOptional(design.FrontSubtitle, 160);
         preset.FrontCoverEdition = CleanOptional(design.FrontEdition, 80);
@@ -1399,6 +1411,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         {
             FrontTemplate = Enum.IsDefined(design.FrontTemplate) ? design.FrontTemplate : CompendiumFrontCoverTemplate.InstitutionalHero,
             BackTemplate = Enum.IsDefined(design.BackTemplate) ? design.BackTemplate : CompendiumBackCoverTemplate.MinimalInstitutional,
+            PublicationTheme = CompendiumCoverIdentityPolicy.NormalizeTheme(design.PublicationTheme),
+            BackgroundTreatment = CompendiumCoverIdentityPolicy.NormalizeTreatmentForTheme(
+                design.PublicationTheme, design.BackgroundTreatment),
             FrontTitle = CleanOptional(design.FrontTitle, 120),
             FrontSubtitle = CleanOptional(design.FrontSubtitle, 160),
             FrontEdition = CleanOptional(design.FrontEdition, 80),
@@ -1547,6 +1562,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         => Enum.TryParse<CompendiumBackCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumBackCoverTemplate.MinimalInstitutional;
+
+    private static CompendiumPublicationTheme ParsePublicationTheme(string? value)
+        => Enum.TryParse<CompendiumPublicationTheme>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumPublicationTheme.InstitutionalGreen;
+
+    private static CompendiumCoverBackgroundTreatment ParseCoverBackgroundTreatment(string? value)
+        => Enum.TryParse<CompendiumCoverBackgroundTreatment>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverBackgroundTreatment.Solid;
 
     private static CompendiumCoverLogoPlacement ParseLogoPlacement(string? value)
         => Enum.TryParse<CompendiumCoverLogoPlacement>(value, true, out var parsed) && Enum.IsDefined(parsed)

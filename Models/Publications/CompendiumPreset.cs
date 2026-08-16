@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 11;
+    public int SettingsSchemaVersion { get; set; } = 12;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -62,6 +62,12 @@ public sealed class CompendiumPreset
 
     [Required, MaxLength(32)]
     public string BackCoverTemplate { get; set; } = "MinimalInstitutional";
+
+    [Required, MaxLength(32)]
+    public string PublicationTheme { get; set; } = "InstitutionalGreen";
+
+    [Required, MaxLength(32)]
+    public string CoverBackgroundTreatment { get; set; } = "Solid";
 
     [MaxLength(120)] public string? FrontCoverTitle { get; set; }
     [MaxLength(160)] public string? FrontCoverSubtitle { get; set; }

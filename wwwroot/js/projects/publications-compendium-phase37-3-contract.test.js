@@ -34,19 +34,19 @@ const css = read('wwwroot/css/pages/projects-publications.css');
 
 
 test('phase 37.3 persists optional per-project Additional Note through schema v10 and an additive migration', () => {
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:10|11)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:10|11|12)/);
   assert.match(model, /string\?\s+AdditionalNote/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:10|11)/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:10|11|12)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*10\s*\?\s*null\s*:\s*NormalizeAdditionalNote/);
   assert.match(presetContracts, /string\?\s+AdditionalNote/);
   assert.match(db, /AdditionalNote\)\.HasColumnType\("text"\)/);
-  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:10|11)\)/);
+  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:10|11|12)\)/);
   assert.match(migration, /Migration\("20261216110000_AddCompendiumProjectAdditionalNote"\)/);
   assert.match(migration, /AddColumn<string>[\s\S]*AdditionalNote[\s\S]*type:\s*"text"/);
   assert.match(migration, /SET "SettingsSchemaVersion" = 10/);
   assert.match(migration, /defaultValue:\s*10/);
   assert.match(snapshot, /Property<string>\("AdditionalNote"\)/);
-  assert.match(snapshot, /SettingsSchemaVersion"\)\.ValueGeneratedOnAdd\(\).*HasDefaultValue\((?:10|11)\)/);
+  assert.match(snapshot, /SettingsSchemaVersion"\)\.ValueGeneratedOnAdd\(\).*HasDefaultValue\((?:10|11|12)\)/);
   assert.match(manifest, /20261216110000_AddCompendiumProjectAdditionalNote/);
 });
 
@@ -85,7 +85,7 @@ test('phase 37.3 appends Additional Note after particulars and technical referen
 });
 
 test('phase 37.3 review identity binds note content and concrete media rendition identity', () => {
-  assert.match(fingerprint, /compendium-review-v(?:15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
+  assert.match(fingerprint, /compendium-review-v(?:15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative|19-cover-identity)/);
   assert.match(fingerprint, /NormalizeNarrative\(input\.AdditionalNote\)/);
   assert.match(fingerprint, /PhotoVersion/);
   assert.match(fingerprint, /SourceWidth/);
@@ -142,5 +142,5 @@ test('phase 37.3 presents Project Brief as the publication default and advances 
   assert.match(indexView, /Project brief[\s\S]*DEFAULT/i);
   assert.match(notePolicy, /AdvisoryCharacterCount\s*=\s*600/);
   assert.match(notePolicy, /StrongAdvisoryCharacterCount\s*=\s*1000/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_(?:final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25|cover-identity-v26)/);
 });

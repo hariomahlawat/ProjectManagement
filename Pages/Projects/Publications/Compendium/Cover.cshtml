@@ -58,15 +58,20 @@
 
     <div class="compendium-cover-editor-summary">
         <div>
-            <strong data-cover-front-template-label>Institutional hero</strong>
+            <strong data-cover-front-template-label>Institutional Hero</strong>
             <span>front cover</span>
         </div>
         <i aria-hidden="true"></i>
         <div>
-            <strong data-cover-back-template-label>Minimal institutional</strong>
+            <strong data-cover-back-template-label>Minimal Institutional</strong>
             <span>back cover</span>
         </div>
-        <p>Choose a controlled design, curate imagery and control exactly which publication identity fields appear.</p>
+        <i aria-hidden="true"></i>
+        <div class="compendium-cover-editor-summary-identity">
+            <strong data-cover-theme-label>Institutional Green</strong>
+            <span data-cover-background-label>Solid background</span>
+        </div>
+        <p>Curated layout, imagery and publication identity.</p>
     </div>
 
     <main class="compendium-cover-editor-layout">
@@ -84,15 +89,15 @@
             <div class="compendium-cover-template-list" data-cover-front-templates>
                 <button type="button" data-cover-template="InstitutionalHero">
                     <span class="cover-template-mini cover-template-mini--hero"><i></i></span>
-                    <b>Institutional hero</b><small>Single image · balanced identity</small>
+                    <b>Institutional Hero</b><small>Single image · balanced identity</small>
                 </button>
                 <button type="button" data-cover-template="FullBleedHero">
                     <span class="cover-template-mini cover-template-mini--full"><i></i></span>
-                    <b>Full-bleed hero</b><small>Image-led · high visual impact</small>
+                    <b>Full-Bleed Hero</b><small>Image-led · high visual impact</small>
                 </button>
                 <button type="button" data-cover-template="EditorialSplit">
                     <span class="cover-template-mini cover-template-mini--split"><i></i><i></i></span>
-                    <b>Editorial split</b><small>Hero + supporting image</small>
+                    <b>Editorial Split</b><small>Hero + supporting image</small>
                 </button>
                 <button type="button" data-cover-template="Triptych">
                     <span class="cover-template-mini cover-template-mini--triptych"><i></i><i></i><i></i></span>
@@ -100,7 +105,7 @@
                 </button>
                 <button type="button" data-cover-template="PortfolioQuartet">
                     <span class="cover-template-mini cover-template-mini--quartet"><i></i><span><i></i><i></i><i></i></span></span>
-                    <b>Portfolio quartet</b><small>Dominant hero + three supporting images</small>
+                    <b>Portfolio Quartet</b><small>Dominant hero + three supporting images</small>
                 </button>
                 <button type="button" data-cover-template="Minimal">
                     <span class="cover-template-mini cover-template-mini--minimal"></span>
@@ -111,23 +116,23 @@
             <div class="compendium-cover-template-list" data-cover-back-templates hidden>
                 <button type="button" data-cover-template="MinimalInstitutional">
                     <span class="cover-template-mini cover-template-mini--minimal"></span>
-                    <b>Minimal institutional</b><small>Current restrained back cover</small>
+                    <b>Minimal Institutional</b><small>Current restrained back cover</small>
                 </button>
                 <button type="button" data-cover-template="ImageEcho">
                     <span class="cover-template-mini cover-template-mini--hero"><i></i></span>
-                    <b>Image echo</b><small>One image + publication identity</small>
+                    <b>Image Echo</b><small>One image + publication identity</small>
                 </button>
                 <button type="button" data-cover-template="PortfolioStrip">
                     <span class="cover-template-mini cover-template-mini--strip"><i></i><i></i><i></i></span>
-                    <b>Portfolio strip</b><small>Three-image closing treatment</small>
+                    <b>Portfolio Strip</b><small>Three-image closing treatment</small>
                 </button>
                 <button type="button" data-cover-template="TypographyOnly">
                     <span class="cover-template-mini cover-template-mini--type"></span>
-                    <b>Typography only</b><small>Identity without imagery</small>
+                    <b>Typography Only</b><small>Identity without imagery</small>
                 </button>
                 <button type="button" data-cover-template="Clean">
                     <span class="cover-template-mini cover-template-mini--clean"></span>
-                    <b>Clean back</b><small>Almost blank · optional identity</small>
+                    <b>Clean Back</b><small>Almost blank · optional identity</small>
                 </button>
             </div>
         </aside>
@@ -153,6 +158,7 @@
 
             <div class="compendium-cover-proof-stage">
                 <article class="compendium-cover-proof-sheet" data-cover-proof-sheet>
+                    <img class="compendium-cover-proof-pattern" data-cover-proof-pattern alt="" aria-hidden="true" hidden />
                     <div class="compendium-cover-proof-goldbar"></div>
                     <div class="compendium-cover-proof-logos">
                         <img class="cover-proof-mark cover-proof-mark--formation" src="~/img/logos/artrac.png" alt="Formation mark" data-cover-proof-left-logo />
@@ -168,6 +174,32 @@
                 <h2>Cover settings</h2>
                 <span data-cover-inspector-surface>Front cover</span>
             </header>
+
+            <section class="compendium-cover-inspector-section compendium-cover-identity-section">
+                <div class="compendium-cover-inspector-heading">
+                    <div><strong>Publication identity</strong><span>One curated colour and background treatment applies coherently to the complete cover.</span></div>
+                    <small class="compendium-cover-scope-badge">Publication-wide</small>
+                </div>
+                <div class="compendium-cover-identity-label">Theme</div>
+                <div class="compendium-cover-theme-grid" role="group" aria-label="Publication theme">
+                    <button type="button" data-cover-theme="InstitutionalGreen" style="--cover-swatch:#102A23"><i></i><span>Green</span></button>
+                    <button type="button" data-cover-theme="DeepNavy" style="--cover-swatch:#0E2238"><i></i><span>Navy</span></button>
+                    <button type="button" data-cover-theme="Burgundy" style="--cover-swatch:#3A1620"><i></i><span>Burgundy</span></button>
+                    <button type="button" data-cover-theme="Graphite" style="--cover-swatch:#22272B"><i></i><span>Graphite</span></button>
+                    <button type="button" data-cover-theme="DeepTeal" style="--cover-swatch:#103A3C"><i></i><span>Teal</span></button>
+                    <button type="button" data-cover-theme="Slate" style="--cover-swatch:#263543"><i></i><span>Slate</span></button>
+                </div>
+                <div class="compendium-cover-identity-label">Background</div>
+                <div class="compendium-cover-background-grid" role="group" aria-label="Cover background treatment">
+                    <button type="button" data-cover-background="Solid"><i class="cover-bg-mini cover-bg-mini--solid"></i><span>Solid</span></button>
+                    <button type="button" data-cover-background="SubtleGradient"><i class="cover-bg-mini cover-bg-mini--gradient"></i><span>Gradient</span></button>
+                    <button type="button" data-cover-background="TopographicContours"><i class="cover-bg-mini cover-bg-mini--contours"></i><span>Contours</span></button>
+                    <button type="button" data-cover-background="TechnicalGrid"><i class="cover-bg-mini cover-bg-mini--grid"></i><span>Technical Grid</span></button>
+                    <button type="button" data-cover-background="GeometricMesh"><i class="cover-bg-mini cover-bg-mini--mesh"></i><span>Geometric Mesh</span></button>
+                    <button type="button" data-cover-background="Camouflage"><i class="cover-bg-mini cover-bg-mini--camo"></i><span>Camouflage</span></button>
+                </div>
+                <small class="compendium-cover-identity-note" data-cover-background-note>Patterns are deliberately low contrast; gold remains the common institutional accent.</small>
+            </section>
 
             <section class="compendium-cover-inspector-section">
                 <div class="compendium-cover-inspector-heading">

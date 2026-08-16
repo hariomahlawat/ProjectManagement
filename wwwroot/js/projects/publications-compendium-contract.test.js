@@ -156,7 +156,7 @@ test('phase 24 evaluates effective DPI against the redesigned reviewed project-i
 });
 
 test('phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets', () => {
-  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
+  assert.match(fingerprint, /compendium-review-v(?:3|4|5|6-adaptive-pagination|7-adaptive-composition|8-production-hardening|9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative|19-cover-identity)/);
   assert.match(fingerprint, /PublicationSectionKey/);
   assert.match(fingerprint, /PublicationSectionName/);
   assert.match(fingerprint, /NarrativeSource/);
@@ -221,7 +221,7 @@ test('phase 23 avoids stale async preflight and review responses', () => {
 });
 
 test('publication workspace persists first-class sections and project narrative overrides through schema v5', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[5-9]|10|11)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[5-9]|10|11|12)/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);

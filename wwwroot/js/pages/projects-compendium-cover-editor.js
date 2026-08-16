@@ -33,8 +33,19 @@
         ImageEcho: 'Image Echo',
         PortfolioStrip: 'Portfolio Strip',
         TypographyOnly: 'Typography Only',
-        Clean: 'Clean'
+        Clean: 'Clean Back'
     })[value] || titleCase(value);
+
+    const coverPolicy = boot.coverPolicy || { front: [], back: [] };
+    const identityPolicy = boot.coverIdentityPolicy || { themes: [], backgrounds: [], compatibility: {} };
+    const themeDefinition = key => (identityPolicy.themes || []).find(item => item.key === key)
+        || (identityPolicy.themes || [])[0]
+        || { key: 'InstitutionalGreen', displayName: 'Institutional Green', shortName: 'Green', primary: '#102A23', secondary: '#17382F', surface: '#21483D', foreground: '#FFFFFF', mutedForeground: '#D7E3DE', patternLight: '#769A8C', patternDark: '#091D18' };
+    const backgroundDefinition = key => (identityPolicy.backgrounds || []).find(item => item.key === key)
+        || (identityPolicy.backgrounds || [])[0]
+        || { key: 'Solid', displayName: 'Solid', shortName: 'Solid' };
+    const allowedBackgrounds = theme => new Set(identityPolicy.compatibility?.[theme] || (identityPolicy.backgrounds || []).map(item => item.key));
+    const backgroundAllowed = (theme, treatment) => allowedBackgrounds(theme).has(treatment);
 
     const initialDesign = normaliseDesign(boot.coverDesign || {});
     const state = {
@@ -55,10 +66,28 @@
         dirty: false,
         leaveAfterSave: false
     };
+    const captureBackVisibility = () => ({
+        showBackTitle: state.design.showBackTitle !== false,
+        showBackSubtitle: state.design.showBackSubtitle !== false,
+        showBackEdition: state.design.showBackEdition !== false,
+        showBackLeftLogo: state.design.showBackLeftLogo !== false,
+        showBackRightLogo: state.design.showBackRightLogo !== false,
+        backLogoPlacement: state.design.backLogoPlacement || 'TopCorners',
+        backEyebrow: state.design.backEyebrow || ''
+    });
+    const applyBackVisibility = value => Object.assign(state.design, value || {});
+    state.standardBackVisibility = state.design.backTemplate === 'Clean'
+        ? { showBackTitle: true, showBackSubtitle: true, showBackEdition: true, showBackLeftLogo: true, showBackRightLogo: true, backLogoPlacement: state.design.backLogoPlacement || 'TopCorners', backEyebrow: '' }
+        : captureBackVisibility();
+    state.cleanBackVisibility = state.design.backTemplate === 'Clean' ? captureBackVisibility() : null;
+
+    if (!backgroundAllowed(state.design.publicationTheme, state.design.backgroundTreatment)) {
+        state.design.backgroundTreatment = 'Solid';
+    }
+
     const initialSignature = () => JSON.stringify({ design: state.design, preferences: state.preferences });
     let savedSignature = initialSignature();
 
-    const coverPolicy = boot.coverPolicy || { front: [], back: [] };
     const templatePolicy = (surface, template = null) => {
         const list = surface === 'front' ? coverPolicy.front : coverPolicy.back;
         const name = template || currentTemplate(surface);
@@ -69,6 +98,8 @@
         return {
             frontTemplate: value.frontTemplate || 'InstitutionalHero',
             backTemplate: value.backTemplate || 'MinimalInstitutional',
+            publicationTheme: value.publicationTheme || 'InstitutionalGreen',
+            backgroundTreatment: value.backgroundTreatment || 'Solid',
             frontTitle: value.frontTitle ?? '',
             frontSubtitle: value.frontSubtitle ?? '',
             frontEdition: value.frontEdition ?? '',
@@ -261,6 +292,7 @@
         by('[data-cover-logo="right"]').checked = state.design[`show${front ? 'Front' : 'Back'}RightLogo`] !== false;
         const placement = by('[data-cover-logo-placement]');
         if (placement) placement.value = state.design[`${surfacePrefix(surface)}LogoPlacement`] || 'TopCorners';
+        updateIdentityControls();
         renderSlots();
         renderProof();
         updateTemplateLabels();
@@ -269,6 +301,90 @@
     function updateTemplateLabels() {
         by('[data-cover-front-template-label]').textContent = templateDisplayName(state.design.frontTemplate);
         by('[data-cover-back-template-label]').textContent = templateDisplayName(state.design.backTemplate);
+        const theme = themeDefinition(state.design.publicationTheme);
+        const background = backgroundDefinition(state.design.backgroundTreatment);
+        const themeLabel = by('[data-cover-theme-label]');
+        const backgroundLabel = by('[data-cover-background-label]');
+        if (themeLabel) themeLabel.textContent = theme.displayName || theme.shortName || 'Institutional Green';
+        if (backgroundLabel) backgroundLabel.textContent = `${background.shortName || background.displayName || 'Solid'} background`;
+    }
+
+    function updateIdentityControls() {
+        const theme = state.design.publicationTheme || 'InstitutionalGreen';
+        const treatment = state.design.backgroundTreatment || 'Solid';
+        const definition = themeDefinition(theme);
+        root.style.setProperty('--cover-identity-primary', definition.primary || '#102A23');
+        root.style.setProperty('--cover-identity-secondary', definition.secondary || '#17382F');
+        root.style.setProperty('--cover-identity-surface', definition.surface || definition.secondary || '#21483D');
+        root.style.setProperty('--cover-identity-pattern', definition.patternLight || '#769A8C');
+        root.style.setProperty('--cover-identity-pattern-dark', definition.patternDark || '#091D18');
+        all('[data-cover-theme]').forEach(button => {
+            const active = button.dataset.coverTheme === theme;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        all('[data-cover-background]').forEach(button => {
+            const allowed = backgroundAllowed(theme, button.dataset.coverBackground);
+            const active = button.dataset.coverBackground === treatment;
+            button.disabled = !allowed;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            button.title = allowed ? '' : 'This background treatment is not approved for the selected publication theme.';
+        });
+        const note = by('[data-cover-background-note]');
+        if (note) {
+            note.textContent = state.activeSurface === 'back' && state.design.backTemplate === 'Clean'
+                ? 'Clean Back intentionally uses the selected publication colour without a pattern.'
+                : 'Patterns are deliberately low contrast; gold remains the common institutional accent.';
+        }
+    }
+
+    function effectiveBackground(surface) {
+        if (surface === 'back' && state.design.backTemplate === 'Clean') return 'Solid';
+        return backgroundAllowed(state.design.publicationTheme, state.design.backgroundTreatment)
+            ? state.design.backgroundTreatment
+            : 'Solid';
+    }
+
+    function patternRegion(surface, template) {
+        if (surface === 'back') {
+            if (template === 'ImageEcho') return { top: 0, height: 300 };
+            if (template === 'PortfolioStrip') return { top: 0, height: 510 };
+            return { top: 0, height: 842 };
+        }
+        if (template === 'FullBleedHero') return { top: 527, height: 315 };
+        if (template === 'EditorialSplit') return { top: 0, height: 355 };
+        if (template === 'Triptych') return { top: 0, height: 395 };
+        if (template === 'PortfolioQuartet') return { top: 0, height: 338 };
+        return { top: 0, height: 842 };
+    }
+
+    function renderCoverPattern(surface, template, sheet) {
+        const pattern = by('[data-cover-proof-pattern]');
+        if (!pattern || !sheet) return;
+        const theme = themeDefinition(state.design.publicationTheme);
+        sheet.style.setProperty('--cover-theme-primary', theme.primary || '#102A23');
+        sheet.style.setProperty('--cover-theme-secondary', theme.secondary || '#17382F');
+        sheet.style.setProperty('--cover-theme-foreground', theme.foreground || '#FFFFFF');
+        sheet.style.setProperty('--cover-theme-muted', theme.mutedForeground || '#D7E3DE');
+        const treatment = effectiveBackground(surface);
+        sheet.dataset.coverTheme = state.design.publicationTheme;
+        sheet.dataset.coverBackground = treatment;
+        if (treatment === 'Solid' || !boot.patternUrl) {
+            pattern.hidden = true;
+            pattern.removeAttribute('src');
+            return;
+        }
+        const region = patternRegion(surface, template);
+        pattern.style.top = `${region.top}px`;
+        pattern.style.height = `${region.height}px`;
+        const url = new URL(boot.patternUrl, window.location.origin);
+        url.searchParams.set('theme', state.design.publicationTheme);
+        url.searchParams.set('treatment', treatment);
+        url.searchParams.set('surface', titleCase(surface));
+        url.searchParams.set('backTemplate', state.design.backTemplate);
+        pattern.src = url.toString();
+        pattern.hidden = false;
     }
 
     function renderSlots() {
@@ -362,6 +478,7 @@
         if (!sheet || !content) return;
         sheet.dataset.template = template;
         sheet.dataset.surface = surface;
+        renderCoverPattern(surface, template, sheet);
         by('[data-cover-proof-title]').textContent = front ? 'Front cover proof' : 'Back cover proof';
         all('[data-cover-proof-surface]').forEach(button => button.classList.toggle('active', button.dataset.coverProofSurface === surface));
 
@@ -788,7 +905,20 @@
     all('[data-cover-template]').forEach(button => button.addEventListener('click', () => {
         if (button.disabled) return;
         if (isFront()) state.design.frontTemplate = button.dataset.coverTemplate;
-        else state.design.backTemplate = button.dataset.coverTemplate;
+        else {
+            const previous = state.design.backTemplate;
+            const next = button.dataset.coverTemplate;
+            if (previous !== 'Clean' && next === 'Clean') {
+                state.standardBackVisibility = captureBackVisibility();
+                state.design.backTemplate = next;
+                if (state.cleanBackVisibility) applyBackVisibility(state.cleanBackVisibility);
+                else applyBackVisibility({ showBackTitle: false, showBackSubtitle: false, showBackEdition: false, showBackLeftLogo: true, showBackRightLogo: true, backLogoPlacement: state.design.backLogoPlacement || 'TopCorners', backEyebrow: '' });
+            } else if (previous === 'Clean' && next !== 'Clean') {
+                state.cleanBackVisibility = captureBackVisibility();
+                state.design.backTemplate = next;
+                applyBackVisibility(state.standardBackVisibility);
+            } else state.design.backTemplate = next;
+        }
         templateSlots().forEach(key => {
             const slot = ensureSlot(state.activeSurface, key);
             if (isFillOnlyTemplate()) slot.fitMode = 'Fill';
@@ -796,6 +926,20 @@
         clearAutomaticResolutions(state.activeSurface);
         setDirty(); updateInspector(); resetProofViewport();
     }));
+    all('[data-cover-theme]').forEach(button => button.addEventListener('click', () => {
+        state.design.publicationTheme = button.dataset.coverTheme || 'InstitutionalGreen';
+        if (!backgroundAllowed(state.design.publicationTheme, state.design.backgroundTreatment)) {
+            state.design.backgroundTreatment = 'Solid';
+        }
+        setDirty(); updateInspector();
+    }));
+    all('[data-cover-background]').forEach(button => button.addEventListener('click', () => {
+        const treatment = button.dataset.coverBackground || 'Solid';
+        if (button.disabled || !backgroundAllowed(state.design.publicationTheme, treatment)) return;
+        state.design.backgroundTreatment = treatment;
+        setDirty(); updateInspector();
+    }));
+
     all('[data-cover-override]').forEach(button => button.addEventListener('click', () => {
         const field = button.dataset.coverOverride;
         const key = overrideKey(state.activeSurface, field);

@@ -392,6 +392,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
 
         return new CompendiumPdfCoverDesign(configured.FrontTemplate, configured.BackTemplate, rendered)
         {
+            PublicationTheme = configured.PublicationTheme,
+            BackgroundTreatment = configured.BackgroundTreatment,
             FrontTitle = configured.FrontTitle,
             FrontSubtitle = configured.FrontSubtitle,
             FrontEdition = configured.FrontEdition,

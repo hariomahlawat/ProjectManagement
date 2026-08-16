@@ -136,6 +136,26 @@ public enum CompendiumBackCoverTemplate
     Clean = 4
 }
 
+public enum CompendiumPublicationTheme
+{
+    InstitutionalGreen = 0,
+    DeepNavy = 1,
+    Burgundy = 2,
+    Graphite = 3,
+    DeepTeal = 4,
+    Slate = 5
+}
+
+public enum CompendiumCoverBackgroundTreatment
+{
+    Solid = 0,
+    SubtleGradient = 1,
+    TopographicContours = 2,
+    TechnicalGrid = 3,
+    GeometricMesh = 4,
+    Camouflage = 5
+}
+
 public enum CompendiumCoverSurface
 {
     Front = 0,
@@ -169,6 +189,8 @@ public sealed record CompendiumCoverDesign(
     CompendiumBackCoverTemplate BackTemplate,
     IReadOnlyList<CompendiumCoverImageSlot> Images)
 {
+    public CompendiumPublicationTheme PublicationTheme { get; init; } = CompendiumPublicationTheme.InstitutionalGreen;
+    public CompendiumCoverBackgroundTreatment BackgroundTreatment { get; init; } = CompendiumCoverBackgroundTreatment.Solid;
     public string? FrontTitle { get; init; }
     public string? FrontSubtitle { get; init; }
     public string? FrontEdition { get; init; }

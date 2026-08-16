@@ -25,7 +25,7 @@ const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
 
 // Phase 30 intentionally replaces the former one-hero cover contract with a controlled composer.
 test('phase 30 persists first class front/back cover composition through schema v6', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[6-9]|10|11)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[6-9]|10|11|12)/);
   assert.match(model, /ICollection<CompendiumPresetCoverImage>\s+CoverImages/);
   assert.match(model, /ICollection<CompendiumPresetPhotoPreference>\s+PhotoPreferences/);
   assert.match(model, /FrontCoverTemplate/);
@@ -41,14 +41,14 @@ test('phase 30 persists first class front/back cover composition through schema 
 test('phase 30 exposes a dedicated full screen cover editor with controlled layouts', () => {
   assert.match(mainView, /data-cover-editor/);
   assert.match(coverView, /data-compendium-cover-editor/);
-  assert.match(coverView, /Institutional hero/);
-  assert.match(coverView, /Full-bleed hero/);
-  assert.match(coverView, /Editorial split/);
+  assert.match(coverView, /Institutional Hero/);
+  assert.match(coverView, /Full-Bleed Hero/);
+  assert.match(coverView, /Editorial Split/);
   assert.match(coverView, /Triptych/);
   assert.match(coverView, /Minimal/);
-  assert.match(coverView, /Image echo/);
-  assert.match(coverView, /Portfolio strip/);
-  assert.match(coverView, /Typography only/);
+  assert.match(coverView, /Image Echo/);
+  assert.match(coverView, /Portfolio Strip/);
+  assert.match(coverView, /Typography Only/);
   assert.match(coverView, /data-cover-logo-placement/);
   assert.match(css, /compendium-cover-editor-layout/);
 });

@@ -37,12 +37,12 @@ const compact = value => value.replace(/\s+/g, ' ');
 test('phase 36 introduces the quartet and balanced text-flow contracts with schema-safe identity bumps', () => {
   assert.match(dtos, /PortfolioQuartet\s*=\s*5/);
   assert.match(dtos, /enum CompendiumBalancedTextFlowMode[\s\S]*SideColumn\s*=\s*0[\s\S]*FlowBelowImage\s*=\s*1/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:[89]|10|11)/);
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[89]|10|11)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:[89]|10|11|12)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[89]|10|11|12)/);
   assert.match(migration, /BalancedTextFlowMode/);
   assert.match(migration, /defaultValue:\s*"SideColumn"/);
-  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25))/);
+  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative|19-cover-identity)/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25|cover-identity-v26))/);
 });
 
 test('phase 36 centralises cover slots and enforces a four-photo Fill-only Portfolio Quartet', () => {

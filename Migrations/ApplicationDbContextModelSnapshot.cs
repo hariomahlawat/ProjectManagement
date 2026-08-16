@@ -5403,6 +5403,8 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("CoverImageMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
                     b.Property<string>("FrontCoverTemplate").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("InstitutionalHero");
                     b.Property<string>("BackCoverTemplate").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("MinimalInstitutional");
+                    b.Property<string>("PublicationTheme").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("InstitutionalGreen");
+                    b.Property<string>("CoverBackgroundTreatment").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Solid");
                     b.Property<string>("FrontCoverTitle").HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("FrontCoverSubtitle").HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("FrontCoverEdition").HasMaxLength(80).HasColumnType("character varying(80)");
@@ -5433,7 +5435,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(11);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(12);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");

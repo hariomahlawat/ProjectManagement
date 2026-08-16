@@ -30,12 +30,12 @@ const css = read('wwwroot/css/pages/projects-publications.css');
 test('phase 37.4 persists one publication-level particulars style through schema v11', () => {
   assert.match(dto, /enum CompendiumProjectParticularsStyle[\s\S]*Panel[\s\S]*Minimal/);
   assert.match(model, /ProjectParticularsStyle[\s\S]*=\s*"Panel"/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*11/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:11|12)/);
   assert.match(presetContracts, /CompendiumProjectParticularsStyle\s+ProjectParticularsStyle/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*11/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*11[\s\S]*Panel/);
   assert.match(db, /ProjectParticularsStyle\)\.HasMaxLength\(24\)\.HasDefaultValue\("Panel"\)/);
-  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\(11\)/);
+  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:11|12)\)/);
   assert.match(migration, /Migration\("20261216123000_AddCompendiumProjectParticularsStyle"\)/);
   assert.match(migration, /AddColumn<string>[\s\S]*ProjectParticularsStyle[\s\S]*defaultValue:\s*"Panel"/);
   assert.match(snapshot, /Property<string>\("ProjectParticularsStyle"\)[\s\S]*HasDefaultValue\("Panel"\)/);
@@ -78,9 +78,9 @@ test('phase 37.4 invalidates all reviews when the publication particulars style 
   assert.match(mainJs, /changeProjectParticularsStyle/);
   assert.match(mainJs, /orderedIds\.forEach\(invalidateProjectReview\)/);
   assert.match(mainJs, /projectParticularsStyle:\s*editorialState\.projectParticularsStyle/);
-  assert.match(fingerprint, /compendium-review-v(?:16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
+  assert.match(fingerprint, /compendium-review-v(?:16-particulars-style|17-editorial-rules|18-semantic-narrative|19-cover-identity)/);
   assert.match(fingerprint, /ProjectParticularsStyle/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_(?:particulars-style-v23|editorial-rules-v24|semantic-narrative-v25)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:particulars-style-v23|editorial-rules-v24|semantic-narrative-v25|cover-identity-v26)/);
 });
 
 test('phase 37.4 preserves the global style through Structure Editor handoff and save', () => {

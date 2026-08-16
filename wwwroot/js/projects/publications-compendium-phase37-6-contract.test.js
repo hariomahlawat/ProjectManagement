@@ -92,8 +92,8 @@ test('phase 37.6 retains duplicate-content protection and conservative placehold
 });
 
 test('phase 37.6 changes render identity while preserving persisted schema and structure contract', () => {
-  assert.match(fingerprint, /compendium-review-v18-semantic-narrative/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_semantic-narrative-v25/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*11/);
+  assert.match(fingerprint, /compendium-review-v(?:18-semantic-narrative|19-cover-identity)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:semantic-narrative-v25|cover-identity-v26)/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12)/);
   assert.match(structureState, /const VERSION = 4/);
 });

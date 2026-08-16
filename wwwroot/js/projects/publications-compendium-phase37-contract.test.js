@@ -33,10 +33,10 @@ const compact = value => value.replace(/\s+/g, ' ');
 
 test('phase 37 introduces narrative alignment with schema-v9 legacy-safe persistence', () => {
   assert.match(dtos, /enum CompendiumNarrativeAlignment[\s\S]*Left\s*=\s*0[\s\S]*Justified\s*=\s*1/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:9|10|11)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:9|10|11|12)/);
   assert.match(model, /DefaultNarrativeAlignment[\s\S]*=\s*"Left"/);
   assert.match(model, /NarrativeAlignmentOverride/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:9|10|11)/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:9|10|11|12)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*9[\s\S]*CompendiumNarrativeAlignment\.Left/);
   assert.match(presetContracts, /DefaultNarrativeAlignment/);
   assert.match(presetContracts, /NarrativeAlignmentOverride/);
@@ -127,9 +127,9 @@ test('phase 37 preserves alignment through Structure Editor handoff and persiste
 });
 
 test('phase 37 binds typography changes into review and publication identities', () => {
-  assert.match(fingerprint, /compendium-review-v(?:12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
+  assert.match(fingerprint, /compendium-review-v(?:12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative|19-cover-identity)/);
   assert.match(fingerprint, /input\.NarrativeAlignment\.ToString\(\)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_composition-hardening-v19|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25))/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_composition-hardening-v19|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25|cover-identity-v26))/);
   assert.match(indexPage, /NarrativeAlignmentOverride/);
   assert.match(indexPage, /DefaultNarrativeAlignment/);
 });

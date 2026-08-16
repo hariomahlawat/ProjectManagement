@@ -99,6 +99,7 @@ public sealed class CoverModel : PageModel
                 },
                 coverDesign = ToClientCoverDesign(loaded.Configuration.CoverDesign, loaded.Configuration.Cover),
                 coverPolicy = CompendiumCoverTemplatePolicy.BuildClientContract(),
+                coverIdentityPolicy = CompendiumCoverIdentityPolicy.BuildClientContract(),
                 portfolioQuartetEligible = quartetUsablePhotos.Count >= 4,
                 portfolioQuartetUsablePhotoCount = quartetUsablePhotos.Count,
                 photoPreferences = loaded.Configuration.PhotoPreferences,
@@ -107,7 +108,8 @@ public sealed class CoverModel : PageModel
                              ?? "/Projects/Publications/Compendium") + "#compendium-settings",
                 saveUrl = Url.Page("/Projects/Publications/Compendium/Cover", "Save", new { presetId = PresetId }),
                 photosUrl = Url.Page("/Projects/Publications/Compendium/Cover", "ProjectPhotos", new { presetId = PresetId }),
-                photoUrl = Url.Page("/Projects/Publications/Compendium/Index", "Photo")
+                photoUrl = Url.Page("/Projects/Publications/Compendium/Index", "Photo"),
+                patternUrl = Url.Page("/Projects/Publications/Compendium/Cover", "Pattern", new { presetId = PresetId })
             }, JsonOptions);
 
             return Page();
@@ -116,6 +118,24 @@ public sealed class CoverModel : PageModel
         {
             return NotFound();
         }
+    }
+
+    public IActionResult OnGetPattern(
+        string? theme,
+        string? treatment,
+        string? surface,
+        string? backTemplate)
+    {
+        var publicationTheme = ParseEnum(theme, CompendiumPublicationTheme.InstitutionalGreen);
+        var background = ParseEnum(treatment, CompendiumCoverBackgroundTreatment.Solid);
+        var coverSurface = ParseEnum(surface, CompendiumCoverSurface.Front);
+        var back = ParseEnum(backTemplate, CompendiumBackCoverTemplate.MinimalInstitutional);
+        var effective = CompendiumCoverIdentityPolicy.ResolveEffectiveTreatment(
+            coverSurface, back, publicationTheme, background);
+        var svg = CompendiumCoverIdentityPolicy.BuildSurfaceSvg(
+            publicationTheme, effective, coverSurface == CompendiumCoverSurface.Back);
+        Response.Headers.CacheControl = "private,max-age=3600";
+        return Content(svg, "image/svg+xml; charset=utf-8");
     }
 
     public async Task<IActionResult> OnGetProjectPhotosAsync(
@@ -296,6 +316,8 @@ public sealed class CoverModel : PageModel
         {
             frontTemplate = design.FrontTemplate.ToString(),
             backTemplate = design.BackTemplate.ToString(),
+            publicationTheme = design.PublicationTheme.ToString(),
+            backgroundTreatment = design.BackgroundTreatment.ToString(),
             design.FrontTitle,
             design.FrontSubtitle,
             design.FrontEdition,
@@ -385,6 +407,11 @@ public sealed class CoverModel : PageModel
         }
 
         var frontTemplate = ParseEnum(payload.FrontTemplate, CompendiumFrontCoverTemplate.InstitutionalHero);
+        var publicationTheme = CompendiumCoverIdentityPolicy.NormalizeTheme(
+            ParseEnum(payload.PublicationTheme, CompendiumPublicationTheme.InstitutionalGreen));
+        var backgroundTreatment = CompendiumCoverIdentityPolicy.NormalizeTreatmentForTheme(
+            publicationTheme,
+            ParseEnum(payload.BackgroundTreatment, CompendiumCoverBackgroundTreatment.Solid));
         if (frontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
         {
             images = images.Select(item => item.Surface == CompendiumCoverSurface.Front
@@ -396,6 +423,8 @@ public sealed class CoverModel : PageModel
         {
             FrontTemplate = frontTemplate,
             BackTemplate = ParseEnum(payload.BackTemplate, CompendiumBackCoverTemplate.MinimalInstitutional),
+            PublicationTheme = publicationTheme,
+            BackgroundTreatment = backgroundTreatment,
             FrontTitle = Clean(payload.FrontTitle, 120),
             FrontSubtitle = Clean(payload.FrontSubtitle, 160),
             FrontEdition = Clean(payload.FrontEdition, 80),
@@ -544,6 +573,8 @@ public sealed class CoverModel : PageModel
     {
         public string? FrontTemplate { get; set; }
         public string? BackTemplate { get; set; }
+        public string? PublicationTheme { get; set; }
+        public string? BackgroundTreatment { get; set; }
         public string? FrontTitle { get; set; }
         public string? FrontSubtitle { get; set; }
         public string? FrontEdition { get; set; }

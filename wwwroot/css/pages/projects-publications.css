@@ -5492,3 +5492,87 @@ body.compendium-structure-editor-mode {
 }
 .compendium-review-description-text.is-justified li,
 .compendium-review-description-text.is-justified .compendium-review-markdown-heading { text-align:left; }
+
+/* ============================================================
+   Phase 37.7 · Curated Cover Identity System
+   ============================================================ */
+.compendium-cover-editor-header{min-height:80px;padding:.78rem 1rem}
+.compendium-cover-editor-summary{min-height:42px;padding:.42rem .9rem;gap:.62rem}
+.compendium-cover-editor-summary-identity{display:flex;align-items:baseline;gap:.35rem;white-space:nowrap}
+.compendium-cover-proof-stage{padding:.62rem}
+
+.compendium-cover-proof-sheet{
+    background:var(--cover-theme-primary,#102A23);
+    color:var(--cover-theme-foreground,#fff);
+}
+.compendium-cover-proof-pattern{
+    position:absolute;
+    z-index:3;
+    left:0;
+    width:100%;
+    display:block;
+    pointer-events:none;
+    object-fit:fill;
+}
+.compendium-cover-proof-pattern[hidden]{display:none!important}
+.cover-proof-identity h3{color:var(--cover-theme-foreground,#fff)}
+.cover-proof-identity p{color:var(--cover-theme-muted,#d9e3df)}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-content::before{
+    background:var(--cover-theme-primary,#102A23);
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="EditorialSplit"] .cover-proof-split::after,
+.compendium-cover-proof-sheet[data-surface="front"][data-template="Triptych"] .cover-proof-triptych,
+.compendium-cover-proof-sheet[data-surface="back"][data-template="PortfolioStrip"] .cover-proof-triptych--back,
+.cover-proof-quartet{
+    background:var(--cover-theme-primary,#102A23);
+}
+
+.compendium-cover-identity-section{background:linear-gradient(180deg,#fbfcfb 0,#fff 72%)}
+.compendium-cover-inspector-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.55rem}
+.compendium-cover-scope-badge{
+    flex:none;display:inline-flex;align-items:center;min-height:20px;padding:.08rem .42rem;
+    border-radius:999px;background:#eef4f1;color:#587168;font-size:.54rem;font-weight:800;white-space:nowrap
+}
+.compendium-cover-identity-label{margin:.62rem 0 .32rem;color:#53665f;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+.compendium-cover-theme-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.38rem}
+.compendium-cover-theme-grid button{
+    min-width:0;border:1px solid var(--pub-border);border-radius:.5rem;background:#fff;padding:.38rem .35rem;
+    display:flex;align-items:center;gap:.35rem;color:#40524c;font-size:.61rem;font-weight:700;text-align:left
+}
+.compendium-cover-theme-grid button:hover{border-color:#9bb9ae;background:#f7faf9}
+.compendium-cover-theme-grid button.active{border-color:#5d9480;box-shadow:0 0 0 2px rgba(55,116,95,.12);background:#f2f8f5;color:#244a3e}
+.compendium-cover-theme-grid button i{width:17px;height:17px;border-radius:50%;background:var(--cover-swatch);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 0 0 1px rgba(20,38,32,.14);flex:none}
+
+.compendium-cover-background-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.38rem}
+.compendium-cover-background-grid button{
+    min-width:0;border:1px solid var(--pub-border);border-radius:.5rem;background:#fff;padding:.34rem;
+    display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:.42rem;color:#40524c;font-size:.6rem;font-weight:700;text-align:left
+}
+.compendium-cover-background-grid button:hover:not(:disabled){border-color:#9bb9ae;background:#f7faf9}
+.compendium-cover-background-grid button.active{border-color:#5d9480;box-shadow:0 0 0 2px rgba(55,116,95,.12);background:#f2f8f5;color:#244a3e}
+.compendium-cover-background-grid button:disabled{opacity:.42;cursor:not-allowed}
+.cover-bg-mini{width:34px;height:24px;border-radius:3px;display:block;background:var(--cover-identity-primary,#18382f);border:1px solid rgba(25,55,46,.18)}
+.cover-bg-mini--gradient{background:linear-gradient(135deg,var(--cover-identity-primary,#102a23),var(--cover-identity-secondary,#345548))}
+.cover-bg-mini--contours{background-color:var(--cover-identity-primary,#18382f);background-image:repeating-radial-gradient(ellipse at 10% 100%,transparent 0 5px,rgba(220,236,230,.2) 6px 7px,transparent 8px 12px)}
+.cover-bg-mini--grid{background-color:var(--cover-identity-primary,#18382f);background-image:linear-gradient(rgba(220,236,230,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(220,236,230,.16) 1px,transparent 1px);background-size:8px 8px}
+.cover-bg-mini--mesh{background-color:var(--cover-identity-primary,#18382f);background-image:linear-gradient(30deg,transparent 44%,rgba(220,236,230,.18) 45% 48%,transparent 49%),linear-gradient(150deg,transparent 44%,rgba(220,236,230,.15) 45% 48%,transparent 49%);background-size:16px 14px}
+.cover-bg-mini--camo{background:var(--cover-identity-secondary,#17382f);position:relative;overflow:hidden}
+.cover-bg-mini--camo::before,.cover-bg-mini--camo::after{content:'';position:absolute;border-radius:55% 45% 60% 40%;background:var(--cover-identity-surface,#335847);opacity:.85}
+.cover-bg-mini--camo::before{width:25px;height:15px;left:-3px;top:3px;transform:rotate(18deg)}
+.cover-bg-mini--camo::after{width:22px;height:14px;right:-2px;bottom:1px;background:var(--cover-identity-pattern-dark,#0c261e);transform:rotate(-14deg)}
+.compendium-cover-identity-note{display:block;margin-top:.45rem;color:var(--pub-muted);font-size:.57rem;line-height:1.35}
+
+@media (max-width:1380px){
+    .compendium-cover-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* Cover pattern stacking: patterns sit behind photography except on Full-Bleed's title panel. */
+.compendium-cover-proof-pattern{z-index:1}
+.compendium-cover-proof-sheet .cover-proof-image{position:relative;z-index:2}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-image--institutional,
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-image--full,
+.compendium-cover-proof-sheet[data-surface="back"][data-template="ImageEcho"] .cover-proof-image--echo{position:absolute}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-pattern{z-index:3}
+
+/* Phase 37.7 browser/PDF parity details. */
+.compendium-cover-proof-sheet::after{content:'';position:absolute;z-index:5;left:0;right:0;bottom:0;height:16px;background:var(--cover-theme-secondary,#17382F);pointer-events:none}
+.compendium-cover-proof-sheet .cover-proof-image--empty{background:var(--cover-theme-secondary,#17382F);color:var(--cover-theme-muted,#D7E3DE)}

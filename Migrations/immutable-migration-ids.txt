@@ -107,3 +107,4 @@
 20261216110000_AddCompendiumProjectAdditionalNote
 
 20261216123000_AddCompendiumProjectParticularsStyle
+20261216160000_AddCompendiumCoverIdentity

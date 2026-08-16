@@ -1203,6 +1203,9 @@ public sealed class IndexModel : PageModel
 
         var frontTemplate = ParseFrontCoverTemplate(payload?.FrontTemplate);
         var backTemplate = ParseBackCoverTemplate(payload?.BackTemplate);
+        var publicationTheme = ParsePublicationTheme(payload?.PublicationTheme);
+        var backgroundTreatment = CompendiumCoverIdentityPolicy.NormalizeTreatmentForTheme(
+            publicationTheme, ParseCoverBackgroundTreatment(payload?.BackgroundTreatment));
         var images = (payload?.Images ?? new List<CompendiumCoverImagePayload>())
             .Where(item => !string.IsNullOrWhiteSpace(item.SlotKey))
             .Select((item, index) => new CompendiumCoverImageSlot(
@@ -1238,6 +1241,8 @@ public sealed class IndexModel : PageModel
 
         return new CompendiumCoverDesign(frontTemplate, backTemplate, images)
         {
+            PublicationTheme = publicationTheme,
+            BackgroundTreatment = backgroundTreatment,
             FrontTitle = Clean(payload?.FrontTitle, 120),
             FrontSubtitle = Clean(payload?.FrontSubtitle, 160),
             FrontEdition = Clean(payload?.FrontEdition, 80),
@@ -1306,6 +1311,8 @@ public sealed class IndexModel : PageModel
                 item.FocalY,
                 item.FitMode)).ToArray())
         {
+            PublicationTheme = design.PublicationTheme,
+            BackgroundTreatment = design.BackgroundTreatment,
             FrontTitle = design.FrontTitle,
             FrontSubtitle = design.FrontSubtitle,
             FrontEdition = design.FrontEdition,
@@ -1333,6 +1340,8 @@ public sealed class IndexModel : PageModel
         {
             FrontTemplate = design.FrontTemplate.ToString(),
             BackTemplate = design.BackTemplate.ToString(),
+            PublicationTheme = design.PublicationTheme.ToString(),
+            BackgroundTreatment = design.BackgroundTreatment.ToString(),
             FrontTitle = design.FrontTitle,
             FrontSubtitle = design.FrontSubtitle,
             FrontEdition = design.FrontEdition,
@@ -1388,6 +1397,8 @@ public sealed class IndexModel : PageModel
         {
             FrontTemplate = design.FrontTemplate,
             BackTemplate = design.BackTemplate,
+            PublicationTheme = design.PublicationTheme,
+            BackgroundTreatment = design.BackgroundTreatment,
             FrontTitle = design.FrontTitle,
             FrontSubtitle = design.FrontSubtitle,
             FrontEdition = design.FrontEdition,
@@ -1429,6 +1440,16 @@ public sealed class IndexModel : PageModel
         => Enum.TryParse<CompendiumBackCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumBackCoverTemplate.MinimalInstitutional;
+
+    private static CompendiumPublicationTheme ParsePublicationTheme(string? value)
+        => Enum.TryParse<CompendiumPublicationTheme>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumPublicationTheme.InstitutionalGreen;
+
+    private static CompendiumCoverBackgroundTreatment ParseCoverBackgroundTreatment(string? value)
+        => Enum.TryParse<CompendiumCoverBackgroundTreatment>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumCoverBackgroundTreatment.Solid;
 
     private static CompendiumCoverLogoPlacement ParseLogoPlacement(string? value)
         => Enum.TryParse<CompendiumCoverLogoPlacement>(value, true, out var parsed) && Enum.IsDefined(parsed)
@@ -1650,6 +1671,8 @@ public sealed class IndexModel : PageModel
     {
         public string? FrontTemplate { get; set; }
         public string? BackTemplate { get; set; }
+        public string? PublicationTheme { get; set; }
+        public string? BackgroundTreatment { get; set; }
         public string? FrontTitle { get; set; }
         public string? FrontSubtitle { get; set; }
         public string? FrontEdition { get; set; }

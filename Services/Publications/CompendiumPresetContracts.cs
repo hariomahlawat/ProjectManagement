@@ -88,6 +88,8 @@ public sealed record CompendiumCoverDesignConfiguration
 {
     public CompendiumFrontCoverTemplate FrontTemplate { get; init; } = CompendiumFrontCoverTemplate.InstitutionalHero;
     public CompendiumBackCoverTemplate BackTemplate { get; init; } = CompendiumBackCoverTemplate.MinimalInstitutional;
+    public CompendiumPublicationTheme PublicationTheme { get; init; } = CompendiumPublicationTheme.InstitutionalGreen;
+    public CompendiumCoverBackgroundTreatment BackgroundTreatment { get; init; } = CompendiumCoverBackgroundTreatment.Solid;
     public string? FrontTitle { get; init; }
     public string? FrontSubtitle { get; init; }
     public string? FrontEdition { get; init; }
