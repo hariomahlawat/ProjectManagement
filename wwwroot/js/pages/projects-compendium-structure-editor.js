@@ -77,7 +77,8 @@
             reviewFingerprint: null,
             customSectionKey: cleanKey(project.customSectionKey) || null,
             customSectionName: cleanName(project.customSectionName) || null,
-            narrativeSourceOverride: project.narrativeSourceOverride ? String(project.narrativeSourceOverride) : null
+            narrativeSourceOverride: project.narrativeSourceOverride ? String(project.narrativeSourceOverride) : null,
+            narrativeAlignmentOverride: normalize(project.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(project.narrativeAlignmentOverride) === "left" ? "Left" : null
         });
     });
 
@@ -119,7 +120,8 @@
                 reviewFingerprint: String(incoming.reviewFingerprint || "").trim() || null,
                 customSectionKey: cleanKey(incoming.customSectionKey) || null,
                 customSectionName: cleanName(incoming.customSectionName) || null,
-                narrativeSourceOverride: incoming.narrativeSourceOverride ? String(incoming.narrativeSourceOverride) : null
+                narrativeSourceOverride: incoming.narrativeSourceOverride ? String(incoming.narrativeSourceOverride) : null,
+                narrativeAlignmentOverride: normalize(incoming.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(incoming.narrativeAlignmentOverride) === "left" ? "Left" : null
             });
         });
         projectStates = incomingHandoff.projectStates || {};
@@ -139,7 +141,8 @@
                 reviewFingerprint: null,
                 customSectionKey: null,
                 customSectionName: null,
-                narrativeSourceOverride: null
+                narrativeSourceOverride: null,
+                narrativeAlignmentOverride: null
             });
         }
         return configById.get(projectId);
@@ -562,7 +565,8 @@
                 reviewFingerprint: config.reviewFingerprint || null,
                 customSectionKey: section?.sectionKey || null,
                 customSectionName: section?.name || null,
-                narrativeSourceOverride: config.narrativeSourceOverride || null
+                narrativeSourceOverride: config.narrativeSourceOverride || null,
+                narrativeAlignmentOverride: config.narrativeAlignmentOverride || null
             };
             states[id] = projectState(id);
         });
@@ -574,6 +578,7 @@
             returnUrl,
             editorialState: {
                 narrativeSource: incomingHandoff?.editorialState?.narrativeSource || "ProjectBrief",
+                narrativeAlignment: incomingHandoff?.editorialState?.narrativeAlignment || boot.narrativeAlignment || "Left",
                 groupingMode,
                 sortMode
             },
@@ -940,7 +945,8 @@
                 dossierLayout:config.dossierLayout||"Automatic", balancedTextFlowMode:normalizeBalancedTextFlowMode(config.balancedTextFlowMode), dossierImageCount:config.dossierImageCount||1,
                 supportingPhoto1Id:config.supportingPhoto1Id||null, supportingPhoto1FocalX:clamp(config.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(config.supportingPhoto1FocalY), supportingPhoto1FitMode:config.supportingPhoto1FitMode==="fit"?"Fit":"Fill",
                 supportingPhoto2Id:config.supportingPhoto2Id||null, supportingPhoto2FocalX:clamp(config.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(config.supportingPhoto2FocalY), supportingPhoto2FitMode:config.supportingPhoto2FitMode==="fit"?"Fit":"Fill",
-                narrativeSourceOverride: config.narrativeSourceOverride || null
+                narrativeSourceOverride: config.narrativeSourceOverride || null,
+                narrativeAlignmentOverride: config.narrativeAlignmentOverride || null
             };
         })
     });

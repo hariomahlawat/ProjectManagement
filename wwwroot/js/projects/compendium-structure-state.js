@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const VERSION = 2;
+    const VERSION = 3;
     const PREFIX = "prism:compendium:structure:";
     const MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
@@ -67,7 +67,8 @@
                     reviewFingerprint: String(source.reviewFingerprint || "").trim() || null,
                     customSectionKey: cleanKey(source.customSectionKey) || null,
                     customSectionName: cleanName(source.customSectionName) || null,
-                    narrativeSourceOverride: source.narrativeSourceOverride ? String(source.narrativeSourceOverride) : null
+                    narrativeSourceOverride: source.narrativeSourceOverride ? String(source.narrativeSourceOverride) : null,
+                    narrativeAlignmentOverride: normalize(source.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(source.narrativeAlignmentOverride) === "left" ? "Left" : null
                 };
             });
         }
@@ -98,6 +99,7 @@
             editorialState: snapshot.editorialState && typeof snapshot.editorialState === "object"
                 ? {
                     narrativeSource: String(snapshot.editorialState.narrativeSource || "ProjectBrief"),
+                    narrativeAlignment: normalize(snapshot.editorialState.narrativeAlignment) === "justified" ? "Justified" : "Left",
                     groupingMode: String(snapshot.editorialState.groupingMode || "TechnicalCategory"),
                     sortMode: String(snapshot.editorialState.sortMode || "Manual")
                 }

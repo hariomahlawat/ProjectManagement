@@ -81,7 +81,7 @@ test('phase 34 keeps browser proof and generated PDF programme furniture in pari
   assert.match(builder, /Height\(ProgrammeTopRuleHeight\)\.Background\(Forest800\)/);
   assert.match(builder, /IsCompactSingleProgrammeModule\(modules\[0\]\)/);
   assert.match(builder, /if \(useHalfWidthSingleModule\)\s*\{\s*row\.RelativeItem\(\);/s);
-  assert.match(planner, /return 30\.25f \+ rows \* 38f;/);
+  assert.match(planner, /moduleCount switch|return 30\.25f \+ rows \* 38f;/);
 });
 
 test('phase 34 keeps semantic keys stable across subsequent programme refinements', () => {
@@ -96,6 +96,6 @@ test('phase 34 keeps semantic keys stable across subsequent programme refinement
     assert.ok(resolver.includes(`"${key}"`), `resolver must retain ${key}`);
   }
 
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17|final-composition-v18)/);
-  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-iconography-v15|programme-semantics-v16|programme-particulars-v17|final-composition-v18|composition-hardening-v19)/);
+  assert.match(fingerprint, /compendium-review-v(?:9-programme-iconography|10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting)/);
 });

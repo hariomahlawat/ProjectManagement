@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 8;
+    private const int CurrentSchemaVersion = 9;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -262,6 +262,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 BalancedTextFlowMode = preset.SettingsSchemaVersion < 8
                     ? CompendiumBalancedTextFlowMode.SideColumn
                     : ParseBalancedTextFlowMode(item.BalancedTextFlowMode, CompendiumBalancedTextFlowMode.SideColumn),
+                NarrativeAlignmentOverride = preset.SettingsSchemaVersion < 9
+                    ? null
+                    : ParseNullableNarrativeAlignment(item.NarrativeAlignmentOverride),
                 DossierImageCount = Math.Clamp(item.DossierImageCount, 1, 3),
                 SupportingPhoto1Id = item.SupportingPhoto1Id is > 0 && availablePhotoIds.Contains(item.SupportingPhoto1Id.Value) ? item.SupportingPhoto1Id : null,
                 SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX),
@@ -386,6 +389,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CoverDesign = coverDesign,
             PhotoPreferences = photoPreferences,
             NarrativeSource = ParseNarrativeSource(preset.NarrativeSource),
+            DefaultNarrativeAlignment = preset.SettingsSchemaVersion < 9
+                ? CompendiumNarrativeAlignment.Left
+                : ParseNarrativeAlignment(preset.DefaultNarrativeAlignment, CompendiumNarrativeAlignment.Left),
             GroupingMode = ParseGroupingMode(preset.GroupingMode),
             SortMode = ParseSortMode(preset.SortMode),
             Sections = sectionConfigurations
@@ -655,6 +661,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     ImageFitMode = item.ImageFitMode,
                     DossierLayout = item.DossierLayout,
                     BalancedTextFlowMode = item.BalancedTextFlowMode,
+                    NarrativeAlignmentOverride = item.NarrativeAlignmentOverride,
                     DossierImageCount = item.DossierImageCount,
                     SupportingPhoto1Id = item.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = item.SupportingPhoto1FocalX,
@@ -682,6 +689,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             Edition = source.Edition,
             HandlingMarking = source.HandlingMarking,
             NarrativeSource = source.NarrativeSource,
+            DefaultNarrativeAlignment = source.DefaultNarrativeAlignment,
             GroupingMode = source.GroupingMode,
             SortMode = source.SortMode,
             CoverImageMode = source.CoverImageMode,
@@ -989,6 +997,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     ImageFitMode = project.ImageFitMode.ToString(),
                     DossierLayout = project.DossierLayout.ToString(),
                     BalancedTextFlowMode = project.BalancedTextFlowMode.ToString(),
+                    NarrativeAlignmentOverride = project.NarrativeAlignmentOverride?.ToString(),
                     DossierImageCount = project.DossierImageCount,
                     SupportingPhoto1Id = project.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = project.SupportingPhoto1FocalX,
@@ -1051,6 +1060,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             CoverDesign = NormalizeCoverDesign(configuration.CoverDesign, configuration.Cover),
             PhotoPreferences = NormalizePhotoPreferences(configuration.PhotoPreferences, projects.Select(project => project.ProjectId).ToArray()),
             NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource),
+            DefaultNarrativeAlignment = NormalizeNarrativeAlignment(configuration.DefaultNarrativeAlignment),
             GroupingMode = NormalizeGroupingMode(configuration.GroupingMode),
             SortMode = NormalizeSortMode(configuration.SortMode),
             Sections = sections.ToArray()
@@ -1082,6 +1092,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             BalancedTextFlowMode = Enum.IsDefined(project.BalancedTextFlowMode)
                 ? project.BalancedTextFlowMode
                 : CompendiumBalancedTextFlowMode.FlowBelowImage,
+            NarrativeAlignmentOverride = NormalizeNullableNarrativeAlignment(project.NarrativeAlignmentOverride),
             DossierImageCount = Math.Clamp(project.DossierImageCount, 1, 3),
             SupportingPhoto1Id = project.SupportingPhoto1Id is > 0 ? project.SupportingPhoto1Id : null,
             SupportingPhoto1FocalX = ClampFocal(project.SupportingPhoto1FocalX),
@@ -1143,6 +1154,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         preset.Edition = configuration.Edition;
         preset.HandlingMarking = configuration.HandlingMarking;
         preset.NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource).ToString();
+        preset.DefaultNarrativeAlignment = NormalizeNarrativeAlignment(configuration.DefaultNarrativeAlignment).ToString();
         preset.GroupingMode = NormalizeGroupingMode(configuration.GroupingMode).ToString();
         preset.SortMode = NormalizeSortMode(configuration.SortMode).ToString();
         preset.CoverImageMode = configuration.Cover.ImageMode.ToString();
@@ -1479,6 +1491,24 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : fallback;
+
+    private static CompendiumNarrativeAlignment ParseNarrativeAlignment(
+        string? value,
+        CompendiumNarrativeAlignment fallback)
+        => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : fallback;
+
+    private static CompendiumNarrativeAlignment? ParseNullableNarrativeAlignment(string? value)
+        => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : null;
+
+    private static CompendiumNarrativeAlignment NormalizeNarrativeAlignment(CompendiumNarrativeAlignment value)
+        => Enum.IsDefined(value) ? value : CompendiumNarrativeAlignment.Left;
+
+    private static CompendiumNarrativeAlignment? NormalizeNullableNarrativeAlignment(CompendiumNarrativeAlignment? value)
+        => value.HasValue && Enum.IsDefined(value.Value) ? value.Value : null;
 
     private static CompendiumFrontCoverTemplate ParseFrontTemplate(string? value)
         => Enum.TryParse<CompendiumFrontCoverTemplate>(value, true, out var parsed) && Enum.IsDefined(parsed)

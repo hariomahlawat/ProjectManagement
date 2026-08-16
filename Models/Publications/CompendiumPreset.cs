@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 8;
+    public int SettingsSchemaVersion { get; set; } = 9;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -36,6 +36,9 @@ public sealed class CompendiumPreset
 
     [Required, MaxLength(32)]
     public string NarrativeSource { get; set; } = "ProjectBrief";
+
+    [Required, MaxLength(24)]
+    public string DefaultNarrativeAlignment { get; set; } = "Left";
 
     [Required, MaxLength(32)]
     public string GroupingMode { get; set; } = "TechnicalCategory";
@@ -161,6 +164,9 @@ public sealed class CompendiumPresetProject
 
     [Required, MaxLength(32)]
     public string BalancedTextFlowMode { get; set; } = "FlowBelowImage";
+
+    [MaxLength(24)]
+    public string? NarrativeAlignmentOverride { get; set; }
 
     public int DossierImageCount { get; set; } = 1;
     public int? SupportingPhoto1Id { get; set; }

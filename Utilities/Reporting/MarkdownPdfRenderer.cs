@@ -21,7 +21,7 @@ internal static class MarkdownPdfRenderer
         .UseTaskLists()
         .Build();
 
-    public static void Render(IContainer container, string markdown)
+    public static void Render(IContainer container, string markdown, bool justifyParagraphs = false)
     {
         var source = string.IsNullOrWhiteSpace(markdown) ? "Not recorded" : markdown;
         var doc = Markdig.Markdown.Parse(source, Pipeline);
@@ -56,6 +56,10 @@ internal static class MarkdownPdfRenderer
                                 .FontSize(10)
                                 .FontColor("#0F172A")
                                 .LineHeight(1.25f));
+                            if (justifyParagraphs)
+                            {
+                                text.Justify();
+                            }
                             RenderInlines(text, paragraph.Inline);
                         });
                         break;

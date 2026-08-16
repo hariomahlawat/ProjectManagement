@@ -334,6 +334,7 @@ public sealed class IndexModel : PageModel
         var review = await _readService.GetReviewProjectAsync(
             selection,
             selection.NarrativeSourceOverride ?? ParseNarrativeSource(Input.NarrativeSource),
+            ParseNarrativeAlignment(Input.NarrativeAlignment),
             cancellationToken);
         if (review is null)
         {
@@ -373,6 +374,8 @@ public sealed class IndexModel : PageModel
             review.CustomSectionKey,
             review.CustomSectionName,
             review.UsesNarrativeOverride,
+            narrativeAlignment = review.NarrativeAlignment.ToString(),
+            review.UsesNarrativeAlignmentOverride,
             review.ResolvedPhotoId,
             photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
             imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
@@ -397,9 +400,16 @@ public sealed class IndexModel : PageModel
             narrativeFlow = new
             {
                 mode = review.NarrativeFlow.Mode.ToString(),
+                effectiveAlignment = review.NarrativeFlow.EffectiveAlignment.ToString(),
+                sideAlignment = review.NarrativeFlow.SideAlignment.ToString(),
+                belowAlignment = review.NarrativeFlow.BelowAlignment.ToString(),
                 review.NarrativeFlow.SideSegment,
                 review.NarrativeFlow.BelowImageSegment,
-                review.NarrativeFlow.ContinuationSegments
+                review.NarrativeFlow.ContinuationSegments,
+                review.NarrativeFlow.SideRegionHeightPoints,
+                review.NarrativeFlow.SideUsedHeightPoints,
+                review.NarrativeFlow.SideRemainingHeightPoints,
+                review.NarrativeFlow.SideUtilizationRatio
             },
             dossierLayoutOverride = review.DossierLayoutOverride.ToString(),
             effectiveDossierLayout = review.EffectiveDossierLayout.ToString(),
@@ -652,6 +662,7 @@ public sealed class IndexModel : PageModel
                     CoverFocalY: ClampFocal(Input.CoverFocalY))
                 {
                     NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
+                    DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
                     GroupingMode = ParseGroupingMode(Input.GroupingMode),
                     SortMode = ParseSortMode(Input.SortMode),
                     Sections = ParseSections(),
@@ -733,6 +744,7 @@ public sealed class IndexModel : PageModel
                 Input.CoverDesignJson = SerializeCoverDesign(loaded.Configuration.CoverDesign);
                 Input.PhotoPreferencesJson = SerializePhotoPreferences(loaded.Configuration.PhotoPreferences);
                 Input.NarrativeSource = loaded.Configuration.NarrativeSource.ToString();
+                Input.NarrativeAlignment = loaded.Configuration.DefaultNarrativeAlignment.ToString();
                 Input.GroupingMode = loaded.Configuration.GroupingMode.ToString();
                 Input.SortMode = loaded.Configuration.SortMode.ToString();
                 Input.CustomSectionsJson = SerializeSections(loaded.Configuration.Sections.Select(section =>
@@ -750,7 +762,19 @@ public sealed class IndexModel : PageModel
                         CustomSectionKey = project.CustomSectionKey,
                         CustomSectionName = project.CustomSectionName,
                         NarrativeSourceOverride = project.NarrativeSourceOverride,
-                        ImageFitMode = project.ImageFitMode
+                        NarrativeAlignmentOverride = project.NarrativeAlignmentOverride,
+                        ImageFitMode = project.ImageFitMode,
+                        DossierLayout = project.DossierLayout,
+                        BalancedTextFlowMode = project.BalancedTextFlowMode,
+                        DossierImageCount = project.DossierImageCount,
+                        SupportingPhoto1Id = project.SupportingPhoto1Id,
+                        SupportingPhoto1FocalX = project.SupportingPhoto1FocalX,
+                        SupportingPhoto1FocalY = project.SupportingPhoto1FocalY,
+                        SupportingPhoto1FitMode = project.SupportingPhoto1FitMode,
+                        SupportingPhoto2Id = project.SupportingPhoto2Id,
+                        SupportingPhoto2FocalX = project.SupportingPhoto2FocalX,
+                        SupportingPhoto2FocalY = project.SupportingPhoto2FocalY,
+                        SupportingPhoto2FitMode = project.SupportingPhoto2FitMode
                     }));
             }
             catch (Exception exception)
@@ -808,6 +832,10 @@ public sealed class IndexModel : PageModel
         {
             Input.NarrativeSource = nameof(CompendiumNarrativeSource.ProjectBrief);
         }
+        if (string.IsNullOrWhiteSpace(Input.NarrativeAlignment))
+        {
+            Input.NarrativeAlignment = nameof(CompendiumNarrativeAlignment.Left);
+        }
         if (string.IsNullOrWhiteSpace(Input.GroupingMode))
         {
             Input.GroupingMode = nameof(CompendiumGroupingMode.TechnicalCategory);
@@ -826,6 +854,7 @@ public sealed class IndexModel : PageModel
         Input.Edition = Clean(Input.Edition, 80) ?? $"Capability Edition · {DateTime.Today.Year}";
         Input.HandlingMarking = Clean(Input.HandlingMarking, 80);
         Input.NarrativeSource = ParseNarrativeSource(Input.NarrativeSource).ToString();
+        Input.NarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment).ToString();
         Input.GroupingMode = ParseGroupingMode(Input.GroupingMode).ToString();
         Input.SortMode = ParseSortMode(Input.SortMode).ToString();
         Input.CoverImageMode = ParseCoverImageMode(Input.CoverImageMode).ToString();
@@ -920,6 +949,7 @@ public sealed class IndexModel : PageModel
                     CustomSectionKey = NormalizeSectionKey(payload.CustomSectionKey),
                     CustomSectionName = Clean(payload.CustomSectionName, 120),
                     NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride),
+                    NarrativeAlignmentOverride = ParseNullableNarrativeAlignment(payload.NarrativeAlignmentOverride),
                     ImageFitMode = ParseImageFitMode(payload.ImageFitMode),
                     DossierLayout = ParseDossierLayout(payload.DossierLayout),
                     BalancedTextFlowMode = ParseBalancedTextFlowMode(payload.BalancedTextFlowMode),
@@ -941,6 +971,7 @@ public sealed class IndexModel : PageModel
         => new(ParseSelections(), Input.Title, Input.Subtitle, Input.Edition)
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
+            DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
             Sections = ParseSections(),
@@ -965,6 +996,7 @@ public sealed class IndexModel : PageModel
                     CustomSectionKey = selection.CustomSectionKey,
                     CustomSectionName = selection.CustomSectionName,
                     NarrativeSourceOverride = selection.NarrativeSourceOverride,
+                    NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride,
                     ImageFitMode = selection.ImageFitMode,
                     DossierLayout = selection.DossierLayout,
                     BalancedTextFlowMode = selection.BalancedTextFlowMode,
@@ -981,6 +1013,7 @@ public sealed class IndexModel : PageModel
                 .ToArray())
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
+            DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
             Sections = ParseSections()
@@ -1027,6 +1060,7 @@ public sealed class IndexModel : PageModel
                 CustomSectionKey = selection.CustomSectionKey,
                 CustomSectionName = selection.CustomSectionName,
                 NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString(),
+                NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride?.ToString(),
                 ImageFitMode = selection.ImageFitMode.ToString(),
                 DossierLayout = selection.DossierLayout.ToString(),
                 BalancedTextFlowMode = selection.BalancedTextFlowMode.ToString(),
@@ -1394,6 +1428,16 @@ public sealed class IndexModel : PageModel
             ? parsed
             : CompendiumBalancedTextFlowMode.FlowBelowImage;
 
+    private static CompendiumNarrativeAlignment ParseNarrativeAlignment(string? value)
+        => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : CompendiumNarrativeAlignment.Left;
+
+    private static CompendiumNarrativeAlignment? ParseNullableNarrativeAlignment(string? value)
+        => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : null;
+
     private sealed class CoverSlotKeyComparer : IEqualityComparer<(CompendiumCoverSurface Surface, string SlotKey)>
     {
         public bool Equals((CompendiumCoverSurface Surface, string SlotKey) x, (CompendiumCoverSurface Surface, string SlotKey) y)
@@ -1497,6 +1541,9 @@ public sealed class IndexModel : PageModel
         [StringLength(32)]
         public string NarrativeSource { get; set; } = nameof(CompendiumNarrativeSource.ProjectBrief);
 
+        [StringLength(24)]
+        public string NarrativeAlignment { get; set; } = nameof(CompendiumNarrativeAlignment.Left);
+
         [StringLength(32)]
         public string GroupingMode { get; set; } = nameof(CompendiumGroupingMode.TechnicalCategory);
 
@@ -1528,6 +1575,7 @@ public sealed class IndexModel : PageModel
         public string? CustomSectionKey { get; set; }
         public string? CustomSectionName { get; set; }
         public string? NarrativeSourceOverride { get; set; }
+        public string? NarrativeAlignmentOverride { get; set; }
         public string? ImageFitMode { get; set; }
         public string? DossierLayout { get; set; }
         public string? BalancedTextFlowMode { get; set; }

@@ -59,6 +59,16 @@ public enum CompendiumBalancedTextFlowMode
     FlowBelowImage = 1
 }
 
+/// <summary>
+/// Publication narrative typesetting preference. The renderer may safely retain left alignment
+/// in exceptionally narrow side columns while honouring Justified for full-width narrative.
+/// </summary>
+public enum CompendiumNarrativeAlignment
+{
+    Left = 0,
+    Justified = 1
+}
+
 public enum CompendiumDossierImageRole
 {
     Primary = 0,
@@ -251,6 +261,8 @@ public sealed record CompendiumProjectSelection(
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    /// <summary>Null inherits the publication-level narrative alignment.</summary>
+    public CompendiumNarrativeAlignment? NarrativeAlignmentOverride { get; init; }
     public int DossierImageCount { get; init; } = 1;
     public int? SupportingPhoto1Id { get; init; }
     public double SupportingPhoto1FocalX { get; init; } = .5d;
@@ -328,7 +340,9 @@ public sealed record CompendiumReviewProjectDto(
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
-    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = new(CompendiumBalancedTextFlowMode.FlowBelowImage, string.Empty, string.Empty, Array.Empty<string>());
+    public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public bool UsesNarrativeAlignmentOverride { get; init; }
+    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = CompendiumDossierNarrativeFlowPlan.Empty;
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
@@ -389,7 +403,9 @@ public sealed record CompendiumProjectDto(
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
-    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = new(CompendiumBalancedTextFlowMode.FlowBelowImage, string.Empty, string.Empty, Array.Empty<string>());
+    public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public bool UsesNarrativeAlignmentOverride { get; init; }
+    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = CompendiumDossierNarrativeFlowPlan.Empty;
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
@@ -484,6 +500,7 @@ public sealed record CompendiumPublicationRequest(
 
     public IReadOnlyList<int> ProjectIds => Projects.Select(project => project.ProjectId).ToArray();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public IReadOnlyList<CompendiumPublicationSection> Sections { get; init; } = Array.Empty<CompendiumPublicationSection>();
@@ -502,6 +519,7 @@ public sealed record CompendiumPdfDataDto(
 {
     public string Edition { get; init; } = string.Empty;
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public CompendiumCoverDesign? CoverDesign { get; init; }

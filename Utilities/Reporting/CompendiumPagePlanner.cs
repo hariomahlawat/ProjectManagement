@@ -102,7 +102,9 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         hasPhoto,
                         project.DossierPrimaryImageHeightPoints,
                         project.DossierNarrativeFontScale,
-                        project.DossierFirstPageNarrativeBudget);
+                        project.DossierFirstPageNarrativeBudget,
+                        project.NarrativeAlignment,
+                        CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(project.Images.Count));
                 }
                 var firstNarrative = string.Join("\n\n", new[] { flow.SideSegment, flow.BelowImageSegment }
                     .Where(value => !string.IsNullOrWhiteSpace(value)));

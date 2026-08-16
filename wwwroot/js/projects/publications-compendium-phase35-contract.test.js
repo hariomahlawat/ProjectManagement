@@ -62,8 +62,8 @@ test('phase 35 evaluates readiness and review identity against the same authorit
   assert.match(readiness, /"missingSponsoringLineDirectorate"/);
   assert.match(fingerprint, /string\? SponsoringLineDirectorate/);
   assert.match(fingerprint, /Clean\(input\.SponsoringLineDirectorate\)/);
-  assert.match(fingerprint, /compendium-review-v(?:10-sponsoring-line-directorate|11-balanced-text-flow)/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-particulars-v17|final-composition-v18)/);
+  assert.match(fingerprint, /compendium-review-v(?:10-sponsoring-line-directorate|11-balanced-text-flow|12-professional-typesetting)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:programme-particulars-v17|final-composition-v18|composition-hardening-v19)/);
 });
 
 test('phase 35 removes nested icon tiles while retaining a stable alignment column', () => {

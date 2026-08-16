@@ -5235,10 +5235,14 @@ body.compendium-structure-editor-mode {
 .cover-template-mini--quartet>i{display:block;min-height:32px!important;background:linear-gradient(145deg,#65857a,#b7c4bf)}
 .cover-template-mini--quartet>span{display:grid;grid-template-rows:repeat(3,1fr);gap:2px}
 .cover-template-mini--quartet>span>i{display:block;min-height:0!important;background:linear-gradient(145deg,#77958b,#c0cbc7)}
-.cover-proof-quartet{display:grid;grid-template-columns:2fr 1fr;gap:4px;margin-top:auto;height:488px;background:#102a23}
+.cover-proof-quartet{position:absolute;left:0;right:0;top:338px;height:488px;display:grid;grid-template-columns:2fr 1fr;gap:4px;margin:0;background:#102a23}
 .cover-proof-quartet__hero{height:488px!important;min-height:0}
 .cover-proof-quartet__stack{display:grid;grid-template-rows:repeat(3,1fr);gap:4px;min-height:0}
 .cover-proof-quartet__stack .cover-proof-image{height:auto!important;min-height:0}
+
+.compendium-cover-proof-sheet[data-surface="front"][data-template="PortfolioQuartet"] .compendium-cover-proof-logos{top:42px}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="PortfolioQuartet"] .cover-proof-identity{top:128px;left:52px;right:52px}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="PortfolioQuartet"] .cover-proof-identity h3{font-size:28px}
 .cover-proof-split.is-single{grid-template-columns:1fr!important}
 .cover-proof-split.is-single .cover-proof-image{grid-column:1/-1!important}
 .cover-proof-triptych.is-1{grid-template-columns:1fr!important}
@@ -5259,3 +5263,11 @@ body.compendium-structure-editor-mode {
 .compendium-text-flow-control>span{font-size:.68rem;font-weight:750;color:#17382f}
 .compendium-text-flow-control>small{grid-column:1/-1;font-size:.57rem;line-height:1.35;color:#64748b}
 .compendium-text-flow-control .btn-group{justify-self:end;flex:0 0 auto}
+
+/* Phase 37 — composition hardening & professional typesetting */
+.compendium-narrative-alignment-control{display:grid;gap:.38rem;padding:.7rem .75rem;border:1px solid #dce7e2;border-radius:.65rem;background:#fbfdfc}
+.compendium-narrative-alignment-control>span{font-size:.74rem;font-weight:700;color:#17372e}
+.compendium-narrative-alignment-control small{font-size:.68rem;line-height:1.35;color:#718078}
+[data-live-page-narrative].is-justified,.compendium-live-page__below-flow.is-justified,.compendium-review-description-text.is-justified{text-align:justify;text-align-last:left}
+[data-live-page-narrative].is-justified,.compendium-live-page__below-flow.is-justified{word-spacing:normal;hyphens:none}
+.compendium-live-page__programme.is-compact-single{padding-top:.28rem;padding-bottom:.28rem;min-height:0}

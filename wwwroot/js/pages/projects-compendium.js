@@ -45,6 +45,7 @@
     const selectionsInput = form.querySelector("[data-project-selections]");
     const sectionsInput = form.querySelector("[data-custom-sections]");
     const narrativeInput = form.querySelector("[data-narrative-source]");
+    const narrativeAlignmentInput = form.querySelector("[data-narrative-alignment]");
     const groupingInput = form.querySelector("[data-grouping-mode]");
     const sortInput = form.querySelector("[data-sort-mode]");
     const normalizeNarrative = value => ({ projectbrief: "ProjectBrief", capabilityoverview: "CapabilityOverview", projectdescription: "ProjectDescription" }[normalize(value)] || "ProjectBrief");
@@ -52,8 +53,10 @@
     const normalizeSort = value => ({ manual: "Manual", latestfirst: "LatestFirst", alphabetical: "Alphabetical" }[normalize(value)] || "Manual");
     const normalizeDossierLayout = value => ({ automatic: "Automatic", visualhero: "VisualHero", balanced: "Balanced", multiimageeditorial: "MultiImageEditorial", technical: "Technical" }[normalize(value)] || "Automatic");
     const normalizeBalancedTextFlowMode = value => normalize(value) === "sidecolumn" ? "SideColumn" : "FlowBelowImage";
+    const normalizeNarrativeAlignment = value => normalize(value) === "justified" ? "Justified" : "Left";
     const editorialState = {
         narrativeSource: normalizeNarrative(narrativeInput?.value),
+        narrativeAlignment: normalizeNarrativeAlignment(narrativeAlignmentInput?.value),
         groupingMode: normalizeGrouping(groupingInput?.value),
         sortMode: normalizeSort(sortInput?.value)
     };
@@ -157,6 +160,7 @@
                 customSectionKey: cleanSectionKey(item.customSectionKey) || null,
                 customSectionName: cleanSectionName(item.customSectionName) || null,
                 narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null,
+                narrativeAlignmentOverride: item.narrativeAlignmentOverride ? normalizeNarrativeAlignment(item.narrativeAlignmentOverride) : null,
                 imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill",
                 dossierLayout: normalizeDossierLayout(item.dossierLayout),
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(item.balancedTextFlowMode),
@@ -185,6 +189,7 @@
                 customSectionKey: null,
                 customSectionName: null,
                 narrativeSourceOverride: null,
+                narrativeAlignmentOverride: null,
                 imageFitMode: "fill",
                 dossierLayout: "Automatic",
                 balancedTextFlowMode: "FlowBelowImage",
@@ -271,6 +276,7 @@
     const customSectionSummary = $("[data-custom-section-summary]");
     const composerNote = $("[data-composer-note]");
     const narrativeButtons = [...form.querySelectorAll("[data-narrative-value]")];
+    const narrativeAlignmentButtons = [...form.querySelectorAll("[data-narrative-alignment-value]")];
     const groupingButtons = [...form.querySelectorAll("[data-grouping-value]")];
     const sortButtons = [...form.querySelectorAll("[data-sort-value]")];
     const structureViewTools = $("[data-structure-view-tools]");
@@ -312,6 +318,7 @@
     const reviewLayoutButtons = [...form.querySelectorAll("[data-review-layout]")];
     const reviewTextFlowControl = $("[data-review-text-flow]");
     const reviewTextFlowButtons = [...form.querySelectorAll("[data-review-text-flow-mode]")];
+    const reviewNarrativeAlignmentButtons = [...form.querySelectorAll("[data-review-narrative-alignment]")];
     const reviewImageCountButtons = [...form.querySelectorAll("[data-review-image-count]")];
     const reviewManagePageImages = $("[data-review-manage-page-images]");
     const reviewPhotoUsageSummary = $("[data-review-photo-usage-summary]");
@@ -457,6 +464,7 @@
             customSectionKey: section?.sectionKey || null,
             customSectionName: section?.name || null,
             narrativeSourceOverride: config.narrativeSourceOverride || null,
+            narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
             imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
             dossierLayout: normalizeDossierLayout(config.dossierLayout),
             balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
@@ -478,6 +486,7 @@
         if (selectionsInput) selectionsInput.value = JSON.stringify(serializeConfigs(true));
         if (sectionsInput) sectionsInput.value = JSON.stringify(serializeSections());
         if (narrativeInput) narrativeInput.value = editorialState.narrativeSource;
+        if (narrativeAlignmentInput) narrativeAlignmentInput.value = editorialState.narrativeAlignment;
         if (groupingInput) groupingInput.value = editorialState.groupingMode;
         if (sortInput) sortInput.value = editorialState.sortMode;
         if (activeIdInput) activeIdInput.value = activePresetId ? String(activePresetId) : "";
@@ -498,6 +507,7 @@
         edition: String(form.elements["Input.Edition"]?.value || "").trim(),
         handlingMarking: String(form.elements["Input.HandlingMarking"]?.value || "").trim(),
         narrativeSource: editorialState.narrativeSource,
+        narrativeAlignment: editorialState.narrativeAlignment,
         groupingMode: editorialState.groupingMode,
         sortMode: editorialState.sortMode,
         cover: { imageMode: coverState.imageMode, heroProjectId: coverState.imageMode === "explicit" ? coverState.heroProjectId : null, heroPhotoId: coverState.imageMode === "explicit" ? coverState.heroPhotoId : null, focalX: roundFocal(coverState.focalX), focalY: roundFocal(coverState.focalY) },
@@ -551,6 +561,7 @@
                 customSectionKey: config.customSectionKey || null,
                 customSectionName: config.customSectionName || null,
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
+                narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
                 imageFitMode: config.imageFitMode || "fill",
                 dossierLayout: config.dossierLayout || "Automatic",
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
@@ -624,6 +635,7 @@
             config.customSectionKey = section?.sectionKey || null;
             config.customSectionName = section?.name || null;
             config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
+            config.narrativeAlignmentOverride = incoming.narrativeAlignmentOverride ? normalizeNarrativeAlignment(incoming.narrativeAlignmentOverride) : null;
             config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
             config.dossierLayout = normalizeDossierLayout(incoming.dossierLayout);
             config.balancedTextFlowMode = normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode);
@@ -636,6 +648,7 @@
 
         if (snapshot.editorialState) {
             editorialState.narrativeSource = normalizeNarrative(snapshot.editorialState.narrativeSource);
+            editorialState.narrativeAlignment = normalizeNarrativeAlignment(snapshot.editorialState.narrativeAlignment);
             editorialState.groupingMode = normalizeGrouping(snapshot.editorialState.groupingMode);
             editorialState.sortMode = normalizeSort(snapshot.editorialState.sortMode);
         }
@@ -716,7 +729,19 @@
         if (coverState.imageMode === "explicit") { projectId = coverState.heroProjectId; photoId = coverState.heroPhotoId; }
         else if (coverState.imageMode === "automatic") { const candidate = automaticCoverCandidate(); projectId = candidate?.id || null; photoId = candidate?.state?.resolvedPhotoId || null; if (projectId) { const config = ensureConfig(projectId); focalX = config.focalX; focalY = config.focalY; } }
         const project = projectId ? projectById.get(Number(projectId)) : null;
-        const templateLabel = value => String(value || "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
+        const templateLabel = value => ({
+            InstitutionalHero: "Institutional Hero",
+            FullBleedHero: "Full-Bleed Hero",
+            EditorialSplit: "Editorial Split",
+            Triptych: "Portfolio Triptych",
+            PortfolioQuartet: "Portfolio Quartet",
+            Minimal: "Minimal",
+            MinimalInstitutional: "Minimal Institutional",
+            ImageEcho: "Image Echo",
+            PortfolioStrip: "Portfolio Strip",
+            TypographyOnly: "Typography Only",
+            Clean: "Clean"
+        })[String(value || "")] || String(value || "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
         const frontTemplate = normalize(coverDesignState.frontTemplate);
         const singleHeroTemplate = frontTemplate === "institutionalhero" || frontTemplate === "fullbleedhero";
         const imageryFreeTemplate = frontTemplate === "minimal";
@@ -837,6 +862,7 @@
 
     const renderEditorialControls = () => {
         narrativeButtons.forEach(button => button.classList.toggle("active", normalizeNarrative(button.dataset.narrativeValue) === editorialState.narrativeSource));
+        narrativeAlignmentButtons.forEach(button => button.classList.toggle("active", normalizeNarrativeAlignment(button.dataset.narrativeAlignmentValue) === editorialState.narrativeAlignment));
         groupingButtons.forEach(button => button.classList.toggle("active", normalizeGrouping(button.dataset.groupingValue) === editorialState.groupingMode));
         sortButtons.forEach(button => button.classList.toggle("active", normalizeSort(button.dataset.sortValue) === editorialState.sortMode));
         const customMode = editorialState.groupingMode === "CustomSections";
@@ -1092,12 +1118,14 @@
         const belowPlain = flowBelow ? narrativePlainText(flow.belowImageSegment) : "";
         if (livePageNarrative) {
             livePageNarrative.textContent = sidePlain || (!belowPlain ? `${review.narrativeLabel || "Project Brief"} not recorded.` : "");
+            livePageNarrative.classList.toggle("is-justified", normalizeNarrativeAlignment(flow.sideAlignment) === "Justified");
             livePageNarrative.classList.toggle("is-missing", !sidePlain && !belowPlain);
             livePageNarrative.classList.toggle("has-continuation", Array.isArray(flow.continuationSegments) && flow.continuationSegments.length > 0);
         }
         if (livePageBelowFlow) {
             livePageBelowFlow.hidden = !belowPlain;
             livePageBelowFlow.textContent = belowPlain;
+            livePageBelowFlow.classList.toggle("is-justified", normalizeNarrativeAlignment(flow.belowAlignment || review.narrativeAlignment) === "Justified");
         }
         if (livePageContinuation) {
             const continuationCount = Array.isArray(flow.continuationSegments) ? flow.continuationSegments.length : Math.max(0, Number(review.estimatedDossierPageCount || 1) - 1);
@@ -1139,7 +1167,10 @@
 
         const facts = programmeModules(review).map(module => [module.label, module.value]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
-        if (reviewDescription) reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
+        if (reviewDescription) {
+            reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
+            reviewDescription.classList.toggle("is-justified", normalizeNarrativeAlignment(review.narrativeAlignment || config.narrativeAlignmentOverride || editorialState.narrativeAlignment) === "Justified");
+        }
         if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = review.narrativeLabel || "Project Brief";
         if (reviewDescriptionState) reviewDescriptionState.textContent = String(review.descriptionMarkdown || "").trim() ? "Current PRISM content" : "Missing";
         if (reviewNarrativeOptions) {
@@ -1185,6 +1216,13 @@
         reviewTextFlowButtons.forEach(button => {
             const mode = normalizeBalancedTextFlowMode(button.dataset.reviewTextFlowMode);
             button.classList.toggle("active", mode === normalizeBalancedTextFlowMode(config.balancedTextFlowMode));
+        });
+        reviewNarrativeAlignmentButtons.forEach(button => {
+            const value = String(button.dataset.reviewNarrativeAlignment || "default");
+            const active = value === "default"
+                ? !config.narrativeAlignmentOverride
+                : normalizeNarrativeAlignment(value) === normalizeNarrativeAlignment(config.narrativeAlignmentOverride || "");
+            button.classList.toggle("active", active);
         });
         reviewImageCountButtons.forEach(button => {
             const requested = Number(button.dataset.reviewImageCount || 1);
@@ -1435,6 +1473,29 @@
         activeReviewData = null;
         syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
         if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const changeNarrativeAlignment = value => {
+        const next = normalizeNarrativeAlignment(value);
+        if (next === editorialState.narrativeAlignment) return;
+        editorialState.narrativeAlignment = next;
+        orderedIds.filter(id => !ensureConfig(id).narrativeAlignmentOverride).forEach(invalidateProjectReview);
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const setProjectNarrativeAlignment = (projectId, value) => {
+        const id = Number(projectId); if (!id || !isSelected(id)) return;
+        const config = ensureConfig(id);
+        const next = value && normalize(value) !== "default" ? normalizeNarrativeAlignment(value) : null;
+        // Preserve explicit publisher intent even when it currently matches the publication default.
+        // Otherwise a later publication-default change would silently change this project as well.
+        config.narrativeAlignmentOverride = next;
+        invalidateProjectReview(id);
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (Number(activeReviewId) === id) loadReview(id);
     };
 
     const setProjectNarrativeSource = (projectId, value) => {
@@ -2189,6 +2250,7 @@
     orderList?.addEventListener("dragend", () => { orderList.querySelectorAll(".is-dragging").forEach(item => item.classList.remove("is-dragging")); draggedOrderId = null; draggedSectionKey = null; });
 
     narrativeButtons.forEach(button => button.addEventListener("click", () => changeNarrativeSource(button.dataset.narrativeValue)));
+    narrativeAlignmentButtons.forEach(button => button.addEventListener("click", () => changeNarrativeAlignment(button.dataset.narrativeAlignmentValue)));
     groupingButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeGrouping(button.dataset.groupingValue); if (next === editorialState.groupingMode) return; editorialState.groupingMode = next; publicationStructureChanged(); }));
     sortButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeSort(button.dataset.sortValue); if (next === editorialState.sortMode) return; editorialState.sortMode = next; publicationStructureChanged(); if (activeReviewId) loadReview(activeReviewId); }));
     structureCollapseAll?.addEventListener("click", () => {
@@ -2231,6 +2293,10 @@
         if (normalizeBalancedTextFlowMode(config.balancedTextFlowMode) === next) return;
         config.balancedTextFlowMode = next;
         publicationConfigChanged(activeReviewId);
+    }));
+    reviewNarrativeAlignmentButtons.forEach(button => button.addEventListener("click", () => {
+        if (!activeReviewId) return;
+        setProjectNarrativeAlignment(activeReviewId, button.dataset.reviewNarrativeAlignment);
     }));
         reviewImageCountButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;

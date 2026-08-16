@@ -82,6 +82,7 @@ public sealed class StructureModel : PageModel
                         customSectionKey = item?.CustomSectionKey,
                         customSectionName = item?.CustomSectionName,
                         narrativeSourceOverride = item?.NarrativeSourceOverride?.ToString(),
+                        narrativeAlignmentOverride = item?.NarrativeAlignmentOverride?.ToString(),
                         primaryPhotoId = item?.PrimaryPhotoId,
                         primaryFocalX = item?.PrimaryFocalX ?? .5d,
                         primaryFocalY = item?.PrimaryFocalY ?? .5d,
@@ -123,6 +124,7 @@ public sealed class StructureModel : PageModel
                     updatedByDisplay = loaded.Preset.UpdatedByDisplay
                 },
                 canManage = CanManagePresets,
+                narrativeAlignment = loaded.Configuration.DefaultNarrativeAlignment.ToString(),
                 groupingMode = loaded.Configuration.GroupingMode.ToString(),
                 sortMode = loaded.Configuration.SortMode.ToString(),
                 sections,
@@ -225,6 +227,7 @@ public sealed class StructureModel : PageModel
                     ImageFitMode = ParseImageFitMode(item.ImageFitMode, baseConfiguration.ImageFitMode),
                     DossierLayout = ParseDossierLayout(item.DossierLayout, baseConfiguration.DossierLayout),
                     BalancedTextFlowMode = ParseBalancedTextFlowMode(item.BalancedTextFlowMode, baseConfiguration.BalancedTextFlowMode),
+                    NarrativeAlignmentOverride = ParseNarrativeAlignmentOverride(item.NarrativeAlignmentOverride) ?? baseConfiguration.NarrativeAlignmentOverride,
                     DossierImageCount = Math.Clamp(item.DossierImageCount ?? baseConfiguration.DossierImageCount, 1, 3),
                     SupportingPhoto1Id = item.SupportingPhoto1Id ?? baseConfiguration.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX ?? baseConfiguration.SupportingPhoto1FocalX),
@@ -363,6 +366,12 @@ public sealed class StructureModel : PageModel
             ? parsed
             : null;
 
+    private static CompendiumNarrativeAlignment? ParseNarrativeAlignmentOverride(string? value)
+        => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed)
+           && Enum.IsDefined(parsed)
+            ? parsed
+            : null;
+
 
     private JsonResult JsonError(int statusCode, string message, string? code = null)
     {
@@ -398,5 +407,6 @@ public sealed class StructureModel : PageModel
         public int? SupportingPhoto1Id { get; set; } public double? SupportingPhoto1FocalX { get; set; } public double? SupportingPhoto1FocalY { get; set; } public string? SupportingPhoto1FitMode { get; set; }
         public int? SupportingPhoto2Id { get; set; } public double? SupportingPhoto2FocalX { get; set; } public double? SupportingPhoto2FocalY { get; set; } public string? SupportingPhoto2FitMode { get; set; }
         public string? NarrativeSourceOverride { get; set; }
+        public string? NarrativeAlignmentOverride { get; set; }
     }
 }

@@ -107,7 +107,8 @@ public sealed record CompendiumPdfProjectSection(
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
-    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = new(CompendiumBalancedTextFlowMode.FlowBelowImage, string.Empty, string.Empty, Array.Empty<string>());
+    public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
+    public CompendiumDossierNarrativeFlowPlan NarrativeFlow { get; init; } = CompendiumDossierNarrativeFlowPlan.Empty;
     public int EstimatedDossierPageCount { get; init; } = 1;
     public string DossierPaginationNote { get; init; } = "1 dossier page";
     public string DossierPaginationReason { get; init; } = string.Empty;
@@ -760,7 +761,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         description,
                         planned.DescriptionMarkdown,
                         narrativeLabel,
-                        continuation: true));
+                        continuation: true,
+                        narrativeAlignment: project.NarrativeAlignment));
                 }
 
                 if (planned.TechnicalSpecifications.Count > 0)
@@ -804,7 +806,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     column.Spacing(9);
                     if (primaryBytes is { Length: > 0 })
                         column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
-                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
                 });
                 return;
 
@@ -813,7 +815,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Spacing(9);
                     column.Item().Element(mosaic => ComposeDossierMosaic(mosaic, images, imageHeight));
-                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
                 });
                 return;
 
@@ -823,14 +825,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     column.Spacing(8);
                     if (primaryBytes is { Length: > 0 })
                         column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
-                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+                    column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
                 });
                 return;
         }
 
         if (primaryBytes is not { Length: > 0 })
         {
-            container.Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+            container.Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
             return;
         }
 
@@ -845,11 +847,13 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
                     row.ConstantItem(13);
                     row.RelativeItem(.88f).Element(text => ComposeDescription(
-                        text, flow.SideSegment, narrativeLabel, false, project.DossierNarrativeFontScale));
+                        text, flow.SideSegment, narrativeLabel, false, project.DossierNarrativeFontScale,
+                        narrativeAlignment: flow.SideAlignment));
                 });
                 if (!string.IsNullOrWhiteSpace(flow.BelowImageSegment))
                     column.Item().Element(text => ComposeDescription(
-                        text, flow.BelowImageSegment, narrativeLabel, false, project.DossierNarrativeFontScale, showHeading: false));
+                        text, flow.BelowImageSegment, narrativeLabel, false, project.DossierNarrativeFontScale,
+                        showHeading: false, narrativeAlignment: flow.BelowAlignment));
             });
             return;
         }
@@ -858,7 +862,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
             row.ConstantItem(13);
-            row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale));
+            row.RelativeItem(.88f).Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
         });
     }
 
@@ -936,15 +940,22 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
         var useHalfWidthSingleModule = modules.Count == 1
                                        && IsCompactSingleProgrammeModule(modules[0]);
+        var panelPaddingVertical = modules.Count switch
+        {
+            1 => 5f,
+            2 or 3 => 6f,
+            _ => 7f
+        };
+        var panelSpacing = modules.Count == 1 ? 4f : 6f;
 
         container.Background(Forest50).Border(1).BorderColor("#D8E5DF").Padding(0).Column(column =>
         {
             // The rule deliberately remains heavier than dossier dividers, but no longer
             // overpowers the compact programme-information typography.
             column.Item().Height(ProgrammeTopRuleHeight).Background(Forest800);
-            column.Item().PaddingHorizontal(10).PaddingVertical(7).Column(content =>
+            column.Item().PaddingHorizontal(10).PaddingVertical(panelPaddingVertical).Column(content =>
             {
-                content.Spacing(6);
+                content.Spacing(panelSpacing);
                 content.Item().Text("PROJECT PARTICULARS")
                     .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
 
@@ -1231,7 +1242,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string narrativeLabel,
         bool continuation,
         float narrativeFontScale = 1f,
-        bool showHeading = true)
+        bool showHeading = true,
+        CompendiumNarrativeAlignment narrativeAlignment = CompendiumNarrativeAlignment.Left)
     {
         narrativeLabel = NormalizeNarrativeLabel(narrativeLabel);
         narrativeFontScale = continuation ? 1f : Math.Clamp(narrativeFontScale, 1f, 1.08f);
@@ -1267,7 +1279,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         : CompendiumLayoutMetrics.ProjectBodyFontSize * narrativeFontScale)
                     .FontColor(Slate700)
                     .LineHeight(1.25f))
-                .Element(element => MarkdownPdfRenderer.Render(element, markdown));
+                .Element(element => MarkdownPdfRenderer.Render(
+                    element,
+                    markdown,
+                    justifyParagraphs: narrativeAlignment == CompendiumNarrativeAlignment.Justified));
         });
     }
 

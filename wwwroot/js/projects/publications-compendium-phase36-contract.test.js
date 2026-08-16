@@ -10,6 +10,7 @@ const dtos = read('Services/Compendiums/CompendiumDtos.cs');
 const coverPolicy = read('Services/Compendiums/CompendiumCoverTemplatePolicy.cs');
 const flowPlanner = read('Services/Compendiums/CompendiumDossierNarrativeFlowPlanner.cs');
 const pagination = read('Services/Compendiums/CompendiumDossierPaginationPlanner.cs');
+const imageQualityPolicy = read('Services/Compendiums/CompendiumImageQualityPolicy.cs');
 const readService = read('Services/Compendiums/CompendiumReadService.cs');
 const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
 const preset = read('Services/Publications/CompendiumPresetService.cs');
@@ -36,12 +37,12 @@ const compact = value => value.replace(/\s+/g, ' ');
 test('phase 36 introduces the quartet and balanced text-flow contracts with schema-safe identity bumps', () => {
   assert.match(dtos, /PortfolioQuartet\s*=\s*5/);
   assert.match(dtos, /enum CompendiumBalancedTextFlowMode[\s\S]*SideColumn\s*=\s*0[\s\S]*FlowBelowImage\s*=\s*1/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*8/);
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*8/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*[89]/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*[89]/);
   assert.match(migration, /BalancedTextFlowMode/);
   assert.match(migration, /defaultValue:\s*"SideColumn"/);
-  assert.match(fingerprint, /compendium-review-v11-balanced-text-flow/);
-  assert.match(readService, /CompendiumPdf_2026-08-15_final-composition-v18/);
+  assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting)/);
+  assert.match(readService, /CompendiumPdf_2026-08-15_(?:final-composition-v18|composition-hardening-v19)/);
 });
 
 test('phase 36 centralises cover slots and enforces a four-photo Fill-only Portfolio Quartet', () => {
@@ -71,8 +72,8 @@ test('phase 36 makes existing cover mosaics adaptive instead of rendering blank 
 });
 
 test('phase 36 owns Balanced narrative segmentation on the server and sends exact segments to browser and PDF', () => {
-  assert.match(flowPlanner, /Prefer moving an intact paragraph to the next page/);
-  assert.match(flowPlanner, /sentence boundaries/);
+  assert.match(flowPlanner, /paragraph-first|intact paragraph/i);
+  assert.match(flowPlanner, /sentence-by-sentence|sentence boundaries/i);
   assert.doesNotMatch(flowPlanner, /Substring\(|\.\.[^.]*budget|Split\('\s'\)/);
   assert.match(readService, /CompendiumDossierNarrativeFlowPlanner\.Resolve/);
   assert.match(pagePlanner, /project\.NarrativeFlow/);
@@ -88,7 +89,8 @@ test('phase 36 owns Balanced narrative segmentation on the server and sends exac
 test('phase 36 uses server-selected technical/programme columns and quality-aware residual-space scoring', () => {
   assert.match(pagination, /EstimatedLines\(item, 24\) <= 2/);
   assert.match(pagination, /ResolveIdealResidualSpace/);
-  assert.match(pagination, /acceptedPrintDpi\s*=\s*150/);
+  assert.match(imageQualityPolicy, /AcceptablePrintDpi\s*=\s*150/);
+  assert.match(pagination, /CompendiumImageQualityPolicy\.AcceptablePrintDpi/);
   assert.match(readService, /DossierSpecificationColumns = paginationDecision\.SpecificationColumns/);
   assert.match(readService, /DossierProgrammeColumns = paginationDecision\.ProgrammeColumns/);
   assert.match(mainJs, /review\.dossierSpecificationColumns/);
@@ -107,7 +109,7 @@ test('phase 36 makes Compendium Fit frameless without changing Brochure defaults
 });
 
 test('phase 36 preserves flow and phase-35 dossier image state through Structure Editor handoff', () => {
-  assert.match(structureState, /const VERSION = 2/);
+  assert.match(structureState, /const VERSION = [23]/);
   for (const field of [
     'balancedTextFlowMode', 'dossierImageCount', 'supportingPhoto1Id', 'supportingPhoto1FocalX',
     'supportingPhoto1FocalY', 'supportingPhoto1FitMode', 'supportingPhoto2Id',

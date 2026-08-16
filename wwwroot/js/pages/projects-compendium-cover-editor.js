@@ -22,6 +22,19 @@
     const clean = value => (value ?? '').toString().trim();
     const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : .5));
     const titleCase = value => (value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+    const templateDisplayName = value => ({
+        InstitutionalHero: 'Institutional Hero',
+        FullBleedHero: 'Full-Bleed Hero',
+        EditorialSplit: 'Editorial Split',
+        Triptych: 'Portfolio Triptych',
+        PortfolioQuartet: 'Portfolio Quartet',
+        Minimal: 'Minimal',
+        MinimalInstitutional: 'Minimal Institutional',
+        ImageEcho: 'Image Echo',
+        PortfolioStrip: 'Portfolio Strip',
+        TypographyOnly: 'Typography Only',
+        Clean: 'Clean'
+    })[value] || titleCase(value);
 
     const initialDesign = normaliseDesign(boot.coverDesign || {});
     const state = {
@@ -254,8 +267,8 @@
     }
 
     function updateTemplateLabels() {
-        by('[data-cover-front-template-label]').textContent = titleCase(state.design.frontTemplate);
-        by('[data-cover-back-template-label]').textContent = titleCase(state.design.backTemplate);
+        by('[data-cover-front-template-label]').textContent = templateDisplayName(state.design.frontTemplate);
+        by('[data-cover-back-template-label]').textContent = templateDisplayName(state.design.backTemplate);
     }
 
     function renderSlots() {

@@ -47,6 +47,7 @@ public sealed record CompendiumPresetProjectConfiguration(
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumNarrativeAlignment? NarrativeAlignmentOverride { get; init; }
     public int DossierImageCount { get; init; } = 1;
     public int? SupportingPhoto1Id { get; init; }
     public double SupportingPhoto1FocalX { get; init; } = .5d;
@@ -122,6 +123,7 @@ public sealed record CompendiumPresetConfiguration(
     public IReadOnlyList<CompendiumPresetPhotoPreferenceConfiguration> PhotoPreferences { get; init; }
         = Array.Empty<CompendiumPresetPhotoPreferenceConfiguration>();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
+    public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
     public IReadOnlyList<CompendiumPresetSectionConfiguration> Sections { get; init; }

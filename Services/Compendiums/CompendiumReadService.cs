@@ -21,7 +21,7 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumReadService : ICompendiumReadService
 {
-    public const string BuildStamp = "CompendiumPdf_2026-08-15_final-composition-v18";
+    public const string BuildStamp = "CompendiumPdf_2026-08-15_composition-hardening-v19";
     private const int MaximumSelectedProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -275,6 +275,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
             var effectiveNarrativeSource = selection.NarrativeSourceOverride ?? NormalizeNarrativeSource(request.NarrativeSource);
             var narrative = ResolveNarrative(project, capabilities, effectiveNarrativeSource);
+            var effectiveNarrativeAlignment = selection.NarrativeAlignmentOverride
+                                             ?? CompendiumNarrativeTypographyPolicy.Normalize(request.DefaultNarrativeAlignment);
             var specifications = specificationsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
             var iprCredentials = iprByProject.GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
             var technologyTransfer = totByProject.GetValueOrDefault(project.Id);
@@ -311,7 +313,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 specifications,
                 programmeModuleCount,
                 project.Name,
-                planningDpi);
+                planningDpi,
+                selection.BalancedTextFlowMode);
             var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
                 paginationDecision.Layout,
                 dossierPhotoCount);
@@ -333,7 +336,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 dossierPhotoCount > 0,
                 paginationDecision.PrimaryImageHeightPoints,
                 paginationDecision.NarrativeFontScale,
-                paginationDecision.FirstPageNarrativeBudget);
+                paginationDecision.FirstPageNarrativeBudget,
+                effectiveNarrativeAlignment,
+                CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount));
             var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
             var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
                 project.Id,
@@ -357,6 +362,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ImageFitMode = resolved.Selection.ImageFitMode,
                 DossierLayout = selection.DossierLayout,
                 BalancedTextFlowMode = selection.BalancedTextFlowMode,
+                NarrativeAlignment = effectiveNarrativeAlignment,
                 DossierImages = dossierImages,
                 TechnicalSpecifications = specifications,
                 IprCredentials = iprCredentials,
@@ -440,6 +446,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 DossierSpecificationColumns = paginationDecision.SpecificationColumns,
                 DossierProgrammeColumns = paginationDecision.ProgrammeColumns,
                 BalancedTextFlowMode = selection.BalancedTextFlowMode,
+                NarrativeAlignment = effectiveNarrativeAlignment,
+                UsesNarrativeAlignmentOverride = selection.NarrativeAlignmentOverride.HasValue,
                 NarrativeFlow = narrativeFlow,
                 EstimatedDossierPageCount = Math.Max(paginationDecision.EstimatedPageCount, narrativeFlow.EstimatedPageCount),
                 DossierPaginationNote = paginationDecision.PaginationNote,
@@ -514,11 +522,18 @@ public sealed class CompendiumReadService : ICompendiumReadService
     public Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
         CancellationToken cancellationToken = default)
-        => GetReviewProjectAsync(selection, CompendiumNarrativeSource.ProjectBrief, cancellationToken);
+        => GetReviewProjectAsync(selection, CompendiumNarrativeSource.ProjectBrief, CompendiumNarrativeAlignment.Left, cancellationToken);
+
+    public Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
+        CompendiumProjectSelection selection,
+        CompendiumNarrativeSource narrativeSource,
+        CancellationToken cancellationToken = default)
+        => GetReviewProjectAsync(selection, narrativeSource, CompendiumNarrativeAlignment.Left, cancellationToken);
 
     public async Task<CompendiumReviewProjectDto?> GetReviewProjectAsync(
         CompendiumProjectSelection selection,
         CompendiumNarrativeSource narrativeSource,
+        CompendiumNarrativeAlignment defaultNarrativeAlignment,
         CancellationToken cancellationToken = default)
     {
         selection = NormalizeSelection(selection);
@@ -538,6 +553,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var capabilitiesByProject = await LoadCapabilityStatementsAsync(new[] { project.Id }, cancellationToken);
         var capabilities = capabilitiesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<string>();
         var narrative = ResolveNarrative(project, capabilities, narrativeSource);
+        var effectiveNarrativeAlignment = selection.NarrativeAlignmentOverride
+                                         ?? CompendiumNarrativeTypographyPolicy.Normalize(defaultNarrativeAlignment);
         var specifications = (await LoadTechnicalSpecificationsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<string>();
         var iprCredentials = (await LoadIprCredentialsAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id) ?? Array.Empty<CompendiumIprCredentialDto>();
         var technologyTransfer = (await LoadTechnologyTransferAsync(new[] { project.Id }, cancellationToken)).GetValueOrDefault(project.Id);
@@ -601,7 +618,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             specifications,
             programmeModuleCount,
             project.Name,
-            planningDpi);
+            planningDpi,
+            selection.BalancedTextFlowMode);
         var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
             paginationDecision.Layout,
             dossierPhotoCount);
@@ -645,7 +663,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
         var narrativeFlow = CompendiumDossierNarrativeFlowPlanner.Resolve(
             narrative.Text, selection.BalancedTextFlowMode, paginationDecision.Layout, dossierPhotoCount > 0,
-            paginationDecision.PrimaryImageHeightPoints, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget);
+            paginationDecision.PrimaryImageHeightPoints, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget,
+            effectiveNarrativeAlignment, CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount));
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
         var fingerprint = CompendiumReviewFingerprint.Create(new CompendiumReviewFingerprintInput(
             project.Id,
@@ -669,6 +688,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             ImageFitMode = resolved.Selection.ImageFitMode,
             DossierLayout = selection.DossierLayout,
             BalancedTextFlowMode = selection.BalancedTextFlowMode,
+            NarrativeAlignment = effectiveNarrativeAlignment,
             DossierImages = dossierImages,
             TechnicalSpecifications = specifications,
             IprCredentials = iprCredentials,
@@ -750,6 +770,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DossierSpecificationColumns = paginationDecision.SpecificationColumns,
             DossierProgrammeColumns = paginationDecision.ProgrammeColumns,
             BalancedTextFlowMode = selection.BalancedTextFlowMode,
+            NarrativeAlignment = effectiveNarrativeAlignment,
+            UsesNarrativeAlignmentOverride = selection.NarrativeAlignmentOverride.HasValue,
             NarrativeFlow = narrativeFlow,
             EstimatedDossierPageCount = Math.Max(paginationDecision.EstimatedPageCount, narrativeFlow.EstimatedPageCount),
             DossierPaginationNote = paginationDecision.PaginationNote,
@@ -849,6 +871,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         {
             Edition = NormalizeDisplay(request.Edition, $"Capability Edition · {istYear}"),
             NarrativeSource = NormalizeNarrativeSource(request.NarrativeSource),
+            DefaultNarrativeAlignment = CompendiumNarrativeTypographyPolicy.Normalize(request.DefaultNarrativeAlignment),
             GroupingMode = NormalizeGroupingMode(request.GroupingMode),
             SortMode = NormalizeSortMode(request.SortMode),
             CoverDesign = request.CoverDesign
@@ -1240,6 +1263,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
             BalancedTextFlowMode = Enum.IsDefined(selection.BalancedTextFlowMode)
                 ? selection.BalancedTextFlowMode
                 : CompendiumBalancedTextFlowMode.FlowBelowImage,
+            NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride.HasValue
+                                         && Enum.IsDefined(selection.NarrativeAlignmentOverride.Value)
+                ? selection.NarrativeAlignmentOverride
+                : null,
             DossierImageCount = Math.Clamp(selection.DossierImageCount, 1, 3),
             SupportingPhoto1Id = selection.SupportingPhoto1Id is > 0 ? selection.SupportingPhoto1Id : null,
             SupportingPhoto1FocalX = ClampFocal(selection.SupportingPhoto1FocalX),

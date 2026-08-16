@@ -117,6 +117,7 @@
         <input asp-for="Input.ProjectSelectionsJson" type="hidden" data-project-selections />
         <input asp-for="Input.CustomSectionsJson" type="hidden" data-custom-sections />
         <input asp-for="Input.NarrativeSource" type="hidden" data-narrative-source />
+        <input asp-for="Input.NarrativeAlignment" type="hidden" data-narrative-alignment />
         <input asp-for="Input.GroupingMode" type="hidden" data-grouping-mode />
         <input asp-for="Input.SortMode" type="hidden" data-sort-mode />
         <input asp-for="PresetId" type="hidden" data-active-preset-id />
@@ -190,6 +191,13 @@
                                         <button type="button" data-narrative-value="ProjectBrief">Project brief <span>Recommended</span></button>
                                         <button type="button" data-narrative-value="CapabilityOverview">Capability overview</button>
                                         <button type="button" data-narrative-value="ProjectDescription">Description</button>
+                                    </div>
+                                </div>
+                                <div class="compendium-composer__control">
+                                    <div class="compendium-composer__label"><i class="bi bi-text-paragraph"></i><span><strong>Narrative alignment</strong><small>Publication default for dossier body text.</small></span></div>
+                                    <div class="compendium-segmented" role="group" aria-label="Narrative alignment">
+                                        <button type="button" data-narrative-alignment-value="Left">Left aligned</button>
+                                        <button type="button" data-narrative-alignment-value="Justified">Justified</button>
                                     </div>
                                 </div>
                                 <div class="compendium-composer__control">
@@ -538,6 +546,15 @@
                                                     <button type="button" class="btn btn-outline-secondary" data-review-text-flow-mode="SideColumn">Side column</button>
                                                 </div>
                                                 <small>Flow below image lets longer narrative continue across the full page width while preserving sentence boundaries.</small>
+                                            </div>
+                                            <div class="compendium-narrative-alignment-control" data-review-narrative-alignment-control>
+                                                <span>Narrative alignment</span>
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Project narrative alignment">
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-narrative-alignment="default">Publication default</button>
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-narrative-alignment="Left">Left aligned</button>
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-narrative-alignment="Justified">Justified</button>
+                                                </div>
+                                                <small>Justified text is used in wide narrative regions. Narrow Balanced side columns remain left aligned when needed for clean word spacing.</small>
                                             </div>
                                             <div class="compendium-dossier-fit-insight" data-review-pagination-insight>
                                                 <span data-review-pagination-badge>1 page</span>

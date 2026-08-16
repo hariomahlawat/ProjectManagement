@@ -59,6 +59,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     request.Edition)
                 {
                     NarrativeSource = request.NarrativeSource,
+                    DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
                     GroupingMode = request.GroupingMode,
                     SortMode = request.SortMode,
                     Sections = request.Sections,
@@ -176,6 +177,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     DossierSpecificationColumns = project.DossierSpecificationColumns,
                     DossierProgrammeColumns = project.DossierProgrammeColumns,
                     BalancedTextFlowMode = project.BalancedTextFlowMode,
+                    NarrativeAlignment = project.NarrativeAlignment,
                     NarrativeFlow = project.NarrativeFlow,
                     EstimatedDossierPageCount = project.EstimatedDossierPageCount,
                     DossierPaginationNote = project.DossierPaginationNote,
@@ -440,11 +442,11 @@ public sealed class CompendiumExportService : ICompendiumExportService
             {
                 foreach (var preference in projectPreferences.Where(item => item.SuitableForCoverHero || item.PreferredForPublication))
                 {
-                    var priority = preference.SuitableForCoverHero ? 500 : 350;
+                    var priority = preference.SuitableForCoverHero ? 800 : 550;
                     var focalX = project.CoverPhotoId == preference.PhotoId ? project.PrimaryFocalX : .5d;
                     var focalY = project.CoverPhotoId == preference.PhotoId ? project.PrimaryFocalY : .5d;
                     result.Add(new CoverCandidate(project.ProjectId, preference.PhotoId, focalX, focalY,
-                        priority + (project.IsReviewed ? 20 : 0) + (project.EffectiveDpi ?? 0) / 20));
+                        priority + (project.IsReviewed ? 25 : 0) + Math.Min(40, (project.EffectiveDpi ?? 0) / 10)));
                 }
             }
 
@@ -455,7 +457,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     photoId,
                     project.PrimaryFocalX,
                     project.PrimaryFocalY,
-                    100 + CoverHeroSourcePriority(project.CoverPhotoSource) * 20 + (project.IsReviewed ? 10 : 0) + (project.EffectiveDpi ?? 0) / 30));
+                    220 + CoverHeroSourcePriority(project.CoverPhotoSource) * 25 + (project.IsReviewed ? 15 : 0) + Math.Min(30, (project.EffectiveDpi ?? 0) / 10) - ((project.EffectiveDpi ?? 200) < CompendiumImageQualityPolicy.MinimumLargeImageDpi ? 90 : 0)));
             }
         }
         return result
