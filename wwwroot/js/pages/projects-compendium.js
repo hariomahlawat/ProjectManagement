@@ -2854,6 +2854,21 @@
         reviewAndAdvance();
     });
 
+    const guideNode = document.getElementById("compendiumGuide");
+    const guideOpenOnLoad = document.querySelector('[data-compendium-guide-open="true"]');
+    if (guideNode && guideOpenOnLoad && globalThis.bootstrap?.Offcanvas) {
+        requestAnimationFrame(() => {
+            globalThis.bootstrap.Offcanvas.getOrCreateInstance(guideNode).show();
+            try {
+                const url = new URL(location.href);
+                if (url.searchParams.has("guide")) {
+                    url.searchParams.delete("guide");
+                    history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+                }
+            } catch { /* keep guide opening non-blocking */ }
+        });
+    }
+
     serverBaselineBeforeStructureResume = captureSnapshot();
     resumedStructureHandoff = applyStructureHandoffOnResume();
     syncHidden();

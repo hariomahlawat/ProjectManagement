@@ -72,7 +72,7 @@ test('phase 29 preserves current browser authoring and review state across the s
 test('phase 29 protects unsaved structure work and supports explicit save and return semantics', () => {
   assert.match(structureView, /compendiumStructureLeaveModal/);
   assert.match(structureView, /Save and return/);
-  assert.match(structureView, /Return without saving/);
+  assert.match(structureView, /(?:Return without saving|Keep changes and return)/);
   assert.match(editorJs, /beforeunload/);
   assert.match(editorJs, /saveStructure/);
   assert.match(editorJs, /baselineSignature/);

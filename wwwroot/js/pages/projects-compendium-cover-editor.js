@@ -64,7 +64,8 @@
         hydrationVersions: new Map(),
         overrideEditing: new Set(),
         dirty: false,
-        leaveAfterSave: false
+        leaveAfterSave: false,
+        navigatingAway: false
     };
     const captureBackVisibility = () => ({
         showBackTitle: state.design.showBackTitle !== false,
@@ -881,7 +882,10 @@
     }
 
     async function safeJson(response) { try { return await response.json(); } catch { return null; } }
-    function goBack() { window.location.href = boot.returnUrl || `/Projects/Publications/Compendium?presetId=${encodeURIComponent(boot.preset?.id || '')}#compendium-settings`; }
+    function goBack() {
+        state.navigatingAway = true;
+        window.location.href = boot.returnUrl || `/Projects/Publications/Compendium?presetId=${encodeURIComponent(boot.preset?.id || '')}#compendium-settings`;
+    }
 
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
@@ -1024,9 +1028,21 @@
         if (!state.dirty) { goBack(); return; }
         modal('compendiumCoverLeaveModal')?.show();
     });
-    portalBy('[data-cover-return-unsaved]')?.addEventListener('click', goBack);
-    portalBy('[data-cover-save-return]')?.addEventListener('click', async () => { if (await save()) goBack(); });
-    window.addEventListener('beforeunload', event => { if (state.dirty) { event.preventDefault(); event.returnValue = ''; } });
+    portalBy('[data-cover-return-unsaved]')?.addEventListener('click', () => {
+        modal('compendiumCoverLeaveModal')?.hide();
+        goBack();
+    });
+    portalBy('[data-cover-save-return]')?.addEventListener('click', async () => {
+        if (await save()) {
+            modal('compendiumCoverLeaveModal')?.hide();
+            goBack();
+        }
+    });
+    window.addEventListener('beforeunload', event => {
+        if (state.navigatingAway || !state.dirty) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
 
     const proofStage = by('.compendium-cover-proof-stage');
     if (proofStage && 'ResizeObserver' in window) {

@@ -353,10 +353,10 @@
                 <h5 class="modal-title">Unsaved cover changes</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">The cover design has changed. Save before returning to the Compendium, return without saving, or stay in the editor.</div>
+            <div class="modal-body">The cover design has changed. Save before returning to the Compendium, discard the unsaved cover changes, or stay in the editor.</div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-outline-danger" data-cover-return-unsaved>Return without saving</button>
+                <button type="button" class="btn btn-outline-danger" data-cover-return-unsaved>Discard changes and return</button>
                 @if (Model.CanManagePresets)
                 {
                     <button type="button" class="btn btn-primary" data-cover-save-return>Save and return</button>

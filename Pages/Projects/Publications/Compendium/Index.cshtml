@@ -8,13 +8,14 @@
     ViewData["PageShell"] = "workspace";
     ViewData["Title"] = "Simulators Compendium";
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var openGuide = Request.Query["guide"].ToString() == "1";
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/projects-publications.css" asp-append-version="true" />
 }
 
-<div class="publications-page compendium-builder-page">
+<div class="publications-page compendium-builder-page" data-compendium-guide-open="@(openGuide ? "true" : "false")">
     <nav class="publications-breadcrumb" aria-label="Breadcrumb">
         <a asp-page="/Projects/Index">Projects</a>
         <span>/</span>
@@ -26,7 +27,17 @@
     <header class="publications-header compendium-builder-header">
         <div>
             <p class="publications-eyebrow">DETAILED PROJECT PUBLICATION</p>
-            <h1>Simulators Compendium</h1>
+            <div class="compendium-builder-title-row">
+                <h1>Simulators Compendium</h1>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary compendium-guide-trigger"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#compendiumGuide"
+                        aria-controls="compendiumGuide">
+                    <i class="bi bi-compass" aria-hidden="true"></i>
+                    <span>Guide</span>
+                </button>
+            </div>
             <p>Create a structured project reference by selecting and arranging projects from across the PRISM portfolio.</p>
         </div>
 
@@ -183,7 +194,17 @@
                                     <span>Publication composition</span>
                                     <strong>Choose what the Compendium says and how it is organised.</strong>
                                 </div>
-                                <span class="compendium-composer__badge">Editorial controls</span>
+                                <div class="compendium-composer__heading-actions">
+                                    <button type="button"
+                                            class="compendium-composer__help"
+                                            data-bs-toggle="offcanvas"
+                                            data-bs-target="#compendiumGuide"
+                                            aria-controls="compendiumGuide"
+                                            title="Open the Compendium capability guide">
+                                        <i class="bi bi-info-circle" aria-hidden="true"></i><span>Guide</span>
+                                    </button>
+                                    <span class="compendium-composer__badge">Editorial controls</span>
+                                </div>
                             </div>
                             <div class="compendium-composer__grid">
                                 <div class="compendium-composer__control">
@@ -972,6 +993,54 @@
         </div>
     </div>
 </div>
+
+<aside class="offcanvas offcanvas-end compendium-guide" tabindex="-1" id="compendiumGuide" aria-labelledby="compendiumGuideLabel">
+    <div class="offcanvas-header compendium-guide__header">
+        <div>
+            <span class="compendium-guide__eyebrow">COMPENDIUM GUIDE</span>
+            <h2 class="offcanvas-title" id="compendiumGuideLabel">What this workspace can do</h2>
+            <p>Use PRISM project data to compose, review and issue a controlled detailed project publication.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close guide"></button>
+    </div>
+    <div class="offcanvas-body compendium-guide__body">
+        <section class="compendium-guide__workflow" aria-label="Compendium workflow">
+            <span><b>1</b> Build</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <span><b>2</b> Compose</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <span><b>3</b> Design</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <span><b>4</b> Review</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <span><b>5</b> Publish</span>
+        </section>
+
+        <div class="compendium-guide__map">
+            <article id="compendium-guide-build">
+                <div class="compendium-guide__icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
+                <div><h3>Build the publication</h3><p>Select projects, use technical categories or custom sections, and control section/project order without changing project master data.</p></div>
+            </article>
+            <article id="compendium-guide-compose">
+                <div class="compendium-guide__icon"><i class="bi bi-text-paragraph" aria-hidden="true"></i></div>
+                <div><h3>Compose the dossiers</h3><p>Choose Project Brief, Capability Overview or Description; set alignment and Project Particulars presentation; include specifications and publication-specific Additional Notes.</p></div>
+            </article>
+            <article id="compendium-guide-design">
+                <div class="compendium-guide__icon"><i class="bi bi-palette2" aria-hidden="true"></i></div>
+                <div><h3>Design with controlled flexibility</h3><p>Use dossier layouts, supporting images, Fit/Fill and crop controls, plus curated front/back cover templates, publication themes and approved background treatments including contours, mesh and camouflage.</p></div>
+            </article>
+            <article id="compendium-guide-review">
+                <div class="compendium-guide__icon"><i class="bi bi-clipboard2-check" aria-hidden="true"></i></div>
+                <div><h3>Review before issue</h3><p>Review each project, surface image/content quality findings, detect likely duplicate or placeholder narrative, and deliberately accept warnings where appropriate.</p></div>
+            </article>
+            <article id="compendium-guide-publish">
+                <div class="compendium-guide__icon"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i></div>
+                <div><h3>Publish and reuse</h3><p>Save shared Compendiums, preserve publication configuration, generate the authoritative PDF, verify the rendered output and then enable the final download.</p></div>
+            </article>
+        </div>
+
+        <section class="compendium-guide__principle">
+            <i class="bi bi-shield-check" aria-hidden="true"></i>
+            <div><strong>Controlled publication system</strong><p>PRISM exposes meaningful editorial choices while keeping typography, institutional marks, page geometry and approved visual treatments governed.</p></div>
+        </section>
+    </div>
+</aside>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

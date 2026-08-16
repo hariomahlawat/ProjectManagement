@@ -8,7 +8,24 @@
     <partial name="_PublicationTabs" />
     <section class="publication-choice-grid" aria-label="Available publication types">
         <article class="publication-choice publication-choice--brochure"><div class="publication-choice__visual" aria-hidden="true"><div class="publication-choice__mock publication-choice__mock--brochure"><span></span><span></span><span></span></div></div><div class="publication-choice__body"><div class="publication-choice__kicker"><i class="bi bi-layout-text-window-reverse"></i> Capability publication</div><h2>Capability Brochure</h2><p>Create a visually focused publication for showcasing selected projects, technologies and organisational capabilities.</p><ul><li>Select and arrange the projects to feature</li><li>Choose compact print or screen-friendly digital layouts</li><li>Use project imagery and concise capability narratives</li><li>Preview, review and issue a publication-ready PDF</li></ul><a class="btn btn-primary" asp-page="/Projects/Publications/Brochure/Index">Create brochure <i class="bi bi-arrow-right"></i></a></div></article>
-        <article class="publication-choice publication-choice--compendium"><div class="publication-choice__visual" aria-hidden="true"><div class="publication-choice__mock publication-choice__mock--compendium"><span></span><span></span><span></span><span></span></div></div><div class="publication-choice__body"><div class="publication-choice__kicker"><i class="bi bi-journal-bookmark"></i> Detailed project publication</div><h2>Simulators Compendium</h2><p>Create a structured reference publication containing detailed information on selected simulators and projects.</p><ul><li>Select projects from across the PRISM portfolio</li><li>Organise entries by technical category</li><li>Present detailed project, status and capability information</li><li>Review publication completeness before final issue</li></ul><a class="btn btn-outline-primary" asp-page="/Projects/Publications/Compendium/Index">Create compendium <i class="bi bi-arrow-right"></i></a></div></article>
+        <article class="publication-choice publication-choice--compendium">
+            <div class="publication-choice__visual" aria-hidden="true"><div class="publication-choice__mock publication-choice__mock--compendium"><span></span><span></span><span></span><span></span></div></div>
+            <div class="publication-choice__body">
+                <div class="publication-choice__kicker"><i class="bi bi-journal-bookmark"></i> Detailed project publication</div>
+                <h2>Simulators Compendium</h2>
+                <p>Create a structured reference publication with controlled composition, imagery, cover identity, editorial review and publication-ready PDF output.</p>
+                <ul>
+                    <li>Curate cover layouts, themes, patterns and publication imagery</li>
+                    <li>Group, order and compose project dossiers with controlled editorial treatments</li>
+                    <li>Publish project briefs, particulars, specifications and publication notes</li>
+                    <li>Review warnings, verify the PDF and complete a governed final-issue workflow</li>
+                </ul>
+                <div class="publication-choice__actions">
+                    <a class="btn btn-outline-primary" asp-page="/Projects/Publications/Compendium/Index">Create compendium <i class="bi bi-arrow-right"></i></a>
+                    <a class="btn btn-link publication-choice__capabilities" asp-page="/Projects/Publications/Compendium/Index" asp-route-guide="1"><i class="bi bi-info-circle"></i> View capabilities</a>
+                </div>
+            </div>
+        </article>
     </section>
     <section class="publication-principle"><div class="publication-principle__icon"><i class="bi bi-signpost-split"></i></div><div><strong>Choose the publication that best suits your purpose.</strong><p>Use the Brochure for concise capability presentation and the Compendium for a more detailed project reference.</p></div></section>
 </div>
