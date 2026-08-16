@@ -5430,3 +5430,65 @@ body.compendium-structure-editor-mode {
 @media (max-width: 560px) {
     .compendium-particulars-style-options { flex-direction:column; }
 }
+
+/* ==========================================================================
+   Compendium Phase 37.6 — controlled semantic narrative proof
+   ========================================================================== */
+.compendium-live-page__narrative > div,
+.compendium-live-page__below-flow {
+    white-space: normal;
+}
+.compendium-live-page__narrative > div p,
+.compendium-live-page__below-flow p {
+    margin: 0 0 .28rem;
+}
+.compendium-live-page__narrative > div p:last-child,
+.compendium-live-page__below-flow p:last-child {
+    margin-bottom: 0;
+}
+.compendium-live-page__narrative > div ul,
+.compendium-live-page__below-flow ul {
+    margin: .12rem 0 .28rem;
+    padding-left: .9rem;
+}
+.compendium-live-page__narrative > div li,
+.compendium-live-page__below-flow li {
+    margin: .08rem 0;
+    text-align: left;
+}
+.compendium-live-page__narrative .compendium-review-markdown-heading,
+.compendium-live-page__below-flow .compendium-review-markdown-heading {
+    margin: .38rem 0 .16rem !important;
+    color: #17382f;
+    font-size: 1.08em;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: left;
+}
+[data-live-page-narrative].is-justified p:not(.compendium-review-markdown-heading),
+.compendium-live-page__below-flow.is-justified p:not(.compendium-review-markdown-heading) {
+    text-align: justify;
+    text-align-last: left;
+}
+[data-live-page-narrative].is-justified li,
+.compendium-live-page__below-flow.is-justified li,
+[data-live-page-narrative].is-justified .compendium-review-markdown-heading,
+.compendium-live-page__below-flow.is-justified .compendium-review-markdown-heading {
+    text-align: left;
+}
+
+/* Phase 37.6 semantic source review mirrors the controlled publication hierarchy. */
+.compendium-review-description-text .compendium-review-markdown-heading {
+    margin:.36rem 0 .14rem;
+    color:#17382f;
+    font-size:1.05em;
+    font-weight:700;
+    line-height:1.18;
+    text-align:left;
+}
+.compendium-review-description-text.is-justified p:not(.compendium-review-markdown-heading) {
+    text-align:justify;
+    text-align-last:left;
+}
+.compendium-review-description-text.is-justified li,
+.compendium-review-description-text.is-justified .compendium-review-markdown-heading { text-align:left; }

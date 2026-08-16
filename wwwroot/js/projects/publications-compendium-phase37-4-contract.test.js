@@ -78,9 +78,9 @@ test('phase 37.4 invalidates all reviews when the publication particulars style 
   assert.match(mainJs, /changeProjectParticularsStyle/);
   assert.match(mainJs, /orderedIds\.forEach\(invalidateProjectReview\)/);
   assert.match(mainJs, /projectParticularsStyle:\s*editorialState\.projectParticularsStyle/);
-  assert.match(fingerprint, /compendium-review-v(?:16-particulars-style|17-editorial-rules)/);
+  assert.match(fingerprint, /compendium-review-v(?:16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
   assert.match(fingerprint, /ProjectParticularsStyle/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_(?:particulars-style-v23|editorial-rules-v24)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:particulars-style-v23|editorial-rules-v24|semantic-narrative-v25)/);
 });
 
 test('phase 37.4 preserves the global style through Structure Editor handoff and save', () => {

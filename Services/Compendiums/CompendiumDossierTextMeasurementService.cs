@@ -5,19 +5,20 @@ namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
 /// Physical narrative measurement for Compendium dossier planning. Authoritative measurements use
-/// the same bundled DM Sans regular face as the publication renderer. A different platform font is
-/// never silently substituted because that would make pagination depend on the host machine.
+/// the same bundled DM Sans faces as the publication renderer. A different platform font is never
+/// silently substituted because that would make pagination depend on the host machine.
 /// Measurements are expressed in PDF points; one Skia text unit is treated as one point so the
 /// planner and QuestPDF share the same physical coordinate system.
 /// </summary>
 public static class CompendiumDossierTextMeasurementService
 {
-    private static readonly Regex ParagraphBreak = new(@"\n\s*\n", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex MarkdownLink = new(@"!?\[([^\]]*)\]\([^\)]*\)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex MarkdownNoise = new(@"(^|\s)[#>]+\s?|[*_`~]", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
     private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex ListItemPrefix = new(@"^\s*(?:[-+*]\s+|\d+[.)]\s+)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Lazy<SKTypeface> RegularTypeface = new(LoadRegularTypeface, LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly Lazy<SKTypeface> RegularTypeface = new(
+        () => LoadTypeface("DMSans-Regular.ttf", "Regular"),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly Lazy<SKTypeface> SemiBoldTypeface = new(
+        () => LoadTypeface("DMSans-SemiBold.ttf", "SemiBold"),
+        LazyThreadSafetyMode.ExecutionAndPublication);
 
     public sealed record Measurement(
         float HeightPoints,
@@ -43,15 +44,37 @@ public static class CompendiumDossierTextMeasurementService
             bool includeHeading = false)
         {
             var scale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
-            return MeasureAtFontSize(
+            return MeasureSemanticAtFontSize(
                 markdown,
                 widthPoints,
                 CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * scale,
                 CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
                 CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
-                includeHeading ? CompendiumNarrativeTypographyPolicy.NarrativeHeadingReservePoints : 0f);
+                includeHeading ? CompendiumNarrativeTypographyPolicy.NarrativeHeadingReservePoints : 0f,
+                allowMinorHeadings: true);
         }
 
+        public Measurement MeasureAdditionalNote(
+            string? markdown,
+            float widthPoints,
+            float narrativeFontScale = 1f,
+            float leadingReservePoints = 0f)
+        {
+            var scale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
+            return MeasureSemanticAtFontSize(
+                markdown,
+                widthPoints,
+                CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * scale,
+                CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
+                CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
+                leadingReservePoints,
+                allowMinorHeadings: false);
+        }
+
+        /// <summary>
+        /// Plain physical text measurement used for specification items and other non-narrative
+        /// values. Markdown block syntax is intentionally not interpreted here.
+        /// </summary>
         public Measurement MeasureAtFontSize(
             string? text,
             float widthPoints,
@@ -59,19 +82,68 @@ public static class CompendiumDossierTextMeasurementService
             float lineHeightMultiplier,
             float paragraphSpacingPoints = 0f,
             float leadingReservePoints = 0f)
+            => MeasurePlainAtFontSize(text, widthPoints, fontSizePoints, lineHeightMultiplier, paragraphSpacingPoints, leadingReservePoints);
+
+        public Measurement MeasureSemanticAtFontSize(
+            string? markdown,
+            float widthPoints,
+            float fontSizePoints,
+            float lineHeightMultiplier,
+            float paragraphSpacingPoints = 0f,
+            float leadingReservePoints = 0f,
+            bool allowMinorHeadings = true)
         {
-            var normalized = Normalize(text);
+            var normalized = CompendiumNarrativeParser.Normalize(markdown);
             var key = new MeasurementKey(
                 normalized,
                 Quantize(widthPoints),
                 Quantize(fontSizePoints),
                 Quantize(lineHeightMultiplier),
                 Quantize(paragraphSpacingPoints),
-                Quantize(leadingReservePoints));
+                Quantize(leadingReservePoints),
+                Semantic: true,
+                AllowMinorHeadings: allowMinorHeadings);
             if (_cache.TryGetValue(key, out var cached)) return cached;
 
-            var measured = MeasureAtFontSizeCore(
-                normalized, widthPoints, fontSizePoints, lineHeightMultiplier, paragraphSpacingPoints, leadingReservePoints);
+            var measured = MeasureSemanticAtFontSizeCore(
+                normalized,
+                widthPoints,
+                fontSizePoints,
+                lineHeightMultiplier,
+                paragraphSpacingPoints,
+                leadingReservePoints,
+                allowMinorHeadings);
+            _cache[key] = measured;
+            return measured;
+        }
+
+        private Measurement MeasurePlainAtFontSize(
+            string? text,
+            float widthPoints,
+            float fontSizePoints,
+            float lineHeightMultiplier,
+            float paragraphSpacingPoints,
+            float leadingReservePoints)
+        {
+            var normalized = NormalizePlain(text);
+            var key = new MeasurementKey(
+                normalized,
+                Quantize(widthPoints),
+                Quantize(fontSizePoints),
+                Quantize(lineHeightMultiplier),
+                Quantize(paragraphSpacingPoints),
+                Quantize(leadingReservePoints),
+                Semantic: false,
+                AllowMinorHeadings: false);
+            if (_cache.TryGetValue(key, out var cached)) return cached;
+
+            var measured = MeasurePlainAtFontSizeCore(
+                normalized,
+                widthPoints,
+                fontSizePoints,
+                lineHeightMultiplier,
+                paragraphSpacingPoints,
+                leadingReservePoints);
             _cache[key] = measured;
             return measured;
         }
@@ -82,8 +154,29 @@ public static class CompendiumDossierTextMeasurementService
             float availableHeightPoints,
             float narrativeFontScale = 1f,
             bool includeHeading = false,
+            float tolerancePoints = .75f,
+            bool allowMinorHeadings = true)
+        {
+            var scale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
+            var measured = MeasureSemanticAtFontSize(
+                markdown,
+                widthPoints,
+                CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * scale,
+                CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
+                CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
+                includeHeading ? CompendiumNarrativeTypographyPolicy.NarrativeHeadingReservePoints : 0f,
+                allowMinorHeadings);
+            return measured.HeightPoints
+                   <= Math.Max(0f, availableHeightPoints) + Math.Max(0f, tolerancePoints);
+        }
+
+        public bool FitsAdditionalNote(
+            string? markdown,
+            float widthPoints,
+            float availableHeightPoints,
+            float narrativeFontScale = 1f,
             float tolerancePoints = .75f)
-            => Measure(markdown, widthPoints, narrativeFontScale, includeHeading).HeightPoints
+            => MeasureAdditionalNote(markdown, widthPoints, narrativeFontScale).HeightPoints
                <= Math.Max(0f, availableHeightPoints) + Math.Max(0f, tolerancePoints);
 
         private static int Quantize(float value)
@@ -96,23 +189,23 @@ public static class CompendiumDossierTextMeasurementService
         int FontSizeHundredths,
         int LineHeightHundredths,
         int ParagraphSpacingHundredths,
-        int LeadingReserveHundredths);
+        int LeadingReserveHundredths,
+        bool Semantic,
+        bool AllowMinorHeadings);
 
     public static Measurement Measure(
         string? markdown,
         float widthPoints,
         float narrativeFontScale = 1f,
         bool includeHeading = false)
-    {
-        var scale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
-        return MeasureAtFontSize(
-            markdown,
-            widthPoints,
-            CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * scale,
-            CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
-            CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
-            includeHeading ? CompendiumNarrativeTypographyPolicy.NarrativeHeadingReservePoints : 0f);
-    }
+        => new Session().Measure(markdown, widthPoints, narrativeFontScale, includeHeading);
+
+    public static Measurement MeasureAdditionalNote(
+        string? markdown,
+        float widthPoints,
+        float narrativeFontScale = 1f,
+        float leadingReservePoints = 0f)
+        => new Session().MeasureAdditionalNote(markdown, widthPoints, narrativeFontScale, leadingReservePoints);
 
     public static Measurement MeasureAtFontSize(
         string? text,
@@ -121,10 +214,113 @@ public static class CompendiumDossierTextMeasurementService
         float lineHeightMultiplier,
         float paragraphSpacingPoints = 0f,
         float leadingReservePoints = 0f)
-        => MeasureAtFontSizeCore(
-            Normalize(text), widthPoints, fontSizePoints, lineHeightMultiplier, paragraphSpacingPoints, leadingReservePoints);
+        => new Session().MeasureAtFontSize(
+            text,
+            widthPoints,
+            fontSizePoints,
+            lineHeightMultiplier,
+            paragraphSpacingPoints,
+            leadingReservePoints);
 
-    private static Measurement MeasureAtFontSizeCore(
+    public static bool Fits(
+        string? markdown,
+        float widthPoints,
+        float availableHeightPoints,
+        float narrativeFontScale = 1f,
+        bool includeHeading = false,
+        float tolerancePoints = .75f)
+        => Measure(markdown, widthPoints, narrativeFontScale, includeHeading).HeightPoints
+           <= Math.Max(0f, availableHeightPoints) + Math.Max(0f, tolerancePoints);
+
+    private static Measurement MeasureSemanticAtFontSizeCore(
+        string normalized,
+        float widthPoints,
+        float fontSizePoints,
+        float lineHeightMultiplier,
+        float paragraphSpacingPoints,
+        float leadingReservePoints,
+        bool allowMinorHeadings)
+    {
+        if (normalized.Length == 0)
+        {
+            return leadingReservePoints > 0f
+                ? new Measurement(leadingReservePoints, 0, 0)
+                : Measurement.Empty;
+        }
+
+        widthPoints = Math.Max(24f, widthPoints);
+        fontSizePoints = Math.Max(5f, fontSizePoints);
+        lineHeightMultiplier = Math.Max(1f, lineHeightMultiplier);
+        paragraphSpacingPoints = Math.Max(0f, paragraphSpacingPoints);
+        leadingReservePoints = Math.Max(0f, leadingReservePoints);
+
+        var document = CompendiumNarrativeParser.Parse(normalized, allowMinorHeadings);
+        if (document.IsEmpty)
+        {
+            return leadingReservePoints > 0f
+                ? new Measurement(leadingReservePoints, 0, 0)
+                : Measurement.Empty;
+        }
+
+        using var bodyPaint = CreatePaint(RegularTypeface.Value, fontSizePoints);
+        var headingFontSize = fontSizePoints * CompendiumNarrativeSemanticPolicy.MinorHeadingFontScale;
+        using var headingPaint = CreatePaint(SemiBoldTypeface.Value, headingFontSize);
+
+        var totalHeight = leadingReservePoints;
+        var totalLines = 0;
+        var blockCount = 0;
+        foreach (var block in document.Blocks)
+        {
+            if (blockCount > 0) totalHeight += paragraphSpacingPoints;
+
+            switch (block.Kind)
+            {
+                case CompendiumNarrativeBlockKind.MinorHeading:
+                {
+                    var text = CompendiumNarrativeParser.CleanInline(block.Markdown);
+                    var lines = MeasureWrappedLineCount(text, widthPoints, headingPaint);
+                    totalLines += lines;
+                    totalHeight += CompendiumNarrativeSemanticPolicy.MinorHeadingTopSpacingPoints
+                                   + lines * headingFontSize * CompendiumNarrativeSemanticPolicy.MinorHeadingLineHeightMultiplier
+                                   + CompendiumNarrativeSemanticPolicy.MinorHeadingBottomSpacingPoints;
+                    break;
+                }
+
+                case CompendiumNarrativeBlockKind.BulletList:
+                {
+                    var itemIndex = 0;
+                    foreach (var item in block.Items)
+                    {
+                        var text = CompendiumNarrativeParser.CleanInline(item);
+                        if (text.Length == 0) continue;
+                        if (itemIndex++ > 0) totalHeight += CompendiumNarrativeSemanticPolicy.BulletItemSpacingPoints;
+                        var lines = MeasureWrappedLineCount(
+                            text,
+                            Math.Max(24f, widthPoints - CompendiumNarrativeSemanticPolicy.BulletGutterPoints),
+                            bodyPaint);
+                        totalLines += lines;
+                        totalHeight += lines * fontSizePoints * lineHeightMultiplier;
+                    }
+                    break;
+                }
+
+                default:
+                {
+                    var text = CompendiumNarrativeParser.CleanInline(block.Markdown);
+                    var lines = MeasureWrappedLineCount(text, widthPoints, bodyPaint);
+                    totalLines += lines;
+                    totalHeight += lines * fontSizePoints * lineHeightMultiplier;
+                    break;
+                }
+            }
+
+            blockCount++;
+        }
+
+        return new Measurement(totalHeight, totalLines, blockCount);
+    }
+
+    private static Measurement MeasurePlainAtFontSizeCore(
         string normalized,
         float widthPoints,
         float fontSizePoints,
@@ -144,78 +340,29 @@ public static class CompendiumDossierTextMeasurementService
         lineHeightMultiplier = Math.Max(1f, lineHeightMultiplier);
         paragraphSpacingPoints = Math.Max(0f, paragraphSpacingPoints);
         leadingReservePoints = Math.Max(0f, leadingReservePoints);
-        var lineHeight = fontSizePoints * lineHeightMultiplier;
-        var blocks = BuildMeasurementBlocks(normalized);
 
-        if (blocks.Count == 0)
-        {
-            return leadingReservePoints > 0f
-                ? new Measurement(leadingReservePoints, 0, 0)
-                : Measurement.Empty;
-        }
+        var paragraphs = normalized
+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => Whitespace.Replace(value, " ").Trim())
+            .Where(value => value.Length > 0)
+            .ToArray();
+        if (paragraphs.Length == 0) return Measurement.Empty;
 
-        using var paint = new SKPaint
+        using var paint = CreatePaint(RegularTypeface.Value, fontSizePoints);
+        var lines = paragraphs.Sum(paragraph => MeasureWrappedLineCount(paragraph, widthPoints, paint));
+        var height = lines * fontSizePoints * lineHeightMultiplier
+                     + Math.Max(0, paragraphs.Length - 1) * paragraphSpacingPoints
+                     + leadingReservePoints;
+        return new Measurement(height, lines, paragraphs.Length);
+    }
+
+    private static SKPaint CreatePaint(SKTypeface typeface, float textSize)
+        => new()
         {
-            Typeface = RegularTypeface.Value,
-            TextSize = fontSizePoints,
+            Typeface = typeface,
+            TextSize = textSize,
             IsAntialias = true
         };
-
-        var lines = 0;
-        foreach (var block in blocks)
-        {
-            // Markdown list items render with an 18-point bullet/number gutter in QuestPDF.
-            // Measure their text against the same reduced line width so Additional Notes and
-            // narrative lists cannot silently consume more physical height than the planner saw.
-            var blockWidth = block.IsListItem ? Math.Max(24f, widthPoints - 18f) : widthPoints;
-            lines += MeasureWrappedLineCount(block.Text, blockWidth, paint);
-        }
-
-        var height = lines * lineHeight
-                     + Math.Max(0, blocks.Count - 1) * paragraphSpacingPoints
-                     + leadingReservePoints;
-
-        return new Measurement(height, lines, blocks.Count);
-    }
-
-    public static bool Fits(
-        string? markdown,
-        float widthPoints,
-        float availableHeightPoints,
-        float narrativeFontScale = 1f,
-        bool includeHeading = false,
-        float tolerancePoints = .75f)
-        => Measure(markdown, widthPoints, narrativeFontScale, includeHeading).HeightPoints
-           <= Math.Max(0f, availableHeightPoints) + Math.Max(0f, tolerancePoints);
-
-    private sealed record MeasurementBlock(string Text, bool IsListItem);
-
-    private static IReadOnlyList<MeasurementBlock> BuildMeasurementBlocks(string normalized)
-    {
-        var result = new List<MeasurementBlock>();
-        foreach (var rawBlock in ParagraphBreak.Split(normalized))
-        {
-            if (string.IsNullOrWhiteSpace(rawBlock)) continue;
-            var lines = rawBlock.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n');
-            var containsListItem = lines.Any(line => ListItemPrefix.IsMatch(line));
-            if (!containsListItem)
-            {
-                var paragraph = CleanMarkdownInline(rawBlock);
-                if (paragraph.Length > 0) result.Add(new MeasurementBlock(paragraph, false));
-                continue;
-            }
-
-            foreach (var rawLine in lines)
-            {
-                if (string.IsNullOrWhiteSpace(rawLine)) continue;
-                var isListItem = ListItemPrefix.IsMatch(rawLine);
-                var content = isListItem ? ListItemPrefix.Replace(rawLine, string.Empty) : rawLine;
-                content = CleanMarkdownInline(content);
-                if (content.Length > 0) result.Add(new MeasurementBlock(content, isListItem));
-            }
-        }
-        return result;
-    }
 
     private static int MeasureWrappedLineCount(string paragraph, float widthPoints, SKPaint paint)
     {
@@ -241,8 +388,8 @@ public static class CompendiumDossierTextMeasurementService
             lineCount++;
             line = word;
 
-            // QuestPDF will still shape an unusually long token. Count the physical pressure of
-            // that token conservatively without ever altering/splitting the source narrative.
+            // QuestPDF still shapes an unusually long token. Count the physical pressure of that
+            // token conservatively without ever altering/splitting the publication source.
             var wordWidth = paint.MeasureText(word);
             if (wordWidth > widthPoints)
             {
@@ -253,24 +400,17 @@ public static class CompendiumDossierTextMeasurementService
         return lineCount;
     }
 
-    private static string CleanMarkdownInline(string value)
-    {
-        var cleaned = MarkdownLink.Replace(value, "$1");
-        cleaned = MarkdownNoise.Replace(cleaned, "$1");
-        return Whitespace.Replace(cleaned, " ").Trim();
-    }
-
-    private static string Normalize(string? value)
+    private static string NormalizePlain(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? string.Empty
             : value.Replace("\r\n", "\n", StringComparison.Ordinal)
                 .Replace("\r", "\n", StringComparison.Ordinal)
                 .Trim();
 
-    private static SKTypeface LoadRegularTypeface()
+    private static SKTypeface LoadTypeface(string fileName, string faceName)
     {
         var attempted = new List<string>();
-        foreach (var path in CandidateFontPaths().Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var path in CandidateFontPaths(fileName).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             attempted.Add(path);
             try
@@ -282,23 +422,23 @@ public static class CompendiumDossierTextMeasurementService
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
-                    $"The Compendium publication font could not be loaded from '{path}'. "
+                    $"The Compendium publication font face '{faceName}' could not be loaded from '{path}'. "
                     + "Physical page measurement cannot safely fall back to a different host font.",
                     ex);
             }
         }
 
         throw new InvalidOperationException(
-            "The bundled DM Sans Regular font required for authoritative Compendium measurement was not found. "
+            $"The bundled DM Sans {faceName} font required for authoritative Compendium measurement was not found. "
             + $"Checked: {string.Join("; ", attempted)}");
     }
 
-    private static IEnumerable<string> CandidateFontPaths()
+    private static IEnumerable<string> CandidateFontPaths(string fileName)
     {
-        var relative = Path.Combine("wwwroot", "fonts", "publications", "dm-sans", "DMSans-Regular.ttf");
+        var relative = Path.Combine("wwwroot", "fonts", "publications", "dm-sans", fileName);
         yield return Path.Combine(Directory.GetCurrentDirectory(), relative);
         yield return Path.Combine(AppContext.BaseDirectory, relative);
-        yield return Path.Combine(AppContext.BaseDirectory, "fonts", "publications", "dm-sans", "DMSans-Regular.ttf");
+        yield return Path.Combine(AppContext.BaseDirectory, "fonts", "publications", "dm-sans", fileName);
 
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         for (var depth = 0; directory is not null && depth < 7; depth++, directory = directory.Parent)

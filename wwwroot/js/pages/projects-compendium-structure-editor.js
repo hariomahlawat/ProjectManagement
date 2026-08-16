@@ -80,7 +80,8 @@
             customSectionName: cleanName(project.customSectionName) || null,
             narrativeSourceOverride: project.narrativeSourceOverride ? String(project.narrativeSourceOverride) : null,
             narrativeAlignmentOverride: normalize(project.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(project.narrativeAlignmentOverride) === "left" ? "Left" : null,
-            additionalNote: String(project.additionalNote || "").trim() || null
+            additionalNote: String(project.additionalNote || "").trim() || null,
+            additionalNoteSpecified: true
         });
     });
 
@@ -125,7 +126,10 @@
                 customSectionName: cleanName(incoming.customSectionName) || null,
                 narrativeSourceOverride: incoming.narrativeSourceOverride ? String(incoming.narrativeSourceOverride) : null,
                 narrativeAlignmentOverride: normalize(incoming.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(incoming.narrativeAlignmentOverride) === "left" ? "Left" : null,
-                additionalNote: String(incoming.additionalNote || "").trim() || null
+                additionalNote: incoming.additionalNoteSpecified === false
+                    ? (config.additionalNote ?? null)
+                    : String(incoming.additionalNote || "").trim() || null,
+                additionalNoteSpecified: incoming.additionalNoteSpecified !== false
             });
         });
         projectStates = incomingHandoff.projectStates || {};
@@ -146,7 +150,9 @@
                 customSectionKey: null,
                 customSectionName: null,
                 narrativeSourceOverride: null,
-                narrativeAlignmentOverride: null
+                narrativeAlignmentOverride: null,
+                additionalNote: null,
+                additionalNoteSpecified: false
             });
         }
         return configById.get(projectId);
@@ -571,7 +577,8 @@
                 customSectionName: section?.name || null,
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
                 narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
-                additionalNote: String(config.additionalNote || "").trim() || null
+                additionalNote: String(config.additionalNote || "").trim() || null,
+                additionalNoteSpecified: config.additionalNoteSpecified !== false
             };
             states[id] = projectState(id);
         });
@@ -954,7 +961,8 @@
                 supportingPhoto2Id:config.supportingPhoto2Id||null, supportingPhoto2FocalX:clamp(config.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(config.supportingPhoto2FocalY), supportingPhoto2FitMode:config.supportingPhoto2FitMode==="fit"?"Fit":"Fill",
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
                 narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
-                additionalNote: String(config.additionalNote || "").trim() || null
+                additionalNote: String(config.additionalNote || "").trim() || null,
+                additionalNoteSpecified: config.additionalNoteSpecified !== false
             };
         })
     });

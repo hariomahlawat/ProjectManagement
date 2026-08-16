@@ -365,6 +365,9 @@ public sealed class IndexModel : PageModel
             review.ProliferationCostLakhs,
             review.ProliferationCostDisplay,
             review.DescriptionMarkdown,
+            narrativeBlocks = ToNarrativeBlockPayloads(review.DescriptionMarkdown, allowMinorHeadings: true),
+            review.AdditionalNote,
+            additionalNoteBlocks = ToNarrativeBlockPayloads(review.AdditionalNote, allowMinorHeadings: false),
             narrativeSource = review.NarrativeSource.ToString(),
             review.NarrativeLabel,
             review.HasProjectBrief,
@@ -407,8 +410,13 @@ public sealed class IndexModel : PageModel
                 sideAlignment = review.NarrativeFlow.SideAlignment.ToString(),
                 belowAlignment = review.NarrativeFlow.BelowAlignment.ToString(),
                 review.NarrativeFlow.SideSegment,
+                sideBlocks = ToNarrativeBlockPayloads(review.NarrativeFlow.SideSegment, allowMinorHeadings: true),
                 review.NarrativeFlow.BelowImageSegment,
+                belowBlocks = ToNarrativeBlockPayloads(review.NarrativeFlow.BelowImageSegment, allowMinorHeadings: true),
                 review.NarrativeFlow.ContinuationSegments,
+                continuationBlocks = review.NarrativeFlow.ContinuationSegments
+                    .Select(segment => ToNarrativeBlockPayloads(segment, allowMinorHeadings: true))
+                    .ToArray(),
                 review.NarrativeFlow.SideRegionHeightPoints,
                 review.NarrativeFlow.SideUsedHeightPoints,
                 review.NarrativeFlow.SideRemainingHeightPoints,
@@ -771,6 +779,7 @@ public sealed class IndexModel : PageModel
                         CustomSectionName = project.CustomSectionName,
                         NarrativeSourceOverride = project.NarrativeSourceOverride,
                         NarrativeAlignmentOverride = project.NarrativeAlignmentOverride,
+                        AdditionalNote = project.AdditionalNote,
                         ImageFitMode = project.ImageFitMode,
                         DossierLayout = project.DossierLayout,
                         BalancedTextFlowMode = project.BalancedTextFlowMode,
@@ -1460,6 +1469,21 @@ public sealed class IndexModel : PageModel
         => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : null;
+
+    private static IReadOnlyList<NarrativeBlockPayload> ToNarrativeBlockPayloads(
+        string? markdown,
+        bool allowMinorHeadings)
+        => CompendiumNarrativeParser.Parse(markdown, allowMinorHeadings).Blocks
+            .Select(block => new NarrativeBlockPayload(
+                block.Kind.ToString(),
+                block.Markdown,
+                block.Items))
+            .ToArray();
+
+    private sealed record NarrativeBlockPayload(
+        string Kind,
+        string Markdown,
+        IReadOnlyList<string> Items);
 
     private sealed class CoverSlotKeyComparer : IEqualityComparer<(CompendiumCoverSurface Surface, string SlotKey)>
     {

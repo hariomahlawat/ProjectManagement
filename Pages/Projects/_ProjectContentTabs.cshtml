@@ -197,7 +197,10 @@
                               data-word-recommended-max="@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords"
                               data-word-hard-max="@ProjectFieldLimits.ProjectBriefHardMaximumWords"
                               data-word-counter
-                              aria-describedby="project-brief-editor-meta"></textarea>
+                              aria-describedby="project-brief-formatting-hint project-brief-editor-meta"></textarea>
+                    <div class="form-text" id="project-brief-formatting-hint">
+                        Compendium formatting: <code>###</code> minor heading · <code>**bold**</code> · <code>*italic*</code> · <code>-</code> bullet.
+                    </div>
                     <div class="project-content__editor-meta" id="project-brief-editor-meta">
                         <span>
                             Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.

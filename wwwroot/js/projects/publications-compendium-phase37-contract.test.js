@@ -127,9 +127,9 @@ test('phase 37 preserves alignment through Structure Editor handoff and persiste
 });
 
 test('phase 37 binds typography changes into review and publication identities', () => {
-  assert.match(fingerprint, /compendium-review-v(?:12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules)/);
+  assert.match(fingerprint, /compendium-review-v(?:12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative)/);
   assert.match(fingerprint, /input\.NarrativeAlignment\.ToString\(\)/);
-  assert.match(readService, /(?:CompendiumPdf_2026-08-15_composition-hardening-v19|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23|editorial-rules-v24))/);
+  assert.match(readService, /(?:CompendiumPdf_2026-08-15_composition-hardening-v19|CompendiumPdf_2026-08-16_(?:physical-composition-v20|editorial-constraints-v21|final-editorial-v22|particulars-style-v23|editorial-rules-v24|semantic-narrative-v25))/);
   assert.match(indexPage, /NarrativeAlignmentOverride/);
   assert.match(indexPage, /DefaultNarrativeAlignment/);
 });

@@ -230,7 +230,9 @@ public sealed class StructureModel : PageModel
                     DossierLayout = ParseDossierLayout(item.DossierLayout, baseConfiguration.DossierLayout),
                     BalancedTextFlowMode = ParseBalancedTextFlowMode(item.BalancedTextFlowMode, baseConfiguration.BalancedTextFlowMode),
                     NarrativeAlignmentOverride = ParseNarrativeAlignmentOverride(item.NarrativeAlignmentOverride) ?? baseConfiguration.NarrativeAlignmentOverride,
-                    AdditionalNote = NormalizeAdditionalNote(item.AdditionalNote),
+                    AdditionalNote = item.AdditionalNoteSpecified
+                        ? NormalizeAdditionalNote(item.AdditionalNote)
+                        : baseConfiguration.AdditionalNote,
                     DossierImageCount = Math.Clamp(item.DossierImageCount ?? baseConfiguration.DossierImageCount, 1, 3),
                     SupportingPhoto1Id = item.SupportingPhoto1Id ?? baseConfiguration.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = ClampFocal(item.SupportingPhoto1FocalX ?? baseConfiguration.SupportingPhoto1FocalX),
@@ -426,5 +428,6 @@ public sealed class StructureModel : PageModel
         public string? NarrativeSourceOverride { get; set; }
         public string? NarrativeAlignmentOverride { get; set; }
         public string? AdditionalNote { get; set; }
+        public bool AdditionalNoteSpecified { get; set; }
     }
 }

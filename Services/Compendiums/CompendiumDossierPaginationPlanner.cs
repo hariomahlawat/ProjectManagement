@@ -374,7 +374,8 @@ public static class CompendiumDossierPaginationPlanner
                 FullNarrativeWidthPoints,
                 CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
                 1f,
-                includeHeading: false);
+                includeHeading: false,
+                allowMinorHeadings: false);
             noteContinuationPages = Math.Max(1, noteChunks.Count);
 
             var hasExistingContinuation = narrativeContinuationPages + specificationContinuationPages > 0;
@@ -879,12 +880,10 @@ public static class CompendiumDossierPaginationPlanner
         // imagery or choose a different dossier layout.
         const float noteHeadingGeometryPoints = 23f;
         const float preservedEditorialBreathingPoints = 7f;
-        return preservedEditorialBreathingPoints + measurementSession.MeasureAtFontSize(
+        return preservedEditorialBreathingPoints + measurementSession.MeasureAdditionalNote(
             additionalNote,
             FullNarrativeWidthPoints,
-            CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * scale,
-            CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
-            CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
+            scale,
             leadingReservePoints: noteHeadingGeometryPoints).HeightPoints;
     }
 

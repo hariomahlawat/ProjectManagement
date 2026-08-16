@@ -183,7 +183,8 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                             519f,
                             CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
                             project.DossierNarrativeFontScale,
-                            includeHeading: false)
+                            includeHeading: false,
+                            allowMinorHeadings: false)
                         .ToList();
 
                     // When the last continuation page has genuine measured room, append the first

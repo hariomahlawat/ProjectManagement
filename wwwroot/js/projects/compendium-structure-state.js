@@ -69,7 +69,9 @@
                     customSectionName: cleanName(source.customSectionName) || null,
                     narrativeSourceOverride: source.narrativeSourceOverride ? String(source.narrativeSourceOverride) : null,
                     narrativeAlignmentOverride: normalize(source.narrativeAlignmentOverride) === "justified" ? "Justified" : normalize(source.narrativeAlignmentOverride) === "left" ? "Left" : null,
-                    additionalNote: String(source.additionalNote || "").trim() || null
+                    additionalNote: String(source.additionalNote || "").trim() || null,
+                    additionalNoteSpecified: source.additionalNoteSpecified === true
+                        || Object.prototype.hasOwnProperty.call(source, "additionalNote")
                 };
             });
         }

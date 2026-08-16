@@ -579,6 +579,7 @@
                 narrativeSourceOverride: config.narrativeSourceOverride || null,
                 narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
                 additionalNote: String(config.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
+                additionalNoteSpecified: true,
                 imageFitMode: config.imageFitMode || "fill",
                 dossierLayout: config.dossierLayout || "Automatic",
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
@@ -653,7 +654,9 @@
             config.customSectionName = section?.name || null;
             config.narrativeSourceOverride = incoming.narrativeSourceOverride ? normalizeNarrative(incoming.narrativeSourceOverride) : null;
             config.narrativeAlignmentOverride = incoming.narrativeAlignmentOverride ? normalizeNarrativeAlignment(incoming.narrativeAlignmentOverride) : null;
-            config.additionalNote = String(incoming.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null;
+            if (incoming.additionalNoteSpecified !== false) {
+                config.additionalNote = String(incoming.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null;
+            }
             config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
             config.dossierLayout = normalizeDossierLayout(incoming.dossierLayout);
             config.balancedTextFlowMode = normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode);
@@ -982,42 +985,88 @@
     const availabilityLabel = value => value === true
         ? "Available for proliferation"
         : value === false ? "Not available for proliferation" : "Not assessed";
-    const renderInlineMarkdown = value => escapeHtml(value)
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-        .replace(/`([^`]+)`/g, "<code>$1</code>")
-        .replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
-    const formatDescription = value => {
-        const text = String(value || "").replace(/\r\n/g, "\n").trim();
+    const renderInlineMarkdown = value => {
+        const visible = String(value || "")
+            .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+            .replace(/`([^`]+)`/g, "$1");
+        return escapeHtml(visible)
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+            .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>")
+            .replace(/(?<!_)_([^_\n]+)_(?!_)/g, "<em>$1</em>");
+    };
+
+    const formatDescription = (value, allowMinorHeadings = true) => {
+        const text = String(value || "").replace(/\r\n?/g, "\n").trim();
         if (!text) return '<span class="compendium-review-missing">Not recorded</span>';
 
-        const lines = text.split("\n");
         const html = [];
-        let list = null;
-        const closeList = () => {
-            if (!list) return;
-            html.push(`</${list}>`);
-            list = null;
+        let paragraph = [];
+        let bullets = [];
+
+        const flushParagraph = () => {
+            if (!paragraph.length) return;
+            html.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+            paragraph = [];
+        };
+        const flushBullets = () => {
+            if (!bullets.length) return;
+            html.push(`<ul>${bullets.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+            bullets = [];
         };
 
-        for (const rawLine of lines) {
+        for (const rawLine of text.split("\n")) {
             const line = rawLine.trim();
-            if (!line) { closeList(); continue; }
-            const bullet = line.match(/^[-*]\s+(.+)$/);
-            const numbered = line.match(/^\d+[.)]\s+(.+)$/);
-            if (bullet || numbered) {
-                const desired = bullet ? "ul" : "ol";
-                if (list !== desired) { closeList(); list = desired; html.push(`<${list}>`); }
-                html.push(`<li>${renderInlineMarkdown((bullet || numbered)[1])}</li>`);
+            if (!line) {
+                flushParagraph();
+                flushBullets();
                 continue;
             }
-            closeList();
-            const heading = line.match(/^#{1,4}\s+(.+)$/);
-            if (heading) { html.push(`<p class="compendium-review-markdown-heading">${renderInlineMarkdown(heading[1])}</p>`); continue; }
-            html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+
+            const heading = line.match(/^(#{1,6})\s+(.+)$/);
+            if (heading) {
+                flushParagraph();
+                flushBullets();
+                if (allowMinorHeadings && heading[1].length === 3) {
+                    html.push(`<p class="compendium-review-markdown-heading">${renderInlineMarkdown(heading[2])}</p>`);
+                } else {
+                    html.push(`<p>${renderInlineMarkdown(heading[2])}</p>`);
+                }
+                continue;
+            }
+
+            const bullet = line.match(/^[-*]\s+(.+)$/);
+            if (bullet) {
+                flushParagraph();
+                bullets.push(bullet[1]);
+                continue;
+            }
+
+            flushBullets();
+            paragraph.push(line);
         }
-        closeList();
+
+        flushParagraph();
+        flushBullets();
         return html.join("");
+    };
+
+    const renderNarrativeBlocks = (blocks, fallbackText, allowMinorHeadings = true) => {
+        if (!Array.isArray(blocks) || blocks.length === 0) {
+            return formatDescription(fallbackText, allowMinorHeadings);
+        }
+
+        return blocks.map(block => {
+            const kind = normalize(block?.kind);
+            if (kind === "minorheading" && allowMinorHeadings) {
+                return `<p class="compendium-review-markdown-heading">${renderInlineMarkdown(block.markdown || "")}</p>`;
+            }
+            if (kind === "bulletlist") {
+                const items = Array.isArray(block.items) ? block.items : [];
+                return `<ul>${items.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`;
+            }
+            return `<p>${renderInlineMarkdown(block?.markdown || "")}</p>`;
+        }).join("");
     };
 
     const renderReviewLoading = id => {
@@ -1168,17 +1217,23 @@
         const flow = review.narrativeFlow || {};
         const flowMode = normalizeBalancedTextFlowMode(flow.mode || review.balancedTextFlowMode || config.balancedTextFlowMode);
         const flowBelow = effectiveLayout === "Balanced" && flowMode === "FlowBelowImage";
-        const sidePlain = narrativePlainText(flow.sideSegment || (!flowBelow ? review.descriptionMarkdown : ""));
-        const belowPlain = flowBelow ? narrativePlainText(flow.belowImageSegment) : "";
+        const sideSource = flow.sideSegment || (!flowBelow ? review.descriptionMarkdown : "");
+        const belowSource = flowBelow ? flow.belowImageSegment : "";
+        const sidePlain = narrativePlainText(sideSource);
+        const belowPlain = narrativePlainText(belowSource);
         if (livePageNarrative) {
-            livePageNarrative.textContent = sidePlain || (!belowPlain ? `${review.narrativeLabel || "Project Brief"} not recorded.` : "");
+            livePageNarrative.innerHTML = sidePlain
+                ? renderNarrativeBlocks(flow.sideBlocks, sideSource, true)
+                : (!belowPlain ? escapeHtml(`${review.narrativeLabel || "Project Brief"} not recorded.`) : "");
             livePageNarrative.classList.toggle("is-justified", normalizeNarrativeAlignment(flow.sideAlignment) === "Justified");
             livePageNarrative.classList.toggle("is-missing", !sidePlain && !belowPlain);
             livePageNarrative.classList.toggle("has-continuation", Array.isArray(flow.continuationSegments) && flow.continuationSegments.length > 0);
         }
         if (livePageBelowFlow) {
             livePageBelowFlow.hidden = !belowPlain;
-            livePageBelowFlow.textContent = belowPlain;
+            livePageBelowFlow.innerHTML = belowPlain
+                ? renderNarrativeBlocks(flow.belowBlocks, belowSource, true)
+                : "";
             livePageBelowFlow.classList.toggle("is-justified", normalizeNarrativeAlignment(flow.belowAlignment || review.narrativeAlignment) === "Justified");
         }
         if (livePageContinuation) {
@@ -1198,7 +1253,7 @@
         const additionalNote = normalizeAdditionalNote(config.additionalNote !== undefined ? config.additionalNote : review.additionalNote);
         if (livePageAdditionalNote && livePageAdditionalNoteText) {
             livePageAdditionalNote.hidden = additionalNote.length === 0;
-            livePageAdditionalNoteText.innerHTML = additionalNote ? formatDescription(additionalNote) : "";
+            livePageAdditionalNoteText.innerHTML = additionalNote ? formatDescription(additionalNote, false) : "";
             livePageAdditionalNoteText.classList.toggle(
                 "is-justified",
                 normalizeNarrativeAlignment(review.narrativeAlignment || config.narrativeAlignmentOverride || editorialState.narrativeAlignment) === "Justified");
@@ -1230,7 +1285,10 @@
         const facts = programmeModules(review).map(module => [module.label, module.value]);
         if (reviewFacts) reviewFacts.innerHTML = facts.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
         if (reviewDescription) {
-            reviewDescription.innerHTML = formatDescription(review.descriptionMarkdown);
+            reviewDescription.innerHTML = renderNarrativeBlocks(
+                review.narrativeBlocks,
+                review.descriptionMarkdown,
+                true);
             reviewDescription.classList.toggle("is-justified", normalizeNarrativeAlignment(review.narrativeAlignment || config.narrativeAlignmentOverride || editorialState.narrativeAlignment) === "Justified");
         }
         if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = review.narrativeLabel || "Project Brief";
@@ -2404,7 +2462,7 @@
         renderAdditionalNoteMeta(note);
         if (livePageAdditionalNote && livePageAdditionalNoteText) {
             livePageAdditionalNote.hidden = note.length === 0;
-            livePageAdditionalNoteText.innerHTML = note ? formatDescription(note) : "";
+            livePageAdditionalNoteText.innerHTML = note ? formatDescription(note, false) : "";
             livePageAdditionalNoteText.classList.toggle(
                 "is-justified",
                 normalizeNarrativeAlignment(activeReviewData?.narrativeAlignment || config.narrativeAlignmentOverride || editorialState.narrativeAlignment) === "Justified");

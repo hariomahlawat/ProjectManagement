@@ -210,11 +210,38 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
 
     private static bool LooksLikePlaceholderNarrative(string value)
     {
-        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        return normalized.Contains("lorem ipsum", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("dummy text", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("testing text", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("sample text", StringComparison.OrdinalIgnoreCase);
+        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
+        if (normalized.Length == 0) return false;
+
+        if (normalized.Contains("lorem ipsum", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("dummy text", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("dummy description", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Generic sample/test phrases are only suspicious in relatively short drafts. This avoids
+        // flagging legitimate long technical briefs that happen to discuss test text or samples.
+        if (normalized.Length <= 360
+            && (normalized.Contains("testing text", StringComparison.OrdinalIgnoreCase)
+                || normalized.Contains("test text", StringComparison.OrdinalIgnoreCase)
+                || normalized.Contains("sample text", StringComparison.OrdinalIgnoreCase)
+                || normalized.Contains("sample description", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        // Keep short status placeholders conservative so ordinary technical prose containing words
+        // such as "test" or "update" is never flagged merely because of vocabulary.
+        if (normalized.Length <= 96)
+        {
+            return normalized.Equals("tbd", StringComparison.OrdinalIgnoreCase)
+                   || normalized.Equals("to be updated", StringComparison.OrdinalIgnoreCase)
+                   || normalized.Equals("to be added", StringComparison.OrdinalIgnoreCase)
+                   || normalized.Equals("not yet updated", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 
     private static bool ContainsDuplicateNarrativeParagraph(string value)

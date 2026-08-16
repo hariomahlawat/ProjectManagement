@@ -1202,7 +1202,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 continuation: false,
                 narrativeFontScale: narrativeFontScale,
                 showHeading: false,
-                narrativeAlignment: alignment));
+                narrativeAlignment: alignment,
+                allowMinorHeadings: false));
         });
     }
 
@@ -1371,7 +1372,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         bool continuation,
         float narrativeFontScale = 1f,
         bool showHeading = true,
-        CompendiumNarrativeAlignment narrativeAlignment = CompendiumNarrativeAlignment.Left)
+        CompendiumNarrativeAlignment narrativeAlignment = CompendiumNarrativeAlignment.Left,
+        bool allowMinorHeadings = true)
     {
         narrativeLabel = NormalizeNarrativeLabel(narrativeLabel);
         narrativeFontScale = continuation ? 1f : CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
@@ -1415,11 +1417,12 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     .FontSize(bodyFontSize)
                     .FontColor(Slate700)
                     .LineHeight(CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier))
-                .Element(element => MarkdownPdfRenderer.Render(
+                .Element(element => CompendiumNarrativePdfRenderer.Render(
                     element,
                     markdown,
                     justifyParagraphs: narrativeAlignment == CompendiumNarrativeAlignment.Justified,
-                    typography: typography));
+                    typography: typography,
+                    allowMinorHeadings: allowMinorHeadings));
         });
     }
 

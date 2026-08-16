@@ -377,7 +377,8 @@ public static class CompendiumDossierNarrativeFlowPlanner
         float widthPoints,
         float pageHeightPoints,
         float narrativeFontScale = 1f,
-        bool includeHeading = false)
+        bool includeHeading = false,
+        bool allowMinorHeadings = true)
     {
         var remaining = Normalize(text);
         if (remaining.Length == 0) return Array.Empty<string>();
@@ -386,7 +387,14 @@ public static class CompendiumDossierNarrativeFlowPlanner
         var guard = 0;
         while (remaining.Length > 0 && guard++ < 100)
         {
-            var split = SplitToMeasuredHeight(remaining, pageHeightPoints, widthPoints, narrativeFontScale, measurement, includeHeading);
+            var split = SplitToMeasuredHeight(
+                remaining,
+                pageHeightPoints,
+                widthPoints,
+                narrativeFontScale,
+                measurement,
+                includeHeading,
+                allowMinorHeadings);
             if (!string.IsNullOrWhiteSpace(split.Head))
             {
                 result.Add(split.Head.Trim());
@@ -406,53 +414,136 @@ public static class CompendiumDossierNarrativeFlowPlanner
         float widthPoints,
         float narrativeFontScale,
         CompendiumDossierTextMeasurementService.Session measurementSession,
-        bool includeHeading = true)
+        bool includeHeading = true,
+        bool allowMinorHeadings = true)
     {
-        var paragraphs = GetParagraphs(text);
-        if (paragraphs.Count == 0) return (string.Empty, text);
+        var document = CompendiumNarrativeParser.Parse(text, allowMinorHeadings);
+        if (document.IsEmpty) return (string.Empty, text);
 
-        var head = new List<string>();
-        for (var index = 0; index < paragraphs.Count; index++)
+        var blocks = document.Blocks;
+        var accepted = new List<CompendiumNarrativeBlock>();
+
+        bool FitsCandidate(IEnumerable<CompendiumNarrativeBlock> candidateBlocks)
         {
-            var paragraph = paragraphs[index];
-            var wholeCandidate = JoinParagraphs(head.Append(paragraph));
-            if (measurementSession.Fits(
-                    wholeCandidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: includeHeading))
+            var candidate = new CompendiumNarrativeDocument(candidateBlocks.ToArray()).ToMarkdown();
+            return measurementSession.Fits(
+                candidate,
+                widthPoints,
+                availableHeightPoints,
+                narrativeFontScale,
+                includeHeading: includeHeading,
+                allowMinorHeadings: allowMinorHeadings);
+        }
+
+        for (var index = 0; index < blocks.Count; index++)
+        {
+            var block = blocks[index];
+
+            if (block.Kind == CompendiumNarrativeBlockKind.MinorHeading)
             {
-                head.Add(paragraph);
+                // Never strand a semantic heading at the bottom of a page. The planner only accepts
+                // it when the first meaningful unit of the following block also fits.
+                var keepUnit = index + 1 < blocks.Count ? FirstKeepWithNextUnit(blocks[index + 1]) : null;
+                var keepCandidate = keepUnit is null
+                    ? accepted.Append(block)
+                    : accepted.Concat(new[] { block, keepUnit });
+                if (FitsCandidate(keepCandidate))
+                {
+                    accepted.Add(block);
+                    continue;
+                }
+
+                return (
+                    new CompendiumNarrativeDocument(accepted).ToMarkdown(),
+                    new CompendiumNarrativeDocument(blocks.Skip(index).ToArray()).ToMarkdown());
+            }
+
+            if (FitsCandidate(accepted.Append(block)))
+            {
+                accepted.Add(block);
                 continue;
             }
 
-            var sentences = GetSentences(paragraph);
-            var acceptedSentences = new List<string>();
-            for (var sentenceIndex = 0; sentenceIndex < sentences.Count; sentenceIndex++)
+            if (block.Kind == CompendiumNarrativeBlockKind.BulletList)
             {
-                var sentenceCandidate = string.Join(" ", acceptedSentences.Append(sentences[sentenceIndex])).Trim();
-                var candidateParagraphs = head.Concat(new[] { sentenceCandidate });
-                var candidate = JoinParagraphs(candidateParagraphs);
-                if (!measurementSession.Fits(
-                        candidate, widthPoints, availableHeightPoints, narrativeFontScale, includeHeading: includeHeading))
+                var acceptedItems = new List<string>();
+                foreach (var item in block.Items)
                 {
-                    break;
+                    var candidateList = CompendiumNarrativeBlock.BulletList(acceptedItems.Append(item).ToArray());
+                    if (!FitsCandidate(accepted.Append(candidateList))) break;
+                    acceptedItems.Add(item);
                 }
 
-                acceptedSentences.Add(sentences[sentenceIndex]);
+                if (acceptedItems.Count > 0)
+                {
+                    accepted.Add(CompendiumNarrativeBlock.BulletList(acceptedItems.ToArray()));
+                    var tail = new List<CompendiumNarrativeBlock>();
+                    var remainingItems = block.Items.Skip(acceptedItems.Count).ToArray();
+                    if (remainingItems.Length > 0)
+                        tail.Add(CompendiumNarrativeBlock.BulletList(remainingItems));
+                    tail.AddRange(blocks.Skip(index + 1));
+                    return (
+                        new CompendiumNarrativeDocument(accepted).ToMarkdown(),
+                        new CompendiumNarrativeDocument(tail).ToMarkdown());
+                }
+
+                return (
+                    new CompendiumNarrativeDocument(accepted).ToMarkdown(),
+                    new CompendiumNarrativeDocument(blocks.Skip(index).ToArray()).ToMarkdown());
+            }
+
+            // Paragraphs remain paragraph-first and sentence-second. Inline emphasis markers are
+            // retained verbatim; only complete sentence units move between physical pages.
+            var sentences = GetSentences(block.Markdown);
+            var acceptedSentences = new List<string>();
+            foreach (var sentence in sentences)
+            {
+                var partial = CompendiumNarrativeBlock.Paragraph(
+                    string.Join(" ", acceptedSentences.Append(sentence)).Trim());
+                if (!FitsCandidate(accepted.Append(partial))) break;
+                acceptedSentences.Add(sentence);
             }
 
             if (acceptedSentences.Count > 0)
             {
-                head.Add(string.Join(" ", acceptedSentences));
-                var tail = new List<string>();
+                accepted.Add(CompendiumNarrativeBlock.Paragraph(string.Join(" ", acceptedSentences)));
+                var tail = new List<CompendiumNarrativeBlock>();
                 var remainingSentenceText = string.Join(" ", sentences.Skip(acceptedSentences.Count)).Trim();
-                if (remainingSentenceText.Length > 0) tail.Add(remainingSentenceText);
-                tail.AddRange(paragraphs.Skip(index + 1));
-                return (JoinParagraphs(head), JoinParagraphs(tail));
+                if (remainingSentenceText.Length > 0)
+                    tail.Add(CompendiumNarrativeBlock.Paragraph(remainingSentenceText));
+                tail.AddRange(blocks.Skip(index + 1));
+                return (
+                    new CompendiumNarrativeDocument(accepted).ToMarkdown(),
+                    new CompendiumNarrativeDocument(tail).ToMarkdown());
             }
 
-            return (JoinParagraphs(head), JoinParagraphs(paragraphs.Skip(index)));
+            return (
+                new CompendiumNarrativeDocument(accepted).ToMarkdown(),
+                new CompendiumNarrativeDocument(blocks.Skip(index).ToArray()).ToMarkdown());
         }
 
-        return (JoinParagraphs(head), string.Empty);
+        return (new CompendiumNarrativeDocument(accepted).ToMarkdown(), string.Empty);
+    }
+
+    private static CompendiumNarrativeBlock? FirstKeepWithNextUnit(CompendiumNarrativeBlock block)
+    {
+        if (block.Kind == CompendiumNarrativeBlockKind.BulletList)
+        {
+            var first = block.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+            return string.IsNullOrWhiteSpace(first)
+                ? null
+                : CompendiumNarrativeBlock.BulletList(new[] { first });
+        }
+
+        if (block.Kind == CompendiumNarrativeBlockKind.Paragraph)
+        {
+            var firstSentence = GetSentences(block.Markdown).FirstOrDefault();
+            return string.IsNullOrWhiteSpace(firstSentence)
+                ? null
+                : CompendiumNarrativeBlock.Paragraph(firstSentence);
+        }
+
+        return block;
     }
 
     private static string JoinParagraphs(IEnumerable<string> paragraphs)
