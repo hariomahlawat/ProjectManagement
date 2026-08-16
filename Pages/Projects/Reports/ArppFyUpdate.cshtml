@@ -6,6 +6,8 @@
 @using ProjectManagement.Utilities
 @{
     ViewData["Title"] = "ARPP FY Project Update";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
     var report = Model.Report;
     string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
     string SupplyOrder(ArppFyProjectUpdateRow row)
@@ -31,30 +33,56 @@
     </nav>
 
     <header class="report-workspace-header">
-        <div>
+        <div class="report-workspace-header__identity">
             <p class="project-reports-eyebrow">ARPP / PPP · FORMAL FY RETURN</p>
             <h1>ARPP FY Project Update</h1>
-            <p>Approved New, CL and CF projects from the selected FY's latest published ARPP position.</p>
+            <p>Listed New, CL and CF projects from the selected FY's latest published ARPP position.</p>
         </div>
 
-        @if (Model.AvailableFinancialYears.Count > 0)
-        {
-            <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
-                <label for="financialYearStart">Financial Year</label>
-                <div class="input-group input-group-sm">
-                    <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
-                        @foreach (var year in Model.AvailableFinancialYears)
-                        {
-                            <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
-                        }
-                    </select>
-                    <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
-                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                        <span class="visually-hidden">Refresh report</span>
-                    </button>
+        <div class="report-workspace-actions">
+            @if (Model.AvailableFinancialYears.Count > 0)
+            {
+                <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
+                    <label for="financialYearStart">Financial Year</label>
+                    <div class="input-group input-group-sm">
+                        <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
+                            @foreach (var year in Model.AvailableFinancialYears)
+                            {
+                                <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+                            }
+                        </select>
+                        <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
+                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            <span class="visually-hidden">Refresh report</span>
+                        </button>
+                    </div>
+                </form>
+            }
+
+            @if (report is not null)
+            {
+                <div class="report-export-group" aria-label="Export report">
+                    <span class="report-export-group__label">Export</span>
+                    <div class="report-export-actions">
+                        <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
+                           aria-disabled="@(!report.CanExport)">
+                            <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                        </a>
+                        <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
+                           aria-disabled="@(!report.CanExport)">
+                            <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                        </a>
+                        <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
+                           aria-disabled="@(!report.CanExport)">
+                            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+                        </a>
+                    </div>
                 </div>
-            </form>
-        }
+            }
+        </div>
     </header>
 
     @if (Model.AvailableFinancialYears.Count == 0)
@@ -76,40 +104,27 @@
     }
     else
     {
-        <section class="report-command-strip" aria-label="Report controls">
+        <section class="report-command-strip" aria-label="Report summary">
             <div class="report-kpis">
                 <div><span>Projects</span><strong>@report.Rows.Count</strong></div>
                 <div><span>Completed</span><strong>@report.CompletedCount</strong></div>
                 <div><span>Ongoing / exceptions</span><strong>@report.OngoingCount</strong></div>
                 <div class="@(report.WarningCount > 0 ? "has-warning" : string.Empty)"><span>Data warnings</span><strong>@report.WarningCount</strong></div>
             </div>
-            <div class="report-export-actions">
-                <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                   asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
-                   aria-disabled="@(!report.CanExport)">
-                    <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
-                </a>
-                <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                   asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
-                   aria-disabled="@(!report.CanExport)">
-                    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
-                </a>
-                <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                   asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
-                   aria-disabled="@(!report.CanExport)">
-                    <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
-                </a>
+            <div class="report-order-note">
+                <i class="bi bi-sort-down-alt" aria-hidden="true"></i>
+                <span>Ordered by lifecycle maturity</span>
             </div>
         </section>
 
         @if (report.Warnings.Count > 0)
         {
-            <details class="report-preflight" @(report.WarningCount > 0 ? "open" : null)>
+            <details class="report-preflight">
                 <summary>
                     <span class="report-preflight__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span>
                     <span>
-                        <strong>Publication preflight</strong>
-                        <small>@report.WarningCount warning@(report.WarningCount == 1 ? "" : "s") before issue</small>
+                        <strong>Report preflight</strong>
+                        <small>@report.WarningCount warning@(report.WarningCount == 1 ? "" : "s") · review before issue</small>
                     </span>
                     <i class="bi bi-chevron-down report-preflight__chevron" aria-hidden="true"></i>
                 </summary>
@@ -131,38 +146,49 @@
 
         <section class="formal-report-card" aria-label="ARPP FY project update preview">
             <header class="formal-report-card__header">
-                <div>
-                    <span>FY @report.FinancialYearDisplay</span>
-                    <h2>ARPP Approved Projects – Project Update</h2>
-                </div>
-                <small>Rows are ordered by lifecycle maturity. Completed projects are classified directly from project lifecycle status and do not use stage history.</small>
+                <h2>@report.FormalTitle</h2>
+                <small>Ordered by lifecycle maturity</small>
             </header>
 
             @if (report.Rows.Count == 0)
             {
-                <div class="formal-report-empty">No linked approved New / CL / CF projects are available for this FY.</div>
+                <div class="formal-report-empty">No linked listed New / CL / CF projects are available for this FY.</div>
             }
             else
             {
                 <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable report table">
                     <table class="formal-report-table">
+                        <colgroup>
+                            <col class="col-serial" />
+                            <col class="col-arpp" />
+                            <col class="col-project" />
+                            <col class="col-date" />
+                            <col class="col-sch" />
+                            <col class="col-cfa" />
+                            <col class="col-est" />
+                            <col class="col-aon" />
+                            <col class="col-so" />
+                            <col class="col-pdc" />
+                            <col class="col-case" />
+                            <col class="col-remarks" />
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th rowspan="2" class="col-serial">Ser No.</th>
-                                <th rowspan="2" class="col-arpp">ARPP No.</th>
-                                <th rowspan="2" class="col-project">Name of Project</th>
-                                <th rowspan="2" class="col-date">Dt of Grant of IPA / ARPP Listing</th>
-                                <th rowspan="2" class="col-sch">Sch</th>
-                                <th rowspan="2" class="col-cfa">CFA</th>
-                                <th rowspan="2" class="col-est">Est</th>
-                                <th colspan="3" class="col-status">Status</th>
-                                <th rowspan="2" class="col-case">Proj Case</th>
-                                <th rowspan="2" class="col-remarks">Remarks</th>
+                                <th rowspan="2">Ser No.</th>
+                                <th rowspan="2">ARPP No.</th>
+                                <th rowspan="2">Name of Project</th>
+                                <th rowspan="2">Dt of Grant of IPA / ARPP Listing</th>
+                                <th rowspan="2">Sch</th>
+                                <th rowspan="2">CFA</th>
+                                <th rowspan="2">Est</th>
+                                <th colspan="3">Status</th>
+                                <th rowspan="2">Proj Case</th>
+                                <th rowspan="2">Remarks</th>
                             </tr>
                             <tr>
-                                <th class="col-aon">AoN</th>
-                                <th class="col-so">SO amt &amp; dt</th>
-                                <th class="col-pdc">PDC dt</th>
+                                <th>AoN</th>
+                                <th>SO amt &amp; dt</th>
+                                <th>PDC dt</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -176,7 +202,7 @@
                                     </td>
                                     <td class="text-center">@Date(row.FirstArppListingDate)</td>
                                     <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>
-                                    <td class="text-center">@(row.Cfa ?? "—")</td>
+                                    <td class="text-center formal-report-cfa">@(row.Cfa ?? "—")</td>
                                     <td class="text-center">@row.Establishment</td>
                                     <td class="text-center">@Date(row.AonDate)</td>
                                     <td class="text-center formal-report-so">

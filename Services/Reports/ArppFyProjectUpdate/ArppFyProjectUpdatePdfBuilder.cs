@@ -30,16 +30,10 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                 page.Margin(22);
                 page.DefaultTextStyle(style => style.FontSize(7.2f).FontColor(Ink));
 
-                page.Header().PaddingBottom(8).Column(header =>
-                {
-                    header.Item().AlignCenter().Text($"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}")
-                        .FontSize(13)
-                        .Bold()
-                        .FontColor(Navy);
-                    header.Item().AlignCenter().Text("PROJECT UPDATE")
-                        .FontSize(10)
-                        .SemiBold();
-                });
+                page.Header().PaddingBottom(8).AlignCenter().Text(report.FormalTitle)
+                    .FontSize(11.5f)
+                    .Bold()
+                    .FontColor(Navy);
 
                 page.Content().Table(table =>
                 {
@@ -50,13 +44,13 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                         columns.RelativeColumn(2.7f);
                         columns.RelativeColumn(1.2f);
                         columns.RelativeColumn(0.9f);
-                        columns.RelativeColumn(0.75f);
+                        columns.RelativeColumn(0.95f);
                         columns.RelativeColumn(0.65f);
                         columns.RelativeColumn(1.0f);
                         columns.RelativeColumn(1.5f);
                         columns.RelativeColumn(1.0f);
                         columns.RelativeColumn(0.8f);
-                        columns.RelativeColumn(4.25f);
+                        columns.RelativeColumn(4.05f);
                     });
 
                     table.Header(header =>
@@ -112,9 +106,9 @@ public sealed class ArppFyProjectUpdatePdfBuilder
         })
         .WithMetadata(new DocumentMetadata
         {
-            Title = $"ARPP FY {report.FinancialYearDisplay} Project Update",
+            Title = report.FormalTitle,
             Author = "Simulator Development Division",
-            Subject = "ARPP approved projects and current update",
+            Subject = "ARPP listed projects and current update",
             Creator = "PRISM ERP",
             Producer = "PRISM ERP",
             CreationDate = report.GeneratedAtUtc,

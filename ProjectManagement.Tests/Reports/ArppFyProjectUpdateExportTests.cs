@@ -11,7 +11,7 @@ namespace ProjectManagement.Tests.Reports;
 public sealed class ArppFyProjectUpdateExportTests
 {
     [Fact]
-    public void Word_and_excel_builders_emit_valid_landscape_report_files()
+    public void Export_builders_emit_the_single_authoritative_formal_heading()
     {
         var report = SampleReport();
 
@@ -22,7 +22,8 @@ public sealed class ArppFyProjectUpdateExportTests
         {
             Assert.NotNull(document.MainDocumentPart?.Document?.Body);
             var text = document.MainDocumentPart!.Document.Body!.InnerText;
-            Assert.Contains("ARPP APPROVED PROJECTS", text, StringComparison.Ordinal);
+            Assert.Contains(report.FormalTitle, text, StringComparison.Ordinal);
+            Assert.DoesNotContain("ARPP APPROVED PROJECTS", text, StringComparison.Ordinal);
             Assert.Contains("Sample Simulator", text, StringComparison.Ordinal);
         }
 
@@ -31,9 +32,15 @@ public sealed class ArppFyProjectUpdateExportTests
         using var excelStream = new MemoryStream(excel);
         using var workbook = new XLWorkbook(excelStream);
         var worksheet = workbook.Worksheet("ARPP Project Update");
+        Assert.Equal(report.FormalTitle, worksheet.Cell(1, 1).GetString());
+        Assert.True(string.IsNullOrWhiteSpace(worksheet.Cell(2, 1).GetString()));
         Assert.Equal("Status", worksheet.Cell(3, 8).GetString());
         Assert.Equal("SO amt & dt", worksheet.Cell(4, 9).GetString());
         Assert.Equal("Sample Simulator", worksheet.Cell(5, 3).GetString());
+
+        var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report);
+        Assert.True(pdf.Length > 1000);
+        Assert.Equal((byte)'%', pdf[0]);
     }
 
     private static ArppFyProjectUpdateReport SampleReport()

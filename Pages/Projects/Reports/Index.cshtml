@@ -3,6 +3,8 @@
 @using ProjectManagement.Utilities
 @{
     ViewData["Title"] = "Project Reports";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
     var latestFy = Model.AvailableFinancialYears.FirstOrDefault();
 }
 @section Styles {
@@ -20,7 +22,7 @@
         <div>
             <p class="project-reports-eyebrow">PROJECT REPORTING</p>
             <h1>Reports</h1>
-            <p>Generate formal project returns directly from authoritative PRISM and published ARPP records.</p>
+            <p>Generate formal project returns directly from published ARPP and current PRISM records.</p>
         </div>
     </header>
 
@@ -29,42 +31,40 @@
             <div class="project-report-card__icon" aria-hidden="true">
                 <i class="bi bi-table"></i>
             </div>
+
             <div class="project-report-card__body">
-                <div class="project-report-card__meta">ARPP / PPP · FY return</div>
+                <div class="project-report-card__meta">ARPP / PPP · FY RETURN</div>
                 <h2>ARPP FY Project Update</h2>
-                <p>ARPP-approved projects for the selected financial year with IPA/ARPP listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
-                <div class="project-report-card__facts">
-                    <span><i class="bi bi-sort-down-alt"></i> Stage-maturity order</span>
-                    <span><i class="bi bi-file-earmark-word"></i> Word</span>
-                    <span><i class="bi bi-file-earmark-pdf"></i> PDF</span>
-                    <span><i class="bi bi-file-earmark-excel"></i> Excel</span>
+                <p>ARPP-listed New, CL and CF projects for the selected financial year with original listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
+                <div class="project-report-card__facts" aria-label="Report capabilities">
+                    <span><i class="bi bi-sort-down-alt" aria-hidden="true"></i> Lifecycle-maturity order</span>
+                    <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
+                    <span><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</span>
+                    <span><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</span>
                 </div>
+            </div>
+
+            <div class="project-report-card__aside">
                 @if (latestFy > 0)
                 {
-                    <a class="btn btn-primary" asp-page="./ArppFyUpdate" asp-route-financialYearStart="@latestFy">
+                    <div class="project-report-card__availability">
+                        <span>Latest available</span>
+                        <strong>FY @FinancialYearHelper.Format(latestFy)</strong>
+                    </div>
+                    <a class="btn btn-primary btn-sm" asp-page="./ArppFyUpdate" asp-route-financialYearStart="@latestFy">
                         Open report
                         <i class="bi bi-arrow-right" aria-hidden="true"></i>
                     </a>
                 }
                 else
                 {
-                    <button class="btn btn-secondary" type="button" disabled>No published ARPP data</button>
+                    <div class="project-report-card__availability">
+                        <span>Availability</span>
+                        <strong>No published ARPP data</strong>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" type="button" disabled>Unavailable</button>
                 }
             </div>
-            @if (latestFy > 0)
-            {
-                <div class="project-report-card__availability">
-                    Latest available: <strong>FY @FinancialYearHelper.Format(latestFy)</strong>
-                </div>
-            }
         </article>
-    </section>
-
-    <section class="project-reports-principle">
-        <i class="bi bi-shield-check" aria-hidden="true"></i>
-        <div>
-            <strong>One authoritative data model per report.</strong>
-            <p>The browser preview and all export formats use the same resolved report rows and ordering.</p>
-        </div>
     </section>
 </div>

@@ -60,6 +60,7 @@ public sealed record ArppFyProjectUpdateReport(
     int UnlinkedPublishedRowCount)
 {
     public string FinancialYearDisplay => FinancialYearHelper.Format(FinancialYearStart);
+    public string FormalTitle => $"PROJECT UPDATE : ARPP LISTED PROJECTS (FY {FinancialYearDisplay})";
     public int CompletedCount => Rows.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed);
     public int OngoingCount => Rows.Count - CompletedCount;
     public int WarningCount => Warnings.Count(warning => warning.Severity == ArppFyReportWarningSeverity.Warning);

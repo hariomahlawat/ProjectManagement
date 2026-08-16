@@ -20,20 +20,17 @@ public sealed class ArppFyProjectUpdateExcelBuilder
         worksheet.Style.Font.FontSize = 9;
 
         var title = worksheet.Range(1, 1, 1, ColumnCount).Merge();
-        title.Value = $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}";
+        title.Value = report.FormalTitle;
         title.Style.Font.Bold = true;
         title.Style.Font.FontSize = 15;
         title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
         title.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         title.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         worksheet.Row(1).Height = 24;
+        title.Style.Alignment.WrapText = false;
 
-        var subtitle = worksheet.Range(2, 1, 2, ColumnCount).Merge();
-        subtitle.Value = "PROJECT UPDATE";
-        subtitle.Style.Font.Bold = true;
-        subtitle.Style.Font.FontSize = 11;
-        subtitle.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Row(2).Height = 20;
+        // Keep a narrow visual spacer between the single-line title and the formal table header.
+        worksheet.Row(2).Height = 7;
 
         BuildHeader(worksheet);
 
@@ -154,15 +151,15 @@ public sealed class ArppFyProjectUpdateExcelBuilder
     {
         worksheet.Column(1).Width = 7;
         worksheet.Column(2).Width = 12;
-        worksheet.Column(3).Width = 34;
+        worksheet.Column(3).Width = 36;
         worksheet.Column(4).Width = 17;
         worksheet.Column(5).Width = 12;
-        worksheet.Column(6).Width = 10;
+        worksheet.Column(6).Width = 16;
         worksheet.Column(7).Width = 8;
         worksheet.Column(8).Width = 14;
         worksheet.Column(9).Width = 19;
         worksheet.Column(10).Width = 14;
         worksheet.Column(11).Width = 11;
-        worksheet.Column(12).Width = 58;
+        worksheet.Column(12).Width = 54;
     }
 }

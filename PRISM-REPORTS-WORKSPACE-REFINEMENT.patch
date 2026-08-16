@@ -1,0 +1,1290 @@
+--- a/Pages/Projects/Reports/Index.cshtml
++++ b/Pages/Projects/Reports/Index.cshtml
+@@ -3,6 +3,8 @@
+ @using ProjectManagement.Utilities
+ @{
+     ViewData["Title"] = "Project Reports";
++    ViewData["UseFullWidth"] = true;
++    ViewData["PageShell"] = "workspace";
+     var latestFy = Model.AvailableFinancialYears.FirstOrDefault();
+ }
+ @section Styles {
+@@ -20,7 +22,7 @@
+         <div>
+             <p class="project-reports-eyebrow">PROJECT REPORTING</p>
+             <h1>Reports</h1>
+-            <p>Generate formal project returns directly from authoritative PRISM and published ARPP records.</p>
++            <p>Generate formal project returns directly from published ARPP and current PRISM records.</p>
+         </div>
+     </header>
+ 
+@@ -29,42 +31,40 @@
+             <div class="project-report-card__icon" aria-hidden="true">
+                 <i class="bi bi-table"></i>
+             </div>
++
+             <div class="project-report-card__body">
+-                <div class="project-report-card__meta">ARPP / PPP · FY return</div>
++                <div class="project-report-card__meta">ARPP / PPP · FY RETURN</div>
+                 <h2>ARPP FY Project Update</h2>
+-                <p>ARPP-approved projects for the selected financial year with IPA/ARPP listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
+-                <div class="project-report-card__facts">
+-                    <span><i class="bi bi-sort-down-alt"></i> Stage-maturity order</span>
+-                    <span><i class="bi bi-file-earmark-word"></i> Word</span>
+-                    <span><i class="bi bi-file-earmark-pdf"></i> PDF</span>
+-                    <span><i class="bi bi-file-earmark-excel"></i> Excel</span>
++                <p>ARPP-listed New, CL and CF projects for the selected financial year with original listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
++                <div class="project-report-card__facts" aria-label="Report capabilities">
++                    <span><i class="bi bi-sort-down-alt" aria-hidden="true"></i> Lifecycle-maturity order</span>
++                    <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
++                    <span><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</span>
++                    <span><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</span>
+                 </div>
++            </div>
++
++            <div class="project-report-card__aside">
+                 @if (latestFy > 0)
+                 {
+-                    <a class="btn btn-primary" asp-page="./ArppFyUpdate" asp-route-financialYearStart="@latestFy">
++                    <div class="project-report-card__availability">
++                        <span>Latest available</span>
++                        <strong>FY @FinancialYearHelper.Format(latestFy)</strong>
++                    </div>
++                    <a class="btn btn-primary btn-sm" asp-page="./ArppFyUpdate" asp-route-financialYearStart="@latestFy">
+                         Open report
+                         <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                     </a>
+                 }
+                 else
+                 {
+-                    <button class="btn btn-secondary" type="button" disabled>No published ARPP data</button>
++                    <div class="project-report-card__availability">
++                        <span>Availability</span>
++                        <strong>No published ARPP data</strong>
++                    </div>
++                    <button class="btn btn-secondary btn-sm" type="button" disabled>Unavailable</button>
+                 }
+             </div>
+-            @if (latestFy > 0)
+-            {
+-                <div class="project-report-card__availability">
+-                    Latest available: <strong>FY @FinancialYearHelper.Format(latestFy)</strong>
+-                </div>
+-            }
+         </article>
+     </section>
+-
+-    <section class="project-reports-principle">
+-        <i class="bi bi-shield-check" aria-hidden="true"></i>
+-        <div>
+-            <strong>One authoritative data model per report.</strong>
+-            <p>The browser preview and all export formats use the same resolved report rows and ordering.</p>
+-        </div>
+-    </section>
+ </div>
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml
+@@ -6,6 +6,8 @@
+ @using ProjectManagement.Utilities
+ @{
+     ViewData["Title"] = "ARPP FY Project Update";
++    ViewData["UseFullWidth"] = true;
++    ViewData["PageShell"] = "workspace";
+     var report = Model.Report;
+     string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+     string SupplyOrder(ArppFyProjectUpdateRow row)
+@@ -31,30 +33,56 @@
+     </nav>
+ 
+     <header class="report-workspace-header">
+-        <div>
++        <div class="report-workspace-header__identity">
+             <p class="project-reports-eyebrow">ARPP / PPP · FORMAL FY RETURN</p>
+             <h1>ARPP FY Project Update</h1>
+-            <p>Approved New, CL and CF projects from the selected FY's latest published ARPP position.</p>
++            <p>Listed New, CL and CF projects from the selected FY's latest published ARPP position.</p>
+         </div>
+ 
+-        @if (Model.AvailableFinancialYears.Count > 0)
+-        {
+-            <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
+-                <label for="financialYearStart">Financial Year</label>
+-                <div class="input-group input-group-sm">
+-                    <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
+-                        @foreach (var year in Model.AvailableFinancialYears)
+-                        {
+-                            <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+-                        }
+-                    </select>
+-                    <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
+-                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+-                        <span class="visually-hidden">Refresh report</span>
+-                    </button>
++        <div class="report-workspace-actions">
++            @if (Model.AvailableFinancialYears.Count > 0)
++            {
++                <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
++                    <label for="financialYearStart">Financial Year</label>
++                    <div class="input-group input-group-sm">
++                        <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
++                            @foreach (var year in Model.AvailableFinancialYears)
++                            {
++                                <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
++                            }
++                        </select>
++                        <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
++                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
++                            <span class="visually-hidden">Refresh report</span>
++                        </button>
++                    </div>
++                </form>
++            }
++
++            @if (report is not null)
++            {
++                <div class="report-export-group" aria-label="Export report">
++                    <span class="report-export-group__label">Export</span>
++                    <div class="report-export-actions">
++                        <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
++                           aria-disabled="@(!report.CanExport)">
++                            <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
++                        </a>
++                        <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
++                           aria-disabled="@(!report.CanExport)">
++                            <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
++                        </a>
++                        <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
++                           aria-disabled="@(!report.CanExport)">
++                            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
++                        </a>
++                    </div>
+                 </div>
+-            </form>
+-        }
++            }
++        </div>
+     </header>
+ 
+     @if (Model.AvailableFinancialYears.Count == 0)
+@@ -76,40 +104,27 @@
+     }
+     else
+     {
+-        <section class="report-command-strip" aria-label="Report controls">
++        <section class="report-command-strip" aria-label="Report summary">
+             <div class="report-kpis">
+                 <div><span>Projects</span><strong>@report.Rows.Count</strong></div>
+                 <div><span>Completed</span><strong>@report.CompletedCount</strong></div>
+                 <div><span>Ongoing / exceptions</span><strong>@report.OngoingCount</strong></div>
+                 <div class="@(report.WarningCount > 0 ? "has-warning" : string.Empty)"><span>Data warnings</span><strong>@report.WarningCount</strong></div>
+             </div>
+-            <div class="report-export-actions">
+-                <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                   asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
+-                   aria-disabled="@(!report.CanExport)">
+-                    <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+-                </a>
+-                <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                   asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
+-                   aria-disabled="@(!report.CanExport)">
+-                    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+-                </a>
+-                <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                   asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
+-                   aria-disabled="@(!report.CanExport)">
+-                    <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+-                </a>
++            <div class="report-order-note">
++                <i class="bi bi-sort-down-alt" aria-hidden="true"></i>
++                <span>Ordered by lifecycle maturity</span>
+             </div>
+         </section>
+ 
+         @if (report.Warnings.Count > 0)
+         {
+-            <details class="report-preflight" @(report.WarningCount > 0 ? "open" : null)>
++            <details class="report-preflight">
+                 <summary>
+                     <span class="report-preflight__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span>
+                     <span>
+-                        <strong>Publication preflight</strong>
+-                        <small>@report.WarningCount warning@(report.WarningCount == 1 ? "" : "s") before issue</small>
++                        <strong>Report preflight</strong>
++                        <small>@report.WarningCount warning@(report.WarningCount == 1 ? "" : "s") · review before issue</small>
+                     </span>
+                     <i class="bi bi-chevron-down report-preflight__chevron" aria-hidden="true"></i>
+                 </summary>
+@@ -131,38 +146,49 @@
+ 
+         <section class="formal-report-card" aria-label="ARPP FY project update preview">
+             <header class="formal-report-card__header">
+-                <div>
+-                    <span>FY @report.FinancialYearDisplay</span>
+-                    <h2>ARPP Approved Projects – Project Update</h2>
+-                </div>
+-                <small>Rows are ordered by lifecycle maturity. Completed projects are classified directly from project lifecycle status and do not use stage history.</small>
++                <h2>@report.FormalTitle</h2>
++                <small>Ordered by lifecycle maturity</small>
+             </header>
+ 
+             @if (report.Rows.Count == 0)
+             {
+-                <div class="formal-report-empty">No linked approved New / CL / CF projects are available for this FY.</div>
++                <div class="formal-report-empty">No linked listed New / CL / CF projects are available for this FY.</div>
+             }
+             else
+             {
+                 <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable report table">
+                     <table class="formal-report-table">
++                        <colgroup>
++                            <col class="col-serial" />
++                            <col class="col-arpp" />
++                            <col class="col-project" />
++                            <col class="col-date" />
++                            <col class="col-sch" />
++                            <col class="col-cfa" />
++                            <col class="col-est" />
++                            <col class="col-aon" />
++                            <col class="col-so" />
++                            <col class="col-pdc" />
++                            <col class="col-case" />
++                            <col class="col-remarks" />
++                        </colgroup>
+                         <thead>
+                             <tr>
+-                                <th rowspan="2" class="col-serial">Ser No.</th>
+-                                <th rowspan="2" class="col-arpp">ARPP No.</th>
+-                                <th rowspan="2" class="col-project">Name of Project</th>
+-                                <th rowspan="2" class="col-date">Dt of Grant of IPA / ARPP Listing</th>
+-                                <th rowspan="2" class="col-sch">Sch</th>
+-                                <th rowspan="2" class="col-cfa">CFA</th>
+-                                <th rowspan="2" class="col-est">Est</th>
+-                                <th colspan="3" class="col-status">Status</th>
+-                                <th rowspan="2" class="col-case">Proj Case</th>
+-                                <th rowspan="2" class="col-remarks">Remarks</th>
++                                <th rowspan="2">Ser No.</th>
++                                <th rowspan="2">ARPP No.</th>
++                                <th rowspan="2">Name of Project</th>
++                                <th rowspan="2">Dt of Grant of IPA / ARPP Listing</th>
++                                <th rowspan="2">Sch</th>
++                                <th rowspan="2">CFA</th>
++                                <th rowspan="2">Est</th>
++                                <th colspan="3">Status</th>
++                                <th rowspan="2">Proj Case</th>
++                                <th rowspan="2">Remarks</th>
+                             </tr>
+                             <tr>
+-                                <th class="col-aon">AoN</th>
+-                                <th class="col-so">SO amt &amp; dt</th>
+-                                <th class="col-pdc">PDC dt</th>
++                                <th>AoN</th>
++                                <th>SO amt &amp; dt</th>
++                                <th>PDC dt</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+@@ -176,7 +202,7 @@
+                                     </td>
+                                     <td class="text-center">@Date(row.FirstArppListingDate)</td>
+                                     <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>
+-                                    <td class="text-center">@(row.Cfa ?? "—")</td>
++                                    <td class="text-center formal-report-cfa">@(row.Cfa ?? "—")</td>
+                                     <td class="text-center">@row.Establishment</td>
+                                     <td class="text-center">@Date(row.AonDate)</td>
+                                     <td class="text-center formal-report-so">
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -7,25 +7,26 @@
+     --reports-blue-soft: #eef4fb;
+     --reports-warning: #a16207;
+     --reports-warning-soft: #fff8e8;
+-    width: min(100%, 1680px);
+-    margin: 0 auto;
+-    padding: 1rem 1.25rem 2rem;
++    --reports-sticky-top: 106px; /* 52px global top bar + 46px module bar + 8px breathing room */
++    width: 100%;
++    max-width: none;
++    margin: 0;
++    padding: .72rem 0 2rem;
+     color: var(--reports-ink);
+ }
+ 
+ .project-reports-page--workspace {
+     width: 100%;
+     max-width: none;
+-    padding-inline: clamp(.75rem, 1.6vw, 1.5rem);
+ }
+ 
+ .project-reports-breadcrumb {
+     display: flex;
+     align-items: center;
+-    gap: .45rem;
+-    margin-bottom: .7rem;
++    gap: .42rem;
++    margin-bottom: .55rem;
+     color: var(--reports-muted);
+-    font-size: .78rem;
++    font-size: .76rem;
+ }
+ 
+ .project-reports-breadcrumb a {
+@@ -41,13 +42,13 @@
+     align-items: flex-end;
+     justify-content: space-between;
+     gap: 1rem;
+-    padding: .35rem 0 1rem;
++    padding: .2rem 0 .72rem;
+ }
+ 
+ .project-reports-eyebrow {
+-    margin: 0 0 .28rem;
++    margin: 0 0 .22rem;
+     color: #56718f;
+-    font-size: .69rem;
++    font-size: .67rem;
+     font-weight: 800;
+     letter-spacing: .11em;
+ }
+@@ -56,131 +57,171 @@
+ .report-workspace-header h1 {
+     margin: 0;
+     color: var(--reports-navy);
+-    font-size: clamp(1.65rem, 2.1vw, 2.2rem);
++    font-size: clamp(1.58rem, 1.8vw, 2rem);
+     font-weight: 750;
+     letter-spacing: -.025em;
+ }
+ 
+ .project-reports-hero p:last-child,
+-.report-workspace-header > div > p:last-child {
+-    max-width: 780px;
+-    margin: .35rem 0 0;
++.report-workspace-header__identity > p:last-child {
++    max-width: 820px;
++    margin: .26rem 0 0;
+     color: var(--reports-muted);
+-    font-size: .92rem;
++    font-size: .86rem;
+ }
+ 
++/* Report catalogue -------------------------------------------------------- */
+ .project-report-grid {
+     display: grid;
+-    grid-template-columns: minmax(0, 760px);
+-    gap: 1rem;
++    grid-template-columns: minmax(0, 1fr);
++    gap: .8rem;
+ }
+ 
+ .project-report-card {
+-    position: relative;
+     display: grid;
+-    grid-template-columns: auto minmax(0, 1fr);
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    align-items: center;
+     gap: 1rem;
+-    padding: 1.1rem;
++    padding: .9rem 1rem;
+     border: 1px solid var(--reports-border);
+-    border-radius: 14px;
++    border-radius: 12px;
+     background: #fff;
+-    box-shadow: 0 8px 24px rgba(23, 54, 93, .05);
++    box-shadow: 0 6px 18px rgba(23, 54, 93, .04);
+ }
+ 
+ .project-report-card__icon {
+     display: grid;
+     place-items: center;
+-    width: 46px;
+-    height: 46px;
+-    border-radius: 12px;
++    width: 44px;
++    height: 44px;
++    border-radius: 11px;
+     background: var(--reports-blue-soft);
+     color: var(--reports-navy);
+-    font-size: 1.2rem;
++    font-size: 1.15rem;
+ }
+ 
+ .project-report-card__meta {
+     color: #60758d;
+-    font-size: .68rem;
++    font-size: .66rem;
+     font-weight: 800;
+     letter-spacing: .08em;
+     text-transform: uppercase;
+ }
+ 
+ .project-report-card h2 {
+-    margin: .18rem 0 .35rem;
++    margin: .14rem 0 .26rem;
+     color: var(--reports-navy);
+-    font-size: 1.15rem;
++    font-size: 1.08rem;
+ }
+ 
+ .project-report-card p {
++    max-width: 1040px;
+     margin: 0;
+     color: var(--reports-muted);
+-    font-size: .86rem;
+-    line-height: 1.52;
++    font-size: .82rem;
++    line-height: 1.45;
+ }
+ 
+ .project-report-card__facts {
+     display: flex;
+     flex-wrap: wrap;
+-    gap: .45rem .85rem;
+-    margin: .75rem 0 .9rem;
++    gap: .35rem .85rem;
++    margin-top: .55rem;
+     color: #51657b;
+-    font-size: .76rem;
++    font-size: .72rem;
++}
++
++.project-report-card__facts span {
++    display: inline-flex;
++    align-items: center;
++    gap: .28rem;
++}
++
++.project-report-card__aside {
++    display: flex;
++    min-width: 190px;
++    align-items: center;
++    justify-content: flex-end;
++    gap: .9rem;
+ }
+ 
+-.project-report-card__facts span { display: inline-flex; align-items: center; gap: .32rem; }
+ .project-report-card__availability {
+-    grid-column: 1 / -1;
+-    margin: .1rem 0 -.15rem 3.9rem;
++    text-align: right;
++    white-space: nowrap;
++}
++
++.project-report-card__availability span {
++    display: block;
+     color: var(--reports-muted);
+-    font-size: .74rem;
++    font-size: .63rem;
++    font-weight: 700;
++    letter-spacing: .04em;
++    text-transform: uppercase;
+ }
+ 
+-.project-reports-principle {
+-    display: flex;
+-    align-items: flex-start;
+-    gap: .7rem;
+-    max-width: 760px;
+-    margin-top: 1rem;
+-    padding: .8rem .9rem;
+-    border-left: 3px solid #8ca6c1;
+-    background: var(--reports-soft);
+-    color: #526174;
+-    font-size: .8rem;
++.project-report-card__availability strong {
++    display: block;
++    margin-top: .08rem;
++    color: var(--reports-navy);
++    font-size: .78rem;
+ }
+ 
+-.project-reports-principle i { color: var(--reports-navy); font-size: 1rem; }
+-.project-reports-principle strong { color: var(--reports-ink); }
+-.project-reports-principle p { margin: .14rem 0 0; }
++/* Detail workspace -------------------------------------------------------- */
++.report-workspace-header__identity { min-width: 0; }
++
++.report-workspace-actions {
++    display: flex;
++    align-items: flex-end;
++    justify-content: flex-end;
++    gap: .65rem;
++    flex-wrap: wrap;
++}
+ 
+ .report-toolbar__fy {
+-    min-width: 230px;
++    width: 196px;
++    min-width: 196px;
+ }
+ 
+-.report-toolbar__fy label {
++.report-toolbar__fy label,
++.report-export-group__label {
+     display: block;
+-    margin-bottom: .3rem;
++    margin-bottom: .25rem;
+     color: var(--reports-muted);
+-    font-size: .7rem;
+-    font-weight: 700;
+-    letter-spacing: .04em;
++    font-size: .64rem;
++    font-weight: 750;
++    letter-spacing: .05em;
+     text-transform: uppercase;
+ }
+ 
++.report-export-group__label { text-align: right; }
++
++.report-export-actions {
++    display: flex;
++    gap: .34rem;
++    flex-wrap: wrap;
++    justify-content: flex-end;
++}
++
++.report-export-actions .btn {
++    display: inline-flex;
++    align-items: center;
++    gap: .28rem;
++}
++
+ .report-command-strip {
+     position: sticky;
+-    top: var(--app-sticky-offset, 0px);
+-    z-index: 8;
++    top: var(--reports-sticky-top);
++    z-index: 42;
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     gap: 1rem;
+-    margin-bottom: .75rem;
+-    padding: .58rem .7rem;
++    margin-bottom: .6rem;
++    padding: .46rem .62rem;
+     border: 1px solid var(--reports-border);
+-    border-radius: 10px;
++    border-radius: 9px;
+     background: rgba(255, 255, 255, .97);
+-    box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
++    box-shadow: 0 4px 14px rgba(15, 23, 42, .045);
+     backdrop-filter: blur(8px);
+ }
+ 
+@@ -188,41 +229,49 @@
+     display: flex;
+     align-items: center;
+     flex-wrap: wrap;
+-    gap: 0;
+ }
+ 
+ .report-kpis > div {
+-    min-width: 96px;
+-    padding: .08rem .85rem;
++    min-width: 94px;
++    padding: .02rem .78rem;
+     border-right: 1px solid #e4e9ef;
+ }
+ 
+-.report-kpis > div:first-child { padding-left: .3rem; }
++.report-kpis > div:first-child { padding-left: .25rem; }
+ .report-kpis > div:last-child { border-right: 0; }
++
+ .report-kpis span {
+     display: block;
+     color: var(--reports-muted);
+-    font-size: .64rem;
+-    font-weight: 700;
+-    text-transform: uppercase;
++    font-size: .61rem;
++    font-weight: 750;
+     letter-spacing: .035em;
++    text-transform: uppercase;
+ }
+ 
+ .report-kpis strong {
+     display: block;
+-    margin-top: .05rem;
++    margin-top: .02rem;
+     color: var(--reports-navy);
+-    font-size: 1rem;
++    font-size: .96rem;
+ }
+ 
+ .report-kpis .has-warning strong { color: var(--reports-warning); }
+-.report-export-actions { display: flex; gap: .42rem; flex-wrap: wrap; }
+-.report-export-actions .btn { display: inline-flex; align-items: center; gap: .3rem; }
+ 
++.report-order-note {
++    display: inline-flex;
++    align-items: center;
++    gap: .35rem;
++    color: #60758d;
++    font-size: .7rem;
++    white-space: nowrap;
++}
++
++/* Preflight --------------------------------------------------------------- */
+ .report-preflight {
+-    margin-bottom: .75rem;
++    margin-bottom: .6rem;
+     border: 1px solid #ead9ae;
+-    border-radius: 10px;
++    border-radius: 9px;
+     background: #fffdf8;
+     overflow: hidden;
+ }
+@@ -230,32 +279,47 @@
+ .report-preflight > summary {
+     display: flex;
+     align-items: center;
+-    gap: .65rem;
+-    padding: .65rem .75rem;
++    gap: .58rem;
++    padding: .55rem .68rem;
+     cursor: pointer;
+     list-style: none;
+ }
+ 
+ .report-preflight > summary::-webkit-details-marker { display: none; }
++
+ .report-preflight__icon {
+     display: grid;
+     place-items: center;
+-    width: 30px;
+-    height: 30px;
++    width: 28px;
++    height: 28px;
+     flex: 0 0 auto;
+-    border-radius: 8px;
++    border-radius: 7px;
+     background: var(--reports-warning-soft);
+     color: var(--reports-warning);
+ }
+ 
+-.report-preflight summary strong { display: block; font-size: .83rem; color: #614b13; }
+-.report-preflight summary small { display: block; margin-top: .04rem; color: #866d31; font-size: .71rem; }
+-.report-preflight__chevron { margin-left: auto; color: #927735; transition: transform .16s ease; }
++.report-preflight summary strong {
++    display: block;
++    color: #614b13;
++    font-size: .79rem;
++}
++
++.report-preflight summary small {
++    display: block;
++    margin-top: .02rem;
++    color: #866d31;
++    font-size: .68rem;
++}
++
++.report-preflight__chevron {
++    margin-left: auto;
++    color: #927735;
++    transition: transform .16s ease;
++}
++
+ .report-preflight[open] .report-preflight__chevron { transform: rotate(180deg); }
+ 
+ .report-preflight__body {
+-    max-height: 260px;
+-    overflow: auto;
+     border-top: 1px solid #efe2bf;
+     background: #fff;
+ }
+@@ -265,74 +329,87 @@
+     grid-template-columns: auto minmax(0, 1fr) auto;
+     align-items: start;
+     gap: .5rem;
+-    padding: .55rem .75rem;
++    padding: .5rem .7rem;
+     border-bottom: 1px solid #f0f2f5;
+     color: #4f5967;
+-    font-size: .76rem;
++    font-size: .74rem;
+ }
+ 
+ .report-preflight__item:last-child { border-bottom: 0; }
+ .report-preflight__item > i { margin-top: .05rem; color: #b27916; }
+ .report-preflight__item a { white-space: nowrap; font-weight: 650; text-decoration: none; }
+ 
++/* Formal report preview --------------------------------------------------- */
+ .formal-report-card {
+     border: 1px solid #cfd8e2;
+-    border-radius: 10px;
++    border-radius: 9px;
+     background: #fff;
+-    box-shadow: 0 8px 24px rgba(15, 23, 42, .045);
++    box-shadow: 0 6px 20px rgba(15, 23, 42, .04);
+     overflow: hidden;
+ }
+ 
+ .formal-report-card__header {
+     display: flex;
+-    align-items: flex-end;
++    align-items: center;
+     justify-content: space-between;
+-    gap: 1.25rem;
+-    padding: .72rem .85rem;
++    gap: 1rem;
++    padding: .58rem .72rem;
+     border-bottom: 1px solid var(--reports-border);
+     background: #fbfcfd;
+ }
+ 
+-.formal-report-card__header span {
+-    color: #60758d;
+-    font-size: .66rem;
+-    font-weight: 800;
+-    letter-spacing: .08em;
+-    text-transform: uppercase;
+-}
+-
+ .formal-report-card__header h2 {
+-    margin: .12rem 0 0;
++    margin: 0;
+     color: var(--reports-navy);
+-    font-size: 1rem;
++    font-size: .93rem;
++    font-weight: 750;
++    letter-spacing: .005em;
+ }
+ 
+ .formal-report-card__header small {
+-    max-width: 620px;
+     color: var(--reports-muted);
+-    font-size: .68rem;
+-    text-align: right;
++    font-size: .66rem;
++    white-space: nowrap;
+ }
+ 
+ .formal-report-scroll {
++    width: 100%;
+     max-width: 100%;
+-    overflow: auto;
++    overflow-x: auto;
++    overflow-y: hidden;
++    overscroll-behavior-inline: contain;
+     scrollbar-gutter: stable;
+ }
+ 
+ .formal-report-table {
+     width: 100%;
+-    min-width: 1540px;
++    min-width: 1450px;
+     border-collapse: separate;
+     border-spacing: 0;
+     table-layout: fixed;
+-    font-size: .72rem;
+-    line-height: 1.35;
++    font-size: .745rem;
++    line-height: 1.34;
+ }
+ 
++/* Compact operational fields stay controlled; Project and Remarks absorb
++   additional width on large screens. The table remains scrollable only when
++   the viewport is genuinely narrower than the formal register. */
++.formal-report-table col.col-serial { width: 3.4rem; }
++.formal-report-table col.col-arpp { width: 5.1rem; }
++.formal-report-table col.col-project { width: clamp(14rem, 20vw, 28rem); }
++.formal-report-table col.col-date { width: 7.4rem; }
++.formal-report-table col.col-sch { width: 4.7rem; }
++.formal-report-table col.col-cfa { width: 7.2rem; }
++.formal-report-table col.col-est { width: 4rem; }
++.formal-report-table col.col-aon { width: 6.3rem; }
++.formal-report-table col.col-so { width: 8.3rem; }
++.formal-report-table col.col-pdc { width: 6.3rem; }
++.formal-report-table col.col-case { width: 5rem; }
++.formal-report-table col.col-remarks { width: auto; }
++
+ .formal-report-table th,
+ .formal-report-table td {
+-    padding: .45rem .42rem;
++    padding: .43rem .4rem;
+     border-right: 1px solid #d6dde5;
+     border-bottom: 1px solid #d6dde5;
+     vertical-align: middle;
+@@ -345,33 +422,16 @@
+ .formal-report-table td:last-child { border-right: 0; }
+ 
+ .formal-report-table thead th {
+-    position: sticky;
+-    z-index: 4;
+     color: #213f62;
+     background: #e8eef5;
+-    font-size: .67rem;
++    font-size: .665rem;
+     font-weight: 750;
++    line-height: 1.2;
+     text-align: center;
+-    line-height: 1.25;
+ }
+ 
+-.formal-report-table thead tr:first-child th { top: 0; }
+-.formal-report-table thead tr:nth-child(2) th { top: 34px; z-index: 5; }
+ .formal-report-table tbody tr:hover td { background: #f8fbfe; }
+ 
+-.formal-report-table .col-serial { width: 58px; }
+-.formal-report-table .col-arpp { width: 85px; }
+-.formal-report-table .col-project { width: 250px; }
+-.formal-report-table .col-date { width: 126px; }
+-.formal-report-table .col-sch { width: 92px; }
+-.formal-report-table .col-cfa { width: 76px; }
+-.formal-report-table .col-est { width: 62px; }
+-.formal-report-table .col-aon { width: 104px; }
+-.formal-report-table .col-so { width: 140px; }
+-.formal-report-table .col-pdc { width: 104px; }
+-.formal-report-table .col-case { width: 78px; }
+-.formal-report-table .col-remarks { width: 360px; }
+-
+ .formal-report-project a {
+     color: #244d78;
+     font-weight: 700;
+@@ -379,54 +439,133 @@
+ }
+ 
+ .formal-report-project a:hover { text-decoration: underline; }
++.formal-report-cfa { overflow-wrap: normal !important; word-break: normal; }
+ .formal-report-so strong,
+ .formal-report-so span,
+ .formal-report-so small { display: block; }
+-.formal-report-so strong { color: #263f59; font-size: .72rem; }
+-.formal-report-so span { margin-top: .08rem; }
+-.formal-report-so small { margin-top: .08rem; color: #7a8794; font-size: .6rem; font-weight: 700; }
++.formal-report-so strong { color: #263f59; font-size: .73rem; }
++.formal-report-so span { margin-top: .06rem; }
++.formal-report-so small { margin-top: .06rem; color: #7a8794; font-size: .59rem; font-weight: 700; }
+ .formal-report-remarks { vertical-align: top !important; color: #3d4854; }
+ 
+ .report-case-badge {
+     display: inline-block;
+     min-width: 28px;
+-    padding: .12rem .3rem;
++    padding: .11rem .3rem;
+     border: 1px solid #c9d5e2;
+     border-radius: 999px;
+     background: #f7f9fb;
+     color: #405974;
+-    font-size: .64rem;
++    font-size: .63rem;
+     font-weight: 800;
+ }
+ 
+ .formal-report-empty,
+ .report-empty-state {
+-    padding: 2.6rem 1rem;
++    padding: 2.5rem 1rem;
+     color: var(--reports-muted);
+     text-align: center;
+ }
+ 
+ .report-empty-state {
+     border: 1px dashed #cdd7e2;
+-    border-radius: 12px;
++    border-radius: 10px;
+     background: #fbfcfd;
+ }
+ 
+-.report-empty-state > i { font-size: 1.6rem; color: #7f93a9; }
+-.report-empty-state h2 { margin: .45rem 0 .25rem; color: var(--reports-navy); font-size: 1.05rem; }
+-.report-empty-state p { margin: 0 0 .8rem; font-size: .82rem; }
++.report-empty-state > i { color: #7f93a9; font-size: 1.55rem; }
++.report-empty-state h2 { margin: .42rem 0 .22rem; color: var(--reports-navy); font-size: 1.02rem; }
++.report-empty-state p { margin: 0 0 .75rem; font-size: .8rem; }
++
++@media (min-width: 1900px) {
++    .formal-report-table {
++        font-size: .765rem;
++    }
++
++    .formal-report-table th,
++    .formal-report-table td {
++        padding-inline: .46rem;
++    }
++
++    .formal-report-table thead th { font-size: .68rem; }
++}
++
++@media (max-width: 1100px) {
++    .project-report-card__aside {
++        min-width: 0;
++        flex-direction: column;
++        align-items: flex-end;
++        gap: .45rem;
++    }
++
++    .report-order-note { display: none; }
++}
+ 
+ @media (max-width: 900px) {
+-    .project-reports-page { padding-inline: .75rem; }
++    .project-reports-page { padding-top: .6rem; }
++
+     .project-reports-hero,
+     .report-workspace-header,
+-    .report-command-strip,
+-    .formal-report-card__header { align-items: stretch; flex-direction: column; }
+-    .report-toolbar__fy { width: 100%; min-width: 0; }
+-    .report-export-actions { width: 100%; }
+-    .formal-report-card__header small { max-width: none; text-align: left; }
+-    .project-report-card { grid-template-columns: 1fr; }
+-    .project-report-card__availability { margin-left: 0; }
++    .formal-report-card__header {
++        align-items: stretch;
++        flex-direction: column;
++    }
++
++    .project-report-card {
++        grid-template-columns: auto minmax(0, 1fr);
++    }
++
++    .project-report-card__aside {
++        grid-column: 1 / -1;
++        flex-direction: row;
++        align-items: center;
++        justify-content: space-between;
++        padding-top: .55rem;
++        border-top: 1px solid #edf1f5;
++    }
++
++    .project-report-card__availability { text-align: left; }
++    .report-workspace-actions { justify-content: flex-start; }
++    .report-toolbar__fy { width: 210px; min-width: 0; }
++    .report-export-group__label { text-align: left; }
++    .report-export-actions { justify-content: flex-start; }
++    .formal-report-card__header small { white-space: normal; }
++}
++
++@media (max-width: 680px) {
++    .project-report-card {
++        grid-template-columns: 1fr;
++    }
++
++    .project-report-card__icon { width: 40px; height: 40px; }
++    .project-report-card__aside { grid-column: auto; }
++
++    .report-command-strip {
++        position: static;
++        align-items: stretch;
++    }
++
++    .report-kpis {
++        display: grid;
++        width: 100%;
++        grid-template-columns: repeat(2, minmax(0, 1fr));
++        row-gap: .45rem;
++    }
++
++    .report-kpis > div {
++        min-width: 0;
++        border-right: 0;
++        padding-inline: .25rem;
++    }
++
++    .report-preflight__item {
++        grid-template-columns: auto minmax(0, 1fr);
++    }
++
++    .report-preflight__item a {
++        grid-column: 2;
++        justify-self: start;
++    }
+ }
+ 
+ @media print {
+@@ -435,6 +574,7 @@
+     .report-command-strip,
+     .report-preflight,
+     .formal-report-card__header { display: none !important; }
++
+     .project-reports-page { padding: 0; }
+     .formal-report-card { border: 0; box-shadow: none; }
+     .formal-report-scroll { overflow: visible; }
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
+@@ -60,6 +60,7 @@
+     int UnlinkedPublishedRowCount)
+ {
+     public string FinancialYearDisplay => FinancialYearHelper.Format(FinancialYearStart);
++    public string FormalTitle => $"PROJECT UPDATE : ARPP LISTED PROJECTS (FY {FinancialYearDisplay})";
+     public int CompletedCount => Rows.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed);
+     public int OngoingCount => Rows.Count - CompletedCount;
+     public int WarningCount => Warnings.Count(warning => warning.Severity == ArppFyReportWarningSeverity.Warning);
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -16,7 +16,7 @@
+     private const string White = "FFFFFF";
+ 
+     private static readonly int[] Widths =
+-        [500, 800, 2800, 1100, 850, 700, 650, 950, 1400, 950, 750, 4550];
++        [500, 800, 2800, 1100, 850, 950, 650, 950, 1400, 950, 750, 4300];
+     private static readonly int TableWidth = Widths.Sum();
+ 
+     public byte[] Build(ArppFyProjectUpdateReport report)
+@@ -26,8 +26,8 @@
+         using var stream = new MemoryStream();
+         using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, autoSave: true))
+         {
+-            document.PackageProperties.Title = $"ARPP FY {report.FinancialYearDisplay} Project Update";
+-            document.PackageProperties.Subject = "ARPP approved projects and current update";
++            document.PackageProperties.Title = report.FormalTitle;
++            document.PackageProperties.Subject = "ARPP listed projects and current update";
+             document.PackageProperties.Creator = "PRISM ERP";
+             document.PackageProperties.LastModifiedBy = "PRISM ERP";
+             document.PackageProperties.Created = report.GeneratedAtUtc.UtcDateTime;
+@@ -44,18 +44,11 @@
+ 
+             var body = mainPart.Document.Body!;
+             body.Append(Paragraph(
+-                $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}",
+-                24,
++                report.FormalTitle,
++                22,
+                 bold: true,
+                 color: Navy,
+                 align: W.JustificationValues.Center,
+-                after: 40));
+-            body.Append(Paragraph(
+-                "PROJECT UPDATE",
+-                20,
+-                bold: true,
+-                color: Ink,
+-                align: W.JustificationValues.Center,
+                 after: 90));
+ 
+             body.Append(BuildTable(report.Rows));
+@@ -175,10 +168,16 @@
+         string text,
+         int width,
+         bool bold = false,
+-        W.JustificationValues align = W.JustificationValues.Left)
++        W.JustificationValues? align = null)
+         => new(
+             BaseCellProperties(width, null),
+-            Paragraph(text, 15, bold: bold, color: Ink, align: align, after: 0));
++            Paragraph(
++                text,
++                15,
++                bold: bold,
++                color: Ink,
++                align: align ?? W.JustificationValues.Left,
++                after: 0));
+ 
+     private static W.TableCellProperties BaseCellProperties(int width, string? fill)
+     {
+@@ -213,12 +212,14 @@
+         int fontSizeHalfPoints,
+         bool bold = false,
+         string color = Ink,
+-        W.JustificationValues align = W.JustificationValues.Left,
++        W.JustificationValues? align = null,
+         int after = 0)
+     {
++        var resolvedAlign = align ?? W.JustificationValues.Left;
++
+         var paragraph = new W.Paragraph(
+             new W.ParagraphProperties(
+-                new W.Justification { Val = align },
++                new W.Justification { Val = resolvedAlign },
+                 new W.SpacingBetweenLines
+                 {
+                     Before = "0",
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+@@ -30,16 +30,10 @@
+                 page.Margin(22);
+                 page.DefaultTextStyle(style => style.FontSize(7.2f).FontColor(Ink));
+ 
+-                page.Header().PaddingBottom(8).Column(header =>
+-                {
+-                    header.Item().AlignCenter().Text($"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}")
+-                        .FontSize(13)
+-                        .Bold()
+-                        .FontColor(Navy);
+-                    header.Item().AlignCenter().Text("PROJECT UPDATE")
+-                        .FontSize(10)
+-                        .SemiBold();
+-                });
++                page.Header().PaddingBottom(8).AlignCenter().Text(report.FormalTitle)
++                    .FontSize(11.5f)
++                    .Bold()
++                    .FontColor(Navy);
+ 
+                 page.Content().Table(table =>
+                 {
+@@ -50,13 +44,13 @@
+                         columns.RelativeColumn(2.7f);
+                         columns.RelativeColumn(1.2f);
+                         columns.RelativeColumn(0.9f);
+-                        columns.RelativeColumn(0.75f);
++                        columns.RelativeColumn(0.95f);
+                         columns.RelativeColumn(0.65f);
+                         columns.RelativeColumn(1.0f);
+                         columns.RelativeColumn(1.5f);
+                         columns.RelativeColumn(1.0f);
+                         columns.RelativeColumn(0.8f);
+-                        columns.RelativeColumn(4.25f);
++                        columns.RelativeColumn(4.05f);
+                     });
+ 
+                     table.Header(header =>
+@@ -112,9 +106,9 @@
+         })
+         .WithMetadata(new DocumentMetadata
+         {
+-            Title = $"ARPP FY {report.FinancialYearDisplay} Project Update",
++            Title = report.FormalTitle,
+             Author = "Simulator Development Division",
+-            Subject = "ARPP approved projects and current update",
++            Subject = "ARPP listed projects and current update",
+             Creator = "PRISM ERP",
+             Producer = "PRISM ERP",
+             CreationDate = report.GeneratedAtUtc,
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
+@@ -20,20 +20,17 @@
+         worksheet.Style.Font.FontSize = 9;
+ 
+         var title = worksheet.Range(1, 1, 1, ColumnCount).Merge();
+-        title.Value = $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}";
++        title.Value = report.FormalTitle;
+         title.Style.Font.Bold = true;
+         title.Style.Font.FontSize = 15;
+         title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
+         title.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+         title.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+         worksheet.Row(1).Height = 24;
++        title.Style.Alignment.WrapText = false;
+ 
+-        var subtitle = worksheet.Range(2, 1, 2, ColumnCount).Merge();
+-        subtitle.Value = "PROJECT UPDATE";
+-        subtitle.Style.Font.Bold = true;
+-        subtitle.Style.Font.FontSize = 11;
+-        subtitle.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+-        worksheet.Row(2).Height = 20;
++        // Keep a narrow visual spacer between the single-line title and the formal table header.
++        worksheet.Row(2).Height = 7;
+ 
+         BuildHeader(worksheet);
+ 
+@@ -154,15 +151,15 @@
+     {
+         worksheet.Column(1).Width = 7;
+         worksheet.Column(2).Width = 12;
+-        worksheet.Column(3).Width = 34;
++        worksheet.Column(3).Width = 36;
+         worksheet.Column(4).Width = 17;
+         worksheet.Column(5).Width = 12;
+-        worksheet.Column(6).Width = 10;
++        worksheet.Column(6).Width = 16;
+         worksheet.Column(7).Width = 8;
+         worksheet.Column(8).Width = 14;
+         worksheet.Column(9).Width = 19;
+         worksheet.Column(10).Width = 14;
+         worksheet.Column(11).Width = 11;
+-        worksheet.Column(12).Width = 58;
++        worksheet.Column(12).Width = 54;
+     }
+ }
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+@@ -11,7 +11,7 @@
+ public sealed class ArppFyProjectUpdateExportTests
+ {
+     [Fact]
+-    public void Word_and_excel_builders_emit_valid_landscape_report_files()
++    public void Export_builders_emit_the_single_authoritative_formal_heading()
+     {
+         var report = SampleReport();
+ 
+@@ -22,7 +22,8 @@
+         {
+             Assert.NotNull(document.MainDocumentPart?.Document?.Body);
+             var text = document.MainDocumentPart!.Document.Body!.InnerText;
+-            Assert.Contains("ARPP APPROVED PROJECTS", text, StringComparison.Ordinal);
++            Assert.Contains(report.FormalTitle, text, StringComparison.Ordinal);
++            Assert.DoesNotContain("ARPP APPROVED PROJECTS", text, StringComparison.Ordinal);
+             Assert.Contains("Sample Simulator", text, StringComparison.Ordinal);
+         }
+ 
+@@ -31,9 +32,15 @@
+         using var excelStream = new MemoryStream(excel);
+         using var workbook = new XLWorkbook(excelStream);
+         var worksheet = workbook.Worksheet("ARPP Project Update");
++        Assert.Equal(report.FormalTitle, worksheet.Cell(1, 1).GetString());
++        Assert.True(string.IsNullOrWhiteSpace(worksheet.Cell(2, 1).GetString()));
+         Assert.Equal("Status", worksheet.Cell(3, 8).GetString());
+         Assert.Equal("SO amt & dt", worksheet.Cell(4, 9).GetString());
+         Assert.Equal("Sample Simulator", worksheet.Cell(5, 3).GetString());
++
++        var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report);
++        Assert.True(pdf.Length > 1000);
++        Assert.Equal((byte)'%', pdf[0]);
+     }
+ 
+     private static ArppFyProjectUpdateReport SampleReport()
+--- /dev/null
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
+@@ -0,0 +1,58 @@
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class ArppFyProjectUpdatePresentationContractTests
++{
++    [Fact]
++    public void Reports_pages_use_workspace_shell_and_detail_uses_authoritative_formal_title()
++    {
++        var index = ReadRepoFile("Pages", "Projects", "Reports", "Index.cshtml");
++        var detail = ReadRepoFile("Pages", "Projects", "Reports", "ArppFyUpdate.cshtml");
++
++        Assert.Contains("ViewData[\"UseFullWidth\"] = true", index, StringComparison.Ordinal);
++        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", index, StringComparison.Ordinal);
++        Assert.Contains("ViewData[\"UseFullWidth\"] = true", detail, StringComparison.Ordinal);
++        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", detail, StringComparison.Ordinal);
++        Assert.Contains("@report.FormalTitle", detail, StringComparison.Ordinal);
++        Assert.Contains("Report preflight", detail, StringComparison.Ordinal);
++        Assert.DoesNotContain("Publication preflight", detail, StringComparison.Ordinal);
++        Assert.DoesNotContain("ARPP Approved Projects – Project Update", detail, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Reports_css_keeps_workspace_uncapped_and_preflight_without_nested_vertical_scrolling()
++    {
++        var css = ReadRepoFile("wwwroot", "css", "pages", "projects-reports.css");
++
++        Assert.Contains("width: 100%;", css, StringComparison.Ordinal);
++        Assert.Contains("max-width: none;", css, StringComparison.Ordinal);
++        Assert.Contains("grid-template-columns: minmax(0, 1fr);", css, StringComparison.Ordinal);
++        Assert.Contains("min-width: 1450px;", css, StringComparison.Ordinal);
++        Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
++        Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
++        Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);
++    }
++
++    private static string ReadRepoFile(params string[] segments)
++    {
++        var root = ResolveRepoRoot();
++        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
++    }
++
++    private static string ResolveRepoRoot()
++    {
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
++    }
++}

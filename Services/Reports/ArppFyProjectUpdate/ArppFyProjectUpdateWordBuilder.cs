@@ -16,7 +16,7 @@ public sealed class ArppFyProjectUpdateWordBuilder
     private const string White = "FFFFFF";
 
     private static readonly int[] Widths =
-        [500, 800, 2800, 1100, 850, 700, 650, 950, 1400, 950, 750, 4550];
+        [500, 800, 2800, 1100, 850, 950, 650, 950, 1400, 950, 750, 4300];
     private static readonly int TableWidth = Widths.Sum();
 
     public byte[] Build(ArppFyProjectUpdateReport report)
@@ -26,8 +26,8 @@ public sealed class ArppFyProjectUpdateWordBuilder
         using var stream = new MemoryStream();
         using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, autoSave: true))
         {
-            document.PackageProperties.Title = $"ARPP FY {report.FinancialYearDisplay} Project Update";
-            document.PackageProperties.Subject = "ARPP approved projects and current update";
+            document.PackageProperties.Title = report.FormalTitle;
+            document.PackageProperties.Subject = "ARPP listed projects and current update";
             document.PackageProperties.Creator = "PRISM ERP";
             document.PackageProperties.LastModifiedBy = "PRISM ERP";
             document.PackageProperties.Created = report.GeneratedAtUtc.UtcDateTime;
@@ -44,17 +44,10 @@ public sealed class ArppFyProjectUpdateWordBuilder
 
             var body = mainPart.Document.Body!;
             body.Append(Paragraph(
-                $"ARPP APPROVED PROJECTS – FY {report.FinancialYearDisplay}",
-                24,
+                report.FormalTitle,
+                22,
                 bold: true,
                 color: Navy,
-                align: W.JustificationValues.Center,
-                after: 40));
-            body.Append(Paragraph(
-                "PROJECT UPDATE",
-                20,
-                bold: true,
-                color: Ink,
                 align: W.JustificationValues.Center,
                 after: 90));
 
