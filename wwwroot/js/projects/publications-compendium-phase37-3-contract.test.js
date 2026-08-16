@@ -85,7 +85,7 @@ test('phase 37.3 appends Additional Note after particulars and technical referen
 });
 
 test('phase 37.3 review identity binds note content and concrete media rendition identity', () => {
-  assert.match(fingerprint, /compendium-review-v(?:15-additional-note-final-hardening|16-particulars-style)/);
+  assert.match(fingerprint, /compendium-review-v(?:15-additional-note-final-hardening|16-particulars-style|17-editorial-rules)/);
   assert.match(fingerprint, /NormalizeNarrative\(input\.AdditionalNote\)/);
   assert.match(fingerprint, /PhotoVersion/);
   assert.match(fingerprint, /SourceWidth/);
@@ -142,5 +142,5 @@ test('phase 37.3 presents Project Brief as the publication default and advances 
   assert.match(indexView, /Project brief[\s\S]*DEFAULT/i);
   assert.match(notePolicy, /AdvisoryCharacterCount\s*=\s*600/);
   assert.match(notePolicy, /StrongAdvisoryCharacterCount\s*=\s*1000/);
-  assert.match(readService, /CompendiumPdf_2026-08-16_(?:final-editorial-v22|particulars-style-v23)/);
+  assert.match(readService, /CompendiumPdf_2026-08-16_(?:final-editorial-v22|particulars-style-v23|editorial-rules-v24)/);
 });

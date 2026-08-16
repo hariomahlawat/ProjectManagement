@@ -873,13 +873,19 @@ public static class CompendiumDossierPaginationPlanner
     {
         if (string.IsNullOrWhiteSpace(additionalNote)) return 0f;
         var scale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
-        return 7f + measurementSession.MeasureAtFontSize(
+        // Phase 37.5 removes the redundant closing/top separator around the note heading.
+        // The former 7-point top treatment is deliberately retained as editorial breathing reserve
+        // in measurement so a purely decorative refinement does not cause the planner to enlarge
+        // imagery or choose a different dossier layout.
+        const float noteHeadingGeometryPoints = 23f;
+        const float preservedEditorialBreathingPoints = 7f;
+        return preservedEditorialBreathingPoints + measurementSession.MeasureAtFontSize(
             additionalNote,
             FullNarrativeWidthPoints,
             CompendiumNarrativeTypographyPolicy.BodyFontSizePoints * scale,
             CompendiumNarrativeTypographyPolicy.BodyLineHeightMultiplier,
             CompendiumNarrativeTypographyPolicy.ParagraphSpacingPoints,
-            leadingReservePoints: 23f).HeightPoints;
+            leadingReservePoints: noteHeadingGeometryPoints).HeightPoints;
     }
 
     private static float EstimateTitleBlockHeight(string? projectName)
@@ -932,7 +938,12 @@ public static class CompendiumDossierPaginationPlanner
         columns = Math.Clamp(columns, 1, 3);
         var columnWidth = FullNarrativeWidthPoints / columns;
         var textWidth = Math.Max(60f, columnWidth - 23f); // bullet column + right breathing room
-        var height = 21.5f; // top rule/padding + section heading + first spacing
+        // Phase 37.5 renders one heading rule instead of a separate top separator. The visible
+        // heading geometry is lighter, while six points are intentionally retained as breathing
+        // reserve so this visual polish does not trigger unrelated page recomposition.
+        const float headingGeometryPoints = 15.5f;
+        const float preservedEditorialBreathingPoints = 6f;
+        var height = headingGeometryPoints + preservedEditorialBreathingPoints;
         foreach (var row in specifications.Chunk(columns))
         {
             var rowHeight = row.Max(item => measurementSession.MeasureAtFontSize(

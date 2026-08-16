@@ -1248,10 +1248,16 @@
                 + options.map(([value,label,available,detail]) => `<button type="button" data-review-narrative-value="${value}" class="${effectiveSource === value ? "active" : ""} ${available ? "is-available" : "is-missing"}"><span>${escapeHtml(label)}</span><small>${escapeHtml(detail)}${editorialState.narrativeSource !== value && effectiveSource === value ? " · override" : ""}</small></button>`).join("");
         }
 
-        if (reviewOpen) reviewOpen.href = review.projectUrl || `/Projects/Overview?id=${review.projectId}`;
+        if (reviewOpen) {
+            reviewOpen.href = review.projectUrl || `/Projects/Overview?id=${review.projectId}`;
+            reviewOpen.target = "_blank";
+            reviewOpen.rel = "noopener noreferrer";
+        }
         if (reviewManagePhotos) reviewManagePhotos.href = review.photosUrl || `/Projects/Photos/Index?id=${review.projectId}`;
         if (reviewEdit) {
             reviewEdit.hidden = !review.completedEditUrl;
+            reviewEdit.target = "_blank";
+            reviewEdit.rel = "noopener noreferrer";
             if (review.completedEditUrl) reviewEdit.href = review.completedEditUrl;
         }
 
@@ -1826,7 +1832,7 @@
         if (imageAction) return `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="image" data-finding-project="${projectId}">Review image</button>`;
         if (reviewAction) return `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="review" data-finding-project="${projectId}">Review project</button>`;
         const canEdit = canMaintainProjectData && normalize(project.lifecycle) === "completed";
-        return `<a class="btn btn-sm btn-outline-secondary" href="${canEdit ? `/Projects/CompletedSummary/Edit?id=${projectId}&returnUrl=${encodeURIComponent(location.pathname + location.search)}` : `/Projects/Overview?id=${projectId}`}">${canEdit ? "Edit record" : "Open project"}</a>`;
+        return `<a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer" href="${canEdit ? `/Projects/CompletedSummary/Edit?id=${projectId}&returnUrl=${encodeURIComponent(location.pathname + location.search)}` : `/Projects/Overview?id=${projectId}`}">${canEdit ? "Edit record" : "Open project"}</a>`;
     };
 
     const renderFindings = () => {

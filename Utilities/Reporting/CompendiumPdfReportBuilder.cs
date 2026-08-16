@@ -1135,11 +1135,16 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         if (items.Length == 0) return;
         var columns = Math.Clamp(plannedColumns, 1, 3);
 
-        container.Background(White).BorderTop(1).BorderColor(GoldSoft).PaddingTop(6).Column(column =>
+        container.Background(White).Column(column =>
         {
             column.Spacing(6);
-            column.Item().Text("HARDWARE / TECHNICAL SPECIFICATION")
-                .FontSize(7.7f).SemiBold().LetterSpacing(.14f).FontColor(Forest800);
+            column.Item().Row(header =>
+            {
+                header.AutoItem().Text("HARDWARE / TECHNICAL SPECIFICATION")
+                    .FontSize(7.7f).SemiBold().LetterSpacing(.14f).FontColor(Forest800);
+                header.ConstantItem(10f);
+                header.RelativeItem().PaddingTop(4.6f).Height(1f).Background(GoldSoft);
+            });
 
             if (columns == 1)
             {
@@ -1182,11 +1187,12 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             column.Spacing(5);
             if (showHeading)
             {
-                column.Item().BorderTop(1).BorderColor(GoldSoft).PaddingTop(7).Row(row =>
+                column.Item().Row(row =>
                 {
                     row.AutoItem().Text("ADDITIONAL NOTE")
                         .FontSize(7.4f).SemiBold().LetterSpacing(.34f).FontColor(Forest800);
-                    row.RelativeItem().PaddingLeft(10).AlignMiddle().Height(1).Background(GoldSoft);
+                    row.ConstantItem(10f);
+                    row.RelativeItem().PaddingTop(4.4f).Height(1f).Background(GoldSoft);
                 });
             }
             column.Item().Element(text => ComposeDescription(
