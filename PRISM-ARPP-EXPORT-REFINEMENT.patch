@@ -1,0 +1,400 @@
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -15,8 +15,10 @@
+     private const string Border = "8A99A8";
+     private const string White = "FFFFFF";
+ 
++    // A4 landscape printable width is 16,000 twips with the section margins below.
++    // Keep operational columns compact while giving dates/CFA enough room to avoid avoidable wrapping.
+     private static readonly int[] Widths =
+-        [500, 800, 2800, 1100, 850, 950, 650, 950, 1400, 950, 750, 4300];
++        [500, 800, 2700, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3950];
+     private static readonly int TableWidth = Widths.Sum();
+ 
+     public byte[] Build(ArppFyProjectUpdateReport report)
+@@ -88,17 +90,17 @@
+ 
+             tableRow.Append(
+                 Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), Widths[0], align: W.JustificationValues.Center),
+-                Cell(row.PppNumber ?? "—", Widths[1], align: W.JustificationValues.Center),
++                Cell(row.PppNumber ?? string.Empty, Widths[1], align: W.JustificationValues.Center),
+                 Cell(row.ProjectName, Widths[2], bold: true),
+-                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center),
+-                Cell(row.DfpdsSchedule ?? "—", Widths[4], align: W.JustificationValues.Center),
+-                Cell(row.Cfa ?? "—", Widths[5], align: W.JustificationValues.Center),
++                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center, noWrap: true),
++                Cell(row.DfpdsSchedule ?? string.Empty, Widths[4], align: W.JustificationValues.Center),
++                Cell(row.Cfa ?? string.Empty, Widths[5], align: W.JustificationValues.Center),
+                 Cell(row.Establishment, Widths[6], align: W.JustificationValues.Center),
+-                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center),
+-                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center),
+-                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center),
++                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center, noWrap: true),
++                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center, noWrap: true),
++                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center, noWrap: true),
+                 Cell(row.ProjectCaseDisplay, Widths[10], align: W.JustificationValues.Center),
+-                Cell(row.LatestExternalRemark ?? "—", Widths[11]));
++                Cell(row.LatestExternalRemark ?? string.Empty, Widths[11]));
+ 
+             table.Append(tableRow);
+         }
+@@ -149,37 +151,38 @@
+         {
+             Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
+         });
+-        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
++        return new W.TableCell(properties, Paragraph(text, 14, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+     }
+ 
+     private static W.TableCell SpanHeader(string text, int width, int span)
+     {
+         var properties = BaseCellProperties(width, HeaderFill);
+         properties.Append(new W.GridSpan { Val = span });
+-        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
++        return new W.TableCell(properties, Paragraph(text, 14, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+     }
+ 
+     private static W.TableCell Header(string text, int width)
+         => new(
+             BaseCellProperties(width, HeaderFill),
+-            Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
++            Paragraph(text, 14, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+ 
+     private static W.TableCell Cell(
+         string text,
+         int width,
+         bool bold = false,
+-        W.JustificationValues? align = null)
+-        => new(
+-            BaseCellProperties(width, null),
++        W.JustificationValues? align = null,
++        bool noWrap = false)
++        => new(
++            BaseCellProperties(width, null, noWrap),
+             Paragraph(
+                 text,
+-                15,
++                14,
+                 bold: bold,
+                 color: Ink,
+                 align: align ?? W.JustificationValues.Left,
+                 after: 0));
+ 
+-    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
++    private static W.TableCellProperties BaseCellProperties(int width, string? fill, bool noWrap = false)
+     {
+         var properties = new W.TableCellProperties(
+             new W.TableCellWidth { Width = width.ToString(CultureInfo.InvariantCulture), Type = W.TableWidthUnitValues.Dxa },
+@@ -190,11 +193,16 @@
+             properties.Append(new W.Shading { Fill = fill, Val = W.ShadingPatternValues.Clear });
+         }
+ 
++        if (noWrap)
++        {
++            properties.Append(new W.NoWrap());
++        }
++
+         return properties;
+     }
+ 
+     private static string Date(DateOnly? value)
+-        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
++        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+ 
+     private static string SupplyOrder(ArppFyProjectUpdateRow row)
+     {
+@@ -204,7 +212,7 @@
+         var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
+         return amount is not null && date is not null
+             ? $"{amount}\n{date}"
+-            : amount ?? date ?? "—";
++            : amount ?? date ?? string.Empty;
+     }
+ 
+     private static W.Paragraph Paragraph(
+@@ -277,14 +285,99 @@
+ 
+     private static W.Footer BuildFooter()
+     {
++        const int leftWidth = 12000;
++        const int rightWidth = TableWidth - leftWidth;
++
++        var table = new W.Table(
++            new W.TableProperties(
++                new W.TableWidth
++                {
++                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                },
++                new W.TableLayout { Type = W.TableLayoutValues.Fixed }));
++
++        table.Append(new W.TableGrid(
++            new W.GridColumn { Width = leftWidth.ToString(CultureInfo.InvariantCulture) },
++            new W.GridColumn { Width = rightWidth.ToString(CultureInfo.InvariantCulture) }));
++
++        var row = new W.TableRow();
++        row.Append(
++            FooterTextCell(
++                "PRISM ERP · Simulator Development Division",
++                leftWidth,
++                W.JustificationValues.Left),
++            FooterPageCell(rightWidth));
++        table.Append(row);
++
++        return new W.Footer(table);
++    }
++
++    private static W.TableCell FooterTextCell(
++        string text,
++        int width,
++        W.JustificationValues align)
++        => new(
++            new W.TableCellProperties(
++                new W.TableCellWidth
++                {
++                    Width = width.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                }),
++            FooterParagraph(text, align));
++
++    private static W.TableCell FooterPageCell(int width)
++    {
+         var paragraph = new W.Paragraph(
+-            new W.ParagraphProperties(new W.Justification { Val = W.JustificationValues.Right }));
+-        paragraph.Append(new W.Run(new W.Text("PRISM ERP · SDD   |   Page ")));
+-        paragraph.Append(new W.SimpleField { Instruction = "PAGE" });
+-        paragraph.Append(new W.Run(new W.Text(" of ")));
+-        paragraph.Append(new W.SimpleField { Instruction = "NUMPAGES" });
+-        return new W.Footer(paragraph);
+-    }
++            new W.ParagraphProperties(
++                new W.Justification { Val = W.JustificationValues.Right },
++                new W.SpacingBetweenLines { Before = "0", After = "0" }));
++
++        paragraph.Append(FooterRun("Page "));
++        paragraph.Append(FooterField("PAGE", "1"));
++        paragraph.Append(FooterRun(" of "));
++        paragraph.Append(FooterField("NUMPAGES", "1"));
++
++        return new W.TableCell(
++            new W.TableCellProperties(
++                new W.TableCellWidth
++                {
++                    Width = width.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                }),
++            paragraph);
++    }
++
++    private static W.Paragraph FooterParagraph(string text, W.JustificationValues align)
++    {
++        var paragraph = new W.Paragraph(
++            new W.ParagraphProperties(
++                new W.Justification { Val = align },
++                new W.SpacingBetweenLines { Before = "0", After = "0" }));
++        paragraph.Append(FooterRun(text));
++        return paragraph;
++    }
++
++    private static W.Run FooterRun(string text)
++        => new(
++            FooterRunProperties(),
++            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
++
++    private static W.SimpleField FooterField(string instruction, string fallback)
++    {
++        var field = new W.SimpleField { Instruction = instruction };
++        field.Append(new W.Run(
++            FooterRunProperties(),
++            new W.Text(fallback) { Space = SpaceProcessingModeValues.Preserve }));
++        return field;
++    }
++
++    private static W.RunProperties FooterRunProperties()
++        => new(
++            new W.RunFonts { Ascii = Font, HighAnsi = Font, EastAsia = Font, ComplexScript = Font },
++            new W.Color { Val = Muted },
++            new W.FontSize { Val = "13" },
++            new W.FontSizeComplexScript { Val = "13" });
+ 
+     private static W.SectionProperties BuildSectionProperties(MainDocumentPart mainPart, FooterPart footerPart)
+         => new(
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+@@ -28,7 +28,12 @@
+             {
+                 page.Size(PageSizes.A4.Landscape());
+                 page.Margin(22);
+-                page.DefaultTextStyle(style => style.FontSize(7.2f).FontColor(Ink));
++                // QuestPDF 2024.x enables standard ligatures in its bundled Lato font.
++                // Disable them for reliable PDF search, copy/paste and text extraction.
++                page.DefaultTextStyle(style => style
++                    .FontSize(7.2f)
++                    .FontColor(Ink)
++                    .DisableFontFeature(FontFeatures.StandardLigatures));
+ 
+                 page.Header().PaddingBottom(8).AlignCenter().Text(report.FormalTitle)
+                     .FontSize(11.5f)
+@@ -74,17 +79,17 @@
+                     foreach (var row in report.Rows)
+                     {
+                         BodyCell(table.Cell(), row.SerialNumber.ToString(CultureInfo.InvariantCulture), center: true);
+-                        BodyCell(table.Cell(), row.PppNumber ?? "—", center: true);
++                        BodyCell(table.Cell(), row.PppNumber ?? string.Empty, center: true);
+                         BodyCell(table.Cell(), row.ProjectName, bold: true);
+                         BodyCell(table.Cell(), Date(row.FirstArppListingDate), center: true);
+-                        BodyCell(table.Cell(), row.DfpdsSchedule ?? "—", center: true);
+-                        BodyCell(table.Cell(), row.Cfa ?? "—", center: true);
++                        BodyCell(table.Cell(), row.DfpdsSchedule ?? string.Empty, center: true);
++                        BodyCell(table.Cell(), row.Cfa ?? string.Empty, center: true);
+                         BodyCell(table.Cell(), row.Establishment, center: true);
+                         BodyCell(table.Cell(), Date(row.AonDate), center: true);
+                         BodyCell(table.Cell(), SupplyOrder(row), center: true);
+                         BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
+                         BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);
+-                        BodyCell(table.Cell(), row.LatestExternalRemark ?? "—");
++                        BodyCell(table.Cell(), row.LatestExternalRemark ?? string.Empty);
+                     }
+                 });
+ 
+@@ -154,7 +159,7 @@
+     }
+ 
+     private static string Date(DateOnly? value)
+-        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
++        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+ 
+     private static string SupplyOrder(ArppFyProjectUpdateRow row)
+     {
+@@ -164,6 +169,6 @@
+         var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
+         return amount is not null && date is not null
+             ? $"{amount}\n{date}"
+-            : amount ?? date ?? "—";
++            : amount ?? date ?? string.Empty;
+     }
+ }
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+@@ -25,6 +25,9 @@
+             Assert.Contains(report.FormalTitle, text, StringComparison.Ordinal);
+             Assert.DoesNotContain("ARPP APPROVED PROJECTS", text, StringComparison.Ordinal);
+             Assert.Contains("Sample Simulator", text, StringComparison.Ordinal);
++            var footerText = document.MainDocumentPart.FooterParts.Single().Footer?.InnerText ?? string.Empty;
++            Assert.Contains("PRISM ERP · Simulator Development Division", footerText, StringComparison.Ordinal);
++            Assert.Contains("Page 1 of 1", footerText, StringComparison.Ordinal);
+         }
+ 
+         var excel = new ArppFyProjectUpdateExcelBuilder().Build(report);
+@@ -41,6 +44,51 @@
+         var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report);
+         Assert.True(pdf.Length > 1000);
+         Assert.Equal((byte)'%', pdf[0]);
++    }
++
++
++    [Fact]
++    public void Formal_exports_leave_missing_report_values_blank()
++    {
++        var report = SampleReportWithMissingValues();
++
++        var word = new ArppFyProjectUpdateWordBuilder().Build(report);
++        using (var stream = new MemoryStream(word))
++        using (var document = WordprocessingDocument.Open(stream, false))
++        {
++            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
++            Assert.DoesNotContain("—", text, StringComparison.Ordinal);
++        }
++
++        var excel = new ArppFyProjectUpdateExcelBuilder().Build(report);
++        using var excelStream = new MemoryStream(excel);
++        using var workbook = new XLWorkbook(excelStream);
++        var worksheet = workbook.Worksheet("ARPP Project Update");
++
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 2).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 4).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 5).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 6).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 8).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 9).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 10).GetString()));
++        Assert.True(string.IsNullOrEmpty(worksheet.Cell(5, 12).GetString()));
++    }
++
++    [Fact]
++    public void Pdf_builder_disables_standard_ligatures_for_text_integrity()
++    {
++        var source = ReadRepoFile(
++            "Services",
++            "Reports",
++            "ArppFyProjectUpdate",
++            "ArppFyProjectUpdatePdfBuilder.cs");
++
++        Assert.Contains(
++            ".DisableFontFeature(FontFeatures.StandardLigatures)",
++            source,
++            StringComparison.Ordinal);
++        Assert.DoesNotContain("?? \"—\"", source, StringComparison.Ordinal);
+     }
+ 
+     private static ArppFyProjectUpdateReport SampleReport()
+@@ -74,4 +122,59 @@
+             },
+             Array.Empty<ArppFyReportWarning>(),
+             0);
++
++    private static ArppFyProjectUpdateReport SampleReportWithMissingValues()
++        => new(
++            2026,
++            new DateTimeOffset(2026, 8, 16, 12, 0, 0, TimeSpan.Zero),
++            new[]
++            {
++                new ArppFyProjectUpdateRow(
++                    1,
++                    10,
++                    null,
++                    "Sample Simulator",
++                    null,
++                    null,
++                    null,
++                    "SDD",
++                    null,
++                    null,
++                    ProjectSupplyOrderValueBasis.None,
++                    null,
++                    null,
++                    ArppCategory.CarryForward,
++                    null,
++                    null,
++                    ProjectLifecycleStatus.Active,
++                    false,
++                    "AON",
++                    "Acceptance of Necessity",
++                    ProjectStageMaturityOrder.AcceptanceOfNecessity)
++            },
++            Array.Empty<ArppFyReportWarning>(),
++            0);
++
++    private static string ReadRepoFile(params string[] segments)
++    {
++        var root = ResolveRepoRoot();
++        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
++    }
++
++    private static string ResolveRepoRoot()
++    {
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
++    }
++
+ }

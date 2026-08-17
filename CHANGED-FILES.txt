@@ -1,9 +1,3 @@
-Pages/Projects/Reports/Index.cshtml
-Pages/Projects/Reports/ArppFyUpdate.cshtml
-wwwroot/css/pages/projects-reports.css
-Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
 Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
 Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
-Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
 ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
-ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs

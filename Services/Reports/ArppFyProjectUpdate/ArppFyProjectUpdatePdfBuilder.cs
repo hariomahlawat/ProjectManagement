@@ -28,7 +28,12 @@ public sealed class ArppFyProjectUpdatePdfBuilder
             {
                 page.Size(PageSizes.A4.Landscape());
                 page.Margin(22);
-                page.DefaultTextStyle(style => style.FontSize(7.2f).FontColor(Ink));
+                // QuestPDF 2024.x enables standard ligatures in its bundled Lato font.
+                // Disable them for reliable PDF search, copy/paste and text extraction.
+                page.DefaultTextStyle(style => style
+                    .FontSize(7.2f)
+                    .FontColor(Ink)
+                    .DisableFontFeature(FontFeatures.StandardLigatures));
 
                 page.Header().PaddingBottom(8).AlignCenter().Text(report.FormalTitle)
                     .FontSize(11.5f)
@@ -74,17 +79,17 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                     foreach (var row in report.Rows)
                     {
                         BodyCell(table.Cell(), row.SerialNumber.ToString(CultureInfo.InvariantCulture), center: true);
-                        BodyCell(table.Cell(), row.PppNumber ?? "—", center: true);
+                        BodyCell(table.Cell(), row.PppNumber ?? string.Empty, center: true);
                         BodyCell(table.Cell(), row.ProjectName, bold: true);
                         BodyCell(table.Cell(), Date(row.FirstArppListingDate), center: true);
-                        BodyCell(table.Cell(), row.DfpdsSchedule ?? "—", center: true);
-                        BodyCell(table.Cell(), row.Cfa ?? "—", center: true);
+                        BodyCell(table.Cell(), row.DfpdsSchedule ?? string.Empty, center: true);
+                        BodyCell(table.Cell(), row.Cfa ?? string.Empty, center: true);
                         BodyCell(table.Cell(), row.Establishment, center: true);
                         BodyCell(table.Cell(), Date(row.AonDate), center: true);
                         BodyCell(table.Cell(), SupplyOrder(row), center: true);
                         BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
                         BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);
-                        BodyCell(table.Cell(), row.LatestExternalRemark ?? "—");
+                        BodyCell(table.Cell(), row.LatestExternalRemark ?? string.Empty);
                     }
                 });
 
@@ -154,7 +159,7 @@ public sealed class ArppFyProjectUpdatePdfBuilder
     }
 
     private static string Date(DateOnly? value)
-        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
 
     private static string SupplyOrder(ArppFyProjectUpdateRow row)
     {
@@ -164,6 +169,6 @@ public sealed class ArppFyProjectUpdatePdfBuilder
         var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
         return amount is not null && date is not null
             ? $"{amount}\n{date}"
-            : amount ?? date ?? "—";
+            : amount ?? date ?? string.Empty;
     }
 }

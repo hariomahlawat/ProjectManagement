@@ -15,8 +15,10 @@ public sealed class ArppFyProjectUpdateWordBuilder
     private const string Border = "8A99A8";
     private const string White = "FFFFFF";
 
+    // A4 landscape printable width is 16,000 twips with the section margins below.
+    // Keep operational columns compact while giving dates/CFA enough room to avoid avoidable wrapping.
     private static readonly int[] Widths =
-        [500, 800, 2800, 1100, 850, 950, 650, 950, 1400, 950, 750, 4300];
+        [500, 800, 2700, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3950];
     private static readonly int TableWidth = Widths.Sum();
 
     public byte[] Build(ArppFyProjectUpdateReport report)
@@ -88,17 +90,17 @@ public sealed class ArppFyProjectUpdateWordBuilder
 
             tableRow.Append(
                 Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), Widths[0], align: W.JustificationValues.Center),
-                Cell(row.PppNumber ?? "—", Widths[1], align: W.JustificationValues.Center),
+                Cell(row.PppNumber ?? string.Empty, Widths[1], align: W.JustificationValues.Center),
                 Cell(row.ProjectName, Widths[2], bold: true),
-                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center),
-                Cell(row.DfpdsSchedule ?? "—", Widths[4], align: W.JustificationValues.Center),
-                Cell(row.Cfa ?? "—", Widths[5], align: W.JustificationValues.Center),
+                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center, noWrap: true),
+                Cell(row.DfpdsSchedule ?? string.Empty, Widths[4], align: W.JustificationValues.Center),
+                Cell(row.Cfa ?? string.Empty, Widths[5], align: W.JustificationValues.Center),
                 Cell(row.Establishment, Widths[6], align: W.JustificationValues.Center),
-                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center),
-                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center),
-                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center),
+                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center, noWrap: true),
+                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center, noWrap: true),
+                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center, noWrap: true),
                 Cell(row.ProjectCaseDisplay, Widths[10], align: W.JustificationValues.Center),
-                Cell(row.LatestExternalRemark ?? "—", Widths[11]));
+                Cell(row.LatestExternalRemark ?? string.Empty, Widths[11]));
 
             table.Append(tableRow);
         }
@@ -149,37 +151,38 @@ public sealed class ArppFyProjectUpdateWordBuilder
         {
             Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
         });
-        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+        return new W.TableCell(properties, Paragraph(text, 14, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
     }
 
     private static W.TableCell SpanHeader(string text, int width, int span)
     {
         var properties = BaseCellProperties(width, HeaderFill);
         properties.Append(new W.GridSpan { Val = span });
-        return new W.TableCell(properties, Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+        return new W.TableCell(properties, Paragraph(text, 14, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
     }
 
     private static W.TableCell Header(string text, int width)
         => new(
             BaseCellProperties(width, HeaderFill),
-            Paragraph(text, 15, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
+            Paragraph(text, 14, bold: true, color: Navy, align: W.JustificationValues.Center, after: 0));
 
     private static W.TableCell Cell(
         string text,
         int width,
         bool bold = false,
-        W.JustificationValues? align = null)
+        W.JustificationValues? align = null,
+        bool noWrap = false)
         => new(
-            BaseCellProperties(width, null),
+            BaseCellProperties(width, null, noWrap),
             Paragraph(
                 text,
-                15,
+                14,
                 bold: bold,
                 color: Ink,
                 align: align ?? W.JustificationValues.Left,
                 after: 0));
 
-    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
+    private static W.TableCellProperties BaseCellProperties(int width, string? fill, bool noWrap = false)
     {
         var properties = new W.TableCellProperties(
             new W.TableCellWidth { Width = width.ToString(CultureInfo.InvariantCulture), Type = W.TableWidthUnitValues.Dxa },
@@ -190,11 +193,16 @@ public sealed class ArppFyProjectUpdateWordBuilder
             properties.Append(new W.Shading { Fill = fill, Val = W.ShadingPatternValues.Clear });
         }
 
+        if (noWrap)
+        {
+            properties.Append(new W.NoWrap());
+        }
+
         return properties;
     }
 
     private static string Date(DateOnly? value)
-        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
 
     private static string SupplyOrder(ArppFyProjectUpdateRow row)
     {
@@ -204,7 +212,7 @@ public sealed class ArppFyProjectUpdateWordBuilder
         var date = row.SupplyOrderDate.HasValue ? Date(row.SupplyOrderDate) : null;
         return amount is not null && date is not null
             ? $"{amount}\n{date}"
-            : amount ?? date ?? "—";
+            : amount ?? date ?? string.Empty;
     }
 
     private static W.Paragraph Paragraph(
@@ -277,14 +285,99 @@ public sealed class ArppFyProjectUpdateWordBuilder
 
     private static W.Footer BuildFooter()
     {
-        var paragraph = new W.Paragraph(
-            new W.ParagraphProperties(new W.Justification { Val = W.JustificationValues.Right }));
-        paragraph.Append(new W.Run(new W.Text("PRISM ERP · SDD   |   Page ")));
-        paragraph.Append(new W.SimpleField { Instruction = "PAGE" });
-        paragraph.Append(new W.Run(new W.Text(" of ")));
-        paragraph.Append(new W.SimpleField { Instruction = "NUMPAGES" });
-        return new W.Footer(paragraph);
+        const int leftWidth = 12000;
+        var rightWidth = TableWidth - leftWidth;
+
+        var table = new W.Table(
+            new W.TableProperties(
+                new W.TableWidth
+                {
+                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
+                    Type = W.TableWidthUnitValues.Dxa
+                },
+                new W.TableLayout { Type = W.TableLayoutValues.Fixed }));
+
+        table.Append(new W.TableGrid(
+            new W.GridColumn { Width = leftWidth.ToString(CultureInfo.InvariantCulture) },
+            new W.GridColumn { Width = rightWidth.ToString(CultureInfo.InvariantCulture) }));
+
+        var row = new W.TableRow();
+        row.Append(
+            FooterTextCell(
+                "PRISM ERP · Simulator Development Division",
+                leftWidth,
+                W.JustificationValues.Left),
+            FooterPageCell(rightWidth));
+        table.Append(row);
+
+        return new W.Footer(table);
     }
+
+    private static W.TableCell FooterTextCell(
+        string text,
+        int width,
+        W.JustificationValues align)
+        => new(
+            new W.TableCellProperties(
+                new W.TableCellWidth
+                {
+                    Width = width.ToString(CultureInfo.InvariantCulture),
+                    Type = W.TableWidthUnitValues.Dxa
+                }),
+            FooterParagraph(text, align));
+
+    private static W.TableCell FooterPageCell(int width)
+    {
+        var paragraph = new W.Paragraph(
+            new W.ParagraphProperties(
+                new W.Justification { Val = W.JustificationValues.Right },
+                new W.SpacingBetweenLines { Before = "0", After = "0" }));
+
+        paragraph.Append(FooterRun("Page "));
+        paragraph.Append(FooterField("PAGE", "1"));
+        paragraph.Append(FooterRun(" of "));
+        paragraph.Append(FooterField("NUMPAGES", "1"));
+
+        return new W.TableCell(
+            new W.TableCellProperties(
+                new W.TableCellWidth
+                {
+                    Width = width.ToString(CultureInfo.InvariantCulture),
+                    Type = W.TableWidthUnitValues.Dxa
+                }),
+            paragraph);
+    }
+
+    private static W.Paragraph FooterParagraph(string text, W.JustificationValues align)
+    {
+        var paragraph = new W.Paragraph(
+            new W.ParagraphProperties(
+                new W.Justification { Val = align },
+                new W.SpacingBetweenLines { Before = "0", After = "0" }));
+        paragraph.Append(FooterRun(text));
+        return paragraph;
+    }
+
+    private static W.Run FooterRun(string text)
+        => new(
+            FooterRunProperties(),
+            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
+
+    private static W.SimpleField FooterField(string instruction, string fallback)
+    {
+        var field = new W.SimpleField { Instruction = instruction };
+        field.Append(new W.Run(
+            FooterRunProperties(),
+            new W.Text(fallback) { Space = SpaceProcessingModeValues.Preserve }));
+        return field;
+    }
+
+    private static W.RunProperties FooterRunProperties()
+        => new(
+            new W.RunFonts { Ascii = Font, HighAnsi = Font, EastAsia = Font, ComplexScript = Font },
+            new W.Color { Val = Muted },
+            new W.FontSize { Val = "13" },
+            new W.FontSizeComplexScript { Val = "13" });
 
     private static W.SectionProperties BuildSectionProperties(MainDocumentPart mainPart, FooterPart footerPart)
         => new(
