@@ -18,9 +18,12 @@ public sealed class ArppFyProjectUpdatePdfBuilder
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public byte[] Build(ArppFyProjectUpdateReport report)
+    public byte[] Build(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(report);
+        var resolvedOptions = options ?? ArppFyProjectUpdatePresentationOptions.Default;
 
         var document = Document.Create(container =>
         {
@@ -46,16 +49,20 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                     {
                         columns.RelativeColumn(0.55f);
                         columns.RelativeColumn(0.85f);
-                        columns.RelativeColumn(2.7f);
+                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 2.25f : 2.7f);
                         columns.RelativeColumn(1.2f);
-                        columns.RelativeColumn(0.9f);
+                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 0.85f : 0.9f);
                         columns.RelativeColumn(0.95f);
                         columns.RelativeColumn(0.65f);
                         columns.RelativeColumn(1.0f);
-                        columns.RelativeColumn(1.5f);
+                        if (resolvedOptions.IncludePresentStage)
+                        {
+                            columns.RelativeColumn(1.45f);
+                        }
+                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 1.35f : 1.5f);
                         columns.RelativeColumn(1.0f);
                         columns.RelativeColumn(0.8f);
-                        columns.RelativeColumn(4.05f);
+                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 3.35f : 4.05f);
                     });
 
                     table.Header(header =>
@@ -67,11 +74,22 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                         HeaderCell(header.Cell().RowSpan(2), "Sch");
                         HeaderCell(header.Cell().RowSpan(2), "CFA");
                         HeaderCell(header.Cell().RowSpan(2), "Est");
-                        HeaderCell(header.Cell().ColumnSpan(3), "Status");
+                        if (resolvedOptions.IncludePresentStage)
+                        {
+                            HeaderCell(header.Cell().ColumnSpan(4), "Status");
+                        }
+                        else
+                        {
+                            HeaderCell(header.Cell().ColumnSpan(3), "Status");
+                        }
                         HeaderCell(header.Cell().RowSpan(2), "Proj Case");
                         HeaderCell(header.Cell().RowSpan(2), "Remarks");
 
                         HeaderCell(header.Cell(), "AoN");
+                        if (resolvedOptions.IncludePresentStage)
+                        {
+                            HeaderCell(header.Cell(), "Present Stage");
+                        }
                         HeaderCell(header.Cell(), "SO amt & dt");
                         HeaderCell(header.Cell(), "PDC dt");
                     });
@@ -86,6 +104,10 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                         BodyCell(table.Cell(), row.Cfa ?? string.Empty, center: true);
                         BodyCell(table.Cell(), row.Establishment, center: true);
                         BodyCell(table.Cell(), Date(row.AonDate), center: true);
+                        if (resolvedOptions.IncludePresentStage)
+                        {
+                            BodyCell(table.Cell(), row.StageDisplay, center: true);
+                        }
                         BodyCell(table.Cell(), SupplyOrder(row), center: true);
                         BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
                         BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);

@@ -42,19 +42,35 @@
         <div class="report-workspace-actions">
             @if (Model.AvailableFinancialYears.Count > 0)
             {
-                <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
-                    <label for="financialYearStart">Financial Year</label>
-                    <div class="input-group input-group-sm">
-                        <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
-                            @foreach (var year in Model.AvailableFinancialYears)
-                            {
-                                <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
-                            }
-                        </select>
-                        <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
-                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                            <span class="visually-hidden">Refresh report</span>
-                        </button>
+                <form method="get" class="report-display-controls" aria-label="Report display options">
+                    <div class="report-toolbar__fy">
+                        <label for="financialYearStart">Financial Year</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
+                                @foreach (var year in Model.AvailableFinancialYears)
+                                {
+                                    <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                                <span class="visually-hidden">Refresh report</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="report-toolbar__options">
+                        <span class="report-toolbar__options-label">Optional columns</span>
+                        <label class="report-option-toggle" for="includePresentStage">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="includePresentStage"
+                                   name="includePresentStage"
+                                   value="true"
+                                   checked="@Model.IncludePresentStage"
+                                   onchange="this.form.submit()" />
+                            <span>Present Stage</span>
+                        </label>
                     </div>
                 </form>
             }
@@ -65,17 +81,17 @@
                     <span class="report-export-group__label">Export</span>
                     <div class="report-export-actions">
                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
+                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
                         </a>
                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
+                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
                         </a>
                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
+                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
                         </a>
@@ -157,7 +173,7 @@
             else
             {
                 <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable report table">
-                    <table class="formal-report-table">
+                    <table class="formal-report-table @(Model.IncludePresentStage ? "formal-report-table--with-stage" : string.Empty)">
                         <colgroup>
                             <col class="col-serial" />
                             <col class="col-arpp" />
@@ -167,6 +183,10 @@
                             <col class="col-cfa" />
                             <col class="col-est" />
                             <col class="col-aon" />
+                            @if (Model.IncludePresentStage)
+                            {
+                                <col class="col-stage" />
+                            }
                             <col class="col-so" />
                             <col class="col-pdc" />
                             <col class="col-case" />
@@ -181,12 +201,16 @@
                                 <th rowspan="2">Sch</th>
                                 <th rowspan="2">CFA</th>
                                 <th rowspan="2">Est</th>
-                                <th colspan="3">Status</th>
+                                <th colspan="@(Model.IncludePresentStage ? 4 : 3)">Status</th>
                                 <th rowspan="2">Proj Case</th>
                                 <th rowspan="2">Remarks</th>
                             </tr>
                             <tr>
                                 <th>AoN</th>
+                                @if (Model.IncludePresentStage)
+                                {
+                                    <th>Present Stage</th>
+                                }
                                 <th>SO amt &amp; dt</th>
                                 <th>PDC dt</th>
                             </tr>
@@ -205,6 +229,10 @@
                                     <td class="text-center formal-report-cfa">@(row.Cfa ?? "—")</td>
                                     <td class="text-center">@row.Establishment</td>
                                     <td class="text-center">@Date(row.AonDate)</td>
+                                    @if (Model.IncludePresentStage)
+                                    {
+                                        <td class="text-center formal-report-stage">@row.StageDisplay</td>
+                                    }
                                     <td class="text-center formal-report-so">
                                         @if (row.SupplyOrderAmountInCrores.HasValue)
                                         {

@@ -22,14 +22,20 @@ public sealed class ArppFyProjectUpdateExportService : IArppFyProjectUpdateExpor
         _excelBuilder = excelBuilder ?? throw new ArgumentNullException(nameof(excelBuilder));
     }
 
-    public ArppFyProjectUpdateFile BuildWord(ArppFyProjectUpdateReport report)
-        => Build(report, "docx", WordContentType, _wordBuilder.Build(report));
+    public ArppFyProjectUpdateFile BuildWord(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null)
+        => Build(report, "docx", WordContentType, _wordBuilder.Build(report, options));
 
-    public ArppFyProjectUpdateFile BuildPdf(ArppFyProjectUpdateReport report)
-        => Build(report, "pdf", PdfContentType, _pdfBuilder.Build(report));
+    public ArppFyProjectUpdateFile BuildPdf(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null)
+        => Build(report, "pdf", PdfContentType, _pdfBuilder.Build(report, options));
 
-    public ArppFyProjectUpdateFile BuildExcel(ArppFyProjectUpdateReport report)
-        => Build(report, "xlsx", ExcelContentType, _excelBuilder.Build(report));
+    public ArppFyProjectUpdateFile BuildExcel(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null)
+        => Build(report, "xlsx", ExcelContentType, _excelBuilder.Build(report, options));
 
     private static ArppFyProjectUpdateFile Build(
         ArppFyProjectUpdateReport report,

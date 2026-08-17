@@ -23,6 +23,9 @@ public sealed class ArppFyUpdateModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? FinancialYearStart { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public bool IncludePresentStage { get; set; }
+
     public IReadOnlyList<int> AvailableFinancialYears { get; private set; } = Array.Empty<int>();
     public ArppFyProjectUpdateReport? Report { get; private set; }
 
@@ -53,7 +56,7 @@ public sealed class ArppFyUpdateModel : PageModel
 
     private async Task<IActionResult> ExportAsync(
         int financialYearStart,
-        Func<ArppFyProjectUpdateReport, ArppFyProjectUpdateFile> exporter,
+        Func<ArppFyProjectUpdateReport, ArppFyProjectUpdatePresentationOptions?, ArppFyProjectUpdateFile> exporter,
         CancellationToken cancellationToken)
     {
         var available = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
@@ -73,7 +76,8 @@ public sealed class ArppFyUpdateModel : PageModel
             return BadRequest("The selected financial year has no linked approved projects to export.");
         }
 
-        var file = exporter(report);
+        var options = new ArppFyProjectUpdatePresentationOptions(IncludePresentStage);
+        var file = exporter(report, options);
         return File(file.Content, file.ContentType, file.FileName);
     }
 }

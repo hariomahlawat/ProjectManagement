@@ -5,21 +5,24 @@ namespace ProjectManagement.Services.Reports.ArppFyProjectUpdate;
 
 public sealed class ArppFyProjectUpdateExcelBuilder
 {
-    private const int ColumnCount = 12;
     private const int HeaderRowOne = 3;
     private const int HeaderRowTwo = 4;
     private const int FirstDataRow = 5;
 
-    public byte[] Build(ArppFyProjectUpdateReport report)
+    public byte[] Build(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(report);
+        var resolvedOptions = options ?? ArppFyProjectUpdatePresentationOptions.Default;
+        var columns = ColumnLayout.For(resolvedOptions);
 
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("ARPP Project Update");
         worksheet.Style.Font.FontName = "Arial";
         worksheet.Style.Font.FontSize = 9;
 
-        var title = worksheet.Range(1, 1, 1, ColumnCount).Merge();
+        var title = worksheet.Range(1, 1, 1, columns.ColumnCount).Merge();
         title.Value = report.FormalTitle;
         title.Style.Font.Bold = true;
         title.Style.Font.FontSize = 15;
@@ -29,10 +32,8 @@ public sealed class ArppFyProjectUpdateExcelBuilder
         worksheet.Row(1).Height = 24;
         title.Style.Alignment.WrapText = false;
 
-        // Keep a narrow visual spacer between the single-line title and the formal table header.
         worksheet.Row(2).Height = 7;
-
-        BuildHeader(worksheet);
+        BuildHeader(worksheet, columns);
 
         var rowIndex = FirstDataRow;
         foreach (var row in report.Rows)
@@ -44,16 +45,20 @@ public sealed class ArppFyProjectUpdateExcelBuilder
             worksheet.Cell(rowIndex, 5).SetValue(row.DfpdsSchedule ?? string.Empty);
             worksheet.Cell(rowIndex, 6).SetValue(row.Cfa ?? string.Empty);
             worksheet.Cell(rowIndex, 7).SetValue(row.Establishment);
-            SetDate(worksheet.Cell(rowIndex, 8), row.AonDate);
-            worksheet.Cell(rowIndex, 9).SetValue(SupplyOrderText(row));
-            SetDate(worksheet.Cell(rowIndex, 10), row.DevelopmentPdcDate);
-            worksheet.Cell(rowIndex, 11).SetValue(row.ProjectCaseDisplay);
-            worksheet.Cell(rowIndex, 12).SetValue(row.LatestExternalRemark ?? string.Empty);
+            SetDate(worksheet.Cell(rowIndex, columns.Aon), row.AonDate);
+            if (columns.PresentStage.HasValue)
+            {
+                worksheet.Cell(rowIndex, columns.PresentStage.Value).SetValue(row.StageDisplay);
+            }
+            worksheet.Cell(rowIndex, columns.SupplyOrder).SetValue(SupplyOrderText(row));
+            SetDate(worksheet.Cell(rowIndex, columns.Pdc), row.DevelopmentPdcDate);
+            worksheet.Cell(rowIndex, columns.ProjectCase).SetValue(row.ProjectCaseDisplay);
+            worksheet.Cell(rowIndex, columns.Remarks).SetValue(row.LatestExternalRemark ?? string.Empty);
             rowIndex++;
         }
 
         var lastDataRow = Math.Max(HeaderRowTwo, rowIndex - 1);
-        var tableRange = worksheet.Range(HeaderRowOne, 1, lastDataRow, ColumnCount);
+        var tableRange = worksheet.Range(HeaderRowOne, 1, lastDataRow, columns.ColumnCount);
         tableRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         tableRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         tableRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#8A99A8");
@@ -62,14 +67,14 @@ public sealed class ArppFyProjectUpdateExcelBuilder
 
         if (lastDataRow >= FirstDataRow)
         {
-            var data = worksheet.Range(FirstDataRow, 1, lastDataRow, ColumnCount);
+            var data = worksheet.Range(FirstDataRow, 1, lastDataRow, columns.ColumnCount);
             data.Style.Alignment.WrapText = true;
             worksheet.Range(FirstDataRow, 1, lastDataRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            worksheet.Range(FirstDataRow, 4, lastDataRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Range(FirstDataRow, 4, lastDataRow, columns.ProjectCase).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             worksheet.Range(FirstDataRow, 3, lastDataRow, 3).Style.Font.Bold = true;
         }
 
-        ApplyColumnWidths(worksheet);
+        ApplyColumnWidths(worksheet, columns);
         worksheet.SheetView.FreezeRows(HeaderRowTwo);
         worksheet.SheetView.FreezeColumns(3);
         worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
@@ -88,7 +93,7 @@ public sealed class ArppFyProjectUpdateExcelBuilder
         return stream.ToArray();
     }
 
-    private static void BuildHeader(IXLWorksheet worksheet)
+    private static void BuildHeader(IXLWorksheet worksheet, ColumnLayout columns)
     {
         MergeVertical(worksheet, 1, "Ser No.");
         MergeVertical(worksheet, 2, "ARPP No.");
@@ -98,16 +103,20 @@ public sealed class ArppFyProjectUpdateExcelBuilder
         MergeVertical(worksheet, 6, "CFA");
         MergeVertical(worksheet, 7, "Est");
 
-        var status = worksheet.Range(HeaderRowOne, 8, HeaderRowOne, 10).Merge();
+        var status = worksheet.Range(HeaderRowOne, columns.Aon, HeaderRowOne, columns.Pdc).Merge();
         status.Value = "Status";
-        worksheet.Cell(HeaderRowTwo, 8).Value = "AoN";
-        worksheet.Cell(HeaderRowTwo, 9).Value = "SO amt & dt";
-        worksheet.Cell(HeaderRowTwo, 10).Value = "PDC dt";
+        worksheet.Cell(HeaderRowTwo, columns.Aon).Value = "AoN";
+        if (columns.PresentStage.HasValue)
+        {
+            worksheet.Cell(HeaderRowTwo, columns.PresentStage.Value).Value = "Present Stage";
+        }
+        worksheet.Cell(HeaderRowTwo, columns.SupplyOrder).Value = "SO amt & dt";
+        worksheet.Cell(HeaderRowTwo, columns.Pdc).Value = "PDC dt";
 
-        MergeVertical(worksheet, 11, "Proj Case");
-        MergeVertical(worksheet, 12, "Remarks");
+        MergeVertical(worksheet, columns.ProjectCase, "Proj Case");
+        MergeVertical(worksheet, columns.Remarks, "Remarks");
 
-        var header = worksheet.Range(HeaderRowOne, 1, HeaderRowTwo, ColumnCount);
+        var header = worksheet.Range(HeaderRowOne, 1, HeaderRowTwo, columns.ColumnCount);
         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8EEF5");
         header.Style.Font.Bold = true;
         header.Style.Font.FontColor = XLColor.FromHtml("#17365D");
@@ -147,19 +156,38 @@ public sealed class ArppFyProjectUpdateExcelBuilder
             : amount ?? date ?? string.Empty;
     }
 
-    private static void ApplyColumnWidths(IXLWorksheet worksheet)
+    private static void ApplyColumnWidths(IXLWorksheet worksheet, ColumnLayout columns)
     {
         worksheet.Column(1).Width = 7;
         worksheet.Column(2).Width = 12;
-        worksheet.Column(3).Width = 36;
+        worksheet.Column(3).Width = columns.PresentStage.HasValue ? 30 : 36;
         worksheet.Column(4).Width = 17;
         worksheet.Column(5).Width = 12;
         worksheet.Column(6).Width = 16;
         worksheet.Column(7).Width = 8;
-        worksheet.Column(8).Width = 14;
-        worksheet.Column(9).Width = 19;
-        worksheet.Column(10).Width = 14;
-        worksheet.Column(11).Width = 11;
-        worksheet.Column(12).Width = 54;
+        worksheet.Column(columns.Aon).Width = 14;
+        if (columns.PresentStage.HasValue)
+        {
+            worksheet.Column(columns.PresentStage.Value).Width = 20;
+        }
+        worksheet.Column(columns.SupplyOrder).Width = 19;
+        worksheet.Column(columns.Pdc).Width = 14;
+        worksheet.Column(columns.ProjectCase).Width = 11;
+        worksheet.Column(columns.Remarks).Width = columns.PresentStage.HasValue ? 46 : 54;
+    }
+
+    private sealed record ColumnLayout(
+        int ColumnCount,
+        int Aon,
+        int? PresentStage,
+        int SupplyOrder,
+        int Pdc,
+        int ProjectCase,
+        int Remarks)
+    {
+        public static ColumnLayout For(ArppFyProjectUpdatePresentationOptions options)
+            => options.IncludePresentStage
+                ? new ColumnLayout(13, 8, 9, 10, 11, 12, 13)
+                : new ColumnLayout(12, 8, null, 9, 10, 11, 12);
     }
 }

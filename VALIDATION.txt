@@ -1,14 +1,18 @@
 STATIC VALIDATION
 =================
 
-PASS  word_table_width_16000
-PASS  word_no_em_dash_fallback
-PASS  word_body_7pt
-PASS  word_no_wrap
-PASS  word_full_footer_org
-PASS  word_page_fields
-PASS  pdf_ligatures_disabled
-PASS  pdf_no_em_dash_literal
+PASS  option_default_false
+PASS  page_get_binding
+PASS  export_route_preserved_3
+PASS  browser_status_dynamic
+PASS  browser_stage_data
+PASS  word_standard_width
+PASS  word_stage_width
+PASS  word_dynamic_status_span
+PASS  pdf_dynamic_stage
+PASS  pdf_ligature_fix_preserved
+PASS  excel_13_column_layout
+PASS  excel_title_dynamic
+PASS  no_schema_or_di
 
-NOTE: The current execution environment does not contain the .NET SDK,
-so a real dotnet build/test run could not be executed here.
+.NET SDK is not available in this execution environment; run the build/test commands above on the target development machine.

@@ -13,17 +13,23 @@ public sealed class ArppFyProjectUpdateWordBuilder
     private const string Navy = "17365D";
     private const string HeaderFill = "E8EEF5";
     private const string Border = "8A99A8";
-    private const string White = "FFFFFF";
+    private const int TableWidth = 16000;
 
-    // A4 landscape printable width is 16,000 twips with the section margins below.
-    // Keep operational columns compact while giving dates/CFA enough room to avoid avoidable wrapping.
-    private static readonly int[] Widths =
+    // Both variants intentionally total 16,000 twips: the exact printable width
+    // used by the A4-landscape section below.
+    private static readonly int[] StandardWidths =
         [500, 800, 2700, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3950];
-    private static readonly int TableWidth = Widths.Sum();
 
-    public byte[] Build(ArppFyProjectUpdateReport report)
+    private static readonly int[] PresentStageWidths =
+        [500, 800, 2250, 1150, 750, 1000, 600, 1000, 1500, 1300, 1000, 750, 3400];
+
+    public byte[] Build(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(report);
+        var resolvedOptions = options ?? ArppFyProjectUpdatePresentationOptions.Default;
+        var widths = GetWidths(resolvedOptions);
 
         using var stream = new MemoryStream();
         using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, autoSave: true))
@@ -53,7 +59,7 @@ public sealed class ArppFyProjectUpdateWordBuilder
                 align: W.JustificationValues.Center,
                 after: 90));
 
-            body.Append(BuildTable(report.Rows));
+            body.Append(BuildTable(report.Rows, resolvedOptions, widths));
             body.Append(BuildSectionProperties(mainPart, footerPart));
             mainPart.Document.Save();
         }
@@ -61,7 +67,21 @@ public sealed class ArppFyProjectUpdateWordBuilder
         return stream.ToArray();
     }
 
-    private static W.Table BuildTable(IReadOnlyList<ArppFyProjectUpdateRow> rows)
+    private static int[] GetWidths(ArppFyProjectUpdatePresentationOptions options)
+    {
+        var widths = options.IncludePresentStage ? PresentStageWidths : StandardWidths;
+        if (widths.Sum() != TableWidth)
+        {
+            throw new InvalidOperationException("ARPP report Word column widths must total the A4-landscape printable width.");
+        }
+
+        return widths;
+    }
+
+    private static W.Table BuildTable(
+        IReadOnlyList<ArppFyProjectUpdateRow> rows,
+        ArppFyProjectUpdatePresentationOptions options,
+        IReadOnlyList<int> widths)
     {
         var table = new W.Table(
             new W.TableProperties(
@@ -75,32 +95,22 @@ public sealed class ArppFyProjectUpdateWordBuilder
                     new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
                     new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 })));
 
-        table.Append(new W.TableGrid(Widths.Select(width => new W.GridColumn
+        table.Append(new W.TableGrid(widths.Select(width => new W.GridColumn
         {
             Width = width.ToString(CultureInfo.InvariantCulture)
         })));
 
-        table.Append(BuildHeaderRowOne());
-        table.Append(BuildHeaderRowTwo());
+        table.Append(BuildHeaderRowOne(options, widths));
+        table.Append(BuildHeaderRowTwo(options, widths));
 
         foreach (var row in rows)
         {
-            var properties = new W.TableRowProperties(new W.CantSplit());
-            var tableRow = new W.TableRow(properties);
-
-            tableRow.Append(
-                Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), Widths[0], align: W.JustificationValues.Center),
-                Cell(row.PppNumber ?? string.Empty, Widths[1], align: W.JustificationValues.Center),
-                Cell(row.ProjectName, Widths[2], bold: true),
-                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center, noWrap: true),
-                Cell(row.DfpdsSchedule ?? string.Empty, Widths[4], align: W.JustificationValues.Center),
-                Cell(row.Cfa ?? string.Empty, Widths[5], align: W.JustificationValues.Center),
-                Cell(row.Establishment, Widths[6], align: W.JustificationValues.Center),
-                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center, noWrap: true),
-                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center, noWrap: true),
-                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center, noWrap: true),
-                Cell(row.ProjectCaseDisplay, Widths[10], align: W.JustificationValues.Center),
-                Cell(row.LatestExternalRemark ?? string.Empty, Widths[11]));
+            var tableRow = new W.TableRow(new W.TableRowProperties(new W.CantSplit()));
+            var cells = BuildDataCells(row, options, widths);
+            foreach (var cell in cells)
+            {
+                tableRow.Append(cell);
+            }
 
             table.Append(tableRow);
         }
@@ -108,39 +118,85 @@ public sealed class ArppFyProjectUpdateWordBuilder
         return table;
     }
 
-    private static W.TableRow BuildHeaderRowOne()
+    private static IReadOnlyList<W.TableCell> BuildDataCells(
+        ArppFyProjectUpdateRow row,
+        ArppFyProjectUpdatePresentationOptions options,
+        IReadOnlyList<int> widths)
+    {
+        var cells = new List<W.TableCell>
+        {
+            Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
+            Cell(row.PppNumber ?? string.Empty, widths[1], align: W.JustificationValues.Center),
+            Cell(row.ProjectName, widths[2], bold: true),
+            Cell(Date(row.FirstArppListingDate), widths[3], align: W.JustificationValues.Center, noWrap: true),
+            Cell(row.DfpdsSchedule ?? string.Empty, widths[4], align: W.JustificationValues.Center),
+            Cell(row.Cfa ?? string.Empty, widths[5], align: W.JustificationValues.Center),
+            Cell(row.Establishment, widths[6], align: W.JustificationValues.Center),
+            Cell(Date(row.AonDate), widths[7], align: W.JustificationValues.Center, noWrap: true)
+        };
+
+        var offset = 8;
+        if (options.IncludePresentStage)
+        {
+            cells.Add(Cell(row.StageDisplay, widths[offset], align: W.JustificationValues.Center));
+            offset++;
+        }
+
+        cells.Add(Cell(SupplyOrder(row), widths[offset], align: W.JustificationValues.Center, noWrap: true));
+        cells.Add(Cell(Date(row.DevelopmentPdcDate), widths[offset + 1], align: W.JustificationValues.Center, noWrap: true));
+        cells.Add(Cell(row.ProjectCaseDisplay, widths[offset + 2], align: W.JustificationValues.Center));
+        cells.Add(Cell(row.LatestExternalRemark ?? string.Empty, widths[offset + 3]));
+        return cells;
+    }
+
+    private static W.TableRow BuildHeaderRowOne(
+        ArppFyProjectUpdatePresentationOptions options,
+        IReadOnlyList<int> widths)
     {
         var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
         row.Append(
-            MergedHeader("Ser No.", Widths[0], restart: true),
-            MergedHeader("ARPP No.", Widths[1], restart: true),
-            MergedHeader("Name of Project", Widths[2], restart: true),
-            MergedHeader("Dt of Grant of IPA / ARPP Listing", Widths[3], restart: true),
-            MergedHeader("Sch", Widths[4], restart: true),
-            MergedHeader("CFA", Widths[5], restart: true),
-            MergedHeader("Est", Widths[6], restart: true),
-            SpanHeader("Status", Widths[7] + Widths[8] + Widths[9], 3),
-            MergedHeader("Proj Case", Widths[10], restart: true),
-            MergedHeader("Remarks", Widths[11], restart: true));
+            MergedHeader("Ser No.", widths[0], restart: true),
+            MergedHeader("ARPP No.", widths[1], restart: true),
+            MergedHeader("Name of Project", widths[2], restart: true),
+            MergedHeader("Dt of Grant of IPA / ARPP Listing", widths[3], restart: true),
+            MergedHeader("Sch", widths[4], restart: true),
+            MergedHeader("CFA", widths[5], restart: true),
+            MergedHeader("Est", widths[6], restart: true));
+
+        var statusWidth = widths.Skip(7).Take(options.StatusColumnCount).Sum();
+        row.Append(SpanHeader("Status", statusWidth, options.StatusColumnCount));
+
+        var caseIndex = options.IncludePresentStage ? 11 : 10;
+        var remarksIndex = caseIndex + 1;
+        row.Append(
+            MergedHeader("Proj Case", widths[caseIndex], restart: true),
+            MergedHeader("Remarks", widths[remarksIndex], restart: true));
         return row;
     }
 
-    private static W.TableRow BuildHeaderRowTwo()
+    private static W.TableRow BuildHeaderRowTwo(
+        ArppFyProjectUpdatePresentationOptions options,
+        IReadOnlyList<int> widths)
     {
         var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
+        for (var index = 0; index < 7; index++)
+        {
+            row.Append(MergedHeader(string.Empty, widths[index], restart: false));
+        }
+
+        row.Append(Header("AoN", widths[7]));
+        var offset = 8;
+        if (options.IncludePresentStage)
+        {
+            row.Append(Header("Present Stage", widths[offset]));
+            offset++;
+        }
+
         row.Append(
-            MergedHeader(string.Empty, Widths[0], restart: false),
-            MergedHeader(string.Empty, Widths[1], restart: false),
-            MergedHeader(string.Empty, Widths[2], restart: false),
-            MergedHeader(string.Empty, Widths[3], restart: false),
-            MergedHeader(string.Empty, Widths[4], restart: false),
-            MergedHeader(string.Empty, Widths[5], restart: false),
-            MergedHeader(string.Empty, Widths[6], restart: false),
-            Header("AoN", Widths[7]),
-            Header("SO amt & dt", Widths[8]),
-            Header("PDC dt", Widths[9]),
-            MergedHeader(string.Empty, Widths[10], restart: false),
-            MergedHeader(string.Empty, Widths[11], restart: false));
+            Header("SO amt & dt", widths[offset]),
+            Header("PDC dt", widths[offset + 1]),
+            MergedHeader(string.Empty, widths[offset + 2], restart: false),
+            MergedHeader(string.Empty, widths[offset + 3], restart: false));
         return row;
     }
 

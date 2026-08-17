@@ -177,12 +177,20 @@
     flex-wrap: wrap;
 }
 
+.report-display-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: .65rem;
+    flex-wrap: wrap;
+}
+
 .report-toolbar__fy {
     width: 196px;
     min-width: 196px;
 }
 
 .report-toolbar__fy label,
+.report-toolbar__options-label,
 .report-export-group__label {
     display: block;
     margin-bottom: .25rem;
@@ -191,6 +199,51 @@
     font-weight: 750;
     letter-spacing: .05em;
     text-transform: uppercase;
+}
+
+.report-toolbar__options {
+    min-width: 132px;
+}
+
+.report-toolbar__options-label {
+    margin-bottom: .25rem;
+}
+
+.report-option-toggle {
+    display: flex;
+    min-height: 31px;
+    align-items: center;
+    gap: .42rem;
+    margin: 0;
+    padding: .3rem .52rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .32rem;
+    background: #fff;
+    color: #32465d;
+    font-size: .72rem;
+    font-weight: 650;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+.report-option-toggle:hover {
+    border-color: #aebccd;
+    background: #f9fbfd;
+}
+
+.report-option-toggle .form-check-input {
+    flex: 0 0 auto;
+    width: .92rem;
+    height: .92rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.report-option-toggle:has(.form-check-input:checked) {
+    border-color: #9db6e8;
+    background: #f4f7ff;
+    color: #234f9a;
 }
 
 .report-export-group__label { text-align: right; }
@@ -402,10 +455,12 @@
 .formal-report-table col.col-cfa { width: 7.2rem; }
 .formal-report-table col.col-est { width: 4rem; }
 .formal-report-table col.col-aon { width: 6.3rem; }
+.formal-report-table col.col-stage { width: 9rem; }
 .formal-report-table col.col-so { width: 8.3rem; }
 .formal-report-table col.col-pdc { width: 6.3rem; }
 .formal-report-table col.col-case { width: 5rem; }
 .formal-report-table col.col-remarks { width: auto; }
+.formal-report-table--with-stage { min-width: 1580px; }
 
 .formal-report-table th,
 .formal-report-table td {
@@ -440,6 +495,7 @@
 
 .formal-report-project a:hover { text-decoration: underline; }
 .formal-report-cfa { overflow-wrap: normal !important; word-break: normal; }
+.formal-report-stage { color: #344b63; font-weight: 650; overflow-wrap: normal !important; word-break: normal; }
 .formal-report-so strong,
 .formal-report-so span,
 .formal-report-so small { display: block; }
@@ -526,6 +582,7 @@
 
     .project-report-card__availability { text-align: left; }
     .report-workspace-actions { justify-content: flex-start; }
+    .report-display-controls { align-items: flex-end; }
     .report-toolbar__fy { width: 210px; min-width: 0; }
     .report-export-group__label { text-align: left; }
     .report-export-actions { justify-content: flex-start; }

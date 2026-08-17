@@ -16,6 +16,9 @@ public sealed class ArppFyProjectUpdatePresentationContractTests
         Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", detail, StringComparison.Ordinal);
         Assert.Contains("@report.FormalTitle", detail, StringComparison.Ordinal);
         Assert.Contains("Report preflight", detail, StringComparison.Ordinal);
+        Assert.Contains("Optional columns", detail, StringComparison.Ordinal);
+        Assert.Contains("Present Stage", detail, StringComparison.Ordinal);
+        Assert.Contains("asp-route-includePresentStage=\"@Model.IncludePresentStage\"", detail, StringComparison.Ordinal);
         Assert.DoesNotContain("Publication preflight", detail, StringComparison.Ordinal);
         Assert.DoesNotContain("ARPP Approved Projects – Project Update", detail, StringComparison.Ordinal);
     }
@@ -29,6 +32,8 @@ public sealed class ArppFyProjectUpdatePresentationContractTests
         Assert.Contains("max-width: none;", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: minmax(0, 1fr);", css, StringComparison.Ordinal);
         Assert.Contains("min-width: 1450px;", css, StringComparison.Ordinal);
+        Assert.Contains("formal-report-table--with-stage", css, StringComparison.Ordinal);
+        Assert.Contains("col-stage", css, StringComparison.Ordinal);
         Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
         Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
         Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);

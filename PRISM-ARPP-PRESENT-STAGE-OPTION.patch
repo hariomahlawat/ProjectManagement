@@ -1,0 +1,867 @@
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml
+@@ -42,19 +42,35 @@
+         <div class="report-workspace-actions">
+             @if (Model.AvailableFinancialYears.Count > 0)
+             {
+-                <form method="get" class="report-toolbar__fy" aria-label="Select financial year">
+-                    <label for="financialYearStart">Financial Year</label>
+-                    <div class="input-group input-group-sm">
+-                        <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
+-                            @foreach (var year in Model.AvailableFinancialYears)
+-                            {
+-                                <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+-                            }
+-                        </select>
+-                        <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
+-                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+-                            <span class="visually-hidden">Refresh report</span>
+-                        </button>
++                <form method="get" class="report-display-controls" aria-label="Report display options">
++                    <div class="report-toolbar__fy">
++                        <label for="financialYearStart">Financial Year</label>
++                        <div class="input-group input-group-sm">
++                            <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
++                                @foreach (var year in Model.AvailableFinancialYears)
++                                {
++                                    <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
++                                }
++                            </select>
++                            <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
++                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
++                                <span class="visually-hidden">Refresh report</span>
++                            </button>
++                        </div>
++                    </div>
++
++                    <div class="report-toolbar__options">
++                        <span class="report-toolbar__options-label">Optional columns</span>
++                        <label class="report-option-toggle" for="includePresentStage">
++                            <input class="form-check-input"
++                                   type="checkbox"
++                                   id="includePresentStage"
++                                   name="includePresentStage"
++                                   value="true"
++                                   checked="@Model.IncludePresentStage"
++                                   onchange="this.form.submit()" />
++                            <span>Present Stage</span>
++                        </label>
+                     </div>
+                 </form>
+             }
+@@ -65,17 +81,17 @@
+                     <span class="report-export-group__label">Export</span>
+                     <div class="report-export-actions">
+                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart"
++                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                         </a>
+                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart"
++                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                         </a>
+                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart"
++                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+                         </a>
+@@ -157,7 +173,7 @@
+             else
+             {
+                 <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable report table">
+-                    <table class="formal-report-table">
++                    <table class="formal-report-table @(Model.IncludePresentStage ? "formal-report-table--with-stage" : string.Empty)">
+                         <colgroup>
+                             <col class="col-serial" />
+                             <col class="col-arpp" />
+@@ -167,6 +183,10 @@
+                             <col class="col-cfa" />
+                             <col class="col-est" />
+                             <col class="col-aon" />
++                            @if (Model.IncludePresentStage)
++                            {
++                                <col class="col-stage" />
++                            }
+                             <col class="col-so" />
+                             <col class="col-pdc" />
+                             <col class="col-case" />
+@@ -181,12 +201,16 @@
+                                 <th rowspan="2">Sch</th>
+                                 <th rowspan="2">CFA</th>
+                                 <th rowspan="2">Est</th>
+-                                <th colspan="3">Status</th>
++                                <th colspan="@(Model.IncludePresentStage ? 4 : 3)">Status</th>
+                                 <th rowspan="2">Proj Case</th>
+                                 <th rowspan="2">Remarks</th>
+                             </tr>
+                             <tr>
+                                 <th>AoN</th>
++                                @if (Model.IncludePresentStage)
++                                {
++                                    <th>Present Stage</th>
++                                }
+                                 <th>SO amt &amp; dt</th>
+                                 <th>PDC dt</th>
+                             </tr>
+@@ -205,6 +229,10 @@
+                                     <td class="text-center formal-report-cfa">@(row.Cfa ?? "—")</td>
+                                     <td class="text-center">@row.Establishment</td>
+                                     <td class="text-center">@Date(row.AonDate)</td>
++                                    @if (Model.IncludePresentStage)
++                                    {
++                                        <td class="text-center formal-report-stage">@row.StageDisplay</td>
++                                    }
+                                     <td class="text-center formal-report-so">
+                                         @if (row.SupplyOrderAmountInCrores.HasValue)
+                                         {
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
+@@ -22,6 +22,9 @@
+ 
+     [BindProperty(SupportsGet = true)]
+     public int? FinancialYearStart { get; set; }
++
++    [BindProperty(SupportsGet = true)]
++    public bool IncludePresentStage { get; set; }
+ 
+     public IReadOnlyList<int> AvailableFinancialYears { get; private set; } = Array.Empty<int>();
+     public ArppFyProjectUpdateReport? Report { get; private set; }
+@@ -53,7 +56,7 @@
+ 
+     private async Task<IActionResult> ExportAsync(
+         int financialYearStart,
+-        Func<ArppFyProjectUpdateReport, ArppFyProjectUpdateFile> exporter,
++        Func<ArppFyProjectUpdateReport, ArppFyProjectUpdatePresentationOptions?, ArppFyProjectUpdateFile> exporter,
+         CancellationToken cancellationToken)
+     {
+         var available = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
+@@ -73,7 +76,8 @@
+             return BadRequest("The selected financial year has no linked approved projects to export.");
+         }
+ 
+-        var file = exporter(report);
++        var options = new ArppFyProjectUpdatePresentationOptions(IncludePresentStage);
++        var file = exporter(report, options);
+         return File(file.Content, file.ContentType, file.FileName);
+     }
+ }
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -177,12 +177,20 @@
+     flex-wrap: wrap;
+ }
+ 
++.report-display-controls {
++    display: flex;
++    align-items: flex-end;
++    gap: .65rem;
++    flex-wrap: wrap;
++}
++
+ .report-toolbar__fy {
+     width: 196px;
+     min-width: 196px;
+ }
+ 
+ .report-toolbar__fy label,
++.report-toolbar__options-label,
+ .report-export-group__label {
+     display: block;
+     margin-bottom: .25rem;
+@@ -191,6 +199,51 @@
+     font-weight: 750;
+     letter-spacing: .05em;
+     text-transform: uppercase;
++}
++
++.report-toolbar__options {
++    min-width: 132px;
++}
++
++.report-toolbar__options-label {
++    margin-bottom: .25rem;
++}
++
++.report-option-toggle {
++    display: flex;
++    min-height: 31px;
++    align-items: center;
++    gap: .42rem;
++    margin: 0;
++    padding: .3rem .52rem;
++    border: 1px solid #cbd5e1;
++    border-radius: .32rem;
++    background: #fff;
++    color: #32465d;
++    font-size: .72rem;
++    font-weight: 650;
++    line-height: 1;
++    cursor: pointer;
++    user-select: none;
++}
++
++.report-option-toggle:hover {
++    border-color: #aebccd;
++    background: #f9fbfd;
++}
++
++.report-option-toggle .form-check-input {
++    flex: 0 0 auto;
++    width: .92rem;
++    height: .92rem;
++    margin: 0;
++    cursor: pointer;
++}
++
++.report-option-toggle:has(.form-check-input:checked) {
++    border-color: #9db6e8;
++    background: #f4f7ff;
++    color: #234f9a;
+ }
+ 
+ .report-export-group__label { text-align: right; }
+@@ -402,10 +455,12 @@
+ .formal-report-table col.col-cfa { width: 7.2rem; }
+ .formal-report-table col.col-est { width: 4rem; }
+ .formal-report-table col.col-aon { width: 6.3rem; }
++.formal-report-table col.col-stage { width: 9rem; }
+ .formal-report-table col.col-so { width: 8.3rem; }
+ .formal-report-table col.col-pdc { width: 6.3rem; }
+ .formal-report-table col.col-case { width: 5rem; }
+ .formal-report-table col.col-remarks { width: auto; }
++.formal-report-table--with-stage { min-width: 1580px; }
+ 
+ .formal-report-table th,
+ .formal-report-table td {
+@@ -440,6 +495,7 @@
+ 
+ .formal-report-project a:hover { text-decoration: underline; }
+ .formal-report-cfa { overflow-wrap: normal !important; word-break: normal; }
++.formal-report-stage { color: #344b63; font-weight: 650; overflow-wrap: normal !important; word-break: normal; }
+ .formal-report-so strong,
+ .formal-report-so span,
+ .formal-report-so small { display: block; }
+@@ -526,6 +582,7 @@
+ 
+     .project-report-card__availability { text-align: left; }
+     .report-workspace-actions { justify-content: flex-start; }
++    .report-display-controls { align-items: flex-end; }
+     .report-toolbar__fy { width: 210px; min-width: 0; }
+     .report-export-group__label { text-align: left; }
+     .report-export-actions { justify-content: flex-start; }
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
+@@ -67,6 +67,14 @@
+     public bool CanExport => Rows.Count > 0;
+ }
+ 
++public sealed record ArppFyProjectUpdatePresentationOptions(
++    bool IncludePresentStage = false)
++{
++    public static ArppFyProjectUpdatePresentationOptions Default { get; } = new();
++    public int ColumnCount => IncludePresentStage ? 13 : 12;
++    public int StatusColumnCount => IncludePresentStage ? 4 : 3;
++}
++
+ public sealed record ArppFyProjectUpdateFile(
+     byte[] Content,
+     string ContentType,
+@@ -84,7 +92,15 @@
+ 
+ public interface IArppFyProjectUpdateExportService
+ {
+-    ArppFyProjectUpdateFile BuildWord(ArppFyProjectUpdateReport report);
+-    ArppFyProjectUpdateFile BuildPdf(ArppFyProjectUpdateReport report);
+-    ArppFyProjectUpdateFile BuildExcel(ArppFyProjectUpdateReport report);
++    ArppFyProjectUpdateFile BuildWord(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null);
++
++    ArppFyProjectUpdateFile BuildPdf(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null);
++
++    ArppFyProjectUpdateFile BuildExcel(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null);
+ }
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExportService.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExportService.cs
+@@ -22,14 +22,20 @@
+         _excelBuilder = excelBuilder ?? throw new ArgumentNullException(nameof(excelBuilder));
+     }
+ 
+-    public ArppFyProjectUpdateFile BuildWord(ArppFyProjectUpdateReport report)
+-        => Build(report, "docx", WordContentType, _wordBuilder.Build(report));
++    public ArppFyProjectUpdateFile BuildWord(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null)
++        => Build(report, "docx", WordContentType, _wordBuilder.Build(report, options));
+ 
+-    public ArppFyProjectUpdateFile BuildPdf(ArppFyProjectUpdateReport report)
+-        => Build(report, "pdf", PdfContentType, _pdfBuilder.Build(report));
++    public ArppFyProjectUpdateFile BuildPdf(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null)
++        => Build(report, "pdf", PdfContentType, _pdfBuilder.Build(report, options));
+ 
+-    public ArppFyProjectUpdateFile BuildExcel(ArppFyProjectUpdateReport report)
+-        => Build(report, "xlsx", ExcelContentType, _excelBuilder.Build(report));
++    public ArppFyProjectUpdateFile BuildExcel(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null)
++        => Build(report, "xlsx", ExcelContentType, _excelBuilder.Build(report, options));
+ 
+     private static ArppFyProjectUpdateFile Build(
+         ArppFyProjectUpdateReport report,
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -13,17 +13,23 @@
+     private const string Navy = "17365D";
+     private const string HeaderFill = "E8EEF5";
+     private const string Border = "8A99A8";
+-    private const string White = "FFFFFF";
+-
+-    // A4 landscape printable width is 16,000 twips with the section margins below.
+-    // Keep operational columns compact while giving dates/CFA enough room to avoid avoidable wrapping.
+-    private static readonly int[] Widths =
++    private const int TableWidth = 16000;
++
++    // Both variants intentionally total 16,000 twips: the exact printable width
++    // used by the A4-landscape section below.
++    private static readonly int[] StandardWidths =
+         [500, 800, 2700, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3950];
+-    private static readonly int TableWidth = Widths.Sum();
+-
+-    public byte[] Build(ArppFyProjectUpdateReport report)
++
++    private static readonly int[] PresentStageWidths =
++        [500, 800, 2250, 1150, 750, 1000, 600, 1000, 1500, 1300, 1000, 750, 3400];
++
++    public byte[] Build(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null)
+     {
+         ArgumentNullException.ThrowIfNull(report);
++        var resolvedOptions = options ?? ArppFyProjectUpdatePresentationOptions.Default;
++        var widths = GetWidths(resolvedOptions);
+ 
+         using var stream = new MemoryStream();
+         using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, autoSave: true))
+@@ -53,7 +59,7 @@
+                 align: W.JustificationValues.Center,
+                 after: 90));
+ 
+-            body.Append(BuildTable(report.Rows));
++            body.Append(BuildTable(report.Rows, resolvedOptions, widths));
+             body.Append(BuildSectionProperties(mainPart, footerPart));
+             mainPart.Document.Save();
+         }
+@@ -61,7 +67,21 @@
+         return stream.ToArray();
+     }
+ 
+-    private static W.Table BuildTable(IReadOnlyList<ArppFyProjectUpdateRow> rows)
++    private static int[] GetWidths(ArppFyProjectUpdatePresentationOptions options)
++    {
++        var widths = options.IncludePresentStage ? PresentStageWidths : StandardWidths;
++        if (widths.Sum() != TableWidth)
++        {
++            throw new InvalidOperationException("ARPP report Word column widths must total the A4-landscape printable width.");
++        }
++
++        return widths;
++    }
++
++    private static W.Table BuildTable(
++        IReadOnlyList<ArppFyProjectUpdateRow> rows,
++        ArppFyProjectUpdatePresentationOptions options,
++        IReadOnlyList<int> widths)
+     {
+         var table = new W.Table(
+             new W.TableProperties(
+@@ -75,32 +95,22 @@
+                     new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
+                     new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 })));
+ 
+-        table.Append(new W.TableGrid(Widths.Select(width => new W.GridColumn
++        table.Append(new W.TableGrid(widths.Select(width => new W.GridColumn
+         {
+             Width = width.ToString(CultureInfo.InvariantCulture)
+         })));
+ 
+-        table.Append(BuildHeaderRowOne());
+-        table.Append(BuildHeaderRowTwo());
++        table.Append(BuildHeaderRowOne(options, widths));
++        table.Append(BuildHeaderRowTwo(options, widths));
+ 
+         foreach (var row in rows)
+         {
+-            var properties = new W.TableRowProperties(new W.CantSplit());
+-            var tableRow = new W.TableRow(properties);
+-
+-            tableRow.Append(
+-                Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), Widths[0], align: W.JustificationValues.Center),
+-                Cell(row.PppNumber ?? string.Empty, Widths[1], align: W.JustificationValues.Center),
+-                Cell(row.ProjectName, Widths[2], bold: true),
+-                Cell(Date(row.FirstArppListingDate), Widths[3], align: W.JustificationValues.Center, noWrap: true),
+-                Cell(row.DfpdsSchedule ?? string.Empty, Widths[4], align: W.JustificationValues.Center),
+-                Cell(row.Cfa ?? string.Empty, Widths[5], align: W.JustificationValues.Center),
+-                Cell(row.Establishment, Widths[6], align: W.JustificationValues.Center),
+-                Cell(Date(row.AonDate), Widths[7], align: W.JustificationValues.Center, noWrap: true),
+-                Cell(SupplyOrder(row), Widths[8], align: W.JustificationValues.Center, noWrap: true),
+-                Cell(Date(row.DevelopmentPdcDate), Widths[9], align: W.JustificationValues.Center, noWrap: true),
+-                Cell(row.ProjectCaseDisplay, Widths[10], align: W.JustificationValues.Center),
+-                Cell(row.LatestExternalRemark ?? string.Empty, Widths[11]));
++            var tableRow = new W.TableRow(new W.TableRowProperties(new W.CantSplit()));
++            var cells = BuildDataCells(row, options, widths);
++            foreach (var cell in cells)
++            {
++                tableRow.Append(cell);
++            }
+ 
+             table.Append(tableRow);
+         }
+@@ -108,39 +118,85 @@
+         return table;
+     }
+ 
+-    private static W.TableRow BuildHeaderRowOne()
++    private static IReadOnlyList<W.TableCell> BuildDataCells(
++        ArppFyProjectUpdateRow row,
++        ArppFyProjectUpdatePresentationOptions options,
++        IReadOnlyList<int> widths)
++    {
++        var cells = new List<W.TableCell>
++        {
++            Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
++            Cell(row.PppNumber ?? string.Empty, widths[1], align: W.JustificationValues.Center),
++            Cell(row.ProjectName, widths[2], bold: true),
++            Cell(Date(row.FirstArppListingDate), widths[3], align: W.JustificationValues.Center, noWrap: true),
++            Cell(row.DfpdsSchedule ?? string.Empty, widths[4], align: W.JustificationValues.Center),
++            Cell(row.Cfa ?? string.Empty, widths[5], align: W.JustificationValues.Center),
++            Cell(row.Establishment, widths[6], align: W.JustificationValues.Center),
++            Cell(Date(row.AonDate), widths[7], align: W.JustificationValues.Center, noWrap: true)
++        };
++
++        var offset = 8;
++        if (options.IncludePresentStage)
++        {
++            cells.Add(Cell(row.StageDisplay, widths[offset], align: W.JustificationValues.Center));
++            offset++;
++        }
++
++        cells.Add(Cell(SupplyOrder(row), widths[offset], align: W.JustificationValues.Center, noWrap: true));
++        cells.Add(Cell(Date(row.DevelopmentPdcDate), widths[offset + 1], align: W.JustificationValues.Center, noWrap: true));
++        cells.Add(Cell(row.ProjectCaseDisplay, widths[offset + 2], align: W.JustificationValues.Center));
++        cells.Add(Cell(row.LatestExternalRemark ?? string.Empty, widths[offset + 3]));
++        return cells;
++    }
++
++    private static W.TableRow BuildHeaderRowOne(
++        ArppFyProjectUpdatePresentationOptions options,
++        IReadOnlyList<int> widths)
+     {
+         var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
+         row.Append(
+-            MergedHeader("Ser No.", Widths[0], restart: true),
+-            MergedHeader("ARPP No.", Widths[1], restart: true),
+-            MergedHeader("Name of Project", Widths[2], restart: true),
+-            MergedHeader("Dt of Grant of IPA / ARPP Listing", Widths[3], restart: true),
+-            MergedHeader("Sch", Widths[4], restart: true),
+-            MergedHeader("CFA", Widths[5], restart: true),
+-            MergedHeader("Est", Widths[6], restart: true),
+-            SpanHeader("Status", Widths[7] + Widths[8] + Widths[9], 3),
+-            MergedHeader("Proj Case", Widths[10], restart: true),
+-            MergedHeader("Remarks", Widths[11], restart: true));
++            MergedHeader("Ser No.", widths[0], restart: true),
++            MergedHeader("ARPP No.", widths[1], restart: true),
++            MergedHeader("Name of Project", widths[2], restart: true),
++            MergedHeader("Dt of Grant of IPA / ARPP Listing", widths[3], restart: true),
++            MergedHeader("Sch", widths[4], restart: true),
++            MergedHeader("CFA", widths[5], restart: true),
++            MergedHeader("Est", widths[6], restart: true));
++
++        var statusWidth = widths.Skip(7).Take(options.StatusColumnCount).Sum();
++        row.Append(SpanHeader("Status", statusWidth, options.StatusColumnCount));
++
++        var caseIndex = options.IncludePresentStage ? 11 : 10;
++        var remarksIndex = caseIndex + 1;
++        row.Append(
++            MergedHeader("Proj Case", widths[caseIndex], restart: true),
++            MergedHeader("Remarks", widths[remarksIndex], restart: true));
+         return row;
+     }
+ 
+-    private static W.TableRow BuildHeaderRowTwo()
++    private static W.TableRow BuildHeaderRowTwo(
++        ArppFyProjectUpdatePresentationOptions options,
++        IReadOnlyList<int> widths)
+     {
+         var row = new W.TableRow(new W.TableRowProperties(new W.TableHeader(), new W.CantSplit()));
++        for (var index = 0; index < 7; index++)
++        {
++            row.Append(MergedHeader(string.Empty, widths[index], restart: false));
++        }
++
++        row.Append(Header("AoN", widths[7]));
++        var offset = 8;
++        if (options.IncludePresentStage)
++        {
++            row.Append(Header("Present Stage", widths[offset]));
++            offset++;
++        }
++
+         row.Append(
+-            MergedHeader(string.Empty, Widths[0], restart: false),
+-            MergedHeader(string.Empty, Widths[1], restart: false),
+-            MergedHeader(string.Empty, Widths[2], restart: false),
+-            MergedHeader(string.Empty, Widths[3], restart: false),
+-            MergedHeader(string.Empty, Widths[4], restart: false),
+-            MergedHeader(string.Empty, Widths[5], restart: false),
+-            MergedHeader(string.Empty, Widths[6], restart: false),
+-            Header("AoN", Widths[7]),
+-            Header("SO amt & dt", Widths[8]),
+-            Header("PDC dt", Widths[9]),
+-            MergedHeader(string.Empty, Widths[10], restart: false),
+-            MergedHeader(string.Empty, Widths[11], restart: false));
++            Header("SO amt & dt", widths[offset]),
++            Header("PDC dt", widths[offset + 1]),
++            MergedHeader(string.Empty, widths[offset + 2], restart: false),
++            MergedHeader(string.Empty, widths[offset + 3], restart: false));
+         return row;
+     }
+ 
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+@@ -18,9 +18,12 @@
+         QuestPDF.Settings.License = LicenseType.Community;
+     }
+ 
+-    public byte[] Build(ArppFyProjectUpdateReport report)
++    public byte[] Build(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null)
+     {
+         ArgumentNullException.ThrowIfNull(report);
++        var resolvedOptions = options ?? ArppFyProjectUpdatePresentationOptions.Default;
+ 
+         var document = Document.Create(container =>
+         {
+@@ -46,16 +49,20 @@
+                     {
+                         columns.RelativeColumn(0.55f);
+                         columns.RelativeColumn(0.85f);
+-                        columns.RelativeColumn(2.7f);
++                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 2.25f : 2.7f);
+                         columns.RelativeColumn(1.2f);
+-                        columns.RelativeColumn(0.9f);
++                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 0.85f : 0.9f);
+                         columns.RelativeColumn(0.95f);
+                         columns.RelativeColumn(0.65f);
+                         columns.RelativeColumn(1.0f);
+-                        columns.RelativeColumn(1.5f);
++                        if (resolvedOptions.IncludePresentStage)
++                        {
++                            columns.RelativeColumn(1.45f);
++                        }
++                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 1.35f : 1.5f);
+                         columns.RelativeColumn(1.0f);
+                         columns.RelativeColumn(0.8f);
+-                        columns.RelativeColumn(4.05f);
++                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 3.35f : 4.05f);
+                     });
+ 
+                     table.Header(header =>
+@@ -67,11 +74,22 @@
+                         HeaderCell(header.Cell().RowSpan(2), "Sch");
+                         HeaderCell(header.Cell().RowSpan(2), "CFA");
+                         HeaderCell(header.Cell().RowSpan(2), "Est");
+-                        HeaderCell(header.Cell().ColumnSpan(3), "Status");
++                        if (resolvedOptions.IncludePresentStage)
++                        {
++                            HeaderCell(header.Cell().ColumnSpan(4), "Status");
++                        }
++                        else
++                        {
++                            HeaderCell(header.Cell().ColumnSpan(3), "Status");
++                        }
+                         HeaderCell(header.Cell().RowSpan(2), "Proj Case");
+                         HeaderCell(header.Cell().RowSpan(2), "Remarks");
+ 
+                         HeaderCell(header.Cell(), "AoN");
++                        if (resolvedOptions.IncludePresentStage)
++                        {
++                            HeaderCell(header.Cell(), "Present Stage");
++                        }
+                         HeaderCell(header.Cell(), "SO amt & dt");
+                         HeaderCell(header.Cell(), "PDC dt");
+                     });
+@@ -86,6 +104,10 @@
+                         BodyCell(table.Cell(), row.Cfa ?? string.Empty, center: true);
+                         BodyCell(table.Cell(), row.Establishment, center: true);
+                         BodyCell(table.Cell(), Date(row.AonDate), center: true);
++                        if (resolvedOptions.IncludePresentStage)
++                        {
++                            BodyCell(table.Cell(), row.StageDisplay, center: true);
++                        }
+                         BodyCell(table.Cell(), SupplyOrder(row), center: true);
+                         BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
+                         BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
+@@ -5,21 +5,24 @@
+ 
+ public sealed class ArppFyProjectUpdateExcelBuilder
+ {
+-    private const int ColumnCount = 12;
+     private const int HeaderRowOne = 3;
+     private const int HeaderRowTwo = 4;
+     private const int FirstDataRow = 5;
+ 
+-    public byte[] Build(ArppFyProjectUpdateReport report)
++    public byte[] Build(
++        ArppFyProjectUpdateReport report,
++        ArppFyProjectUpdatePresentationOptions? options = null)
+     {
+         ArgumentNullException.ThrowIfNull(report);
++        var resolvedOptions = options ?? ArppFyProjectUpdatePresentationOptions.Default;
++        var columns = ColumnLayout.For(resolvedOptions);
+ 
+         using var workbook = new XLWorkbook();
+         var worksheet = workbook.Worksheets.Add("ARPP Project Update");
+         worksheet.Style.Font.FontName = "Arial";
+         worksheet.Style.Font.FontSize = 9;
+ 
+-        var title = worksheet.Range(1, 1, 1, ColumnCount).Merge();
++        var title = worksheet.Range(1, 1, 1, columns.ColumnCount).Merge();
+         title.Value = report.FormalTitle;
+         title.Style.Font.Bold = true;
+         title.Style.Font.FontSize = 15;
+@@ -29,10 +32,8 @@
+         worksheet.Row(1).Height = 24;
+         title.Style.Alignment.WrapText = false;
+ 
+-        // Keep a narrow visual spacer between the single-line title and the formal table header.
+         worksheet.Row(2).Height = 7;
+-
+-        BuildHeader(worksheet);
++        BuildHeader(worksheet, columns);
+ 
+         var rowIndex = FirstDataRow;
+         foreach (var row in report.Rows)
+@@ -44,16 +45,20 @@
+             worksheet.Cell(rowIndex, 5).SetValue(row.DfpdsSchedule ?? string.Empty);
+             worksheet.Cell(rowIndex, 6).SetValue(row.Cfa ?? string.Empty);
+             worksheet.Cell(rowIndex, 7).SetValue(row.Establishment);
+-            SetDate(worksheet.Cell(rowIndex, 8), row.AonDate);
+-            worksheet.Cell(rowIndex, 9).SetValue(SupplyOrderText(row));
+-            SetDate(worksheet.Cell(rowIndex, 10), row.DevelopmentPdcDate);
+-            worksheet.Cell(rowIndex, 11).SetValue(row.ProjectCaseDisplay);
+-            worksheet.Cell(rowIndex, 12).SetValue(row.LatestExternalRemark ?? string.Empty);
++            SetDate(worksheet.Cell(rowIndex, columns.Aon), row.AonDate);
++            if (columns.PresentStage.HasValue)
++            {
++                worksheet.Cell(rowIndex, columns.PresentStage.Value).SetValue(row.StageDisplay);
++            }
++            worksheet.Cell(rowIndex, columns.SupplyOrder).SetValue(SupplyOrderText(row));
++            SetDate(worksheet.Cell(rowIndex, columns.Pdc), row.DevelopmentPdcDate);
++            worksheet.Cell(rowIndex, columns.ProjectCase).SetValue(row.ProjectCaseDisplay);
++            worksheet.Cell(rowIndex, columns.Remarks).SetValue(row.LatestExternalRemark ?? string.Empty);
+             rowIndex++;
+         }
+ 
+         var lastDataRow = Math.Max(HeaderRowTwo, rowIndex - 1);
+-        var tableRange = worksheet.Range(HeaderRowOne, 1, lastDataRow, ColumnCount);
++        var tableRange = worksheet.Range(HeaderRowOne, 1, lastDataRow, columns.ColumnCount);
+         tableRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+         tableRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+         tableRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#8A99A8");
+@@ -62,14 +67,14 @@
+ 
+         if (lastDataRow >= FirstDataRow)
+         {
+-            var data = worksheet.Range(FirstDataRow, 1, lastDataRow, ColumnCount);
++            var data = worksheet.Range(FirstDataRow, 1, lastDataRow, columns.ColumnCount);
+             data.Style.Alignment.WrapText = true;
+             worksheet.Range(FirstDataRow, 1, lastDataRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+-            worksheet.Range(FirstDataRow, 4, lastDataRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++            worksheet.Range(FirstDataRow, 4, lastDataRow, columns.ProjectCase).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+             worksheet.Range(FirstDataRow, 3, lastDataRow, 3).Style.Font.Bold = true;
+         }
+ 
+-        ApplyColumnWidths(worksheet);
++        ApplyColumnWidths(worksheet, columns);
+         worksheet.SheetView.FreezeRows(HeaderRowTwo);
+         worksheet.SheetView.FreezeColumns(3);
+         worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+@@ -88,7 +93,7 @@
+         return stream.ToArray();
+     }
+ 
+-    private static void BuildHeader(IXLWorksheet worksheet)
++    private static void BuildHeader(IXLWorksheet worksheet, ColumnLayout columns)
+     {
+         MergeVertical(worksheet, 1, "Ser No.");
+         MergeVertical(worksheet, 2, "ARPP No.");
+@@ -98,16 +103,20 @@
+         MergeVertical(worksheet, 6, "CFA");
+         MergeVertical(worksheet, 7, "Est");
+ 
+-        var status = worksheet.Range(HeaderRowOne, 8, HeaderRowOne, 10).Merge();
++        var status = worksheet.Range(HeaderRowOne, columns.Aon, HeaderRowOne, columns.Pdc).Merge();
+         status.Value = "Status";
+-        worksheet.Cell(HeaderRowTwo, 8).Value = "AoN";
+-        worksheet.Cell(HeaderRowTwo, 9).Value = "SO amt & dt";
+-        worksheet.Cell(HeaderRowTwo, 10).Value = "PDC dt";
++        worksheet.Cell(HeaderRowTwo, columns.Aon).Value = "AoN";
++        if (columns.PresentStage.HasValue)
++        {
++            worksheet.Cell(HeaderRowTwo, columns.PresentStage.Value).Value = "Present Stage";
++        }
++        worksheet.Cell(HeaderRowTwo, columns.SupplyOrder).Value = "SO amt & dt";
++        worksheet.Cell(HeaderRowTwo, columns.Pdc).Value = "PDC dt";
+ 
+-        MergeVertical(worksheet, 11, "Proj Case");
+-        MergeVertical(worksheet, 12, "Remarks");
++        MergeVertical(worksheet, columns.ProjectCase, "Proj Case");
++        MergeVertical(worksheet, columns.Remarks, "Remarks");
+ 
+-        var header = worksheet.Range(HeaderRowOne, 1, HeaderRowTwo, ColumnCount);
++        var header = worksheet.Range(HeaderRowOne, 1, HeaderRowTwo, columns.ColumnCount);
+         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8EEF5");
+         header.Style.Font.Bold = true;
+         header.Style.Font.FontColor = XLColor.FromHtml("#17365D");
+@@ -147,19 +156,38 @@
+             : amount ?? date ?? string.Empty;
+     }
+ 
+-    private static void ApplyColumnWidths(IXLWorksheet worksheet)
++    private static void ApplyColumnWidths(IXLWorksheet worksheet, ColumnLayout columns)
+     {
+         worksheet.Column(1).Width = 7;
+         worksheet.Column(2).Width = 12;
+-        worksheet.Column(3).Width = 36;
++        worksheet.Column(3).Width = columns.PresentStage.HasValue ? 30 : 36;
+         worksheet.Column(4).Width = 17;
+         worksheet.Column(5).Width = 12;
+         worksheet.Column(6).Width = 16;
+         worksheet.Column(7).Width = 8;
+-        worksheet.Column(8).Width = 14;
+-        worksheet.Column(9).Width = 19;
+-        worksheet.Column(10).Width = 14;
+-        worksheet.Column(11).Width = 11;
+-        worksheet.Column(12).Width = 54;
++        worksheet.Column(columns.Aon).Width = 14;
++        if (columns.PresentStage.HasValue)
++        {
++            worksheet.Column(columns.PresentStage.Value).Width = 20;
++        }
++        worksheet.Column(columns.SupplyOrder).Width = 19;
++        worksheet.Column(columns.Pdc).Width = 14;
++        worksheet.Column(columns.ProjectCase).Width = 11;
++        worksheet.Column(columns.Remarks).Width = columns.PresentStage.HasValue ? 46 : 54;
++    }
++
++    private sealed record ColumnLayout(
++        int ColumnCount,
++        int Aon,
++        int? PresentStage,
++        int SupplyOrder,
++        int Pdc,
++        int ProjectCase,
++        int Remarks)
++    {
++        public static ColumnLayout For(ArppFyProjectUpdatePresentationOptions options)
++            => options.IncludePresentStage
++                ? new ColumnLayout(13, 8, 9, 10, 11, 12, 13)
++                : new ColumnLayout(12, 8, null, 9, 10, 11, 12);
+     }
+ }
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+@@ -46,6 +46,58 @@
+         Assert.Equal((byte)'%', pdf[0]);
+     }
+ 
++
++    [Fact]
++    public void Present_stage_option_adds_the_stage_column_to_word_excel_and_pdf_contract()
++    {
++        var report = SampleReport();
++        var options = new ArppFyProjectUpdatePresentationOptions(IncludePresentStage: true);
++
++        var word = new ArppFyProjectUpdateWordBuilder().Build(report, options);
++        using (var stream = new MemoryStream(word))
++        using (var document = WordprocessingDocument.Open(stream, false))
++        {
++            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
++            Assert.Contains("Present Stage", text, StringComparison.Ordinal);
++            Assert.Contains("Development", text, StringComparison.Ordinal);
++        }
++
++        var excel = new ArppFyProjectUpdateExcelBuilder().Build(report, options);
++        using (var excelStream = new MemoryStream(excel))
++        using (var workbook = new XLWorkbook(excelStream))
++        {
++            var worksheet = workbook.Worksheet("ARPP Project Update");
++            Assert.Equal("Present Stage", worksheet.Cell(4, 9).GetString());
++            Assert.Equal("Development", worksheet.Cell(5, 9).GetString());
++            Assert.Equal("SO amt & dt", worksheet.Cell(4, 10).GetString());
++            Assert.Equal("PDC dt", worksheet.Cell(4, 11).GetString());
++            Assert.Equal("Proj Case", worksheet.Cell(3, 12).GetString());
++            Assert.Equal("Remarks", worksheet.Cell(3, 13).GetString());
++            Assert.Equal(report.FormalTitle, worksheet.Cell(1, 1).GetString());
++        }
++
++        var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report, options);
++        Assert.True(pdf.Length > 1000);
++        Assert.Equal((byte)'%', pdf[0]);
++    }
++
++    [Fact]
++    public void Present_stage_option_is_off_by_default_and_completed_stage_display_is_authoritative()
++    {
++        var defaults = ArppFyProjectUpdatePresentationOptions.Default;
++        Assert.False(defaults.IncludePresentStage);
++        Assert.Equal(12, defaults.ColumnCount);
++        Assert.Equal(3, defaults.StatusColumnCount);
++
++        var completed = SampleReport().Rows[0] with
++        {
++            LifecycleStatus = ProjectLifecycleStatus.Completed,
++            CurrentStageCode = "DEVP",
++            CurrentStageLabel = "Development"
++        };
++
++        Assert.Equal("Completed", completed.StageDisplay);
++    }
+ 
+     [Fact]
+     public void Formal_exports_leave_missing_report_values_blank()
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
+@@ -16,6 +16,9 @@
+         Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", detail, StringComparison.Ordinal);
+         Assert.Contains("@report.FormalTitle", detail, StringComparison.Ordinal);
+         Assert.Contains("Report preflight", detail, StringComparison.Ordinal);
++        Assert.Contains("Optional columns", detail, StringComparison.Ordinal);
++        Assert.Contains("Present Stage", detail, StringComparison.Ordinal);
++        Assert.Contains("asp-route-includePresentStage=\"@Model.IncludePresentStage\"", detail, StringComparison.Ordinal);
+         Assert.DoesNotContain("Publication preflight", detail, StringComparison.Ordinal);
+         Assert.DoesNotContain("ARPP Approved Projects – Project Update", detail, StringComparison.Ordinal);
+     }
+@@ -29,6 +32,8 @@
+         Assert.Contains("max-width: none;", css, StringComparison.Ordinal);
+         Assert.Contains("grid-template-columns: minmax(0, 1fr);", css, StringComparison.Ordinal);
+         Assert.Contains("min-width: 1450px;", css, StringComparison.Ordinal);
++        Assert.Contains("formal-report-table--with-stage", css, StringComparison.Ordinal);
++        Assert.Contains("col-stage", css, StringComparison.Ordinal);
+         Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);

@@ -48,6 +48,58 @@ public sealed class ArppFyProjectUpdateExportTests
 
 
     [Fact]
+    public void Present_stage_option_adds_the_stage_column_to_word_excel_and_pdf_contract()
+    {
+        var report = SampleReport();
+        var options = new ArppFyProjectUpdatePresentationOptions(IncludePresentStage: true);
+
+        var word = new ArppFyProjectUpdateWordBuilder().Build(report, options);
+        using (var stream = new MemoryStream(word))
+        using (var document = WordprocessingDocument.Open(stream, false))
+        {
+            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
+            Assert.Contains("Present Stage", text, StringComparison.Ordinal);
+            Assert.Contains("Development", text, StringComparison.Ordinal);
+        }
+
+        var excel = new ArppFyProjectUpdateExcelBuilder().Build(report, options);
+        using (var excelStream = new MemoryStream(excel))
+        using (var workbook = new XLWorkbook(excelStream))
+        {
+            var worksheet = workbook.Worksheet("ARPP Project Update");
+            Assert.Equal("Present Stage", worksheet.Cell(4, 9).GetString());
+            Assert.Equal("Development", worksheet.Cell(5, 9).GetString());
+            Assert.Equal("SO amt & dt", worksheet.Cell(4, 10).GetString());
+            Assert.Equal("PDC dt", worksheet.Cell(4, 11).GetString());
+            Assert.Equal("Proj Case", worksheet.Cell(3, 12).GetString());
+            Assert.Equal("Remarks", worksheet.Cell(3, 13).GetString());
+            Assert.Equal(report.FormalTitle, worksheet.Cell(1, 1).GetString());
+        }
+
+        var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report, options);
+        Assert.True(pdf.Length > 1000);
+        Assert.Equal((byte)'%', pdf[0]);
+    }
+
+    [Fact]
+    public void Present_stage_option_is_off_by_default_and_completed_stage_display_is_authoritative()
+    {
+        var defaults = ArppFyProjectUpdatePresentationOptions.Default;
+        Assert.False(defaults.IncludePresentStage);
+        Assert.Equal(12, defaults.ColumnCount);
+        Assert.Equal(3, defaults.StatusColumnCount);
+
+        var completed = SampleReport().Rows[0] with
+        {
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CurrentStageCode = "DEVP",
+            CurrentStageLabel = "Development"
+        };
+
+        Assert.Equal("Completed", completed.StageDisplay);
+    }
+
+    [Fact]
     public void Formal_exports_leave_missing_report_values_blank()
     {
         var report = SampleReportWithMissingValues();

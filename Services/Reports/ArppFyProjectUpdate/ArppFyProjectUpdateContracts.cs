@@ -67,6 +67,14 @@ public sealed record ArppFyProjectUpdateReport(
     public bool CanExport => Rows.Count > 0;
 }
 
+public sealed record ArppFyProjectUpdatePresentationOptions(
+    bool IncludePresentStage = false)
+{
+    public static ArppFyProjectUpdatePresentationOptions Default { get; } = new();
+    public int ColumnCount => IncludePresentStage ? 13 : 12;
+    public int StatusColumnCount => IncludePresentStage ? 4 : 3;
+}
+
 public sealed record ArppFyProjectUpdateFile(
     byte[] Content,
     string ContentType,
@@ -84,7 +92,15 @@ public interface IArppFyProjectUpdateService
 
 public interface IArppFyProjectUpdateExportService
 {
-    ArppFyProjectUpdateFile BuildWord(ArppFyProjectUpdateReport report);
-    ArppFyProjectUpdateFile BuildPdf(ArppFyProjectUpdateReport report);
-    ArppFyProjectUpdateFile BuildExcel(ArppFyProjectUpdateReport report);
+    ArppFyProjectUpdateFile BuildWord(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null);
+
+    ArppFyProjectUpdateFile BuildPdf(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null);
+
+    ArppFyProjectUpdateFile BuildExcel(
+        ArppFyProjectUpdateReport report,
+        ArppFyProjectUpdatePresentationOptions? options = null);
 }
