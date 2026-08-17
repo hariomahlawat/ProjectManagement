@@ -933,3 +933,48 @@
     display: none;
 }
 
+/* FFC report long-register scrolling ------------------------------------- */
+.project-reports-page--ffc .report-command-strip {
+    position: static;
+    top: auto;
+    z-index: auto;
+    backdrop-filter: none;
+}
+
+.ffc-projects-update-table {
+    min-width: 1220px;
+}
+
+.ffc-projects-update-table--with-overall {
+    min-width: 1500px;
+}
+
+/*
+ * On wide workstations the complete FFC register fits without horizontal
+ * scrolling. In that mode the card/scroll wrappers must not become sticky
+ * containing blocks, allowing the actual column headings to remain visible
+ * below the PRISM module navigation while the user reads long country groups.
+ *
+ * On smaller screens the existing horizontal-scroll behaviour is retained.
+ */
+@media (min-width: 1500px) {
+    .project-reports-page--ffc .formal-report-card,
+    .project-reports-page--ffc .formal-report-scroll {
+        overflow: visible;
+    }
+
+    .project-reports-page--ffc .formal-report-scroll {
+        scrollbar-gutter: auto;
+    }
+
+    .project-reports-page--ffc .ffc-projects-update-table thead th {
+        position: sticky;
+        top: var(--reports-sticky-top);
+        z-index: 44;
+        background: #f2f5f8;
+        box-shadow:
+            inset 0 -1px 0 #cbd5df,
+            0 4px 10px rgba(15, 23, 42, .06);
+    }
+}
+

@@ -19,10 +19,10 @@ public static class FfcProjectsUpdateWordBuilder
     private const int TableWidth = 15700;
 
     private static readonly int[] WithoutOverall =
-        [650, 3000, 1250, 900, 1500, 8400];
+        [850, 3200, 1300, 1050, 1600, 7700];
 
     private static readonly int[] WithOverall =
-        [650, 2600, 1200, 850, 1400, 4650, 4350];
+        [850, 2700, 1250, 1050, 1550, 4200, 4100];
 
     public static byte[] Build(
         FfcProjectsUpdateReport report,
@@ -150,7 +150,8 @@ public static class FfcProjectsUpdateWordBuilder
                     ? W.JustificationValues.Center
                     : index is 2 or 3
                         ? W.JustificationValues.Right
-                        : W.JustificationValues.Left));
+                        : W.JustificationValues.Left,
+                noWrap: index is 0 or 2 or 3 or 4));
         }
 
         return row;
@@ -206,9 +207,10 @@ public static class FfcProjectsUpdateWordBuilder
         bool bold = false,
         string? fill = null,
         string color = Ink,
-        W.JustificationValues? align = null)
+        W.JustificationValues? align = null,
+        bool noWrap = false)
         => new(
-            BaseCellProperties(width, fill),
+            BaseCellProperties(width, fill, noWrap),
             Paragraph(
                 text ?? string.Empty,
                 16,
@@ -217,7 +219,10 @@ public static class FfcProjectsUpdateWordBuilder
                 align: align ?? W.JustificationValues.Left,
                 after: 0));
 
-    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
+    private static W.TableCellProperties BaseCellProperties(
+        int width,
+        string? fill,
+        bool noWrap = false)
     {
         var properties = new W.TableCellProperties(
             new W.TableCellWidth
@@ -234,6 +239,11 @@ public static class FfcProjectsUpdateWordBuilder
                 Fill = fill,
                 Val = W.ShadingPatternValues.Clear
             });
+        }
+
+        if (noWrap)
+        {
+            properties.Append(new W.NoWrap());
         }
 
         return properties;

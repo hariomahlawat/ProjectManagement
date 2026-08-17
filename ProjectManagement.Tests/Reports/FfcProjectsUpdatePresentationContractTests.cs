@@ -92,6 +92,69 @@ public sealed class FfcProjectsUpdatePresentationContractTests
         Assert.DoesNotContain("group.CountryCode", excel, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Pdf_overall_status_is_a_country_year_row_span()
+    {
+        var source = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdatePdfBuilder.cs");
+
+        Assert.Contains(
+            "table.Cell().RowSpan((uint)group.Rows.Count)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("OverallStatusCell(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "index == 0 ? Narrative(group.OverallRemarks) : string.Empty",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ffc_long_register_keeps_the_table_header_sticky_not_the_kpi_strip()
+    {
+        var page = ReadRepoFile(
+            "Pages",
+            "Projects",
+            "Reports",
+            "FfcProjectsUpdate.cshtml");
+        Assert.Contains("project-reports-page--ffc", page, StringComparison.Ordinal);
+
+        var css = ReadRepoFile(
+            "wwwroot",
+            "css",
+            "pages",
+            "projects-reports.css");
+
+        Assert.Contains(
+            ".project-reports-page--ffc .report-command-strip",
+            css,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ".project-reports-page--ffc .ffc-projects-update-table thead th",
+            css,
+            StringComparison.Ordinal);
+        Assert.Contains("position: sticky;", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Word_operational_headers_are_protected_from_avoidable_wrapping()
+    {
+        var source = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdateWordBuilder.cs");
+
+        Assert.Contains("new W.NoWrap()", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "noWrap: index is 0 or 2 or 3 or 4",
+            source,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] segments)
     {
         var root = ResolveRepoRoot();

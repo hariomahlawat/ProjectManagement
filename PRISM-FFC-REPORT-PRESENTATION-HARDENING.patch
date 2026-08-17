@@ -1,0 +1,361 @@
+--- a/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
++++ b/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
+@@ -23,7 +23,7 @@
+     <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
+ }
+ 
+-<div class="project-reports-page project-reports-page--workspace">
++<div class="project-reports-page project-reports-page--workspace project-reports-page--ffc">
+     <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
+         <a asp-page="/Projects/Index">Projects</a>
+         <span>/</span>
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -933,3 +933,48 @@
+     display: none;
+ }
+ 
++/* FFC report long-register scrolling ------------------------------------- */
++.project-reports-page--ffc .report-command-strip {
++    position: static;
++    top: auto;
++    z-index: auto;
++    backdrop-filter: none;
++}
++
++.ffc-projects-update-table {
++    min-width: 1220px;
++}
++
++.ffc-projects-update-table--with-overall {
++    min-width: 1500px;
++}
++
++/*
++ * On wide workstations the complete FFC register fits without horizontal
++ * scrolling. In that mode the card/scroll wrappers must not become sticky
++ * containing blocks, allowing the actual column headings to remain visible
++ * below the PRISM module navigation while the user reads long country groups.
++ *
++ * On smaller screens the existing horizontal-scroll behaviour is retained.
++ */
++@media (min-width: 1500px) {
++    .project-reports-page--ffc .formal-report-card,
++    .project-reports-page--ffc .formal-report-scroll {
++        overflow: visible;
++    }
++
++    .project-reports-page--ffc .formal-report-scroll {
++        scrollbar-gutter: auto;
++    }
++
++    .project-reports-page--ffc .ffc-projects-update-table thead th {
++        position: sticky;
++        top: var(--reports-sticky-top);
++        z-index: 44;
++        background: #f2f5f8;
++        box-shadow:
++            inset 0 -1px 0 #cbd5df,
++            0 4px 10px rgba(15, 23, 42, .06);
++    }
++}
++
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
+@@ -32,14 +32,15 @@
+             container.Page(page =>
+             {
+                 page.Size(PageSizes.A4.Landscape());
+-                page.Margin(22);
++                page.MarginHorizontal(20);
++                page.MarginVertical(16);
+                 page.DefaultTextStyle(style => style
+                     .FontSize(7.2f)
+                     .FontColor(Ink)
+                     .DisableFontFeature(FontFeatures.StandardLigatures));
+ 
+                 page.Header()
+-                    .PaddingBottom(8)
++                    .PaddingBottom(6)
+                     .AlignCenter()
+                     .Text(FfcProjectsUpdateReport.FormalTitle)
+                     .FontSize(11.5f)
+@@ -51,14 +52,14 @@
+                     table.ColumnsDefinition(columns =>
+                     {
+                         columns.RelativeColumn(0.55f);
+-                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 2.4f : 2.8f);
++                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 2.65f : 3.0f);
+                         columns.RelativeColumn(1.05f);
+                         columns.RelativeColumn(0.75f);
+-                        columns.RelativeColumn(1.25f);
+-                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 3.45f : 6.0f);
++                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 1.35f : 1.30f);
++                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 3.30f : 6.0f);
+                         if (resolved.IncludeOverallStatus)
+                         {
+-                            columns.RelativeColumn(3.55f);
++                            columns.RelativeColumn(3.45f);
+                         }
+                     });
+ 
+@@ -99,20 +100,20 @@
+                             BodyCell(table.Cell(), row.Status);
+                             BodyCell(table.Cell(), Narrative(row.ProgressText));
+ 
+-                            if (resolved.IncludeOverallStatus)
++                            if (resolved.IncludeOverallStatus && index == 0)
+                             {
+-                                // Overall status belongs to the country-year record. Rendering
+-                                // it once avoids repeated long text and is robust when a group
+-                                // crosses a PDF page boundary.
+-                                BodyCell(
+-                                    table.Cell(),
+-                                    index == 0 ? Narrative(group.OverallRemarks) : string.Empty);
++                                // Overall status is a country-year fact, not a project-row fact.
++                                // RowSpan keeps that relationship explicit while allowing the
++                                // surrounding table to retain its normal multi-page behaviour.
++                                OverallStatusCell(
++                                    table.Cell().RowSpan((uint)group.Rows.Count),
++                                    Narrative(group.OverallRemarks));
+                             }
+                         }
+                     }
+                 });
+ 
+-                page.Footer().PaddingTop(5).Row(footer =>
++                page.Footer().PaddingTop(4).Row(footer =>
+                 {
+                     footer.RelativeItem()
+                         .Text("PRISM ERP · Simulator Development Division")
+@@ -150,7 +151,7 @@
+             .Border(0.6f)
+             .BorderColor(Border)
+             .Background(HeaderFill)
+-            .PaddingVertical(4)
++            .PaddingVertical(3.4f)
+             .PaddingHorizontal(3)
+             .AlignMiddle();
+ 
+@@ -170,7 +171,7 @@
+             .Border(0.45f)
+             .BorderColor(Border)
+             .Background(GroupFill)
+-            .PaddingVertical(4)
++            .PaddingVertical(3.2f)
+             .PaddingHorizontal(5)
+             .Text(label)
+             .FontSize(7.2f)
+@@ -186,7 +187,7 @@
+         var cell = container
+             .Border(0.45f)
+             .BorderColor(Border)
+-            .PaddingVertical(3.5f)
++            .PaddingVertical(3.0f)
+             .PaddingHorizontal(3)
+             .AlignTop();
+ 
+@@ -201,6 +202,18 @@
+             content.Bold();
+         }
+     }
++
++    private static void OverallStatusCell(IContainer container, string text)
++        => container
++            .Border(0.45f)
++            .BorderColor(Border)
++            .Background("#FBFCFE")
++            .PaddingVertical(3.0f)
++            .PaddingHorizontal(4)
++            .AlignTop()
++            .Text(text)
++            .FontSize(6.8f)
++            .FontColor(Ink);
+ 
+     private static string Narrative(string? value)
+         => string.IsNullOrWhiteSpace(value)
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
+@@ -19,10 +19,10 @@
+     private const int TableWidth = 15700;
+ 
+     private static readonly int[] WithoutOverall =
+-        [650, 3000, 1250, 900, 1500, 8400];
++        [850, 3200, 1300, 1050, 1600, 7700];
+ 
+     private static readonly int[] WithOverall =
+-        [650, 2600, 1200, 850, 1400, 4650, 4350];
++        [850, 2700, 1250, 1050, 1550, 4200, 4100];
+ 
+     public static byte[] Build(
+         FfcProjectsUpdateReport report,
+@@ -150,7 +150,8 @@
+                     ? W.JustificationValues.Center
+                     : index is 2 or 3
+                         ? W.JustificationValues.Right
+-                        : W.JustificationValues.Left));
++                        : W.JustificationValues.Left,
++                noWrap: index is 0 or 2 or 3 or 4));
+         }
+ 
+         return row;
+@@ -206,9 +207,10 @@
+         bool bold = false,
+         string? fill = null,
+         string color = Ink,
+-        W.JustificationValues? align = null)
+-        => new(
+-            BaseCellProperties(width, fill),
++        W.JustificationValues? align = null,
++        bool noWrap = false)
++        => new(
++            BaseCellProperties(width, fill, noWrap),
+             Paragraph(
+                 text ?? string.Empty,
+                 16,
+@@ -217,7 +219,10 @@
+                 align: align ?? W.JustificationValues.Left,
+                 after: 0));
+ 
+-    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
++    private static W.TableCellProperties BaseCellProperties(
++        int width,
++        string? fill,
++        bool noWrap = false)
+     {
+         var properties = new W.TableCellProperties(
+             new W.TableCellWidth
+@@ -234,6 +239,11 @@
+                 Fill = fill,
+                 Val = W.ShadingPatternValues.Clear
+             });
++        }
++
++        if (noWrap)
++        {
++            properties.Append(new W.NoWrap());
+         }
+ 
+         return properties;
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
+@@ -48,6 +48,8 @@
+             groupRange.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+             groupRange.Style.Border.TopBorderColor = XLColor.FromHtml("#AAB7C6");
+             groupRange.Style.Border.BottomBorderColor = XLColor.FromHtml("#AAB7C6");
++            groupRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
++            groupRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+ 
+             var groupDataStart = rowIndex;
+ 
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
+@@ -1,5 +1,6 @@
+ using ClosedXML.Excel;
+ using DocumentFormat.OpenXml.Packaging;
++using W = DocumentFormat.OpenXml.Wordprocessing;
+ using ProjectManagement.Services.Ffc;
+ using ProjectManagement.Services.Reports.FfcProjectsUpdate;
+ using Xunit;
+@@ -31,6 +32,9 @@
+             .First(cell => cell.GetString().StartsWith("Ethiopia", StringComparison.Ordinal));
+         Assert.Equal("Ethiopia – 2025", countryGroupCell.GetString());
+         Assert.DoesNotContain("ETH", countryGroupCell.GetString(), StringComparison.Ordinal);
++        Assert.Equal(
++            XLAlignmentHorizontalValues.Left,
++            countryGroupCell.Style.Alignment.Horizontal);
+ 
+         if (includeOverallStatus)
+         {
+@@ -61,6 +65,19 @@
+         Assert.Contains("Ethiopia", text, StringComparison.Ordinal);
+         Assert.DoesNotContain("ETH", text, StringComparison.Ordinal);
+         Assert.Contains("Current progress", text, StringComparison.Ordinal);
++
++        var table = document.MainDocumentPart!.Document.Body!
++            .Elements<W.Table>()
++            .First();
++        var headerCells = table.Elements<W.TableRow>()
++            .First()
++            .Elements<W.TableCell>()
++            .ToArray();
++
++        Assert.NotNull(headerCells[0].TableCellProperties?.GetFirstChild<W.NoWrap>());
++        Assert.NotNull(headerCells[2].TableCellProperties?.GetFirstChild<W.NoWrap>());
++        Assert.NotNull(headerCells[3].TableCellProperties?.GetFirstChild<W.NoWrap>());
++        Assert.NotNull(headerCells[4].TableCellProperties?.GetFirstChild<W.NoWrap>());
+ 
+         if (includeOverallStatus)
+         {
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
+@@ -92,6 +92,69 @@
+         Assert.DoesNotContain("group.CountryCode", excel, StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void Pdf_overall_status_is_a_country_year_row_span()
++    {
++        var source = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdatePdfBuilder.cs");
++
++        Assert.Contains(
++            "table.Cell().RowSpan((uint)group.Rows.Count)",
++            source,
++            StringComparison.Ordinal);
++        Assert.Contains("OverallStatusCell(", source, StringComparison.Ordinal);
++        Assert.DoesNotContain(
++            "index == 0 ? Narrative(group.OverallRemarks) : string.Empty",
++            source,
++            StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Ffc_long_register_keeps_the_table_header_sticky_not_the_kpi_strip()
++    {
++        var page = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "FfcProjectsUpdate.cshtml");
++        Assert.Contains("project-reports-page--ffc", page, StringComparison.Ordinal);
++
++        var css = ReadRepoFile(
++            "wwwroot",
++            "css",
++            "pages",
++            "projects-reports.css");
++
++        Assert.Contains(
++            ".project-reports-page--ffc .report-command-strip",
++            css,
++            StringComparison.Ordinal);
++        Assert.Contains(
++            ".project-reports-page--ffc .ffc-projects-update-table thead th",
++            css,
++            StringComparison.Ordinal);
++        Assert.Contains("position: sticky;", css, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Word_operational_headers_are_protected_from_avoidable_wrapping()
++    {
++        var source = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdateWordBuilder.cs");
++
++        Assert.Contains("new W.NoWrap()", source, StringComparison.Ordinal);
++        Assert.Contains(
++            "noWrap: index is 0 or 2 or 3 or 4",
++            source,
++            StringComparison.Ordinal);
++    }
++
+     private static string ReadRepoFile(params string[] segments)
+     {
+         var root = ResolveRepoRoot();

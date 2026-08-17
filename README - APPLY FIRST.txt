@@ -1,46 +1,70 @@
-PRISM FFC Projects Update — Control & Export Cleanup
-=====================================================
+PRISM FFC Projects Update — Presentation Hardening
+=================================================
 
-This is a focused follow-up to the FFC Projects Update implementation.
+This package is a focused refinement over the current working FFC report.
 
-FIX 1 — OVERALL STATUS CONTROL
-------------------------------
-Previous behaviour:
-- Overall status relied on an onchange="this.form.submit()" auto-submit.
-- On the observed runtime screen the checkbox changed visually but the report
-  did not refresh, leaving the six-column table unchanged.
-- There was no explicit report-update action for the user.
+IMPLEMENTED
+-----------
 
-New behaviour:
-- Overall status is a normal report option.
-- The toolbar now has an explicit "Update report" button.
-- Tick/untick Overall status, then press Update report.
-- Country-year selection is synchronized on every form submit.
-- The Country/Year dropdown's Apply button is also a real form submit.
-- Direct JavaScript form.submit() calls have been removed.
+1. BROWSER LONG-REGISTER USABILITY
+   - The KPI command strip is no longer sticky on the FFC report.
+   - On wide workstations (>= 1500px), the actual FFC column header is sticky
+     below the PRISM module navigation.
+   - The wide-screen table no longer sits inside an overflow container that
+     would prevent viewport sticky positioning.
+   - Smaller screens retain the existing horizontal-scroll fallback.
+   - The Overall-status table minimum width is reduced modestly from 1580px
+     to 1500px without changing its column allocations, making the full
+     register more likely to fit naturally on wide displays.
 
-This makes the workflow deterministic and visible:
-    Change option -> Update report -> browser preview refreshes
-    -> Word/PDF/Excel links carry the resolved IncludeOverallStatus state.
+2. PDF OVERALL STATUS
+   - Overall status is now a real country-year RowSpan cell.
+   - It no longer sits only in the first project row followed by unrelated
+     blank cells.
+   - This matches the browser/Word/Excel meaning: one Overall status belongs
+     to the entire Country-Year group.
+
+3. PDF PAGINATION / ORPHAN PAGE HARDENING
+   - The RowSpan change removes the artificial first-row height inflation
+     caused by long Overall-status text.
+   - A4 landscape vertical margins are reduced from 22pt to 16pt.
+   - Header/footer and row padding are tightened slightly.
+   - Body/header font sizes are NOT reduced.
+   - Project and Status receive slightly more horizontal space.
+   - These changes are intended to prevent a one-row orphan second page for
+     the current 19-project production dataset while remaining safe for
+     genuinely larger multi-page reports.
+
+4. WORD HEADER GEOMETRY
+   - S. No. widened.
+   - Quantity widened.
+   - Project and Status rebalanced.
+   - S. No., Cost, Quantity and Status headings receive OpenXML NoWrap.
+   - Both 6-column and 7-column variants remain exactly 15,700 twips wide.
+
+5. EXCEL COUNTRY-YEAR GROUPING
+   - Country-Year group headings are explicitly left-aligned, matching the
+     browser, Word and PDF register style.
+
+6. REGRESSION TESTS
+   - Excel left-alignment.
+   - Word NoWrap markers.
+   - PDF country-year RowSpan.
+   - FFC sticky-header / non-sticky-KPI browser contract.
 
 
-FIX 2 — COUNTRY CODES REMOVED FROM FORMAL OUTPUT
-------------------------------------------------
-Three-letter country codes such as FRA / ETH / MMR / NGA / LKA / KHM are no
-longer rendered in:
-- Browser formal preview
-- Word export
-- PDF export
-- Excel export
-
-Formal group headings are now simply:
-    France – 2026
-    Ethiopia – 2025
-    Myanmar – 2025
-    ...
-
-The Country/Year selector may still show the code as secondary UI metadata;
-it is not part of the report output.
+PRESERVED
+---------
+- Country-Year default selection rule.
+- Manual inclusion of all-installed groups.
+- Explicit Update report workflow.
+- Overall status optional column.
+- No 3-letter country codes in formal outputs.
+- Word/PDF/Excel export routes and data source.
+- Existing IFfcQueryService reuse.
+- Existing authorization.
+- No database migration.
+- No DI registration change.
 
 
 FILES TO REPLACE
@@ -56,17 +80,19 @@ dotnet build .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj `
     --filter "FullyQualifiedName~FfcProjectsUpdate"
 
-node --check .\wwwroot\js\pages\projects-reports-ffc.js
-
 
 MANUAL ACCEPTANCE
 -----------------
-1. Open FFC Projects Update.
-2. Tick Overall status.
-3. Click Update report.
-4. Confirm the URL/reloaded state has IncludeOverallStatus=true and the seventh
-   "Overall status" column appears.
-5. Untick it and click Update report; the column must disappear.
-6. Change Country/Year selection and Apply; selection must remain correct.
-7. Export Word/PDF/Excel with Overall status both OFF and ON.
-8. Confirm no three-letter country code appears in any formal output.
+1. Enable Overall status and Update report.
+2. Scroll through the browser report on the wide workstation:
+   - KPI strip must scroll away.
+   - Column headings must remain visible below Projects navigation.
+3. Export PDF:
+   - Overall status must visually span each Country-Year group.
+   - Check whether the current 19-project dataset remains on one page.
+   - If future data genuinely requires more pages, headers must repeat normally.
+4. Export Word:
+   - S. No. and Quantity headings should stay on one line.
+5. Export Excel:
+   - Country-Year group rows must be left aligned.
+6. Confirm no FRA / ETH / MMR / etc. appears in formal outputs.

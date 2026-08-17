@@ -32,14 +32,15 @@ public static class FfcProjectsUpdatePdfBuilder
             container.Page(page =>
             {
                 page.Size(PageSizes.A4.Landscape());
-                page.Margin(22);
+                page.MarginHorizontal(20);
+                page.MarginVertical(16);
                 page.DefaultTextStyle(style => style
                     .FontSize(7.2f)
                     .FontColor(Ink)
                     .DisableFontFeature(FontFeatures.StandardLigatures));
 
                 page.Header()
-                    .PaddingBottom(8)
+                    .PaddingBottom(6)
                     .AlignCenter()
                     .Text(FfcProjectsUpdateReport.FormalTitle)
                     .FontSize(11.5f)
@@ -51,14 +52,14 @@ public static class FfcProjectsUpdatePdfBuilder
                     table.ColumnsDefinition(columns =>
                     {
                         columns.RelativeColumn(0.55f);
-                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 2.4f : 2.8f);
+                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 2.65f : 3.0f);
                         columns.RelativeColumn(1.05f);
                         columns.RelativeColumn(0.75f);
-                        columns.RelativeColumn(1.25f);
-                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 3.45f : 6.0f);
+                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 1.35f : 1.30f);
+                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 3.30f : 6.0f);
                         if (resolved.IncludeOverallStatus)
                         {
-                            columns.RelativeColumn(3.55f);
+                            columns.RelativeColumn(3.45f);
                         }
                     });
 
@@ -99,20 +100,20 @@ public static class FfcProjectsUpdatePdfBuilder
                             BodyCell(table.Cell(), row.Status);
                             BodyCell(table.Cell(), Narrative(row.ProgressText));
 
-                            if (resolved.IncludeOverallStatus)
+                            if (resolved.IncludeOverallStatus && index == 0)
                             {
-                                // Overall status belongs to the country-year record. Rendering
-                                // it once avoids repeated long text and is robust when a group
-                                // crosses a PDF page boundary.
-                                BodyCell(
-                                    table.Cell(),
-                                    index == 0 ? Narrative(group.OverallRemarks) : string.Empty);
+                                // Overall status is a country-year fact, not a project-row fact.
+                                // RowSpan keeps that relationship explicit while allowing the
+                                // surrounding table to retain its normal multi-page behaviour.
+                                OverallStatusCell(
+                                    table.Cell().RowSpan((uint)group.Rows.Count),
+                                    Narrative(group.OverallRemarks));
                             }
                         }
                     }
                 });
 
-                page.Footer().PaddingTop(5).Row(footer =>
+                page.Footer().PaddingTop(4).Row(footer =>
                 {
                     footer.RelativeItem()
                         .Text("PRISM ERP · Simulator Development Division")
@@ -150,7 +151,7 @@ public static class FfcProjectsUpdatePdfBuilder
             .Border(0.6f)
             .BorderColor(Border)
             .Background(HeaderFill)
-            .PaddingVertical(4)
+            .PaddingVertical(3.4f)
             .PaddingHorizontal(3)
             .AlignMiddle();
 
@@ -170,7 +171,7 @@ public static class FfcProjectsUpdatePdfBuilder
             .Border(0.45f)
             .BorderColor(Border)
             .Background(GroupFill)
-            .PaddingVertical(4)
+            .PaddingVertical(3.2f)
             .PaddingHorizontal(5)
             .Text(label)
             .FontSize(7.2f)
@@ -186,7 +187,7 @@ public static class FfcProjectsUpdatePdfBuilder
         var cell = container
             .Border(0.45f)
             .BorderColor(Border)
-            .PaddingVertical(3.5f)
+            .PaddingVertical(3.0f)
             .PaddingHorizontal(3)
             .AlignTop();
 
@@ -201,6 +202,18 @@ public static class FfcProjectsUpdatePdfBuilder
             content.Bold();
         }
     }
+
+    private static void OverallStatusCell(IContainer container, string text)
+        => container
+            .Border(0.45f)
+            .BorderColor(Border)
+            .Background("#FBFCFE")
+            .PaddingVertical(3.0f)
+            .PaddingHorizontal(4)
+            .AlignTop()
+            .Text(text)
+            .FontSize(6.8f)
+            .FontColor(Ink);
 
     private static string Narrative(string? value)
         => string.IsNullOrWhiteSpace(value)

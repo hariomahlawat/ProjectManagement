@@ -1,19 +1,21 @@
 STATIC VALIDATION
 =================
 
-PASS  explicit_update_button_present
-PASS  no_overall_status_auto_submit
-PASS  country_apply_is_real_submit
-PASS  all_form_submits_sync_country_selection
-PASS  no_direct_form_submit_call
-PASS  word_no_country_code
-PASS  pdf_no_country_code
-PASS  excel_no_country_code
-PASS  formal_preview_no_country_code
-PASS  overall_status_rendering_preserved
-PASS  overall_status_export_routes_preserved
+PASS  ffc_page_scope_class
+PASS  ffc_kpis_not_sticky
+PASS  ffc_table_header_sticky
+PASS  wide_screen_overflow_unblocked
+PASS  pdf_row_span
+PASS  pdf_first_row_fake_span_removed
+PASS  pdf_vertical_geometry_compacted_without_smaller_font
+PASS  word_without_overall_width_total
+PASS  word_with_overall_width_total
+PASS  word_header_nowrap
+PASS  excel_group_left_align
+PASS  country_codes_still_absent_word
+PASS  country_codes_still_absent_pdf
+PASS  country_codes_still_absent_excel
+PASS  overall_status_control_preserved
 
-PASS  node --check wwwroot/js/pages/projects-reports-ffc.js
-
-NOTE: .NET SDK is not installed in this execution environment.
+NOTE: The .NET SDK is not installed in this execution environment.
 Run the supplied dotnet build/test commands on the development machine.

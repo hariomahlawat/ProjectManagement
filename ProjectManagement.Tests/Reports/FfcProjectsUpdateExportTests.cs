@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
+using W = DocumentFormat.OpenXml.Wordprocessing;
 using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.Reports.FfcProjectsUpdate;
 using Xunit;
@@ -31,6 +32,9 @@ public sealed class FfcProjectsUpdateExportTests
             .First(cell => cell.GetString().StartsWith("Ethiopia", StringComparison.Ordinal));
         Assert.Equal("Ethiopia – 2025", countryGroupCell.GetString());
         Assert.DoesNotContain("ETH", countryGroupCell.GetString(), StringComparison.Ordinal);
+        Assert.Equal(
+            XLAlignmentHorizontalValues.Left,
+            countryGroupCell.Style.Alignment.Horizontal);
 
         if (includeOverallStatus)
         {
@@ -61,6 +65,19 @@ public sealed class FfcProjectsUpdateExportTests
         Assert.Contains("Ethiopia", text, StringComparison.Ordinal);
         Assert.DoesNotContain("ETH", text, StringComparison.Ordinal);
         Assert.Contains("Current progress", text, StringComparison.Ordinal);
+
+        var table = document.MainDocumentPart!.Document.Body!
+            .Elements<W.Table>()
+            .First();
+        var headerCells = table.Elements<W.TableRow>()
+            .First()
+            .Elements<W.TableCell>()
+            .ToArray();
+
+        Assert.NotNull(headerCells[0].TableCellProperties?.GetFirstChild<W.NoWrap>());
+        Assert.NotNull(headerCells[2].TableCellProperties?.GetFirstChild<W.NoWrap>());
+        Assert.NotNull(headerCells[3].TableCellProperties?.GetFirstChild<W.NoWrap>());
+        Assert.NotNull(headerCells[4].TableCellProperties?.GetFirstChild<W.NoWrap>());
 
         if (includeOverallStatus)
         {

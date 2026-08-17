@@ -48,6 +48,8 @@ public static class FfcProjectsUpdateExcelBuilder
             groupRange.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
             groupRange.Style.Border.TopBorderColor = XLColor.FromHtml("#AAB7C6");
             groupRange.Style.Border.BottomBorderColor = XLColor.FromHtml("#AAB7C6");
+            groupRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            groupRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
             var groupDataStart = rowIndex;
 
