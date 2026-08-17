@@ -80,6 +80,10 @@ public sealed class CoverModel : PageModel
                 .ToArray();
 
             var quartetUsablePhotos = await ResolveUsableCoverPhotosAsync(loaded.Configuration, cancellationToken, 4);
+            var automaticCandidates = BuildAutomaticCandidates(
+                loaded.Configuration,
+                candidates,
+                loaded.Configuration.PhotoPreferences);
 
             BootstrapJson = JsonSerializer.Serialize(new
             {
@@ -100,6 +104,8 @@ public sealed class CoverModel : PageModel
                 coverDesign = ToClientCoverDesign(loaded.Configuration.CoverDesign, loaded.Configuration.Cover),
                 coverPolicy = CompendiumCoverTemplatePolicy.BuildClientContract(),
                 coverIdentityPolicy = CompendiumCoverIdentityPolicy.BuildClientContract(),
+                coverTypographyPolicy = CompendiumCoverTypographyPolicy.BuildClientContract(),
+                automaticCandidates = automaticCandidates.Select(ToClientAutomaticCandidate),
                 portfolioQuartetEligible = quartetUsablePhotos.Count >= 4,
                 portfolioQuartetUsablePhotoCount = quartetUsablePhotos.Count,
                 photoPreferences = loaded.Configuration.PhotoPreferences,
@@ -108,6 +114,7 @@ public sealed class CoverModel : PageModel
                              ?? "/Projects/Publications/Compendium") + "#compendium-settings",
                 saveUrl = Url.Page("/Projects/Publications/Compendium/Cover", "Save", new { presetId = PresetId }),
                 photosUrl = Url.Page("/Projects/Publications/Compendium/Cover", "ProjectPhotos", new { presetId = PresetId }),
+                automaticCandidatesUrl = Url.Page("/Projects/Publications/Compendium/Cover", "AutomaticCandidates", new { presetId = PresetId }),
                 photoUrl = Url.Page("/Projects/Publications/Compendium/Index", "Photo"),
                 patternUrl = Url.Page("/Projects/Publications/Compendium/Cover", "Pattern", new { presetId = PresetId })
             }, JsonOptions);
@@ -224,6 +231,42 @@ public sealed class CoverModel : PageModel
         }
     }
 
+    public async Task<IActionResult> OnPostAutomaticCandidatesAsync(
+        long presetId,
+        string? photoPreferencesJson,
+        CancellationToken cancellationToken)
+    {
+        if (presetId <= 0)
+        {
+            return JsonError(StatusCodes.Status400BadRequest, "The saved Compendium could not be resolved.");
+        }
+
+        try
+        {
+            var loaded = await _presetService.LoadAsync(presetId, cancellationToken);
+            var candidates = await _readService.GetCandidateProjectsAsync(cancellationToken);
+            var preferences = ParsePreferences(photoPreferencesJson);
+            var automaticCandidates = BuildAutomaticCandidates(
+                loaded.Configuration,
+                candidates,
+                preferences);
+
+            return new JsonResult(new
+            {
+                candidates = automaticCandidates.Select(ToClientAutomaticCandidate)
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return JsonError(StatusCodes.Status404NotFound, "The saved Compendium no longer exists.");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Compendium automatic cover candidate resolution failed. PresetId={PresetId}", presetId);
+            return JsonError(StatusCodes.Status400BadRequest, exception.Message);
+        }
+    }
+
     public async Task<IActionResult> OnPostSaveAsync(
         long presetId,
         string rowVersion,
@@ -248,10 +291,25 @@ public sealed class CoverModel : PageModel
             var loaded = await _presetService.LoadAsync(presetId, cancellationToken);
             var design = ParseCoverDesign(coverJson, loaded.Configuration.Cover);
             var preferences = ParsePreferences(photoPreferencesJson);
-            if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
+            var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(design.FrontTemplate, design.BackTemplate)
+                .Where(slot => slot.Required)
+                .ToArray();
+            if (requiredSlots.Length > 0)
             {
                 var usable = await ResolveUsableCoverPhotosAsync(loaded.Configuration, cancellationToken, int.MaxValue);
-                ValidatePortfolioQuartet(design, usable);
+                var candidateProjects = await _readService.GetCandidateProjectsAsync(cancellationToken);
+                var automaticCandidates = BuildAutomaticCandidates(
+                    loaded.Configuration,
+                    candidateProjects,
+                    preferences);
+                ValidateRequiredImageSlots(
+                    design,
+                    usable,
+                    automaticCandidates.Any(candidate => usable.Contains((candidate.ProjectId, candidate.PhotoId))));
+                if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
+                {
+                    ValidatePortfolioQuartet(design, usable);
+                }
             }
             var legacyCover = DeriveLegacyCover(design);
 
@@ -458,9 +516,11 @@ public sealed class CoverModel : PageModel
                 ? Array.Empty<PreferenceSavePayload>()
                 : JsonSerializer.Deserialize<PreferenceSavePayload[]>(json, JsonOptions) ?? Array.Empty<PreferenceSavePayload>();
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            payloads = Array.Empty<PreferenceSavePayload>();
+            throw new InvalidOperationException(
+                "The publication photo-preference payload is invalid. Reload the Cover Editor before saving.",
+                exception);
         }
 
         return payloads
@@ -524,6 +584,107 @@ public sealed class CoverModel : PageModel
             }
         }
         return result;
+    }
+
+    private static IReadOnlyList<CompendiumCoverAutomaticImagePolicy.Candidate> BuildAutomaticCandidates(
+        CompendiumPresetConfiguration configuration,
+        IReadOnlyList<CompendiumCandidateProjectVm> candidates,
+        IEnumerable<CompendiumPresetPhotoPreferenceConfiguration> preferences)
+    {
+        var candidateById = candidates.ToDictionary(item => item.ProjectId);
+        var sources = configuration.Projects
+            .Select((project, index) =>
+            {
+                candidateById.TryGetValue(project.ProjectId, out var candidate);
+                var coverPhotoId = project.PrimaryPhotoId ?? candidate?.DefaultPhotoId;
+                return new CompendiumCoverAutomaticImagePolicy.ProjectSource(
+                    project.ProjectId,
+                    coverPhotoId,
+                    project.PrimaryFocalX,
+                    project.PrimaryFocalY,
+                    index);
+            })
+            .ToArray();
+
+        return CompendiumCoverAutomaticImagePolicy.BuildCandidates(
+            sources,
+            preferences.Select(item => new CompendiumPhotoPreference(
+                item.ProjectId,
+                item.PhotoId,
+                item.PreferredForPublication,
+                item.SuitableForCoverHero)));
+    }
+
+    private static object ToClientAutomaticCandidate(
+        CompendiumCoverAutomaticImagePolicy.Candidate candidate)
+        => new
+        {
+            candidate.ProjectId,
+            candidate.PhotoId,
+            candidate.FocalX,
+            candidate.FocalY,
+            candidate.Priority
+        };
+
+    private static void ValidateRequiredImageSlots(
+        CompendiumCoverDesignConfiguration design,
+        IReadOnlySet<(int ProjectId, int PhotoId)> usable,
+        bool hasAutomaticCandidate)
+    {
+        var required = CompendiumCoverTemplatePolicy.ResolveSlots(design.FrontTemplate, design.BackTemplate)
+            .Where(slot => slot.Required)
+            .ToArray();
+        if (required.Length == 0)
+        {
+            return;
+        }
+
+        var configured = design.Images
+            .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
+            .ToDictionary(group => group.Key, group => group.First());
+
+        foreach (var requirement in required)
+        {
+            if (!configured.TryGetValue(
+                    (requirement.Surface, requirement.SlotKey.ToUpperInvariant()),
+                    out var slot)
+                || slot.ImageMode == CompendiumCoverImageMode.None)
+            {
+                throw new InvalidOperationException(
+                    $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} is required by the selected cover template.");
+            }
+
+            if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
+            {
+                if (slot.ProjectId is not int projectId
+                    || slot.PhotoId is not int photoId
+                    || !usable.Contains((projectId, photoId)))
+                {
+                    throw new InvalidOperationException(
+                        $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} is no longer usable. Choose another photograph.");
+                }
+            }
+            else if (!hasAutomaticCandidate)
+            {
+                throw new InvalidOperationException(
+                    $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} requires a usable photograph, but no publication image can currently be resolved.");
+            }
+        }
+    }
+
+    private static string CoverSlotDisplay(CompendiumCoverSurface surface, string slotKey)
+    {
+        var surfaceLabel = surface == CompendiumCoverSurface.Front ? "Front cover" : "Back cover";
+        var slotLabel = string.Equals(slotKey, "Hero", StringComparison.OrdinalIgnoreCase)
+            ? "hero image"
+            : string.Equals(slotKey, "Secondary1", StringComparison.OrdinalIgnoreCase)
+                ? "supporting image 1"
+                : string.Equals(slotKey, "Secondary2", StringComparison.OrdinalIgnoreCase)
+                    ? "supporting image 2"
+                    : string.Equals(slotKey, "Secondary3", StringComparison.OrdinalIgnoreCase)
+                        ? "supporting image 3"
+                        : $"image slot '{slotKey}'";
+        return $"{surfaceLabel} {slotLabel}";
     }
 
     private static void ValidatePortfolioQuartet(

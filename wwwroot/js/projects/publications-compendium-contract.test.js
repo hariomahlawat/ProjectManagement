@@ -16,6 +16,7 @@ const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
 const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
 const programme = read('Services/Compendiums/CompendiumProgrammeInformation.cs');
 const exportService = read('Services/Compendiums/CompendiumExportService.cs');
+const automaticCoverPolicy = read('Services/Compendiums/CompendiumCoverAutomaticImagePolicy.cs');
 const planner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
 const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
 const verifier = read('Utilities/Reporting/CompendiumPdfCompositionVerifier.cs');
@@ -137,8 +138,9 @@ test('phase 23 uses the shared Publications image source for probe, preview and 
   assert.match(page, /GetPreviewAsync/);
   assert.match(exportService, /BrochurePhotoRenderRequest/);
   assert.match(exportService, /RenderAsync/);
-  assert.match(exportService, /PrimaryFocalX/);
-  assert.match(exportService, /PrimaryFocalY/);
+  assert.match(automaticCoverPolicy, /FocalX/);
+  assert.match(automaticCoverPolicy, /FocalY/);
+  assert.match(automaticCoverPolicy, /CoverPhotoId/);
 });
 
 test('phase 24 evaluates effective DPI against the redesigned reviewed project-image frame', () => {
@@ -593,12 +595,13 @@ test('phase 27 adapts PDF fact geometry and narrative image pressure', () => {
 });
 
 test('phase 27 automatic cover selection prefers intentional project cover sources', () => {
-  assert.match(exportService, /CoverHeroSourcePriority/);
-  assert.match(exportService, /CompendiumPhotoSelectionSource\.ProjectCover\s*=>\s*4/);
-  assert.match(exportService, /CompendiumPhotoSelectionSource\.FirstAvailable\s*=>\s*1/);
-  assert.match(js, /projectcover:\s*4/);
-  assert.match(js, /firstavailable:\s*1/);
-  assert.match(exportService, /SuitableForCoverHero|PreferredForPublication/);
+  assert.match(automaticCoverPolicy, /SuitablePriority\s*=\s*800_000/);
+  assert.match(automaticCoverPolicy, /PreferredPriority\s*=\s*550_000/);
+  assert.match(automaticCoverPolicy, /ResolvedCoverPriority\s*=\s*220_000/);
+  assert.match(automaticCoverPolicy, /SuitableForCoverHero/);
+  assert.match(automaticCoverPolicy, /PreferredForPublication/);
+  assert.match(automaticCoverPolicy, /CoverPhotoId/);
+  assert.match(exportService, /CompendiumCoverAutomaticImagePolicy\.BuildCandidates/);
 });
 
 test('phase 27 latest chronology and technical taxonomy are authoritative and deterministic', () => {

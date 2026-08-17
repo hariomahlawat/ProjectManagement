@@ -1,22 +1,19 @@
-STATIC VALIDATION
-=================
+VALIDATION
+==========
+PASS  projects-compendium.js syntax
+PASS  projects-compendium-cover-editor.js syntax
+PASS  all Compendium Node/source tests: 220/220
+PASS  theme/background round-trip source contract
+PASS  persistence-only dirty signature contract
+PASS  shared server automatic-image candidate contract
+PASS  automatic export retry contract
+PASS  explicit-image strict failure contract
+PASS  generic required-slot validation contract
+PASS  Fit theme-background parity contract
+PASS  Institutional Hero proof spacing parity contract
+PASS  adaptive cover typography + preflight advisory contract
+PASS  malformed preference payload rejection contract
+PASS  dynamic cover editor viewport contract
+PASS  changed C# brace/static sanity checks
 
-PASS  cs0103_resolvedOptions_fixed
-PASS  word_build_scope_still_uses_resolvedOptions
-PASS  aon_query_carries_stage_status
-PASS  aon_requires_completed_status
-PASS  aon_requires_completion_date
-PASS  aon_does_not_filter_development_pdc_by_completion
-PASS  current_aon_does_not_raise_missing_date_warning
-PASS  completed_project_still_triggers_aon_integrity_warning_if_missing
-PASS  ongoing_reader_requires_completed_stage
-PASS  resolver_tests_include_stale_date_case
-PASS  resolver_tests_include_completed_case
-PASS  resolver_tests_include_backfill_case
-PASS  listing_date_option_preserved
-PASS  present_stage_preserved
-PASS  completed_pdc_preserved
-PASS  word_cs0133_fix_preserved
-
-NOTE: .NET SDK is not installed in this execution environment.
-A real dotnet build/test must be run on the development machine.
+NOT RUN: dotnet build/test — .NET SDK is not installed in this execution environment.

@@ -589,6 +589,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
     private static void ComposeCoverIdentity(IContainer container, string? eyebrow, string? title, string? subtitle, string? edition, float titleSize, CompendiumCoverIdentityPolicy.ThemeDefinition theme)
     {
+        var resolvedTitleSize = CompendiumCoverTypographyPolicy.ResolveTitleSize(title, titleSize);
+        var resolvedSubtitleSize = CompendiumCoverTypographyPolicy.ResolveSubtitleSize(subtitle);
+
         container.Column(column =>
         {
             column.Spacing(10);
@@ -598,10 +601,13 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             }
             if (!string.IsNullOrWhiteSpace(title))
             {
-                column.Item().Text(title!).FontSize(titleSize).SemiBold().LineHeight(1.04f).FontColor(theme.Foreground);
+                column.Item().Text(title!).FontSize(resolvedTitleSize).SemiBold().LineHeight(1.04f).FontColor(theme.Foreground);
                 column.Item().Width(128).Height(3).Background(Gold);
             }
-            if (!string.IsNullOrWhiteSpace(subtitle)) column.Item().Text(subtitle!).FontSize(14).LineHeight(1.18f).FontColor(theme.MutedForeground);
+            if (!string.IsNullOrWhiteSpace(subtitle))
+            {
+                column.Item().Text(subtitle!).FontSize(resolvedSubtitleSize).LineHeight(1.18f).FontColor(theme.MutedForeground);
+            }
             if (!string.IsNullOrWhiteSpace(edition)) column.Item().Text(edition!).FontSize(10.5f).SemiBold().FontColor(GoldSoft);
         });
     }

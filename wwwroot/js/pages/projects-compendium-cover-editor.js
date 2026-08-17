@@ -38,6 +38,17 @@
 
     const coverPolicy = boot.coverPolicy || { front: [], back: [] };
     const identityPolicy = boot.coverIdentityPolicy || { themes: [], backgrounds: [], compatibility: {} };
+    const typographyPolicy = boot.coverTypographyPolicy || {
+        titleSoftLength: 42,
+        titleMediumLength: 70,
+        titleLongLength: 95,
+        minimumTitleSize: 21,
+        subtitleSoftLength: 105,
+        subtitleLongLength: 145,
+        minimumSubtitleSize: 12.5,
+        frontTitleSizes: {},
+        backTitleSizes: {}
+    };
     const themeDefinition = key => (identityPolicy.themes || []).find(item => item.key === key)
         || (identityPolicy.themes || [])[0]
         || { key: 'InstitutionalGreen', displayName: 'Institutional Green', shortName: 'Green', primary: '#102A23', secondary: '#17382F', surface: '#21483D', foreground: '#FFFFFF', mutedForeground: '#D7E3DE', patternLight: '#769A8C', patternDark: '#091D18' };
@@ -61,6 +72,8 @@
         photoCache: new Map(),
         previewCache: new Map(),
         autoResolved: new Map(),
+        automaticCandidates: normaliseAutomaticCandidates(boot.automaticCandidates || []),
+        automaticCandidatesDirty: false,
         hydrationVersions: new Map(),
         overrideEditing: new Set(),
         dirty: false,
@@ -86,8 +99,27 @@
         state.design.backgroundTreatment = 'Solid';
     }
 
-    const initialSignature = () => JSON.stringify({ design: state.design, preferences: state.preferences });
-    let savedSignature = initialSignature();
+    function buildCoverSavePayload() {
+        return {
+            ...state.design,
+            images: (state.design.images || []).map(item => {
+                const { previewUrl, sourceWidth, sourceHeight, ...persisted } = item;
+                return persisted;
+            })
+        };
+    }
+
+    function buildPreferenceSavePayload() {
+        return normalisePreferences(state.preferences)
+            .slice()
+            .sort((left, right) => left.projectId - right.projectId || left.photoId - right.photoId);
+    }
+
+    const persistedSignature = () => JSON.stringify({
+        design: buildCoverSavePayload(),
+        preferences: buildPreferenceSavePayload()
+    });
+    let savedSignature = persistedSignature();
 
     const templatePolicy = (surface, template = null) => {
         const list = surface === 'front' ? coverPolicy.front : coverPolicy.back;
@@ -154,6 +186,19 @@
         return Array.from(map.values());
     }
 
+    function normaliseAutomaticCandidates(values) {
+        return (Array.isArray(values) ? values : [])
+            .map(item => ({
+                projectId: Number(item.projectId),
+                photoId: Number(item.photoId),
+                focalX: clamp01(item.focalX),
+                focalY: clamp01(item.focalY),
+                priority: Number(item.priority) || 0
+            }))
+            .filter(item => item.projectId > 0 && item.photoId > 0)
+            .sort((left, right) => right.priority - left.priority || left.projectId - right.projectId || left.photoId - right.photoId);
+    }
+
     function surfacePrefix(surface = state.activeSurface) { return surface === 'front' ? 'front' : 'back'; }
     function isFront(surface = state.activeSurface) { return surface === 'front'; }
     function currentTemplate(surface = state.activeSurface) { return isFront(surface) ? state.design.frontTemplate : state.design.backTemplate; }
@@ -173,7 +218,8 @@
         if (!isQuartet('front')) return true;
         const refs = new Set();
         for (const key of strictRequiredSlots('front')) {
-            const slot = ensureSlot('front', key);
+            const slot = findSlot('front', key);
+            if (!slot) return false;
             if (slot.imageMode === 'None' || !slot.previewUrl) return false;
             const auto = state.autoResolved.get(automaticSlotKey('front', key));
             const projectId = Number(slot.imageMode === 'Explicit' ? slot.projectId : auto?.projectId);
@@ -197,11 +243,28 @@
         return item;
     }
 
+    function requiredSlotsConfigured(surface) {
+        const required = strictRequiredSlots(surface);
+        if (!required.length) return true;
+        return required.every(key => {
+            const slot = findSlot(surface, key);
+            if (!slot || slot.imageMode === 'None') return false;
+            if (slot.imageMode === 'Explicit') return !!Number(slot.projectId) && !!Number(slot.photoId);
+            return state.automaticCandidates.length > 0;
+        });
+    }
+
+    function coverReadyForSave() {
+        return requiredSlotsConfigured('front')
+            && requiredSlotsConfigured('back')
+            && quartetResolved();
+    }
+
     function setDirty() {
-        const signature = initialSignature();
+        const signature = persistedSignature();
         state.dirty = signature !== savedSignature;
         const save = by('[data-cover-save]');
-        if (save) save.disabled = !state.dirty || !boot.canManage || !quartetResolved();
+        if (save) save.disabled = !state.dirty || !boot.canManage || !coverReadyForSave();
         const saveState = by('[data-cover-save-state]');
         if (saveState) {
             saveState.classList.toggle('is-modified', state.dirty);
@@ -410,8 +473,13 @@
                     : auto?.projectId
                         ? `Automatic · ${projectName(auto.projectId) || 'ranked photograph'}`
                         : 'Automatic selection';
+            const resolvedFocal = slot.imageMode === 'Automatic'
+                ? state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey))
+                : null;
+            const previewFocalX = resolvedFocal?.focalX ?? slot.focalX;
+            const previewFocalY = resolvedFocal?.focalY ?? slot.focalY;
             const preview = slot.previewUrl
-                ? `<img src="${escapeHtml(slot.previewUrl)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${slot.focalX * 100}% ${slot.focalY * 100}%" />`
+                ? `<img src="${escapeHtml(slot.previewUrl)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${previewFocalX * 100}% ${previewFocalY * 100}%" />`
                 : `<span class="compendium-cover-slot-placeholder"><i class="bi ${slot.imageMode === 'None' ? 'bi-image-alt' : 'bi-stars'}"></i></span>`;
             row.innerHTML = `
                 <div class="compendium-cover-slot-thumb">${preview}</div>
@@ -470,6 +538,39 @@
         applyProofZoom(true);
     }
 
+    function preferredTitleSize(surface, template) {
+        const source = surface === 'front' ? typographyPolicy.frontTitleSizes : typographyPolicy.backTitleSizes;
+        return Number(source?.[template]) || (surface === 'front' ? 34 : 25);
+    }
+
+    function resolveTitleSize(title, preferred) {
+        const length = clean(title).replace(/\s+/g, ' ').length;
+        let reduction = 0;
+        if (length > Number(typographyPolicy.titleLongLength || 95)) reduction = 6;
+        else if (length > Number(typographyPolicy.titleMediumLength || 70)) reduction = 4;
+        else if (length > Number(typographyPolicy.titleSoftLength || 42)) reduction = 2;
+        return Math.max(Number(typographyPolicy.minimumTitleSize || 21), preferred - reduction);
+    }
+
+    function resolveSubtitleSize(subtitle) {
+        const length = clean(subtitle).replace(/\s+/g, ' ').length;
+        let reduction = 0;
+        if (length > Number(typographyPolicy.subtitleLongLength || 145)) reduction = 1.5;
+        else if (length > Number(typographyPolicy.subtitleSoftLength || 105)) reduction = 1;
+        return Math.max(Number(typographyPolicy.minimumSubtitleSize || 12.5), 14 - reduction);
+    }
+
+    function updateIdentityAdvisory(title, subtitle) {
+        const node = by('[data-cover-title-advisory]');
+        if (!node) return;
+        const dense = clean(title).replace(/\s+/g, ' ').length > Number(typographyPolicy.titleLongLength || 95)
+            || clean(subtitle).replace(/\s+/g, ' ').length > Number(typographyPolicy.subtitleLongLength || 145);
+        node.hidden = !dense;
+        node.textContent = dense
+            ? 'Dense cover wording: PRISM has reduced cover typography within the approved range. Review the proof before final issue.'
+            : '';
+    }
+
     function renderProof() {
         const surface = state.proofSurface;
         const front = surface === 'front';
@@ -499,9 +600,17 @@
             if (!slot) return '';
             const src = slot.previewUrl;
             if (!src) return `<div class="cover-proof-image ${cls} cover-proof-image--empty"><i class="bi bi-image"></i><span>${slot.imageMode === 'None' ? 'No imagery' : 'Automatic imagery'}</span></div>`;
-            return `<div class="cover-proof-image ${cls}"><img src="${escapeHtml(src)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${slot.focalX * 100}% ${slot.focalY * 100}%" /></div>`;
+            const resolved = slot.imageMode === 'Automatic'
+                ? state.autoResolved.get(automaticSlotKey(surface, slot.slotKey))
+                : null;
+            const focalX = resolved?.focalX ?? slot.focalX;
+            const focalY = resolved?.focalY ?? slot.focalY;
+            return `<div class="cover-proof-image ${cls}"><img src="${escapeHtml(src)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${focalX * 100}% ${focalY * 100}%" /></div>`;
         };
-        const identity = `<div class="cover-proof-identity">${eyebrow ? `<small>${escapeHtml(eyebrow)}</small>` : ''}${title ? `<h3>${escapeHtml(title)}</h3>` : ''}${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}${edition ? `<b>${escapeHtml(edition)}</b>` : ''}</div>`;
+        const titleSize = resolveTitleSize(title, preferredTitleSize(surface, template));
+        const subtitleSize = resolveSubtitleSize(subtitle);
+        const identity = `<div class="cover-proof-identity">${eyebrow ? `<small>${escapeHtml(eyebrow)}</small>` : ''}${title ? `<h3 style="font-size:${titleSize}px">${escapeHtml(title)}</h3>` : ''}${subtitle ? `<p style="font-size:${subtitleSize}px">${escapeHtml(subtitle)}</p>` : ''}${edition ? `<b>${escapeHtml(edition)}</b>` : ''}</div>`;
+        updateIdentityAdvisory(title, subtitle);
 
         if (front) {
             switch (template) {
@@ -566,6 +675,39 @@
         } else state.autoResolved.clear();
     }
 
+    async function ensureAutomaticCandidates() {
+        if (!state.automaticCandidatesDirty || !boot.automaticCandidatesUrl) return;
+        const form = new FormData();
+        form.set('presetId', String(boot.preset?.id || 0));
+        form.set('photoPreferencesJson', JSON.stringify(buildPreferenceSavePayload()));
+        if (csrf) form.set('__RequestVerificationToken', csrf);
+        const response = await fetch(boot.automaticCandidatesUrl, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: form
+        });
+        const result = await safeJson(response);
+        if (!response.ok) throw new Error(result?.message || 'Automatic cover imagery could not be refreshed.');
+        state.automaticCandidates = normaliseAutomaticCandidates(result?.candidates || []);
+        state.automaticCandidatesDirty = false;
+    }
+
+    function automaticCandidateSequence(surface, usedProjects = new Set(), usedPhotos = new Set()) {
+        const candidates = state.automaticCandidates || [];
+        const unique = new Map();
+        const append = item => {
+            const key = `${item.projectId}:${item.photoId}`;
+            if (!usedPhotos.has(key) && !unique.has(key)) unique.set(key, item);
+        };
+        candidates.filter(item => !usedProjects.has(item.projectId)).forEach(append);
+        candidates.forEach(append);
+        if (!isQuartet(surface)) candidates.forEach(item => {
+            const key = `${item.projectId}:${item.photoId}`;
+            if (!unique.has(key)) unique.set(key, item);
+        });
+        return Array.from(unique.values());
+    }
+
     async function hydrateVisibleSlotPreviews(surface = state.activeSurface) {
         const hydrationVersion = (state.hydrationVersions.get(surface) || 0) + 1;
         state.hydrationVersions.set(surface, hydrationVersion);
@@ -575,8 +717,13 @@
         const usedPhotos = new Set();
         const usedProjects = new Set();
 
-        // Explicitly curated imagery always wins. Automatic slots avoid those assets and projects
-        // where a different suitable project is available.
+        try {
+            await ensureAutomaticCandidates();
+        } catch {
+            // Preserve the last server-resolved candidate set if refresh fails.
+        }
+        if (!isCurrentHydration()) return;
+
         state.design.images.forEach(slot => {
             if (slot.imageMode !== 'Explicit' || !slot.projectId || !slot.photoId) return;
             usedPhotos.add(`${Number(slot.projectId)}:${Number(slot.photoId)}`);
@@ -593,36 +740,49 @@
             if (slot.imageMode === 'None') continue;
             if (slot.imageMode === 'Explicit' && slot.previewUrl) continue;
             if (slot.imageMode === 'Automatic' && slot.previewUrl && state.autoResolved.has(key)) continue;
+
             try {
-                let projectId = slot.projectId;
-                let photoId = slot.photoId;
-                if (slot.imageMode !== 'Explicit') {
-                    const preferred = chooseAutomaticCandidate(surface, usedProjects, usedPhotos);
-                    projectId = preferred?.projectId || null;
-                    photoId = preferred?.photoId || null;
-                }
-                if (!projectId) continue;
-                const photos = await loadProjectPhotos(projectId);
-                if (!isCurrentHydration()) return;
-                let photo = photoId ? photos.find(item => Number(item.photoId) === Number(photoId)) : null;
-                photo ??= photos.find(item => item.isCover && !usedPhotos.has(`${Number(projectId)}:${Number(item.photoId)}`));
-                photo ??= photos.find(item => !usedPhotos.has(`${Number(projectId)}:${Number(item.photoId)}`));
-                if (!isQuartet(surface)) photo ??= photos.find(item => item.isCover) || photos[0];
-                if (!photo) continue;
-                slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
-                slot.sourceWidth = photo.width;
-                slot.sourceHeight = photo.height;
                 if (slot.imageMode === 'Explicit') {
-                    if (!slot.photoId) slot.photoId = photo.photoId;
-                } else {
-                    const resolved = { projectId: Number(projectId), photoId: Number(photo.photoId) };
+                    if (!slot.projectId || !slot.photoId) continue;
+                    const photos = await loadProjectPhotos(slot.projectId);
+                    if (!isCurrentHydration()) return;
+                    const photo = photos.find(item => Number(item.photoId) === Number(slot.photoId));
+                    if (!photo) continue;
+                    slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+                    slot.sourceWidth = photo.width;
+                    slot.sourceHeight = photo.height;
+                    changed = true;
+                    continue;
+                }
+
+                const sequence = automaticCandidateSequence(surface, usedProjects, usedPhotos);
+                for (const candidate of sequence) {
+                    const photos = await loadProjectPhotos(candidate.projectId);
+                    if (!isCurrentHydration()) return;
+                    const photo = photos.find(item => Number(item.photoId) === Number(candidate.photoId));
+                    if (!photo) continue;
+
+                    slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+                    slot.sourceWidth = photo.width;
+                    slot.sourceHeight = photo.height;
+                    const resolved = {
+                        projectId: Number(candidate.projectId),
+                        photoId: Number(candidate.photoId),
+                        focalX: clamp01(candidate.focalX),
+                        focalY: clamp01(candidate.focalY),
+                        priority: Number(candidate.priority) || 0
+                    };
                     state.autoResolved.set(key, resolved);
                     usedProjects.add(resolved.projectId);
                     usedPhotos.add(`${resolved.projectId}:${resolved.photoId}`);
+                    changed = true;
+                    break;
                 }
-                changed = true;
-            } catch { /* automatic preview is best-effort */ }
+            } catch {
+                // Automatic preview hydration is best-effort; final export applies the same ranked fallback sequence.
+            }
         }
+
         if (changed && isCurrentHydration()) {
             renderProof();
             if (surface === state.activeSurface) renderSlotsWithoutHydration();
@@ -631,36 +791,7 @@
     }
 
     function renderSlotsWithoutHydration() {
-        const original = hydrateVisibleSlotPreviews;
-        // renderSlots will schedule hydration again but populated preview URLs make it a no-op.
         renderSlots();
-    }
-
-    function chooseAutomaticCandidate(surface, usedProjects = new Set(), usedPhotos = new Set()) {
-        const candidates = [];
-        const seen = new Set();
-        const add = (candidate, priority) => {
-            const projectId = Number(candidate?.projectId);
-            const photoId = Number(candidate?.photoId) || null;
-            if (!projectId) return;
-            const key = `${projectId}:${photoId || 0}`;
-            if (seen.has(key)) return;
-            seen.add(key);
-            candidates.push({ projectId, photoId, priority });
-        };
-        state.preferences.forEach(item => {
-            if (item.suitableForCoverHero) add(item, 500);
-            else if (item.preferredForPublication) add(item, 350);
-        });
-        state.projects.forEach((project, index) => {
-            if (project.primaryPhotoId) add({ projectId: project.projectId, photoId: project.primaryPhotoId }, 160 - index / 1000);
-            else if (project.photoCount > 0) add({ projectId: project.projectId, photoId: null }, 80 - index / 1000);
-        });
-        candidates.sort((a, b) => b.priority - a.priority);
-        return candidates.find(item => !usedProjects.has(item.projectId) && (!item.photoId || !usedPhotos.has(`${item.projectId}:${item.photoId}`)))
-            || candidates.find(item => !item.photoId || !usedPhotos.has(`${item.projectId}:${item.photoId}`))
-            || (isQuartet(surface) ? null : candidates[0])
-            || null;
     }
 
     async function openPhotoPicker(slotKey) {
@@ -682,9 +813,10 @@
         if (photoState) photoState.textContent = 'Select a project to view its publication photographs.';
         const noneButton = portalBy('[data-cover-slot-none]');
         if (noneButton) {
-            const required = isQuartet(state.activeSurface);
+            const required = strictRequiredSlots(state.activeSurface)
+                .some(key => key.toLowerCase() === slotKey.toLowerCase());
             noneButton.disabled = required;
-            noneButton.title = required ? 'Portfolio Quartet requires all four image slots.' : '';
+            noneButton.title = required ? 'This image slot is required by the selected cover template.' : '';
         }
         modal('compendiumCoverPhotoModal')?.show();
         if (selectedProjectId) await renderProjectPhotos(selectedProjectId);
@@ -741,6 +873,7 @@
         if (kind === 'hero') item.suitableForCoverHero = checked;
         else item.preferredForPublication = checked;
         if (!item.preferredForPublication && !item.suitableForCoverHero) state.preferences = state.preferences.filter(pref => pref !== item);
+        state.automaticCandidatesDirty = true;
         clearAutomaticResolutions();
         setDirty();
         renderSlots();
@@ -810,6 +943,8 @@
         slot.imageMode = 'Explicit';
         slot.projectId = Number(resolved.projectId);
         slot.photoId = Number(resolved.photoId);
+        slot.focalX = clamp01(resolved.focalX);
+        slot.focalY = clamp01(resolved.focalY);
         slot.previewUrl = photo?.previewUrl || photo?.thumbnailUrl || slot.previewUrl;
         slot.sourceWidth = photo?.width || slot.sourceWidth;
         slot.sourceHeight = photo?.height || slot.sourceHeight;
@@ -844,8 +979,8 @@
 
     async function save() {
         if (!boot.canManage || !state.dirty) return true;
-        if (!quartetResolved()) {
-            window.alert('Portfolio Quartet requires four distinct usable photographs before it can be saved.');
+        if (!coverReadyForSave()) {
+            window.alert('The selected cover template has required image slots that are not currently resolvable. Restore or choose the required imagery before saving.');
             return false;
         }
         const button = by('[data-cover-save]');
@@ -854,8 +989,8 @@
             const form = new FormData();
             form.set('presetId', String(boot.preset?.id || 0));
             form.set('rowVersion', state.rowVersion || '');
-            form.set('coverJson', JSON.stringify(state.design));
-            form.set('photoPreferencesJson', JSON.stringify(state.preferences));
+            form.set('coverJson', JSON.stringify(buildCoverSavePayload()));
+            form.set('photoPreferencesJson', JSON.stringify(buildPreferenceSavePayload()));
             if (csrf) form.set('__RequestVerificationToken', csrf);
             const response = await fetch(boot.saveUrl, {
                 method: 'POST',
@@ -868,9 +1003,10 @@
             if (result?.coverDesign) {
                 state.design = normaliseDesign(result.coverDesign);
                 state.autoResolved.clear();
+                state.automaticCandidatesDirty = true;
             }
             if (Array.isArray(result?.photoPreferences)) state.preferences = normalisePreferences(result.photoPreferences);
-            savedSignature = initialSignature();
+            savedSignature = persistedSignature();
             state.dirty = false;
             setDirty();
             return true;
@@ -1053,6 +1189,14 @@
     } else {
         window.addEventListener('resize', () => { if (state.proofZoom === 'fit') applyProofZoom(false); });
     }
+
+    function syncCoverWorkspaceViewport() {
+        const top = Math.max(0, root.getBoundingClientRect().top);
+        root.style.setProperty('--cover-editor-viewport-top', `${top}px`);
+    }
+
+    syncCoverWorkspaceViewport();
+    window.addEventListener('resize', syncCoverWorkspaceViewport);
 
     updateInspector();
     setDirty();

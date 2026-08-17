@@ -1,0 +1,1593 @@
+--- a/Pages/Projects/Publications/Compendium/Cover.cshtml
++++ b/Pages/Projects/Publications/Compendium/Cover.cshtml
+@@ -225,6 +225,7 @@
+                         <div><small>Cover override</small><button type="button" class="btn btn-sm btn-link" data-cover-reset="title">Reset to inherited</button></div>
+                     </div>
+                 </div>
++                <small class="compendium-cover-layout-advisory" data-cover-title-advisory hidden></small>
+ 
+                 <div class="compendium-cover-editor-field compendium-cover-inherited-field" data-cover-field-wrap="subtitle">
+                     <div class="compendium-cover-field-heading">
+--- a/Pages/Projects/Publications/Compendium/Cover.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Cover.cshtml.cs
+@@ -80,6 +80,10 @@
+                 .ToArray();
+ 
+             var quartetUsablePhotos = await ResolveUsableCoverPhotosAsync(loaded.Configuration, cancellationToken, 4);
++            var automaticCandidates = BuildAutomaticCandidates(
++                loaded.Configuration,
++                candidates,
++                loaded.Configuration.PhotoPreferences);
+ 
+             BootstrapJson = JsonSerializer.Serialize(new
+             {
+@@ -100,6 +104,8 @@
+                 coverDesign = ToClientCoverDesign(loaded.Configuration.CoverDesign, loaded.Configuration.Cover),
+                 coverPolicy = CompendiumCoverTemplatePolicy.BuildClientContract(),
+                 coverIdentityPolicy = CompendiumCoverIdentityPolicy.BuildClientContract(),
++                coverTypographyPolicy = CompendiumCoverTypographyPolicy.BuildClientContract(),
++                automaticCandidates = automaticCandidates.Select(ToClientAutomaticCandidate),
+                 portfolioQuartetEligible = quartetUsablePhotos.Count >= 4,
+                 portfolioQuartetUsablePhotoCount = quartetUsablePhotos.Count,
+                 photoPreferences = loaded.Configuration.PhotoPreferences,
+@@ -108,6 +114,7 @@
+                              ?? "/Projects/Publications/Compendium") + "#compendium-settings",
+                 saveUrl = Url.Page("/Projects/Publications/Compendium/Cover", "Save", new { presetId = PresetId }),
+                 photosUrl = Url.Page("/Projects/Publications/Compendium/Cover", "ProjectPhotos", new { presetId = PresetId }),
++                automaticCandidatesUrl = Url.Page("/Projects/Publications/Compendium/Cover", "AutomaticCandidates", new { presetId = PresetId }),
+                 photoUrl = Url.Page("/Projects/Publications/Compendium/Index", "Photo"),
+                 patternUrl = Url.Page("/Projects/Publications/Compendium/Cover", "Pattern", new { presetId = PresetId })
+             }, JsonOptions);
+@@ -224,6 +231,42 @@
+         }
+     }
+ 
++    public async Task<IActionResult> OnPostAutomaticCandidatesAsync(
++        long presetId,
++        string? photoPreferencesJson,
++        CancellationToken cancellationToken)
++    {
++        if (presetId <= 0)
++        {
++            return JsonError(StatusCodes.Status400BadRequest, "The saved Compendium could not be resolved.");
++        }
++
++        try
++        {
++            var loaded = await _presetService.LoadAsync(presetId, cancellationToken);
++            var candidates = await _readService.GetCandidateProjectsAsync(cancellationToken);
++            var preferences = ParsePreferences(photoPreferencesJson);
++            var automaticCandidates = BuildAutomaticCandidates(
++                loaded.Configuration,
++                candidates,
++                preferences);
++
++            return new JsonResult(new
++            {
++                candidates = automaticCandidates.Select(ToClientAutomaticCandidate)
++            });
++        }
++        catch (KeyNotFoundException)
++        {
++            return JsonError(StatusCodes.Status404NotFound, "The saved Compendium no longer exists.");
++        }
++        catch (Exception exception)
++        {
++            _logger.LogWarning(exception, "Compendium automatic cover candidate resolution failed. PresetId={PresetId}", presetId);
++            return JsonError(StatusCodes.Status400BadRequest, exception.Message);
++        }
++    }
++
+     public async Task<IActionResult> OnPostSaveAsync(
+         long presetId,
+         string rowVersion,
+@@ -248,10 +291,25 @@
+             var loaded = await _presetService.LoadAsync(presetId, cancellationToken);
+             var design = ParseCoverDesign(coverJson, loaded.Configuration.Cover);
+             var preferences = ParsePreferences(photoPreferencesJson);
+-            if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
++            var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(design.FrontTemplate, design.BackTemplate)
++                .Where(slot => slot.Required)
++                .ToArray();
++            if (requiredSlots.Length > 0)
+             {
+                 var usable = await ResolveUsableCoverPhotosAsync(loaded.Configuration, cancellationToken, int.MaxValue);
+-                ValidatePortfolioQuartet(design, usable);
++                var candidateProjects = await _readService.GetCandidateProjectsAsync(cancellationToken);
++                var automaticCandidates = BuildAutomaticCandidates(
++                    loaded.Configuration,
++                    candidateProjects,
++                    preferences);
++                ValidateRequiredImageSlots(
++                    design,
++                    usable,
++                    automaticCandidates.Any(candidate => usable.Contains((candidate.ProjectId, candidate.PhotoId))));
++                if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
++                {
++                    ValidatePortfolioQuartet(design, usable);
++                }
+             }
+             var legacyCover = DeriveLegacyCover(design);
+ 
+@@ -458,9 +516,11 @@
+                 ? Array.Empty<PreferenceSavePayload>()
+                 : JsonSerializer.Deserialize<PreferenceSavePayload[]>(json, JsonOptions) ?? Array.Empty<PreferenceSavePayload>();
+         }
+-        catch (JsonException)
+-        {
+-            payloads = Array.Empty<PreferenceSavePayload>();
++        catch (JsonException exception)
++        {
++            throw new InvalidOperationException(
++                "The publication photo-preference payload is invalid. Reload the Cover Editor before saving.",
++                exception);
+         }
+ 
+         return payloads
+@@ -524,6 +584,107 @@
+             }
+         }
+         return result;
++    }
++
++    private static IReadOnlyList<CompendiumCoverAutomaticImagePolicy.Candidate> BuildAutomaticCandidates(
++        CompendiumPresetConfiguration configuration,
++        IReadOnlyList<CompendiumCandidateProjectVm> candidates,
++        IEnumerable<CompendiumPresetPhotoPreferenceConfiguration> preferences)
++    {
++        var candidateById = candidates.ToDictionary(item => item.ProjectId);
++        var sources = configuration.Projects
++            .Select((project, index) =>
++            {
++                candidateById.TryGetValue(project.ProjectId, out var candidate);
++                var coverPhotoId = project.PrimaryPhotoId ?? candidate?.DefaultPhotoId;
++                return new CompendiumCoverAutomaticImagePolicy.ProjectSource(
++                    project.ProjectId,
++                    coverPhotoId,
++                    project.PrimaryFocalX,
++                    project.PrimaryFocalY,
++                    index);
++            })
++            .ToArray();
++
++        return CompendiumCoverAutomaticImagePolicy.BuildCandidates(
++            sources,
++            preferences.Select(item => new CompendiumPhotoPreference(
++                item.ProjectId,
++                item.PhotoId,
++                item.PreferredForPublication,
++                item.SuitableForCoverHero)));
++    }
++
++    private static object ToClientAutomaticCandidate(
++        CompendiumCoverAutomaticImagePolicy.Candidate candidate)
++        => new
++        {
++            candidate.ProjectId,
++            candidate.PhotoId,
++            candidate.FocalX,
++            candidate.FocalY,
++            candidate.Priority
++        };
++
++    private static void ValidateRequiredImageSlots(
++        CompendiumCoverDesignConfiguration design,
++        IReadOnlySet<(int ProjectId, int PhotoId)> usable,
++        bool hasAutomaticCandidate)
++    {
++        var required = CompendiumCoverTemplatePolicy.ResolveSlots(design.FrontTemplate, design.BackTemplate)
++            .Where(slot => slot.Required)
++            .ToArray();
++        if (required.Length == 0)
++        {
++            return;
++        }
++
++        var configured = design.Images
++            .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
++            .ToDictionary(group => group.Key, group => group.First());
++
++        foreach (var requirement in required)
++        {
++            if (!configured.TryGetValue(
++                    (requirement.Surface, requirement.SlotKey.ToUpperInvariant()),
++                    out var slot)
++                || slot.ImageMode == CompendiumCoverImageMode.None)
++            {
++                throw new InvalidOperationException(
++                    $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} is required by the selected cover template.");
++            }
++
++            if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
++            {
++                if (slot.ProjectId is not int projectId
++                    || slot.PhotoId is not int photoId
++                    || !usable.Contains((projectId, photoId)))
++                {
++                    throw new InvalidOperationException(
++                        $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} is no longer usable. Choose another photograph.");
++                }
++            }
++            else if (!hasAutomaticCandidate)
++            {
++                throw new InvalidOperationException(
++                    $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} requires a usable photograph, but no publication image can currently be resolved.");
++            }
++        }
++    }
++
++    private static string CoverSlotDisplay(CompendiumCoverSurface surface, string slotKey)
++    {
++        var surfaceLabel = surface == CompendiumCoverSurface.Front ? "Front cover" : "Back cover";
++        var slotLabel = string.Equals(slotKey, "Hero", StringComparison.OrdinalIgnoreCase)
++            ? "hero image"
++            : string.Equals(slotKey, "Secondary1", StringComparison.OrdinalIgnoreCase)
++                ? "supporting image 1"
++                : string.Equals(slotKey, "Secondary2", StringComparison.OrdinalIgnoreCase)
++                    ? "supporting image 2"
++                    : string.Equals(slotKey, "Secondary3", StringComparison.OrdinalIgnoreCase)
++                        ? "supporting image 3"
++                        : $"image slot '{slotKey}'";
++        return $"{surfaceLabel} {slotLabel}";
+     }
+ 
+     private static void ValidatePortfolioQuartet(
+--- a/Pages/Projects/Publications/Compendium/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Index.cshtml.cs
+@@ -118,6 +118,8 @@
+             request.CoverDesign,
+             request.PhotoPreferences,
+             data.Groups.SelectMany(group => group.Projects).ToArray(),
++            request.Title,
++            request.Subtitle,
+             cancellationToken);
+         var coverBlockers = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Blocker);
+         var coverWarnings = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Warning);
+@@ -174,6 +176,8 @@
+         CompendiumCoverDesign? design,
+         IReadOnlyList<CompendiumPhotoPreference>? preferences,
+         IReadOnlyList<CompendiumProjectDto> projects,
++        string? publicationTitle,
++        string? publicationSubtitle,
+         CancellationToken cancellationToken)
+     {
+         if (design is null)
+@@ -182,6 +186,20 @@
+         }
+ 
+         var findings = new List<CompendiumFindingDto>();
++
++        var frontTitle = design.ShowFrontTitle ? design.FrontTitle ?? publicationTitle : null;
++        var frontSubtitle = design.ShowFrontSubtitle ? design.FrontSubtitle ?? publicationSubtitle : null;
++        var backTitle = design.ShowBackTitle ? design.BackTitle ?? publicationTitle : null;
++        var backSubtitle = design.ShowBackSubtitle ? design.BackSubtitle ?? publicationSubtitle : null;
++        if (CompendiumCoverTypographyPolicy.NeedsAdvisory(frontTitle, frontSubtitle)
++            || CompendiumCoverTypographyPolicy.NeedsAdvisory(backTitle, backSubtitle))
++        {
++            findings.Add(new CompendiumFindingDto(
++                CompendiumFindingSeverity.Warning,
++                "coverIdentityDense",
++                "Cover identity wording is unusually long. PRISM will reduce typography within the safe cover range; inspect the Front and Back proofs before final issue."));
++        }
++
+         foreach (var slot in design.Images.Where(item => item.ImageMode == CompendiumCoverImageMode.Explicit))
+         {
+             if (slot.ProjectId is > 0 && slot.PhotoId is > 0) continue;
+@@ -231,6 +249,55 @@
+             }
+         }
+ 
++        var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(
++            design.FrontTemplate,
++            design.BackTemplate)
++            .Where(slot => slot.Required)
++            .ToArray();
++        var configuredBySlot = design.Images
++            .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
++            .ToDictionary(group => group.Key, group => group.First());
++        var automaticCandidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(
++            projects,
++            preferences ?? Array.Empty<CompendiumPhotoPreference>());
++        IReadOnlyDictionary<int, BrochurePhotoProbe> automaticCandidateProbes =
++            automaticCandidates.Count == 0
++                ? new Dictionary<int, BrochurePhotoProbe>()
++                : await _photoService.ProbeAsync(
++                    automaticCandidates
++                        .Select(candidate => new BrochurePhotoReference(candidate.ProjectId, candidate.PhotoId))
++                        .Distinct()
++                        .ToArray(),
++                    cancellationToken);
++        var hasReadyAutomaticCandidate = automaticCandidates.Any(candidate =>
++            automaticCandidateProbes.TryGetValue(candidate.PhotoId, out var probe)
++            && probe.ProjectId == candidate.ProjectId
++            && probe.IsReady);
++
++        foreach (var requirement in requiredSlots)
++        {
++            if (!configuredBySlot.TryGetValue(
++                    (requirement.Surface, requirement.SlotKey.ToUpperInvariant()),
++                    out var slot)
++                || slot.ImageMode == CompendiumCoverImageMode.None)
++            {
++                findings.Add(new CompendiumFindingDto(
++                    CompendiumFindingSeverity.Blocker,
++                    "coverRequiredImageMissing",
++                    $"{CoverSlotDisplay(requirement.SlotKey)} is required by the selected {requirement.Surface.ToString().ToLowerInvariant()} cover template."));
++                continue;
++            }
++
++            if (slot.ImageMode == CompendiumCoverImageMode.Automatic
++                && !hasReadyAutomaticCandidate)
++            {
++                findings.Add(new CompendiumFindingDto(
++                    CompendiumFindingSeverity.Blocker,
++                    "coverAutomaticImageUnavailable",
++                    $"{CoverSlotDisplay(requirement.SlotKey)} requires a photograph, but no automatic cover image can currently be resolved."));
++            }
++        }
++
+         var needsFrontImagery = design.FrontTemplate != CompendiumFrontCoverTemplate.Minimal;
+         var hasAutomaticFrontSlot = design.Images.Any(item =>
+             item.Surface == CompendiumCoverSurface.Front
+@@ -252,17 +319,6 @@
+             var frontSlots = design.Images
+                 .Where(item => item.Surface == CompendiumCoverSurface.Front)
+                 .ToDictionary(item => item.SlotKey, StringComparer.OrdinalIgnoreCase);
+-
+-            foreach (var key in requiredKeys)
+-            {
+-                if (!frontSlots.TryGetValue(key, out var slot) || slot.ImageMode == CompendiumCoverImageMode.None)
+-                {
+-                    findings.Add(new CompendiumFindingDto(
+-                        CompendiumFindingSeverity.Blocker,
+-                        "portfolioQuartetIncomplete",
+-                        $"Portfolio Quartet requires {CoverSlotDisplay(key)}. Restore the image slot before final issue."));
+-                }
+-            }
+ 
+             var explicitQuartetRefs = frontSlots.Values
+                 .Where(item => requiredKeys.Contains(item.SlotKey, StringComparer.OrdinalIgnoreCase))
+@@ -1277,9 +1333,11 @@
+                 : JsonSerializer.Deserialize<List<CompendiumPhotoPreferencePayload>>(Input.PhotoPreferencesJson, JsonOptions)
+                   ?? new List<CompendiumPhotoPreferencePayload>();
+         }
+-        catch (JsonException)
+-        {
+-            payloads = Array.Empty<CompendiumPhotoPreferencePayload>();
++        catch (JsonException exception)
++        {
++            throw new InvalidOperationException(
++                "The publication photo-preference payload is invalid. Reload the Compendium before continuing.",
++                exception);
+         }
+ 
+         var selected = ParseSelectedIds().ToHashSet();
+--- a/Services/Compendiums/CompendiumExportService.cs
++++ b/Services/Compendiums/CompendiumExportService.cs
+@@ -260,7 +260,7 @@
+         var configuredBySlot = configured.Images
+             .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
+             .ToDictionary(group => group.Key, group => group.First());
+-        var candidates = BuildAutomaticCoverCandidates(projects, preferences);
++        var candidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(projects, preferences);
+         if (strictQuartet && candidates.Count > 0)
+         {
+             var probes = await _photoService.ProbeAsync(
+@@ -289,16 +289,29 @@
+                 .5d,
+                 CompendiumImageFitMode.Fill);
+ 
+-            var effectiveFitMode = CompendiumCoverTemplatePolicy.NormalizeFitMode(required.Surface, configured.FrontTemplate, slot.FitMode);
++            var effectiveFitMode = CompendiumCoverTemplatePolicy.NormalizeFitMode(
++                required.Surface,
++                configured.FrontTemplate,
++                slot.FitMode);
++
+             if (slot.ImageMode == CompendiumCoverImageMode.None)
+             {
+-                if (strictQuartet && required.Surface == CompendiumCoverSurface.Front)
+-                    throw new InvalidOperationException("Portfolio Quartet requires four valid photographs; image slots cannot be disabled.");
++                if (required.Required)
++                {
++                    throw new InvalidOperationException(
++                        $"{CoverSlotDisplay(required.Surface, required.SlotKey)} is required by the selected cover template.");
++                }
++
+                 rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
+                 continue;
+             }
+ 
+-            CoverCandidate? candidate = null;
++            var geometry = CompendiumCoverTemplatePolicy.ResolveGeometry(
++                configured.FrontTemplate,
++                configured.BackTemplate,
++                required.Surface,
++                required.SlotKey);
++
+             if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
+             {
+                 if (slot.ProjectId is not int explicitProject
+@@ -309,45 +322,29 @@
+                         $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' is no longer available in this Compendium.");
+                 }
+ 
+-                candidate = new CoverCandidate(explicitProject, explicitPhoto, slot.FocalX, slot.FocalY, 1000);
+                 if (strictQuartet && used.Contains((explicitProject, explicitPhoto)))
+-                    throw new InvalidOperationException("Portfolio Quartet requires four different photographs; the same photograph is assigned to more than one slot.");
+-            }
+-            else
+-            {
+-                candidate = candidates.FirstOrDefault(item =>
+-                                !used.Contains((item.ProjectId, item.PhotoId))
+-                                && !usedProjects.Contains(item.ProjectId))
+-                            ?? candidates.FirstOrDefault(item => !used.Contains((item.ProjectId, item.PhotoId)));
+-                if (!strictQuartet) candidate ??= candidates.FirstOrDefault();
+-            }
+-
+-            if (candidate is null)
+-            {
+-                if (strictQuartet && required.Surface == CompendiumCoverSurface.Front)
+-                    throw new InvalidOperationException("Portfolio Quartet requires four distinct usable photographs, but fewer than four can currently be resolved.");
+-                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
+-                continue;
+-            }
+-
+-            var geometry = CompendiumCoverTemplatePolicy.ResolveGeometry(configured.FrontTemplate, configured.BackTemplate, required.Surface, required.SlotKey);
+-            try
+-            {
++                {
++                    throw new InvalidOperationException(
++                        "Portfolio Quartet requires four different photographs; the same photograph is assigned to more than one slot.");
++                }
++
+                 var image = await _photoService.RenderAsync(
+                     new BrochurePhotoRenderRequest(
+-                        candidate.ProjectId,
+-                        candidate.PhotoId,
+-                        slot.ImageMode == CompendiumCoverImageMode.Explicit ? ClampFocal(slot.FocalX) : candidate.FocalX,
+-                        slot.ImageMode == CompendiumCoverImageMode.Explicit ? ClampFocal(slot.FocalY) : candidate.FocalY,
++                        explicitProject,
++                        explicitPhoto,
++                        ClampFocal(slot.FocalX),
++                        ClampFocal(slot.FocalY),
+                         geometry.Width,
+                         geometry.Height)
+                     {
+-                        FitMode = effectiveFitMode == CompendiumImageFitMode.Fit ? BrochurePhotoFitMode.Fit : BrochurePhotoFitMode.Fill,
++                        FitMode = effectiveFitMode == CompendiumImageFitMode.Fit
++                            ? BrochurePhotoFitMode.Fit
++                            : BrochurePhotoFitMode.Fill,
+                         PadFitToTarget = false
+                     },
+                     cancellationToken);
+-                if (slot.ImageMode == CompendiumCoverImageMode.Explicit
+-                    && image?.Content is not { Length: > 0 })
++
++                if (image?.Content is not { Length: > 0 })
+                 {
+                     throw new InvalidOperationException(
+                         $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' could not be rendered. Choose another image.");
+@@ -356,29 +353,92 @@
+                 rendered.Add(new CompendiumPdfCoverImage(
+                     required.Surface,
+                     required.SlotKey,
+-                    image?.Content,
++                    image.Content,
+                     effectiveFitMode,
+-                    candidate.ProjectId,
+-                    candidate.PhotoId));
+-                if (image?.Content is { Length: > 0 })
+-                {
++                    explicitProject,
++                    explicitPhoto));
++                used.Add((explicitProject, explicitPhoto));
++                usedProjects.Add(explicitProject);
++                continue;
++            }
++
++            var automaticSequence = candidates
++                .Where(candidate =>
++                    !used.Contains((candidate.ProjectId, candidate.PhotoId))
++                    && !usedProjects.Contains(candidate.ProjectId))
++                .Concat(candidates.Where(candidate =>
++                    !used.Contains((candidate.ProjectId, candidate.PhotoId))))
++                .Concat(strictQuartet ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>() : candidates)
++                .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
++                .Select(group => group.First())
++                .ToArray();
++
++            CompendiumPdfCoverImage? resolvedAutomatic = null;
++            foreach (var candidate in automaticSequence)
++            {
++                try
++                {
++                    var image = await _photoService.RenderAsync(
++                        new BrochurePhotoRenderRequest(
++                            candidate.ProjectId,
++                            candidate.PhotoId,
++                            candidate.FocalX,
++                            candidate.FocalY,
++                            geometry.Width,
++                            geometry.Height)
++                        {
++                            FitMode = effectiveFitMode == CompendiumImageFitMode.Fit
++                                ? BrochurePhotoFitMode.Fit
++                                : BrochurePhotoFitMode.Fill,
++                            PadFitToTarget = false
++                        },
++                        cancellationToken);
++
++                    if (image?.Content is not { Length: > 0 })
++                    {
++                        continue;
++                    }
++
++                    resolvedAutomatic = new CompendiumPdfCoverImage(
++                        required.Surface,
++                        required.SlotKey,
++                        image.Content,
++                        effectiveFitMode,
++                        candidate.ProjectId,
++                        candidate.PhotoId);
+                     used.Add((candidate.ProjectId, candidate.PhotoId));
+                     usedProjects.Add(candidate.ProjectId);
++                    break;
++                }
++                catch (OperationCanceledException)
++                {
++                    throw;
++                }
++                catch (Exception exception)
++                {
++                    _logger.LogWarning(
++                        exception,
++                        "Automatic Compendium cover candidate failed; trying the next ranked candidate. Surface={Surface}, Slot={Slot}, ProjectId={ProjectId}, PhotoId={PhotoId}.",
++                        required.Surface,
++                        required.SlotKey,
++                        candidate.ProjectId,
++                        candidate.PhotoId);
+                 }
+             }
+-            catch (OperationCanceledException)
+-            {
+-                throw;
++
++            if (resolvedAutomatic is not null)
++            {
++                rendered.Add(resolvedAutomatic);
++                continue;
+             }
+-            catch (Exception exception) when (slot.ImageMode != CompendiumCoverImageMode.Explicit)
+-            {
+-                _logger.LogWarning(exception,
+-                    "Compendium cover image could not be rendered. Surface={Surface}, Slot={Slot}, ProjectId={ProjectId}, PhotoId={PhotoId}.",
+-                    required.Surface, required.SlotKey, candidate.ProjectId, candidate.PhotoId);
+-                if (strictQuartet && required.Surface == CompendiumCoverSurface.Front)
+-                    throw new InvalidOperationException($"Portfolio Quartet image '{required.SlotKey}' could not be rendered. Choose another photograph.");
+-                rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
++
++            if (required.Required)
++            {
++                throw new InvalidOperationException(
++                    $"{CoverSlotDisplay(required.Surface, required.SlotKey)} could not be resolved from the available publication photography.");
+             }
++
++            rendered.Add(new CompendiumPdfCoverImage(required.Surface, required.SlotKey, null, effectiveFitMode));
+         }
+ 
+         if (strictQuartet)
+@@ -434,45 +494,20 @@
+                     CompendiumImageFitMode.Fill)
+             });
+ 
+-    private static IReadOnlyList<CoverCandidate> BuildAutomaticCoverCandidates(
+-        IReadOnlyList<CompendiumProjectDto> projects,
+-        IReadOnlyList<CompendiumPhotoPreference> preferences)
++    private static string CoverSlotDisplay(CompendiumCoverSurface surface, string slotKey)
+     {
+-        var preferencesByProject = preferences
+-            .GroupBy(item => item.ProjectId)
+-            .ToDictionary(group => group.Key, group => group.ToArray());
+-        var result = new List<CoverCandidate>();
+-        foreach (var project in projects)
+-        {
+-            if (preferencesByProject.TryGetValue(project.ProjectId, out var projectPreferences))
+-            {
+-                foreach (var preference in projectPreferences.Where(item => item.SuitableForCoverHero || item.PreferredForPublication))
+-                {
+-                    var priority = preference.SuitableForCoverHero ? 800 : 550;
+-                    var focalX = project.CoverPhotoId == preference.PhotoId ? project.PrimaryFocalX : .5d;
+-                    var focalY = project.CoverPhotoId == preference.PhotoId ? project.PrimaryFocalY : .5d;
+-                    result.Add(new CoverCandidate(project.ProjectId, preference.PhotoId, focalX, focalY,
+-                        priority + (project.IsReviewed ? 25 : 0) + Math.Min(40, (project.EffectiveDpi ?? 0) / 10)));
+-                }
+-            }
+-
+-            if (project.CoverPhotoId is int photoId)
+-            {
+-                result.Add(new CoverCandidate(
+-                    project.ProjectId,
+-                    photoId,
+-                    project.PrimaryFocalX,
+-                    project.PrimaryFocalY,
+-                    220 + CoverHeroSourcePriority(project.CoverPhotoSource) * 25 + (project.IsReviewed ? 15 : 0) + Math.Min(30, (project.EffectiveDpi ?? 0) / 10) - ((project.EffectiveDpi ?? 200) < CompendiumImageQualityPolicy.MinimumLargeImageDpi ? 90 : 0)));
+-            }
+-        }
+-        return result
+-            .GroupBy(item => (item.ProjectId, item.PhotoId))
+-            .Select(group => group.OrderByDescending(item => item.Priority).First())
+-            .OrderByDescending(item => item.Priority)
+-            .ToArray();
++        var surfaceLabel = surface == CompendiumCoverSurface.Front ? "Front cover" : "Back cover";
++        var slotLabel = string.Equals(slotKey, "Hero", StringComparison.OrdinalIgnoreCase)
++            ? "hero image"
++            : string.Equals(slotKey, "Secondary1", StringComparison.OrdinalIgnoreCase)
++                ? "supporting image 1"
++                : string.Equals(slotKey, "Secondary2", StringComparison.OrdinalIgnoreCase)
++                    ? "supporting image 2"
++                    : string.Equals(slotKey, "Secondary3", StringComparison.OrdinalIgnoreCase)
++                        ? "supporting image 3"
++                        : $"image slot '{slotKey}'";
++        return $"{surfaceLabel} {slotLabel}";
+     }
+-
+ 
+     private static (int Width, int Height) ResolveDossierSlotGeometry(
+         CompendiumDossierLayout layout,
+@@ -514,8 +549,6 @@
+ 
+         return (1800, HeightFor(1800, CompendiumLayoutMetrics.ContentWidthPoints, primaryImageHeightPoints));
+     }
+-
+-    private sealed record CoverCandidate(int ProjectId, int PhotoId, double FocalX, double FocalY, int Priority);
+ 
+     private static IReadOnlyList<CompendiumProjectSelection> ResolveSelections(CompendiumExportRequest request)
+     {
+--- a/Services/Compendiums/CompendiumCoverAutomaticImagePolicy.cs
++++ b/Services/Compendiums/CompendiumCoverAutomaticImagePolicy.cs
+@@ -0,0 +1,105 @@
++namespace ProjectManagement.Services.Compendiums;
++
++/// <summary>
++/// Deterministic cover-image ranking shared by the Cover Editor and final PDF export.
++/// The policy intentionally relies only on publication state that exists in both paths,
++/// preventing browser/export drift from separate ranking algorithms.
++/// </summary>
++public static class CompendiumCoverAutomaticImagePolicy
++{
++    public sealed record ProjectSource(
++        int ProjectId,
++        int? CoverPhotoId,
++        double FocalX,
++        double FocalY,
++        int SortOrder);
++
++    public sealed record Candidate(
++        int ProjectId,
++        int PhotoId,
++        double FocalX,
++        double FocalY,
++        int Priority);
++
++    private const int SuitablePriority = 800_000;
++    private const int PreferredPriority = 550_000;
++    private const int ResolvedCoverPriority = 220_000;
++
++    public static IReadOnlyList<Candidate> BuildCandidates(
++        IEnumerable<ProjectSource> projects,
++        IEnumerable<CompendiumPhotoPreference>? preferences)
++    {
++        var sourceByProject = projects
++            .Where(project => project.ProjectId > 0)
++            .GroupBy(project => project.ProjectId)
++            .Select(group => group.OrderBy(project => project.SortOrder).First())
++            .ToDictionary(project => project.ProjectId);
++
++        var candidates = new List<Candidate>();
++        foreach (var preference in preferences ?? Array.Empty<CompendiumPhotoPreference>())
++        {
++            if (!sourceByProject.TryGetValue(preference.ProjectId, out var source)
++                || preference.PhotoId <= 0
++                || (!preference.SuitableForCoverHero && !preference.PreferredForPublication))
++            {
++                continue;
++            }
++
++            var basePriority = preference.SuitableForCoverHero
++                ? SuitablePriority
++                : PreferredPriority;
++            var focalX = source.CoverPhotoId == preference.PhotoId ? ClampFocal(source.FocalX) : .5d;
++            var focalY = source.CoverPhotoId == preference.PhotoId ? ClampFocal(source.FocalY) : .5d;
++            candidates.Add(new Candidate(
++                source.ProjectId,
++                preference.PhotoId,
++                focalX,
++                focalY,
++                ApplyStableOrder(basePriority, source.SortOrder)));
++        }
++
++        foreach (var source in sourceByProject.Values)
++        {
++            if (source.CoverPhotoId is not int photoId || photoId <= 0)
++            {
++                continue;
++            }
++
++            candidates.Add(new Candidate(
++                source.ProjectId,
++                photoId,
++                ClampFocal(source.FocalX),
++                ClampFocal(source.FocalY),
++                ApplyStableOrder(ResolvedCoverPriority, source.SortOrder)));
++        }
++
++        return candidates
++            .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
++            .Select(group => group
++                .OrderByDescending(candidate => candidate.Priority)
++                .First())
++            .OrderByDescending(candidate => candidate.Priority)
++            .ThenBy(candidate => sourceByProject[candidate.ProjectId].SortOrder)
++            .ThenBy(candidate => candidate.ProjectId)
++            .ThenBy(candidate => candidate.PhotoId)
++            .ToArray();
++    }
++
++    public static IReadOnlyList<Candidate> BuildCandidates(
++        IReadOnlyList<CompendiumProjectDto> projects,
++        IReadOnlyList<CompendiumPhotoPreference>? preferences)
++        => BuildCandidates(
++            projects.Select((project, index) => new ProjectSource(
++                project.ProjectId,
++                project.CoverPhotoId,
++                project.PrimaryFocalX,
++                project.PrimaryFocalY,
++                project.SortOrder == 0 ? index : project.SortOrder)),
++            preferences);
++
++    private static int ApplyStableOrder(int priority, int sortOrder)
++        => priority - Math.Clamp(sortOrder, 0, 99_999);
++
++    private static double ClampFocal(double value)
++        => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
++}
+--- a/Services/Compendiums/CompendiumCoverTypographyPolicy.cs
++++ b/Services/Compendiums/CompendiumCoverTypographyPolicy.cs
+@@ -0,0 +1,79 @@
++namespace ProjectManagement.Services.Compendiums;
++
++/// <summary>
++/// Conservative cover-identity fitting policy shared by browser proof and PDF composition.
++/// It reduces typography only when wording pressure warrants it and never silently truncates text.
++/// </summary>
++public static class CompendiumCoverTypographyPolicy
++{
++    public const int TitleSoftLength = 42;
++    public const int TitleMediumLength = 70;
++    public const int TitleLongLength = 95;
++    public const float MinimumTitleSize = 21f;
++    public const int SubtitleSoftLength = 105;
++    public const int SubtitleLongLength = 145;
++    public const float MinimumSubtitleSize = 12.5f;
++
++    public static float ResolveTitleSize(string? title, float preferredSize)
++    {
++        var length = NormalizedLength(title);
++        var reduction = length switch
++        {
++            > TitleLongLength => 6f,
++            > TitleMediumLength => 4f,
++            > TitleSoftLength => 2f,
++            _ => 0f
++        };
++        return Math.Max(MinimumTitleSize, preferredSize - reduction);
++    }
++
++    public static float ResolveSubtitleSize(string? subtitle, float preferredSize = 14f)
++    {
++        var length = NormalizedLength(subtitle);
++        var reduction = length switch
++        {
++            > SubtitleLongLength => 1.5f,
++            > SubtitleSoftLength => 1f,
++            _ => 0f
++        };
++        return Math.Max(MinimumSubtitleSize, preferredSize - reduction);
++    }
++
++    public static bool NeedsAdvisory(string? title, string? subtitle)
++        => NormalizedLength(title) > TitleLongLength
++           || NormalizedLength(subtitle) > SubtitleLongLength;
++
++    public static object BuildClientContract()
++        => new
++        {
++            titleSoftLength = TitleSoftLength,
++            titleMediumLength = TitleMediumLength,
++            titleLongLength = TitleLongLength,
++            minimumTitleSize = MinimumTitleSize,
++            subtitleSoftLength = SubtitleSoftLength,
++            subtitleLongLength = SubtitleLongLength,
++            minimumSubtitleSize = MinimumSubtitleSize,
++            frontTitleSizes = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
++            {
++                [CompendiumFrontCoverTemplate.InstitutionalHero.ToString()] = 34f,
++                [CompendiumFrontCoverTemplate.FullBleedHero.ToString()] = 33f,
++                [CompendiumFrontCoverTemplate.EditorialSplit.ToString()] = 31f,
++                [CompendiumFrontCoverTemplate.Triptych.ToString()] = 29f,
++                [CompendiumFrontCoverTemplate.PortfolioQuartet.ToString()] = 28f,
++                [CompendiumFrontCoverTemplate.Minimal.ToString()] = 34f
++            },
++            backTitleSizes = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
++            {
++                [CompendiumBackCoverTemplate.MinimalInstitutional.ToString()] = 24f,
++                [CompendiumBackCoverTemplate.ImageEcho.ToString()] = 25f,
++                [CompendiumBackCoverTemplate.PortfolioStrip.ToString()] = 25f,
++                [CompendiumBackCoverTemplate.TypographyOnly.ToString()] = 25f,
++                [CompendiumBackCoverTemplate.Clean.ToString()] = 27f
++            }
++        };
++
++    private static int NormalizedLength(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            ? 0
++            : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Length;
++}
+--- a/Utilities/Reporting/CompendiumPdfReportBuilder.cs
++++ b/Utilities/Reporting/CompendiumPdfReportBuilder.cs
+@@ -589,6 +589,9 @@
+ 
+     private static void ComposeCoverIdentity(IContainer container, string? eyebrow, string? title, string? subtitle, string? edition, float titleSize, CompendiumCoverIdentityPolicy.ThemeDefinition theme)
+     {
++        var resolvedTitleSize = CompendiumCoverTypographyPolicy.ResolveTitleSize(title, titleSize);
++        var resolvedSubtitleSize = CompendiumCoverTypographyPolicy.ResolveSubtitleSize(subtitle);
++
+         container.Column(column =>
+         {
+             column.Spacing(10);
+@@ -598,10 +601,13 @@
+             }
+             if (!string.IsNullOrWhiteSpace(title))
+             {
+-                column.Item().Text(title!).FontSize(titleSize).SemiBold().LineHeight(1.04f).FontColor(theme.Foreground);
++                column.Item().Text(title!).FontSize(resolvedTitleSize).SemiBold().LineHeight(1.04f).FontColor(theme.Foreground);
+                 column.Item().Width(128).Height(3).Background(Gold);
+             }
+-            if (!string.IsNullOrWhiteSpace(subtitle)) column.Item().Text(subtitle!).FontSize(14).LineHeight(1.18f).FontColor(theme.MutedForeground);
++            if (!string.IsNullOrWhiteSpace(subtitle))
++            {
++                column.Item().Text(subtitle!).FontSize(resolvedSubtitleSize).LineHeight(1.18f).FontColor(theme.MutedForeground);
++            }
+             if (!string.IsNullOrWhiteSpace(edition)) column.Item().Text(edition!).FontSize(10.5f).SemiBold().FontColor(GoldSoft);
+         });
+     }
+--- a/wwwroot/js/pages/projects-compendium.js
++++ b/wwwroot/js/pages/projects-compendium.js
+@@ -107,9 +107,15 @@
+     const normalizeCoverTemplate = value => String(value || "InstitutionalHero").trim() || "InstitutionalHero";
+     const normalizeBackTemplate = value => String(value || "MinimalInstitutional").trim() || "MinimalInstitutional";
+     const coverDesignSeed = parseHiddenJson(coverDesignInput, {});
++    // Preserve the complete server-authored cover DTO. The Compendium workspace edits only
++    // a subset of cover fields, but it must round-trip every persisted property so a Preview
++    // or later Save cannot silently reset theme/background or future cover capabilities.
+     const coverDesignState = {
++        ...(coverDesignSeed && typeof coverDesignSeed === "object" ? coverDesignSeed : {}),
+         frontTemplate: normalizeCoverTemplate(coverDesignSeed?.frontTemplate),
+         backTemplate: normalizeBackTemplate(coverDesignSeed?.backTemplate),
++        publicationTheme: String(coverDesignSeed?.publicationTheme || "InstitutionalGreen"),
++        backgroundTreatment: String(coverDesignSeed?.backgroundTreatment || "Solid"),
+         frontTitle: coverDesignSeed?.frontTitle ?? null, frontSubtitle: coverDesignSeed?.frontSubtitle ?? null, frontEdition: coverDesignSeed?.frontEdition ?? null, frontEyebrow: coverDesignSeed?.frontEyebrow ?? null,
+         backTitle: coverDesignSeed?.backTitle ?? null, backSubtitle: coverDesignSeed?.backSubtitle ?? null, backEdition: coverDesignSeed?.backEdition ?? null, backEyebrow: coverDesignSeed?.backEyebrow ?? null,
+         showFrontTitle: coverDesignSeed?.showFrontTitle !== false, showFrontSubtitle: coverDesignSeed?.showFrontSubtitle !== false, showFrontEdition: coverDesignSeed?.showFrontEdition !== false,
+--- a/wwwroot/js/pages/projects-compendium-cover-editor.js
++++ b/wwwroot/js/pages/projects-compendium-cover-editor.js
+@@ -38,6 +38,17 @@
+ 
+     const coverPolicy = boot.coverPolicy || { front: [], back: [] };
+     const identityPolicy = boot.coverIdentityPolicy || { themes: [], backgrounds: [], compatibility: {} };
++    const typographyPolicy = boot.coverTypographyPolicy || {
++        titleSoftLength: 42,
++        titleMediumLength: 70,
++        titleLongLength: 95,
++        minimumTitleSize: 21,
++        subtitleSoftLength: 105,
++        subtitleLongLength: 145,
++        minimumSubtitleSize: 12.5,
++        frontTitleSizes: {},
++        backTitleSizes: {}
++    };
+     const themeDefinition = key => (identityPolicy.themes || []).find(item => item.key === key)
+         || (identityPolicy.themes || [])[0]
+         || { key: 'InstitutionalGreen', displayName: 'Institutional Green', shortName: 'Green', primary: '#102A23', secondary: '#17382F', surface: '#21483D', foreground: '#FFFFFF', mutedForeground: '#D7E3DE', patternLight: '#769A8C', patternDark: '#091D18' };
+@@ -61,6 +72,8 @@
+         photoCache: new Map(),
+         previewCache: new Map(),
+         autoResolved: new Map(),
++        automaticCandidates: normaliseAutomaticCandidates(boot.automaticCandidates || []),
++        automaticCandidatesDirty: false,
+         hydrationVersions: new Map(),
+         overrideEditing: new Set(),
+         dirty: false,
+@@ -86,8 +99,27 @@
+         state.design.backgroundTreatment = 'Solid';
+     }
+ 
+-    const initialSignature = () => JSON.stringify({ design: state.design, preferences: state.preferences });
+-    let savedSignature = initialSignature();
++    function buildCoverSavePayload() {
++        return {
++            ...state.design,
++            images: (state.design.images || []).map(item => {
++                const { previewUrl, sourceWidth, sourceHeight, ...persisted } = item;
++                return persisted;
++            })
++        };
++    }
++
++    function buildPreferenceSavePayload() {
++        return normalisePreferences(state.preferences)
++            .slice()
++            .sort((left, right) => left.projectId - right.projectId || left.photoId - right.photoId);
++    }
++
++    const persistedSignature = () => JSON.stringify({
++        design: buildCoverSavePayload(),
++        preferences: buildPreferenceSavePayload()
++    });
++    let savedSignature = persistedSignature();
+ 
+     const templatePolicy = (surface, template = null) => {
+         const list = surface === 'front' ? coverPolicy.front : coverPolicy.back;
+@@ -154,6 +186,19 @@
+         return Array.from(map.values());
+     }
+ 
++    function normaliseAutomaticCandidates(values) {
++        return (Array.isArray(values) ? values : [])
++            .map(item => ({
++                projectId: Number(item.projectId),
++                photoId: Number(item.photoId),
++                focalX: clamp01(item.focalX),
++                focalY: clamp01(item.focalY),
++                priority: Number(item.priority) || 0
++            }))
++            .filter(item => item.projectId > 0 && item.photoId > 0)
++            .sort((left, right) => right.priority - left.priority || left.projectId - right.projectId || left.photoId - right.photoId);
++    }
++
+     function surfacePrefix(surface = state.activeSurface) { return surface === 'front' ? 'front' : 'back'; }
+     function isFront(surface = state.activeSurface) { return surface === 'front'; }
+     function currentTemplate(surface = state.activeSurface) { return isFront(surface) ? state.design.frontTemplate : state.design.backTemplate; }
+@@ -173,7 +218,8 @@
+         if (!isQuartet('front')) return true;
+         const refs = new Set();
+         for (const key of strictRequiredSlots('front')) {
+-            const slot = ensureSlot('front', key);
++            const slot = findSlot('front', key);
++            if (!slot) return false;
+             if (slot.imageMode === 'None' || !slot.previewUrl) return false;
+             const auto = state.autoResolved.get(automaticSlotKey('front', key));
+             const projectId = Number(slot.imageMode === 'Explicit' ? slot.projectId : auto?.projectId);
+@@ -197,11 +243,28 @@
+         return item;
+     }
+ 
++    function requiredSlotsConfigured(surface) {
++        const required = strictRequiredSlots(surface);
++        if (!required.length) return true;
++        return required.every(key => {
++            const slot = findSlot(surface, key);
++            if (!slot || slot.imageMode === 'None') return false;
++            if (slot.imageMode === 'Explicit') return !!Number(slot.projectId) && !!Number(slot.photoId);
++            return state.automaticCandidates.length > 0;
++        });
++    }
++
++    function coverReadyForSave() {
++        return requiredSlotsConfigured('front')
++            && requiredSlotsConfigured('back')
++            && quartetResolved();
++    }
++
+     function setDirty() {
+-        const signature = initialSignature();
++        const signature = persistedSignature();
+         state.dirty = signature !== savedSignature;
+         const save = by('[data-cover-save]');
+-        if (save) save.disabled = !state.dirty || !boot.canManage || !quartetResolved();
++        if (save) save.disabled = !state.dirty || !boot.canManage || !coverReadyForSave();
+         const saveState = by('[data-cover-save-state]');
+         if (saveState) {
+             saveState.classList.toggle('is-modified', state.dirty);
+@@ -410,8 +473,13 @@
+                     : auto?.projectId
+                         ? `Automatic · ${projectName(auto.projectId) || 'ranked photograph'}`
+                         : 'Automatic selection';
++            const resolvedFocal = slot.imageMode === 'Automatic'
++                ? state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey))
++                : null;
++            const previewFocalX = resolvedFocal?.focalX ?? slot.focalX;
++            const previewFocalY = resolvedFocal?.focalY ?? slot.focalY;
+             const preview = slot.previewUrl
+-                ? `<img src="${escapeHtml(slot.previewUrl)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${slot.focalX * 100}% ${slot.focalY * 100}%" />`
++                ? `<img src="${escapeHtml(slot.previewUrl)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${previewFocalX * 100}% ${previewFocalY * 100}%" />`
+                 : `<span class="compendium-cover-slot-placeholder"><i class="bi ${slot.imageMode === 'None' ? 'bi-image-alt' : 'bi-stars'}"></i></span>`;
+             row.innerHTML = `
+                 <div class="compendium-cover-slot-thumb">${preview}</div>
+@@ -470,6 +538,39 @@
+         applyProofZoom(true);
+     }
+ 
++    function preferredTitleSize(surface, template) {
++        const source = surface === 'front' ? typographyPolicy.frontTitleSizes : typographyPolicy.backTitleSizes;
++        return Number(source?.[template]) || (surface === 'front' ? 34 : 25);
++    }
++
++    function resolveTitleSize(title, preferred) {
++        const length = clean(title).replace(/\s+/g, ' ').length;
++        let reduction = 0;
++        if (length > Number(typographyPolicy.titleLongLength || 95)) reduction = 6;
++        else if (length > Number(typographyPolicy.titleMediumLength || 70)) reduction = 4;
++        else if (length > Number(typographyPolicy.titleSoftLength || 42)) reduction = 2;
++        return Math.max(Number(typographyPolicy.minimumTitleSize || 21), preferred - reduction);
++    }
++
++    function resolveSubtitleSize(subtitle) {
++        const length = clean(subtitle).replace(/\s+/g, ' ').length;
++        let reduction = 0;
++        if (length > Number(typographyPolicy.subtitleLongLength || 145)) reduction = 1.5;
++        else if (length > Number(typographyPolicy.subtitleSoftLength || 105)) reduction = 1;
++        return Math.max(Number(typographyPolicy.minimumSubtitleSize || 12.5), 14 - reduction);
++    }
++
++    function updateIdentityAdvisory(title, subtitle) {
++        const node = by('[data-cover-title-advisory]');
++        if (!node) return;
++        const dense = clean(title).replace(/\s+/g, ' ').length > Number(typographyPolicy.titleLongLength || 95)
++            || clean(subtitle).replace(/\s+/g, ' ').length > Number(typographyPolicy.subtitleLongLength || 145);
++        node.hidden = !dense;
++        node.textContent = dense
++            ? 'Dense cover wording: PRISM has reduced cover typography within the approved range. Review the proof before final issue.'
++            : '';
++    }
++
+     function renderProof() {
+         const surface = state.proofSurface;
+         const front = surface === 'front';
+@@ -499,9 +600,17 @@
+             if (!slot) return '';
+             const src = slot.previewUrl;
+             if (!src) return `<div class="cover-proof-image ${cls} cover-proof-image--empty"><i class="bi bi-image"></i><span>${slot.imageMode === 'None' ? 'No imagery' : 'Automatic imagery'}</span></div>`;
+-            return `<div class="cover-proof-image ${cls}"><img src="${escapeHtml(src)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${slot.focalX * 100}% ${slot.focalY * 100}%" /></div>`;
++            const resolved = slot.imageMode === 'Automatic'
++                ? state.autoResolved.get(automaticSlotKey(surface, slot.slotKey))
++                : null;
++            const focalX = resolved?.focalX ?? slot.focalX;
++            const focalY = resolved?.focalY ?? slot.focalY;
++            return `<div class="cover-proof-image ${cls}"><img src="${escapeHtml(src)}" alt="" style="object-fit:${slot.fitMode === 'Fit' ? 'contain' : 'cover'};object-position:${focalX * 100}% ${focalY * 100}%" /></div>`;
+         };
+-        const identity = `<div class="cover-proof-identity">${eyebrow ? `<small>${escapeHtml(eyebrow)}</small>` : ''}${title ? `<h3>${escapeHtml(title)}</h3>` : ''}${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}${edition ? `<b>${escapeHtml(edition)}</b>` : ''}</div>`;
++        const titleSize = resolveTitleSize(title, preferredTitleSize(surface, template));
++        const subtitleSize = resolveSubtitleSize(subtitle);
++        const identity = `<div class="cover-proof-identity">${eyebrow ? `<small>${escapeHtml(eyebrow)}</small>` : ''}${title ? `<h3 style="font-size:${titleSize}px">${escapeHtml(title)}</h3>` : ''}${subtitle ? `<p style="font-size:${subtitleSize}px">${escapeHtml(subtitle)}</p>` : ''}${edition ? `<b>${escapeHtml(edition)}</b>` : ''}</div>`;
++        updateIdentityAdvisory(title, subtitle);
+ 
+         if (front) {
+             switch (template) {
+@@ -566,6 +675,39 @@
+         } else state.autoResolved.clear();
+     }
+ 
++    async function ensureAutomaticCandidates() {
++        if (!state.automaticCandidatesDirty || !boot.automaticCandidatesUrl) return;
++        const form = new FormData();
++        form.set('presetId', String(boot.preset?.id || 0));
++        form.set('photoPreferencesJson', JSON.stringify(buildPreferenceSavePayload()));
++        if (csrf) form.set('__RequestVerificationToken', csrf);
++        const response = await fetch(boot.automaticCandidatesUrl, {
++            method: 'POST',
++            headers: { 'X-Requested-With': 'XMLHttpRequest' },
++            body: form
++        });
++        const result = await safeJson(response);
++        if (!response.ok) throw new Error(result?.message || 'Automatic cover imagery could not be refreshed.');
++        state.automaticCandidates = normaliseAutomaticCandidates(result?.candidates || []);
++        state.automaticCandidatesDirty = false;
++    }
++
++    function automaticCandidateSequence(surface, usedProjects = new Set(), usedPhotos = new Set()) {
++        const candidates = state.automaticCandidates || [];
++        const unique = new Map();
++        const append = item => {
++            const key = `${item.projectId}:${item.photoId}`;
++            if (!usedPhotos.has(key) && !unique.has(key)) unique.set(key, item);
++        };
++        candidates.filter(item => !usedProjects.has(item.projectId)).forEach(append);
++        candidates.forEach(append);
++        if (!isQuartet(surface)) candidates.forEach(item => {
++            const key = `${item.projectId}:${item.photoId}`;
++            if (!unique.has(key)) unique.set(key, item);
++        });
++        return Array.from(unique.values());
++    }
++
+     async function hydrateVisibleSlotPreviews(surface = state.activeSurface) {
+         const hydrationVersion = (state.hydrationVersions.get(surface) || 0) + 1;
+         state.hydrationVersions.set(surface, hydrationVersion);
+@@ -575,8 +717,13 @@
+         const usedPhotos = new Set();
+         const usedProjects = new Set();
+ 
+-        // Explicitly curated imagery always wins. Automatic slots avoid those assets and projects
+-        // where a different suitable project is available.
++        try {
++            await ensureAutomaticCandidates();
++        } catch {
++            // Preserve the last server-resolved candidate set if refresh fails.
++        }
++        if (!isCurrentHydration()) return;
++
+         state.design.images.forEach(slot => {
+             if (slot.imageMode !== 'Explicit' || !slot.projectId || !slot.photoId) return;
+             usedPhotos.add(`${Number(slot.projectId)}:${Number(slot.photoId)}`);
+@@ -593,36 +740,49 @@
+             if (slot.imageMode === 'None') continue;
+             if (slot.imageMode === 'Explicit' && slot.previewUrl) continue;
+             if (slot.imageMode === 'Automatic' && slot.previewUrl && state.autoResolved.has(key)) continue;
++
+             try {
+-                let projectId = slot.projectId;
+-                let photoId = slot.photoId;
+-                if (slot.imageMode !== 'Explicit') {
+-                    const preferred = chooseAutomaticCandidate(surface, usedProjects, usedPhotos);
+-                    projectId = preferred?.projectId || null;
+-                    photoId = preferred?.photoId || null;
++                if (slot.imageMode === 'Explicit') {
++                    if (!slot.projectId || !slot.photoId) continue;
++                    const photos = await loadProjectPhotos(slot.projectId);
++                    if (!isCurrentHydration()) return;
++                    const photo = photos.find(item => Number(item.photoId) === Number(slot.photoId));
++                    if (!photo) continue;
++                    slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
++                    slot.sourceWidth = photo.width;
++                    slot.sourceHeight = photo.height;
++                    changed = true;
++                    continue;
+                 }
+-                if (!projectId) continue;
+-                const photos = await loadProjectPhotos(projectId);
+-                if (!isCurrentHydration()) return;
+-                let photo = photoId ? photos.find(item => Number(item.photoId) === Number(photoId)) : null;
+-                photo ??= photos.find(item => item.isCover && !usedPhotos.has(`${Number(projectId)}:${Number(item.photoId)}`));
+-                photo ??= photos.find(item => !usedPhotos.has(`${Number(projectId)}:${Number(item.photoId)}`));
+-                if (!isQuartet(surface)) photo ??= photos.find(item => item.isCover) || photos[0];
+-                if (!photo) continue;
+-                slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+-                slot.sourceWidth = photo.width;
+-                slot.sourceHeight = photo.height;
+-                if (slot.imageMode === 'Explicit') {
+-                    if (!slot.photoId) slot.photoId = photo.photoId;
+-                } else {
+-                    const resolved = { projectId: Number(projectId), photoId: Number(photo.photoId) };
++
++                const sequence = automaticCandidateSequence(surface, usedProjects, usedPhotos);
++                for (const candidate of sequence) {
++                    const photos = await loadProjectPhotos(candidate.projectId);
++                    if (!isCurrentHydration()) return;
++                    const photo = photos.find(item => Number(item.photoId) === Number(candidate.photoId));
++                    if (!photo) continue;
++
++                    slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
++                    slot.sourceWidth = photo.width;
++                    slot.sourceHeight = photo.height;
++                    const resolved = {
++                        projectId: Number(candidate.projectId),
++                        photoId: Number(candidate.photoId),
++                        focalX: clamp01(candidate.focalX),
++                        focalY: clamp01(candidate.focalY),
++                        priority: Number(candidate.priority) || 0
++                    };
+                     state.autoResolved.set(key, resolved);
+                     usedProjects.add(resolved.projectId);
+                     usedPhotos.add(`${resolved.projectId}:${resolved.photoId}`);
++                    changed = true;
++                    break;
+                 }
+-                changed = true;
+-            } catch { /* automatic preview is best-effort */ }
+-        }
++            } catch {
++                // Automatic preview hydration is best-effort; final export applies the same ranked fallback sequence.
++            }
++        }
++
+         if (changed && isCurrentHydration()) {
+             renderProof();
+             if (surface === state.activeSurface) renderSlotsWithoutHydration();
+@@ -631,36 +791,7 @@
+     }
+ 
+     function renderSlotsWithoutHydration() {
+-        const original = hydrateVisibleSlotPreviews;
+-        // renderSlots will schedule hydration again but populated preview URLs make it a no-op.
+         renderSlots();
+-    }
+-
+-    function chooseAutomaticCandidate(surface, usedProjects = new Set(), usedPhotos = new Set()) {
+-        const candidates = [];
+-        const seen = new Set();
+-        const add = (candidate, priority) => {
+-            const projectId = Number(candidate?.projectId);
+-            const photoId = Number(candidate?.photoId) || null;
+-            if (!projectId) return;
+-            const key = `${projectId}:${photoId || 0}`;
+-            if (seen.has(key)) return;
+-            seen.add(key);
+-            candidates.push({ projectId, photoId, priority });
+-        };
+-        state.preferences.forEach(item => {
+-            if (item.suitableForCoverHero) add(item, 500);
+-            else if (item.preferredForPublication) add(item, 350);
+-        });
+-        state.projects.forEach((project, index) => {
+-            if (project.primaryPhotoId) add({ projectId: project.projectId, photoId: project.primaryPhotoId }, 160 - index / 1000);
+-            else if (project.photoCount > 0) add({ projectId: project.projectId, photoId: null }, 80 - index / 1000);
+-        });
+-        candidates.sort((a, b) => b.priority - a.priority);
+-        return candidates.find(item => !usedProjects.has(item.projectId) && (!item.photoId || !usedPhotos.has(`${item.projectId}:${item.photoId}`)))
+-            || candidates.find(item => !item.photoId || !usedPhotos.has(`${item.projectId}:${item.photoId}`))
+-            || (isQuartet(surface) ? null : candidates[0])
+-            || null;
+     }
+ 
+     async function openPhotoPicker(slotKey) {
+@@ -682,9 +813,10 @@
+         if (photoState) photoState.textContent = 'Select a project to view its publication photographs.';
+         const noneButton = portalBy('[data-cover-slot-none]');
+         if (noneButton) {
+-            const required = isQuartet(state.activeSurface);
++            const required = strictRequiredSlots(state.activeSurface)
++                .some(key => key.toLowerCase() === slotKey.toLowerCase());
+             noneButton.disabled = required;
+-            noneButton.title = required ? 'Portfolio Quartet requires all four image slots.' : '';
++            noneButton.title = required ? 'This image slot is required by the selected cover template.' : '';
+         }
+         modal('compendiumCoverPhotoModal')?.show();
+         if (selectedProjectId) await renderProjectPhotos(selectedProjectId);
+@@ -741,6 +873,7 @@
+         if (kind === 'hero') item.suitableForCoverHero = checked;
+         else item.preferredForPublication = checked;
+         if (!item.preferredForPublication && !item.suitableForCoverHero) state.preferences = state.preferences.filter(pref => pref !== item);
++        state.automaticCandidatesDirty = true;
+         clearAutomaticResolutions();
+         setDirty();
+         renderSlots();
+@@ -810,6 +943,8 @@
+         slot.imageMode = 'Explicit';
+         slot.projectId = Number(resolved.projectId);
+         slot.photoId = Number(resolved.photoId);
++        slot.focalX = clamp01(resolved.focalX);
++        slot.focalY = clamp01(resolved.focalY);
+         slot.previewUrl = photo?.previewUrl || photo?.thumbnailUrl || slot.previewUrl;
+         slot.sourceWidth = photo?.width || slot.sourceWidth;
+         slot.sourceHeight = photo?.height || slot.sourceHeight;
+@@ -844,8 +979,8 @@
+ 
+     async function save() {
+         if (!boot.canManage || !state.dirty) return true;
+-        if (!quartetResolved()) {
+-            window.alert('Portfolio Quartet requires four distinct usable photographs before it can be saved.');
++        if (!coverReadyForSave()) {
++            window.alert('The selected cover template has required image slots that are not currently resolvable. Restore or choose the required imagery before saving.');
+             return false;
+         }
+         const button = by('[data-cover-save]');
+@@ -854,8 +989,8 @@
+             const form = new FormData();
+             form.set('presetId', String(boot.preset?.id || 0));
+             form.set('rowVersion', state.rowVersion || '');
+-            form.set('coverJson', JSON.stringify(state.design));
+-            form.set('photoPreferencesJson', JSON.stringify(state.preferences));
++            form.set('coverJson', JSON.stringify(buildCoverSavePayload()));
++            form.set('photoPreferencesJson', JSON.stringify(buildPreferenceSavePayload()));
+             if (csrf) form.set('__RequestVerificationToken', csrf);
+             const response = await fetch(boot.saveUrl, {
+                 method: 'POST',
+@@ -868,9 +1003,10 @@
+             if (result?.coverDesign) {
+                 state.design = normaliseDesign(result.coverDesign);
+                 state.autoResolved.clear();
++                state.automaticCandidatesDirty = true;
+             }
+             if (Array.isArray(result?.photoPreferences)) state.preferences = normalisePreferences(result.photoPreferences);
+-            savedSignature = initialSignature();
++            savedSignature = persistedSignature();
+             state.dirty = false;
+             setDirty();
+             return true;
+@@ -1054,6 +1190,14 @@
+         window.addEventListener('resize', () => { if (state.proofZoom === 'fit') applyProofZoom(false); });
+     }
+ 
++    function syncCoverWorkspaceViewport() {
++        const top = Math.max(0, root.getBoundingClientRect().top);
++        root.style.setProperty('--cover-editor-viewport-top', `${top}px`);
++    }
++
++    syncCoverWorkspaceViewport();
++    window.addEventListener('resize', syncCoverWorkspaceViewport);
++
+     updateInspector();
+     setDirty();
+     resetProofViewport();
+--- a/wwwroot/css/pages/projects-publications.css
++++ b/wwwroot/css/pages/projects-publications.css
+@@ -5765,3 +5765,47 @@
+     .compendium-guide-trigger span { display: none; }
+     .compendium-composer__help span { display: none; }
+ }
++
++/* ============================================================
++   Phase 38 · Cover composer reliability & browser/PDF parity
++   ============================================================ */
++.compendium-cover-editor-page {
++    /* JS measures the real page position so changes to PRISM header/subnav heights do not
++       silently clip the editor. 100dvh also tracks browser chrome more accurately than 100vh. */
++    height: calc(100dvh - var(--cover-editor-viewport-top, 190px) - .5rem);
++    min-height: 560px;
++}
++
++/* QuestPDF exposes the active themed surface around Fit images. The proof must do the same. */
++.compendium-cover-proof-sheet .cover-proof-image {
++    background: var(--cover-theme-secondary, #17382F);
++}
++.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-image--full {
++    background: var(--cover-theme-primary, #102A23);
++}
++
++/* Institutional Hero uses QuestPDF Column.Spacing(12) plus a 22pt hero top pad. */
++.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .compendium-cover-proof-content {
++    gap: 12px;
++}
++
++.compendium-cover-layout-advisory {
++    display: block;
++    margin: -.2rem 0 .55rem;
++    padding: .42rem .5rem;
++    border: 1px solid #ead8a4;
++    border-radius: .45rem;
++    background: #fffaf0;
++    color: #805d14;
++    font-size: .58rem;
++    line-height: 1.35;
++}
++.compendium-cover-layout-advisory[hidden] { display: none !important; }
++
++@media (max-height: 720px) and (min-width: 1100px) {
++    .compendium-cover-editor-page {
++        height: auto;
++        min-height: 620px;
++        overflow: visible;
++    }
++}
+--- a/wwwroot/js/projects/publications-compendium-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-contract.test.js
+@@ -16,6 +16,7 @@
+ const fingerprint = read('Services/Compendiums/CompendiumReviewFingerprint.cs');
+ const programme = read('Services/Compendiums/CompendiumProgrammeInformation.cs');
+ const exportService = read('Services/Compendiums/CompendiumExportService.cs');
++const automaticCoverPolicy = read('Services/Compendiums/CompendiumCoverAutomaticImagePolicy.cs');
+ const planner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
+ const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
+ const verifier = read('Utilities/Reporting/CompendiumPdfCompositionVerifier.cs');
+@@ -137,8 +138,9 @@
+   assert.match(page, /GetPreviewAsync/);
+   assert.match(exportService, /BrochurePhotoRenderRequest/);
+   assert.match(exportService, /RenderAsync/);
+-  assert.match(exportService, /PrimaryFocalX/);
+-  assert.match(exportService, /PrimaryFocalY/);
++  assert.match(automaticCoverPolicy, /FocalX/);
++  assert.match(automaticCoverPolicy, /FocalY/);
++  assert.match(automaticCoverPolicy, /CoverPhotoId/);
+ });
+ 
+ test('phase 24 evaluates effective DPI against the redesigned reviewed project-image frame', () => {
+@@ -593,12 +595,13 @@
+ });
+ 
+ test('phase 27 automatic cover selection prefers intentional project cover sources', () => {
+-  assert.match(exportService, /CoverHeroSourcePriority/);
+-  assert.match(exportService, /CompendiumPhotoSelectionSource\.ProjectCover\s*=>\s*4/);
+-  assert.match(exportService, /CompendiumPhotoSelectionSource\.FirstAvailable\s*=>\s*1/);
+-  assert.match(js, /projectcover:\s*4/);
+-  assert.match(js, /firstavailable:\s*1/);
+-  assert.match(exportService, /SuitableForCoverHero|PreferredForPublication/);
++  assert.match(automaticCoverPolicy, /SuitablePriority\s*=\s*800_000/);
++  assert.match(automaticCoverPolicy, /PreferredPriority\s*=\s*550_000/);
++  assert.match(automaticCoverPolicy, /ResolvedCoverPriority\s*=\s*220_000/);
++  assert.match(automaticCoverPolicy, /SuitableForCoverHero/);
++  assert.match(automaticCoverPolicy, /PreferredForPublication/);
++  assert.match(automaticCoverPolicy, /CoverPhotoId/);
++  assert.match(exportService, /CompendiumCoverAutomaticImagePolicy\.BuildCandidates/);
+ });
+ 
+ test('phase 27 latest chronology and technical taxonomy are authoritative and deterministic', () => {
+--- a/wwwroot/js/projects/publications-compendium-phase30-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase30-contract.test.js
+@@ -19,6 +19,7 @@
+ const migration = read('Migrations/20261208180000_AddCompendiumCoverComposer.cs');
+ const manifest = read('Migrations/immutable-migration-ids.txt');
+ const exportService = read('Services/Compendiums/CompendiumExportService.cs');
++const automaticCoverPolicy = read('Services/Compendiums/CompendiumCoverAutomaticImagePolicy.cs');
+ const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
+ const photoService = read('Services/Publications/BrochurePhotoService.cs');
+ const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
+@@ -92,7 +93,9 @@
+   assert.match(dto, /SuitableForCoverHero/);
+   assert.match(coverJs, /Cover preferred/);
+   assert.match(coverJs, /Cover suitable/);
+-  assert.match(exportService, /SuitableForCoverHero \? (?:500|800) : (?:350|550)/);
++  assert.match(automaticCoverPolicy, /SuitableForCoverHero/);
++  assert.match(automaticCoverPolicy, /SuitablePriority\s*=\s*800_000/);
++  assert.match(automaticCoverPolicy, /PreferredPriority\s*=\s*550_000/);
+   assert.match(mainModel, /coverHeroUsesFallback/);
+   assert.match(mainModel, /coverImageLowResolution/);
+   assert.match(mainModel, /coverImageUnavailable/);
+@@ -102,7 +105,8 @@
+   assert.match(exportService, /slot\.ImageMode == CompendiumCoverImageMode\.Explicit/);
+   assert.match(exportService, /is no longer available in this Compendium/);
+   assert.match(exportService, /could not be rendered\. Choose another image/);
+-  assert.match(exportService, /when \(slot\.ImageMode != CompendiumCoverImageMode\.Explicit\)/);
++  assert.match(exportService, /foreach \(var candidate in automaticSequence\)/);
++  assert.match(exportService, /Automatic Compendium cover candidate failed; trying the next ranked candidate/);
+ });
+ 
+ test('phase 30 adds deterministic publication content hygiene warnings without rewriting source data', () => {
+--- a/wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
+@@ -36,9 +36,10 @@
+ test('phase 30.1 automatic multi-image composition prefers different photos and projects', () => {
+   assert.match(coverJs, /usedProjects/);
+   assert.match(coverJs, /usedPhotos/);
+-  assert.match(coverJs, /chooseAutomaticCandidate\(surface, usedProjects, usedPhotos\)/);
++  assert.match(coverJs, /automaticCandidateSequence\(surface, usedProjects, usedPhotos\)/);
++  assert.match(coverJs, /state\.automaticCandidates/);
+   assert.match(exportService, /usedProjects = new HashSet<int>/);
+-  assert.match(exportService, /!usedProjects\.Contains\(item\.ProjectId\)/);
++  assert.match(exportService, /!usedProjects\.Contains\(candidate\.ProjectId\)/);
+ });
+ 
+ test('phase 30.1 makes compact cover actions template-aware', () => {
+--- a/wwwroot/js/projects/publications-compendium-phase38-cover-reliability.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase38-cover-reliability.test.js
+@@ -0,0 +1,59 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
++
++test('main Compendium round-trips publication theme and cover background', () => {
++  const source = read('wwwroot', 'js', 'pages', 'projects-compendium.js');
++  assert.match(source, /publicationTheme:\s*String\(coverDesignSeed\?\.publicationTheme \|\| "InstitutionalGreen"\)/);
++  assert.match(source, /backgroundTreatment:\s*String\(coverDesignSeed\?\.backgroundTreatment \|\| "Solid"\)/);
++  assert.match(source, /\.\.\.\(coverDesignSeed && typeof coverDesignSeed === "object" \? coverDesignSeed : \{\}\)/);
++  assert.match(source, /coverDesignInput\.value = JSON\.stringify\(coverDesignState\)/);
++});
++
++test('cover editor dirty signature excludes preview-only image metadata', () => {
++  const source = read('wwwroot', 'js', 'pages', 'projects-compendium-cover-editor.js');
++  assert.match(source, /function buildCoverSavePayload\(\)/);
++  assert.match(source, /const \{ previewUrl, sourceWidth, sourceHeight, \.\.\.persisted \} = item/);
++  assert.match(source, /const persistedSignature = \(\) => JSON\.stringify/);
++  assert.doesNotMatch(source, /const initialSignature = \(\) => JSON\.stringify\(\{ design: state\.design/);
++});
++
++test('automatic cover resolution comes from the shared server candidate contract', () => {
++  const editor = read('wwwroot', 'js', 'pages', 'projects-compendium-cover-editor.js');
++  assert.match(editor, /automaticCandidates:\s*normaliseAutomaticCandidates\(boot\.automaticCandidates/);
++  assert.match(editor, /automaticCandidatesUrl/);
++  assert.match(editor, /async function ensureAutomaticCandidates\(\)/);
++  assert.match(editor, /function automaticCandidateSequence\(/);
++  assert.doesNotMatch(editor, /function chooseAutomaticCandidate\(/);
++});
++
++test('required slot and proof parity safeguards are present', () => {
++  const editor = read('wwwroot', 'js', 'pages', 'projects-compendium-cover-editor.js');
++  const css = read('wwwroot', 'css', 'pages', 'projects-publications.css');
++  assert.match(editor, /strictRequiredSlots\(state\.activeSurface\)/);
++  assert.match(editor, /This image slot is required by the selected cover template/);
++  assert.match(css, /background:\s*var\(--cover-theme-secondary/);
++  assert.match(css, /data-template="FullBleedHero"[^}]*cover-proof-image--full/s);
++  assert.match(css, /data-template="InstitutionalHero"[^}]*gap:\s*12px/s);
++  assert.match(css, /--cover-editor-viewport-top/);
++});
++
++test('cover identity typography adapts without truncating formal wording', () => {
++  const editor = read('wwwroot', 'js', 'pages', 'projects-compendium-cover-editor.js');
++  assert.match(editor, /function resolveTitleSize\(/);
++  assert.match(editor, /function resolveSubtitleSize\(/);
++  assert.match(editor, /Dense cover wording/);
++  assert.doesNotMatch(editor, /substring\([^\n]*cover-proof-identity/);
++});
++
++
++test('dense cover identity receives a server preflight warning as well as adaptive typography', () => {
++  const page = read('Pages', 'Projects', 'Publications', 'Compendium', 'Index.cshtml.cs');
++  assert.match(page, /CompendiumCoverTypographyPolicy\.NeedsAdvisory/);
++  assert.match(page, /"coverIdentityDense"/);
++  assert.match(page, /inspect the Front and Back proofs before final issue/);
++});
+--- a/ProjectManagement.Tests/Publications/CompendiumPhase38CoverReliabilityTests.cs
++++ b/ProjectManagement.Tests/Publications/CompendiumPhase38CoverReliabilityTests.cs
+@@ -0,0 +1,68 @@
++using ProjectManagement.Services.Compendiums;
++using Xunit;
++
++namespace ProjectManagement.Tests.Publications;
++
++public sealed class CompendiumPhase38CoverReliabilityTests
++{
++    [Fact]
++    public void Automatic_cover_policy_is_deterministic_and_curated_preferences_win()
++    {
++        var projects = new[]
++        {
++            new CompendiumCoverAutomaticImagePolicy.ProjectSource(10, 100, .35d, .65d, 0),
++            new CompendiumCoverAutomaticImagePolicy.ProjectSource(20, 200, .5d, .5d, 1)
++        };
++        var preferences = new[]
++        {
++            new CompendiumPhotoPreference(20, 201, PreferredForPublication: true, SuitableForCoverHero: false),
++            new CompendiumPhotoPreference(10, 101, PreferredForPublication: false, SuitableForCoverHero: true)
++        };
++
++        var candidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(projects, preferences);
++
++        Assert.Equal((10, 101), (candidates[0].ProjectId, candidates[0].PhotoId));
++        Assert.Equal((20, 201), (candidates[1].ProjectId, candidates[1].PhotoId));
++        Assert.Contains(candidates, candidate => candidate.ProjectId == 10 && candidate.PhotoId == 100);
++    }
++
++    [Fact]
++    public void Automatic_cover_policy_preserves_project_focal_point_for_its_resolved_cover_photo()
++    {
++        var candidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(
++            new[] { new CompendiumCoverAutomaticImagePolicy.ProjectSource(10, 100, .23d, .71d, 0) },
++            Array.Empty<CompendiumPhotoPreference>());
++
++        var candidate = Assert.Single(candidates);
++        Assert.Equal(.23d, candidate.FocalX, 5);
++        Assert.Equal(.71d, candidate.FocalY, 5);
++    }
++
++    [Fact]
++    public void Cover_typography_policy_reduces_dense_titles_but_respects_minimum()
++    {
++        var normal = CompendiumCoverTypographyPolicy.ResolveTitleSize("SDD Simulators Compendium", 34f);
++        var dense = CompendiumCoverTypographyPolicy.ResolveTitleSize(new string('A', 120), 28f);
++
++        Assert.Equal(34f, normal);
++        Assert.True(dense < 28f);
++        Assert.True(dense >= CompendiumCoverTypographyPolicy.MinimumTitleSize);
++        Assert.True(CompendiumCoverTypographyPolicy.NeedsAdvisory(new string('A', 120), null));
++    }
++
++    [Fact]
++    public void Cover_template_policy_identifies_required_non_quartet_slots()
++    {
++        var fullBleed = CompendiumCoverTemplatePolicy.RequiredSlotKeys(
++            CompendiumCoverSurface.Front,
++            CompendiumFrontCoverTemplate.FullBleedHero,
++            CompendiumBackCoverTemplate.MinimalInstitutional);
++        var imageEcho = CompendiumCoverTemplatePolicy.RequiredSlotKeys(
++            CompendiumCoverSurface.Back,
++            CompendiumFrontCoverTemplate.Minimal,
++            CompendiumBackCoverTemplate.ImageEcho);
++
++        Assert.Contains("Hero", fullBleed);
++        Assert.Contains("Hero", imageEcho);
++    }
++}

@@ -118,6 +118,8 @@ public sealed class IndexModel : PageModel
             request.CoverDesign,
             request.PhotoPreferences,
             data.Groups.SelectMany(group => group.Projects).ToArray(),
+            request.Title,
+            request.Subtitle,
             cancellationToken);
         var coverBlockers = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Blocker);
         var coverWarnings = coverFindings.Count(item => item.Severity == CompendiumFindingSeverity.Warning);
@@ -174,6 +176,8 @@ public sealed class IndexModel : PageModel
         CompendiumCoverDesign? design,
         IReadOnlyList<CompendiumPhotoPreference>? preferences,
         IReadOnlyList<CompendiumProjectDto> projects,
+        string? publicationTitle,
+        string? publicationSubtitle,
         CancellationToken cancellationToken)
     {
         if (design is null)
@@ -182,6 +186,20 @@ public sealed class IndexModel : PageModel
         }
 
         var findings = new List<CompendiumFindingDto>();
+
+        var frontTitle = design.ShowFrontTitle ? design.FrontTitle ?? publicationTitle : null;
+        var frontSubtitle = design.ShowFrontSubtitle ? design.FrontSubtitle ?? publicationSubtitle : null;
+        var backTitle = design.ShowBackTitle ? design.BackTitle ?? publicationTitle : null;
+        var backSubtitle = design.ShowBackSubtitle ? design.BackSubtitle ?? publicationSubtitle : null;
+        if (CompendiumCoverTypographyPolicy.NeedsAdvisory(frontTitle, frontSubtitle)
+            || CompendiumCoverTypographyPolicy.NeedsAdvisory(backTitle, backSubtitle))
+        {
+            findings.Add(new CompendiumFindingDto(
+                CompendiumFindingSeverity.Warning,
+                "coverIdentityDense",
+                "Cover identity wording is unusually long. PRISM will reduce typography within the safe cover range; inspect the Front and Back proofs before final issue."));
+        }
+
         foreach (var slot in design.Images.Where(item => item.ImageMode == CompendiumCoverImageMode.Explicit))
         {
             if (slot.ProjectId is > 0 && slot.PhotoId is > 0) continue;
@@ -231,6 +249,55 @@ public sealed class IndexModel : PageModel
             }
         }
 
+        var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(
+            design.FrontTemplate,
+            design.BackTemplate)
+            .Where(slot => slot.Required)
+            .ToArray();
+        var configuredBySlot = design.Images
+            .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
+            .ToDictionary(group => group.Key, group => group.First());
+        var automaticCandidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(
+            projects,
+            preferences ?? Array.Empty<CompendiumPhotoPreference>());
+        IReadOnlyDictionary<int, BrochurePhotoProbe> automaticCandidateProbes =
+            automaticCandidates.Count == 0
+                ? new Dictionary<int, BrochurePhotoProbe>()
+                : await _photoService.ProbeAsync(
+                    automaticCandidates
+                        .Select(candidate => new BrochurePhotoReference(candidate.ProjectId, candidate.PhotoId))
+                        .Distinct()
+                        .ToArray(),
+                    cancellationToken);
+        var hasReadyAutomaticCandidate = automaticCandidates.Any(candidate =>
+            automaticCandidateProbes.TryGetValue(candidate.PhotoId, out var probe)
+            && probe.ProjectId == candidate.ProjectId
+            && probe.IsReady);
+
+        foreach (var requirement in requiredSlots)
+        {
+            if (!configuredBySlot.TryGetValue(
+                    (requirement.Surface, requirement.SlotKey.ToUpperInvariant()),
+                    out var slot)
+                || slot.ImageMode == CompendiumCoverImageMode.None)
+            {
+                findings.Add(new CompendiumFindingDto(
+                    CompendiumFindingSeverity.Blocker,
+                    "coverRequiredImageMissing",
+                    $"{CoverSlotDisplay(requirement.SlotKey)} is required by the selected {requirement.Surface.ToString().ToLowerInvariant()} cover template."));
+                continue;
+            }
+
+            if (slot.ImageMode == CompendiumCoverImageMode.Automatic
+                && !hasReadyAutomaticCandidate)
+            {
+                findings.Add(new CompendiumFindingDto(
+                    CompendiumFindingSeverity.Blocker,
+                    "coverAutomaticImageUnavailable",
+                    $"{CoverSlotDisplay(requirement.SlotKey)} requires a photograph, but no automatic cover image can currently be resolved."));
+            }
+        }
+
         var needsFrontImagery = design.FrontTemplate != CompendiumFrontCoverTemplate.Minimal;
         var hasAutomaticFrontSlot = design.Images.Any(item =>
             item.Surface == CompendiumCoverSurface.Front
@@ -252,17 +319,6 @@ public sealed class IndexModel : PageModel
             var frontSlots = design.Images
                 .Where(item => item.Surface == CompendiumCoverSurface.Front)
                 .ToDictionary(item => item.SlotKey, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var key in requiredKeys)
-            {
-                if (!frontSlots.TryGetValue(key, out var slot) || slot.ImageMode == CompendiumCoverImageMode.None)
-                {
-                    findings.Add(new CompendiumFindingDto(
-                        CompendiumFindingSeverity.Blocker,
-                        "portfolioQuartetIncomplete",
-                        $"Portfolio Quartet requires {CoverSlotDisplay(key)}. Restore the image slot before final issue."));
-                }
-            }
 
             var explicitQuartetRefs = frontSlots.Values
                 .Where(item => requiredKeys.Contains(item.SlotKey, StringComparer.OrdinalIgnoreCase))
@@ -1277,9 +1333,11 @@ public sealed class IndexModel : PageModel
                 : JsonSerializer.Deserialize<List<CompendiumPhotoPreferencePayload>>(Input.PhotoPreferencesJson, JsonOptions)
                   ?? new List<CompendiumPhotoPreferencePayload>();
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            payloads = Array.Empty<CompendiumPhotoPreferencePayload>();
+            throw new InvalidOperationException(
+                "The publication photo-preference payload is invalid. Reload the Compendium before continuing.",
+                exception);
         }
 
         var selected = ParseSelectedIds().ToHashSet();

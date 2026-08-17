@@ -19,6 +19,7 @@ const model = read('Models/Publications/CompendiumPreset.cs');
 const migration = read('Migrations/20261208180000_AddCompendiumCoverComposer.cs');
 const manifest = read('Migrations/immutable-migration-ids.txt');
 const exportService = read('Services/Compendiums/CompendiumExportService.cs');
+const automaticCoverPolicy = read('Services/Compendiums/CompendiumCoverAutomaticImagePolicy.cs');
 const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
 const photoService = read('Services/Publications/BrochurePhotoService.cs');
 const readiness = read('Services/Compendiums/CompendiumReadinessPolicy.cs');
@@ -92,7 +93,9 @@ test('phase 30 separates technical image quality from editorial cover suitabilit
   assert.match(dto, /SuitableForCoverHero/);
   assert.match(coverJs, /Cover preferred/);
   assert.match(coverJs, /Cover suitable/);
-  assert.match(exportService, /SuitableForCoverHero \? (?:500|800) : (?:350|550)/);
+  assert.match(automaticCoverPolicy, /SuitableForCoverHero/);
+  assert.match(automaticCoverPolicy, /SuitablePriority\s*=\s*800_000/);
+  assert.match(automaticCoverPolicy, /PreferredPriority\s*=\s*550_000/);
   assert.match(mainModel, /coverHeroUsesFallback/);
   assert.match(mainModel, /coverImageLowResolution/);
   assert.match(mainModel, /coverImageUnavailable/);
@@ -102,7 +105,8 @@ test('phase 30 blocks stale explicit cover images and retains automatic fallback
   assert.match(exportService, /slot\.ImageMode == CompendiumCoverImageMode\.Explicit/);
   assert.match(exportService, /is no longer available in this Compendium/);
   assert.match(exportService, /could not be rendered\. Choose another image/);
-  assert.match(exportService, /when \(slot\.ImageMode != CompendiumCoverImageMode\.Explicit\)/);
+  assert.match(exportService, /foreach \(var candidate in automaticSequence\)/);
+  assert.match(exportService, /Automatic Compendium cover candidate failed; trying the next ranked candidate/);
 });
 
 test('phase 30 adds deterministic publication content hygiene warnings without rewriting source data', () => {

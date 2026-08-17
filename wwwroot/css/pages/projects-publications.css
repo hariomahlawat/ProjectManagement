@@ -5765,3 +5765,47 @@ body.compendium-structure-editor-mode {
     .compendium-guide-trigger span { display: none; }
     .compendium-composer__help span { display: none; }
 }
+
+/* ============================================================
+   Phase 38 · Cover composer reliability & browser/PDF parity
+   ============================================================ */
+.compendium-cover-editor-page {
+    /* JS measures the real page position so changes to PRISM header/subnav heights do not
+       silently clip the editor. 100dvh also tracks browser chrome more accurately than 100vh. */
+    height: calc(100dvh - var(--cover-editor-viewport-top, 190px) - .5rem);
+    min-height: 560px;
+}
+
+/* QuestPDF exposes the active themed surface around Fit images. The proof must do the same. */
+.compendium-cover-proof-sheet .cover-proof-image {
+    background: var(--cover-theme-secondary, #17382F);
+}
+.compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-image--full {
+    background: var(--cover-theme-primary, #102A23);
+}
+
+/* Institutional Hero uses QuestPDF Column.Spacing(12) plus a 22pt hero top pad. */
+.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .compendium-cover-proof-content {
+    gap: 12px;
+}
+
+.compendium-cover-layout-advisory {
+    display: block;
+    margin: -.2rem 0 .55rem;
+    padding: .42rem .5rem;
+    border: 1px solid #ead8a4;
+    border-radius: .45rem;
+    background: #fffaf0;
+    color: #805d14;
+    font-size: .58rem;
+    line-height: 1.35;
+}
+.compendium-cover-layout-advisory[hidden] { display: none !important; }
+
+@media (max-height: 720px) and (min-width: 1100px) {
+    .compendium-cover-editor-page {
+        height: auto;
+        min-height: 620px;
+        overflow: visible;
+    }
+}

@@ -1,106 +1,102 @@
-PRISM — ARPP AoN Milestone Integrity + Word Compile Fix
-======================================================
+PRISM COMPENDIUM — COVER COMPOSER RELIABILITY & PREVIEW PARITY
+================================================================
 
-READY-TO-PASTE FILES
---------------------
-Replace/add the files listed in CHANGED-FILES.txt.
+READY TO PASTE
+--------------
+Copy the files from this package over the matching paths in the current project.
+New files are created automatically when pasted. No database migration is required.
+No Program.cs / DI registration change is required.
 
-This package addresses BOTH requested items:
+WHAT THIS PHASE FIXES
+---------------------
+1. Saved theme/background now survive the main Compendium workspace.
+   - publicationTheme and backgroundTreatment are preserved in the canonical cover state.
+   - Preview and later Compendium Save no longer reset Burgundy/Navy/etc. to defaults.
 
-1. CS0103 in ArppFyProjectUpdateWordBuilder.cs
-2. Strict AoN completion-date semantics across shared project/report readers
+2. False "Modified" state is removed.
+   - Dirty comparison uses only persisted cover fields.
+   - previewUrl/sourceWidth/sourceHeight and other hydration data no longer create fake edits.
 
+3. Browser and PDF automatic imagery now share one deterministic server policy.
+   - New CompendiumCoverAutomaticImagePolicy ranks curated Suitable/Preferred images and
+     the resolved project cover/default photo consistently.
+   - Browser receives the server-ranked candidates instead of maintaining another ranking algorithm.
+   - Automatic focal points round-trip into browser proof and final PDF.
 
-1. WORD BUILDER CS0103
-----------------------
-Root cause:
-Build() creates a local variable named resolvedOptions, but BuildDataCells() receives
-the already-resolved value through its parameter named options. The listing-date
-cell incorrectly referred to resolvedOptions inside BuildDataCells(), where that
-identifier does not exist.
+4. Automatic-image rendering is resilient.
+   - Final export tries the next ranked automatic candidate when a candidate cannot render.
+   - Explicit user-selected images remain strict and fail visibly rather than being silently substituted.
 
-Corrected:
-    options.ResolveListingDate(row)
+5. Required image slots are enforced generically.
+   - Required-slot rules come from CompendiumCoverTemplatePolicy for all templates, not only Quartet.
+   - Browser disables No image for a required slot.
+   - Cover Save and publication preflight validate the same requirement server-side.
 
-The selected Initial Listing / Current FY Listing option therefore remains fully
-functional.
+6. Fit proof background now follows the active cover theme.
+   - Browser uncovered Fit areas match QuestPDF themed surfaces instead of generic grey.
 
+7. Institutional Hero proof spacing is aligned with PDF composition.
 
-2. AUTHORITATIVE AoN DATE RULE
-------------------------------
-AoN date is now defined strictly as:
+8. Long cover wording is hardened.
+   - Browser and QuestPDF use the same conservative adaptive title/subtitle typography policy.
+   - Wording is never silently truncated.
+   - Excessively dense identity wording raises a report/preflight warning to inspect Front/Back proof.
 
-    ProjectStage.StageCode == AON
-    AND ProjectStage.Status == Completed
-    AND ProjectStage.CompletedOn has a value
+9. Invalid photo-preference JSON no longer means "clear all preferences".
+   - Invalid payloads fail validation and preserve existing saved data.
 
-Only then is CompletedOn exposed as the AoN date.
+10. Viewport handling is less brittle.
+    - Editor measures its real workspace top and uses 100dvh rather than relying only on 100vh - 190px.
 
-Consequences:
-- AoN NotStarted -> blank
-- AoN InProgress -> blank
-- AoN Blocked -> blank
-- AoN Skipped -> blank
-- Any stale CompletedOn on the above states -> ignored
-- AoN Completed + date -> date
-- AoN Completed + missing/backfill date -> blank
+TEST / CONTRACT UPDATES
+-----------------------
+- Added Phase 38 cover reliability JS contracts.
+- Added C# policy tests for automatic ranking, focal points, typography and required slots.
+- Updated older source-contract tests whose implementation moved into the shared automatic-image policy.
 
-The shared ProjectFormalUpdateFactsResolver is the authoritative fix, so both
-ARPP reports and briefing update-sheet consumers receive the same corrected value.
+VALIDATION PERFORMED HERE
+-------------------------
+- node --check projects-compendium.js: PASS
+- node --check projects-compendium-cover-editor.js: PASS
+- all Compendium Node/source contract tests: 220 PASS / 0 FAIL
+- static C# brace/source checks: PASS
 
+The execution environment does not contain the .NET SDK, so run the real C# build/tests locally.
 
-3. REPORT PREFLIGHT
--------------------
-A project whose CURRENT stage is AoN is no longer incorrectly warned that its AoN
-date is missing. Reaching AoN does not mean completing AoN.
-
-AON_DATE_MISSING is raised only when:
-- the project is explicitly Completed; OR
-- its current lifecycle position is beyond AoN;
-AND no valid completed-AoN date exists.
-
-
-4. ONGOING PROJECTS READER
---------------------------
-ResolveStageMilestoneDate now returns ActualCompletedOn only when the stage status
-is Completed. This hardens the same milestone invariant for the existing IPA/AoN
-fields used by the ongoing-projects reader.
-
-
-5. REGRESSION TESTS
--------------------
-Added tests covering:
-- Completed AoN returns CompletedOn
-- InProgress/Blocked/Skipped/NotStarted AoN with stale CompletedOn stays blank
-- Completed AoN with missing/backfill date stays blank
-- Valid completed AoN wins over a newer non-completed stale row
-- Current AoN uses '<' rather than '<=' in report missing-date preflight
-- Ongoing-project milestone reader requires StageStatus.Completed
-- Word listing-date option uses the correct in-scope options variable
-
-
-NO CHANGES TO
--------------
-- ARPP listing-date option behaviour
-- Initial vs Current FY listing resolution
-- Present Stage option
-- Completed-project PDC = "Completed"
-- Supply Order amount/date logic
-- Lifecycle sorting
-- Database schema/migrations
-- DI registrations
-- PDF/Excel layout
-- Authorisation
-
-
-AFTER PASTING
--------------
+RECOMMENDED LOCAL VALIDATION
+----------------------------
 dotnet build .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj `
-    --filter "FullyQualifiedName~ProjectManagement.Tests.Reports"
+    --filter "FullyQualifiedName~Compendium"
 
-Then verify one project currently at AoN:
-- AoN column must be blank until AoN is explicitly completed.
-- Once AoN is completed, the column must show the AoN stage CompletedOn date.
+node --check .\wwwroot\js\pages\projects-compendium.js
+node --check .\wwwroot\js\pages\projects-compendium-cover-editor.js
+node --test .\wwwroot\js\projects\publications-compendium*.test.js
+
+MANUAL ACCEPTANCE CHECKS
+------------------------
+A. Theme round-trip
+   Burgundy + Technical Grid -> Save Cover -> Back -> Preview -> final PDF.
+   The same theme/treatment must remain after also saving/reopening the Compendium.
+
+B. Dirty state
+   Open an already-saved cover and allow photos to load. Status must remain Saved.
+   Zoom/Front/Back navigation must not mark Modified. Real cover changes must.
+
+C. Automatic imagery
+   Browser proof and PDF must resolve the same automatic photos and focal points.
+   If the top automatic candidate is unavailable, the next ranked candidate should be used.
+
+D. Explicit imagery
+   Remove/break an explicitly selected photo. Preflight/export must flag it; no silent substitution.
+
+E. Required slots
+   Full-Bleed Hero / Editorial Split / Triptych / Image Echo etc. must not allow a required hero to be saved as None.
+
+F. Fit
+   Select Fit and compare browser proof vs PDF. Uncovered image area should use the same theme surface.
+
+G. Long wording
+   Test a long title/subtitle. Typography should reduce within safe limits and preflight should warn when wording is unusually dense.

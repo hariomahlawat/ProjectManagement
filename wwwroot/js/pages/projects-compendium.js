@@ -107,9 +107,15 @@
     const normalizeCoverTemplate = value => String(value || "InstitutionalHero").trim() || "InstitutionalHero";
     const normalizeBackTemplate = value => String(value || "MinimalInstitutional").trim() || "MinimalInstitutional";
     const coverDesignSeed = parseHiddenJson(coverDesignInput, {});
+    // Preserve the complete server-authored cover DTO. The Compendium workspace edits only
+    // a subset of cover fields, but it must round-trip every persisted property so a Preview
+    // or later Save cannot silently reset theme/background or future cover capabilities.
     const coverDesignState = {
+        ...(coverDesignSeed && typeof coverDesignSeed === "object" ? coverDesignSeed : {}),
         frontTemplate: normalizeCoverTemplate(coverDesignSeed?.frontTemplate),
         backTemplate: normalizeBackTemplate(coverDesignSeed?.backTemplate),
+        publicationTheme: String(coverDesignSeed?.publicationTheme || "InstitutionalGreen"),
+        backgroundTreatment: String(coverDesignSeed?.backgroundTreatment || "Solid"),
         frontTitle: coverDesignSeed?.frontTitle ?? null, frontSubtitle: coverDesignSeed?.frontSubtitle ?? null, frontEdition: coverDesignSeed?.frontEdition ?? null, frontEyebrow: coverDesignSeed?.frontEyebrow ?? null,
         backTitle: coverDesignSeed?.backTitle ?? null, backSubtitle: coverDesignSeed?.backSubtitle ?? null, backEdition: coverDesignSeed?.backEdition ?? null, backEyebrow: coverDesignSeed?.backEyebrow ?? null,
         showFrontTitle: coverDesignSeed?.showFrontTitle !== false, showFrontSubtitle: coverDesignSeed?.showFrontSubtitle !== false, showFrontEdition: coverDesignSeed?.showFrontEdition !== false,
