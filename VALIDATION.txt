@@ -1,21 +1,13 @@
 STATIC VALIDATION
 =================
 
-PASS  ffc_page_scope_class
-PASS  ffc_kpis_not_sticky
-PASS  ffc_table_header_sticky
-PASS  wide_screen_overflow_unblocked
-PASS  pdf_row_span
-PASS  pdf_first_row_fake_span_removed
-PASS  pdf_vertical_geometry_compacted_without_smaller_font
-PASS  word_without_overall_width_total
-PASS  word_with_overall_width_total
-PASS  word_header_nowrap
-PASS  excel_group_left_align
-PASS  country_codes_still_absent_word
-PASS  country_codes_still_absent_pdf
-PASS  country_codes_still_absent_excel
-PASS  overall_status_control_preserved
+PASS  nav_stack_separated_from_floating_offset
+PASS  ffc_has_dedicated_flush_offset
+PASS  ffc_header_uses_flush_offset
+PASS  ffc_header_no_longer_uses_reports_floating_offset
+PASS  top_edge_is_visually_sealed
+PASS  non_ffc_floating_offset_preserved
+PASS  regression_test_added
 
 NOTE: The .NET SDK is not installed in this execution environment.
-Run the supplied dotnet build/test commands on the development machine.
+Run the supplied build/test commands on the development machine.

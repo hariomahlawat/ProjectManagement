@@ -16,19 +16,36 @@ public static class FfcProjectsUpdateWordBuilder
     private const string HeaderFill = "E8EEF5";
     private const string GroupFill = "F2F5F8";
     private const string Border = "AAB7C6";
+
     private const int TableWidth = 15700;
 
-    private static readonly int[] WithoutOverall =
-        [850, 3200, 1300, 1050, 1600, 7700];
+    // Word cell margins are in twentieths of a point (twips).
+    // 90 = 4.5 pt horizontal; 50 = 2.5 pt vertical.
+    private const short CellHorizontalMargin = 90;
+    private const string CellVerticalMargin = "50";
 
+    private const int BodyFontHalfPoints = 17;   // 8.5 pt
+    private const int HeaderFontHalfPoints = 17; // 8.5 pt
+    private const int GroupFontHalfPoints = 18;  // 9 pt
+
+    private const string CompatibilityUri = "http://schemas.microsoft.com/office/word";
+    private const string CompatibilityMode = "15";
+
+    // 6-column layout: favour Project and preserve adequate Status width.
+    private static readonly int[] WithoutOverall =
+        [800, 3700, 1300, 1100, 1700, 7100];
+
+    // 7-column layout: Project remains usable while the two narrative columns
+    // share the remaining horizontal space evenly.
     private static readonly int[] WithOverall =
-        [850, 2700, 1250, 1050, 1550, 4200, 4100];
+        [800, 3400, 1250, 1050, 1700, 3750, 3750];
 
     public static byte[] Build(
         FfcProjectsUpdateReport report,
         FfcProjectsUpdatePresentationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(report);
+
         var resolved = options ?? FfcProjectsUpdatePresentationOptions.Default;
         var widths = resolved.IncludeOverallStatus ? WithOverall : WithoutOverall;
 
@@ -57,6 +74,7 @@ public static class FfcProjectsUpdateWordBuilder
             body.Append(TitleParagraph(FfcProjectsUpdateReport.FormalTitle));
             body.Append(BuildTable(report.Groups, resolved, widths));
             body.Append(BuildSectionProperties(mainPart, footerPart));
+
             mainPart.Document.Save();
         }
 
@@ -68,15 +86,17 @@ public static class FfcProjectsUpdateWordBuilder
         FfcProjectsUpdatePresentationOptions options,
         IReadOnlyList<int> widths)
     {
-        var table = new W.Table(
-            new W.TableProperties(
-                new W.TableWidth
-                {
-                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
-                    Type = W.TableWidthUnitValues.Dxa
-                },
-                new W.TableLayout { Type = W.TableLayoutValues.Fixed },
-                Borders()));
+        var tableProperties = new W.TableProperties(
+            new W.TableWidth
+            {
+                Width = TableWidth.ToString(CultureInfo.InvariantCulture),
+                Type = W.TableWidthUnitValues.Dxa
+            },
+            Borders(),
+            new W.TableLayout { Type = W.TableLayoutValues.Fixed },
+            DefaultCellMargins());
+
+        var table = new W.Table(tableProperties);
 
         table.Append(new W.TableGrid(
             widths.Select(width => new W.GridColumn
@@ -93,29 +113,43 @@ public static class FfcProjectsUpdateWordBuilder
             for (var index = 0; index < group.Rows.Count; index++)
             {
                 var row = group.Rows[index];
+
                 var tableRow = new W.TableRow(
                     new W.TableRowProperties(new W.CantSplit()));
 
                 tableRow.Append(
-                    Cell(row.Serial.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
-                    Cell(row.ProjectName, widths[1], bold: true),
+                    Cell(
+                        row.Serial.ToString(CultureInfo.InvariantCulture),
+                        widths[0],
+                        align: W.JustificationValues.Center),
+                    Cell(
+                        row.ProjectName,
+                        widths[1],
+                        bold: true),
                     Cell(
                         row.CostInCr.HasValue
                             ? (row.CostInCr.Value * 100m).ToString("N2", CultureInfo.InvariantCulture)
                             : string.Empty,
                         widths[2],
                         align: W.JustificationValues.Right),
-                    Cell(row.Quantity.ToString("N0", CultureInfo.InvariantCulture), widths[3], align: W.JustificationValues.Right),
-                    Cell(row.Status, widths[4]),
-                    Cell(Narrative(row.ProgressText), widths[5]));
+                    Cell(
+                        row.Quantity.ToString("N0", CultureInfo.InvariantCulture),
+                        widths[3],
+                        align: W.JustificationValues.Right),
+                    Cell(
+                        row.Status,
+                        widths[4]),
+                    Cell(
+                        Narrative(row.ProgressText),
+                        widths[5]));
 
                 if (options.IncludeOverallStatus)
                 {
                     tableRow.Append(OverallCell(
                         index == 0 ? Narrative(group.OverallRemarks) : string.Empty,
                         widths[6],
-                        group.Rows.Count > 1,
-                        index == 0));
+                        mergeRows: group.Rows.Count > 1,
+                        restart: index == 0));
                 }
 
                 table.Append(tableRow);
@@ -130,8 +164,25 @@ public static class FfcProjectsUpdateWordBuilder
         IReadOnlyList<int> widths)
     {
         var headings = options.IncludeOverallStatus
-            ? new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress", "Overall status" }
-            : new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress" };
+            ? new[]
+            {
+                "S. No.",
+                "Project",
+                "Cost (₹ lakh)",
+                "Quantity",
+                "Status",
+                "Current progress",
+                "Overall status"
+            }
+            : new[]
+            {
+                "S. No.",
+                "Project",
+                "Cost (₹ lakh)",
+                "Quantity",
+                "Status",
+                "Current progress"
+            };
 
         var row = new W.TableRow(
             new W.TableRowProperties(
@@ -151,29 +202,33 @@ public static class FfcProjectsUpdateWordBuilder
                     : index is 2 or 3
                         ? W.JustificationValues.Right
                         : W.JustificationValues.Left,
-                noWrap: index is 0 or 2 or 3 or 4));
+                noWrap: index is 0 or 2 or 3 or 4,
+                verticalAlignment: W.TableVerticalAlignmentValues.Center,
+                fontHalfPoints: HeaderFontHalfPoints));
         }
 
         return row;
     }
 
-    private static W.TableRow GroupRow(FfcDetailedGroupVm group, int columnCount)
+    private static W.TableRow GroupRow(
+        FfcDetailedGroupVm group,
+        int columnCount)
     {
+        var properties = BuildCellProperties(
+            TableWidth,
+            fill: GroupFill,
+            verticalAlignment: W.TableVerticalAlignmentValues.Center,
+            gridSpan: columnCount);
+
         var cell = new W.TableCell(
-            new W.TableCellProperties(
-                new W.GridSpan { Val = columnCount },
-                new W.TableCellWidth
-                {
-                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
-                    Type = W.TableWidthUnitValues.Dxa
-                },
-                new W.Shading { Fill = GroupFill, Val = W.ShadingPatternValues.Clear }),
+            properties,
             Paragraph(
                 $"{group.CountryName} – {group.Year}",
-                17,
+                GroupFontHalfPoints,
                 bold: true,
                 color: Navy,
-                after: 0));
+                after: 0,
+                keepNext: true));
 
         return new W.TableRow(
             new W.TableRowProperties(new W.CantSplit()),
@@ -186,19 +241,23 @@ public static class FfcProjectsUpdateWordBuilder
         bool mergeRows,
         bool restart)
     {
-        var properties = BaseCellProperties(width, null);
-
+        W.MergedCellValues? verticalMerge = null;
         if (mergeRows)
         {
-            properties.Append(new W.VerticalMerge
-            {
-                Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
-            });
+            verticalMerge = restart
+                ? W.MergedCellValues.Restart
+                : W.MergedCellValues.Continue;
         }
+
+        var properties = BuildCellProperties(
+            width,
+            verticalMerge: verticalMerge);
 
         return new W.TableCell(
             properties,
-            restart ? Paragraph(text, 16, after: 0) : new W.Paragraph());
+            restart
+                ? Paragraph(text, BodyFontHalfPoints, after: 0)
+                : EmptyParagraph());
     }
 
     private static W.TableCell Cell(
@@ -208,30 +267,57 @@ public static class FfcProjectsUpdateWordBuilder
         string? fill = null,
         string color = Ink,
         W.JustificationValues? align = null,
-        bool noWrap = false)
+        bool noWrap = false,
+        W.TableVerticalAlignmentValues? verticalAlignment = null,
+        int? fontHalfPoints = null)
         => new(
-            BaseCellProperties(width, fill, noWrap),
+            BuildCellProperties(
+                width,
+                fill: fill,
+                noWrap: noWrap,
+                verticalAlignment: verticalAlignment),
             Paragraph(
                 text ?? string.Empty,
-                16,
+                fontHalfPoints ?? BodyFontHalfPoints,
                 bold: bold,
                 color: color,
                 align: align ?? W.JustificationValues.Left,
                 after: 0));
 
-    private static W.TableCellProperties BaseCellProperties(
+    /// <summary>
+    /// Builds tcPr in schema order. This is deliberately centralized because
+    /// Word is permissive about malformed ordering while other consumers are not.
+    /// </summary>
+    private static W.TableCellProperties BuildCellProperties(
         int width,
-        string? fill,
-        bool noWrap = false)
+        string? fill = null,
+        bool noWrap = false,
+        W.TableVerticalAlignmentValues? verticalAlignment = null,
+        int? gridSpan = null,
+        W.MergedCellValues? verticalMerge = null)
     {
-        var properties = new W.TableCellProperties(
-            new W.TableCellWidth
-            {
-                Width = width.ToString(CultureInfo.InvariantCulture),
-                Type = W.TableWidthUnitValues.Dxa
-            },
-            new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Top });
+        var properties = new W.TableCellProperties();
 
+        // tcW
+        properties.Append(new W.TableCellWidth
+        {
+            Width = width.ToString(CultureInfo.InvariantCulture),
+            Type = W.TableWidthUnitValues.Dxa
+        });
+
+        // gridSpan
+        if (gridSpan.HasValue)
+        {
+            properties.Append(new W.GridSpan { Val = gridSpan.Value });
+        }
+
+        // vMerge
+        if (verticalMerge.HasValue)
+        {
+            properties.Append(new W.VerticalMerge { Val = verticalMerge.Value });
+        }
+
+        // shd
         if (!string.IsNullOrWhiteSpace(fill))
         {
             properties.Append(new W.Shading
@@ -241,22 +327,52 @@ public static class FfcProjectsUpdateWordBuilder
             });
         }
 
+        // noWrap
         if (noWrap)
         {
             properties.Append(new W.NoWrap());
         }
 
+        // vAlign
+        properties.Append(new W.TableCellVerticalAlignment
+        {
+            Val = verticalAlignment ?? W.TableVerticalAlignmentValues.Top
+        });
+
         return properties;
     }
+
+    private static W.TableCellMarginDefault DefaultCellMargins()
+        => new(
+            new W.TopMargin
+            {
+                Width = CellVerticalMargin,
+                Type = W.TableWidthUnitValues.Dxa
+            },
+            new W.TableCellLeftMargin
+            {
+                Width = CellHorizontalMargin,
+                Type = W.TableWidthValues.Dxa
+            },
+            new W.BottomMargin
+            {
+                Width = CellVerticalMargin,
+                Type = W.TableWidthUnitValues.Dxa
+            },
+            new W.TableCellRightMargin
+            {
+                Width = CellHorizontalMargin,
+                Type = W.TableWidthValues.Dxa
+            });
 
     private static W.Paragraph TitleParagraph(string text)
         => Paragraph(
             text,
-            26,
+            27,
             bold: true,
             color: Navy,
             align: W.JustificationValues.Center,
-            after: 100);
+            after: 120);
 
     private static W.Paragraph Paragraph(
         string text,
@@ -264,8 +380,26 @@ public static class FfcProjectsUpdateWordBuilder
         bool bold = false,
         string color = Ink,
         W.JustificationValues? align = null,
-        int after = 0)
+        int after = 0,
+        bool keepNext = false)
     {
+        var paragraphProperties = new W.ParagraphProperties(
+            new W.Justification
+            {
+                Val = align ?? W.JustificationValues.Left
+            },
+            new W.SpacingBetweenLines
+            {
+                Before = "0",
+                After = after.ToString(CultureInfo.InvariantCulture),
+                LineRule = W.LineSpacingRuleValues.Auto
+            });
+
+        if (keepNext)
+        {
+            paragraphProperties.Append(new W.KeepNext());
+        }
+
         var runProperties = new W.RunProperties(
             new W.RunFonts
             {
@@ -275,43 +409,97 @@ public static class FfcProjectsUpdateWordBuilder
                 ComplexScript = Font
             },
             new W.Color { Val = color },
-            new W.FontSize { Val = halfPoints.ToString(CultureInfo.InvariantCulture) },
-            new W.FontSizeComplexScript { Val = halfPoints.ToString(CultureInfo.InvariantCulture) });
+            new W.FontSize
+            {
+                Val = halfPoints.ToString(CultureInfo.InvariantCulture)
+            },
+            new W.FontSizeComplexScript
+            {
+                Val = halfPoints.ToString(CultureInfo.InvariantCulture)
+            });
 
         if (bold)
         {
-            runProperties.Append(new W.Bold(), new W.BoldComplexScript());
+            runProperties.Append(
+                new W.Bold(),
+                new W.BoldComplexScript());
         }
 
-        var paragraph = new W.Paragraph(
+        return new W.Paragraph(
+            paragraphProperties,
+            new W.Run(
+                runProperties,
+                new W.Text(text)
+                {
+                    Space = SpaceProcessingModeValues.Preserve
+                }));
+    }
+
+    private static W.Paragraph EmptyParagraph()
+        => new(
             new W.ParagraphProperties(
-                new W.Justification { Val = align ?? W.JustificationValues.Left },
                 new W.SpacingBetweenLines
                 {
                     Before = "0",
-                    After = after.ToString(CultureInfo.InvariantCulture),
-                    LineRule = W.LineSpacingRuleValues.Auto
-                }),
-            new W.Run(
-                runProperties,
-                new W.Text(text) { Space = SpaceProcessingModeValues.Preserve }));
-
-        return paragraph;
-    }
+                    After = "0"
+                }));
 
     private static W.TableBorders Borders()
         => new(
-            new W.TopBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
-            new W.LeftBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
-            new W.BottomBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
-            new W.RightBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
-            new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
-            new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 });
+            new W.TopBorder
+            {
+                Val = W.BorderValues.Single,
+                Color = Border,
+                Size = 5
+            },
+            new W.LeftBorder
+            {
+                Val = W.BorderValues.Single,
+                Color = Border,
+                Size = 5
+            },
+            new W.BottomBorder
+            {
+                Val = W.BorderValues.Single,
+                Color = Border,
+                Size = 5
+            },
+            new W.RightBorder
+            {
+                Val = W.BorderValues.Single,
+                Color = Border,
+                Size = 5
+            },
+            new W.InsideHorizontalBorder
+            {
+                Val = W.BorderValues.Single,
+                Color = Border,
+                Size = 4
+            },
+            new W.InsideVerticalBorder
+            {
+                Val = W.BorderValues.Single,
+                Color = Border,
+                Size = 4
+            });
 
     private static void AddSettings(MainDocumentPart mainPart)
     {
         var settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
-        settingsPart.Settings = new W.Settings(new W.UpdateFieldsOnOpen { Val = true });
+
+        var compatibility = new W.Compatibility(
+            new W.CompatibilitySetting
+            {
+                Name = W.CompatSettingNameValues.CompatibilityMode,
+                Uri = CompatibilityUri,
+                Val = CompatibilityMode
+            });
+
+        // updateFields precedes compat in the Settings content model.
+        settingsPart.Settings = new W.Settings(
+            new W.UpdateFieldsOnOpen { Val = true },
+            compatibility);
+
         settingsPart.Settings.Save();
     }
 
@@ -327,11 +515,20 @@ public static class FfcProjectsUpdateWordBuilder
                     Width = TableWidth.ToString(CultureInfo.InvariantCulture),
                     Type = W.TableWidthUnitValues.Dxa
                 },
-                new W.TableLayout { Type = W.TableLayoutValues.Fixed }));
+                new W.TableLayout
+                {
+                    Type = W.TableLayoutValues.Fixed
+                }));
 
         table.Append(new W.TableGrid(
-            new W.GridColumn { Width = leftWidth.ToString(CultureInfo.InvariantCulture) },
-            new W.GridColumn { Width = rightWidth.ToString(CultureInfo.InvariantCulture) }));
+            new W.GridColumn
+            {
+                Width = leftWidth.ToString(CultureInfo.InvariantCulture)
+            },
+            new W.GridColumn
+            {
+                Width = rightWidth.ToString(CultureInfo.InvariantCulture)
+            }));
 
         var row = new W.TableRow();
         row.Append(
@@ -340,8 +537,8 @@ public static class FfcProjectsUpdateWordBuilder
                 leftWidth,
                 W.JustificationValues.Left),
             FooterPageCell(rightWidth));
-        table.Append(row);
 
+        table.Append(row);
         return new W.Footer(table);
     }
 
@@ -362,8 +559,15 @@ public static class FfcProjectsUpdateWordBuilder
     {
         var paragraph = new W.Paragraph(
             new W.ParagraphProperties(
-                new W.Justification { Val = W.JustificationValues.Right },
-                new W.SpacingBetweenLines { Before = "0", After = "0" }));
+                new W.Justification
+                {
+                    Val = W.JustificationValues.Right
+                },
+                new W.SpacingBetweenLines
+                {
+                    Before = "0",
+                    After = "0"
+                }));
 
         paragraph.Append(FooterRun("Page "));
         paragraph.Append(FooterField("PAGE", "1"));
@@ -380,12 +584,19 @@ public static class FfcProjectsUpdateWordBuilder
             paragraph);
     }
 
-    private static W.Paragraph FooterParagraph(string text, W.JustificationValues align)
+    private static W.Paragraph FooterParagraph(
+        string text,
+        W.JustificationValues align)
     {
         var paragraph = new W.Paragraph(
             new W.ParagraphProperties(
                 new W.Justification { Val = align },
-                new W.SpacingBetweenLines { Before = "0", After = "0" }));
+                new W.SpacingBetweenLines
+                {
+                    Before = "0",
+                    After = "0"
+                }));
+
         paragraph.Append(FooterRun(text));
         return paragraph;
     }
@@ -393,14 +604,27 @@ public static class FfcProjectsUpdateWordBuilder
     private static W.Run FooterRun(string text)
         => new(
             FooterRunProperties(),
-            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
+            new W.Text(text)
+            {
+                Space = SpaceProcessingModeValues.Preserve
+            });
 
-    private static W.SimpleField FooterField(string instruction, string fallback)
+    private static W.SimpleField FooterField(
+        string instruction,
+        string fallback)
     {
-        var field = new W.SimpleField { Instruction = instruction };
+        var field = new W.SimpleField
+        {
+            Instruction = instruction
+        };
+
         field.Append(new W.Run(
             FooterRunProperties(),
-            new W.Text(fallback) { Space = SpaceProcessingModeValues.Preserve }));
+            new W.Text(fallback)
+            {
+                Space = SpaceProcessingModeValues.Preserve
+            }));
+
         return field;
     }
 

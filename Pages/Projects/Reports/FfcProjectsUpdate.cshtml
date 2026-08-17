@@ -138,6 +138,13 @@
                             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                             Update report
                         </button>
+                        <span class="report-update-state"
+                              data-ffc-update-required
+                              role="status"
+                              aria-live="polite"
+                              hidden>
+                            Update required
+                        </span>
                     </div>
                 </form>
 
@@ -145,6 +152,7 @@
                     <span class="report-export-group__label">Export</span>
                     <div class="report-export-actions">
                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-ffc-export
                            asp-page-handler="Word"
                            asp-route-selectionMode="@Model.SelectionMode"
                            asp-route-countryYears="@report.SelectedCountryYearsCsv"
@@ -153,6 +161,7 @@
                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
                         </a>
                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-ffc-export
                            asp-page-handler="Pdf"
                            asp-route-selectionMode="@Model.SelectionMode"
                            asp-route-countryYears="@report.SelectedCountryYearsCsv"
@@ -161,6 +170,7 @@
                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
                         </a>
                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-ffc-export
                            asp-page-handler="Excel"
                            asp-route-selectionMode="@Model.SelectionMode"
                            asp-route-countryYears="@report.SelectedCountryYearsCsv"

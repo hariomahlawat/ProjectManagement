@@ -1,0 +1,1083 @@
+--- a/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
++++ b/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
+@@ -138,6 +138,13 @@
+                             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                             Update report
+                         </button>
++                        <span class="report-update-state"
++                              data-ffc-update-required
++                              role="status"
++                              aria-live="polite"
++                              hidden>
++                            Update required
++                        </span>
+                     </div>
+                 </form>
+ 
+@@ -145,6 +152,7 @@
+                     <span class="report-export-group__label">Export</span>
+                     <div class="report-export-actions">
+                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-ffc-export
+                            asp-page-handler="Word"
+                            asp-route-selectionMode="@Model.SelectionMode"
+                            asp-route-countryYears="@report.SelectedCountryYearsCsv"
+@@ -153,6 +161,7 @@
+                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                         </a>
+                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-ffc-export
+                            asp-page-handler="Pdf"
+                            asp-route-selectionMode="@Model.SelectionMode"
+                            asp-route-countryYears="@report.SelectedCountryYearsCsv"
+@@ -161,6 +170,7 @@
+                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                         </a>
+                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-ffc-export
+                            asp-page-handler="Excel"
+                            asp-route-selectionMode="@Model.SelectionMode"
+                            asp-route-countryYears="@report.SelectedCountryYearsCsv"
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -978,3 +978,30 @@
+     }
+ }
+ 
++/* FFC applied-vs-pending report state ------------------------------------ */
++.report-update-state {
++    display: inline-flex;
++    align-items: center;
++    min-height: 16px;
++    color: #a15c00;
++    font-size: .62rem;
++    font-weight: 700;
++    white-space: nowrap;
++}
++
++.report-update-state[hidden] {
++    display: none !important;
++}
++
++.report-refresh-button--pending {
++    box-shadow:
++        0 0 0 .16rem rgba(245, 158, 11, .16),
++        0 1px 2px rgba(15, 23, 42, .08);
++}
++
++.report-export-actions [data-ffc-export][aria-disabled="true"] {
++    pointer-events: none;
++    opacity: .46;
++    filter: saturate(.55);
++}
++
+--- a/wwwroot/js/pages/projects-reports-ffc.js
++++ b/wwwroot/js/pages/projects-reports-ffc.js
+@@ -13,12 +13,36 @@
+     const menuCount = form.querySelector("[data-ffc-menu-count]");
+     const overallStatus = form.querySelector("[data-ffc-overall-status]");
+     const refreshButton = form.querySelector("[data-ffc-refresh]");
++    const updateRequired = form.querySelector("[data-ffc-update-required]");
+     const actionButtons = Array.from(form.querySelectorAll("[data-ffc-country-action]"));
++    const exportLinks = Array.from(document.querySelectorAll("[data-ffc-export]"));
++
++    const baseExportDisabled = new Map(
++        exportLinks.map(link => [
++            link,
++            link.classList.contains("disabled")
++                || String(link.getAttribute("aria-disabled")).toLowerCase() === "true"
++        ]));
+ 
+     const checked = () => checkboxes.filter(input => input.checked);
+ 
++    const selectedSignature = () => checked()
++        .map(input => String(input.value))
++        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
++        .join(",");
++
++    const appliedState = Object.freeze({
++        selection: selectedSignature(),
++        overallStatus: Boolean(overallStatus?.checked)
++    });
++
++    const hasPendingChanges = () =>
++        selectedSignature() !== appliedState.selection
++        || Boolean(overallStatus?.checked) !== appliedState.overallStatus;
++
+     const updateCount = () => {
+         const count = checked().length;
++
+         if (summary) {
+             summary.textContent = `${count} of ${checkboxes.length} selected`;
+         }
+@@ -34,12 +58,42 @@
+         }
+     };
+ 
++    const setExportDisabled = (link, disabled) => {
++        link.classList.toggle("disabled", disabled);
++        link.setAttribute("aria-disabled", disabled ? "true" : "false");
++
++        if (disabled) {
++            link.setAttribute("tabindex", "-1");
++        } else {
++            link.removeAttribute("tabindex");
++        }
++    };
++
++    const updatePendingState = () => {
++        const pending = hasPendingChanges();
++
++        refreshButton?.classList.toggle(
++            "report-refresh-button--pending",
++            pending);
++
++        if (updateRequired) {
++            updateRequired.hidden = !pending;
++        }
++
++        exportLinks.forEach(link => {
++            const disabled = pending || Boolean(baseExportDisabled.get(link));
++            setExportDisabled(link, disabled);
++        });
++    };
++
+     checkboxes.forEach(input => {
+         input.addEventListener("change", () => {
+             if (selectionMode) {
+                 selectionMode.value = "Custom";
+             }
++
+             updateCount();
++            updatePendingState();
+         });
+     });
+ 
+@@ -51,32 +105,47 @@
+                 checkboxes.forEach(input => {
+                     input.checked = input.dataset.defaultIncluded === "true";
+                 });
++
+                 if (selectionMode) {
+                     selectionMode.value = "DefaultActive";
+                 }
+             } else if (action === "all") {
+-                checkboxes.forEach(input => { input.checked = true; });
++                checkboxes.forEach(input => {
++                    input.checked = true;
++                });
++
+                 if (selectionMode) {
+                     selectionMode.value = "Custom";
+                 }
+             } else if (action === "clear") {
+-                checkboxes.forEach(input => { input.checked = false; });
++                checkboxes.forEach(input => {
++                    input.checked = false;
++                });
++
+                 if (selectionMode) {
+                     selectionMode.value = "Custom";
+                 }
+             }
+ 
+             updateCount();
++            updatePendingState();
+         });
+     });
++
++    overallStatus?.addEventListener("change", updatePendingState);
+ 
+     form.addEventListener("submit", () => {
+         syncHiddenSelection();
+     });
+ 
+-    overallStatus?.addEventListener("change", () => {
+-        refreshButton?.classList.add("report-refresh-button--pending");
++    exportLinks.forEach(link => {
++        link.addEventListener("click", event => {
++            if (String(link.getAttribute("aria-disabled")).toLowerCase() === "true") {
++                event.preventDefault();
++            }
++        });
+     });
+ 
+     updateCount();
++    updatePendingState();
+ })();
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
+@@ -16,19 +16,36 @@
+     private const string HeaderFill = "E8EEF5";
+     private const string GroupFill = "F2F5F8";
+     private const string Border = "AAB7C6";
++
+     private const int TableWidth = 15700;
+ 
++    // Word cell margins are in twentieths of a point (twips).
++    // 90 = 4.5 pt horizontal; 50 = 2.5 pt vertical.
++    private const short CellHorizontalMargin = 90;
++    private const string CellVerticalMargin = "50";
++
++    private const int BodyFontHalfPoints = 17;   // 8.5 pt
++    private const int HeaderFontHalfPoints = 17; // 8.5 pt
++    private const int GroupFontHalfPoints = 18;  // 9 pt
++
++    private const string CompatibilityUri = "http://schemas.microsoft.com/office/word";
++    private const string CompatibilityMode = "15";
++
++    // 6-column layout: favour Project and preserve adequate Status width.
+     private static readonly int[] WithoutOverall =
+-        [850, 3200, 1300, 1050, 1600, 7700];
+-
++        [800, 3700, 1300, 1100, 1700, 7100];
++
++    // 7-column layout: Project remains usable while the two narrative columns
++    // share the remaining horizontal space evenly.
+     private static readonly int[] WithOverall =
+-        [850, 2700, 1250, 1050, 1550, 4200, 4100];
++        [800, 3400, 1250, 1050, 1700, 3750, 3750];
+ 
+     public static byte[] Build(
+         FfcProjectsUpdateReport report,
+         FfcProjectsUpdatePresentationOptions? options = null)
+     {
+         ArgumentNullException.ThrowIfNull(report);
++
+         var resolved = options ?? FfcProjectsUpdatePresentationOptions.Default;
+         var widths = resolved.IncludeOverallStatus ? WithOverall : WithoutOverall;
+ 
+@@ -57,6 +74,7 @@
+             body.Append(TitleParagraph(FfcProjectsUpdateReport.FormalTitle));
+             body.Append(BuildTable(report.Groups, resolved, widths));
+             body.Append(BuildSectionProperties(mainPart, footerPart));
++
+             mainPart.Document.Save();
+         }
+ 
+@@ -68,15 +86,17 @@
+         FfcProjectsUpdatePresentationOptions options,
+         IReadOnlyList<int> widths)
+     {
+-        var table = new W.Table(
+-            new W.TableProperties(
+-                new W.TableWidth
+-                {
+-                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
+-                    Type = W.TableWidthUnitValues.Dxa
+-                },
+-                new W.TableLayout { Type = W.TableLayoutValues.Fixed },
+-                Borders()));
++        var tableProperties = new W.TableProperties(
++            new W.TableWidth
++            {
++                Width = TableWidth.ToString(CultureInfo.InvariantCulture),
++                Type = W.TableWidthUnitValues.Dxa
++            },
++            Borders(),
++            new W.TableLayout { Type = W.TableLayoutValues.Fixed },
++            DefaultCellMargins());
++
++        var table = new W.Table(tableProperties);
+ 
+         table.Append(new W.TableGrid(
+             widths.Select(width => new W.GridColumn
+@@ -93,29 +113,43 @@
+             for (var index = 0; index < group.Rows.Count; index++)
+             {
+                 var row = group.Rows[index];
++
+                 var tableRow = new W.TableRow(
+                     new W.TableRowProperties(new W.CantSplit()));
+ 
+                 tableRow.Append(
+-                    Cell(row.Serial.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
+-                    Cell(row.ProjectName, widths[1], bold: true),
++                    Cell(
++                        row.Serial.ToString(CultureInfo.InvariantCulture),
++                        widths[0],
++                        align: W.JustificationValues.Center),
++                    Cell(
++                        row.ProjectName,
++                        widths[1],
++                        bold: true),
+                     Cell(
+                         row.CostInCr.HasValue
+                             ? (row.CostInCr.Value * 100m).ToString("N2", CultureInfo.InvariantCulture)
+                             : string.Empty,
+                         widths[2],
+                         align: W.JustificationValues.Right),
+-                    Cell(row.Quantity.ToString("N0", CultureInfo.InvariantCulture), widths[3], align: W.JustificationValues.Right),
+-                    Cell(row.Status, widths[4]),
+-                    Cell(Narrative(row.ProgressText), widths[5]));
++                    Cell(
++                        row.Quantity.ToString("N0", CultureInfo.InvariantCulture),
++                        widths[3],
++                        align: W.JustificationValues.Right),
++                    Cell(
++                        row.Status,
++                        widths[4]),
++                    Cell(
++                        Narrative(row.ProgressText),
++                        widths[5]));
+ 
+                 if (options.IncludeOverallStatus)
+                 {
+                     tableRow.Append(OverallCell(
+                         index == 0 ? Narrative(group.OverallRemarks) : string.Empty,
+                         widths[6],
+-                        group.Rows.Count > 1,
+-                        index == 0));
++                        mergeRows: group.Rows.Count > 1,
++                        restart: index == 0));
+                 }
+ 
+                 table.Append(tableRow);
+@@ -130,8 +164,25 @@
+         IReadOnlyList<int> widths)
+     {
+         var headings = options.IncludeOverallStatus
+-            ? new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress", "Overall status" }
+-            : new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress" };
++            ? new[]
++            {
++                "S. No.",
++                "Project",
++                "Cost (₹ lakh)",
++                "Quantity",
++                "Status",
++                "Current progress",
++                "Overall status"
++            }
++            : new[]
++            {
++                "S. No.",
++                "Project",
++                "Cost (₹ lakh)",
++                "Quantity",
++                "Status",
++                "Current progress"
++            };
+ 
+         var row = new W.TableRow(
+             new W.TableRowProperties(
+@@ -151,29 +202,33 @@
+                     : index is 2 or 3
+                         ? W.JustificationValues.Right
+                         : W.JustificationValues.Left,
+-                noWrap: index is 0 or 2 or 3 or 4));
++                noWrap: index is 0 or 2 or 3 or 4,
++                verticalAlignment: W.TableVerticalAlignmentValues.Center,
++                fontHalfPoints: HeaderFontHalfPoints));
+         }
+ 
+         return row;
+     }
+ 
+-    private static W.TableRow GroupRow(FfcDetailedGroupVm group, int columnCount)
+-    {
++    private static W.TableRow GroupRow(
++        FfcDetailedGroupVm group,
++        int columnCount)
++    {
++        var properties = BuildCellProperties(
++            TableWidth,
++            fill: GroupFill,
++            verticalAlignment: W.TableVerticalAlignmentValues.Center,
++            gridSpan: columnCount);
++
+         var cell = new W.TableCell(
+-            new W.TableCellProperties(
+-                new W.GridSpan { Val = columnCount },
+-                new W.TableCellWidth
+-                {
+-                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
+-                    Type = W.TableWidthUnitValues.Dxa
+-                },
+-                new W.Shading { Fill = GroupFill, Val = W.ShadingPatternValues.Clear }),
++            properties,
+             Paragraph(
+                 $"{group.CountryName} – {group.Year}",
+-                17,
++                GroupFontHalfPoints,
+                 bold: true,
+                 color: Navy,
+-                after: 0));
++                after: 0,
++                keepNext: true));
+ 
+         return new W.TableRow(
+             new W.TableRowProperties(new W.CantSplit()),
+@@ -186,19 +241,23 @@
+         bool mergeRows,
+         bool restart)
+     {
+-        var properties = BaseCellProperties(width, null);
+-
++        W.MergedCellValues? verticalMerge = null;
+         if (mergeRows)
+         {
+-            properties.Append(new W.VerticalMerge
+-            {
+-                Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
+-            });
+-        }
++            verticalMerge = restart
++                ? W.MergedCellValues.Restart
++                : W.MergedCellValues.Continue;
++        }
++
++        var properties = BuildCellProperties(
++            width,
++            verticalMerge: verticalMerge);
+ 
+         return new W.TableCell(
+             properties,
+-            restart ? Paragraph(text, 16, after: 0) : new W.Paragraph());
++            restart
++                ? Paragraph(text, BodyFontHalfPoints, after: 0)
++                : EmptyParagraph());
+     }
+ 
+     private static W.TableCell Cell(
+@@ -208,30 +267,57 @@
+         string? fill = null,
+         string color = Ink,
+         W.JustificationValues? align = null,
+-        bool noWrap = false)
+-        => new(
+-            BaseCellProperties(width, fill, noWrap),
++        bool noWrap = false,
++        W.TableVerticalAlignmentValues? verticalAlignment = null,
++        int? fontHalfPoints = null)
++        => new(
++            BuildCellProperties(
++                width,
++                fill: fill,
++                noWrap: noWrap,
++                verticalAlignment: verticalAlignment),
+             Paragraph(
+                 text ?? string.Empty,
+-                16,
++                fontHalfPoints ?? BodyFontHalfPoints,
+                 bold: bold,
+                 color: color,
+                 align: align ?? W.JustificationValues.Left,
+                 after: 0));
+ 
+-    private static W.TableCellProperties BaseCellProperties(
++    /// <summary>
++    /// Builds tcPr in schema order. This is deliberately centralized because
++    /// Word is permissive about malformed ordering while other consumers are not.
++    /// </summary>
++    private static W.TableCellProperties BuildCellProperties(
+         int width,
+-        string? fill,
+-        bool noWrap = false)
+-    {
+-        var properties = new W.TableCellProperties(
+-            new W.TableCellWidth
+-            {
+-                Width = width.ToString(CultureInfo.InvariantCulture),
+-                Type = W.TableWidthUnitValues.Dxa
+-            },
+-            new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Top });
+-
++        string? fill = null,
++        bool noWrap = false,
++        W.TableVerticalAlignmentValues? verticalAlignment = null,
++        int? gridSpan = null,
++        W.MergedCellValues? verticalMerge = null)
++    {
++        var properties = new W.TableCellProperties();
++
++        // tcW
++        properties.Append(new W.TableCellWidth
++        {
++            Width = width.ToString(CultureInfo.InvariantCulture),
++            Type = W.TableWidthUnitValues.Dxa
++        });
++
++        // gridSpan
++        if (gridSpan.HasValue)
++        {
++            properties.Append(new W.GridSpan { Val = gridSpan.Value });
++        }
++
++        // vMerge
++        if (verticalMerge.HasValue)
++        {
++            properties.Append(new W.VerticalMerge { Val = verticalMerge.Value });
++        }
++
++        // shd
+         if (!string.IsNullOrWhiteSpace(fill))
+         {
+             properties.Append(new W.Shading
+@@ -241,22 +327,52 @@
+             });
+         }
+ 
++        // noWrap
+         if (noWrap)
+         {
+             properties.Append(new W.NoWrap());
+         }
+ 
++        // vAlign
++        properties.Append(new W.TableCellVerticalAlignment
++        {
++            Val = verticalAlignment ?? W.TableVerticalAlignmentValues.Top
++        });
++
+         return properties;
+     }
++
++    private static W.TableCellMarginDefault DefaultCellMargins()
++        => new(
++            new W.TopMargin
++            {
++                Width = CellVerticalMargin,
++                Type = W.TableWidthUnitValues.Dxa
++            },
++            new W.TableCellLeftMargin
++            {
++                Width = CellHorizontalMargin,
++                Type = W.TableWidthValues.Dxa
++            },
++            new W.BottomMargin
++            {
++                Width = CellVerticalMargin,
++                Type = W.TableWidthUnitValues.Dxa
++            },
++            new W.TableCellRightMargin
++            {
++                Width = CellHorizontalMargin,
++                Type = W.TableWidthValues.Dxa
++            });
+ 
+     private static W.Paragraph TitleParagraph(string text)
+         => Paragraph(
+             text,
+-            26,
++            27,
+             bold: true,
+             color: Navy,
+             align: W.JustificationValues.Center,
+-            after: 100);
++            after: 120);
+ 
+     private static W.Paragraph Paragraph(
+         string text,
+@@ -264,8 +380,26 @@
+         bool bold = false,
+         string color = Ink,
+         W.JustificationValues? align = null,
+-        int after = 0)
+-    {
++        int after = 0,
++        bool keepNext = false)
++    {
++        var paragraphProperties = new W.ParagraphProperties(
++            new W.Justification
++            {
++                Val = align ?? W.JustificationValues.Left
++            },
++            new W.SpacingBetweenLines
++            {
++                Before = "0",
++                After = after.ToString(CultureInfo.InvariantCulture),
++                LineRule = W.LineSpacingRuleValues.Auto
++            });
++
++        if (keepNext)
++        {
++            paragraphProperties.Append(new W.KeepNext());
++        }
++
+         var runProperties = new W.RunProperties(
+             new W.RunFonts
+             {
+@@ -275,43 +409,97 @@
+                 ComplexScript = Font
+             },
+             new W.Color { Val = color },
+-            new W.FontSize { Val = halfPoints.ToString(CultureInfo.InvariantCulture) },
+-            new W.FontSizeComplexScript { Val = halfPoints.ToString(CultureInfo.InvariantCulture) });
++            new W.FontSize
++            {
++                Val = halfPoints.ToString(CultureInfo.InvariantCulture)
++            },
++            new W.FontSizeComplexScript
++            {
++                Val = halfPoints.ToString(CultureInfo.InvariantCulture)
++            });
+ 
+         if (bold)
+         {
+-            runProperties.Append(new W.Bold(), new W.BoldComplexScript());
+-        }
+-
+-        var paragraph = new W.Paragraph(
+-            new W.ParagraphProperties(
+-                new W.Justification { Val = align ?? W.JustificationValues.Left },
+-                new W.SpacingBetweenLines
+-                {
+-                    Before = "0",
+-                    After = after.ToString(CultureInfo.InvariantCulture),
+-                    LineRule = W.LineSpacingRuleValues.Auto
+-                }),
++            runProperties.Append(
++                new W.Bold(),
++                new W.BoldComplexScript());
++        }
++
++        return new W.Paragraph(
++            paragraphProperties,
+             new W.Run(
+                 runProperties,
+-                new W.Text(text) { Space = SpaceProcessingModeValues.Preserve }));
+-
+-        return paragraph;
+-    }
++                new W.Text(text)
++                {
++                    Space = SpaceProcessingModeValues.Preserve
++                }));
++    }
++
++    private static W.Paragraph EmptyParagraph()
++        => new(
++            new W.ParagraphProperties(
++                new W.SpacingBetweenLines
++                {
++                    Before = "0",
++                    After = "0"
++                }));
+ 
+     private static W.TableBorders Borders()
+         => new(
+-            new W.TopBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+-            new W.LeftBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+-            new W.BottomBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+-            new W.RightBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
+-            new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
+-            new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 });
++            new W.TopBorder
++            {
++                Val = W.BorderValues.Single,
++                Color = Border,
++                Size = 5
++            },
++            new W.LeftBorder
++            {
++                Val = W.BorderValues.Single,
++                Color = Border,
++                Size = 5
++            },
++            new W.BottomBorder
++            {
++                Val = W.BorderValues.Single,
++                Color = Border,
++                Size = 5
++            },
++            new W.RightBorder
++            {
++                Val = W.BorderValues.Single,
++                Color = Border,
++                Size = 5
++            },
++            new W.InsideHorizontalBorder
++            {
++                Val = W.BorderValues.Single,
++                Color = Border,
++                Size = 4
++            },
++            new W.InsideVerticalBorder
++            {
++                Val = W.BorderValues.Single,
++                Color = Border,
++                Size = 4
++            });
+ 
+     private static void AddSettings(MainDocumentPart mainPart)
+     {
+         var settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
+-        settingsPart.Settings = new W.Settings(new W.UpdateFieldsOnOpen { Val = true });
++
++        var compatibility = new W.Compatibility(
++            new W.CompatibilitySetting
++            {
++                Name = W.CompatSettingNameValues.CompatibilityMode,
++                Uri = CompatibilityUri,
++                Val = CompatibilityMode
++            });
++
++        // updateFields precedes compat in the Settings content model.
++        settingsPart.Settings = new W.Settings(
++            new W.UpdateFieldsOnOpen { Val = true },
++            compatibility);
++
+         settingsPart.Settings.Save();
+     }
+ 
+@@ -327,11 +515,20 @@
+                     Width = TableWidth.ToString(CultureInfo.InvariantCulture),
+                     Type = W.TableWidthUnitValues.Dxa
+                 },
+-                new W.TableLayout { Type = W.TableLayoutValues.Fixed }));
++                new W.TableLayout
++                {
++                    Type = W.TableLayoutValues.Fixed
++                }));
+ 
+         table.Append(new W.TableGrid(
+-            new W.GridColumn { Width = leftWidth.ToString(CultureInfo.InvariantCulture) },
+-            new W.GridColumn { Width = rightWidth.ToString(CultureInfo.InvariantCulture) }));
++            new W.GridColumn
++            {
++                Width = leftWidth.ToString(CultureInfo.InvariantCulture)
++            },
++            new W.GridColumn
++            {
++                Width = rightWidth.ToString(CultureInfo.InvariantCulture)
++            }));
+ 
+         var row = new W.TableRow();
+         row.Append(
+@@ -340,8 +537,8 @@
+                 leftWidth,
+                 W.JustificationValues.Left),
+             FooterPageCell(rightWidth));
++
+         table.Append(row);
+-
+         return new W.Footer(table);
+     }
+ 
+@@ -362,8 +559,15 @@
+     {
+         var paragraph = new W.Paragraph(
+             new W.ParagraphProperties(
+-                new W.Justification { Val = W.JustificationValues.Right },
+-                new W.SpacingBetweenLines { Before = "0", After = "0" }));
++                new W.Justification
++                {
++                    Val = W.JustificationValues.Right
++                },
++                new W.SpacingBetweenLines
++                {
++                    Before = "0",
++                    After = "0"
++                }));
+ 
+         paragraph.Append(FooterRun("Page "));
+         paragraph.Append(FooterField("PAGE", "1"));
+@@ -380,12 +584,19 @@
+             paragraph);
+     }
+ 
+-    private static W.Paragraph FooterParagraph(string text, W.JustificationValues align)
++    private static W.Paragraph FooterParagraph(
++        string text,
++        W.JustificationValues align)
+     {
+         var paragraph = new W.Paragraph(
+             new W.ParagraphProperties(
+                 new W.Justification { Val = align },
+-                new W.SpacingBetweenLines { Before = "0", After = "0" }));
++                new W.SpacingBetweenLines
++                {
++                    Before = "0",
++                    After = "0"
++                }));
++
+         paragraph.Append(FooterRun(text));
+         return paragraph;
+     }
+@@ -393,14 +604,27 @@
+     private static W.Run FooterRun(string text)
+         => new(
+             FooterRunProperties(),
+-            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
+-
+-    private static W.SimpleField FooterField(string instruction, string fallback)
+-    {
+-        var field = new W.SimpleField { Instruction = instruction };
++            new W.Text(text)
++            {
++                Space = SpaceProcessingModeValues.Preserve
++            });
++
++    private static W.SimpleField FooterField(
++        string instruction,
++        string fallback)
++    {
++        var field = new W.SimpleField
++        {
++            Instruction = instruction
++        };
++
+         field.Append(new W.Run(
+             FooterRunProperties(),
+-            new W.Text(fallback) { Space = SpaceProcessingModeValues.Preserve }));
++            new W.Text(fallback)
++            {
++                Space = SpaceProcessingModeValues.Preserve
++            }));
++
+         return field;
+     }
+ 
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
+@@ -55,15 +55,25 @@
+ 
+             foreach (var row in group.Rows)
+             {
+-                worksheet.Cell(rowIndex, 1).SetValue(row.Serial);
++                var serialCell = worksheet.Cell(rowIndex, 1);
++                serialCell.SetValue(row.Serial);
++                serialCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++
+                 worksheet.Cell(rowIndex, 2).SetValue(row.ProjectName);
+ 
++                var costCell = worksheet.Cell(rowIndex, 3);
+                 if (row.CostInCr.HasValue)
+                 {
+-                    worksheet.Cell(rowIndex, 3).SetValue(row.CostInCr.Value * 100m);
++                    costCell.SetValue(row.CostInCr.Value * 100m);
+                 }
++                costCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
++                costCell.Style.NumberFormat.Format = "#,##0.00";
+ 
+-                worksheet.Cell(rowIndex, 4).SetValue(row.Quantity);
++                var quantityCell = worksheet.Cell(rowIndex, 4);
++                quantityCell.SetValue(row.Quantity);
++                quantityCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
++                quantityCell.Style.NumberFormat.Format = "#,##0";
++
+                 worksheet.Cell(rowIndex, 5).SetValue(row.Status);
+                 worksheet.Cell(rowIndex, 6).SetValue(Narrative(row.ProgressText));
+ 
+@@ -78,6 +88,7 @@
+             if (resolved.IncludeOverallStatus && group.Rows.Count > 1)
+             {
+                 var overallRange = worksheet.Range(groupDataStart, 7, rowIndex - 1, 7).Merge();
++                overallRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+                 overallRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                 overallRange.Style.Alignment.WrapText = true;
+             }
+@@ -135,12 +146,9 @@
+             tableRange.Style.Alignment.WrapText = true;
+         }
+ 
+-        worksheet.Column(1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+-        worksheet.Column(3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+-        worksheet.Column(3).Style.NumberFormat.Format = "#,##0.00";
+-        worksheet.Column(4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+-        worksheet.Column(4).Style.NumberFormat.Format = "#,##0";
+-
++        // Alignment is deliberately applied to actual project data cells while
++        // rows are created. Whole-column alignment would override the merged
++        // Country-Year band's explicit left alignment.
+         worksheet.SheetView.FreezeRows(HeaderRow);
+     }
+ 
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
+@@ -35,6 +35,11 @@
+         Assert.Equal(
+             XLAlignmentHorizontalValues.Left,
+             countryGroupCell.Style.Alignment.Horizontal);
++
++        // First project row follows the group row at row 5 in this fixture.
++        Assert.Equal(
++            XLAlignmentHorizontalValues.Center,
++            worksheet.Cell(5, 1).Style.Alignment.Horizontal);
+ 
+         if (includeOverallStatus)
+         {
+@@ -79,9 +84,50 @@
+         Assert.NotNull(headerCells[3].TableCellProperties?.GetFirstChild<W.NoWrap>());
+         Assert.NotNull(headerCells[4].TableCellProperties?.GetFirstChild<W.NoWrap>());
+ 
++        var margins = table.TableProperties?
++            .GetFirstChild<W.TableCellMarginDefault>();
++        Assert.NotNull(margins);
++        Assert.Equal("50", margins!.TopMargin?.Width?.Value);
++        Assert.Equal((short)90, margins.TableCellLeftMargin?.Width?.Value);
++        Assert.Equal("50", margins.BottomMargin?.Width?.Value);
++        Assert.Equal((short)90, margins.TableCellRightMargin?.Width?.Value);
++
++        var settings = document.MainDocumentPart.DocumentSettingsPart?.Settings;
++        var compatibilityMode = settings?
++            .GetFirstChild<W.Compatibility>()?
++            .Elements<W.CompatibilitySetting>()
++            .SingleOrDefault(setting =>
++                setting.Name?.Value == W.CompatSettingNameValues.CompatibilityMode);
++
++        Assert.NotNull(compatibilityMode);
++        Assert.Equal("http://schemas.microsoft.com/office/word", compatibilityMode!.Uri?.Value);
++        Assert.Equal("15", compatibilityMode.Val?.Value);
++
+         if (includeOverallStatus)
+         {
+             Assert.Contains("Overall status", text, StringComparison.Ordinal);
++
++            var rows = table.Elements<W.TableRow>().ToArray();
++            Assert.True(rows.Length >= 4);
++
++            var firstOverallCell = rows[2]
++                .Elements<W.TableCell>()
++                .ElementAt(6);
++            var secondOverallCell = rows[3]
++                .Elements<W.TableCell>()
++                .ElementAt(6);
++
++            Assert.Equal(
++                W.MergedCellValues.Restart,
++                firstOverallCell.TableCellProperties?
++                    .GetFirstChild<W.VerticalMerge>()?
++                    .Val?.Value);
++
++            Assert.Equal(
++                W.MergedCellValues.Continue,
++                secondOverallCell.TableCellProperties?
++                    .GetFirstChild<W.VerticalMerge>()?
++                    .Val?.Value);
+         }
+     }
+ 
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
+@@ -155,6 +155,89 @@
+             StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void Word_uses_table_level_cell_margins_and_balanced_layouts()
++    {
++        var source = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdateWordBuilder.cs");
++
++        Assert.Contains("private static W.TableCellMarginDefault DefaultCellMargins()", source, StringComparison.Ordinal);
++        Assert.Contains("CellHorizontalMargin = 90", source, StringComparison.Ordinal);
++        Assert.Contains("CellVerticalMargin = \"50\"", source, StringComparison.Ordinal);
++
++        Assert.Contains(
++            "[800, 3700, 1300, 1100, 1700, 7100]",
++            source,
++            StringComparison.Ordinal);
++        Assert.Contains(
++            "[800, 3400, 1250, 1050, 1700, 3750, 3750]",
++            source,
++            StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Word_declares_modern_compatibility_and_schema_clean_vertical_merges()
++    {
++        var source = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdateWordBuilder.cs");
++
++        Assert.Contains(
++            "Name = W.CompatSettingNameValues.CompatibilityMode",
++            source,
++            StringComparison.Ordinal);
++        Assert.Contains("CompatibilityMode = \"15\"", source, StringComparison.Ordinal);
++        Assert.Contains("verticalMerge: verticalMerge", source, StringComparison.Ordinal);
++        Assert.Contains("properties.Append(new W.VerticalMerge", source, StringComparison.Ordinal);
++
++        var mergeIndex = source.IndexOf(
++            "properties.Append(new W.VerticalMerge",
++            StringComparison.Ordinal);
++        var shadingIndex = source.IndexOf(
++            "properties.Append(new W.Shading",
++            StringComparison.Ordinal);
++        var noWrapIndex = source.IndexOf(
++            "properties.Append(new W.NoWrap",
++            StringComparison.Ordinal);
++        var alignIndex = source.IndexOf(
++            "properties.Append(new W.TableCellVerticalAlignment",
++            StringComparison.Ordinal);
++
++        Assert.True(mergeIndex >= 0);
++        Assert.True(shadingIndex > mergeIndex);
++        Assert.True(noWrapIndex > shadingIndex);
++        Assert.True(alignIndex > noWrapIndex);
++    }
++
++    [Fact]
++    public void Ffc_export_buttons_are_disabled_until_pending_options_are_applied()
++    {
++        var page = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "FfcProjectsUpdate.cshtml");
++        Assert.Contains("data-ffc-export", page, StringComparison.Ordinal);
++        Assert.Contains("data-ffc-update-required", page, StringComparison.Ordinal);
++
++        var script = ReadRepoFile(
++            "wwwroot",
++            "js",
++            "pages",
++            "projects-reports-ffc.js");
++
++        Assert.Contains("const appliedState = Object.freeze", script, StringComparison.Ordinal);
++        Assert.Contains("const hasPendingChanges", script, StringComparison.Ordinal);
++        Assert.Contains("updatePendingState();", script, StringComparison.Ordinal);
++        Assert.Contains("setExportDisabled(link, disabled)", script, StringComparison.Ordinal);
++        Assert.Contains("event.preventDefault();", script, StringComparison.Ordinal);
++    }
++
+     private static string ReadRepoFile(params string[] segments)
+     {
+         var root = ResolveRepoRoot();
+--- a/wwwroot/js/projects/reports-ffc-export-state-contract.test.js
++++ b/wwwroot/js/projects/reports-ffc-export-state-contract.test.js
+@@ -0,0 +1,37 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = process.cwd();
++const view = fs.readFileSync(
++  path.join(root, 'Pages', 'Projects', 'Reports', 'FfcProjectsUpdate.cshtml'),
++  'utf8');
++const script = fs.readFileSync(
++  path.join(root, 'wwwroot', 'js', 'pages', 'projects-reports-ffc.js'),
++  'utf8');
++const css = fs.readFileSync(
++  path.join(root, 'wwwroot', 'css', 'pages', 'projects-reports.css'),
++  'utf8');
++
++test('FFC report exposes explicit applied-state export protection', () => {
++  assert.match(view, /data-ffc-export/);
++  assert.match(view, /data-ffc-update-required/);
++  assert.match(script, /const appliedState = Object\.freeze/);
++  assert.match(script, /const hasPendingChanges = \(\) =>/);
++  assert.match(script, /setExportDisabled\(link, disabled\)/);
++  assert.match(script, /event\.preventDefault\(\)/);
++});
++
++test('FFC report communicates that changed options require update', () => {
++  assert.match(script, /report-refresh-button--pending/);
++  assert.match(script, /updateRequired\.hidden = !pending/);
++  assert.match(css, /\.report-update-state/);
++  assert.match(css, /\[data-ffc-export\]\[aria-disabled="true"\]/);
++});
++
++test('FFC report synchronizes country selection before every GET submit', () => {
++  assert.match(script, /form\.addEventListener\("submit"/);
++  assert.match(script, /syncHiddenSelection\(\)/);
++  assert.doesNotMatch(script, /form\.submit\(\)/);
++});

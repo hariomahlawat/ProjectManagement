@@ -1,7 +1,2 @@
-Pages/Projects/Reports/FfcProjectsUpdate.cshtml
 wwwroot/css/pages/projects-reports.css
-Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
-Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
-Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
-ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
 ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs

@@ -55,15 +55,25 @@ public static class FfcProjectsUpdateExcelBuilder
 
             foreach (var row in group.Rows)
             {
-                worksheet.Cell(rowIndex, 1).SetValue(row.Serial);
+                var serialCell = worksheet.Cell(rowIndex, 1);
+                serialCell.SetValue(row.Serial);
+                serialCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
                 worksheet.Cell(rowIndex, 2).SetValue(row.ProjectName);
 
+                var costCell = worksheet.Cell(rowIndex, 3);
                 if (row.CostInCr.HasValue)
                 {
-                    worksheet.Cell(rowIndex, 3).SetValue(row.CostInCr.Value * 100m);
+                    costCell.SetValue(row.CostInCr.Value * 100m);
                 }
+                costCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                costCell.Style.NumberFormat.Format = "#,##0.00";
 
-                worksheet.Cell(rowIndex, 4).SetValue(row.Quantity);
+                var quantityCell = worksheet.Cell(rowIndex, 4);
+                quantityCell.SetValue(row.Quantity);
+                quantityCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                quantityCell.Style.NumberFormat.Format = "#,##0";
+
                 worksheet.Cell(rowIndex, 5).SetValue(row.Status);
                 worksheet.Cell(rowIndex, 6).SetValue(Narrative(row.ProgressText));
 
@@ -78,6 +88,7 @@ public static class FfcProjectsUpdateExcelBuilder
             if (resolved.IncludeOverallStatus && group.Rows.Count > 1)
             {
                 var overallRange = worksheet.Range(groupDataStart, 7, rowIndex - 1, 7).Merge();
+                overallRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
                 overallRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
                 overallRange.Style.Alignment.WrapText = true;
             }
@@ -135,12 +146,9 @@ public static class FfcProjectsUpdateExcelBuilder
             tableRange.Style.Alignment.WrapText = true;
         }
 
-        worksheet.Column(1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Column(3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-        worksheet.Column(3).Style.NumberFormat.Format = "#,##0.00";
-        worksheet.Column(4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-        worksheet.Column(4).Style.NumberFormat.Format = "#,##0";
-
+        // Alignment is deliberately applied to actual project data cells while
+        // rows are created. Whole-column alignment would override the merged
+        // Country-Year band's explicit left alignment.
         worksheet.SheetView.FreezeRows(HeaderRow);
     }
 

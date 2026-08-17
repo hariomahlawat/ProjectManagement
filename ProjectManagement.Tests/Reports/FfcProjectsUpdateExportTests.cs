@@ -36,6 +36,11 @@ public sealed class FfcProjectsUpdateExportTests
             XLAlignmentHorizontalValues.Left,
             countryGroupCell.Style.Alignment.Horizontal);
 
+        // First project row follows the group row at row 5 in this fixture.
+        Assert.Equal(
+            XLAlignmentHorizontalValues.Center,
+            worksheet.Cell(5, 1).Style.Alignment.Horizontal);
+
         if (includeOverallStatus)
         {
             Assert.Equal("Overall status", worksheet.Cell(3, 7).GetString());
@@ -79,9 +84,50 @@ public sealed class FfcProjectsUpdateExportTests
         Assert.NotNull(headerCells[3].TableCellProperties?.GetFirstChild<W.NoWrap>());
         Assert.NotNull(headerCells[4].TableCellProperties?.GetFirstChild<W.NoWrap>());
 
+        var margins = table.TableProperties?
+            .GetFirstChild<W.TableCellMarginDefault>();
+        Assert.NotNull(margins);
+        Assert.Equal("50", margins!.TopMargin?.Width?.Value);
+        Assert.Equal((short)90, margins.TableCellLeftMargin?.Width?.Value);
+        Assert.Equal("50", margins.BottomMargin?.Width?.Value);
+        Assert.Equal((short)90, margins.TableCellRightMargin?.Width?.Value);
+
+        var settings = document.MainDocumentPart.DocumentSettingsPart?.Settings;
+        var compatibilityMode = settings?
+            .GetFirstChild<W.Compatibility>()?
+            .Elements<W.CompatibilitySetting>()
+            .SingleOrDefault(setting =>
+                setting.Name?.Value == W.CompatSettingNameValues.CompatibilityMode);
+
+        Assert.NotNull(compatibilityMode);
+        Assert.Equal("http://schemas.microsoft.com/office/word", compatibilityMode!.Uri?.Value);
+        Assert.Equal("15", compatibilityMode.Val?.Value);
+
         if (includeOverallStatus)
         {
             Assert.Contains("Overall status", text, StringComparison.Ordinal);
+
+            var rows = table.Elements<W.TableRow>().ToArray();
+            Assert.True(rows.Length >= 4);
+
+            var firstOverallCell = rows[2]
+                .Elements<W.TableCell>()
+                .ElementAt(6);
+            var secondOverallCell = rows[3]
+                .Elements<W.TableCell>()
+                .ElementAt(6);
+
+            Assert.Equal(
+                W.MergedCellValues.Restart,
+                firstOverallCell.TableCellProperties?
+                    .GetFirstChild<W.VerticalMerge>()?
+                    .Val?.Value);
+
+            Assert.Equal(
+                W.MergedCellValues.Continue,
+                secondOverallCell.TableCellProperties?
+                    .GetFirstChild<W.VerticalMerge>()?
+                    .Val?.Value);
         }
     }
 

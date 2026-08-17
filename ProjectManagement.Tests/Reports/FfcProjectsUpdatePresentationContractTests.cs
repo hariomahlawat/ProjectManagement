@@ -140,6 +140,40 @@ public sealed class FfcProjectsUpdatePresentationContractTests
     }
 
     [Fact]
+    public void Ffc_sticky_table_header_is_flush_with_the_module_navigation()
+    {
+        var css = ReadRepoFile(
+            "wwwroot",
+            "css",
+            "pages",
+            "projects-reports.css");
+
+        Assert.Contains(
+            "--reports-nav-stack: 98px;",
+            css,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--reports-sticky-top: calc(var(--reports-nav-stack) + 8px);",
+            css,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--ffc-table-sticky-top: var(--reports-nav-stack);",
+            css,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "top: var(--ffc-table-sticky-top);",
+            css,
+            StringComparison.Ordinal);
+
+        // Guard against reintroducing the 8px floating-card breathing room
+        // into the FFC table header.
+        Assert.DoesNotContain(
+            ".ffc-projects-update-table thead th {\n        position: sticky;\n        top: var(--reports-sticky-top);",
+            css,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Word_operational_headers_are_protected_from_avoidable_wrapping()
     {
         var source = ReadRepoFile(
@@ -153,6 +187,89 @@ public sealed class FfcProjectsUpdatePresentationContractTests
             "noWrap: index is 0 or 2 or 3 or 4",
             source,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Word_uses_table_level_cell_margins_and_balanced_layouts()
+    {
+        var source = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdateWordBuilder.cs");
+
+        Assert.Contains("private static W.TableCellMarginDefault DefaultCellMargins()", source, StringComparison.Ordinal);
+        Assert.Contains("CellHorizontalMargin = 90", source, StringComparison.Ordinal);
+        Assert.Contains("CellVerticalMargin = \"50\"", source, StringComparison.Ordinal);
+
+        Assert.Contains(
+            "[800, 3700, 1300, 1100, 1700, 7100]",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "[800, 3400, 1250, 1050, 1700, 3750, 3750]",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Word_declares_modern_compatibility_and_schema_clean_vertical_merges()
+    {
+        var source = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdateWordBuilder.cs");
+
+        Assert.Contains(
+            "Name = W.CompatSettingNameValues.CompatibilityMode",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("CompatibilityMode = \"15\"", source, StringComparison.Ordinal);
+        Assert.Contains("verticalMerge: verticalMerge", source, StringComparison.Ordinal);
+        Assert.Contains("properties.Append(new W.VerticalMerge", source, StringComparison.Ordinal);
+
+        var mergeIndex = source.IndexOf(
+            "properties.Append(new W.VerticalMerge",
+            StringComparison.Ordinal);
+        var shadingIndex = source.IndexOf(
+            "properties.Append(new W.Shading",
+            StringComparison.Ordinal);
+        var noWrapIndex = source.IndexOf(
+            "properties.Append(new W.NoWrap",
+            StringComparison.Ordinal);
+        var alignIndex = source.IndexOf(
+            "properties.Append(new W.TableCellVerticalAlignment",
+            StringComparison.Ordinal);
+
+        Assert.True(mergeIndex >= 0);
+        Assert.True(shadingIndex > mergeIndex);
+        Assert.True(noWrapIndex > shadingIndex);
+        Assert.True(alignIndex > noWrapIndex);
+    }
+
+    [Fact]
+    public void Ffc_export_buttons_are_disabled_until_pending_options_are_applied()
+    {
+        var page = ReadRepoFile(
+            "Pages",
+            "Projects",
+            "Reports",
+            "FfcProjectsUpdate.cshtml");
+        Assert.Contains("data-ffc-export", page, StringComparison.Ordinal);
+        Assert.Contains("data-ffc-update-required", page, StringComparison.Ordinal);
+
+        var script = ReadRepoFile(
+            "wwwroot",
+            "js",
+            "pages",
+            "projects-reports-ffc.js");
+
+        Assert.Contains("const appliedState = Object.freeze", script, StringComparison.Ordinal);
+        Assert.Contains("const hasPendingChanges", script, StringComparison.Ordinal);
+        Assert.Contains("updatePendingState();", script, StringComparison.Ordinal);
+        Assert.Contains("setExportDisabled(link, disabled)", script, StringComparison.Ordinal);
+        Assert.Contains("event.preventDefault();", script, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] segments)

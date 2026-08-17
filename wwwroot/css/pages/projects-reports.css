@@ -7,7 +7,8 @@
     --reports-blue-soft: #eef4fb;
     --reports-warning: #a16207;
     --reports-warning-soft: #fff8e8;
-    --reports-sticky-top: 106px; /* 52px global top bar + 46px module bar + 8px breathing room */
+    --reports-nav-stack: 98px; /* 52px global top bar + 46px Projects module bar */
+    --reports-sticky-top: calc(var(--reports-nav-stack) + 8px); /* floating report controls retain breathing room */
     width: 100%;
     max-width: none;
     margin: 0;
@@ -934,6 +935,14 @@
 }
 
 /* FFC report long-register scrolling ------------------------------------- */
+.project-reports-page--ffc {
+    /*
+     * Table headings are register chrome, not a floating card. They must sit
+     * flush against the bottom of the two-level PRISM navigation stack.
+     */
+    --ffc-table-sticky-top: var(--reports-nav-stack);
+}
+
 .project-reports-page--ffc .report-command-strip {
     position: static;
     top: auto;
@@ -969,12 +978,40 @@
 
     .project-reports-page--ffc .ffc-projects-update-table thead th {
         position: sticky;
-        top: var(--reports-sticky-top);
+        top: var(--ffc-table-sticky-top);
         z-index: 44;
         background: #f2f5f8;
         box-shadow:
+            inset 0 1px 0 #cbd5df,
             inset 0 -1px 0 #cbd5df,
-            0 4px 10px rgba(15, 23, 42, .06);
+            0 3px 8px rgba(15, 23, 42, .06);
     }
+}
+
+/* FFC applied-vs-pending report state ------------------------------------ */
+.report-update-state {
+    display: inline-flex;
+    align-items: center;
+    min-height: 16px;
+    color: #a15c00;
+    font-size: .62rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.report-update-state[hidden] {
+    display: none !important;
+}
+
+.report-refresh-button--pending {
+    box-shadow:
+        0 0 0 .16rem rgba(245, 158, 11, .16),
+        0 1px 2px rgba(15, 23, 42, .08);
+}
+
+.report-export-actions [data-ffc-export][aria-disabled="true"] {
+    pointer-events: none;
+    opacity: .46;
+    filter: saturate(.55);
 }
 

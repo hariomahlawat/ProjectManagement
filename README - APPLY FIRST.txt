@@ -1,76 +1,63 @@
-PRISM FFC Projects Update — Presentation Hardening
-=================================================
+PRISM ERP — FFC Sticky Header Gap Fix
+======================================
 
-This package is a focused refinement over the current working FFC report.
+ISSUE
+-----
+The FFC long-register table header was using:
 
-IMPLEMENTED
------------
+    --reports-sticky-top: 106px
 
-1. BROWSER LONG-REGISTER USABILITY
-   - The KPI command strip is no longer sticky on the FFC report.
-   - On wide workstations (>= 1500px), the actual FFC column header is sticky
-     below the PRISM module navigation.
-   - The wide-screen table no longer sits inside an overflow container that
-     would prevent viewport sticky positioning.
-   - Smaller screens retain the existing horizontal-scroll fallback.
-   - The Overall-status table minimum width is reduced modestly from 1580px
-     to 1500px without changing its column allocations, making the full
-     register more likely to fit naturally on wide displays.
+That offset intentionally included an 8px breathing gap for floating report
+controls:
 
-2. PDF OVERALL STATUS
-   - Overall status is now a real country-year RowSpan cell.
-   - It no longer sits only in the first project row followed by unrelated
-     blank cells.
-   - This matches the browser/Word/Excel meaning: one Overall status belongs
-     to the entire Country-Year group.
+    52px global navigation
+  + 46px Projects module navigation
+  +  8px breathing room
+  = 106px
 
-3. PDF PAGINATION / ORPHAN PAGE HARDENING
-   - The RowSpan change removes the artificial first-row height inflation
-     caused by long Overall-status text.
-   - A4 landscape vertical margins are reduced from 22pt to 16pt.
-   - Header/footer and row padding are tightened slightly.
-   - Body/header font sizes are NOT reduced.
-   - Project and Status receive slightly more horizontal space.
-   - These changes are intended to prevent a one-row orphan second page for
-     the current 19-project production dataset while remaining safe for
-     genuinely larger multi-page reports.
+A sticky table header should not use that floating-card gap. The 8px opening
+allowed scrolling table content to remain visible between the Projects module
+navigation and the sticky column headings.
 
-4. WORD HEADER GEOMETRY
-   - S. No. widened.
-   - Quantity widened.
-   - Project and Status rebalanced.
-   - S. No., Cost, Quantity and Status headings receive OpenXML NoWrap.
-   - Both 6-column and 7-column variants remain exactly 15,700 twips wide.
+FIX
+---
+The navigation stack and floating-control offset are now separate:
 
-5. EXCEL COUNTRY-YEAR GROUPING
-   - Country-Year group headings are explicitly left-aligned, matching the
-     browser, Word and PDF register style.
+    --reports-nav-stack: 98px;
+    --reports-sticky-top: calc(var(--reports-nav-stack) + 8px);
 
-6. REGRESSION TESTS
-   - Excel left-alignment.
-   - Word NoWrap markers.
-   - PDF country-year RowSpan.
-   - FFC sticky-header / non-sticky-KPI browser contract.
+Existing non-FFC floating report controls therefore retain their exact current
+106px behaviour.
 
+FFC gets its own table-heading offset:
 
-PRESERVED
----------
-- Country-Year default selection rule.
-- Manual inclusion of all-installed groups.
-- Explicit Update report workflow.
-- Overall status optional column.
-- No 3-letter country codes in formal outputs.
-- Word/PDF/Excel export routes and data source.
-- Existing IFfcQueryService reuse.
-- Existing authorization.
-- No database migration.
-- No DI registration change.
+    --ffc-table-sticky-top: var(--reports-nav-stack);
 
+and the sticky header now uses:
+
+    top: var(--ffc-table-sticky-top);
+
+This makes the FFC table header flush with the bottom of the PRISM navigation
+without changing other Reports pages.
+
+A top inset rule was also added to the sticky header so the junction remains
+visually sealed while rows scroll underneath.
 
 FILES TO REPLACE
 ----------------
-See CHANGED-FILES.txt.
+wwwroot/css/pages/projects-reports.css
 
+ProjectManagement.Tests/Reports/
+    FfcProjectsUpdatePresentationContractTests.cs
+
+NO CHANGES TO
+-------------
+- FFC data/business logic
+- Browser report columns or widths
+- Word/PDF/Excel builders
+- Overall-status behaviour
+- Country-Year selection
+- Database / DI / Program.cs
 
 AFTER PASTING
 -------------
@@ -78,21 +65,14 @@ dotnet build .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj `
-    --filter "FullyQualifiedName~FfcProjectsUpdate"
+    --filter "FullyQualifiedName~FfcProjectsUpdatePresentationContractTests"
 
+MANUAL CHECK
+------------
+Open FFC Projects Update on the same wide monitor and scroll down.
 
-MANUAL ACCEPTANCE
------------------
-1. Enable Overall status and Update report.
-2. Scroll through the browser report on the wide workstation:
-   - KPI strip must scroll away.
-   - Column headings must remain visible below Projects navigation.
-3. Export PDF:
-   - Overall status must visually span each Country-Year group.
-   - Check whether the current 19-project dataset remains on one page.
-   - If future data genuinely requires more pages, headers must repeat normally.
-4. Export Word:
-   - S. No. and Quantity headings should stay on one line.
-5. Export Excel:
-   - Country-Year group rows must be left aligned.
-6. Confirm no FRA / ETH / MMR / etc. appears in formal outputs.
+Expected:
+- Projects module navigation remains at the top.
+- FFC column headings sit directly beneath it.
+- No 8px strip of scrolling row content is visible between the two.
+- Header bottom shadow remains subtle.
