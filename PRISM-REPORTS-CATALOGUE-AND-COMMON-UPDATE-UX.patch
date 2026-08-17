@@ -1,0 +1,750 @@
+--- a/Pages/Projects/Reports/Index.cshtml
++++ b/Pages/Projects/Reports/Index.cshtml
+@@ -35,7 +35,7 @@
+             <div class="project-report-card__body">
+                 <div class="project-report-card__meta">ARPP / PPP · FY RETURN</div>
+                 <h2>ARPP FY Project Update</h2>
+-                <p>ARPP-listed New, CL and CF projects for the selected financial year with selectable listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
++                <p>ARPP-listed New, CL and CF projects with selectable listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
+                 <div class="project-report-card__facts" aria-label="Report capabilities">
+                     <span><i class="bi bi-sort-down-alt" aria-hidden="true"></i> Lifecycle-maturity order</span>
+                     <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
+@@ -75,7 +75,7 @@
+             <div class="project-report-card__body">
+                 <div class="project-report-card__meta">FFC · COUNTRY-YEAR RETURN</div>
+                 <h2>FFC Projects Update</h2>
+-                <p>Country-year grouped FFC project position with cost, quantity, status and current progress. All-installed country-year groups are excluded by default but remain available for selection.</p>
++                <p>Country-year grouped FFC project position with cost, quantity, status and current progress.</p>
+                 <div class="project-report-card__facts" aria-label="Report capabilities">
+                     <span><i class="bi bi-check2-square" aria-hidden="true"></i> Country-year selection</span>
+                     <span><i class="bi bi-layout-three-columns" aria-hidden="true"></i> Overall status optional</span>
+@@ -87,7 +87,7 @@
+ 
+             <div class="project-report-card__aside">
+                 <div class="project-report-card__availability">
+-                    <span>Source</span>
++                    <span>Data position</span>
+                     <strong>Current FFC portfolio</strong>
+                 </div>
+                 <a class="btn btn-primary btn-sm" asp-page="./FfcProjectsUpdate">
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml
+@@ -60,21 +60,23 @@
+         <div class="report-workspace-actions">
+             @if (Model.AvailableFinancialYears.Count > 0)
+             {
+-                <form method="get" class="report-display-controls" aria-label="Report display options">
++                <form method="get"
++                      class="report-display-controls"
++                      id="arpp-fy-update-controls"
++                      data-report-controls
++                      aria-label="Report display options">
+                     <div class="report-toolbar__fy">
+                         <label for="financialYearStart">Financial Year</label>
+-                        <div class="input-group input-group-sm">
+-                            <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
+-                                @foreach (var year in Model.AvailableFinancialYears)
+-                                {
+-                                    <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+-                                }
+-                            </select>
+-                            <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
+-                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+-                                <span class="visually-hidden">Refresh report</span>
+-                            </button>
+-                        </div>
++                        <select class="form-select form-select-sm"
++                                id="financialYearStart"
++                                name="financialYearStart"
++                                data-report-setting
++                                data-report-setting-key="financialYearStart">
++                            @foreach (var year in Model.AvailableFinancialYears)
++                            {
++                                <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
++                            }
++                        </select>
+                     </div>
+ 
+                     <div class="report-toolbar__listing">
+@@ -82,7 +84,8 @@
+                         <select class="form-select form-select-sm"
+                                 id="listingDateMode"
+                                 name="listingDateMode"
+-                                onchange="this.form.submit()"
++                                data-report-setting
++                                data-report-setting-key="listingDateMode"
+                                 title="Initial listing uses the project's first authoritative ARPP listing. Current FY listing uses the published Original ARPP/Addendum date that establishes the project's current FY position.">
+                             <option value="@ArppListingDateMode.InitialListing"
+                                     selected="@(presentationOptions.EffectiveListingDateMode == ArppListingDateMode.InitialListing)">
+@@ -104,9 +107,27 @@
+                                    name="includePresentStage"
+                                    value="true"
+                                    checked="@Model.IncludePresentStage"
+-                                   onchange="this.form.submit()" />
++                                   data-report-setting
++                                   data-report-setting-key="includePresentStage" />
+                             <span>Present Stage</span>
+                         </label>
++                    </div>
++
++                    <div class="report-toolbar__refresh">
++                        <span class="report-toolbar__options-label">Update</span>
++                        <button type="submit"
++                                class="btn btn-primary btn-sm report-refresh-button"
++                                data-report-update>
++                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
++                            Update report
++                        </button>
++                        <span class="report-update-state"
++                              data-report-update-required
++                              role="status"
++                              aria-live="polite"
++                              hidden>
++                            Update required
++                        </span>
+                     </div>
+                 </form>
+             }
+@@ -117,16 +138,19 @@
+                     <span class="report-export-group__label">Export</span>
+                     <div class="report-export-actions">
+                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-report-export
+                            asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                         </a>
+                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-report-export
+                            asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                         </a>
+                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-report-export
+                            asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+@@ -296,3 +320,8 @@
+         </section>
+     }
+ </div>
++
++
++@section Scripts {
++    <script src="~/js/pages/projects-report-controls.js" asp-append-version="true"></script>
++}
+--- a/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
++++ b/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
+@@ -45,6 +45,7 @@
+                 <form method="get"
+                       class="report-display-controls"
+                       id="ffc-projects-update-controls"
++                      data-report-controls
+                       data-ffc-report-controls
+                       aria-label="FFC report display options">
+                     <input type="hidden"
+@@ -94,6 +95,8 @@
+                                                    id="@checkboxId"
+                                                    value="@option.FfcRecordId"
+                                                    checked="@option.IsSelected"
++                                                   data-report-setting
++                                                   data-report-setting-key="countryYears"
+                                                    data-ffc-country-year
+                                                    data-default-included="@option.IsDefaultIncluded.ToString().ToLowerInvariant()" />
+                                             <span class="report-country-year-option__identity">
+@@ -125,6 +128,8 @@
+                                    name="includeOverallStatus"
+                                    value="true"
+                                    checked="@Model.IncludeOverallStatus"
++                                   data-report-setting
++                                   data-report-setting-key="includeOverallStatus"
+                                    data-ffc-overall-status />
+                             <span>Overall status</span>
+                         </label>
+@@ -134,11 +139,13 @@
+                         <span class="report-toolbar__options-label">Update</span>
+                         <button type="submit"
+                                 class="btn btn-primary btn-sm report-refresh-button"
++                                data-report-update
+                                 data-ffc-refresh>
+                             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                             Update report
+                         </button>
+                         <span class="report-update-state"
++                              data-report-update-required
+                               data-ffc-update-required
+                               role="status"
+                               aria-live="polite"
+@@ -152,6 +159,7 @@
+                     <span class="report-export-group__label">Export</span>
+                     <div class="report-export-actions">
+                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-report-export
+                            data-ffc-export
+                            asp-page-handler="Word"
+                            asp-route-selectionMode="@Model.SelectionMode"
+@@ -161,6 +169,7 @@
+                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                         </a>
+                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-report-export
+                            data-ffc-export
+                            asp-page-handler="Pdf"
+                            asp-route-selectionMode="@Model.SelectionMode"
+@@ -170,6 +179,7 @@
+                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                         </a>
+                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           data-report-export
+                            data-ffc-export
+                            asp-page-handler="Excel"
+                            asp-route-selectionMode="@Model.SelectionMode"
+@@ -308,5 +318,6 @@
+ </div>
+ 
+ @section Scripts {
++    <script src="~/js/pages/projects-report-controls.js" asp-append-version="true"></script>
+     <script src="~/js/pages/projects-reports-ffc.js" asp-append-version="true"></script>
+ }
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -1015,3 +1015,97 @@
+     filter: saturate(.55);
+ }
+ 
++/* Reports catalogue — responsive wide-screen composition ----------------- */
++.project-report-grid {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++    gap: 1rem;
++    align-items: stretch;
++}
++
++.project-report-card {
++    grid-template-columns: auto minmax(0, 1fr);
++    grid-template-rows: 1fr auto;
++    align-items: start;
++    min-height: 218px;
++    padding: 1.05rem 1.08rem;
++}
++
++.project-report-card__icon {
++    grid-column: 1;
++    grid-row: 1;
++}
++
++.project-report-card__body {
++    grid-column: 2;
++    grid-row: 1;
++    min-width: 0;
++}
++
++.project-report-card p {
++    max-width: none;
++}
++
++.project-report-card__aside {
++    grid-column: 1 / -1;
++    grid-row: 2;
++    width: 100%;
++    min-width: 0;
++    align-items: flex-end;
++    justify-content: space-between;
++    gap: 1rem;
++    margin-top: .85rem;
++    padding-top: .76rem;
++    border-top: 1px solid #edf1f5;
++}
++
++.project-report-card__availability {
++    text-align: left;
++}
++
++@media (max-width: 1240px) {
++    .project-report-grid {
++        grid-template-columns: minmax(0, 1fr);
++    }
++
++    .project-report-card {
++        min-height: 0;
++    }
++}
++
++@media (max-width: 680px) {
++    .project-report-card {
++        grid-template-columns: 1fr;
++        grid-template-rows: auto auto auto;
++    }
++
++    .project-report-card__icon,
++    .project-report-card__body,
++    .project-report-card__aside {
++        grid-column: 1;
++    }
++
++    .project-report-card__icon { grid-row: 1; }
++    .project-report-card__body { grid-row: 2; }
++    .project-report-card__aside {
++        grid-row: 3;
++        align-items: center;
++    }
++}
++
++/* Common configurable-report applied-state contract ---------------------- */
++.report-export-actions [data-report-export][aria-disabled="true"] {
++    pointer-events: none;
++    opacity: .46;
++    filter: saturate(.55);
++}
++
++/*
++ * Keep the legacy FFC selector during the migration window. New configurable
++ * reports should use data-report-export.
++ */
++.report-export-actions [data-ffc-export][aria-disabled="true"] {
++    pointer-events: none;
++    opacity: .46;
++    filter: saturate(.55);
++}
++
+--- a/wwwroot/js/pages/projects-report-controls.js
++++ b/wwwroot/js/pages/projects-report-controls.js
+@@ -0,0 +1,135 @@
++(() => {
++    "use strict";
++
++    const forms = Array.from(document.querySelectorAll("[data-report-controls]"));
++    if (forms.length === 0) {
++        return;
++    }
++
++    const normalizeValue = value => String(value ?? "").trim();
++
++    const createController = form => {
++        const settings = Array.from(form.querySelectorAll("[data-report-setting]"));
++        const updateButton = form.querySelector("[data-report-update]");
++        const updateRequired = form.querySelector("[data-report-update-required]");
++        const exportLinks = Array.from(document.querySelectorAll("[data-report-export]"));
++
++        const baseExportDisabled = new Map(
++            exportLinks.map(link => [
++                link,
++                link.classList.contains("disabled")
++                    || String(link.getAttribute("aria-disabled")).toLowerCase() === "true"
++            ]));
++
++        const serializeSettings = () => {
++            const grouped = new Map();
++
++            settings.forEach((element, index) => {
++                const key = normalizeValue(
++                    element.dataset.reportSettingKey
++                    || element.name
++                    || element.id
++                    || `setting-${index}`);
++
++                if (!grouped.has(key)) {
++                    grouped.set(key, []);
++                }
++
++                const values = grouped.get(key);
++                const type = normalizeValue(element.type).toLowerCase();
++
++                if (type === "checkbox" || type === "radio") {
++                    if (element.checked) {
++                        values.push(normalizeValue(element.value || "true"));
++                    }
++                    return;
++                }
++
++                if (element instanceof HTMLSelectElement && element.multiple) {
++                    Array.from(element.selectedOptions)
++                        .forEach(option => values.push(normalizeValue(option.value)));
++                    return;
++                }
++
++                values.push(normalizeValue(element.value));
++            });
++
++            return Array.from(grouped.entries())
++                .sort(([left], [right]) => left.localeCompare(right))
++                .map(([key, values]) => [
++                    key,
++                    values
++                        .slice()
++                        .sort((left, right) =>
++                            left.localeCompare(right, undefined, { numeric: true }))
++                ]);
++        };
++
++        const signature = () => JSON.stringify(serializeSettings());
++        const appliedSignature = signature();
++
++        const setExportDisabled = (link, disabled) => {
++            link.classList.toggle("disabled", disabled);
++            link.setAttribute("aria-disabled", disabled ? "true" : "false");
++
++            if (disabled) {
++                link.setAttribute("tabindex", "-1");
++            } else {
++                link.removeAttribute("tabindex");
++            }
++        };
++
++        const hasPendingChanges = () => signature() !== appliedSignature;
++
++        const refresh = () => {
++            const pending = hasPendingChanges();
++
++            updateButton?.classList.toggle("report-refresh-button--pending", pending);
++
++            if (updateRequired) {
++                updateRequired.hidden = !pending;
++            }
++
++            exportLinks.forEach(link => {
++                const disabled = pending || Boolean(baseExportDisabled.get(link));
++                setExportDisabled(link, disabled);
++            });
++
++            form.dataset.reportPending = pending ? "true" : "false";
++            return pending;
++        };
++
++        settings.forEach(element => {
++            element.addEventListener("change", refresh);
++            element.addEventListener("input", event => {
++                if (event.target instanceof HTMLInputElement
++                    && event.target.type.toLowerCase() === "checkbox") {
++                    return;
++                }
++
++                refresh();
++            });
++        });
++
++        form.addEventListener("prism:report-settings-changed", refresh);
++
++        exportLinks.forEach(link => {
++            link.addEventListener("click", event => {
++                if (String(link.getAttribute("aria-disabled")).toLowerCase() === "true") {
++                    event.preventDefault();
++                }
++            });
++        });
++
++        refresh();
++
++        return Object.freeze({
++            refresh,
++            hasPendingChanges
++        });
++    };
++
++    forms.forEach(form => {
++        form.prismReportControls = createController(form);
++    });
++})();
+--- a/wwwroot/js/pages/projects-reports-ffc.js
++++ b/wwwroot/js/pages/projects-reports-ffc.js
+@@ -11,34 +11,9 @@
+     const checkboxes = Array.from(form.querySelectorAll("[data-ffc-country-year]"));
+     const summary = form.querySelector("[data-ffc-selection-summary]");
+     const menuCount = form.querySelector("[data-ffc-menu-count]");
+-    const overallStatus = form.querySelector("[data-ffc-overall-status]");
+-    const refreshButton = form.querySelector("[data-ffc-refresh]");
+-    const updateRequired = form.querySelector("[data-ffc-update-required]");
+     const actionButtons = Array.from(form.querySelectorAll("[data-ffc-country-action]"));
+-    const exportLinks = Array.from(document.querySelectorAll("[data-ffc-export]"));
+-
+-    const baseExportDisabled = new Map(
+-        exportLinks.map(link => [
+-            link,
+-            link.classList.contains("disabled")
+-                || String(link.getAttribute("aria-disabled")).toLowerCase() === "true"
+-        ]));
+ 
+     const checked = () => checkboxes.filter(input => input.checked);
+-
+-    const selectedSignature = () => checked()
+-        .map(input => String(input.value))
+-        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+-        .join(",");
+-
+-    const appliedState = Object.freeze({
+-        selection: selectedSignature(),
+-        overallStatus: Boolean(overallStatus?.checked)
+-    });
+-
+-    const hasPendingChanges = () =>
+-        selectedSignature() !== appliedState.selection
+-        || Boolean(overallStatus?.checked) !== appliedState.overallStatus;
+ 
+     const updateCount = () => {
+         const count = checked().length;
+@@ -58,32 +33,8 @@
+         }
+     };
+ 
+-    const setExportDisabled = (link, disabled) => {
+-        link.classList.toggle("disabled", disabled);
+-        link.setAttribute("aria-disabled", disabled ? "true" : "false");
+-
+-        if (disabled) {
+-            link.setAttribute("tabindex", "-1");
+-        } else {
+-            link.removeAttribute("tabindex");
+-        }
+-    };
+-
+-    const updatePendingState = () => {
+-        const pending = hasPendingChanges();
+-
+-        refreshButton?.classList.toggle(
+-            "report-refresh-button--pending",
+-            pending);
+-
+-        if (updateRequired) {
+-            updateRequired.hidden = !pending;
+-        }
+-
+-        exportLinks.forEach(link => {
+-            const disabled = pending || Boolean(baseExportDisabled.get(link));
+-            setExportDisabled(link, disabled);
+-        });
++    const signalSettingsChanged = () => {
++        form.dispatchEvent(new CustomEvent("prism:report-settings-changed"));
+     };
+ 
+     checkboxes.forEach(input => {
+@@ -93,7 +44,6 @@
+             }
+ 
+             updateCount();
+-            updatePendingState();
+         });
+     });
+ 
+@@ -128,24 +78,11 @@
+             }
+ 
+             updateCount();
+-            updatePendingState();
++            signalSettingsChanged();
+         });
+     });
+ 
+-    overallStatus?.addEventListener("change", updatePendingState);
+-
+-    form.addEventListener("submit", () => {
+-        syncHiddenSelection();
+-    });
+-
+-    exportLinks.forEach(link => {
+-        link.addEventListener("click", event => {
+-            if (String(link.getAttribute("aria-disabled")).toLowerCase() === "true") {
+-                event.preventDefault();
+-            }
+-        });
+-    });
++    form.addEventListener("submit", syncHiddenSelection);
+ 
+     updateCount();
+-    updatePendingState();
+ })();
+--- a/ProjectManagement.Tests/Reports/ProjectsReportsUxContractTests.cs
++++ b/ProjectManagement.Tests/Reports/ProjectsReportsUxContractTests.cs
+@@ -0,0 +1,145 @@
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class ProjectsReportsUxContractTests
++{
++    [Fact]
++    public void Reports_catalogue_uses_two_columns_on_wide_screens_with_single_column_fallback()
++    {
++        var index = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "Index.cshtml");
++        var css = ReadRepoFile(
++            "wwwroot",
++            "css",
++            "pages",
++            "projects-reports.css");
++
++        Assert.Contains("ARPP FY Project Update", index, StringComparison.Ordinal);
++        Assert.Contains("FFC Projects Update", index, StringComparison.Ordinal);
++        Assert.Contains(
++            "grid-template-columns: repeat(2, minmax(0, 1fr));",
++            css,
++            StringComparison.Ordinal);
++        Assert.Contains("@media (max-width: 1240px)", css, StringComparison.Ordinal);
++        Assert.Contains(
++            "grid-template-columns: minmax(0, 1fr);",
++            css,
++            StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Arpp_report_uses_explicit_update_workflow_instead_of_auto_submit()
++    {
++        var source = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "ArppFyUpdate.cshtml");
++
++        Assert.Contains("data-report-controls", source, StringComparison.Ordinal);
++        Assert.Contains("data-report-update", source, StringComparison.Ordinal);
++        Assert.Contains("data-report-update-required", source, StringComparison.Ordinal);
++        Assert.Equal(
++            3,
++            CountOccurrences(source, "data-report-setting-key="));
++        Assert.Equal(
++            3,
++            CountOccurrences(source, "data-report-export"));
++
++        Assert.DoesNotContain("onchange=\"this.form.submit()\"", source, StringComparison.Ordinal);
++        Assert.DoesNotContain("title=\"Refresh report\"", source, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Arpp_and_ffc_share_the_same_pending_state_controller()
++    {
++        var arpp = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "ArppFyUpdate.cshtml");
++        var ffc = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "FfcProjectsUpdate.cshtml");
++        var controller = ReadRepoFile(
++            "wwwroot",
++            "js",
++            "pages",
++            "projects-report-controls.js");
++
++        Assert.Contains("projects-report-controls.js", arpp, StringComparison.Ordinal);
++        Assert.Contains("projects-report-controls.js", ffc, StringComparison.Ordinal);
++
++        Assert.Contains("[data-report-controls]", controller, StringComparison.Ordinal);
++        Assert.Contains("[data-report-setting]", controller, StringComparison.Ordinal);
++        Assert.Contains("[data-report-update]", controller, StringComparison.Ordinal);
++        Assert.Contains("[data-report-update-required]", controller, StringComparison.Ordinal);
++        Assert.Contains("[data-report-export]", controller, StringComparison.Ordinal);
++        Assert.Contains("prism:report-settings-changed", controller, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Ffc_script_only_owns_country_year_specific_behaviour()
++    {
++        var source = ReadRepoFile(
++            "wwwroot",
++            "js",
++            "pages",
++            "projects-reports-ffc.js");
++
++        Assert.Contains("syncHiddenSelection", source, StringComparison.Ordinal);
++        Assert.Contains("data-ffc-country-action", source, StringComparison.Ordinal);
++        Assert.Contains("prism:report-settings-changed", source, StringComparison.Ordinal);
++
++        Assert.DoesNotContain("baseExportDisabled", source, StringComparison.Ordinal);
++        Assert.DoesNotContain("setExportDisabled", source, StringComparison.Ordinal);
++        Assert.DoesNotContain("report-refresh-button--pending", source, StringComparison.Ordinal);
++    }
++
++    private static int CountOccurrences(string source, string value)
++    {
++        var count = 0;
++        var start = 0;
++
++        while (true)
++        {
++            var index = source.IndexOf(value, start, StringComparison.Ordinal);
++            if (index < 0)
++            {
++                return count;
++            }
++
++            count++;
++            start = index + value.Length;
++        }
++    }
++
++    private static string ReadRepoFile(params string[] segments)
++    {
++        var root = ResolveRepoRoot();
++        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
++    }
++
++    private static string ResolveRepoRoot()
++    {
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException(
++            "Could not locate the ProjectManagement repository root.");
++    }
++}
+--- a/wwwroot/js/projects/reports-common-controls-contract.test.js
++++ b/wwwroot/js/projects/reports-common-controls-contract.test.js
+@@ -0,0 +1,45 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = process.cwd();
++
++const read = (...segments) =>
++  fs.readFileSync(path.join(root, ...segments), 'utf8');
++
++const controller = read(
++  'wwwroot', 'js', 'pages', 'projects-report-controls.js');
++const arpp = read(
++  'Pages', 'Projects', 'Reports', 'ArppFyUpdate.cshtml');
++const ffc = read(
++  'Pages', 'Projects', 'Reports', 'FfcProjectsUpdate.cshtml');
++const ffcScript = read(
++  'wwwroot', 'js', 'pages', 'projects-reports-ffc.js');
++
++test('configurable reports share one applied-state controller', () => {
++  assert.match(arpp, /data-report-controls/);
++  assert.match(ffc, /data-report-controls/);
++  assert.match(arpp, /projects-report-controls\.js/);
++  assert.match(ffc, /projects-report-controls\.js/);
++
++  assert.match(controller, /\[data-report-setting\]/);
++  assert.match(controller, /\[data-report-update\]/);
++  assert.match(controller, /\[data-report-update-required\]/);
++  assert.match(controller, /\[data-report-export\]/);
++});
++
++test('ARPP options are draft settings until Update report is submitted', () => {
++  assert.doesNotMatch(arpp, /onchange="this\.form\.submit\(\)"/);
++  assert.match(arpp, /data-report-setting-key="financialYearStart"/);
++  assert.match(arpp, /data-report-setting-key="listingDateMode"/);
++  assert.match(arpp, /data-report-setting-key="includePresentStage"/);
++  assert.match(arpp, />\s*Update report\s*</);
++});
++
++test('FFC retains only report-specific country-year mechanics', () => {
++  assert.match(ffcScript, /syncHiddenSelection/);
++  assert.match(ffcScript, /prism:report-settings-changed/);
++  assert.doesNotMatch(ffcScript, /baseExportDisabled/);
++  assert.doesNotMatch(ffcScript, /setExportDisabled/);
++});

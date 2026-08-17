@@ -1,2 +1,8 @@
+Pages/Projects/Reports/Index.cshtml
+Pages/Projects/Reports/ArppFyUpdate.cshtml
+Pages/Projects/Reports/FfcProjectsUpdate.cshtml
 wwwroot/css/pages/projects-reports.css
-ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
+wwwroot/js/pages/projects-report-controls.js
+wwwroot/js/pages/projects-reports-ffc.js
+ProjectManagement.Tests/Reports/ProjectsReportsUxContractTests.cs
+wwwroot/js/projects/reports-common-controls-contract.test.js

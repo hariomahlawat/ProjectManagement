@@ -84,7 +84,8 @@ public sealed class FfcProjectsUpdateExportTests
         Assert.NotNull(headerCells[3].TableCellProperties?.GetFirstChild<W.NoWrap>());
         Assert.NotNull(headerCells[4].TableCellProperties?.GetFirstChild<W.NoWrap>());
 
-        var margins = table.TableProperties?
+        var tableProperties = table.GetFirstChild<W.TableProperties>();
+        var margins = tableProperties?
             .GetFirstChild<W.TableCellMarginDefault>();
         Assert.NotNull(margins);
         Assert.Equal("50", margins!.TopMargin?.Width?.Value);

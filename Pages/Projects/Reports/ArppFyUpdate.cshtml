@@ -60,21 +60,23 @@
         <div class="report-workspace-actions">
             @if (Model.AvailableFinancialYears.Count > 0)
             {
-                <form method="get" class="report-display-controls" aria-label="Report display options">
+                <form method="get"
+                      class="report-display-controls"
+                      id="arpp-fy-update-controls"
+                      data-report-controls
+                      aria-label="Report display options">
                     <div class="report-toolbar__fy">
                         <label for="financialYearStart">Financial Year</label>
-                        <div class="input-group input-group-sm">
-                            <select class="form-select" id="financialYearStart" name="financialYearStart" onchange="this.form.submit()">
-                                @foreach (var year in Model.AvailableFinancialYears)
-                                {
-                                    <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
-                                }
-                            </select>
-                            <button type="submit" class="btn btn-outline-secondary" title="Refresh report">
-                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                                <span class="visually-hidden">Refresh report</span>
-                            </button>
-                        </div>
+                        <select class="form-select form-select-sm"
+                                id="financialYearStart"
+                                name="financialYearStart"
+                                data-report-setting
+                                data-report-setting-key="financialYearStart">
+                            @foreach (var year in Model.AvailableFinancialYears)
+                            {
+                                <option value="@year" selected="@(Model.FinancialYearStart == year)">FY @FinancialYearHelper.Format(year)</option>
+                            }
+                        </select>
                     </div>
 
                     <div class="report-toolbar__listing">
@@ -82,7 +84,8 @@
                         <select class="form-select form-select-sm"
                                 id="listingDateMode"
                                 name="listingDateMode"
-                                onchange="this.form.submit()"
+                                data-report-setting
+                                data-report-setting-key="listingDateMode"
                                 title="Initial listing uses the project's first authoritative ARPP listing. Current FY listing uses the published Original ARPP/Addendum date that establishes the project's current FY position.">
                             <option value="@ArppListingDateMode.InitialListing"
                                     selected="@(presentationOptions.EffectiveListingDateMode == ArppListingDateMode.InitialListing)">
@@ -104,9 +107,27 @@
                                    name="includePresentStage"
                                    value="true"
                                    checked="@Model.IncludePresentStage"
-                                   onchange="this.form.submit()" />
+                                   data-report-setting
+                                   data-report-setting-key="includePresentStage" />
                             <span>Present Stage</span>
                         </label>
+                    </div>
+
+                    <div class="report-toolbar__refresh">
+                        <span class="report-toolbar__options-label">Update</span>
+                        <button type="submit"
+                                class="btn btn-primary btn-sm report-refresh-button"
+                                data-report-update>
+                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            Update report
+                        </button>
+                        <span class="report-update-state"
+                              data-report-update-required
+                              role="status"
+                              aria-live="polite"
+                              hidden>
+                            Update required
+                        </span>
                     </div>
                 </form>
             }
@@ -117,16 +138,19 @@
                     <span class="report-export-group__label">Export</span>
                     <div class="report-export-actions">
                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-report-export
                            asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
                         </a>
                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-report-export
                            asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
                         </a>
                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-report-export
                            asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
@@ -296,3 +320,8 @@
         </section>
     }
 </div>
+
+
+@section Scripts {
+    <script src="~/js/pages/projects-report-controls.js" asp-append-version="true"></script>
+}

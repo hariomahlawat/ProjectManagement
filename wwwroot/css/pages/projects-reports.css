@@ -1015,3 +1015,97 @@
     filter: saturate(.55);
 }
 
+/* Reports catalogue — responsive wide-screen composition ----------------- */
+.project-report-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.project-report-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+    align-items: start;
+    min-height: 218px;
+    padding: 1.05rem 1.08rem;
+}
+
+.project-report-card__icon {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.project-report-card__body {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.project-report-card p {
+    max-width: none;
+}
+
+.project-report-card__aside {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: .85rem;
+    padding-top: .76rem;
+    border-top: 1px solid #edf1f5;
+}
+
+.project-report-card__availability {
+    text-align: left;
+}
+
+@media (max-width: 1240px) {
+    .project-report-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .project-report-card {
+        min-height: 0;
+    }
+}
+
+@media (max-width: 680px) {
+    .project-report-card {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+    }
+
+    .project-report-card__icon,
+    .project-report-card__body,
+    .project-report-card__aside {
+        grid-column: 1;
+    }
+
+    .project-report-card__icon { grid-row: 1; }
+    .project-report-card__body { grid-row: 2; }
+    .project-report-card__aside {
+        grid-row: 3;
+        align-items: center;
+    }
+}
+
+/* Common configurable-report applied-state contract ---------------------- */
+.report-export-actions [data-report-export][aria-disabled="true"] {
+    pointer-events: none;
+    opacity: .46;
+    filter: saturate(.55);
+}
+
+/*
+ * Keep the legacy FFC selector during the migration window. New configurable
+ * reports should use data-report-export.
+ */
+.report-export-actions [data-ffc-export][aria-disabled="true"] {
+    pointer-events: none;
+    opacity: .46;
+    filter: saturate(.55);
+}
+

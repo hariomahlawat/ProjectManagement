@@ -45,6 +45,7 @@
                 <form method="get"
                       class="report-display-controls"
                       id="ffc-projects-update-controls"
+                      data-report-controls
                       data-ffc-report-controls
                       aria-label="FFC report display options">
                     <input type="hidden"
@@ -94,6 +95,8 @@
                                                    id="@checkboxId"
                                                    value="@option.FfcRecordId"
                                                    checked="@option.IsSelected"
+                                                   data-report-setting
+                                                   data-report-setting-key="countryYears"
                                                    data-ffc-country-year
                                                    data-default-included="@option.IsDefaultIncluded.ToString().ToLowerInvariant()" />
                                             <span class="report-country-year-option__identity">
@@ -125,6 +128,8 @@
                                    name="includeOverallStatus"
                                    value="true"
                                    checked="@Model.IncludeOverallStatus"
+                                   data-report-setting
+                                   data-report-setting-key="includeOverallStatus"
                                    data-ffc-overall-status />
                             <span>Overall status</span>
                         </label>
@@ -134,11 +139,13 @@
                         <span class="report-toolbar__options-label">Update</span>
                         <button type="submit"
                                 class="btn btn-primary btn-sm report-refresh-button"
+                                data-report-update
                                 data-ffc-refresh>
                             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                             Update report
                         </button>
                         <span class="report-update-state"
+                              data-report-update-required
                               data-ffc-update-required
                               role="status"
                               aria-live="polite"
@@ -152,6 +159,7 @@
                     <span class="report-export-group__label">Export</span>
                     <div class="report-export-actions">
                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-report-export
                            data-ffc-export
                            asp-page-handler="Word"
                            asp-route-selectionMode="@Model.SelectionMode"
@@ -161,6 +169,7 @@
                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
                         </a>
                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-report-export
                            data-ffc-export
                            asp-page-handler="Pdf"
                            asp-route-selectionMode="@Model.SelectionMode"
@@ -170,6 +179,7 @@
                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
                         </a>
                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           data-report-export
                            data-ffc-export
                            asp-page-handler="Excel"
                            asp-route-selectionMode="@Model.SelectionMode"
@@ -308,5 +318,6 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/pages/projects-report-controls.js" asp-append-version="true"></script>
     <script src="~/js/pages/projects-reports-ffc.js" asp-append-version="true"></script>
 }

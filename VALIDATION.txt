@@ -1,13 +1,9 @@
 STATIC VALIDATION
 =================
 
-PASS  nav_stack_separated_from_floating_offset
-PASS  ffc_has_dedicated_flush_offset
-PASS  ffc_header_uses_flush_offset
-PASS  ffc_header_no_longer_uses_reports_floating_offset
-PASS  top_edge_is_visually_sealed
-PASS  non_ffc_floating_offset_preserved
-PASS  regression_test_added
+PASS  failing table.TableProperties member access removed
+PASS  TableProperties retrieved with GetFirstChild<W.TableProperties>()
+PASS  TableCellMarginDefault assertion preserved
 
-NOTE: The .NET SDK is not installed in this execution environment.
-Run the supplied build/test commands on the development machine.
+NOTE: The .NET SDK is unavailable in this execution environment.
+Run the supplied build/test command on the development machine.
