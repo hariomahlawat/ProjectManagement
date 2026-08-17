@@ -18,10 +18,10 @@ public sealed class ArppFyProjectUpdateWordBuilder
     // Both variants intentionally total 16,000 twips: the exact printable width
     // used by the A4-landscape section below.
     private static readonly int[] StandardWidths =
-        [500, 800, 2700, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3950];
+        [500, 1400, 2550, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3500];
 
     private static readonly int[] PresentStageWidths =
-        [500, 800, 2250, 1150, 750, 1000, 600, 1000, 1500, 1300, 1000, 750, 3400];
+        [500, 1400, 2150, 1150, 750, 1000, 600, 1000, 1500, 1300, 1000, 750, 2900];
 
     public byte[] Build(
         ArppFyProjectUpdateReport report,
@@ -143,7 +143,7 @@ public sealed class ArppFyProjectUpdateWordBuilder
         }
 
         cells.Add(Cell(SupplyOrder(row), widths[offset], align: W.JustificationValues.Center, noWrap: true));
-        cells.Add(Cell(Date(row.DevelopmentPdcDate), widths[offset + 1], align: W.JustificationValues.Center, noWrap: true));
+        cells.Add(Cell(Pdc(row), widths[offset + 1], align: W.JustificationValues.Center, noWrap: true));
         cells.Add(Cell(row.ProjectCaseDisplay, widths[offset + 2], align: W.JustificationValues.Center));
         cells.Add(Cell(row.LatestExternalRemark ?? string.Empty, widths[offset + 3]));
         return cells;
@@ -259,6 +259,9 @@ public sealed class ArppFyProjectUpdateWordBuilder
 
     private static string Date(DateOnly? value)
         => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+
+    private static string Pdc(ArppFyProjectUpdateRow row)
+        => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
 
     private static string SupplyOrder(ArppFyProjectUpdateRow row)
     {

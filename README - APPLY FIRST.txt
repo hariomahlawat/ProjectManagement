@@ -1,37 +1,59 @@
-PRISM ARPP FY Project Update — Optional Present Stage Column
-=============================================================
+PRISM ARPP FY Project Update — Production Hardening
+==================================================
 
 READY-TO-PASTE REPLACEMENTS
 ---------------------------
-Replace the files in this package preserving their project paths.
+Replace these files using the same relative paths:
 
-BEHAVIOUR
----------
-- Adds an "Optional columns" control to the ARPP FY Project Update workspace.
-- "Present Stage" is OFF by default, preserving the prescribed 12-column report.
-- When enabled, Present Stage appears immediately after AoN under the Status group.
-- The choice is carried through FY refresh and Word / PDF / Excel export links.
-- Word, PDF and Excel all use the same option and the same row.StageDisplay value.
-- Completed projects display "Completed" from lifecycle status; historical stage records do not override it.
-- No new database query, field, migration, authorization rule or DI registration is introduced.
+1. Pages\Projects\Reports\ArppFyUpdate.cshtml
+2. wwwroot\css\pages\projects-reports.css
+3. Services\Reports\ArppFyProjectUpdate\ArppFyProjectUpdateContracts.cs
+4. Services\Reports\ArppFyProjectUpdate\ArppFyProjectUpdateWordBuilder.cs
+5. Services\Reports\ArppFyProjectUpdate\ArppFyProjectUpdatePdfBuilder.cs
+6. Services\Reports\ArppFyProjectUpdate\ArppFyProjectUpdateExcelBuilder.cs
+7. ProjectManagement.Tests\Reports\ArppFyProjectUpdateExportTests.cs
+8. ProjectManagement.Tests\Reports\ArppFyProjectUpdatePresentationContractTests.cs
 
-EXPORT LAYOUT
--------------
-Default: 12 columns; Status = AoN / SO amt & dt / PDC dt.
-With Present Stage: 13 columns; Status = AoN / Present Stage / SO amt & dt / PDC dt.
+WHAT THIS FIXES
+---------------
+A. Production ARPP / PPP identifiers
+- Removes the browser nowrap rule that caused real production ARPP numbers to overlap Project Name.
+- Widens the browser ARPP No. column from 5.1rem to 8.8rem.
+- Inserts safe <wbr> opportunities after '/' while HTML-encoding the original identifier.
+- Retains overflow-wrap:anywhere as a defensive fallback for unusually long uninterrupted identifiers.
+- Raises formal web-table minimum width to 1540px (1670px with Present Stage), preserving horizontal scroll only on smaller screens.
+- Rebalances ARPP No. width in Word, PDF and Excel using real production-length identifiers.
 
-Word maintains the exact 16,000-twip A4-landscape printable width in both variants.
-PDF and Excel use variant-specific widths so Project Name / Remarks surrender most of the extra space, while operational columns remain compact.
+B. Completed projects in PDC dt
+- Adds an authoritative IsCompleted report-row property based only on ProjectLifecycleStatus.Completed.
+- PDC dt now displays 'Completed' for completed projects in browser, Word, PDF and Excel.
+- Historical Development PDC values are deliberately ignored for completed projects.
+- Non-completed projects continue to show the resolved Development PDC date when applicable, otherwise blank in formal exports / dash in browser preview.
 
-EXISTING REFINEMENTS PRESERVED
-------------------------------
-- Definitive heading: PROJECT UPDATE : ARPP LISTED PROJECTS (FY ...).
-- Word 7 pt formal-table typography, no-wrap date cells, institutional footer and blank missing values.
-- PDF standard-ligature safeguard and blank missing values.
-- Excel formal heading, page setup, freeze panes and institutional footer.
+C. Regression protection
+- Adds production-style long-identifier tests.
+- Verifies Completed overrides a historical Development PDC.
+- Verifies Excel standard and Present Stage layouts both place Completed in the correct PDC cell.
+- Preserves the existing PDF ligature/text-integrity safeguard and all Present Stage behavior.
+
+NOT CHANGED
+-----------
+- ARPP membership / current-position resolution
+- First ARPP listing date resolution
+- Lifecycle ordering
+- Supply Order value logic
+- Present Stage option behavior
+- Authorization / DI / database schema
+
+NOTE ON REPEATED 31 DEC 2024 LISTING DATES
+------------------------------------------
+No automatic change has been made. The report currently uses the authoritative first published ARPP IssueDate.
+If many projects show 31 Dec 2024, that value should be verified in the published ARPP source records before changing report logic; the report should not fabricate a different date.
 
 AFTER PASTING
 -------------
 dotnet build .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj --filter "FullyQualifiedName~ProjectManagement.Tests.Reports"
+
+Then regenerate the production report and verify a long ARPP number and a completed project in browser, Word, PDF and Excel.

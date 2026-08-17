@@ -1,18 +1,19 @@
 STATIC VALIDATION
 =================
+PASS  Word standard widths total exactly 16,000 twips
+PASS  Word Present Stage widths total exactly 16,000 twips
+PASS  Browser ARPP No. width = 8.8rem
+PASS  Browser standard minimum table width = 1540px
+PASS  Browser Present Stage minimum table width = 1670px
+PASS  Browser ARPP nowrap removed
+PASS  Browser inserts safe <wbr> opportunities after '/'
+PASS  Browser PDC uses authoritative completion state
+PASS  Contract exposes IsCompleted from lifecycle status
+PASS  Word PDC uses Completed override
+PASS  PDF PDC uses Completed override
+PASS  Excel PDC uses Completed override
+PASS  PDF ARPP No. relative width increased to 1.25
+PASS  Excel ARPP No. width increased to 18
+PASS  Existing PDF ligature/text-integrity fix preserved
 
-PASS  option_default_false
-PASS  page_get_binding
-PASS  export_route_preserved_3
-PASS  browser_status_dynamic
-PASS  browser_stage_data
-PASS  word_standard_width
-PASS  word_stage_width
-PASS  word_dynamic_status_span
-PASS  pdf_dynamic_stage
-PASS  pdf_ligature_fix_preserved
-PASS  excel_13_column_layout
-PASS  excel_title_dynamic
-PASS  no_schema_or_di
-
-.NET SDK is not available in this execution environment; run the build/test commands above on the target development machine.
+NOTE: .NET SDK is not installed in this execution environment, so a real dotnet build/test run could not be executed here.

@@ -436,7 +436,7 @@
 
 .formal-report-table {
     width: 100%;
-    min-width: 1450px;
+    min-width: 1540px;
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
@@ -448,7 +448,7 @@
    additional width on large screens. The table remains scrollable only when
    the viewport is genuinely narrower than the formal register. */
 .formal-report-table col.col-serial { width: 3.4rem; }
-.formal-report-table col.col-arpp { width: 5.1rem; }
+.formal-report-table col.col-arpp { width: 8.8rem; }
 .formal-report-table col.col-project { width: clamp(14rem, 20vw, 28rem); }
 .formal-report-table col.col-date { width: 7.4rem; }
 .formal-report-table col.col-sch { width: 4.7rem; }
@@ -460,7 +460,7 @@
 .formal-report-table col.col-pdc { width: 6.3rem; }
 .formal-report-table col.col-case { width: 5rem; }
 .formal-report-table col.col-remarks { width: auto; }
-.formal-report-table--with-stage { min-width: 1580px; }
+.formal-report-table--with-stage { min-width: 1670px; }
 
 .formal-report-table th,
 .formal-report-table td {
@@ -494,6 +494,17 @@
 }
 
 .formal-report-project a:hover { text-decoration: underline; }
+
+/* Production ARPP identifiers can be substantially longer than test values.
+   Keep them inside their own cell, prefer the natural '/' separators and still
+   permit a defensive break for unexpectedly long uninterrupted tokens. */
+.formal-report-arpp {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    line-height: 1.2;
+}
+
 .formal-report-cfa { overflow-wrap: normal !important; word-break: normal; }
 .formal-report-stage { color: #344b63; font-weight: 650; overflow-wrap: normal !important; word-break: normal; }
 .formal-report-so strong,
@@ -502,6 +513,7 @@
 .formal-report-so strong { color: #263f59; font-size: .73rem; }
 .formal-report-so span { margin-top: .06rem; }
 .formal-report-so small { margin-top: .06rem; color: #7a8794; font-size: .59rem; font-weight: 700; }
+.formal-report-pdc { font-weight: 600; }
 .formal-report-remarks { vertical-align: top !important; color: #3d4854; }
 
 .report-case-badge {

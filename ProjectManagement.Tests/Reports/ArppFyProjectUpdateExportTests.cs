@@ -100,6 +100,51 @@ public sealed class ArppFyProjectUpdateExportTests
     }
 
     [Fact]
+    public void Production_hardening_preserves_long_arpp_number_and_marks_completed_pdc()
+    {
+        const string longArppNumber = "ARPP/IR&D/CF/VR/2026-27/123";
+        var report = SampleReportWithCompletedProject(longArppNumber);
+
+        var word = new ArppFyProjectUpdateWordBuilder().Build(report);
+        using (var stream = new MemoryStream(word))
+        using (var document = WordprocessingDocument.Open(stream, false))
+        {
+            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
+            Assert.Contains(longArppNumber, text, StringComparison.Ordinal);
+            Assert.Contains("Completed", text, StringComparison.Ordinal);
+        }
+
+        var excel = new ArppFyProjectUpdateExcelBuilder().Build(report);
+        using (var excelStream = new MemoryStream(excel))
+        using (var workbook = new XLWorkbook(excelStream))
+        {
+            var worksheet = workbook.Worksheet("ARPP Project Update");
+            Assert.Equal(longArppNumber, worksheet.Cell(5, 2).GetString());
+            Assert.Equal("Completed", worksheet.Cell(5, 10).GetString());
+            Assert.InRange(worksheet.Column(2).Width, 17.99d, 18.01d);
+        }
+
+        var excelWithStage = new ArppFyProjectUpdateExcelBuilder().Build(
+            report,
+            new ArppFyProjectUpdatePresentationOptions(IncludePresentStage: true));
+        using (var excelStream = new MemoryStream(excelWithStage))
+        using (var workbook = new XLWorkbook(excelStream))
+        {
+            var worksheet = workbook.Worksheet("ARPP Project Update");
+            Assert.Equal("Completed", worksheet.Cell(5, 9).GetString());
+            Assert.Equal("Completed", worksheet.Cell(5, 11).GetString());
+        }
+
+        var pdfSource = ReadRepoFile(
+            "Services",
+            "Reports",
+            "ArppFyProjectUpdate",
+            "ArppFyProjectUpdatePdfBuilder.cs");
+        Assert.Contains("BodyCell(table.Cell(), Pdc(row), center: true);", pdfSource, StringComparison.Ordinal);
+        Assert.Contains("columns.RelativeColumn(1.25f);", pdfSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Formal_exports_leave_missing_report_values_blank()
     {
         var report = SampleReportWithMissingValues();
@@ -171,6 +216,38 @@ public sealed class ArppFyProjectUpdateExportTests
                     "DEVP",
                     "Development",
                     ProjectStageMaturityOrder.Development)
+            },
+            Array.Empty<ArppFyReportWarning>(),
+            0);
+
+    private static ArppFyProjectUpdateReport SampleReportWithCompletedProject(string pppNumber)
+        => new(
+            2026,
+            new DateTimeOffset(2026, 8, 17, 3, 0, 0, TimeSpan.Zero),
+            new[]
+            {
+                new ArppFyProjectUpdateRow(
+                    1,
+                    20,
+                    pppNumber,
+                    "Completed Production Simulator",
+                    new DateOnly(2024, 12, 31),
+                    "9.3",
+                    "Comdt SDD",
+                    "SDD",
+                    new DateOnly(2025, 11, 18),
+                    900_000m,
+                    ProjectSupplyOrderValueBasis.Pnc,
+                    new DateOnly(2026, 1, 29),
+                    new DateOnly(2025, 12, 31), // historical PDC must not leak into the report
+                    ArppCategory.CarryForward,
+                    "Project Completed. Available for proliferation.",
+                    new DateOnly(2026, 8, 16),
+                    ProjectLifecycleStatus.Completed,
+                    false,
+                    "DEVP",
+                    "Development",
+                    ProjectStageMaturityOrder.Completed)
             },
             Array.Empty<ArppFyReportWarning>(),
             0);

@@ -1,0 +1,366 @@
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml
+@@ -1,6 +1,8 @@
+ @page "/Projects/Reports/ArppFyUpdate"
+ @model ProjectManagement.Pages.Projects.Reports.ArppFyUpdateModel
+ @using System.Globalization
++@using System.Text.Encodings.Web
++@using Microsoft.AspNetCore.Html
+ @using ProjectManagement.Services.Projects
+ @using ProjectManagement.Services.Reports.ArppFyProjectUpdate
+ @using ProjectManagement.Utilities
+@@ -10,6 +12,19 @@
+     ViewData["PageShell"] = "workspace";
+     var report = Model.Report;
+     string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
++    string Pdc(ArppFyProjectUpdateRow row) => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
++    IHtmlContent ArppNumber(string? value)
++    {
++        if (string.IsNullOrWhiteSpace(value))
++        {
++            return new HtmlString("—");
++        }
++
++        // Keep the identifier exact while preferring line breaks at its natural '/' separators.
++        var encoded = HtmlEncoder.Default.Encode(value);
++        return new HtmlString(encoded.Replace("/", "/<wbr>", StringComparison.Ordinal));
++    }
++
+     string SupplyOrder(ArppFyProjectUpdateRow row)
+     {
+         var amount = row.SupplyOrderAmountInCrores.HasValue
+@@ -220,7 +235,7 @@
+                             {
+                                 <tr>
+                                     <td class="text-center">@row.SerialNumber</td>
+-                                    <td class="text-center text-nowrap">@(row.PppNumber ?? "—")</td>
++                                    <td class="text-center formal-report-arpp">@ArppNumber(row.PppNumber)</td>
+                                     <td class="formal-report-project" title="Current position: @row.StageDisplay">
+                                         <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
+                                     </td>
+@@ -248,7 +263,7 @@
+                                             <span>@SupplyOrder(row)</span>
+                                         }
+                                     </td>
+-                                    <td class="text-center">@Date(row.DevelopmentPdcDate)</td>
++                                    <td class="text-center formal-report-pdc">@Pdc(row)</td>
+                                     <td class="text-center"><span class="report-case-badge">@row.ProjectCaseDisplay</span></td>
+                                     <td class="formal-report-remarks">@(row.LatestExternalRemark ?? "—")</td>
+                                 </tr>
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -436,7 +436,7 @@
+ 
+ .formal-report-table {
+     width: 100%;
+-    min-width: 1450px;
++    min-width: 1540px;
+     border-collapse: separate;
+     border-spacing: 0;
+     table-layout: fixed;
+@@ -448,7 +448,7 @@
+    additional width on large screens. The table remains scrollable only when
+    the viewport is genuinely narrower than the formal register. */
+ .formal-report-table col.col-serial { width: 3.4rem; }
+-.formal-report-table col.col-arpp { width: 5.1rem; }
++.formal-report-table col.col-arpp { width: 8.8rem; }
+ .formal-report-table col.col-project { width: clamp(14rem, 20vw, 28rem); }
+ .formal-report-table col.col-date { width: 7.4rem; }
+ .formal-report-table col.col-sch { width: 4.7rem; }
+@@ -460,7 +460,7 @@
+ .formal-report-table col.col-pdc { width: 6.3rem; }
+ .formal-report-table col.col-case { width: 5rem; }
+ .formal-report-table col.col-remarks { width: auto; }
+-.formal-report-table--with-stage { min-width: 1580px; }
++.formal-report-table--with-stage { min-width: 1670px; }
+ 
+ .formal-report-table th,
+ .formal-report-table td {
+@@ -494,6 +494,17 @@
+ }
+ 
+ .formal-report-project a:hover { text-decoration: underline; }
++
++/* Production ARPP identifiers can be substantially longer than test values.
++   Keep them inside their own cell, prefer the natural '/' separators and still
++   permit a defensive break for unexpectedly long uninterrupted tokens. */
++.formal-report-arpp {
++    white-space: normal;
++    overflow-wrap: anywhere;
++    word-break: normal;
++    line-height: 1.2;
++}
++
+ .formal-report-cfa { overflow-wrap: normal !important; word-break: normal; }
+ .formal-report-stage { color: #344b63; font-weight: 650; overflow-wrap: normal !important; word-break: normal; }
+ .formal-report-so strong,
+@@ -502,6 +513,7 @@
+ .formal-report-so strong { color: #263f59; font-size: .73rem; }
+ .formal-report-so span { margin-top: .06rem; }
+ .formal-report-so small { margin-top: .06rem; color: #7a8794; font-size: .59rem; font-weight: 700; }
++.formal-report-pdc { font-weight: 600; }
+ .formal-report-remarks { vertical-align: top !important; color: #3d4854; }
+ 
+ .report-case-badge {
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
+@@ -47,7 +47,13 @@
+ 
+     public string ProjectCaseDisplay => ArppDisplayNames.For(ProjectCase);
+ 
+-    public string StageDisplay => LifecycleStatus == ProjectLifecycleStatus.Completed
++    /// <summary>
++    /// Explicit project completion is authoritative for report presentation.
++    /// Consumers must not infer completion from historical stage records.
++    /// </summary>
++    public bool IsCompleted => LifecycleStatus == ProjectLifecycleStatus.Completed;
++
++    public string StageDisplay => IsCompleted
+         ? "Completed"
+         : CurrentStageLabel;
+ }
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -18,10 +18,10 @@
+     // Both variants intentionally total 16,000 twips: the exact printable width
+     // used by the A4-landscape section below.
+     private static readonly int[] StandardWidths =
+-        [500, 800, 2700, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3950];
++        [500, 1400, 2550, 1150, 800, 1050, 650, 1100, 1400, 1100, 800, 3500];
+ 
+     private static readonly int[] PresentStageWidths =
+-        [500, 800, 2250, 1150, 750, 1000, 600, 1000, 1500, 1300, 1000, 750, 3400];
++        [500, 1400, 2150, 1150, 750, 1000, 600, 1000, 1500, 1300, 1000, 750, 2900];
+ 
+     public byte[] Build(
+         ArppFyProjectUpdateReport report,
+@@ -143,7 +143,7 @@
+         }
+ 
+         cells.Add(Cell(SupplyOrder(row), widths[offset], align: W.JustificationValues.Center, noWrap: true));
+-        cells.Add(Cell(Date(row.DevelopmentPdcDate), widths[offset + 1], align: W.JustificationValues.Center, noWrap: true));
++        cells.Add(Cell(Pdc(row), widths[offset + 1], align: W.JustificationValues.Center, noWrap: true));
+         cells.Add(Cell(row.ProjectCaseDisplay, widths[offset + 2], align: W.JustificationValues.Center));
+         cells.Add(Cell(row.LatestExternalRemark ?? string.Empty, widths[offset + 3]));
+         return cells;
+@@ -259,6 +259,9 @@
+ 
+     private static string Date(DateOnly? value)
+         => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
++
++    private static string Pdc(ArppFyProjectUpdateRow row)
++        => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
+ 
+     private static string SupplyOrder(ArppFyProjectUpdateRow row)
+     {
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+@@ -48,8 +48,8 @@
+                     table.ColumnsDefinition(columns =>
+                     {
+                         columns.RelativeColumn(0.55f);
+-                        columns.RelativeColumn(0.85f);
+-                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 2.25f : 2.7f);
++                        columns.RelativeColumn(1.25f);
++                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 2.15f : 2.55f);
+                         columns.RelativeColumn(1.2f);
+                         columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 0.85f : 0.9f);
+                         columns.RelativeColumn(0.95f);
+@@ -62,7 +62,7 @@
+                         columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 1.35f : 1.5f);
+                         columns.RelativeColumn(1.0f);
+                         columns.RelativeColumn(0.8f);
+-                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 3.35f : 4.05f);
++                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 3.05f : 3.8f);
+                     });
+ 
+                     table.Header(header =>
+@@ -109,7 +109,7 @@
+                             BodyCell(table.Cell(), row.StageDisplay, center: true);
+                         }
+                         BodyCell(table.Cell(), SupplyOrder(row), center: true);
+-                        BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
++                        BodyCell(table.Cell(), Pdc(row), center: true);
+                         BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);
+                         BodyCell(table.Cell(), row.LatestExternalRemark ?? string.Empty);
+                     }
+@@ -183,6 +183,9 @@
+     private static string Date(DateOnly? value)
+         => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+ 
++    private static string Pdc(ArppFyProjectUpdateRow row)
++        => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
++
+     private static string SupplyOrder(ArppFyProjectUpdateRow row)
+     {
+         var amount = row.SupplyOrderAmountInCrores.HasValue
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
+@@ -51,7 +51,7 @@
+                 worksheet.Cell(rowIndex, columns.PresentStage.Value).SetValue(row.StageDisplay);
+             }
+             worksheet.Cell(rowIndex, columns.SupplyOrder).SetValue(SupplyOrderText(row));
+-            SetDate(worksheet.Cell(rowIndex, columns.Pdc), row.DevelopmentPdcDate);
++            SetPdc(worksheet.Cell(rowIndex, columns.Pdc), row);
+             worksheet.Cell(rowIndex, columns.ProjectCase).SetValue(row.ProjectCaseDisplay);
+             worksheet.Cell(rowIndex, columns.Remarks).SetValue(row.LatestExternalRemark ?? string.Empty);
+             rowIndex++;
+@@ -145,6 +145,18 @@
+         cell.Style.DateFormat.Format = "dd mmm yyyy";
+     }
+ 
++    private static void SetPdc(IXLCell cell, ArppFyProjectUpdateRow row)
++    {
++        if (row.IsCompleted)
++        {
++            cell.SetValue("Completed");
++            cell.Style.NumberFormat.Format = "General";
++            return;
++        }
++
++        SetDate(cell, row.DevelopmentPdcDate);
++    }
++
+     private static string SupplyOrderText(ArppFyProjectUpdateRow row)
+     {
+         var amount = row.SupplyOrderAmountInCrores.HasValue
+@@ -159,8 +171,8 @@
+     private static void ApplyColumnWidths(IXLWorksheet worksheet, ColumnLayout columns)
+     {
+         worksheet.Column(1).Width = 7;
+-        worksheet.Column(2).Width = 12;
+-        worksheet.Column(3).Width = columns.PresentStage.HasValue ? 30 : 36;
++        worksheet.Column(2).Width = 18;
++        worksheet.Column(3).Width = columns.PresentStage.HasValue ? 28 : 34;
+         worksheet.Column(4).Width = 17;
+         worksheet.Column(5).Width = 12;
+         worksheet.Column(6).Width = 16;
+@@ -173,7 +185,7 @@
+         worksheet.Column(columns.SupplyOrder).Width = 19;
+         worksheet.Column(columns.Pdc).Width = 14;
+         worksheet.Column(columns.ProjectCase).Width = 11;
+-        worksheet.Column(columns.Remarks).Width = columns.PresentStage.HasValue ? 46 : 54;
++        worksheet.Column(columns.Remarks).Width = columns.PresentStage.HasValue ? 42 : 50;
+     }
+ 
+     private sealed record ColumnLayout(
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+@@ -97,6 +97,51 @@
+         };
+ 
+         Assert.Equal("Completed", completed.StageDisplay);
++    }
++
++    [Fact]
++    public void Production_hardening_preserves_long_arpp_number_and_marks_completed_pdc()
++    {
++        const string longArppNumber = "ARPP/IR&D/CF/VR/2026-27/123";
++        var report = SampleReportWithCompletedProject(longArppNumber);
++
++        var word = new ArppFyProjectUpdateWordBuilder().Build(report);
++        using (var stream = new MemoryStream(word))
++        using (var document = WordprocessingDocument.Open(stream, false))
++        {
++            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
++            Assert.Contains(longArppNumber, text, StringComparison.Ordinal);
++            Assert.Contains("Completed", text, StringComparison.Ordinal);
++        }
++
++        var excel = new ArppFyProjectUpdateExcelBuilder().Build(report);
++        using (var excelStream = new MemoryStream(excel))
++        using (var workbook = new XLWorkbook(excelStream))
++        {
++            var worksheet = workbook.Worksheet("ARPP Project Update");
++            Assert.Equal(longArppNumber, worksheet.Cell(5, 2).GetString());
++            Assert.Equal("Completed", worksheet.Cell(5, 10).GetString());
++            Assert.InRange(worksheet.Column(2).Width, 17.99d, 18.01d);
++        }
++
++        var excelWithStage = new ArppFyProjectUpdateExcelBuilder().Build(
++            report,
++            new ArppFyProjectUpdatePresentationOptions(IncludePresentStage: true));
++        using (var excelStream = new MemoryStream(excelWithStage))
++        using (var workbook = new XLWorkbook(excelStream))
++        {
++            var worksheet = workbook.Worksheet("ARPP Project Update");
++            Assert.Equal("Completed", worksheet.Cell(5, 9).GetString());
++            Assert.Equal("Completed", worksheet.Cell(5, 11).GetString());
++        }
++
++        var pdfSource = ReadRepoFile(
++            "Services",
++            "Reports",
++            "ArppFyProjectUpdate",
++            "ArppFyProjectUpdatePdfBuilder.cs");
++        Assert.Contains("BodyCell(table.Cell(), Pdc(row), center: true);", pdfSource, StringComparison.Ordinal);
++        Assert.Contains("columns.RelativeColumn(1.25f);", pdfSource, StringComparison.Ordinal);
+     }
+ 
+     [Fact]
+@@ -175,6 +220,38 @@
+             Array.Empty<ArppFyReportWarning>(),
+             0);
+ 
++    private static ArppFyProjectUpdateReport SampleReportWithCompletedProject(string pppNumber)
++        => new(
++            2026,
++            new DateTimeOffset(2026, 8, 17, 3, 0, 0, TimeSpan.Zero),
++            new[]
++            {
++                new ArppFyProjectUpdateRow(
++                    1,
++                    20,
++                    pppNumber,
++                    "Completed Production Simulator",
++                    new DateOnly(2024, 12, 31),
++                    "9.3",
++                    "Comdt SDD",
++                    "SDD",
++                    new DateOnly(2025, 11, 18),
++                    900_000m,
++                    ProjectSupplyOrderValueBasis.Pnc,
++                    new DateOnly(2026, 1, 29),
++                    new DateOnly(2025, 12, 31), // historical PDC must not leak into the report
++                    ArppCategory.CarryForward,
++                    "Project Completed. Available for proliferation.",
++                    new DateOnly(2026, 8, 16),
++                    ProjectLifecycleStatus.Completed,
++                    false,
++                    "DEVP",
++                    "Development",
++                    ProjectStageMaturityOrder.Completed)
++            },
++            Array.Empty<ArppFyReportWarning>(),
++            0);
++
+     private static ArppFyProjectUpdateReport SampleReportWithMissingValues()
+         => new(
+             2026,
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
+@@ -19,6 +19,10 @@
+         Assert.Contains("Optional columns", detail, StringComparison.Ordinal);
+         Assert.Contains("Present Stage", detail, StringComparison.Ordinal);
+         Assert.Contains("asp-route-includePresentStage=\"@Model.IncludePresentStage\"", detail, StringComparison.Ordinal);
++        Assert.Contains("formal-report-arpp", detail, StringComparison.Ordinal);
++        Assert.Contains("/<wbr>", detail, StringComparison.Ordinal);
++        Assert.Contains("@Pdc(row)", detail, StringComparison.Ordinal);
++        Assert.DoesNotContain("text-center text-nowrap\">@(row.PppNumber", detail, StringComparison.Ordinal);
+         Assert.DoesNotContain("Publication preflight", detail, StringComparison.Ordinal);
+         Assert.DoesNotContain("ARPP Approved Projects – Project Update", detail, StringComparison.Ordinal);
+     }
+@@ -31,9 +35,12 @@
+         Assert.Contains("width: 100%;", css, StringComparison.Ordinal);
+         Assert.Contains("max-width: none;", css, StringComparison.Ordinal);
+         Assert.Contains("grid-template-columns: minmax(0, 1fr);", css, StringComparison.Ordinal);
+-        Assert.Contains("min-width: 1450px;", css, StringComparison.Ordinal);
++        Assert.Contains("min-width: 1540px;", css, StringComparison.Ordinal);
+         Assert.Contains("formal-report-table--with-stage", css, StringComparison.Ordinal);
+         Assert.Contains("col-stage", css, StringComparison.Ordinal);
++        Assert.Contains("col.col-arpp { width: 8.8rem; }", css, StringComparison.Ordinal);
++        Assert.Contains("formal-report-arpp", css, StringComparison.Ordinal);
++        Assert.Contains("overflow-wrap: anywhere", css, StringComparison.Ordinal);
+         Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);

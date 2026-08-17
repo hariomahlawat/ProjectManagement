@@ -48,8 +48,8 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                     table.ColumnsDefinition(columns =>
                     {
                         columns.RelativeColumn(0.55f);
-                        columns.RelativeColumn(0.85f);
-                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 2.25f : 2.7f);
+                        columns.RelativeColumn(1.25f);
+                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 2.15f : 2.55f);
                         columns.RelativeColumn(1.2f);
                         columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 0.85f : 0.9f);
                         columns.RelativeColumn(0.95f);
@@ -62,7 +62,7 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                         columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 1.35f : 1.5f);
                         columns.RelativeColumn(1.0f);
                         columns.RelativeColumn(0.8f);
-                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 3.35f : 4.05f);
+                        columns.RelativeColumn(resolvedOptions.IncludePresentStage ? 3.05f : 3.8f);
                     });
 
                     table.Header(header =>
@@ -109,7 +109,7 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                             BodyCell(table.Cell(), row.StageDisplay, center: true);
                         }
                         BodyCell(table.Cell(), SupplyOrder(row), center: true);
-                        BodyCell(table.Cell(), Date(row.DevelopmentPdcDate), center: true);
+                        BodyCell(table.Cell(), Pdc(row), center: true);
                         BodyCell(table.Cell(), row.ProjectCaseDisplay, center: true);
                         BodyCell(table.Cell(), row.LatestExternalRemark ?? string.Empty);
                     }
@@ -182,6 +182,9 @@ public sealed class ArppFyProjectUpdatePdfBuilder
 
     private static string Date(DateOnly? value)
         => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+
+    private static string Pdc(ArppFyProjectUpdateRow row)
+        => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
 
     private static string SupplyOrder(ArppFyProjectUpdateRow row)
     {

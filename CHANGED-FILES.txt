@@ -1,8 +1,6 @@
 Pages/Projects/Reports/ArppFyUpdate.cshtml
-Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
 wwwroot/css/pages/projects-reports.css
 Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
-Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExportService.cs
 Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
 Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
 Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs

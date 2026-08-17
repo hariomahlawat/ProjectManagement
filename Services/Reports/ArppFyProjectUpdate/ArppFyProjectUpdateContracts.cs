@@ -47,7 +47,13 @@ public sealed record ArppFyProjectUpdateRow(
 
     public string ProjectCaseDisplay => ArppDisplayNames.For(ProjectCase);
 
-    public string StageDisplay => LifecycleStatus == ProjectLifecycleStatus.Completed
+    /// <summary>
+    /// Explicit project completion is authoritative for report presentation.
+    /// Consumers must not infer completion from historical stage records.
+    /// </summary>
+    public bool IsCompleted => LifecycleStatus == ProjectLifecycleStatus.Completed;
+
+    public string StageDisplay => IsCompleted
         ? "Completed"
         : CurrentStageLabel;
 }

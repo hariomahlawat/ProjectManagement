@@ -1,6 +1,8 @@
 @page "/Projects/Reports/ArppFyUpdate"
 @model ProjectManagement.Pages.Projects.Reports.ArppFyUpdateModel
 @using System.Globalization
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Html
 @using ProjectManagement.Services.Projects
 @using ProjectManagement.Services.Reports.ArppFyProjectUpdate
 @using ProjectManagement.Utilities
@@ -10,6 +12,19 @@
     ViewData["PageShell"] = "workspace";
     var report = Model.Report;
     string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+    string Pdc(ArppFyProjectUpdateRow row) => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
+    IHtmlContent ArppNumber(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new HtmlString("—");
+        }
+
+        // Keep the identifier exact while preferring line breaks at its natural '/' separators.
+        var encoded = HtmlEncoder.Default.Encode(value);
+        return new HtmlString(encoded.Replace("/", "/<wbr>", StringComparison.Ordinal));
+    }
+
     string SupplyOrder(ArppFyProjectUpdateRow row)
     {
         var amount = row.SupplyOrderAmountInCrores.HasValue
@@ -220,7 +235,7 @@
                             {
                                 <tr>
                                     <td class="text-center">@row.SerialNumber</td>
-                                    <td class="text-center text-nowrap">@(row.PppNumber ?? "—")</td>
+                                    <td class="text-center formal-report-arpp">@ArppNumber(row.PppNumber)</td>
                                     <td class="formal-report-project" title="Current position: @row.StageDisplay">
                                         <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
                                     </td>
@@ -248,7 +263,7 @@
                                             <span>@SupplyOrder(row)</span>
                                         }
                                     </td>
-                                    <td class="text-center">@Date(row.DevelopmentPdcDate)</td>
+                                    <td class="text-center formal-report-pdc">@Pdc(row)</td>
                                     <td class="text-center"><span class="report-case-badge">@row.ProjectCaseDisplay</span></td>
                                     <td class="formal-report-remarks">@(row.LatestExternalRemark ?? "—")</td>
                                 </tr>

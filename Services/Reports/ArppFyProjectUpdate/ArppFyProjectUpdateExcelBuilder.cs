@@ -51,7 +51,7 @@ public sealed class ArppFyProjectUpdateExcelBuilder
                 worksheet.Cell(rowIndex, columns.PresentStage.Value).SetValue(row.StageDisplay);
             }
             worksheet.Cell(rowIndex, columns.SupplyOrder).SetValue(SupplyOrderText(row));
-            SetDate(worksheet.Cell(rowIndex, columns.Pdc), row.DevelopmentPdcDate);
+            SetPdc(worksheet.Cell(rowIndex, columns.Pdc), row);
             worksheet.Cell(rowIndex, columns.ProjectCase).SetValue(row.ProjectCaseDisplay);
             worksheet.Cell(rowIndex, columns.Remarks).SetValue(row.LatestExternalRemark ?? string.Empty);
             rowIndex++;
@@ -145,6 +145,18 @@ public sealed class ArppFyProjectUpdateExcelBuilder
         cell.Style.DateFormat.Format = "dd mmm yyyy";
     }
 
+    private static void SetPdc(IXLCell cell, ArppFyProjectUpdateRow row)
+    {
+        if (row.IsCompleted)
+        {
+            cell.SetValue("Completed");
+            cell.Style.NumberFormat.Format = "General";
+            return;
+        }
+
+        SetDate(cell, row.DevelopmentPdcDate);
+    }
+
     private static string SupplyOrderText(ArppFyProjectUpdateRow row)
     {
         var amount = row.SupplyOrderAmountInCrores.HasValue
@@ -159,8 +171,8 @@ public sealed class ArppFyProjectUpdateExcelBuilder
     private static void ApplyColumnWidths(IXLWorksheet worksheet, ColumnLayout columns)
     {
         worksheet.Column(1).Width = 7;
-        worksheet.Column(2).Width = 12;
-        worksheet.Column(3).Width = columns.PresentStage.HasValue ? 30 : 36;
+        worksheet.Column(2).Width = 18;
+        worksheet.Column(3).Width = columns.PresentStage.HasValue ? 28 : 34;
         worksheet.Column(4).Width = 17;
         worksheet.Column(5).Width = 12;
         worksheet.Column(6).Width = 16;
@@ -173,7 +185,7 @@ public sealed class ArppFyProjectUpdateExcelBuilder
         worksheet.Column(columns.SupplyOrder).Width = 19;
         worksheet.Column(columns.Pdc).Width = 14;
         worksheet.Column(columns.ProjectCase).Width = 11;
-        worksheet.Column(columns.Remarks).Width = columns.PresentStage.HasValue ? 46 : 54;
+        worksheet.Column(columns.Remarks).Width = columns.PresentStage.HasValue ? 42 : 50;
     }
 
     private sealed record ColumnLayout(
