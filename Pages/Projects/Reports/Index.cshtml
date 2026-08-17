@@ -22,7 +22,7 @@
         <div>
             <p class="project-reports-eyebrow">PROJECT REPORTING</p>
             <h1>Reports</h1>
-            <p>Generate formal project returns directly from published ARPP and current PRISM records.</p>
+            <p>Generate formal project returns directly from published ARPP, FFC and current PRISM records.</p>
         </div>
     </header>
 
@@ -35,7 +35,7 @@
             <div class="project-report-card__body">
                 <div class="project-report-card__meta">ARPP / PPP · FY RETURN</div>
                 <h2>ARPP FY Project Update</h2>
-                <p>ARPP-listed New, CL and CF projects for the selected financial year with original listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
+                <p>ARPP-listed New, CL and CF projects for the selected financial year with selectable listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
                 <div class="project-report-card__facts" aria-label="Report capabilities">
                     <span><i class="bi bi-sort-down-alt" aria-hidden="true"></i> Lifecycle-maturity order</span>
                     <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
@@ -64,6 +64,36 @@
                     </div>
                     <button class="btn btn-secondary btn-sm" type="button" disabled>Unavailable</button>
                 }
+            </div>
+        </article>
+
+        <article class="project-report-card">
+            <div class="project-report-card__icon" aria-hidden="true">
+                <i class="bi bi-globe2"></i>
+            </div>
+
+            <div class="project-report-card__body">
+                <div class="project-report-card__meta">FFC · COUNTRY-YEAR RETURN</div>
+                <h2>FFC Projects Update</h2>
+                <p>Country-year grouped FFC project position with cost, quantity, status and current progress. All-installed country-year groups are excluded by default but remain available for selection.</p>
+                <div class="project-report-card__facts" aria-label="Report capabilities">
+                    <span><i class="bi bi-check2-square" aria-hidden="true"></i> Country-year selection</span>
+                    <span><i class="bi bi-layout-three-columns" aria-hidden="true"></i> Overall status optional</span>
+                    <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
+                    <span><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</span>
+                    <span><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</span>
+                </div>
+            </div>
+
+            <div class="project-report-card__aside">
+                <div class="project-report-card__availability">
+                    <span>Source</span>
+                    <strong>Current FFC portfolio</strong>
+                </div>
+                <a class="btn btn-primary btn-sm" asp-page="./FfcProjectsUpdate">
+                    Open report
+                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
             </div>
         </article>
     </section>

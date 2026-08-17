@@ -662,3 +662,249 @@
     .formal-report-card { border: 0; box-shadow: none; }
     .formal-report-scroll { overflow: visible; }
 }
+
+/* FFC Projects Update ----------------------------------------------------- */
+.report-toolbar__country-years {
+    min-width: 190px;
+}
+
+.report-country-year-trigger {
+    min-width: 190px;
+    min-height: 31px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .65rem;
+    color: #32465d;
+    font-size: .72rem;
+    font-weight: 650;
+    background: #fff;
+}
+
+.report-country-year-menu {
+    width: min(390px, calc(100vw - 2rem));
+    padding: 0;
+    overflow: hidden;
+    border-color: #cfd8e2;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .14);
+}
+
+.report-country-year-menu__header,
+.report-country-year-menu__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .72rem .78rem;
+}
+
+.report-country-year-menu__header {
+    border-bottom: 1px solid #e6ebf0;
+    background: #fbfcfd;
+}
+
+.report-country-year-menu__header strong {
+    display: block;
+    color: var(--reports-navy);
+    font-size: .8rem;
+}
+
+.report-country-year-menu__header small {
+    display: block;
+    margin-top: .08rem;
+    color: var(--reports-muted);
+    font-size: .66rem;
+}
+
+.report-country-year-menu__actions {
+    display: flex;
+    align-items: center;
+    gap: .15rem;
+    padding: .3rem .55rem;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.report-country-year-menu__actions .btn {
+    padding-inline: .3rem;
+    font-size: .67rem;
+    text-decoration: none;
+}
+
+.report-country-year-menu__list {
+    max-height: 310px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.report-country-year-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .58rem;
+    margin: 0;
+    padding: .56rem .75rem;
+    border-bottom: 1px solid #eef2f5;
+    cursor: pointer;
+}
+
+.report-country-year-option:last-child { border-bottom: 0; }
+.report-country-year-option:hover { background: #f8fbfe; }
+
+.report-country-year-option .form-check-input {
+    width: .95rem;
+    height: .95rem;
+    margin: 0;
+}
+
+.report-country-year-option__identity {
+    min-width: 0;
+}
+
+.report-country-year-option__identity strong {
+    display: block;
+    color: #31465d;
+    font-size: .73rem;
+    font-weight: 700;
+}
+
+.report-country-year-option__identity small {
+    display: block;
+    margin-top: .03rem;
+    color: #7a8998;
+    font-size: .62rem;
+}
+
+.report-country-year-option__status {
+    padding: .12rem .34rem;
+    border: 1px solid #d4dfd8;
+    border-radius: 999px;
+    background: #f3f8f4;
+    color: #54705c;
+    font-size: .58rem;
+    font-weight: 750;
+    white-space: nowrap;
+}
+
+.report-country-year-menu__footer {
+    border-top: 1px solid #e6ebf0;
+    background: #fbfcfd;
+    color: var(--reports-muted);
+    font-size: .67rem;
+}
+
+.ffc-projects-update-table {
+    width: 100%;
+    min-width: 1280px;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: .76rem;
+    line-height: 1.38;
+}
+
+.ffc-projects-update-table--with-overall {
+    min-width: 1580px;
+}
+
+.ffc-projects-update-table col.col-serial { width: 4.6rem; }
+.ffc-projects-update-table col.col-project { width: clamp(18rem, 22vw, 30rem); }
+.ffc-projects-update-table col.col-cost { width: 8.2rem; }
+.ffc-projects-update-table col.col-quantity { width: 6.2rem; }
+.ffc-projects-update-table col.col-status { width: 10rem; }
+.ffc-projects-update-table col.col-progress { width: auto; }
+.ffc-projects-update-table col.col-overall { width: clamp(24rem, 30vw, 36rem); }
+
+.ffc-projects-update-table th,
+.ffc-projects-update-table td {
+    padding: .58rem .65rem;
+    border-right: 1px solid #d8e0e8;
+    border-bottom: 1px solid #d8e0e8;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.ffc-projects-update-table th:last-child,
+.ffc-projects-update-table td:last-child {
+    border-right: 0;
+}
+
+.ffc-projects-update-table thead th {
+    color: #213f62;
+    background: #f2f5f8;
+    font-size: .72rem;
+    font-weight: 750;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.ffc-projects-update-table thead th:first-child { text-align: center; }
+.ffc-projects-update-table thead th:nth-child(3),
+.ffc-projects-update-table thead th:nth-child(4) { text-align: right; }
+
+.ffc-projects-update-table tbody tr:not(.ffc-report-group-row):hover td {
+    background: #f9fbfd;
+}
+
+.ffc-report-group-row td {
+    padding: .48rem .62rem;
+    background: #f2f5f8;
+    color: var(--reports-navy);
+    font-size: .78rem;
+    font-weight: 750;
+    vertical-align: middle;
+}
+
+.ffc-report-group-row td {
+    display: table-cell;
+}
+
+.ffc-report-group-row span {
+    display: inline-block;
+}
+
+.ffc-report-group-row small {
+    float: right;
+    margin-top: .05rem;
+    color: #75869a;
+    font-size: .67rem;
+    font-weight: 750;
+    letter-spacing: .04em;
+}
+
+.ffc-report-project a {
+    color: #245fae;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.ffc-report-project a:hover { text-decoration: underline; }
+
+.ffc-report-number {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ffc-report-status {
+    color: #32465d;
+    font-weight: 650;
+}
+
+.ffc-report-narrative {
+    color: #334155;
+    white-space: pre-line;
+}
+
+.ffc-report-overall {
+    background: #fcfdfe;
+}
+
+@media (max-width: 900px) {
+    .report-toolbar__country-years {
+        min-width: 0;
+    }
+
+    .report-country-year-trigger {
+        min-width: 180px;
+    }
+}
+

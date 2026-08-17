@@ -1,0 +1,293 @@
+@page "/Projects/Reports/FfcProjectsUpdate"
+@model ProjectManagement.Pages.Projects.Reports.FfcProjectsUpdateModel
+@using System.Globalization
+@using ProjectManagement.Services.Reports.FfcProjectsUpdate
+@{
+    ViewData["Title"] = "FFC Projects Update";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
+
+    var report = Model.Report;
+    var presentationOptions = new FfcProjectsUpdatePresentationOptions(Model.IncludeOverallStatus);
+    var columnCount = Model.IncludeOverallStatus ? 7 : 6;
+
+    string Cost(decimal? costInCr) =>
+        costInCr.HasValue
+            ? (costInCr.Value * 100m).ToString("N2", CultureInfo.InvariantCulture)
+            : "—";
+
+    string Narrative(string? value, string emptyText) =>
+        string.IsNullOrWhiteSpace(value) ? emptyText : value.Trim();
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
+}
+
+<div class="project-reports-page project-reports-page--workspace">
+    <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
+        <a asp-page="/Projects/Index">Projects</a>
+        <span>/</span>
+        <a asp-page="./Index">Reports</a>
+        <span>/</span>
+        <span>FFC Projects Update</span>
+    </nav>
+
+    <header class="report-workspace-header">
+        <div class="report-workspace-header__identity">
+            <p class="project-reports-eyebrow">FFC · FORMAL PROJECT RETURN</p>
+            <h1>FFC Projects Update</h1>
+            <p>Country-year grouped FFC portfolio position with project cost, quantity, status and current progress.</p>
+        </div>
+
+        @if (report is not null)
+        {
+            <div class="report-workspace-actions">
+                <form method="get"
+                      class="report-display-controls"
+                      id="ffc-projects-update-controls"
+                      data-ffc-report-controls
+                      aria-label="FFC report display options">
+                    <input type="hidden"
+                           id="ffcSelectionMode"
+                           name="selectionMode"
+                           value="@Model.SelectionMode" />
+                    <input type="hidden"
+                           id="ffcCountryYears"
+                           name="countryYears"
+                           value="@report.SelectedCountryYearsCsv" />
+
+                    <div class="report-toolbar__country-years">
+                        <span class="report-toolbar__options-label">Country / Year</span>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle report-country-year-trigger"
+                                    type="button"
+                                    id="ffcCountryYearDropdown"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                <span data-ffc-selection-summary>@report.SelectedCountryYearCount of @report.AvailableCountryYearCount selected</span>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-end report-country-year-menu"
+                                 aria-labelledby="ffcCountryYearDropdown">
+                                <div class="report-country-year-menu__header">
+                                    <div>
+                                        <strong>Select country-year</strong>
+                                        <small>All-installed groups are excluded by default.</small>
+                                    </div>
+                                    <span class="badge text-bg-light">@report.AvailableCountryYearCount total</span>
+                                </div>
+
+                                <div class="report-country-year-menu__actions">
+                                    <button type="button" class="btn btn-sm btn-link" data-ffc-country-action="default">Default active</button>
+                                    <button type="button" class="btn btn-sm btn-link" data-ffc-country-action="all">Select all</button>
+                                    <button type="button" class="btn btn-sm btn-link text-secondary" data-ffc-country-action="clear">Clear</button>
+                                </div>
+
+                                <div class="report-country-year-menu__list">
+                                    @foreach (var option in report.CountryYears)
+                                    {
+                                        var checkboxId = $"ffc-country-year-{option.FfcRecordId}";
+                                        <label class="report-country-year-option" for="@checkboxId">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   id="@checkboxId"
+                                                   value="@option.FfcRecordId"
+                                                   checked="@option.IsSelected"
+                                                   data-ffc-country-year
+                                                   data-default-included="@option.IsDefaultIncluded.ToString().ToLowerInvariant()" />
+                                            <span class="report-country-year-option__identity">
+                                                <strong>@option.CountryName – @option.Year</strong>
+                                                <small>@option.CountryCode</small>
+                                            </span>
+                                            @if (option.IsAllInstalled)
+                                            {
+                                                <span class="report-country-year-option__status">All installed</span>
+                                            }
+                                        </label>
+                                    }
+                                </div>
+
+                                <div class="report-country-year-menu__footer">
+                                    <span data-ffc-menu-count>@report.SelectedCountryYearCount selected</span>
+                                    <button type="button" class="btn btn-primary btn-sm" data-ffc-country-apply>Apply</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="report-toolbar__options">
+                        <span class="report-toolbar__options-label">Optional columns</span>
+                        <label class="report-option-toggle" for="includeOverallStatus">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="includeOverallStatus"
+                                   name="includeOverallStatus"
+                                   value="true"
+                                   checked="@Model.IncludeOverallStatus"
+                                   onchange="this.form.submit()" />
+                            <span>Overall status</span>
+                        </label>
+                    </div>
+                </form>
+
+                <div class="report-export-group" aria-label="Export report">
+                    <span class="report-export-group__label">Export</span>
+                    <div class="report-export-actions">
+                        <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           asp-page-handler="Word"
+                           asp-route-selectionMode="@Model.SelectionMode"
+                           asp-route-countryYears="@report.SelectedCountryYearsCsv"
+                           asp-route-includeOverallStatus="@Model.IncludeOverallStatus"
+                           aria-disabled="@(!report.CanExport)">
+                            <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                        </a>
+                        <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           asp-page-handler="Pdf"
+                           asp-route-selectionMode="@Model.SelectionMode"
+                           asp-route-countryYears="@report.SelectedCountryYearsCsv"
+                           asp-route-includeOverallStatus="@Model.IncludeOverallStatus"
+                           aria-disabled="@(!report.CanExport)">
+                            <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                        </a>
+                        <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+                           asp-page-handler="Excel"
+                           asp-route-selectionMode="@Model.SelectionMode"
+                           asp-route-countryYears="@report.SelectedCountryYearsCsv"
+                           asp-route-includeOverallStatus="@Model.IncludeOverallStatus"
+                           aria-disabled="@(!report.CanExport)">
+                            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </header>
+
+    @if (report is null || report.AvailableCountryYearCount == 0)
+    {
+        <section class="report-empty-state">
+            <i class="bi bi-globe2" aria-hidden="true"></i>
+            <h2>No FFC project data</h2>
+            <p>No active FFC country-year records with project rows are available.</p>
+            <a class="btn btn-outline-primary"
+               asp-area="ProjectOfficeReports"
+               asp-page="/FFC/Index">Open FFC</a>
+        </section>
+    }
+    else
+    {
+        <section class="report-command-strip" aria-label="Report summary">
+            <div class="report-kpis">
+                <div><span>Country-year</span><strong>@report.SelectedCountryYearCount / @report.AvailableCountryYearCount</strong></div>
+                <div><span>Projects</span><strong>@report.ProjectCount</strong></div>
+                <div><span>Total quantity</span><strong>@report.TotalQuantity</strong></div>
+                <div><span>Installed projects</span><strong>@report.InstalledProjectCount</strong></div>
+            </div>
+            <div class="report-order-note">
+                <i class="bi bi-filter-circle" aria-hidden="true"></i>
+                <span>@report.DefaultExcludedCount all-installed group@(report.DefaultExcludedCount == 1 ? "" : "s") excluded by default</span>
+            </div>
+        </section>
+
+        <section class="formal-report-card" aria-label="FFC Projects Update preview">
+            <header class="formal-report-card__header">
+                <h2>@FfcProjectsUpdateReport.FormalTitle</h2>
+                <small>Grouped by Country – Year</small>
+            </header>
+
+            @if (!report.CanExport)
+            {
+                <div class="formal-report-empty">
+                    No country-year is selected. Use the Country / Year selector to include one or more groups.
+                </div>
+            }
+            else
+            {
+                <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable FFC report table">
+                    <table class="ffc-projects-update-table @(Model.IncludeOverallStatus ? "ffc-projects-update-table--with-overall" : string.Empty)">
+                        <colgroup>
+                            <col class="col-serial" />
+                            <col class="col-project" />
+                            <col class="col-cost" />
+                            <col class="col-quantity" />
+                            <col class="col-status" />
+                            <col class="col-progress" />
+                            @if (Model.IncludeOverallStatus)
+                            {
+                                <col class="col-overall" />
+                            }
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>S. No.</th>
+                                <th>Project</th>
+                                <th>Cost (₹ lakh)</th>
+                                <th>Quantity</th>
+                                <th>Status</th>
+                                <th>Current progress</th>
+                                @if (Model.IncludeOverallStatus)
+                                {
+                                    <th>Overall status</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var group in report.Groups)
+                            {
+                                <tr class="ffc-report-group-row">
+                                    <td colspan="@columnCount">
+                                        <span>@group.CountryName – @group.Year</span>
+                                        <small>@group.CountryCode</small>
+                                    </td>
+                                </tr>
+
+                                @for (var index = 0; index < group.Rows.Count; index++)
+                                {
+                                    var row = group.Rows[index];
+                                    <tr>
+                                        <td class="text-center ffc-report-number">@row.Serial</td>
+                                        <td class="ffc-report-project">
+                                            @if (row.LinkedProjectId.HasValue)
+                                            {
+                                                <a asp-page="/Projects/Overview"
+                                                   asp-route-id="@row.LinkedProjectId.Value"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer">@row.ProjectName</a>
+                                            }
+                                            else
+                                            {
+                                                @row.ProjectName
+                                            }
+                                        </td>
+                                        <td class="text-end ffc-report-number">@Cost(row.CostInCr)</td>
+                                        <td class="text-end ffc-report-number">@row.Quantity.ToString("N0", CultureInfo.InvariantCulture)</td>
+                                        <td class="ffc-report-status">@row.Status</td>
+                                        <td class="ffc-report-narrative">
+                                            @{
+                                                var progress = Narrative(row.ProgressText, "No progress recorded.");
+                                            }
+                                            <span class="@(string.IsNullOrWhiteSpace(row.ProgressText) ? "text-muted fst-italic" : string.Empty)">@progress</span>
+                                        </td>
+                                        @if (Model.IncludeOverallStatus && index == 0)
+                                        {
+                                            var overall = Narrative(group.OverallRemarks, "No overall status recorded.");
+                                            <td class="ffc-report-narrative ffc-report-overall"
+                                                rowspan="@group.Rows.Count">
+                                                <span class="@(string.IsNullOrWhiteSpace(group.OverallRemarks) ? "text-muted fst-italic" : string.Empty)">@overall</span>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/projects-reports-ffc.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,2105 @@
+--- a/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
++++ b/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
+@@ -0,0 +1,293 @@
++@page "/Projects/Reports/FfcProjectsUpdate"
++@model ProjectManagement.Pages.Projects.Reports.FfcProjectsUpdateModel
++@using System.Globalization
++@using ProjectManagement.Services.Reports.FfcProjectsUpdate
++@{
++    ViewData["Title"] = "FFC Projects Update";
++    ViewData["UseFullWidth"] = true;
++    ViewData["PageShell"] = "workspace";
++
++    var report = Model.Report;
++    var presentationOptions = new FfcProjectsUpdatePresentationOptions(Model.IncludeOverallStatus);
++    var columnCount = Model.IncludeOverallStatus ? 7 : 6;
++
++    string Cost(decimal? costInCr) =>
++        costInCr.HasValue
++            ? (costInCr.Value * 100m).ToString("N2", CultureInfo.InvariantCulture)
++            : "—";
++
++    string Narrative(string? value, string emptyText) =>
++        string.IsNullOrWhiteSpace(value) ? emptyText : value.Trim();
++}
++@section Styles {
++    <link rel="stylesheet" href="~/css/pages/projects-reports.css" asp-append-version="true" />
++}
++
++<div class="project-reports-page project-reports-page--workspace">
++    <nav class="project-reports-breadcrumb" aria-label="Breadcrumb">
++        <a asp-page="/Projects/Index">Projects</a>
++        <span>/</span>
++        <a asp-page="./Index">Reports</a>
++        <span>/</span>
++        <span>FFC Projects Update</span>
++    </nav>
++
++    <header class="report-workspace-header">
++        <div class="report-workspace-header__identity">
++            <p class="project-reports-eyebrow">FFC · FORMAL PROJECT RETURN</p>
++            <h1>FFC Projects Update</h1>
++            <p>Country-year grouped FFC portfolio position with project cost, quantity, status and current progress.</p>
++        </div>
++
++        @if (report is not null)
++        {
++            <div class="report-workspace-actions">
++                <form method="get"
++                      class="report-display-controls"
++                      id="ffc-projects-update-controls"
++                      data-ffc-report-controls
++                      aria-label="FFC report display options">
++                    <input type="hidden"
++                           id="ffcSelectionMode"
++                           name="selectionMode"
++                           value="@Model.SelectionMode" />
++                    <input type="hidden"
++                           id="ffcCountryYears"
++                           name="countryYears"
++                           value="@report.SelectedCountryYearsCsv" />
++
++                    <div class="report-toolbar__country-years">
++                        <span class="report-toolbar__options-label">Country / Year</span>
++                        <div class="dropdown">
++                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle report-country-year-trigger"
++                                    type="button"
++                                    id="ffcCountryYearDropdown"
++                                    data-bs-toggle="dropdown"
++                                    data-bs-auto-close="outside"
++                                    aria-expanded="false">
++                                <span data-ffc-selection-summary>@report.SelectedCountryYearCount of @report.AvailableCountryYearCount selected</span>
++                            </button>
++
++                            <div class="dropdown-menu dropdown-menu-end report-country-year-menu"
++                                 aria-labelledby="ffcCountryYearDropdown">
++                                <div class="report-country-year-menu__header">
++                                    <div>
++                                        <strong>Select country-year</strong>
++                                        <small>All-installed groups are excluded by default.</small>
++                                    </div>
++                                    <span class="badge text-bg-light">@report.AvailableCountryYearCount total</span>
++                                </div>
++
++                                <div class="report-country-year-menu__actions">
++                                    <button type="button" class="btn btn-sm btn-link" data-ffc-country-action="default">Default active</button>
++                                    <button type="button" class="btn btn-sm btn-link" data-ffc-country-action="all">Select all</button>
++                                    <button type="button" class="btn btn-sm btn-link text-secondary" data-ffc-country-action="clear">Clear</button>
++                                </div>
++
++                                <div class="report-country-year-menu__list">
++                                    @foreach (var option in report.CountryYears)
++                                    {
++                                        var checkboxId = $"ffc-country-year-{option.FfcRecordId}";
++                                        <label class="report-country-year-option" for="@checkboxId">
++                                            <input class="form-check-input"
++                                                   type="checkbox"
++                                                   id="@checkboxId"
++                                                   value="@option.FfcRecordId"
++                                                   checked="@option.IsSelected"
++                                                   data-ffc-country-year
++                                                   data-default-included="@option.IsDefaultIncluded.ToString().ToLowerInvariant()" />
++                                            <span class="report-country-year-option__identity">
++                                                <strong>@option.CountryName – @option.Year</strong>
++                                                <small>@option.CountryCode</small>
++                                            </span>
++                                            @if (option.IsAllInstalled)
++                                            {
++                                                <span class="report-country-year-option__status">All installed</span>
++                                            }
++                                        </label>
++                                    }
++                                </div>
++
++                                <div class="report-country-year-menu__footer">
++                                    <span data-ffc-menu-count>@report.SelectedCountryYearCount selected</span>
++                                    <button type="button" class="btn btn-primary btn-sm" data-ffc-country-apply>Apply</button>
++                                </div>
++                            </div>
++                        </div>
++                    </div>
++
++                    <div class="report-toolbar__options">
++                        <span class="report-toolbar__options-label">Optional columns</span>
++                        <label class="report-option-toggle" for="includeOverallStatus">
++                            <input class="form-check-input"
++                                   type="checkbox"
++                                   id="includeOverallStatus"
++                                   name="includeOverallStatus"
++                                   value="true"
++                                   checked="@Model.IncludeOverallStatus"
++                                   onchange="this.form.submit()" />
++                            <span>Overall status</span>
++                        </label>
++                    </div>
++                </form>
++
++                <div class="report-export-group" aria-label="Export report">
++                    <span class="report-export-group__label">Export</span>
++                    <div class="report-export-actions">
++                        <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           asp-page-handler="Word"
++                           asp-route-selectionMode="@Model.SelectionMode"
++                           asp-route-countryYears="@report.SelectedCountryYearsCsv"
++                           asp-route-includeOverallStatus="@Model.IncludeOverallStatus"
++                           aria-disabled="@(!report.CanExport)">
++                            <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
++                        </a>
++                        <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           asp-page-handler="Pdf"
++                           asp-route-selectionMode="@Model.SelectionMode"
++                           asp-route-countryYears="@report.SelectedCountryYearsCsv"
++                           asp-route-includeOverallStatus="@Model.IncludeOverallStatus"
++                           aria-disabled="@(!report.CanExport)">
++                            <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
++                        </a>
++                        <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
++                           asp-page-handler="Excel"
++                           asp-route-selectionMode="@Model.SelectionMode"
++                           asp-route-countryYears="@report.SelectedCountryYearsCsv"
++                           asp-route-includeOverallStatus="@Model.IncludeOverallStatus"
++                           aria-disabled="@(!report.CanExport)">
++                            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
++                        </a>
++                    </div>
++                </div>
++            </div>
++        }
++    </header>
++
++    @if (report is null || report.AvailableCountryYearCount == 0)
++    {
++        <section class="report-empty-state">
++            <i class="bi bi-globe2" aria-hidden="true"></i>
++            <h2>No FFC project data</h2>
++            <p>No active FFC country-year records with project rows are available.</p>
++            <a class="btn btn-outline-primary"
++               asp-area="ProjectOfficeReports"
++               asp-page="/FFC/Index">Open FFC</a>
++        </section>
++    }
++    else
++    {
++        <section class="report-command-strip" aria-label="Report summary">
++            <div class="report-kpis">
++                <div><span>Country-year</span><strong>@report.SelectedCountryYearCount / @report.AvailableCountryYearCount</strong></div>
++                <div><span>Projects</span><strong>@report.ProjectCount</strong></div>
++                <div><span>Total quantity</span><strong>@report.TotalQuantity</strong></div>
++                <div><span>Installed projects</span><strong>@report.InstalledProjectCount</strong></div>
++            </div>
++            <div class="report-order-note">
++                <i class="bi bi-filter-circle" aria-hidden="true"></i>
++                <span>@report.DefaultExcludedCount all-installed group@(report.DefaultExcludedCount == 1 ? "" : "s") excluded by default</span>
++            </div>
++        </section>
++
++        <section class="formal-report-card" aria-label="FFC Projects Update preview">
++            <header class="formal-report-card__header">
++                <h2>@FfcProjectsUpdateReport.FormalTitle</h2>
++                <small>Grouped by Country – Year</small>
++            </header>
++
++            @if (!report.CanExport)
++            {
++                <div class="formal-report-empty">
++                    No country-year is selected. Use the Country / Year selector to include one or more groups.
++                </div>
++            }
++            else
++            {
++                <div class="formal-report-scroll" tabindex="0" aria-label="Scrollable FFC report table">
++                    <table class="ffc-projects-update-table @(Model.IncludeOverallStatus ? "ffc-projects-update-table--with-overall" : string.Empty)">
++                        <colgroup>
++                            <col class="col-serial" />
++                            <col class="col-project" />
++                            <col class="col-cost" />
++                            <col class="col-quantity" />
++                            <col class="col-status" />
++                            <col class="col-progress" />
++                            @if (Model.IncludeOverallStatus)
++                            {
++                                <col class="col-overall" />
++                            }
++                        </colgroup>
++                        <thead>
++                            <tr>
++                                <th>S. No.</th>
++                                <th>Project</th>
++                                <th>Cost (₹ lakh)</th>
++                                <th>Quantity</th>
++                                <th>Status</th>
++                                <th>Current progress</th>
++                                @if (Model.IncludeOverallStatus)
++                                {
++                                    <th>Overall status</th>
++                                }
++                            </tr>
++                        </thead>
++                        <tbody>
++                            @foreach (var group in report.Groups)
++                            {
++                                <tr class="ffc-report-group-row">
++                                    <td colspan="@columnCount">
++                                        <span>@group.CountryName – @group.Year</span>
++                                        <small>@group.CountryCode</small>
++                                    </td>
++                                </tr>
++
++                                @for (var index = 0; index < group.Rows.Count; index++)
++                                {
++                                    var row = group.Rows[index];
++                                    <tr>
++                                        <td class="text-center ffc-report-number">@row.Serial</td>
++                                        <td class="ffc-report-project">
++                                            @if (row.LinkedProjectId.HasValue)
++                                            {
++                                                <a asp-page="/Projects/Overview"
++                                                   asp-route-id="@row.LinkedProjectId.Value"
++                                                   target="_blank"
++                                                   rel="noopener noreferrer">@row.ProjectName</a>
++                                            }
++                                            else
++                                            {
++                                                @row.ProjectName
++                                            }
++                                        </td>
++                                        <td class="text-end ffc-report-number">@Cost(row.CostInCr)</td>
++                                        <td class="text-end ffc-report-number">@row.Quantity.ToString("N0", CultureInfo.InvariantCulture)</td>
++                                        <td class="ffc-report-status">@row.Status</td>
++                                        <td class="ffc-report-narrative">
++                                            @{
++                                                var progress = Narrative(row.ProgressText, "No progress recorded.");
++                                            }
++                                            <span class="@(string.IsNullOrWhiteSpace(row.ProgressText) ? "text-muted fst-italic" : string.Empty)">@progress</span>
++                                        </td>
++                                        @if (Model.IncludeOverallStatus && index == 0)
++                                        {
++                                            var overall = Narrative(group.OverallRemarks, "No overall status recorded.");
++                                            <td class="ffc-report-narrative ffc-report-overall"
++                                                rowspan="@group.Rows.Count">
++                                                <span class="@(string.IsNullOrWhiteSpace(group.OverallRemarks) ? "text-muted fst-italic" : string.Empty)">@overall</span>
++                                            </td>
++                                        }
++                                    </tr>
++                                }
++                            }
++                        </tbody>
++                    </table>
++                </div>
++            }
++        </section>
++    }
++</div>
++
++@section Scripts {
++    <script src="~/js/pages/projects-reports-ffc.js" asp-append-version="true"></script>
++}
+--- a/Pages/Projects/Reports/FfcProjectsUpdate.cshtml.cs
++++ b/Pages/Projects/Reports/FfcProjectsUpdate.cshtml.cs
+@@ -0,0 +1,109 @@
++using System.Globalization;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.RazorPages;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Services.Ffc;
++using ProjectManagement.Services.Reports.FfcProjectsUpdate;
++using ProjectManagement.Utilities;
++
++namespace ProjectManagement.Pages.Projects.Reports;
++
++[Authorize(Policy = ProjectOfficeReportsPolicies.ViewArpp)]
++public sealed class FfcProjectsUpdateModel : PageModel
++{
++    private const string WordContentType =
++        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
++    private const string PdfContentType = "application/pdf";
++    private const string ExcelContentType =
++        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
++
++    private readonly IFfcQueryService _ffcQueryService;
++
++    public FfcProjectsUpdateModel(IFfcQueryService ffcQueryService)
++        => _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
++
++    [BindProperty(SupportsGet = true)]
++    public FfcCountryYearSelectionMode SelectionMode { get; set; } =
++        FfcCountryYearSelectionMode.DefaultActive;
++
++    [BindProperty(SupportsGet = true)]
++    public string? CountryYears { get; set; }
++
++    [BindProperty(SupportsGet = true)]
++    public bool IncludeOverallStatus { get; set; }
++
++    public FfcProjectsUpdateReport? Report { get; private set; }
++
++    public async Task OnGetAsync(CancellationToken cancellationToken)
++    {
++        Report = await BuildReportAsync(cancellationToken);
++
++        // Keep the URL/export state canonical. In DefaultActive mode the factory
++        // still owns the default rule; the CSV simply mirrors the current result.
++        CountryYears = Report.SelectedCountryYearsCsv;
++        SelectionMode = Report.SelectionMode;
++    }
++
++    public Task<IActionResult> OnGetWordAsync(CancellationToken cancellationToken)
++        => ExportAsync(
++            (report, options) => FfcProjectsUpdateWordBuilder.Build(report, options),
++            WordContentType,
++            "docx",
++            cancellationToken);
++
++    public Task<IActionResult> OnGetPdfAsync(CancellationToken cancellationToken)
++        => ExportAsync(
++            (report, options) => FfcProjectsUpdatePdfBuilder.Build(report, options),
++            PdfContentType,
++            "pdf",
++            cancellationToken);
++
++    public Task<IActionResult> OnGetExcelAsync(CancellationToken cancellationToken)
++        => ExportAsync(
++            (report, options) => FfcProjectsUpdateExcelBuilder.Build(report, options),
++            ExcelContentType,
++            "xlsx",
++            cancellationToken);
++
++    private async Task<IActionResult> ExportAsync(
++        Func<FfcProjectsUpdateReport, FfcProjectsUpdatePresentationOptions, byte[]> builder,
++        string contentType,
++        string extension,
++        CancellationToken cancellationToken)
++    {
++        var report = await BuildReportAsync(cancellationToken);
++        if (!report.CanExport)
++        {
++            return BadRequest("Select at least one country-year containing one or more FFC projects.");
++        }
++
++        var options = new FfcProjectsUpdatePresentationOptions(IncludeOverallStatus);
++        var generatedAtIst = TimeZoneInfo.ConvertTime(report.GeneratedAtUtc, TimeZoneHelper.GetIst());
++        var fileName = string.Format(
++            CultureInfo.InvariantCulture,
++            "FFC_Projects_Update_{0:yyyyMMdd_HHmm}.{1}",
++            generatedAtIst,
++            extension);
++
++        return File(builder(report, options), contentType, fileName);
++    }
++
++    private async Task<FfcProjectsUpdateReport> BuildReportAsync(CancellationToken cancellationToken)
++    {
++        var groups = await _ffcQueryService.GetDetailedGroupsAsync(
++            DateOnly.MinValue,
++            DateOnly.MaxValue,
++            incompleteOnly: false,
++            countryId: null,
++            year: null,
++            applyYearFilter: false,
++            cancellationToken: cancellationToken);
++
++        return FfcProjectsUpdateReportFactory.Create(
++            groups,
++            SelectionMode,
++            CountryYears,
++            DateTimeOffset.UtcNow);
++    }
++}
+--- a/Pages/Projects/Reports/Index.cshtml
++++ b/Pages/Projects/Reports/Index.cshtml
+@@ -22,7 +22,7 @@
+         <div>
+             <p class="project-reports-eyebrow">PROJECT REPORTING</p>
+             <h1>Reports</h1>
+-            <p>Generate formal project returns directly from published ARPP and current PRISM records.</p>
++            <p>Generate formal project returns directly from published ARPP, FFC and current PRISM records.</p>
+         </div>
+     </header>
+ 
+@@ -35,7 +35,7 @@
+             <div class="project-report-card__body">
+                 <div class="project-report-card__meta">ARPP / PPP · FY RETURN</div>
+                 <h2>ARPP FY Project Update</h2>
+-                <p>ARPP-listed New, CL and CF projects for the selected financial year with original listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
++                <p>ARPP-listed New, CL and CF projects for the selected financial year with selectable listing date, DFPDS schedule, CFA, AoN, Supply Order, PDC and latest external update.</p>
+                 <div class="project-report-card__facts" aria-label="Report capabilities">
+                     <span><i class="bi bi-sort-down-alt" aria-hidden="true"></i> Lifecycle-maturity order</span>
+                     <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
+@@ -66,5 +66,35 @@
+                 }
+             </div>
+         </article>
++
++        <article class="project-report-card">
++            <div class="project-report-card__icon" aria-hidden="true">
++                <i class="bi bi-globe2"></i>
++            </div>
++
++            <div class="project-report-card__body">
++                <div class="project-report-card__meta">FFC · COUNTRY-YEAR RETURN</div>
++                <h2>FFC Projects Update</h2>
++                <p>Country-year grouped FFC project position with cost, quantity, status and current progress. All-installed country-year groups are excluded by default but remain available for selection.</p>
++                <div class="project-report-card__facts" aria-label="Report capabilities">
++                    <span><i class="bi bi-check2-square" aria-hidden="true"></i> Country-year selection</span>
++                    <span><i class="bi bi-layout-three-columns" aria-hidden="true"></i> Overall status optional</span>
++                    <span><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</span>
++                    <span><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</span>
++                    <span><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</span>
++                </div>
++            </div>
++
++            <div class="project-report-card__aside">
++                <div class="project-report-card__availability">
++                    <span>Source</span>
++                    <strong>Current FFC portfolio</strong>
++                </div>
++                <a class="btn btn-primary btn-sm" asp-page="./FfcProjectsUpdate">
++                    Open report
++                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
++                </a>
++            </div>
++        </article>
+     </section>
+ </div>
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
+@@ -0,0 +1,127 @@
++using ClosedXML.Excel;
++using DocumentFormat.OpenXml.Packaging;
++using ProjectManagement.Services.Ffc;
++using ProjectManagement.Services.Reports.FfcProjectsUpdate;
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class FfcProjectsUpdateExportTests
++{
++    [Theory]
++    [InlineData(false, 6)]
++    [InlineData(true, 7)]
++    public void Excel_export_respects_optional_overall_status_column(
++        bool includeOverallStatus,
++        int expectedColumns)
++    {
++        var report = SampleReport();
++        var bytes = FfcProjectsUpdateExcelBuilder.Build(
++            report,
++            new FfcProjectsUpdatePresentationOptions(includeOverallStatus));
++
++        using var stream = new MemoryStream(bytes);
++        using var workbook = new XLWorkbook(stream);
++        var worksheet = workbook.Worksheet("FFC Projects Update");
++
++        Assert.Equal(FfcProjectsUpdateReport.FormalTitle, worksheet.Cell(1, 1).GetString());
++        Assert.Equal("Current progress", worksheet.Cell(3, 6).GetString());
++
++        if (includeOverallStatus)
++        {
++            Assert.Equal("Overall status", worksheet.Cell(3, 7).GetString());
++        }
++        else
++        {
++            Assert.True(string.IsNullOrEmpty(worksheet.Cell(3, 7).GetString()));
++        }
++
++        Assert.Equal(expectedColumns, worksheet.RangeUsed()!.ColumnCount());
++    }
++
++    [Theory]
++    [InlineData(false)]
++    [InlineData(true)]
++    public void Word_export_is_valid_and_contains_selected_country_year(bool includeOverallStatus)
++    {
++        var bytes = FfcProjectsUpdateWordBuilder.Build(
++            SampleReport(),
++            new FfcProjectsUpdatePresentationOptions(includeOverallStatus));
++
++        using var stream = new MemoryStream(bytes);
++        using var document = WordprocessingDocument.Open(stream, false);
++
++        var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
++        Assert.Contains(FfcProjectsUpdateReport.FormalTitle, text, StringComparison.Ordinal);
++        Assert.Contains("Ethiopia", text, StringComparison.Ordinal);
++        Assert.Contains("Current progress", text, StringComparison.Ordinal);
++
++        if (includeOverallStatus)
++        {
++            Assert.Contains("Overall status", text, StringComparison.Ordinal);
++        }
++    }
++
++    [Fact]
++    public void Pdf_export_generates_a_pdf_with_both_presentation_modes()
++    {
++        foreach (var includeOverallStatus in new[] { false, true })
++        {
++            var bytes = FfcProjectsUpdatePdfBuilder.Build(
++                SampleReport(),
++                new FfcProjectsUpdatePresentationOptions(includeOverallStatus));
++
++            Assert.True(bytes.Length > 1000);
++            Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
++        }
++    }
++
++    private static FfcProjectsUpdateReport SampleReport()
++    {
++        var rows = new[]
++        {
++            new FfcDetailedRowVm(
++                1,
++                1,
++                "05 x MUUGV (Ethiopia 2025)",
++                101,
++                1.25m,
++                5,
++                "Planned",
++                "TEC under progress.",
++                "TEC under progress.",
++                null,
++                default,
++                false),
++            new FfcDetailedRowVm(
++                2,
++                2,
++                "4 Lane IWTS Sml for FFC Ethiopia",
++                102,
++                0.70m,
++                2,
++                "Installed",
++                "Installed at user location.",
++                "Installed at user location.",
++                null,
++                default,
++                false)
++        };
++
++        var group = new FfcDetailedGroupVm(
++            55,
++            "Ethiopia",
++            "ETH",
++            2025,
++            "IPA received. Project demands under execution.",
++            "IPA received. Project demands under execution.",
++            rows,
++            HasIncomplete: true);
++
++        return FfcProjectsUpdateReportFactory.Create(
++            new[] { group },
++            FfcCountryYearSelectionMode.DefaultActive,
++            null,
++            new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
++    }
++}
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
+@@ -0,0 +1,67 @@
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class FfcProjectsUpdatePresentationContractTests
++{
++    [Fact]
++    public void Projects_reports_landing_page_exposes_ffc_projects_update()
++    {
++        var source = ReadRepoFile("Pages", "Projects", "Reports", "Index.cshtml");
++
++        Assert.Contains("FFC Projects Update", source, StringComparison.Ordinal);
++        Assert.Contains("asp-page=\"./FfcProjectsUpdate\"", source, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Ffc_report_page_exposes_country_year_and_optional_overall_status_controls()
++    {
++        var source = ReadRepoFile("Pages", "Projects", "Reports", "FfcProjectsUpdate.cshtml");
++
++        Assert.Contains("Country / Year", source, StringComparison.Ordinal);
++        Assert.Contains("Overall status", source, StringComparison.Ordinal);
++        Assert.Contains("data-ffc-country-year", source, StringComparison.Ordinal);
++        Assert.Contains("data-default-included", source, StringComparison.Ordinal);
++        Assert.Contains("asp-page-handler=\"Word\"", source, StringComparison.Ordinal);
++        Assert.Contains("asp-page-handler=\"Pdf\"", source, StringComparison.Ordinal);
++        Assert.Contains("asp-page-handler=\"Excel\"", source, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Default_country_year_rule_is_explicitly_all_installed_only()
++    {
++        var source = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdateContracts.cs");
++
++        Assert.Contains(
++            "string.Equals(row.Status, \"Installed\", StringComparison.OrdinalIgnoreCase)",
++            source,
++            StringComparison.Ordinal);
++        Assert.Contains("var defaultIncluded = !allInstalled;", source, StringComparison.Ordinal);
++    }
++
++    private static string ReadRepoFile(params string[] segments)
++    {
++        var root = ResolveRepoRoot();
++        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
++    }
++
++    private static string ResolveRepoRoot()
++    {
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
++    }
++}
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdateReportTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdateReportTests.cs
+@@ -0,0 +1,106 @@
++using ProjectManagement.Services.Ffc;
++using ProjectManagement.Services.Reports.FfcProjectsUpdate;
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class FfcProjectsUpdateReportTests
++{
++    [Fact]
++    public void Default_selection_excludes_only_country_years_where_every_project_is_installed()
++    {
++        var groups = new[]
++        {
++            Group(1, "Sri Lanka", "LKA", 2025, "Installed", "Installed"),
++            Group(2, "Ethiopia", "ETH", 2025, "Installed", "Planned"),
++            Group(3, "France", "FRA", 2026, "Planned")
++        };
++
++        var report = FfcProjectsUpdateReportFactory.Create(
++            groups,
++            FfcCountryYearSelectionMode.DefaultActive,
++            selectedCountryYearsCsv: null,
++            DateTimeOffset.UtcNow);
++
++        Assert.Equal(3, report.AvailableCountryYearCount);
++        Assert.Equal(2, report.SelectedCountryYearCount);
++        Assert.Equal(1, report.DefaultExcludedCount);
++        Assert.DoesNotContain(report.Groups, group => group.FfcRecordId == 1);
++        Assert.Contains(report.Groups, group => group.FfcRecordId == 2);
++        Assert.Contains(report.Groups, group => group.FfcRecordId == 3);
++    }
++
++    [Fact]
++    public void Custom_selection_can_explicitly_include_an_all_installed_country_year()
++    {
++        var groups = new[]
++        {
++            Group(10, "Sri Lanka", "LKA", 2025, "Installed", "Installed"),
++            Group(20, "Ethiopia", "ETH", 2025, "Planned")
++        };
++
++        var report = FfcProjectsUpdateReportFactory.Create(
++            groups,
++            FfcCountryYearSelectionMode.Custom,
++            "10",
++            DateTimeOffset.UtcNow);
++
++        Assert.Single(report.Groups);
++        Assert.Equal(10, report.Groups[0].FfcRecordId);
++        Assert.True(report.CountryYears.Single(option => option.FfcRecordId == 10).IsAllInstalled);
++        Assert.True(report.CountryYears.Single(option => option.FfcRecordId == 10).IsSelected);
++    }
++
++    [Fact]
++    public void Custom_empty_selection_is_preserved_as_empty_and_does_not_revert_to_defaults()
++    {
++        var groups = new[]
++        {
++            Group(1, "France", "FRA", 2026, "Planned")
++        };
++
++        var report = FfcProjectsUpdateReportFactory.Create(
++            groups,
++            FfcCountryYearSelectionMode.Custom,
++            string.Empty,
++            DateTimeOffset.UtcNow);
++
++        Assert.Empty(report.Groups);
++        Assert.Equal(0, report.SelectedCountryYearCount);
++        Assert.False(report.CanExport);
++    }
++
++    private static FfcDetailedGroupVm Group(
++        long recordId,
++        string country,
++        string code,
++        int year,
++        params string[] statuses)
++    {
++        var rows = statuses
++            .Select((status, index) => new FfcDetailedRowVm(
++                FfcProjectId: recordId * 100 + index + 1,
++                Serial: index + 1,
++                ProjectName: $"Project {index + 1}",
++                LinkedProjectId: index + 1,
++                CostInCr: 0.7m,
++                Quantity: index + 1,
++                Status: status,
++                ProgressText: "Current progress",
++                ProgressTextRaw: "Current progress",
++                ExternalRemarkId: null,
++                ProgressSource: default,
++                IsProgressEditable: false))
++            .ToArray();
++
++        return new FfcDetailedGroupVm(
++            FfcRecordId: recordId,
++            CountryName: country,
++            CountryCode: code,
++            Year: year,
++            OverallRemarks: "Overall status",
++            OverallRemarksDisplay: "Overall status",
++            Rows: rows,
++            HasIncomplete: rows.Any(row => !string.Equals(row.Status, "Installed", StringComparison.OrdinalIgnoreCase)));
++    }
++}
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateContracts.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateContracts.cs
+@@ -0,0 +1,150 @@
++using System.Globalization;
++using ProjectManagement.Services.Ffc;
++
++namespace ProjectManagement.Services.Reports.FfcProjectsUpdate;
++
++public enum FfcCountryYearSelectionMode
++{
++    DefaultActive = 0,
++    Custom = 1
++}
++
++public sealed record FfcProjectsUpdatePresentationOptions(
++    bool IncludeOverallStatus = false)
++{
++    public static FfcProjectsUpdatePresentationOptions Default { get; } = new();
++}
++
++public sealed record FfcCountryYearOption(
++    long FfcRecordId,
++    string CountryName,
++    string CountryCode,
++    int Year,
++    bool IsAllInstalled,
++    bool IsDefaultIncluded,
++    bool IsSelected)
++{
++    public string Label => $"{CountryName} – {Year}";
++
++    public string StatusLabel => IsAllInstalled ? "All installed" : "Active";
++}
++
++public sealed record FfcProjectsUpdateReport(
++    DateTimeOffset GeneratedAtUtc,
++    FfcCountryYearSelectionMode SelectionMode,
++    IReadOnlyList<FfcCountryYearOption> CountryYears,
++    IReadOnlyList<FfcDetailedGroupVm> Groups)
++{
++    public const string FormalTitle = "FFC PROJECTS UPDATE";
++
++    public int AvailableCountryYearCount => CountryYears.Count;
++
++    public int SelectedCountryYearCount => CountryYears.Count(option => option.IsSelected);
++
++    public int DefaultExcludedCount => CountryYears.Count(option => option.IsAllInstalled);
++
++    public int ProjectCount => Groups.Sum(group => group.Rows.Count);
++
++    public int TotalQuantity => Groups.SelectMany(group => group.Rows).Sum(row => row.Quantity);
++
++    public int InstalledProjectCount => Groups
++        .SelectMany(group => group.Rows)
++        .Count(row => string.Equals(row.Status, "Installed", StringComparison.OrdinalIgnoreCase));
++
++    public bool CanExport => Groups.Count > 0 && ProjectCount > 0;
++
++    public string SelectedCountryYearsCsv => string.Join(
++        ",",
++        CountryYears
++            .Where(option => option.IsSelected)
++            .Select(option => option.FfcRecordId.ToString(CultureInfo.InvariantCulture)));
++}
++
++public static class FfcProjectsUpdateReportFactory
++{
++    public static FfcProjectsUpdateReport Create(
++        IReadOnlyList<FfcDetailedGroupVm>? sourceGroups,
++        FfcCountryYearSelectionMode selectionMode,
++        string? selectedCountryYearsCsv,
++        DateTimeOffset generatedAtUtc)
++    {
++        var groups = (sourceGroups ?? Array.Empty<FfcDetailedGroupVm>())
++            .Where(group => group.Rows is { Count: > 0 })
++            .OrderByDescending(group => group.Year)
++            .ThenBy(group => group.CountryName, StringComparer.OrdinalIgnoreCase)
++            .ThenBy(group => group.FfcRecordId)
++            .ToArray();
++
++        var normalizedMode = Enum.IsDefined(selectionMode)
++            ? selectionMode
++            : FfcCountryYearSelectionMode.DefaultActive;
++
++        var customSelection = normalizedMode == FfcCountryYearSelectionMode.Custom
++            ? ParseSelectedIds(selectedCountryYearsCsv)
++            : new HashSet<long>();
++
++        var options = groups
++            .Select(group =>
++            {
++                // The user-defined default rule is deliberately based on the
++                // existing detailed-table Status contract: a country-year is
++                // default-excluded only when every project is exactly Installed.
++                var allInstalled = group.Rows.All(row =>
++                    string.Equals(row.Status, "Installed", StringComparison.OrdinalIgnoreCase));
++
++                var defaultIncluded = !allInstalled;
++                var selected = normalizedMode == FfcCountryYearSelectionMode.DefaultActive
++                    ? defaultIncluded
++                    : customSelection.Contains(group.FfcRecordId);
++
++                return new FfcCountryYearOption(
++                    group.FfcRecordId,
++                    group.CountryName,
++                    group.CountryCode,
++                    group.Year,
++                    allInstalled,
++                    defaultIncluded,
++                    selected);
++            })
++            .ToArray();
++
++        var selectedIds = options
++            .Where(option => option.IsSelected)
++            .Select(option => option.FfcRecordId)
++            .ToHashSet();
++
++        var selectedGroups = groups
++            .Where(group => selectedIds.Contains(group.FfcRecordId))
++            .ToArray();
++
++        return new FfcProjectsUpdateReport(
++            generatedAtUtc,
++            normalizedMode,
++            options,
++            selectedGroups);
++    }
++
++    private static HashSet<long> ParseSelectedIds(string? csv)
++    {
++        if (string.IsNullOrWhiteSpace(csv))
++        {
++            return new HashSet<long>();
++        }
++
++        var result = new HashSet<long>();
++        foreach (var token in csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
++        {
++            if (long.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) && id > 0)
++            {
++                result.Add(id);
++            }
++        }
++
++        return result;
++    }
++}
++
++public sealed record FfcProjectsUpdateFile(
++    byte[] Content,
++    string ContentType,
++    string FileName);
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
+@@ -0,0 +1,182 @@
++using System.Globalization;
++using System.IO;
++using ClosedXML.Excel;
++using ProjectManagement.Services.Ffc;
++
++namespace ProjectManagement.Services.Reports.FfcProjectsUpdate;
++
++public static class FfcProjectsUpdateExcelBuilder
++{
++    private const int TitleRow = 1;
++    private const int HeaderRow = 3;
++
++    public static byte[] Build(
++        FfcProjectsUpdateReport report,
++        FfcProjectsUpdatePresentationOptions? options = null)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++        var resolved = options ?? FfcProjectsUpdatePresentationOptions.Default;
++        var columnCount = resolved.IncludeOverallStatus ? 7 : 6;
++
++        using var workbook = new XLWorkbook();
++        var worksheet = workbook.AddWorksheet("FFC Projects Update");
++
++        worksheet.Style.Font.FontName = "Arial";
++        worksheet.Style.Font.FontSize = 10;
++        worksheet.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
++
++        var title = worksheet.Range(TitleRow, 1, TitleRow, columnCount).Merge();
++        title.Value = FfcProjectsUpdateReport.FormalTitle;
++        title.Style.Font.Bold = true;
++        title.Style.Font.FontSize = 16;
++        title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
++        title.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++        worksheet.Row(TitleRow).Height = 25;
++
++        BuildHeader(worksheet, resolved, columnCount);
++
++        var rowIndex = HeaderRow + 1;
++        foreach (var group in report.Groups)
++        {
++            var groupRow = rowIndex++;
++            var groupRange = worksheet.Range(groupRow, 1, groupRow, columnCount).Merge();
++            groupRange.Value = $"{group.CountryName} – {group.Year}    {group.CountryCode}";
++            groupRange.Style.Font.Bold = true;
++            groupRange.Style.Font.FontColor = XLColor.FromHtml("#17365D");
++            groupRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F5F8");
++            groupRange.Style.Border.TopBorder = XLBorderStyleValues.Thin;
++            groupRange.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
++            groupRange.Style.Border.TopBorderColor = XLColor.FromHtml("#AAB7C6");
++            groupRange.Style.Border.BottomBorderColor = XLColor.FromHtml("#AAB7C6");
++
++            var groupDataStart = rowIndex;
++
++            foreach (var row in group.Rows)
++            {
++                worksheet.Cell(rowIndex, 1).SetValue(row.Serial);
++                worksheet.Cell(rowIndex, 2).SetValue(row.ProjectName);
++
++                if (row.CostInCr.HasValue)
++                {
++                    worksheet.Cell(rowIndex, 3).SetValue(row.CostInCr.Value * 100m);
++                }
++
++                worksheet.Cell(rowIndex, 4).SetValue(row.Quantity);
++                worksheet.Cell(rowIndex, 5).SetValue(row.Status);
++                worksheet.Cell(rowIndex, 6).SetValue(Narrative(row.ProgressText));
++
++                if (resolved.IncludeOverallStatus && rowIndex == groupDataStart)
++                {
++                    worksheet.Cell(rowIndex, 7).SetValue(Narrative(group.OverallRemarks));
++                }
++
++                rowIndex++;
++            }
++
++            if (resolved.IncludeOverallStatus && group.Rows.Count > 1)
++            {
++                var overallRange = worksheet.Range(groupDataStart, 7, rowIndex - 1, 7).Merge();
++                overallRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
++                overallRange.Style.Alignment.WrapText = true;
++            }
++        }
++
++        var lastRow = Math.Max(HeaderRow, rowIndex - 1);
++        ApplyFormatting(worksheet, lastRow, columnCount, resolved);
++        ConfigureColumns(worksheet, resolved);
++        ConfigurePrint(worksheet);
++
++        using var stream = new MemoryStream();
++        workbook.SaveAs(stream);
++        return stream.ToArray();
++    }
++
++    private static void BuildHeader(
++        IXLWorksheet worksheet,
++        FfcProjectsUpdatePresentationOptions options,
++        int columnCount)
++    {
++        var headings = options.IncludeOverallStatus
++            ? new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress", "Overall status" }
++            : new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress" };
++
++        for (var column = 1; column <= headings.Length; column++)
++        {
++            worksheet.Cell(HeaderRow, column).SetValue(headings[column - 1]);
++        }
++
++        var header = worksheet.Range(HeaderRow, 1, HeaderRow, columnCount);
++        header.Style.Font.Bold = true;
++        header.Style.Font.FontColor = XLColor.FromHtml("#17365D");
++        header.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8EEF5");
++        header.Style.Border.TopBorder = XLBorderStyleValues.Thin;
++        header.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
++        header.Style.Border.TopBorderColor = XLColor.FromHtml("#8A99A8");
++        header.Style.Border.BottomBorderColor = XLColor.FromHtml("#8A99A8");
++        header.Style.Alignment.WrapText = true;
++        worksheet.Row(HeaderRow).Height = 25;
++    }
++
++    private static void ApplyFormatting(
++        IXLWorksheet worksheet,
++        int lastRow,
++        int columnCount,
++        FfcProjectsUpdatePresentationOptions options)
++    {
++        if (lastRow > HeaderRow)
++        {
++            var tableRange = worksheet.Range(HeaderRow, 1, lastRow, columnCount);
++            tableRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
++            tableRange.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
++            tableRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#AAB7C6");
++            tableRange.Style.Border.InsideBorderColor = XLColor.FromHtml("#D8E0E8");
++            tableRange.Style.Alignment.WrapText = true;
++        }
++
++        worksheet.Column(1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
++        worksheet.Column(3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
++        worksheet.Column(3).Style.NumberFormat.Format = "#,##0.00";
++        worksheet.Column(4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
++        worksheet.Column(4).Style.NumberFormat.Format = "#,##0";
++
++        worksheet.SheetView.FreezeRows(HeaderRow);
++    }
++
++    private static void ConfigureColumns(
++        IXLWorksheet worksheet,
++        FfcProjectsUpdatePresentationOptions options)
++    {
++        worksheet.Column(1).Width = 8;
++        worksheet.Column(2).Width = options.IncludeOverallStatus ? 34 : 40;
++        worksheet.Column(3).Width = 15;
++        worksheet.Column(4).Width = 11;
++        worksheet.Column(5).Width = 24;
++        worksheet.Column(6).Width = options.IncludeOverallStatus ? 58 : 82;
++
++        if (options.IncludeOverallStatus)
++        {
++            worksheet.Column(7).Width = 64;
++        }
++    }
++
++    private static void ConfigurePrint(IXLWorksheet worksheet)
++    {
++        worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
++        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
++        worksheet.PageSetup.FitToPages(1, 0);
++        worksheet.PageSetup.Margins.Top = 0.35;
++        worksheet.PageSetup.Margins.Bottom = 0.45;
++        worksheet.PageSetup.Margins.Left = 0.3;
++        worksheet.PageSetup.Margins.Right = 0.3;
++        worksheet.PageSetup.SetRowsToRepeatAtTop(TitleRow, HeaderRow);
++        worksheet.PageSetup.Footer.Left.AddText("PRISM ERP · Simulator Development Division");
++        worksheet.PageSetup.Footer.Right.AddText("Page &P of &N");
++    }
++
++    private static string Narrative(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            ? string.Empty
++            : value.Trim()
++                .Replace("\r\n", "\n", StringComparison.Ordinal)
++                .Replace("\r", "\n", StringComparison.Ordinal);
++}
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
+@@ -0,0 +1,213 @@
++using System.Globalization;
++using QuestPDF.Fluent;
++using QuestPDF.Helpers;
++using QuestPDF.Infrastructure;
++using ProjectManagement.Services.Ffc;
++
++namespace ProjectManagement.Services.Reports.FfcProjectsUpdate;
++
++public static class FfcProjectsUpdatePdfBuilder
++{
++    private const string Ink = "#1F2937";
++    private const string Muted = "#526174";
++    private const string Navy = "#17365D";
++    private const string HeaderFill = "#E8EEF5";
++    private const string GroupFill = "#F2F5F8";
++    private const string Border = "#8A99A8";
++
++    static FfcProjectsUpdatePdfBuilder()
++    {
++        QuestPDF.Settings.License = LicenseType.Community;
++    }
++
++    public static byte[] Build(
++        FfcProjectsUpdateReport report,
++        FfcProjectsUpdatePresentationOptions? options = null)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++        var resolved = options ?? FfcProjectsUpdatePresentationOptions.Default;
++
++        var document = Document.Create(container =>
++        {
++            container.Page(page =>
++            {
++                page.Size(PageSizes.A4.Landscape());
++                page.Margin(22);
++                page.DefaultTextStyle(style => style
++                    .FontSize(7.2f)
++                    .FontColor(Ink)
++                    .DisableFontFeature(FontFeatures.StandardLigatures));
++
++                page.Header()
++                    .PaddingBottom(8)
++                    .AlignCenter()
++                    .Text(FfcProjectsUpdateReport.FormalTitle)
++                    .FontSize(11.5f)
++                    .Bold()
++                    .FontColor(Navy);
++
++                page.Content().Table(table =>
++                {
++                    table.ColumnsDefinition(columns =>
++                    {
++                        columns.RelativeColumn(0.55f);
++                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 2.4f : 2.8f);
++                        columns.RelativeColumn(1.05f);
++                        columns.RelativeColumn(0.75f);
++                        columns.RelativeColumn(1.25f);
++                        columns.RelativeColumn(resolved.IncludeOverallStatus ? 3.45f : 6.0f);
++                        if (resolved.IncludeOverallStatus)
++                        {
++                            columns.RelativeColumn(3.55f);
++                        }
++                    });
++
++                    table.Header(header =>
++                    {
++                        HeaderCell(header.Cell(), "S. No.", center: true);
++                        HeaderCell(header.Cell(), "Project");
++                        HeaderCell(header.Cell(), "Cost (₹ lakh)", center: true);
++                        HeaderCell(header.Cell(), "Quantity", center: true);
++                        HeaderCell(header.Cell(), "Status");
++                        HeaderCell(header.Cell(), "Current progress");
++                        if (resolved.IncludeOverallStatus)
++                        {
++                            HeaderCell(header.Cell(), "Overall status");
++                        }
++                    });
++
++                    var columnCount = resolved.IncludeOverallStatus ? 7 : 6;
++                    foreach (var group in report.Groups)
++                    {
++                        GroupCell(
++                            table.Cell().ColumnSpan((uint)columnCount),
++                            $"{group.CountryName} – {group.Year}",
++                            group.CountryCode);
++
++                        for (var index = 0; index < group.Rows.Count; index++)
++                        {
++                            var row = group.Rows[index];
++
++                            BodyCell(table.Cell(), row.Serial.ToString(CultureInfo.InvariantCulture), center: true);
++                            BodyCell(table.Cell(), row.ProjectName, bold: true);
++                            BodyCell(
++                                table.Cell(),
++                                row.CostInCr.HasValue
++                                    ? (row.CostInCr.Value * 100m).ToString("N2", CultureInfo.InvariantCulture)
++                                    : string.Empty,
++                                center: true);
++                            BodyCell(table.Cell(), row.Quantity.ToString("N0", CultureInfo.InvariantCulture), center: true);
++                            BodyCell(table.Cell(), row.Status);
++                            BodyCell(table.Cell(), Narrative(row.ProgressText));
++
++                            if (resolved.IncludeOverallStatus)
++                            {
++                                // Overall status belongs to the country-year record. Rendering
++                                // it once avoids repeated long text and is robust when a group
++                                // crosses a PDF page boundary.
++                                BodyCell(
++                                    table.Cell(),
++                                    index == 0 ? Narrative(group.OverallRemarks) : string.Empty);
++                            }
++                        }
++                    }
++                });
++
++                page.Footer().PaddingTop(5).Row(footer =>
++                {
++                    footer.RelativeItem()
++                        .Text("PRISM ERP · Simulator Development Division")
++                        .FontSize(6.5f)
++                        .FontColor(Muted);
++
++                    footer.ConstantItem(100).AlignRight().Text(text =>
++                    {
++                        text.DefaultTextStyle(style => style.FontSize(6.5f).FontColor(Muted));
++                        text.Span("Page ");
++                        text.CurrentPageNumber();
++                        text.Span(" of ");
++                        text.TotalPages();
++                    });
++                });
++            });
++        })
++        .WithMetadata(new DocumentMetadata
++        {
++            Title = FfcProjectsUpdateReport.FormalTitle,
++            Author = "Simulator Development Division",
++            Subject = "FFC country-year project update",
++            Creator = "PRISM ERP",
++            Producer = "PRISM ERP",
++            CreationDate = report.GeneratedAtUtc,
++            ModifiedDate = report.GeneratedAtUtc
++        });
++
++        return document.GeneratePdf();
++    }
++
++    private static void HeaderCell(IContainer container, string text, bool center = false)
++    {
++        var cell = container
++            .Border(0.6f)
++            .BorderColor(Border)
++            .Background(HeaderFill)
++            .PaddingVertical(4)
++            .PaddingHorizontal(3)
++            .AlignMiddle();
++
++        if (center)
++        {
++            cell = cell.AlignCenter();
++        }
++
++        cell.Text(text)
++            .FontSize(6.8f)
++            .Bold()
++            .FontColor(Navy);
++    }
++
++    private static void GroupCell(IContainer container, string label, string code)
++        => container
++            .Border(0.45f)
++            .BorderColor(Border)
++            .Background(GroupFill)
++            .PaddingVertical(4)
++            .PaddingHorizontal(5)
++            .Row(row =>
++            {
++                row.RelativeItem().Text(label).FontSize(7.2f).Bold().FontColor(Navy);
++                row.ConstantItem(42).AlignRight().Text(code).FontSize(6.8f).Bold().FontColor(Muted);
++            });
++
++    private static void BodyCell(
++        IContainer container,
++        string text,
++        bool center = false,
++        bool bold = false)
++    {
++        var cell = container
++            .Border(0.45f)
++            .BorderColor(Border)
++            .PaddingVertical(3.5f)
++            .PaddingHorizontal(3)
++            .AlignTop();
++
++        if (center)
++        {
++            cell = cell.AlignCenter();
++        }
++
++        var content = cell.Text(text).FontSize(6.8f).FontColor(Ink);
++        if (bold)
++        {
++            content.Bold();
++        }
++    }
++
++    private static string Narrative(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            ? string.Empty
++            : value.Trim()
++                .Replace("\r\n", "\n", StringComparison.Ordinal)
++                .Replace("\r", "\n", StringComparison.Ordinal);
++}
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
+@@ -0,0 +1,442 @@
++using System.Globalization;
++using System.IO;
++using DocumentFormat.OpenXml;
++using DocumentFormat.OpenXml.Packaging;
++using W = DocumentFormat.OpenXml.Wordprocessing;
++using ProjectManagement.Services.Ffc;
++
++namespace ProjectManagement.Services.Reports.FfcProjectsUpdate;
++
++public static class FfcProjectsUpdateWordBuilder
++{
++    private const string Font = "Arial";
++    private const string Navy = "17365D";
++    private const string Ink = "172033";
++    private const string Muted = "526174";
++    private const string HeaderFill = "E8EEF5";
++    private const string GroupFill = "F2F5F8";
++    private const string Border = "AAB7C6";
++    private const int TableWidth = 15700;
++
++    private static readonly int[] WithoutOverall =
++        [650, 3000, 1250, 900, 1500, 8400];
++
++    private static readonly int[] WithOverall =
++        [650, 2600, 1200, 850, 1400, 4650, 4350];
++
++    public static byte[] Build(
++        FfcProjectsUpdateReport report,
++        FfcProjectsUpdatePresentationOptions? options = null)
++    {
++        ArgumentNullException.ThrowIfNull(report);
++        var resolved = options ?? FfcProjectsUpdatePresentationOptions.Default;
++        var widths = resolved.IncludeOverallStatus ? WithOverall : WithoutOverall;
++
++        using var stream = new MemoryStream();
++        using (var document = WordprocessingDocument.Create(
++                   stream,
++                   WordprocessingDocumentType.Document,
++                   autoSave: true))
++        {
++            document.PackageProperties.Title = FfcProjectsUpdateReport.FormalTitle;
++            document.PackageProperties.Subject = "FFC country-year project update";
++            document.PackageProperties.Creator = "PRISM ERP";
++            document.PackageProperties.LastModifiedBy = "PRISM ERP";
++            document.PackageProperties.Created = report.GeneratedAtUtc.UtcDateTime;
++            document.PackageProperties.Modified = report.GeneratedAtUtc.UtcDateTime;
++
++            var mainPart = document.AddMainDocumentPart();
++            mainPart.Document = new W.Document(new W.Body());
++            AddSettings(mainPart);
++
++            var footerPart = mainPart.AddNewPart<FooterPart>();
++            footerPart.Footer = BuildFooter();
++            footerPart.Footer.Save();
++
++            var body = mainPart.Document.Body!;
++            body.Append(TitleParagraph(FfcProjectsUpdateReport.FormalTitle));
++            body.Append(BuildTable(report.Groups, resolved, widths));
++            body.Append(BuildSectionProperties(mainPart, footerPart));
++            mainPart.Document.Save();
++        }
++
++        return stream.ToArray();
++    }
++
++    private static W.Table BuildTable(
++        IReadOnlyList<FfcDetailedGroupVm> groups,
++        FfcProjectsUpdatePresentationOptions options,
++        IReadOnlyList<int> widths)
++    {
++        var table = new W.Table(
++            new W.TableProperties(
++                new W.TableWidth
++                {
++                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                },
++                new W.TableLayout { Type = W.TableLayoutValues.Fixed },
++                Borders()));
++
++        table.Append(new W.TableGrid(
++            widths.Select(width => new W.GridColumn
++            {
++                Width = width.ToString(CultureInfo.InvariantCulture)
++            })));
++
++        table.Append(HeaderRow(options, widths));
++
++        foreach (var group in groups)
++        {
++            table.Append(GroupRow(group, widths.Count));
++
++            for (var index = 0; index < group.Rows.Count; index++)
++            {
++                var row = group.Rows[index];
++                var tableRow = new W.TableRow(
++                    new W.TableRowProperties(new W.CantSplit()));
++
++                tableRow.Append(
++                    Cell(row.Serial.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
++                    Cell(row.ProjectName, widths[1], bold: true),
++                    Cell(
++                        row.CostInCr.HasValue
++                            ? (row.CostInCr.Value * 100m).ToString("N2", CultureInfo.InvariantCulture)
++                            : string.Empty,
++                        widths[2],
++                        align: W.JustificationValues.Right),
++                    Cell(row.Quantity.ToString("N0", CultureInfo.InvariantCulture), widths[3], align: W.JustificationValues.Right),
++                    Cell(row.Status, widths[4]),
++                    Cell(Narrative(row.ProgressText), widths[5]));
++
++                if (options.IncludeOverallStatus)
++                {
++                    tableRow.Append(OverallCell(
++                        index == 0 ? Narrative(group.OverallRemarks) : string.Empty,
++                        widths[6],
++                        group.Rows.Count > 1,
++                        index == 0));
++                }
++
++                table.Append(tableRow);
++            }
++        }
++
++        return table;
++    }
++
++    private static W.TableRow HeaderRow(
++        FfcProjectsUpdatePresentationOptions options,
++        IReadOnlyList<int> widths)
++    {
++        var headings = options.IncludeOverallStatus
++            ? new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress", "Overall status" }
++            : new[] { "S. No.", "Project", "Cost (₹ lakh)", "Quantity", "Status", "Current progress" };
++
++        var row = new W.TableRow(
++            new W.TableRowProperties(
++                new W.TableHeader(),
++                new W.CantSplit()));
++
++        for (var index = 0; index < headings.Length; index++)
++        {
++            row.Append(Cell(
++                headings[index],
++                widths[index],
++                bold: true,
++                fill: HeaderFill,
++                color: Navy,
++                align: index == 0
++                    ? W.JustificationValues.Center
++                    : index is 2 or 3
++                        ? W.JustificationValues.Right
++                        : W.JustificationValues.Left));
++        }
++
++        return row;
++    }
++
++    private static W.TableRow GroupRow(FfcDetailedGroupVm group, int columnCount)
++    {
++        var cell = new W.TableCell(
++            new W.TableCellProperties(
++                new W.GridSpan { Val = columnCount },
++                new W.TableCellWidth
++                {
++                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                },
++                new W.Shading { Fill = GroupFill, Val = W.ShadingPatternValues.Clear }),
++            Paragraph(
++                $"{group.CountryName} – {group.Year}    {group.CountryCode}",
++                17,
++                bold: true,
++                color: Navy,
++                after: 0));
++
++        return new W.TableRow(
++            new W.TableRowProperties(new W.CantSplit()),
++            cell);
++    }
++
++    private static W.TableCell OverallCell(
++        string text,
++        int width,
++        bool mergeRows,
++        bool restart)
++    {
++        var properties = BaseCellProperties(width, null);
++
++        if (mergeRows)
++        {
++            properties.Append(new W.VerticalMerge
++            {
++                Val = restart ? W.MergedCellValues.Restart : W.MergedCellValues.Continue
++            });
++        }
++
++        return new W.TableCell(
++            properties,
++            restart ? Paragraph(text, 16, after: 0) : new W.Paragraph());
++    }
++
++    private static W.TableCell Cell(
++        string? text,
++        int width,
++        bool bold = false,
++        string? fill = null,
++        string color = Ink,
++        W.JustificationValues? align = null)
++        => new(
++            BaseCellProperties(width, fill),
++            Paragraph(
++                text ?? string.Empty,
++                16,
++                bold: bold,
++                color: color,
++                align: align ?? W.JustificationValues.Left,
++                after: 0));
++
++    private static W.TableCellProperties BaseCellProperties(int width, string? fill)
++    {
++        var properties = new W.TableCellProperties(
++            new W.TableCellWidth
++            {
++                Width = width.ToString(CultureInfo.InvariantCulture),
++                Type = W.TableWidthUnitValues.Dxa
++            },
++            new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Top });
++
++        if (!string.IsNullOrWhiteSpace(fill))
++        {
++            properties.Append(new W.Shading
++            {
++                Fill = fill,
++                Val = W.ShadingPatternValues.Clear
++            });
++        }
++
++        return properties;
++    }
++
++    private static W.Paragraph TitleParagraph(string text)
++        => Paragraph(
++            text,
++            26,
++            bold: true,
++            color: Navy,
++            align: W.JustificationValues.Center,
++            after: 100);
++
++    private static W.Paragraph Paragraph(
++        string text,
++        int halfPoints,
++        bool bold = false,
++        string color = Ink,
++        W.JustificationValues? align = null,
++        int after = 0)
++    {
++        var runProperties = new W.RunProperties(
++            new W.RunFonts
++            {
++                Ascii = Font,
++                HighAnsi = Font,
++                EastAsia = Font,
++                ComplexScript = Font
++            },
++            new W.Color { Val = color },
++            new W.FontSize { Val = halfPoints.ToString(CultureInfo.InvariantCulture) },
++            new W.FontSizeComplexScript { Val = halfPoints.ToString(CultureInfo.InvariantCulture) });
++
++        if (bold)
++        {
++            runProperties.Append(new W.Bold(), new W.BoldComplexScript());
++        }
++
++        var paragraph = new W.Paragraph(
++            new W.ParagraphProperties(
++                new W.Justification { Val = align ?? W.JustificationValues.Left },
++                new W.SpacingBetweenLines
++                {
++                    Before = "0",
++                    After = after.ToString(CultureInfo.InvariantCulture),
++                    LineRule = W.LineSpacingRuleValues.Auto
++                }),
++            new W.Run(
++                runProperties,
++                new W.Text(text) { Space = SpaceProcessingModeValues.Preserve }));
++
++        return paragraph;
++    }
++
++    private static W.TableBorders Borders()
++        => new(
++            new W.TopBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++            new W.LeftBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++            new W.BottomBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++            new W.RightBorder { Val = W.BorderValues.Single, Color = Border, Size = 5 },
++            new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 },
++            new W.InsideVerticalBorder { Val = W.BorderValues.Single, Color = Border, Size = 4 });
++
++    private static void AddSettings(MainDocumentPart mainPart)
++    {
++        var settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
++        settingsPart.Settings = new W.Settings(new W.UpdateFieldsOnOpen { Val = true });
++        settingsPart.Settings.Save();
++    }
++
++    private static W.Footer BuildFooter()
++    {
++        const int leftWidth = 11700;
++        var rightWidth = TableWidth - leftWidth;
++
++        var table = new W.Table(
++            new W.TableProperties(
++                new W.TableWidth
++                {
++                    Width = TableWidth.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                },
++                new W.TableLayout { Type = W.TableLayoutValues.Fixed }));
++
++        table.Append(new W.TableGrid(
++            new W.GridColumn { Width = leftWidth.ToString(CultureInfo.InvariantCulture) },
++            new W.GridColumn { Width = rightWidth.ToString(CultureInfo.InvariantCulture) }));
++
++        var row = new W.TableRow();
++        row.Append(
++            FooterTextCell(
++                "PRISM ERP · Simulator Development Division",
++                leftWidth,
++                W.JustificationValues.Left),
++            FooterPageCell(rightWidth));
++        table.Append(row);
++
++        return new W.Footer(table);
++    }
++
++    private static W.TableCell FooterTextCell(
++        string text,
++        int width,
++        W.JustificationValues align)
++        => new(
++            new W.TableCellProperties(
++                new W.TableCellWidth
++                {
++                    Width = width.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                }),
++            FooterParagraph(text, align));
++
++    private static W.TableCell FooterPageCell(int width)
++    {
++        var paragraph = new W.Paragraph(
++            new W.ParagraphProperties(
++                new W.Justification { Val = W.JustificationValues.Right },
++                new W.SpacingBetweenLines { Before = "0", After = "0" }));
++
++        paragraph.Append(FooterRun("Page "));
++        paragraph.Append(FooterField("PAGE", "1"));
++        paragraph.Append(FooterRun(" of "));
++        paragraph.Append(FooterField("NUMPAGES", "1"));
++
++        return new W.TableCell(
++            new W.TableCellProperties(
++                new W.TableCellWidth
++                {
++                    Width = width.ToString(CultureInfo.InvariantCulture),
++                    Type = W.TableWidthUnitValues.Dxa
++                }),
++            paragraph);
++    }
++
++    private static W.Paragraph FooterParagraph(string text, W.JustificationValues align)
++    {
++        var paragraph = new W.Paragraph(
++            new W.ParagraphProperties(
++                new W.Justification { Val = align },
++                new W.SpacingBetweenLines { Before = "0", After = "0" }));
++        paragraph.Append(FooterRun(text));
++        return paragraph;
++    }
++
++    private static W.Run FooterRun(string text)
++        => new(
++            FooterRunProperties(),
++            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
++
++    private static W.SimpleField FooterField(string instruction, string fallback)
++    {
++        var field = new W.SimpleField { Instruction = instruction };
++        field.Append(new W.Run(
++            FooterRunProperties(),
++            new W.Text(fallback) { Space = SpaceProcessingModeValues.Preserve }));
++        return field;
++    }
++
++    private static W.RunProperties FooterRunProperties()
++        => new(
++            new W.RunFonts
++            {
++                Ascii = Font,
++                HighAnsi = Font,
++                EastAsia = Font,
++                ComplexScript = Font
++            },
++            new W.Color { Val = Muted },
++            new W.FontSize { Val = "13" },
++            new W.FontSizeComplexScript { Val = "13" });
++
++    private static W.SectionProperties BuildSectionProperties(
++        MainDocumentPart mainPart,
++        FooterPart footerPart)
++        => new(
++            new W.FooterReference
++            {
++                Type = W.HeaderFooterValues.Default,
++                Id = mainPart.GetIdOfPart(footerPart)
++            },
++            new W.PageSize
++            {
++                Width = 16838U,
++                Height = 11906U,
++                Orient = W.PageOrientationValues.Landscape
++            },
++            new W.PageMargin
++            {
++                Top = 500,
++                Right = 567U,
++                Bottom = 500,
++                Left = 567U,
++                Header = 250U,
++                Footer = 250U,
++                Gutter = 0U
++            });
++
++    private static string Narrative(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            ? string.Empty
++            : value.Trim()
++                .Replace("\r\n", "\n", StringComparison.Ordinal)
++                .Replace("\r", "\n", StringComparison.Ordinal);
++}
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -662,3 +662,249 @@
+     .formal-report-card { border: 0; box-shadow: none; }
+     .formal-report-scroll { overflow: visible; }
+ }
++
++/* FFC Projects Update ----------------------------------------------------- */
++.report-toolbar__country-years {
++    min-width: 190px;
++}
++
++.report-country-year-trigger {
++    min-width: 190px;
++    min-height: 31px;
++    display: inline-flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .65rem;
++    color: #32465d;
++    font-size: .72rem;
++    font-weight: 650;
++    background: #fff;
++}
++
++.report-country-year-menu {
++    width: min(390px, calc(100vw - 2rem));
++    padding: 0;
++    overflow: hidden;
++    border-color: #cfd8e2;
++    box-shadow: 0 14px 34px rgba(15, 23, 42, .14);
++}
++
++.report-country-year-menu__header,
++.report-country-year-menu__footer {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .75rem;
++    padding: .72rem .78rem;
++}
++
++.report-country-year-menu__header {
++    border-bottom: 1px solid #e6ebf0;
++    background: #fbfcfd;
++}
++
++.report-country-year-menu__header strong {
++    display: block;
++    color: var(--reports-navy);
++    font-size: .8rem;
++}
++
++.report-country-year-menu__header small {
++    display: block;
++    margin-top: .08rem;
++    color: var(--reports-muted);
++    font-size: .66rem;
++}
++
++.report-country-year-menu__actions {
++    display: flex;
++    align-items: center;
++    gap: .15rem;
++    padding: .3rem .55rem;
++    border-bottom: 1px solid #edf1f5;
++}
++
++.report-country-year-menu__actions .btn {
++    padding-inline: .3rem;
++    font-size: .67rem;
++    text-decoration: none;
++}
++
++.report-country-year-menu__list {
++    max-height: 310px;
++    overflow-y: auto;
++    overscroll-behavior: contain;
++}
++
++.report-country-year-option {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    align-items: center;
++    gap: .58rem;
++    margin: 0;
++    padding: .56rem .75rem;
++    border-bottom: 1px solid #eef2f5;
++    cursor: pointer;
++}
++
++.report-country-year-option:last-child { border-bottom: 0; }
++.report-country-year-option:hover { background: #f8fbfe; }
++
++.report-country-year-option .form-check-input {
++    width: .95rem;
++    height: .95rem;
++    margin: 0;
++}
++
++.report-country-year-option__identity {
++    min-width: 0;
++}
++
++.report-country-year-option__identity strong {
++    display: block;
++    color: #31465d;
++    font-size: .73rem;
++    font-weight: 700;
++}
++
++.report-country-year-option__identity small {
++    display: block;
++    margin-top: .03rem;
++    color: #7a8998;
++    font-size: .62rem;
++}
++
++.report-country-year-option__status {
++    padding: .12rem .34rem;
++    border: 1px solid #d4dfd8;
++    border-radius: 999px;
++    background: #f3f8f4;
++    color: #54705c;
++    font-size: .58rem;
++    font-weight: 750;
++    white-space: nowrap;
++}
++
++.report-country-year-menu__footer {
++    border-top: 1px solid #e6ebf0;
++    background: #fbfcfd;
++    color: var(--reports-muted);
++    font-size: .67rem;
++}
++
++.ffc-projects-update-table {
++    width: 100%;
++    min-width: 1280px;
++    border-collapse: separate;
++    border-spacing: 0;
++    table-layout: fixed;
++    font-size: .76rem;
++    line-height: 1.38;
++}
++
++.ffc-projects-update-table--with-overall {
++    min-width: 1580px;
++}
++
++.ffc-projects-update-table col.col-serial { width: 4.6rem; }
++.ffc-projects-update-table col.col-project { width: clamp(18rem, 22vw, 30rem); }
++.ffc-projects-update-table col.col-cost { width: 8.2rem; }
++.ffc-projects-update-table col.col-quantity { width: 6.2rem; }
++.ffc-projects-update-table col.col-status { width: 10rem; }
++.ffc-projects-update-table col.col-progress { width: auto; }
++.ffc-projects-update-table col.col-overall { width: clamp(24rem, 30vw, 36rem); }
++
++.ffc-projects-update-table th,
++.ffc-projects-update-table td {
++    padding: .58rem .65rem;
++    border-right: 1px solid #d8e0e8;
++    border-bottom: 1px solid #d8e0e8;
++    vertical-align: top;
++    overflow-wrap: anywhere;
++}
++
++.ffc-projects-update-table th:last-child,
++.ffc-projects-update-table td:last-child {
++    border-right: 0;
++}
++
++.ffc-projects-update-table thead th {
++    color: #213f62;
++    background: #f2f5f8;
++    font-size: .72rem;
++    font-weight: 750;
++    text-align: left;
++    vertical-align: middle;
++}
++
++.ffc-projects-update-table thead th:first-child { text-align: center; }
++.ffc-projects-update-table thead th:nth-child(3),
++.ffc-projects-update-table thead th:nth-child(4) { text-align: right; }
++
++.ffc-projects-update-table tbody tr:not(.ffc-report-group-row):hover td {
++    background: #f9fbfd;
++}
++
++.ffc-report-group-row td {
++    padding: .48rem .62rem;
++    background: #f2f5f8;
++    color: var(--reports-navy);
++    font-size: .78rem;
++    font-weight: 750;
++    vertical-align: middle;
++}
++
++.ffc-report-group-row td {
++    display: table-cell;
++}
++
++.ffc-report-group-row span {
++    display: inline-block;
++}
++
++.ffc-report-group-row small {
++    float: right;
++    margin-top: .05rem;
++    color: #75869a;
++    font-size: .67rem;
++    font-weight: 750;
++    letter-spacing: .04em;
++}
++
++.ffc-report-project a {
++    color: #245fae;
++    font-weight: 650;
++    text-decoration: none;
++}
++
++.ffc-report-project a:hover { text-decoration: underline; }
++
++.ffc-report-number {
++    font-variant-numeric: tabular-nums;
++    white-space: nowrap;
++}
++
++.ffc-report-status {
++    color: #32465d;
++    font-weight: 650;
++}
++
++.ffc-report-narrative {
++    color: #334155;
++    white-space: pre-line;
++}
++
++.ffc-report-overall {
++    background: #fcfdfe;
++}
++
++@media (max-width: 900px) {
++    .report-toolbar__country-years {
++        min-width: 0;
++    }
++
++    .report-country-year-trigger {
++        min-width: 180px;
++    }
++}
++
+--- a/wwwroot/js/pages/projects-reports-ffc.js
++++ b/wwwroot/js/pages/projects-reports-ffc.js
+@@ -0,0 +1,78 @@
++(() => {
++    "use strict";
++
++    const form = document.querySelector("[data-ffc-report-controls]");
++    if (!form) {
++        return;
++    }
++
++    const selectionMode = form.querySelector("#ffcSelectionMode");
++    const countryYears = form.querySelector("#ffcCountryYears");
++    const checkboxes = Array.from(form.querySelectorAll("[data-ffc-country-year]"));
++    const summary = form.querySelector("[data-ffc-selection-summary]");
++    const menuCount = form.querySelector("[data-ffc-menu-count]");
++    const applyButton = form.querySelector("[data-ffc-country-apply]");
++    const actionButtons = Array.from(form.querySelectorAll("[data-ffc-country-action]"));
++
++    const checked = () => checkboxes.filter(input => input.checked);
++
++    const updateCount = () => {
++        const count = checked().length;
++        if (summary) {
++            summary.textContent = `${count} of ${checkboxes.length} selected`;
++        }
++
++        if (menuCount) {
++            menuCount.textContent = `${count} selected`;
++        }
++    };
++
++    const syncHiddenSelection = () => {
++        if (countryYears) {
++            countryYears.value = checked().map(input => input.value).join(",");
++        }
++    };
++
++    checkboxes.forEach(input => {
++        input.addEventListener("change", () => {
++            if (selectionMode) {
++                selectionMode.value = "Custom";
++            }
++            updateCount();
++        });
++    });
++
++    actionButtons.forEach(button => {
++        button.addEventListener("click", () => {
++            const action = button.dataset.ffcCountryAction;
++
++            if (action === "default") {
++                checkboxes.forEach(input => {
++                    input.checked = input.dataset.defaultIncluded === "true";
++                });
++                if (selectionMode) {
++                    selectionMode.value = "DefaultActive";
++                }
++            } else if (action === "all") {
++                checkboxes.forEach(input => { input.checked = true; });
++                if (selectionMode) {
++                    selectionMode.value = "Custom";
++                }
++            } else if (action === "clear") {
++                checkboxes.forEach(input => { input.checked = false; });
++                if (selectionMode) {
++                    selectionMode.value = "Custom";
++                }
++            }
++
++            updateCount();
++        });
++    });
++
++    applyButton?.addEventListener("click", () => {
++        syncHiddenSelection();
++        form.submit();
++    });
++
++    updateCount();
++})();
