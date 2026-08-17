@@ -190,6 +190,7 @@
 }
 
 .report-toolbar__fy label,
+.report-toolbar__listing label,
 .report-toolbar__options-label,
 .report-export-group__label {
     display: block;
@@ -199,6 +200,18 @@
     font-weight: 750;
     letter-spacing: .05em;
     text-transform: uppercase;
+}
+
+.report-toolbar__listing {
+    width: 178px;
+    min-width: 178px;
+}
+
+.report-toolbar__listing .form-select {
+    min-height: 31px;
+    color: #32465d;
+    font-size: .72rem;
+    font-weight: 600;
 }
 
 .report-toolbar__options {
@@ -596,6 +609,7 @@
     .report-workspace-actions { justify-content: flex-start; }
     .report-display-controls { align-items: flex-end; }
     .report-toolbar__fy { width: 210px; min-width: 0; }
+    .report-toolbar__listing { width: 190px; min-width: 0; }
     .report-export-group__label { text-align: left; }
     .report-export-actions { justify-content: flex-start; }
     .formal-report-card__header small { white-space: normal; }

@@ -18,7 +18,12 @@ public sealed class ArppFyProjectUpdatePresentationContractTests
         Assert.Contains("Report preflight", detail, StringComparison.Ordinal);
         Assert.Contains("Optional columns", detail, StringComparison.Ordinal);
         Assert.Contains("Present Stage", detail, StringComparison.Ordinal);
+        Assert.Contains("Listing date", detail, StringComparison.Ordinal);
+        Assert.Contains("Initial listing", detail, StringComparison.Ordinal);
+        Assert.Contains("Current FY listing", detail, StringComparison.Ordinal);
+        Assert.Contains("presentationOptions.ResolveListingDate(row)", detail, StringComparison.Ordinal);
         Assert.Contains("asp-route-includePresentStage=\"@Model.IncludePresentStage\"", detail, StringComparison.Ordinal);
+        Assert.Contains("asp-route-listingDateMode=\"@presentationOptions.EffectiveListingDateMode\"", detail, StringComparison.Ordinal);
         Assert.Contains("formal-report-arpp", detail, StringComparison.Ordinal);
         Assert.Contains("/<wbr>", detail, StringComparison.Ordinal);
         Assert.Contains("@Pdc(row)", detail, StringComparison.Ordinal);
@@ -41,9 +46,87 @@ public sealed class ArppFyProjectUpdatePresentationContractTests
         Assert.Contains("col.col-arpp { width: 8.8rem; }", css, StringComparison.Ordinal);
         Assert.Contains("formal-report-arpp", css, StringComparison.Ordinal);
         Assert.Contains("overflow-wrap: anywhere", css, StringComparison.Ordinal);
+        Assert.Contains(".report-toolbar__listing", css, StringComparison.Ordinal);
         Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
         Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
         Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Listing_date_contract_maps_current_fy_source_date_and_all_exporters_use_the_selected_mode()
+    {
+        var service = ReadRepoFile(
+            "Services",
+            "Reports",
+            "ArppFyProjectUpdate",
+            "ArppFyProjectUpdateService.cs");
+        Assert.Contains("arpp.SourceIssueDate", service, StringComparison.Ordinal);
+        Assert.Contains("CurrentFyArppListingDate = row.CurrentFyArppListingDate", service, StringComparison.Ordinal);
+
+        foreach (var builder in new[]
+                 {
+                     "ArppFyProjectUpdateWordBuilder.cs",
+                     "ArppFyProjectUpdatePdfBuilder.cs",
+                     "ArppFyProjectUpdateExcelBuilder.cs"
+                 })
+        {
+            var source = ReadRepoFile(
+                "Services",
+                "Reports",
+                "ArppFyProjectUpdate",
+                builder);
+            Assert.Contains("resolvedOptions.ResolveListingDate(row)", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Aon_milestone_contract_requires_completed_stage_and_does_not_warn_at_current_Aon()
+    {
+        var formalFacts = ReadRepoFile(
+            "Services",
+            "Projects",
+            "ProjectFormalUpdateFactsResolver.cs");
+        Assert.Contains("stage.Status == StageStatus.Completed", formalFacts, StringComparison.Ordinal);
+        Assert.Contains("stage.CompletedOn.HasValue", formalFacts, StringComparison.Ordinal);
+
+        var reportService = ReadRepoFile(
+            "Services",
+            "Reports",
+            "ArppFyProjectUpdate",
+            "ArppFyProjectUpdateService.cs");
+        Assert.Contains(
+            "row.StageOrder < ProjectStageMaturityOrder.AcceptanceOfNecessity",
+            reportService,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "row.StageOrder <= ProjectStageMaturityOrder.AcceptanceOfNecessity",
+            reportService,
+            StringComparison.Ordinal);
+
+        var ongoing = ReadRepoFile(
+            "Services",
+            "Projects",
+            "OngoingProjectsReadService.cs");
+        Assert.Contains(
+            "stage?.Status == StageStatus.Completed",
+            ongoing,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Word_builder_resolves_listing_date_from_the_options_in_scope()
+    {
+        var word = ReadRepoFile(
+            "Services",
+            "Reports",
+            "ArppFyProjectUpdate",
+            "ArppFyProjectUpdateWordBuilder.cs");
+
+        Assert.Contains("options.ResolveListingDate(row)", word, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Cell(Date(resolvedOptions.ResolveListingDate(row))",
+            word,
+            StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] segments)

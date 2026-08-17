@@ -1,0 +1,403 @@
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml
+@@ -11,6 +11,9 @@
+     ViewData["UseFullWidth"] = true;
+     ViewData["PageShell"] = "workspace";
+     var report = Model.Report;
++    var presentationOptions = new ArppFyProjectUpdatePresentationOptions(
++        Model.IncludePresentStage,
++        ArppFyProjectUpdatePresentationOptions.NormalizeListingDateMode(Model.ListingDateMode));
+     string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+     string Pdc(ArppFyProjectUpdateRow row) => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
+     IHtmlContent ArppNumber(string? value)
+@@ -74,6 +77,24 @@
+                         </div>
+                     </div>
+ 
++                    <div class="report-toolbar__listing">
++                        <label for="listingDateMode">Listing date</label>
++                        <select class="form-select form-select-sm"
++                                id="listingDateMode"
++                                name="listingDateMode"
++                                onchange="this.form.submit()"
++                                title="Initial listing uses the project's first authoritative ARPP listing. Current FY listing uses the published Original ARPP/Addendum date that establishes the project's current FY position.">
++                            <option value="@ArppListingDateMode.InitialListing"
++                                    selected="@(presentationOptions.EffectiveListingDateMode == ArppListingDateMode.InitialListing)">
++                                Initial listing
++                            </option>
++                            <option value="@ArppListingDateMode.CurrentFinancialYear"
++                                    selected="@(presentationOptions.EffectiveListingDateMode == ArppListingDateMode.CurrentFinancialYear)">
++                                Current FY listing
++                            </option>
++                        </select>
++                    </div>
++
+                     <div class="report-toolbar__options">
+                         <span class="report-toolbar__options-label">Optional columns</span>
+                         <label class="report-option-toggle" for="includePresentStage">
+@@ -96,17 +117,17 @@
+                     <span class="report-export-group__label">Export</span>
+                     <div class="report-export-actions">
+                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
++                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
+                         </a>
+                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
++                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
+                         </a>
+                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
+-                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
++                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
+                            aria-disabled="@(!report.CanExport)">
+                             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
+                         </a>
+@@ -239,7 +260,7 @@
+                                     <td class="formal-report-project" title="Current position: @row.StageDisplay">
+                                         <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
+                                     </td>
+-                                    <td class="text-center">@Date(row.FirstArppListingDate)</td>
++                                    <td class="text-center">@Date(presentationOptions.ResolveListingDate(row))</td>
+                                     <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>
+                                     <td class="text-center formal-report-cfa">@(row.Cfa ?? "—")</td>
+                                     <td class="text-center">@row.Establishment</td>
+--- a/Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
++++ b/Pages/Projects/Reports/ArppFyUpdate.cshtml.cs
+@@ -26,11 +26,15 @@
+     [BindProperty(SupportsGet = true)]
+     public bool IncludePresentStage { get; set; }
+ 
++    [BindProperty(SupportsGet = true)]
++    public ArppListingDateMode ListingDateMode { get; set; } = ArppListingDateMode.InitialListing;
++
+     public IReadOnlyList<int> AvailableFinancialYears { get; private set; } = Array.Empty<int>();
+     public ArppFyProjectUpdateReport? Report { get; private set; }
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+     {
++        ListingDateMode = ArppFyProjectUpdatePresentationOptions.NormalizeListingDateMode(ListingDateMode);
+         AvailableFinancialYears = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
+         if (AvailableFinancialYears.Count == 0)
+         {
+@@ -76,7 +80,9 @@
+             return BadRequest("The selected financial year has no linked approved projects to export.");
+         }
+ 
+-        var options = new ArppFyProjectUpdatePresentationOptions(IncludePresentStage);
++        var options = new ArppFyProjectUpdatePresentationOptions(
++            IncludePresentStage,
++            ArppFyProjectUpdatePresentationOptions.NormalizeListingDateMode(ListingDateMode));
+         var file = exporter(report, options);
+         return File(file.Content, file.ContentType, file.FileName);
+     }
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateContracts.cs
+@@ -9,6 +9,25 @@
+ {
+     Info = 0,
+     Warning = 1
++}
++
++/// <summary>
++/// Selects which authoritative ARPP date is rendered in the
++/// "Dt of Grant of IPA / ARPP Listing" report column.
++/// </summary>
++public enum ArppListingDateMode
++{
++    /// <summary>
++    /// First authoritative published ARPP listing across all financial years.
++    /// This preserves the report's original behaviour.
++    /// </summary>
++    InitialListing = 0,
++
++    /// <summary>
++    /// Issue date of the published Original ARPP / Addendum row that determines
++    /// the project's current position in the selected financial year.
++    /// </summary>
++    CurrentFinancialYear = 1
+ }
+ 
+ public sealed record ArppFyReportWarning(
+@@ -41,6 +60,13 @@
+     string CurrentStageLabel,
+     int StageOrder)
+ {
++    /// <summary>
++    /// Issue date of the selected FY's authoritative published row for this
++    /// project's current ARPP position. If an addendum establishes the current
++    /// position, this is the addendum issue date.
++    /// </summary>
++    public DateOnly? CurrentFyArppListingDate { get; init; }
++
+     public decimal? SupplyOrderAmountInCrores => SupplyOrderAmountInRupees is > 0m
+         ? SupplyOrderAmountInRupees.Value / 10_000_000m
+         : null;
+@@ -74,11 +100,30 @@
+ }
+ 
+ public sealed record ArppFyProjectUpdatePresentationOptions(
+-    bool IncludePresentStage = false)
++    bool IncludePresentStage = false,
++    ArppListingDateMode ListingDateMode = ArppListingDateMode.InitialListing)
+ {
+     public static ArppFyProjectUpdatePresentationOptions Default { get; } = new();
++
+     public int ColumnCount => IncludePresentStage ? 13 : 12;
+     public int StatusColumnCount => IncludePresentStage ? 4 : 3;
++
++    public ArppListingDateMode EffectiveListingDateMode =>
++        NormalizeListingDateMode(ListingDateMode);
++
++    public DateOnly? ResolveListingDate(ArppFyProjectUpdateRow row)
++    {
++        ArgumentNullException.ThrowIfNull(row);
++
++        return EffectiveListingDateMode == ArppListingDateMode.CurrentFinancialYear
++            ? row.CurrentFyArppListingDate
++            : row.FirstArppListingDate;
++    }
++
++    public static ArppListingDateMode NormalizeListingDateMode(ArppListingDateMode mode)
++        => mode == ArppListingDateMode.CurrentFinancialYear
++            ? ArppListingDateMode.CurrentFinancialYear
++            : ArppListingDateMode.InitialListing;
+ }
+ 
+ public sealed record ArppFyProjectUpdateFile(
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
+@@ -164,6 +164,7 @@
+                 NormalizeNullable(arpp.PppNumber),
+                 project.Name,
+                 listing?.IssueDate,
++                arpp.SourceIssueDate,
+                 NormalizeNullable(arpp.DfpdsSchedule),
+                 NormalizeNullable(arpp.Cfa),
+                 facts?.AonDate,
+@@ -210,7 +211,10 @@
+                 row.IsArchived,
+                 row.CurrentStageCode,
+                 row.CurrentStageLabel,
+-                row.StageOrder))
++                row.StageOrder)
++            {
++                CurrentFyArppListingDate = row.CurrentFyArppListingDate
++            })
+             .ToArray();
+ 
+         return new ArppFyProjectUpdateReport(
+@@ -399,6 +403,7 @@
+         string? PppNumber,
+         string ProjectName,
+         DateOnly? FirstArppListingDate,
++        DateOnly CurrentFyArppListingDate,
+         string? DfpdsSchedule,
+         string? Cfa,
+         DateOnly? AonDate,
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -128,7 +128,7 @@
+             Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
+             Cell(row.PppNumber ?? string.Empty, widths[1], align: W.JustificationValues.Center),
+             Cell(row.ProjectName, widths[2], bold: true),
+-            Cell(Date(row.FirstArppListingDate), widths[3], align: W.JustificationValues.Center, noWrap: true),
++            Cell(Date(resolvedOptions.ResolveListingDate(row)), widths[3], align: W.JustificationValues.Center, noWrap: true),
+             Cell(row.DfpdsSchedule ?? string.Empty, widths[4], align: W.JustificationValues.Center),
+             Cell(row.Cfa ?? string.Empty, widths[5], align: W.JustificationValues.Center),
+             Cell(row.Establishment, widths[6], align: W.JustificationValues.Center),
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdatePdfBuilder.cs
+@@ -99,7 +99,7 @@
+                         BodyCell(table.Cell(), row.SerialNumber.ToString(CultureInfo.InvariantCulture), center: true);
+                         BodyCell(table.Cell(), row.PppNumber ?? string.Empty, center: true);
+                         BodyCell(table.Cell(), row.ProjectName, bold: true);
+-                        BodyCell(table.Cell(), Date(row.FirstArppListingDate), center: true);
++                        BodyCell(table.Cell(), Date(resolvedOptions.ResolveListingDate(row)), center: true);
+                         BodyCell(table.Cell(), row.DfpdsSchedule ?? string.Empty, center: true);
+                         BodyCell(table.Cell(), row.Cfa ?? string.Empty, center: true);
+                         BodyCell(table.Cell(), row.Establishment, center: true);
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateExcelBuilder.cs
+@@ -41,7 +41,7 @@
+             worksheet.Cell(rowIndex, 1).SetValue(row.SerialNumber);
+             worksheet.Cell(rowIndex, 2).SetValue(row.PppNumber ?? string.Empty);
+             worksheet.Cell(rowIndex, 3).SetValue(row.ProjectName);
+-            SetDate(worksheet.Cell(rowIndex, 4), row.FirstArppListingDate);
++            SetDate(worksheet.Cell(rowIndex, 4), resolvedOptions.ResolveListingDate(row));
+             worksheet.Cell(rowIndex, 5).SetValue(row.DfpdsSchedule ?? string.Empty);
+             worksheet.Cell(rowIndex, 6).SetValue(row.Cfa ?? string.Empty);
+             worksheet.Cell(rowIndex, 7).SetValue(row.Establishment);
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -190,6 +190,7 @@
+ }
+ 
+ .report-toolbar__fy label,
++.report-toolbar__listing label,
+ .report-toolbar__options-label,
+ .report-export-group__label {
+     display: block;
+@@ -199,6 +200,18 @@
+     font-weight: 750;
+     letter-spacing: .05em;
+     text-transform: uppercase;
++}
++
++.report-toolbar__listing {
++    width: 178px;
++    min-width: 178px;
++}
++
++.report-toolbar__listing .form-select {
++    min-height: 31px;
++    color: #32465d;
++    font-size: .72rem;
++    font-weight: 600;
+ }
+ 
+ .report-toolbar__options {
+@@ -596,6 +609,7 @@
+     .report-workspace-actions { justify-content: flex-start; }
+     .report-display-controls { align-items: flex-end; }
+     .report-toolbar__fy { width: 210px; min-width: 0; }
++    .report-toolbar__listing { width: 190px; min-width: 0; }
+     .report-export-group__label { text-align: left; }
+     .report-export-actions { justify-content: flex-start; }
+     .formal-report-card__header small { white-space: normal; }
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdateExportTests.cs
+@@ -86,6 +86,7 @@
+     {
+         var defaults = ArppFyProjectUpdatePresentationOptions.Default;
+         Assert.False(defaults.IncludePresentStage);
++        Assert.Equal(ArppListingDateMode.InitialListing, defaults.EffectiveListingDateMode);
+         Assert.Equal(12, defaults.ColumnCount);
+         Assert.Equal(3, defaults.StatusColumnCount);
+ 
+@@ -97,6 +98,59 @@
+         };
+ 
+         Assert.Equal("Completed", completed.StageDisplay);
++    }
++
++    [Fact]
++    public void Listing_date_mode_switches_between_initial_and_current_fy_in_formal_exports()
++    {
++        var report = SampleReport();
++        var row = report.Rows[0];
++
++        var initialOptions = new ArppFyProjectUpdatePresentationOptions(
++            IncludePresentStage: false,
++            ListingDateMode: ArppListingDateMode.InitialListing);
++        var currentFyOptions = new ArppFyProjectUpdatePresentationOptions(
++            IncludePresentStage: false,
++            ListingDateMode: ArppListingDateMode.CurrentFinancialYear);
++
++        Assert.Equal(new DateOnly(2025, 4, 10), initialOptions.ResolveListingDate(row));
++        Assert.Equal(new DateOnly(2026, 7, 27), currentFyOptions.ResolveListingDate(row));
++
++        var initialWord = new ArppFyProjectUpdateWordBuilder().Build(report, initialOptions);
++        using (var stream = new MemoryStream(initialWord))
++        using (var document = WordprocessingDocument.Open(stream, false))
++        {
++            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
++            Assert.Contains("10 Apr 2025", text, StringComparison.Ordinal);
++            Assert.DoesNotContain("27 Jul 2026", text, StringComparison.Ordinal);
++        }
++
++        var currentFyWord = new ArppFyProjectUpdateWordBuilder().Build(report, currentFyOptions);
++        using (var stream = new MemoryStream(currentFyWord))
++        using (var document = WordprocessingDocument.Open(stream, false))
++        {
++            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
++            Assert.Contains("27 Jul 2026", text, StringComparison.Ordinal);
++            Assert.DoesNotContain("10 Apr 2025", text, StringComparison.Ordinal);
++        }
++
++        var initialExcel = new ArppFyProjectUpdateExcelBuilder().Build(report, initialOptions);
++        using (var stream = new MemoryStream(initialExcel))
++        using (var workbook = new XLWorkbook(stream))
++        {
++            Assert.Equal(new DateTime(2025, 4, 10), workbook.Worksheet("ARPP Project Update").Cell(5, 4).GetDateTime());
++        }
++
++        var currentFyExcel = new ArppFyProjectUpdateExcelBuilder().Build(report, currentFyOptions);
++        using (var stream = new MemoryStream(currentFyExcel))
++        using (var workbook = new XLWorkbook(stream))
++        {
++            Assert.Equal(new DateTime(2026, 7, 27), workbook.Worksheet("ARPP Project Update").Cell(5, 4).GetDateTime());
++        }
++
++        var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report, currentFyOptions);
++        Assert.True(pdf.Length > 1000);
++        Assert.Equal((byte)'%', pdf[0]);
+     }
+ 
+     [Fact]
+@@ -216,6 +270,9 @@
+                     "DEVP",
+                     "Development",
+                     ProjectStageMaturityOrder.Development)
++                {
++                    CurrentFyArppListingDate = new DateOnly(2026, 7, 27)
++                }
+             },
+             Array.Empty<ArppFyReportWarning>(),
+             0);
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
+@@ -18,7 +18,12 @@
+         Assert.Contains("Report preflight", detail, StringComparison.Ordinal);
+         Assert.Contains("Optional columns", detail, StringComparison.Ordinal);
+         Assert.Contains("Present Stage", detail, StringComparison.Ordinal);
++        Assert.Contains("Listing date", detail, StringComparison.Ordinal);
++        Assert.Contains("Initial listing", detail, StringComparison.Ordinal);
++        Assert.Contains("Current FY listing", detail, StringComparison.Ordinal);
++        Assert.Contains("presentationOptions.ResolveListingDate(row)", detail, StringComparison.Ordinal);
+         Assert.Contains("asp-route-includePresentStage=\"@Model.IncludePresentStage\"", detail, StringComparison.Ordinal);
++        Assert.Contains("asp-route-listingDateMode=\"@presentationOptions.EffectiveListingDateMode\"", detail, StringComparison.Ordinal);
+         Assert.Contains("formal-report-arpp", detail, StringComparison.Ordinal);
+         Assert.Contains("/<wbr>", detail, StringComparison.Ordinal);
+         Assert.Contains("@Pdc(row)", detail, StringComparison.Ordinal);
+@@ -41,9 +46,37 @@
+         Assert.Contains("col.col-arpp { width: 8.8rem; }", css, StringComparison.Ordinal);
+         Assert.Contains("formal-report-arpp", css, StringComparison.Ordinal);
+         Assert.Contains("overflow-wrap: anywhere", css, StringComparison.Ordinal);
++        Assert.Contains(".report-toolbar__listing", css, StringComparison.Ordinal);
+         Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Listing_date_contract_maps_current_fy_source_date_and_all_exporters_use_the_selected_mode()
++    {
++        var service = ReadRepoFile(
++            "Services",
++            "Reports",
++            "ArppFyProjectUpdate",
++            "ArppFyProjectUpdateService.cs");
++        Assert.Contains("arpp.SourceIssueDate", service, StringComparison.Ordinal);
++        Assert.Contains("CurrentFyArppListingDate = row.CurrentFyArppListingDate", service, StringComparison.Ordinal);
++
++        foreach (var builder in new[]
++                 {
++                     "ArppFyProjectUpdateWordBuilder.cs",
++                     "ArppFyProjectUpdatePdfBuilder.cs",
++                     "ArppFyProjectUpdateExcelBuilder.cs"
++                 })
++        {
++            var source = ReadRepoFile(
++                "Services",
++                "Reports",
++                "ArppFyProjectUpdate",
++                builder);
++            Assert.Contains("resolvedOptions.ResolveListingDate(row)", source, StringComparison.Ordinal);
++        }
+     }
+ 
+     private static string ReadRepoFile(params string[] segments)

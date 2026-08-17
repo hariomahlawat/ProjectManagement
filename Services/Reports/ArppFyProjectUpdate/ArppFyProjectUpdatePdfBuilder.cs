@@ -99,7 +99,7 @@ public sealed class ArppFyProjectUpdatePdfBuilder
                         BodyCell(table.Cell(), row.SerialNumber.ToString(CultureInfo.InvariantCulture), center: true);
                         BodyCell(table.Cell(), row.PppNumber ?? string.Empty, center: true);
                         BodyCell(table.Cell(), row.ProjectName, bold: true);
-                        BodyCell(table.Cell(), Date(row.FirstArppListingDate), center: true);
+                        BodyCell(table.Cell(), Date(resolvedOptions.ResolveListingDate(row)), center: true);
                         BodyCell(table.Cell(), row.DfpdsSchedule ?? string.Empty, center: true);
                         BodyCell(table.Cell(), row.Cfa ?? string.Empty, center: true);
                         BodyCell(table.Cell(), row.Establishment, center: true);

@@ -752,7 +752,11 @@ namespace ProjectManagement.Services.Projects
             var stage = stages.FirstOrDefault(s =>
                 string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
 
-            return stage?.ActualCompletedOn;
+            // A stage milestone exists only after that stage is explicitly Completed.
+            // Do not trust a stale ActualCompletedOn value on an active/blocked/skipped stage.
+            return stage?.Status == StageStatus.Completed
+                ? stage.ActualCompletedOn
+                : null;
         }
     }
 

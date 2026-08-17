@@ -11,6 +11,9 @@
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "workspace";
     var report = Model.Report;
+    var presentationOptions = new ArppFyProjectUpdatePresentationOptions(
+        Model.IncludePresentStage,
+        ArppFyProjectUpdatePresentationOptions.NormalizeListingDateMode(Model.ListingDateMode));
     string Date(DateOnly? value) => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
     string Pdc(ArppFyProjectUpdateRow row) => row.IsCompleted ? "Completed" : Date(row.DevelopmentPdcDate);
     IHtmlContent ArppNumber(string? value)
@@ -74,6 +77,24 @@
                         </div>
                     </div>
 
+                    <div class="report-toolbar__listing">
+                        <label for="listingDateMode">Listing date</label>
+                        <select class="form-select form-select-sm"
+                                id="listingDateMode"
+                                name="listingDateMode"
+                                onchange="this.form.submit()"
+                                title="Initial listing uses the project's first authoritative ARPP listing. Current FY listing uses the published Original ARPP/Addendum date that establishes the project's current FY position.">
+                            <option value="@ArppListingDateMode.InitialListing"
+                                    selected="@(presentationOptions.EffectiveListingDateMode == ArppListingDateMode.InitialListing)">
+                                Initial listing
+                            </option>
+                            <option value="@ArppListingDateMode.CurrentFinancialYear"
+                                    selected="@(presentationOptions.EffectiveListingDateMode == ArppListingDateMode.CurrentFinancialYear)">
+                                Current FY listing
+                            </option>
+                        </select>
+                    </div>
+
                     <div class="report-toolbar__options">
                         <span class="report-toolbar__options-label">Optional columns</span>
                         <label class="report-option-toggle" for="includePresentStage">
@@ -96,17 +117,17 @@
                     <span class="report-export-group__label">Export</span>
                     <div class="report-export-actions">
                         <a class="btn btn-outline-primary btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
+                           asp-page-handler="Word" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word
                         </a>
                         <a class="btn btn-outline-danger btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
+                           asp-page-handler="Pdf" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF
                         </a>
                         <a class="btn btn-outline-success btn-sm @(report.CanExport ? string.Empty : "disabled")"
-                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage"
+                           asp-page-handler="Excel" asp-route-financialYearStart="@report.FinancialYearStart" asp-route-includePresentStage="@Model.IncludePresentStage" asp-route-listingDateMode="@presentationOptions.EffectiveListingDateMode"
                            aria-disabled="@(!report.CanExport)">
                             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel
                         </a>
@@ -239,7 +260,7 @@
                                     <td class="formal-report-project" title="Current position: @row.StageDisplay">
                                         <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
                                     </td>
-                                    <td class="text-center">@Date(row.FirstArppListingDate)</td>
+                                    <td class="text-center">@Date(presentationOptions.ResolveListingDate(row))</td>
                                     <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>
                                     <td class="text-center formal-report-cfa">@(row.Cfa ?? "—")</td>
                                     <td class="text-center">@row.Establishment</td>

@@ -128,7 +128,7 @@ public sealed class ArppFyProjectUpdateWordBuilder
             Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
             Cell(row.PppNumber ?? string.Empty, widths[1], align: W.JustificationValues.Center),
             Cell(row.ProjectName, widths[2], bold: true),
-            Cell(Date(row.FirstArppListingDate), widths[3], align: W.JustificationValues.Center, noWrap: true),
+            Cell(Date(options.ResolveListingDate(row)), widths[3], align: W.JustificationValues.Center, noWrap: true),
             Cell(row.DfpdsSchedule ?? string.Empty, widths[4], align: W.JustificationValues.Center),
             Cell(row.Cfa ?? string.Empty, widths[5], align: W.JustificationValues.Center),
             Cell(row.Establishment, widths[6], align: W.JustificationValues.Center),

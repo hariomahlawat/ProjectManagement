@@ -86,6 +86,7 @@ public sealed class ArppFyProjectUpdateExportTests
     {
         var defaults = ArppFyProjectUpdatePresentationOptions.Default;
         Assert.False(defaults.IncludePresentStage);
+        Assert.Equal(ArppListingDateMode.InitialListing, defaults.EffectiveListingDateMode);
         Assert.Equal(12, defaults.ColumnCount);
         Assert.Equal(3, defaults.StatusColumnCount);
 
@@ -97,6 +98,59 @@ public sealed class ArppFyProjectUpdateExportTests
         };
 
         Assert.Equal("Completed", completed.StageDisplay);
+    }
+
+    [Fact]
+    public void Listing_date_mode_switches_between_initial_and_current_fy_in_formal_exports()
+    {
+        var report = SampleReport();
+        var row = report.Rows[0];
+
+        var initialOptions = new ArppFyProjectUpdatePresentationOptions(
+            IncludePresentStage: false,
+            ListingDateMode: ArppListingDateMode.InitialListing);
+        var currentFyOptions = new ArppFyProjectUpdatePresentationOptions(
+            IncludePresentStage: false,
+            ListingDateMode: ArppListingDateMode.CurrentFinancialYear);
+
+        Assert.Equal(new DateOnly(2025, 4, 10), initialOptions.ResolveListingDate(row));
+        Assert.Equal(new DateOnly(2026, 7, 27), currentFyOptions.ResolveListingDate(row));
+
+        var initialWord = new ArppFyProjectUpdateWordBuilder().Build(report, initialOptions);
+        using (var stream = new MemoryStream(initialWord))
+        using (var document = WordprocessingDocument.Open(stream, false))
+        {
+            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
+            Assert.Contains("10 Apr 2025", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("27 Jul 2026", text, StringComparison.Ordinal);
+        }
+
+        var currentFyWord = new ArppFyProjectUpdateWordBuilder().Build(report, currentFyOptions);
+        using (var stream = new MemoryStream(currentFyWord))
+        using (var document = WordprocessingDocument.Open(stream, false))
+        {
+            var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
+            Assert.Contains("27 Jul 2026", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("10 Apr 2025", text, StringComparison.Ordinal);
+        }
+
+        var initialExcel = new ArppFyProjectUpdateExcelBuilder().Build(report, initialOptions);
+        using (var stream = new MemoryStream(initialExcel))
+        using (var workbook = new XLWorkbook(stream))
+        {
+            Assert.Equal(new DateTime(2025, 4, 10), workbook.Worksheet("ARPP Project Update").Cell(5, 4).GetDateTime());
+        }
+
+        var currentFyExcel = new ArppFyProjectUpdateExcelBuilder().Build(report, currentFyOptions);
+        using (var stream = new MemoryStream(currentFyExcel))
+        using (var workbook = new XLWorkbook(stream))
+        {
+            Assert.Equal(new DateTime(2026, 7, 27), workbook.Worksheet("ARPP Project Update").Cell(5, 4).GetDateTime());
+        }
+
+        var pdf = new ArppFyProjectUpdatePdfBuilder().Build(report, currentFyOptions);
+        Assert.True(pdf.Length > 1000);
+        Assert.Equal((byte)'%', pdf[0]);
     }
 
     [Fact]
@@ -216,6 +270,9 @@ public sealed class ArppFyProjectUpdateExportTests
                     "DEVP",
                     "Development",
                     ProjectStageMaturityOrder.Development)
+                {
+                    CurrentFyArppListingDate = new DateOnly(2026, 7, 27)
+                }
             },
             Array.Empty<ArppFyReportWarning>(),
             0);

@@ -41,7 +41,7 @@ public sealed class ArppFyProjectUpdateExcelBuilder
             worksheet.Cell(rowIndex, 1).SetValue(row.SerialNumber);
             worksheet.Cell(rowIndex, 2).SetValue(row.PppNumber ?? string.Empty);
             worksheet.Cell(rowIndex, 3).SetValue(row.ProjectName);
-            SetDate(worksheet.Cell(rowIndex, 4), row.FirstArppListingDate);
+            SetDate(worksheet.Cell(rowIndex, 4), resolvedOptions.ResolveListingDate(row));
             worksheet.Cell(rowIndex, 5).SetValue(row.DfpdsSchedule ?? string.Empty);
             worksheet.Cell(rowIndex, 6).SetValue(row.Cfa ?? string.Empty);
             worksheet.Cell(rowIndex, 7).SetValue(row.Establishment);

@@ -164,6 +164,7 @@ public sealed class ArppFyProjectUpdateService : IArppFyProjectUpdateService
                 NormalizeNullable(arpp.PppNumber),
                 project.Name,
                 listing?.IssueDate,
+                arpp.SourceIssueDate,
                 NormalizeNullable(arpp.DfpdsSchedule),
                 NormalizeNullable(arpp.Cfa),
                 facts?.AonDate,
@@ -210,7 +211,10 @@ public sealed class ArppFyProjectUpdateService : IArppFyProjectUpdateService
                 row.IsArchived,
                 row.CurrentStageCode,
                 row.CurrentStageLabel,
-                row.StageOrder))
+                row.StageOrder)
+            {
+                CurrentFyArppListingDate = row.CurrentFyArppListingDate
+            })
             .ToArray();
 
         return new ArppFyProjectUpdateReport(
@@ -330,10 +334,15 @@ public sealed class ArppFyProjectUpdateService : IArppFyProjectUpdateService
         }
 
         var isCompleted = row.LifecycleStatus == ProjectLifecycleStatus.Completed;
-        var hasReachedAon = isCompleted || row.StageOrder <= ProjectStageMaturityOrder.AcceptanceOfNecessity;
-        if (hasReachedAon && !row.AonDate.HasValue)
+
+        // Being currently at AoN does not imply that AoN has been completed.
+        // Warn only after the lifecycle has progressed beyond AoN (or the project
+        // itself is explicitly Completed) and no valid completed-AoN milestone exists.
+        var hasPassedAon = isCompleted
+            || row.StageOrder < ProjectStageMaturityOrder.AcceptanceOfNecessity;
+        if (hasPassedAon && !row.AonDate.HasValue)
         {
-            Add("AON_DATE_MISSING", "AoN date is not recorded although the project has reached or passed AoN.");
+            Add("AON_DATE_MISSING", "AoN completion date is not recorded although the project has passed AoN.");
         }
 
         var hasReachedSupplyOrder = isCompleted || row.StageOrder <= ProjectStageMaturityOrder.SupplyOrder;
@@ -399,6 +408,7 @@ public sealed class ArppFyProjectUpdateService : IArppFyProjectUpdateService
         string? PppNumber,
         string ProjectName,
         DateOnly? FirstArppListingDate,
+        DateOnly CurrentFyArppListingDate,
         string? DfpdsSchedule,
         string? Cfa,
         DateOnly? AonDate,

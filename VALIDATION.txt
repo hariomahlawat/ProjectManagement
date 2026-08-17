@@ -1,19 +1,22 @@
 STATIC VALIDATION
 =================
-PASS  Word standard widths total exactly 16,000 twips
-PASS  Word Present Stage widths total exactly 16,000 twips
-PASS  Browser ARPP No. width = 8.8rem
-PASS  Browser standard minimum table width = 1540px
-PASS  Browser Present Stage minimum table width = 1670px
-PASS  Browser ARPP nowrap removed
-PASS  Browser inserts safe <wbr> opportunities after '/'
-PASS  Browser PDC uses authoritative completion state
-PASS  Contract exposes IsCompleted from lifecycle status
-PASS  Word PDC uses Completed override
-PASS  PDF PDC uses Completed override
-PASS  Excel PDC uses Completed override
-PASS  PDF ARPP No. relative width increased to 1.25
-PASS  Excel ARPP No. width increased to 18
-PASS  Existing PDF ligature/text-integrity fix preserved
 
-NOTE: .NET SDK is not installed in this execution environment, so a real dotnet build/test run could not be executed here.
+PASS  cs0103_resolvedOptions_fixed
+PASS  word_build_scope_still_uses_resolvedOptions
+PASS  aon_query_carries_stage_status
+PASS  aon_requires_completed_status
+PASS  aon_requires_completion_date
+PASS  aon_does_not_filter_development_pdc_by_completion
+PASS  current_aon_does_not_raise_missing_date_warning
+PASS  completed_project_still_triggers_aon_integrity_warning_if_missing
+PASS  ongoing_reader_requires_completed_stage
+PASS  resolver_tests_include_stale_date_case
+PASS  resolver_tests_include_completed_case
+PASS  resolver_tests_include_backfill_case
+PASS  listing_date_option_preserved
+PASS  present_stage_preserved
+PASS  completed_pdc_preserved
+PASS  word_cs0133_fix_preserved
+
+NOTE: .NET SDK is not installed in this execution environment.
+A real dotnet build/test must be run on the development machine.

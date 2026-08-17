@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Projects;
@@ -21,7 +22,8 @@ public interface IProjectFormalUpdateFactsResolver
 /// update sheets. The resolver intentionally returns raw factual values only;
 /// each consumer decides whether a value is applicable to its current lifecycle
 /// context (for example, a Development PDC is shown only while Development is
-/// the current stage).
+/// the current stage). AoN is resolved strictly as a completed-stage milestone:
+/// only an AoN row whose Status is Completed may contribute CompletedOn.
 /// </summary>
 public sealed class ProjectFormalUpdateFactsResolver : IProjectFormalUpdateFactsResolver
 {
@@ -52,19 +54,24 @@ public sealed class ProjectFormalUpdateFactsResolver : IProjectFormalUpdateFacts
                 stage.ProjectId,
                 stage.StageCode,
                 stage.SortOrder,
+                stage.Status,
                 stage.CompletedOn,
                 stage.PlannedDue
             })
             .ToListAsync(cancellationToken);
 
+        // AoN is a completed-stage milestone, not merely a date-like field.
+        // A stale CompletedOn value on an InProgress/Blocked/Skipped AoN row must
+        // never surface in formal reports or briefing outputs.
         var aonDates = stageRows
-            .Where(stage => stage.StageCode == StageCodes.AON)
+            .Where(stage => stage.StageCode == StageCodes.AON
+                && stage.Status == StageStatus.Completed
+                && stage.CompletedOn.HasValue)
             .GroupBy(stage => stage.ProjectId)
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .OrderByDescending(stage => stage.CompletedOn.HasValue)
-                    .ThenByDescending(stage => stage.CompletedOn)
+                    .OrderByDescending(stage => stage.CompletedOn)
                     .ThenByDescending(stage => stage.SortOrder)
                     .ThenByDescending(stage => stage.Id)
                     .Select(stage => stage.CompletedOn)

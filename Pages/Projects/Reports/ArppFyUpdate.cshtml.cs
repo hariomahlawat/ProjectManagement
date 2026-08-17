@@ -26,11 +26,15 @@ public sealed class ArppFyUpdateModel : PageModel
     [BindProperty(SupportsGet = true)]
     public bool IncludePresentStage { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public ArppListingDateMode ListingDateMode { get; set; } = ArppListingDateMode.InitialListing;
+
     public IReadOnlyList<int> AvailableFinancialYears { get; private set; } = Array.Empty<int>();
     public ArppFyProjectUpdateReport? Report { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        ListingDateMode = ArppFyProjectUpdatePresentationOptions.NormalizeListingDateMode(ListingDateMode);
         AvailableFinancialYears = await _reportService.GetAvailableFinancialYearsAsync(cancellationToken);
         if (AvailableFinancialYears.Count == 0)
         {
@@ -76,7 +80,9 @@ public sealed class ArppFyUpdateModel : PageModel
             return BadRequest("The selected financial year has no linked approved projects to export.");
         }
 
-        var options = new ArppFyProjectUpdatePresentationOptions(IncludePresentStage);
+        var options = new ArppFyProjectUpdatePresentationOptions(
+            IncludePresentStage,
+            ArppFyProjectUpdatePresentationOptions.NormalizeListingDateMode(ListingDateMode));
         var file = exporter(report, options);
         return File(file.Content, file.ContentType, file.FileName);
     }

@@ -1,0 +1,279 @@
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateWordBuilder.cs
+@@ -128,7 +128,7 @@
+             Cell(row.SerialNumber.ToString(CultureInfo.InvariantCulture), widths[0], align: W.JustificationValues.Center),
+             Cell(row.PppNumber ?? string.Empty, widths[1], align: W.JustificationValues.Center),
+             Cell(row.ProjectName, widths[2], bold: true),
+-            Cell(Date(resolvedOptions.ResolveListingDate(row)), widths[3], align: W.JustificationValues.Center, noWrap: true),
++            Cell(Date(options.ResolveListingDate(row)), widths[3], align: W.JustificationValues.Center, noWrap: true),
+             Cell(row.DfpdsSchedule ?? string.Empty, widths[4], align: W.JustificationValues.Center),
+             Cell(row.Cfa ?? string.Empty, widths[5], align: W.JustificationValues.Center),
+             Cell(row.Establishment, widths[6], align: W.JustificationValues.Center),
+--- a/Services/Projects/ProjectFormalUpdateFactsResolver.cs
++++ b/Services/Projects/ProjectFormalUpdateFactsResolver.cs
+@@ -1,5 +1,6 @@
+ using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Data;
++using ProjectManagement.Models.Execution;
+ using ProjectManagement.Models.Stages;
+ 
+ namespace ProjectManagement.Services.Projects;
+@@ -21,7 +22,8 @@
+ /// update sheets. The resolver intentionally returns raw factual values only;
+ /// each consumer decides whether a value is applicable to its current lifecycle
+ /// context (for example, a Development PDC is shown only while Development is
+-/// the current stage).
++/// the current stage). AoN is resolved strictly as a completed-stage milestone:
++/// only an AoN row whose Status is Completed may contribute CompletedOn.
+ /// </summary>
+ public sealed class ProjectFormalUpdateFactsResolver : IProjectFormalUpdateFactsResolver
+ {
+@@ -52,19 +54,24 @@
+                 stage.ProjectId,
+                 stage.StageCode,
+                 stage.SortOrder,
++                stage.Status,
+                 stage.CompletedOn,
+                 stage.PlannedDue
+             })
+             .ToListAsync(cancellationToken);
+ 
++        // AoN is a completed-stage milestone, not merely a date-like field.
++        // A stale CompletedOn value on an InProgress/Blocked/Skipped AoN row must
++        // never surface in formal reports or briefing outputs.
+         var aonDates = stageRows
+-            .Where(stage => stage.StageCode == StageCodes.AON)
++            .Where(stage => stage.StageCode == StageCodes.AON
++                && stage.Status == StageStatus.Completed
++                && stage.CompletedOn.HasValue)
+             .GroupBy(stage => stage.ProjectId)
+             .ToDictionary(
+                 group => group.Key,
+                 group => group
+-                    .OrderByDescending(stage => stage.CompletedOn.HasValue)
+-                    .ThenByDescending(stage => stage.CompletedOn)
++                    .OrderByDescending(stage => stage.CompletedOn)
+                     .ThenByDescending(stage => stage.SortOrder)
+                     .ThenByDescending(stage => stage.Id)
+                     .Select(stage => stage.CompletedOn)
+--- a/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
++++ b/Services/Reports/ArppFyProjectUpdate/ArppFyProjectUpdateService.cs
+@@ -334,10 +334,15 @@
+         }
+ 
+         var isCompleted = row.LifecycleStatus == ProjectLifecycleStatus.Completed;
+-        var hasReachedAon = isCompleted || row.StageOrder <= ProjectStageMaturityOrder.AcceptanceOfNecessity;
+-        if (hasReachedAon && !row.AonDate.HasValue)
+-        {
+-            Add("AON_DATE_MISSING", "AoN date is not recorded although the project has reached or passed AoN.");
++
++        // Being currently at AoN does not imply that AoN has been completed.
++        // Warn only after the lifecycle has progressed beyond AoN (or the project
++        // itself is explicitly Completed) and no valid completed-AoN milestone exists.
++        var hasPassedAon = isCompleted
++            || row.StageOrder < ProjectStageMaturityOrder.AcceptanceOfNecessity;
++        if (hasPassedAon && !row.AonDate.HasValue)
++        {
++            Add("AON_DATE_MISSING", "AoN completion date is not recorded although the project has passed AoN.");
+         }
+ 
+         var hasReachedSupplyOrder = isCompleted || row.StageOrder <= ProjectStageMaturityOrder.SupplyOrder;
+--- a/Services/Projects/OngoingProjectsReadService.cs
++++ b/Services/Projects/OngoingProjectsReadService.cs
+@@ -752,7 +752,11 @@
+             var stage = stages.FirstOrDefault(s =>
+                 string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
+ 
+-            return stage?.ActualCompletedOn;
++            // A stage milestone exists only after that stage is explicitly Completed.
++            // Do not trust a stale ActualCompletedOn value on an active/blocked/skipped stage.
++            return stage?.Status == StageStatus.Completed
++                ? stage.ActualCompletedOn
++                : null;
+         }
+     }
+ 
+--- a/ProjectManagement.Tests/Reports/ProjectFormalUpdateFactsResolverTests.cs
++++ b/ProjectManagement.Tests/Reports/ProjectFormalUpdateFactsResolverTests.cs
+@@ -0,0 +1,122 @@
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Data;
++using ProjectManagement.Models.Execution;
++using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.Projects;
++using Xunit;
++
++namespace ProjectManagement.Tests.Reports;
++
++public sealed class ProjectFormalUpdateFactsResolverTests
++{
++    [Fact]
++    public async Task Aon_date_is_returned_only_when_Aon_stage_is_completed()
++    {
++        await using var db = CreateContext();
++
++        db.ProjectStages.Add(new ProjectStage
++        {
++            ProjectId = 101,
++            StageCode = StageCodes.AON,
++            SortOrder = 120,
++            Status = StageStatus.Completed,
++            CompletedOn = new DateOnly(2026, 4, 29)
++        });
++        await db.SaveChangesAsync();
++
++        var resolver = new ProjectFormalUpdateFactsResolver(db);
++        var result = await resolver.ResolveAsync(new[] { 101 });
++
++        Assert.Equal(new DateOnly(2026, 4, 29), result[101].AonDate);
++    }
++
++    [Theory]
++    [InlineData(StageStatus.NotStarted)]
++    [InlineData(StageStatus.InProgress)]
++    [InlineData(StageStatus.Blocked)]
++    [InlineData(StageStatus.Skipped)]
++    public async Task Aon_date_ignores_stale_completed_on_when_stage_is_not_completed(
++        StageStatus status)
++    {
++        await using var db = CreateContext();
++
++        db.ProjectStages.Add(new ProjectStage
++        {
++            ProjectId = 102,
++            StageCode = StageCodes.AON,
++            SortOrder = 120,
++            Status = status,
++
++            // Deliberately inconsistent historical data. The report must not
++            // expose this as an AoN completion date unless Status == Completed.
++            CompletedOn = new DateOnly(2026, 4, 29)
++        });
++        await db.SaveChangesAsync();
++
++        var resolver = new ProjectFormalUpdateFactsResolver(db);
++        var result = await resolver.ResolveAsync(new[] { 102 });
++
++        Assert.Null(result[102].AonDate);
++    }
++
++    [Fact]
++    public async Task Completed_Aon_without_completion_date_remains_blank()
++    {
++        await using var db = CreateContext();
++
++        db.ProjectStages.Add(new ProjectStage
++        {
++            ProjectId = 103,
++            StageCode = StageCodes.AON,
++            SortOrder = 120,
++            Status = StageStatus.Completed,
++            CompletedOn = null,
++            RequiresBackfill = true
++        });
++        await db.SaveChangesAsync();
++
++        var resolver = new ProjectFormalUpdateFactsResolver(db);
++        var result = await resolver.ResolveAsync(new[] { 103 });
++
++        Assert.Null(result[103].AonDate);
++    }
++
++    [Fact]
++    public async Task Resolver_prefers_a_valid_completed_Aon_over_a_newer_non_completed_row()
++    {
++        await using var db = CreateContext();
++
++        db.ProjectStages.AddRange(
++            new ProjectStage
++            {
++                ProjectId = 104,
++                StageCode = StageCodes.AON,
++                SortOrder = 120,
++                Status = StageStatus.Completed,
++                CompletedOn = new DateOnly(2026, 3, 15)
++            },
++            new ProjectStage
++            {
++                ProjectId = 104,
++                StageCode = StageCodes.AON,
++                SortOrder = 121,
++                Status = StageStatus.InProgress,
++                CompletedOn = new DateOnly(2026, 5, 1)
++            });
++        await db.SaveChangesAsync();
++
++        var resolver = new ProjectFormalUpdateFactsResolver(db);
++        var result = await resolver.ResolveAsync(new[] { 104 });
++
++        Assert.Equal(new DateOnly(2026, 3, 15), result[104].AonDate);
++    }
++
++    private static ApplicationDbContext CreateContext()
++    {
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseInMemoryDatabase($"ProjectFormalUpdateFacts-{Guid.NewGuid():N}")
++            .Options;
++
++        return new ApplicationDbContext(options);
++    }
++}
+--- a/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/ArppFyProjectUpdatePresentationContractTests.cs
+@@ -79,6 +79,56 @@
+         }
+     }
+ 
++    [Fact]
++    public void Aon_milestone_contract_requires_completed_stage_and_does_not_warn_at_current_Aon()
++    {
++        var formalFacts = ReadRepoFile(
++            "Services",
++            "Projects",
++            "ProjectFormalUpdateFactsResolver.cs");
++        Assert.Contains("stage.Status == StageStatus.Completed", formalFacts, StringComparison.Ordinal);
++        Assert.Contains("stage.CompletedOn.HasValue", formalFacts, StringComparison.Ordinal);
++
++        var reportService = ReadRepoFile(
++            "Services",
++            "Reports",
++            "ArppFyProjectUpdate",
++            "ArppFyProjectUpdateService.cs");
++        Assert.Contains(
++            "row.StageOrder < ProjectStageMaturityOrder.AcceptanceOfNecessity",
++            reportService,
++            StringComparison.Ordinal);
++        Assert.DoesNotContain(
++            "row.StageOrder <= ProjectStageMaturityOrder.AcceptanceOfNecessity",
++            reportService,
++            StringComparison.Ordinal);
++
++        var ongoing = ReadRepoFile(
++            "Services",
++            "Projects",
++            "OngoingProjectsReadService.cs");
++        Assert.Contains(
++            "stage?.Status == StageStatus.Completed",
++            ongoing,
++            StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Word_builder_resolves_listing_date_from_the_options_in_scope()
++    {
++        var word = ReadRepoFile(
++            "Services",
++            "Reports",
++            "ArppFyProjectUpdate",
++            "ArppFyProjectUpdateWordBuilder.cs");
++
++        Assert.Contains("options.ResolveListingDate(row)", word, StringComparison.Ordinal);
++        Assert.DoesNotContain(
++            "Cell(Date(resolvedOptions.ResolveListingDate(row))",
++            word,
++            StringComparison.Ordinal);
++    }
++
+     private static string ReadRepoFile(params string[] segments)
+     {
+         var root = ResolveRepoRoot();
