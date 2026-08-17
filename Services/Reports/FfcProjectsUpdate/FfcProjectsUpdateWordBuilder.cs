@@ -168,7 +168,7 @@ public static class FfcProjectsUpdateWordBuilder
                 },
                 new W.Shading { Fill = GroupFill, Val = W.ShadingPatternValues.Clear }),
             Paragraph(
-                $"{group.CountryName} – {group.Year}    {group.CountryCode}",
+                $"{group.CountryName} – {group.Year}",
                 17,
                 bold: true,
                 color: Navy,

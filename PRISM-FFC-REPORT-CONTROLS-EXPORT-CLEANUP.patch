@@ -1,0 +1,236 @@
+--- a/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
++++ b/Pages/Projects/Reports/FfcProjectsUpdate.cshtml
+@@ -110,7 +110,7 @@
+ 
+                                 <div class="report-country-year-menu__footer">
+                                     <span data-ffc-menu-count>@report.SelectedCountryYearCount selected</span>
+-                                    <button type="button" class="btn btn-primary btn-sm" data-ffc-country-apply>Apply</button>
++                                    <button type="submit" class="btn btn-primary btn-sm" data-ffc-country-apply>Apply</button>
+                                 </div>
+                             </div>
+                         </div>
+@@ -125,9 +125,19 @@
+                                    name="includeOverallStatus"
+                                    value="true"
+                                    checked="@Model.IncludeOverallStatus"
+-                                   onchange="this.form.submit()" />
++                                   data-ffc-overall-status />
+                             <span>Overall status</span>
+                         </label>
++                    </div>
++
++                    <div class="report-toolbar__refresh">
++                        <span class="report-toolbar__options-label">Update</span>
++                        <button type="submit"
++                                class="btn btn-primary btn-sm report-refresh-button"
++                                data-ffc-refresh>
++                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
++                            Update report
++                        </button>
+                     </div>
+                 </form>
+ 
+@@ -238,7 +248,6 @@
+                                 <tr class="ffc-report-group-row">
+                                     <td colspan="@columnCount">
+                                         <span>@group.CountryName – @group.Year</span>
+-                                        <small>@group.CountryCode</small>
+                                     </td>
+                                 </tr>
+ 
+--- a/wwwroot/js/pages/projects-reports-ffc.js
++++ b/wwwroot/js/pages/projects-reports-ffc.js
+@@ -11,7 +11,8 @@
+     const checkboxes = Array.from(form.querySelectorAll("[data-ffc-country-year]"));
+     const summary = form.querySelector("[data-ffc-selection-summary]");
+     const menuCount = form.querySelector("[data-ffc-menu-count]");
+-    const applyButton = form.querySelector("[data-ffc-country-apply]");
++    const overallStatus = form.querySelector("[data-ffc-overall-status]");
++    const refreshButton = form.querySelector("[data-ffc-refresh]");
+     const actionButtons = Array.from(form.querySelectorAll("[data-ffc-country-action]"));
+ 
+     const checked = () => checkboxes.filter(input => input.checked);
+@@ -69,9 +70,12 @@
+         });
+     });
+ 
+-    applyButton?.addEventListener("click", () => {
++    form.addEventListener("submit", () => {
+         syncHiddenSelection();
+-        form.submit();
++    });
++
++    overallStatus?.addEventListener("change", () => {
++        refreshButton?.classList.add("report-refresh-button--pending");
+     });
+ 
+     updateCount();
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
+@@ -168,7 +168,7 @@
+                 },
+                 new W.Shading { Fill = GroupFill, Val = W.ShadingPatternValues.Clear }),
+             Paragraph(
+-                $"{group.CountryName} – {group.Year}    {group.CountryCode}",
++                $"{group.CountryName} – {group.Year}",
+                 17,
+                 bold: true,
+                 color: Navy,
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
+@@ -81,8 +81,7 @@
+                     {
+                         GroupCell(
+                             table.Cell().ColumnSpan((uint)columnCount),
+-                            $"{group.CountryName} – {group.Year}",
+-                            group.CountryCode);
++                            $"{group.CountryName} – {group.Year}");
+ 
+                         for (var index = 0; index < group.Rows.Count; index++)
+                         {
+@@ -166,18 +165,17 @@
+             .FontColor(Navy);
+     }
+ 
+-    private static void GroupCell(IContainer container, string label, string code)
++    private static void GroupCell(IContainer container, string label)
+         => container
+             .Border(0.45f)
+             .BorderColor(Border)
+             .Background(GroupFill)
+             .PaddingVertical(4)
+             .PaddingHorizontal(5)
+-            .Row(row =>
+-            {
+-                row.RelativeItem().Text(label).FontSize(7.2f).Bold().FontColor(Navy);
+-                row.ConstantItem(42).AlignRight().Text(code).FontSize(6.8f).Bold().FontColor(Muted);
+-            });
++            .Text(label)
++            .FontSize(7.2f)
++            .Bold()
++            .FontColor(Navy);
+ 
+     private static void BodyCell(
+         IContainer container,
+--- a/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
++++ b/Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
+@@ -40,7 +40,7 @@
+         {
+             var groupRow = rowIndex++;
+             var groupRange = worksheet.Range(groupRow, 1, groupRow, columnCount).Merge();
+-            groupRange.Value = $"{group.CountryName} – {group.Year}    {group.CountryCode}";
++            groupRange.Value = $"{group.CountryName} – {group.Year}";
+             groupRange.Style.Font.Bold = true;
+             groupRange.Style.Font.FontColor = XLColor.FromHtml("#17365D");
+             groupRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F5F8");
+--- a/wwwroot/css/pages/projects-reports.css
++++ b/wwwroot/css/pages/projects-reports.css
+@@ -908,3 +908,28 @@
+     }
+ }
+ 
++/* FFC report explicit update action -------------------------------------- */
++.report-toolbar__refresh {
++    display: flex;
++    flex-direction: column;
++    align-items: flex-start;
++    gap: .25rem;
++    flex: 0 0 auto;
++}
++
++.report-refresh-button {
++    min-height: 31px;
++    display: inline-flex;
++    align-items: center;
++    gap: .35rem;
++    white-space: nowrap;
++}
++
++.report-refresh-button--pending {
++    box-shadow: 0 0 0 .14rem rgba(37, 99, 235, .12);
++}
++
++.ffc-report-group-row small {
++    display: none;
++}
++
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
+@@ -43,6 +43,55 @@
+         Assert.Contains("var defaultIncluded = !allInstalled;", source, StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void Overall_status_uses_an_explicit_report_update_action()
++    {
++        var page = ReadRepoFile(
++            "Pages",
++            "Projects",
++            "Reports",
++            "FfcProjectsUpdate.cshtml");
++
++        Assert.Contains("data-ffc-overall-status", page, StringComparison.Ordinal);
++        Assert.Contains("data-ffc-refresh", page, StringComparison.Ordinal);
++        Assert.Contains("Update report", page, StringComparison.Ordinal);
++        Assert.DoesNotContain("onchange=\"this.form.submit()\"", page, StringComparison.Ordinal);
++
++        var script = ReadRepoFile(
++            "wwwroot",
++            "js",
++            "pages",
++            "projects-reports-ffc.js");
++
++        Assert.Contains("form.addEventListener(\"submit\"", script, StringComparison.Ordinal);
++        Assert.Contains("syncHiddenSelection();", script, StringComparison.Ordinal);
++        Assert.DoesNotContain("form.submit();", script, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Formal_exports_do_not_render_three_letter_country_codes()
++    {
++        var word = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdateWordBuilder.cs");
++        var pdf = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdatePdfBuilder.cs");
++        var excel = ReadRepoFile(
++            "Services",
++            "Reports",
++            "FfcProjectsUpdate",
++            "FfcProjectsUpdateExcelBuilder.cs");
++
++        Assert.DoesNotContain("group.CountryCode", word, StringComparison.Ordinal);
++        Assert.DoesNotContain("group.CountryCode", pdf, StringComparison.Ordinal);
++        Assert.DoesNotContain("group.CountryCode", excel, StringComparison.Ordinal);
++    }
++
+     private static string ReadRepoFile(params string[] segments)
+     {
+         var root = ResolveRepoRoot();
+--- a/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
++++ b/ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
+@@ -27,6 +27,11 @@
+         Assert.Equal(FfcProjectsUpdateReport.FormalTitle, worksheet.Cell(1, 1).GetString());
+         Assert.Equal("Current progress", worksheet.Cell(3, 6).GetString());
+ 
++        var countryGroupCell = worksheet.CellsUsed()
++            .First(cell => cell.GetString().StartsWith("Ethiopia", StringComparison.Ordinal));
++        Assert.Equal("Ethiopia – 2025", countryGroupCell.GetString());
++        Assert.DoesNotContain("ETH", countryGroupCell.GetString(), StringComparison.Ordinal);
++
+         if (includeOverallStatus)
+         {
+             Assert.Equal("Overall status", worksheet.Cell(3, 7).GetString());
+@@ -54,6 +59,7 @@
+         var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
+         Assert.Contains(FfcProjectsUpdateReport.FormalTitle, text, StringComparison.Ordinal);
+         Assert.Contains("Ethiopia", text, StringComparison.Ordinal);
++        Assert.DoesNotContain("ETH", text, StringComparison.Ordinal);
+         Assert.Contains("Current progress", text, StringComparison.Ordinal);
+ 
+         if (includeOverallStatus)

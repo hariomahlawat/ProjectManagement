@@ -1,102 +1,51 @@
-PRISM ERP — FFC Projects Update Report
-======================================
+PRISM FFC Projects Update — Control & Export Cleanup
+=====================================================
 
-READY-TO-PASTE IMPLEMENTATION
------------------------------
-This package adds the second report under:
+This is a focused follow-up to the FFC Projects Update implementation.
 
-    Projects -> Reports -> FFC Projects Update
+FIX 1 — OVERALL STATUS CONTROL
+------------------------------
+Previous behaviour:
+- Overall status relied on an onchange="this.form.submit()" auto-submit.
+- On the observed runtime screen the checkbox changed visually but the report
+  did not refresh, leaving the six-column table unchanged.
+- There was no explicit report-update action for the user.
 
-The report reuses the existing authoritative IFfcQueryService used by the
-FFC Detailed Table. No duplicate FFC data query or database migration is introduced.
+New behaviour:
+- Overall status is a normal report option.
+- The toolbar now has an explicit "Update report" button.
+- Tick/untick Overall status, then press Update report.
+- Country-year selection is synchronized on every form submit.
+- The Country/Year dropdown's Apply button is also a real form submit.
+- Direct JavaScript form.submit() calls have been removed.
 
-
-BUSINESS RULES IMPLEMENTED
---------------------------
-1. Report grouping
-   - Country – Year, matching the FFC Detailed Table.
-
-2. Default country-year selection
-   - A country-year is EXCLUDED BY DEFAULT only when EVERY project in that
-     country-year has Status exactly "Installed".
-   - Such groups remain visible in the selector and can be manually included.
-   - Mixed groups (for example Installed + Planned) remain selected by default.
-
-3. Manual country-year selection
-   - User can choose any combination of country-year groups.
-   - Controls include:
-       Default active
-       Select all
-       Clear
-       Apply
-   - An explicit empty custom selection remains empty; it does not silently
-     revert to defaults.
-
-4. Columns
-   Default:
-       S. No.
-       Project
-       Cost (₹ lakh)
-       Quantity
-       Status
-       Current progress
-
-   Optional:
-       Overall status
-
-5. Output parity
-   The same selected country-years and Overall status option are used by:
-       Browser preview
-       Word
-       PDF
-       Excel
-
-6. Exports
-   - A4 landscape Word
-   - A4 landscape PDF
-   - Excel working copy
-   - File naming: FFC_Projects_Update_yyyyMMdd_HHmm.*
-
-7. Current FFC logic retained
-   - Project name/cost/progress/status all come from IFfcQueryService.
-   - Cost remains the same resolved FFC Detailed Table cost in ₹ lakh.
-   - FFC status remains the existing bucket label.
-   - Overall status remains FfcRecord.OverallRemarks.
+This makes the workflow deterministic and visible:
+    Change option -> Update report -> browser preview refreshes
+    -> Word/PDF/Excel links carry the resolved IncludeOverallStatus state.
 
 
-AUTHORIZATION
--------------
-This implementation deliberately preserves the CURRENT Projects -> Reports
-authorization contract:
+FIX 2 — COUNTRY CODES REMOVED FROM FORMAL OUTPUT
+------------------------------------------------
+Three-letter country codes such as FRA / ETH / MMR / NGA / LKA / KHM are no
+longer rendered in:
+- Browser formal preview
+- Word export
+- PDF export
+- Excel export
 
-    ProjectOfficeReportsPolicies.ViewArpp
+Formal group headings are now simply:
+    France – 2026
+    Ethiopia – 2025
+    Myanmar – 2025
+    ...
 
-No navigation-policy or role change is made in this phase.
-
-
-NO PROGRAM.CS CHANGE
---------------------
-No new DI registration is required.
-
-The new Razor Page injects the already-registered IFfcQueryService.
-The report factory and export builders are deterministic/static report components.
-This avoids replacing Program.cs and reduces deployment/regression risk.
+The Country/Year selector may still show the code as secondary UI metadata;
+it is not part of the report output.
 
 
-FILES
------
+FILES TO REPLACE
+----------------
 See CHANGED-FILES.txt.
-
-Existing files replaced:
-    Pages/Projects/Reports/Index.cshtml
-    wwwroot/css/pages/projects-reports.css
-
-New files:
-    Pages/Projects/Reports/FfcProjectsUpdate.cshtml
-    Pages/Projects/Reports/FfcProjectsUpdate.cshtml.cs
-    Services/Reports/FfcProjectsUpdate/*
-    wwwroot/js/pages/projects-reports-ffc.js
-    ProjectManagement.Tests/Reports/FfcProjectsUpdate*
 
 
 AFTER PASTING
@@ -110,15 +59,14 @@ dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj `
 node --check .\wwwroot\js\pages\projects-reports-ffc.js
 
 
-MANUAL ACCEPTANCE CHECK
------------------------
-1. Open Projects -> Reports.
-2. Confirm a second report row: FFC Projects Update.
-3. Open it.
-4. Verify every country-year is available in the selector.
-5. Verify all-installed country-years are unchecked by default.
-6. Verify mixed/non-installed country-years are checked by default.
-7. Select an all-installed group manually and Apply; it must appear.
-8. Toggle Overall status; preview must add/remove the final column.
-9. Export Word/PDF/Excel in both modes.
-10. Verify selected country-years and column set match the browser preview.
+MANUAL ACCEPTANCE
+-----------------
+1. Open FFC Projects Update.
+2. Tick Overall status.
+3. Click Update report.
+4. Confirm the URL/reloaded state has IncludeOverallStatus=true and the seventh
+   "Overall status" column appears.
+5. Untick it and click Update report; the column must disappear.
+6. Change Country/Year selection and Apply; selection must remain correct.
+7. Export Word/PDF/Excel with Overall status both OFF and ON.
+8. Confirm no three-letter country code appears in any formal output.

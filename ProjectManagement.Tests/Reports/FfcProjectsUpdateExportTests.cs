@@ -27,6 +27,11 @@ public sealed class FfcProjectsUpdateExportTests
         Assert.Equal(FfcProjectsUpdateReport.FormalTitle, worksheet.Cell(1, 1).GetString());
         Assert.Equal("Current progress", worksheet.Cell(3, 6).GetString());
 
+        var countryGroupCell = worksheet.CellsUsed()
+            .First(cell => cell.GetString().StartsWith("Ethiopia", StringComparison.Ordinal));
+        Assert.Equal("Ethiopia – 2025", countryGroupCell.GetString());
+        Assert.DoesNotContain("ETH", countryGroupCell.GetString(), StringComparison.Ordinal);
+
         if (includeOverallStatus)
         {
             Assert.Equal("Overall status", worksheet.Cell(3, 7).GetString());
@@ -54,6 +59,7 @@ public sealed class FfcProjectsUpdateExportTests
         var text = document.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
         Assert.Contains(FfcProjectsUpdateReport.FormalTitle, text, StringComparison.Ordinal);
         Assert.Contains("Ethiopia", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("ETH", text, StringComparison.Ordinal);
         Assert.Contains("Current progress", text, StringComparison.Ordinal);
 
         if (includeOverallStatus)

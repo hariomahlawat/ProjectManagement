@@ -11,7 +11,8 @@
     const checkboxes = Array.from(form.querySelectorAll("[data-ffc-country-year]"));
     const summary = form.querySelector("[data-ffc-selection-summary]");
     const menuCount = form.querySelector("[data-ffc-menu-count]");
-    const applyButton = form.querySelector("[data-ffc-country-apply]");
+    const overallStatus = form.querySelector("[data-ffc-overall-status]");
+    const refreshButton = form.querySelector("[data-ffc-refresh]");
     const actionButtons = Array.from(form.querySelectorAll("[data-ffc-country-action]"));
 
     const checked = () => checkboxes.filter(input => input.checked);
@@ -69,9 +70,12 @@
         });
     });
 
-    applyButton?.addEventListener("click", () => {
+    form.addEventListener("submit", () => {
         syncHiddenSelection();
-        form.submit();
+    });
+
+    overallStatus?.addEventListener("change", () => {
+        refreshButton?.classList.add("report-refresh-button--pending");
     });
 
     updateCount();

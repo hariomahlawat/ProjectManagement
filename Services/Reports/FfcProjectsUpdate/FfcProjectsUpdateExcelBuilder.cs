@@ -40,7 +40,7 @@ public static class FfcProjectsUpdateExcelBuilder
         {
             var groupRow = rowIndex++;
             var groupRange = worksheet.Range(groupRow, 1, groupRow, columnCount).Merge();
-            groupRange.Value = $"{group.CountryName} – {group.Year}    {group.CountryCode}";
+            groupRange.Value = $"{group.CountryName} – {group.Year}";
             groupRange.Style.Font.Bold = true;
             groupRange.Style.Font.FontColor = XLColor.FromHtml("#17365D");
             groupRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F5F8");

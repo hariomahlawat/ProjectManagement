@@ -1,25 +1,19 @@
 STATIC VALIDATION
 =================
 
-PASS  landing_card_added
-PASS  default_excludes_all_installed_only
-PASS  custom_empty_selection_supported
-PASS  overall_status_optional_browser
-PASS  country_year_selector_present
-PASS  word_dynamic_columns
-PASS  word_openxml_optional_enum_defaults_safe
-PASS  word_table_width_15700_without
-PASS  word_table_width_15700_with
-PASS  pdf_dynamic_columns
-PASS  pdf_ligatures_disabled
-PASS  excel_dynamic_columns
-PASS  excel_merges_overall_status
-PASS  no_program_change_required
-PASS  same_ffc_query_contract_reused
-PASS  js_selection_modes
-PASS  access_policy_preserved
+PASS  explicit_update_button_present
+PASS  no_overall_status_auto_submit
+PASS  country_apply_is_real_submit
+PASS  all_form_submits_sync_country_selection
+PASS  no_direct_form_submit_call
+PASS  word_no_country_code
+PASS  pdf_no_country_code
+PASS  excel_no_country_code
+PASS  formal_preview_no_country_code
+PASS  overall_status_rendering_preserved
+PASS  overall_status_export_routes_preserved
 
 PASS  node --check wwwroot/js/pages/projects-reports-ffc.js
 
-NOTE: The execution environment does not contain the .NET SDK.
-A real dotnet build/test must therefore be run on the development machine.
+NOTE: .NET SDK is not installed in this execution environment.
+Run the supplied dotnet build/test commands on the development machine.

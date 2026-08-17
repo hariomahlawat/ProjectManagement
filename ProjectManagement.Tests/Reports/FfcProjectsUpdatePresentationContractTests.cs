@@ -43,6 +43,55 @@ public sealed class FfcProjectsUpdatePresentationContractTests
         Assert.Contains("var defaultIncluded = !allInstalled;", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Overall_status_uses_an_explicit_report_update_action()
+    {
+        var page = ReadRepoFile(
+            "Pages",
+            "Projects",
+            "Reports",
+            "FfcProjectsUpdate.cshtml");
+
+        Assert.Contains("data-ffc-overall-status", page, StringComparison.Ordinal);
+        Assert.Contains("data-ffc-refresh", page, StringComparison.Ordinal);
+        Assert.Contains("Update report", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("onchange=\"this.form.submit()\"", page, StringComparison.Ordinal);
+
+        var script = ReadRepoFile(
+            "wwwroot",
+            "js",
+            "pages",
+            "projects-reports-ffc.js");
+
+        Assert.Contains("form.addEventListener(\"submit\"", script, StringComparison.Ordinal);
+        Assert.Contains("syncHiddenSelection();", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("form.submit();", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Formal_exports_do_not_render_three_letter_country_codes()
+    {
+        var word = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdateWordBuilder.cs");
+        var pdf = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdatePdfBuilder.cs");
+        var excel = ReadRepoFile(
+            "Services",
+            "Reports",
+            "FfcProjectsUpdate",
+            "FfcProjectsUpdateExcelBuilder.cs");
+
+        Assert.DoesNotContain("group.CountryCode", word, StringComparison.Ordinal);
+        Assert.DoesNotContain("group.CountryCode", pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain("group.CountryCode", excel, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] segments)
     {
         var root = ResolveRepoRoot();

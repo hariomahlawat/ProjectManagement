@@ -1,12 +1,8 @@
-Pages/Projects/Reports/Index.cshtml
 Pages/Projects/Reports/FfcProjectsUpdate.cshtml
-Pages/Projects/Reports/FfcProjectsUpdate.cshtml.cs
-Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateContracts.cs
+wwwroot/js/pages/projects-reports-ffc.js
 Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateWordBuilder.cs
 Services/Reports/FfcProjectsUpdate/FfcProjectsUpdatePdfBuilder.cs
 Services/Reports/FfcProjectsUpdate/FfcProjectsUpdateExcelBuilder.cs
 wwwroot/css/pages/projects-reports.css
-wwwroot/js/pages/projects-reports-ffc.js
-ProjectManagement.Tests/Reports/FfcProjectsUpdateReportTests.cs
-ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs
 ProjectManagement.Tests/Reports/FfcProjectsUpdatePresentationContractTests.cs
+ProjectManagement.Tests/Reports/FfcProjectsUpdateExportTests.cs

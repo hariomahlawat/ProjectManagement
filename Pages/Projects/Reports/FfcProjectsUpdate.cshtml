@@ -110,7 +110,7 @@
 
                                 <div class="report-country-year-menu__footer">
                                     <span data-ffc-menu-count>@report.SelectedCountryYearCount selected</span>
-                                    <button type="button" class="btn btn-primary btn-sm" data-ffc-country-apply>Apply</button>
+                                    <button type="submit" class="btn btn-primary btn-sm" data-ffc-country-apply>Apply</button>
                                 </div>
                             </div>
                         </div>
@@ -125,9 +125,19 @@
                                    name="includeOverallStatus"
                                    value="true"
                                    checked="@Model.IncludeOverallStatus"
-                                   onchange="this.form.submit()" />
+                                   data-ffc-overall-status />
                             <span>Overall status</span>
                         </label>
+                    </div>
+
+                    <div class="report-toolbar__refresh">
+                        <span class="report-toolbar__options-label">Update</span>
+                        <button type="submit"
+                                class="btn btn-primary btn-sm report-refresh-button"
+                                data-ffc-refresh>
+                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            Update report
+                        </button>
                     </div>
                 </form>
 
@@ -238,7 +248,6 @@
                                 <tr class="ffc-report-group-row">
                                     <td colspan="@columnCount">
                                         <span>@group.CountryName – @group.Year</span>
-                                        <small>@group.CountryCode</small>
                                     </td>
                                 </tr>
 

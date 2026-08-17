@@ -81,8 +81,7 @@ public static class FfcProjectsUpdatePdfBuilder
                     {
                         GroupCell(
                             table.Cell().ColumnSpan((uint)columnCount),
-                            $"{group.CountryName} – {group.Year}",
-                            group.CountryCode);
+                            $"{group.CountryName} – {group.Year}");
 
                         for (var index = 0; index < group.Rows.Count; index++)
                         {
@@ -166,18 +165,17 @@ public static class FfcProjectsUpdatePdfBuilder
             .FontColor(Navy);
     }
 
-    private static void GroupCell(IContainer container, string label, string code)
+    private static void GroupCell(IContainer container, string label)
         => container
             .Border(0.45f)
             .BorderColor(Border)
             .Background(GroupFill)
             .PaddingVertical(4)
             .PaddingHorizontal(5)
-            .Row(row =>
-            {
-                row.RelativeItem().Text(label).FontSize(7.2f).Bold().FontColor(Navy);
-                row.ConstantItem(42).AlignRight().Text(code).FontSize(6.8f).Bold().FontColor(Muted);
-            });
+            .Text(label)
+            .FontSize(7.2f)
+            .Bold()
+            .FontColor(Navy);
 
     private static void BodyCell(
         IContainer container,
