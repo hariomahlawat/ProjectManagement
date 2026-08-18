@@ -127,7 +127,7 @@ Start conservatively. Increase concurrency only after observing CPU, memory, dat
 - Review queue includes faces with and without model candidates.
 - Manual assignment and person creation work.
 - Candidate rejection is not recreated for the same face/model version.
-- “Leave unidentified” removes the face from the active queue.
+- “Close unidentified” removes the face from active review and the Closed unidentified queue can reopen it later.
 - “Not a face” suppresses the detection and invalidates its embedding.
 - Rename, hide/restore, representative-face change, correction and merge create audit records.
 - Concurrent reviewers receive a conflict rather than overwriting each other.

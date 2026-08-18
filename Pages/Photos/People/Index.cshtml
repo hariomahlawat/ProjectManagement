@@ -53,37 +53,52 @@
     {
         <section class="people-insight" aria-label="People summary and review queues">
             <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
-            @if (Model.CanManageIdentities)
+            @if (Model.CanManageIdentities && Model.WorkloadAvailable)
             {
                 <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open known-person suggestions">
-                    <strong>@Model.Result.KnownPersonSuggestionCount</strong><span>known matches</span>
+                    <strong>@Model.Workload.KnownMatchCount</strong><span>known matches</span>
                 </a>
-                @if (Model.HasGroupingWorkload)
+                @if (Model.GroupingEnabled)
                 {
                     <a class="people-insight__work" asp-page="./Review" asp-route-Mode="groups" title="Open suggested identity groups">
-                        <strong>@Model.SuggestedGroupCount</strong><span>suggested groups</span>
-                    </a>
-                    <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open faces requiring individual review">
-                        <strong>@Model.IndividualReviewCount</strong><span>individual review</span>
+                        <strong>@Model.Workload.SuggestedGroupCount</strong><span>suggested groups</span>
                     </a>
                 }
-                else
-                {
-                    <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open individual face review">
-                        <strong>@Model.Result.UnidentifiedFaceCount</strong><span>individual review</span>
-                    </a>
-                }
-                @if (Model.Result.CandidateSearchFailureCount > 0)
+                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open faces ready for individual review">
+                    <strong>@Model.Workload.IndividualReviewCount</strong><span>individual review</span>
+                </a>
+                @if (Model.Workload.MatchingFailureCount > 0)
                 {
                     <a class="people-insight__work is-warning" asp-page="./Review" asp-route-Mode="unidentified" asp-route-MatchStatus="failed" title="Open matching failures">
-                        <strong>@Model.Result.CandidateSearchFailureCount</strong><span>matching failures</span>
+                        <strong>@Model.Workload.MatchingFailureCount</strong><span>matching failures</span>
                     </a>
                 }
             }
+            else if (Model.CanManageIdentities)
+            {
+                <div class="people-insight__workload-unavailable" role="status">
+                    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                    <span>Review workload temporarily unavailable</span>
+                </div>
+            }
         </section>
-        @if (Model.CanManageIdentities && Model.TotalReviewableAppearances > 0)
+        @if (Model.CanManageIdentities && Model.WorkloadAvailable && (Model.TotalReviewableAppearances > 0 || Model.Workload.ClosedUnidentifiedCount > 0))
         {
-            <p class="people-workload-note"><strong>@Model.TotalReviewableAppearances</strong> unassigned face appearance@(Model.TotalReviewableAppearances == 1 ? "" : "s") in the visible review corpus@(Model.HasGroupingWorkload ? $"; {Model.GroupedFaceCount} are already organised into suggested groups." : ".")</p>
+            <p class="people-workload-note">
+                <strong>@Model.TotalReviewableAppearances</strong> unresolved face appearance@(Model.TotalReviewableAppearances == 1 ? "" : "s")
+                @if (Model.Workload.MatchingCount > 0)
+                {
+                    <span> · <strong>@Model.Workload.MatchingCount</strong> matching in the background</span>
+                }
+                @if (Model.HasGroupingWorkload && Model.GroupedFaceCount > 0)
+                {
+                    <span> · <strong>@Model.GroupedFaceCount</strong> organised into suggested groups</span>
+                }
+                @if (Model.Workload.ClosedUnidentifiedCount > 0)
+                {
+                    <span> · <a asp-page="./Review" asp-route-Mode="closed"><strong>@Model.Workload.ClosedUnidentifiedCount</strong> closed unidentified</a></span>
+                }
+            </p>
         }
 
         <section class="people-toolbar">

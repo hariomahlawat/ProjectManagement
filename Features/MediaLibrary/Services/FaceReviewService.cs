@@ -15,23 +15,20 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 public sealed class FaceReviewService : IFaceReviewService
 {
     private readonly MediaLibraryDbContext _db;
-    private readonly IFaceCandidateRefreshQueueService _candidateRefreshQueue;
-    private readonly IFaceIdentityGroupingRuntimeState _groupingState;
+    private readonly IFaceReviewInvalidationCoordinator _invalidation;
     private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
     private readonly ILogger<FaceReviewService> _logger;
 
     public FaceReviewService(
         MediaLibraryDbContext db,
-        IFaceCandidateRefreshQueueService candidateRefreshQueue,
-        IFaceIdentityGroupingRuntimeState groupingState,
+        IFaceReviewInvalidationCoordinator invalidation,
         IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options,
         ILogger<FaceReviewService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _candidateRefreshQueue = candidateRefreshQueue ?? throw new ArgumentNullException(nameof(candidateRefreshQueue));
-        _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
+        _invalidation = invalidation ?? throw new ArgumentNullException(nameof(invalidation));
         _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -120,7 +117,14 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        if (initialTrustedReferenceFaceId.HasValue)
+        {
+            await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
+        }
+        else
+        {
+            _invalidation.NotifyGroupingChanged();
+        }
         return person.Id;
     }
 
@@ -189,7 +193,7 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        _invalidation.NotifyGroupingChanged();
     }
 
     public async Task RejectAsync(
@@ -199,6 +203,7 @@ public sealed class FaceReviewService : IFaceReviewService
         CancellationToken cancellationToken)
     {
         ValidateUserId(userId);
+        await ValidateUnassignedFaceAsync(faceId, cancellationToken);
         var decisions = await _db.FaceReviewDecisions
             .Where(decision => decision.MediaFaceId == faceId
                                && decision.Decision == FaceReviewDecisionType.Pending
@@ -231,20 +236,7 @@ public sealed class FaceReviewService : IFaceReviewService
             PerformedAtUtc = now
         });
         await SaveWithConflictTranslationAsync(cancellationToken);
-        try
-        {
-            await _candidateRefreshQueue.QueueFaceAsync(faceId, cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogWarning(
-                exception,
-                "Unable to queue the rejected face for the next bounded candidate-search pass.");
-        }
+        await _invalidation.NotifyFacesNeedRematchAsync(new[] { faceId }, cancellationToken);
     }
 
     public async Task RejectManyAsync(
@@ -321,24 +313,7 @@ public sealed class FaceReviewService : IFaceReviewService
             PerformedAtUtc = now
         });
         await SaveWithConflictTranslationAsync(cancellationToken);
-        foreach (var faceId in selectedFaces)
-        {
-            try
-            {
-                await _candidateRefreshQueue.QueueFaceAsync(faceId, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "Unable to queue face {FaceId} after rejecting a grouped known-person candidate.",
-                    faceId);
-            }
-        }
+        await _invalidation.NotifyFacesNeedRematchAsync(selectedFaces, cancellationToken);
     }
 
     public Task IgnoreAsync(
@@ -364,10 +339,13 @@ public sealed class FaceReviewService : IFaceReviewService
 
         await ExecuteTransactionalAsync(async () =>
         {
+            var visibleAssetIds = BuildVisibleAssetIdsQuery();
             var faces = await _db.Faces
                 .Include(item => item.Embeddings.Where(embedding => embedding.InvalidatedAtUtc == null))
                 .Include(item => item.PersonAssignments.Where(assignment => assignment.RemovedAtUtc == null))
-                .Where(item => selectedFaces.Contains(item.Id) && !item.IsSuppressed)
+                .Where(item => selectedFaces.Contains(item.Id)
+                               && !item.IsSuppressed
+                               && visibleAssetIds.Contains(item.MediaAssetId))
                 .ToListAsync(cancellationToken);
             if (faces.Count != selectedFaces.Count)
             {
@@ -407,7 +385,7 @@ public sealed class FaceReviewService : IFaceReviewService
                         decision.Decision = FaceReviewDecisionType.Rejected;
                         decision.DecidedByUserId = userId;
                         decision.DecidedAtUtc = now;
-                        decision.Notes = "Face intentionally left unidentified.";
+                        decision.Notes = "Face intentionally closed as unidentified.";
                         decision.ConcurrencyToken = Guid.NewGuid();
                     }
                     changed = facePending.Count > 0;
@@ -456,7 +434,79 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        _invalidation.NotifyGroupingChanged();
+    }
+
+    public Task ReopenUnidentifiedAsync(
+        Guid faceId,
+        string userId,
+        CancellationToken cancellationToken)
+        => ReopenUnidentifiedManyAsync(new[] { faceId }, userId, cancellationToken);
+
+    public async Task ReopenUnidentifiedManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        ValidateUserId(userId);
+        var selectedFaces = NormalizeFaceSelection(faceIds);
+        var limit = Math.Clamp(_options.ReviewTriageBatchLimit, 1, 500);
+        if (selectedFaces.Count > limit)
+        {
+            throw new ArgumentException(
+                $"No more than {limit} appearances may be reopened in one operation.",
+                nameof(faceIds));
+        }
+
+        await ExecuteTransactionalAsync(async () =>
+        {
+            var visibleAssetIds = BuildVisibleAssetIdsQuery();
+            var faces = await _db.Faces
+                .Where(face => selectedFaces.Contains(face.Id)
+                               && !face.IsSuppressed
+                               && visibleAssetIds.Contains(face.MediaAssetId)
+                               && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
+                .ToListAsync(cancellationToken);
+            if (faces.Count != selectedFaces.Count)
+            {
+                throw new FaceIdentityConflictException(
+                    "One or more selected appearances are unavailable, suppressed or already assigned. Refresh the page before continuing.");
+            }
+
+            var closures = await _db.FaceReviewDecisions
+                .Where(decision => selectedFaces.Contains(decision.MediaFaceId)
+                                   && !decision.CandidatePersonId.HasValue
+                                   && decision.Decision == FaceReviewDecisionType.Ignored)
+                .ToListAsync(cancellationToken);
+            var closedFaceIds = closures.Select(decision => decision.MediaFaceId).ToHashSet();
+            if (selectedFaces.Any(faceId => !closedFaceIds.Contains(faceId)))
+            {
+                throw new FaceIdentityConflictException(
+                    "One or more selected appearances are no longer closed as unidentified. Refresh the page before continuing.");
+            }
+
+            _db.FaceReviewDecisions.RemoveRange(closures);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var face in faces)
+            {
+                face.CandidateSearchFailureReason = null;
+                face.CandidateSearchCompletedAtUtc = null;
+                face.UpdatedAtUtc = now;
+                face.ConcurrencyToken = Guid.NewGuid();
+                _db.IdentityAudits.Add(new MediaIdentityAudit
+                {
+                    FaceId = face.Id,
+                    Action = "FaceUnidentifiedReopened",
+                    PerformedByUserId = userId,
+                    Notes = "Closed-unidentified appearance reopened for human review and bounded candidate rematching.",
+                    PerformedAtUtc = now
+                });
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        await _invalidation.NotifyFacesNeedRematchAsync(selectedFaces, cancellationToken);
     }
 
     public Task SuppressAsync(
@@ -503,12 +553,15 @@ public sealed class FaceReviewService : IFaceReviewService
         }
 
         var normalizedReason = RequireReason(reason);
+        var referenceEvidenceChanged = false;
         await ExecuteTransactionalAsync(async () =>
         {
+            var visibleAssetIds = BuildVisibleAssetIdsQuery();
             var faces = await _db.Faces
                 .Include(item => item.PersonAssignments.Where(assignment => assignment.RemovedAtUtc == null))
                 .Include(item => item.Embeddings.Where(embedding => embedding.InvalidatedAtUtc == null))
-                .Where(item => selectedFaces.Contains(item.Id))
+                .Where(item => selectedFaces.Contains(item.Id)
+                               && visibleAssetIds.Contains(item.MediaAssetId))
                 .ToListAsync(cancellationToken);
             if (faces.Count != selectedFaces.Count)
             {
@@ -535,6 +588,11 @@ public sealed class FaceReviewService : IFaceReviewService
 
                 foreach (var assignment in face.PersonAssignments)
                 {
+                    if (assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+                    {
+                        referenceEvidenceChanged = true;
+                    }
+
                     if (!affectedFacesByPerson.TryGetValue(assignment.MediaPersonId, out var removedFaces))
                     {
                         removedFaces = new HashSet<Guid>();
@@ -603,7 +661,14 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        if (referenceEvidenceChanged)
+        {
+            await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
+        }
+        else
+        {
+            _invalidation.NotifyGroupingChanged();
+        }
     }
 
     public async Task RenamePersonAsync(
@@ -670,6 +735,7 @@ public sealed class FaceReviewService : IFaceReviewService
             PerformedAtUtc = person.UpdatedAtUtc
         });
         await SaveWithConflictTranslationAsync(cancellationToken);
+        await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
     public async Task SetRepresentativeFaceAsync(
@@ -812,7 +878,7 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
     public Task RemoveAssignmentAsync(
@@ -924,7 +990,7 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
     public async Task<Guid> SplitToNewPersonAsync(
@@ -1032,7 +1098,7 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
         return newPersonId;
     }
 
@@ -1118,7 +1184,7 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
     public async Task MergePeopleAsync(
@@ -1266,7 +1332,7 @@ public sealed class FaceReviewService : IFaceReviewService
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
-        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
     private async Task AssignCoreAsync(
@@ -1491,27 +1557,6 @@ public sealed class FaceReviewService : IFaceReviewService
                 "The identity operation conflicts with a more recent assignment. Refresh the page and try again.");
         }
     }
-
-    private async Task RefreshCandidatesAfterIdentityChangeAsync(CancellationToken cancellationToken)
-    {
-        _groupingState.Invalidate();
-        try
-        {
-            await _candidateRefreshQueue.QueueAllUnassignedAsync(cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            // Identity confirmation remains committed even if optional suggestion refresh fails.
-            _logger.LogWarning(
-                exception,
-                "Unable to refresh remaining face candidates after an identity change.");
-        }
-    }
-
 
     private async Task<Guid?> SelectInitialTrustedReferenceAsync(
         IReadOnlyCollection<Guid> faceIds,

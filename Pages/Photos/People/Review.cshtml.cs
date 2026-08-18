@@ -14,23 +14,26 @@ public sealed class ReviewModel : PageModel
 {
     private const int PageSize = 24;
     private readonly IMediaPeopleQueryService _people;
+    private readonly IFaceReviewWorkloadService _workloadService;
     private readonly IFaceIdentityGroupingRuntimeState _groupingState;
-    private readonly IFaceCandidateRefreshQueueService _candidateQueue;
+    private readonly IFaceReviewInvalidationCoordinator _invalidation;
     private readonly IFaceReviewService _review;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<ReviewModel> _logger;
 
     public ReviewModel(
         IMediaPeopleQueryService people,
+        IFaceReviewWorkloadService workloadService,
         IFaceIdentityGroupingRuntimeState groupingState,
-        IFaceCandidateRefreshQueueService candidateQueue,
+        IFaceReviewInvalidationCoordinator invalidation,
         IFaceReviewService review,
         IOptions<MediaLibraryOptions> options,
         ILogger<ReviewModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
+        _workloadService = workloadService ?? throw new ArgumentNullException(nameof(workloadService));
         _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
-        _candidateQueue = candidateQueue ?? throw new ArgumentNullException(nameof(candidateQueue));
+        _invalidation = invalidation ?? throw new ArgumentNullException(nameof(invalidation));
         _review = review ?? throw new ArgumentNullException(nameof(review));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -72,20 +75,44 @@ public sealed class ReviewModel : PageModel
         false,
         false);
 
+    public FaceReviewWorkloadSummary Workload { get; private set; }
+        = FaceReviewWorkloadSummary.Empty;
+    public FaceIdentityGroupingRuntimeSnapshot GroupingSnapshot { get; private set; }
+        = new(null, null, null);
+
     public IReadOnlyList<MediaPersonOption> AvailablePeople { get; private set; }
         = Array.Empty<MediaPersonOption>();
 
     public bool FeatureEnabled => _options.People.Enabled;
     public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
-    public bool GroupingEnabled => _options.People.GroupingEnabled;
-    public bool GroupingAvailable { get; private set; } = true;
+    public bool MatchingWorkerEnabled => _options.IsPeopleWorkerEnabled && _options.People.CandidateSearchEnabled;
+    public bool GroupingEnabled => _options.IsPeopleWorkerEnabled && _options.People.GroupingEnabled;
+    public bool GroupingSnapshotAvailable => IsGroupsMode
+        ? GroupingSnapshot.IsReady
+        : Workload.GroupingSnapshotAvailable;
+    public bool GroupingRefreshPending => IsGroupsMode
+        ? GroupingSnapshot.IsRefreshPending
+        : Workload.GroupingRefreshPending;
+    public string? GroupingFailureReason => IsGroupsMode
+        ? GroupingSnapshot.FailureReason
+        : Workload.GroupingFailureReason;
+    public bool GroupingRefreshing => GroupingRefreshPending
+                                      && string.IsNullOrWhiteSpace(GroupingFailureReason);
+    public bool GroupingActionsLocked => GroupingRefreshPending;
+    public bool GroupingFailed => !string.IsNullOrWhiteSpace(GroupingFailureReason);
+    public DateTimeOffset? GroupingRefreshedAtUtc => IsGroupsMode
+        ? GroupingSnapshot.RefreshedAtUtc
+        : Workload.GroupingRefreshedAtUtc;
     public bool ReviewDataAvailable { get; private set; } = true;
+    public bool WorkloadAvailable { get; private set; } = true;
+    public string? GroupingNotice { get; private set; }
     public bool IsGroupsMode => Mode == "groups";
     public bool IsMatchesMode => Mode == "matches";
     public bool IsUnidentifiedMode => Mode == "unidentified";
-    public bool IsTriageLayout => IsUnidentifiedMode && Layout == "triage";
+    public bool IsClosedMode => Mode == "closed";
+    public bool IsTriageLayout => (IsUnidentifiedMode || IsClosedMode) && Layout == "triage";
     public bool IsScopedToMedia => AssetIds.Length > 0;
-    public bool HasQueueFilters => Source != "all" || Year.HasValue || MatchStatus != "all";
+    public bool HasQueueFilters => Source != "all" || Year.HasValue || (IsUnidentifiedMode && MatchStatus != "all");
     public IReadOnlyList<int> AvailableYears => Result.AvailableYears ?? Array.Empty<int>();
     public double CandidateStrongSimilarityThreshold => _options.People.CandidateStrongSimilarityThreshold;
     public double GroupingReviewModerateSimilarityThreshold => _options.People.GroupingReviewModerateSimilarityThreshold;
@@ -107,18 +134,22 @@ public sealed class ReviewModel : PageModel
         int? year = null,
         string? matchStatus = null)
     {
-        var targetMode = mode ?? Mode;
+        var targetMode = NormalizeModeValue(mode ?? Mode);
         var targetSource = source ?? Source;
         var targetMatchStatus = matchStatus ?? MatchStatus;
+        var targetLayout = layout ?? Layout;
+        var defaultLayout = targetMode is "unidentified" or "closed" ? "triage" : "detail";
         var values = new RouteValueDictionary
         {
             ["Mode"] = targetMode,
             ["PageNumber"] = pageNumber is > 1 ? pageNumber : null,
-            ["Layout"] = (layout ?? Layout) == "detail" ? "detail" : null,
+            ["Layout"] = targetLayout == defaultLayout ? null : targetLayout,
             ["Sort"] = (sort ?? Sort) == "quality-desc" ? null : (sort ?? Sort),
             ["Source"] = targetMode == "groups" || targetSource == "all" ? null : targetSource,
             ["Year"] = targetMode == "groups" ? null : year ?? Year,
-            ["MatchStatus"] = targetMode == "groups" || targetMatchStatus == "all" ? null : targetMatchStatus
+            ["MatchStatus"] = targetMode == "unidentified" && targetMatchStatus != "all"
+                ? targetMatchStatus
+                : null
         };
         if (targetMode != "groups")
         {
@@ -135,7 +166,7 @@ public sealed class ReviewModel : PageModel
         var values = new RouteValueDictionary
         {
             ["Mode"] = Mode,
-            ["Layout"] = Layout == "detail" ? "detail" : null,
+            ["Layout"] = Layout == ((IsUnidentifiedMode || IsClosedMode) ? "triage" : "detail") ? null : Layout,
             ["Sort"] = Sort == "quality-desc" ? null : Sort
         };
         for (var index = 0; index < AssetIds.Length; index++)
@@ -150,13 +181,24 @@ public sealed class ReviewModel : PageModel
         var values = new RouteValueDictionary
         {
             ["Mode"] = Mode,
-            ["Layout"] = Layout == "detail" ? "detail" : null,
+            ["Layout"] = Layout == ((IsUnidentifiedMode || IsClosedMode) ? "triage" : "detail") ? null : Layout,
             ["Sort"] = Sort == "quality-desc" ? null : Sort,
             ["Source"] = Source == "all" ? null : Source,
             ["Year"] = Year,
-            ["MatchStatus"] = MatchStatus == "all" ? null : MatchStatus
+            ["MatchStatus"] = IsUnidentifiedMode && MatchStatus != "all" ? MatchStatus : null
         };
         return Url.Page("/Photos/People/Review", values) ?? "/Photos/People/Review";
+    }
+
+    public string BuildWorkloadStatusUrl()
+    {
+        var values = new RouteValueDictionary();
+        for (var index = 0; index < AssetIds.Length; index++)
+        {
+            values[$"AssetIds[{index}]"] = AssetIds[index];
+        }
+        return Url.Page("/Photos/People/Review", "WorkloadStatus", values)
+               ?? "/Photos/People/Review?handler=WorkloadStatus";
     }
 
     [TempData]
@@ -173,26 +215,35 @@ public sealed class ReviewModel : PageModel
             return Page();
         }
 
+        await TryLoadWorkloadAsync(cancellationToken);
+
         if (IsGroupsMode && GroupingEnabled)
         {
-            var snapshot = _groupingState.GetSnapshot();
-            if (snapshot.IsReady && snapshot.Result is not null)
+            GroupingSnapshot = _groupingState.GetSnapshot();
+            var snapshot = GroupingSnapshot;
+            if (snapshot.Result is not null)
             {
                 GroupResult = snapshot.Result;
-                AvailablePeople = await _people.GetPersonOptionsAsync(cancellationToken);
-                if (!string.IsNullOrWhiteSpace(snapshot.FailureReason))
-                {
-                    ErrorMessage = "Identity grouping is using the last successful background snapshot because the latest refresh failed.";
-                }
+            }
+
+            AvailablePeople = await _people.GetPersonOptionsAsync(cancellationToken);
+            if (!snapshot.IsReady)
+            {
+                GroupingNotice = string.IsNullOrWhiteSpace(snapshot.FailureReason)
+                    ? "Identity groups are being prepared in the background. This page will remain on the Groups workspace while the snapshot is built."
+                    : "Identity grouping is temporarily unavailable because the latest background refresh failed. The worker will retry automatically.";
+            }
+            else if (!string.IsNullOrWhiteSpace(snapshot.FailureReason))
+            {
+                GroupingNotice = "Identity grouping is showing the last successful snapshot because the latest refresh failed. The background worker will retry automatically.";
+            }
+            else if (snapshot.IsRefreshPending)
+            {
+                GroupingNotice = "Identity groups are refreshing in the background. The last successful snapshot remains available until the new one is ready.";
             }
             else
             {
-                GroupingAvailable = false;
-                Mode = "matches";
-                ErrorMessage = string.IsNullOrWhiteSpace(snapshot.FailureReason)
-                    ? "Identity grouping is still being prepared in the background. Known-person review remains operational."
-                    : "Identity grouping is temporarily unavailable. Known-person review remains operational while the background worker retries.";
-                await TryLoadIndividualFacesAsync(cancellationToken);
+                GroupingNotice = "Identity-group snapshot is current.";
             }
         }
         else
@@ -203,13 +254,76 @@ public sealed class ReviewModel : PageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnGetWorkloadStatusAsync(CancellationToken cancellationToken)
+    {
+        NormalizeRequest();
+        if (!FeatureEnabled)
+        {
+            return new JsonResult(new { enabled = false });
+        }
+
+        try
+        {
+            var workload = await _workloadService.GetAsync(
+                new FaceReviewWorkloadQuery(AssetIds),
+                cancellationToken);
+            return new JsonResult(new
+            {
+                enabled = true,
+                knownMatches = workload.KnownMatchCount,
+                individualReview = workload.IndividualReviewCount,
+                matching = workload.MatchingCount,
+                matchingFailures = workload.MatchingFailureCount,
+                closedUnidentified = workload.ClosedUnidentifiedCount,
+                totalUnresolved = workload.TotalUnresolvedCount,
+                suggestedGroups = workload.SuggestedGroupCount,
+                groupedAppearances = workload.GroupedAppearanceCount,
+                ungroupedAppearances = workload.UngroupedAppearanceCount,
+                groupingSnapshotAvailable = workload.GroupingSnapshotAvailable,
+                groupingRefreshPending = workload.GroupingRefreshPending,
+                groupingRefreshedAtUtc = workload.GroupingRefreshedAtUtc?.ToString("O"),
+                groupingFailureReason = workload.GroupingFailureReason
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "People review workload status could not be refreshed.");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+
+    private async Task TryLoadWorkloadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            Workload = await _workloadService.GetAsync(
+                new FaceReviewWorkloadQuery(AssetIds),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            WorkloadAvailable = false;
+            _logger.LogWarning(exception, "People review workload summary could not be loaded.");
+        }
+    }
+
     private async Task TryLoadIndividualFacesAsync(CancellationToken cancellationToken)
     {
         try
         {
             var kind = IsMatchesMode
                 ? FaceReviewQueueKind.KnownMatches
-                : FaceReviewQueueKind.Unidentified;
+                : IsClosedMode
+                    ? FaceReviewQueueKind.ClosedUnidentified
+                    : FaceReviewQueueKind.Unidentified;
             Result = await _people.GetReviewQueueAsync(
                 new FaceReviewQueueQuery(
                     kind,
@@ -219,7 +333,7 @@ public sealed class ReviewModel : PageModel
                     AssetIds,
                     Source,
                     Year,
-                    MatchStatus),
+                    IsUnidentifiedMode ? MatchStatus : "all"),
                 cancellationToken);
             AvailablePeople = Result.AvailablePeople;
             PageNumber = Result.PageNumber;
@@ -286,7 +400,15 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreManyAsync(faceIds, UserId, cancellationToken),
-            "Selected appearances were acknowledged and left unidentified.",
+            "Selected appearances were closed as unidentified.",
+            Mode);
+
+    public Task<IActionResult> OnPostReopenSelectedAsync(
+        List<Guid> faceIds,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.ReopenUnidentifiedManyAsync(faceIds, UserId, cancellationToken),
+            "Selected appearances were reopened for review.",
             Mode);
 
     public Task<IActionResult> OnPostSuppressSelectedAsync(
@@ -302,7 +424,15 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
-            "Face acknowledged and left unidentified.",
+            "Appearance closed as unidentified.",
+            Mode);
+
+    public Task<IActionResult> OnPostReopenAsync(
+        Guid faceId,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.ReopenUnidentifiedAsync(faceId, UserId, cancellationToken),
+            "Appearance reopened for review.",
             Mode);
 
     public Task<IActionResult> OnPostCreateAsync(
@@ -354,10 +484,10 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             async () =>
             {
-                var queued = await _candidateQueue.QueueAllUnassignedAsync(cancellationToken);
+                var queued = await _invalidation.ForceRequeueAllCandidatesAsync(cancellationToken);
                 StatusMessage = queued == 0
-                    ? "No unassigned faces required a candidate refresh."
-                    : $"Queued {queued} unassigned face(s) for background known-person matching.";
+                    ? "No unresolved faces required candidate rematching."
+                    : $"Re-run requested for {queued} unresolved face(s). Matching will continue in the background.";
             },
             null,
             Mode);
@@ -369,7 +499,11 @@ public sealed class ReviewModel : PageModel
 
     private void NormalizeRequest()
     {
-        NormalizeMode();
+        Mode = NormalizeModeValue(Mode);
+        if (Mode == "groups" && !GroupingEnabled)
+        {
+            Mode = "unidentified";
+        }
         PageNumber = Math.Max(1, PageNumber);
         Sort = Sort?.Trim().ToLowerInvariant() switch
         {
@@ -388,20 +522,22 @@ public sealed class ReviewModel : PageModel
             _ => "all"
         };
         Year = Year is >= 1900 and <= 2200 ? Year : null;
-        MatchStatus = MatchStatus?.Trim().ToLowerInvariant() switch
-        {
-            "no-match" => "no-match",
-            "failed" => "failed",
-            "not-requested" => "not-requested",
-            _ => "all"
-        };
+        MatchStatus = IsUnidentifiedMode
+            ? MatchStatus?.Trim().ToLowerInvariant() switch
+            {
+                "no-match" => "no-match",
+                "failed" => "failed",
+                "not-requested" => "not-requested",
+                _ => "all"
+            }
+            : "all";
         if (IsGroupsMode)
         {
             Source = "all";
             Year = null;
             MatchStatus = "all";
         }
-        Layout = IsUnidentifiedMode
+        Layout = IsUnidentifiedMode || IsClosedMode
             ? string.Equals(Layout, "detail", StringComparison.OrdinalIgnoreCase) ? "detail" : "triage"
             : "detail";
         AssetIds = (AssetIds ?? Array.Empty<long>())
@@ -409,19 +545,29 @@ public sealed class ReviewModel : PageModel
             .Distinct()
             .Take(250)
             .ToArray();
+        // Identity grouping is a corpus-level snapshot. A media-scoped deep link must not
+        // combine global group membership with scoped workload counters.
+        if (IsGroupsMode)
+        {
+            AssetIds = Array.Empty<long>();
+        }
     }
 
-    private void NormalizeMode()
+    private string NormalizeModeValue(string? value)
     {
-        if (GroupingEnabled && string.Equals(Mode, "groups", StringComparison.OrdinalIgnoreCase))
+        if (GroupingEnabled && string.Equals(value, "groups", StringComparison.OrdinalIgnoreCase))
         {
-            Mode = "groups";
-            return;
+            return "groups";
         }
-
-        Mode = string.Equals(Mode, "unidentified", StringComparison.OrdinalIgnoreCase)
-            ? "unidentified"
-            : "matches";
+        if (string.Equals(value, "unidentified", StringComparison.OrdinalIgnoreCase))
+        {
+            return "unidentified";
+        }
+        if (string.Equals(value, "closed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "closed";
+        }
+        return "matches";
     }
 
     private async Task<IActionResult> ExecuteAsync(
@@ -430,12 +576,7 @@ public sealed class ReviewModel : PageModel
         string redirectMode)
     {
         NormalizeRequest();
-        var normalizedRedirectMode = GroupingEnabled
-                                     && string.Equals(redirectMode, "groups", StringComparison.OrdinalIgnoreCase)
-            ? "groups"
-            : string.Equals(redirectMode, "unidentified", StringComparison.OrdinalIgnoreCase)
-                ? "unidentified"
-                : "matches";
+        var normalizedRedirectMode = NormalizeModeValue(redirectMode);
         if (!FeatureEnabled)
         {
             ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";

@@ -70,6 +70,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaCollectionQueryService, MediaCollectionQueryService>();
         services.AddScoped<IMediaBulkDownloadService, MediaBulkDownloadService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
+        services.AddScoped<IFaceReviewWorkloadService, FaceReviewWorkloadService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectVideoMediaContentProvider>();
@@ -102,6 +103,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IFaceIntelligenceService, FaceIntelligenceService>();
         services.AddScoped<IFaceEligibilityPolicy, FaceEligibilityPolicy>();
         services.AddScoped<IFaceQueueService, FaceQueueService>();
+        services.AddScoped<IFaceReviewInvalidationCoordinator, FaceReviewInvalidationCoordinator>();
         services.AddScoped<IFaceReviewService, FaceReviewService>();
 
         if (configuredOptions.IsCatalogueEnabled

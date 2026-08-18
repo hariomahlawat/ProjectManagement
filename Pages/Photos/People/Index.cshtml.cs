@@ -13,18 +13,18 @@ public sealed class IndexModel : PageModel
 {
     private const int DefaultPageSize = 36;
     private readonly IMediaPeopleQueryService _people;
-    private readonly IFaceIdentityGroupingRuntimeState _groupingState;
+    private readonly IFaceReviewWorkloadService _workload;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         IMediaPeopleQueryService people,
-        IFaceIdentityGroupingRuntimeState groupingState,
+        IFaceReviewWorkloadService workload,
         IOptions<MediaLibraryOptions> options,
         ILogger<IndexModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
-        _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
+        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -52,17 +52,21 @@ public sealed class IndexModel : PageModel
 
     public bool FeatureEnabled => _options.People.Enabled;
     public bool CanManageIdentities => User.IsInRole("Admin") || User.IsInRole("HoD");
+    public bool GroupingEnabled => _options.IsPeopleWorkerEnabled && _options.People.GroupingEnabled;
     public bool DirectoryAvailable { get; private set; } = true;
-    public int SuggestedGroupCount { get; private set; }
-    public int GroupedFaceCount { get; private set; }
-    public int IndividualReviewCount { get; private set; }
-    public bool HasGroupingWorkload { get; private set; }
-    public string ReviewMode => Result.KnownPersonSuggestionCount > 0
+    public bool WorkloadAvailable { get; private set; } = true;
+    public FaceReviewWorkloadSummary Workload { get; private set; }
+        = FaceReviewWorkloadSummary.Empty;
+    public int SuggestedGroupCount => Workload.SuggestedGroupCount;
+    public int GroupedFaceCount => Workload.GroupedAppearanceCount;
+    public int IndividualReviewCount => Workload.IndividualReviewCount;
+    public bool HasGroupingWorkload => Workload.GroupingSnapshotAvailable;
+    public string ReviewMode => Workload.KnownMatchCount > 0
         ? "matches"
-        : SuggestedGroupCount > 0
+        : Workload.SuggestedGroupCount > 0
             ? "groups"
             : "unidentified";
-    public int TotalReviewableAppearances => Result.TotalUnassignedFaceCount;
+    public int TotalReviewableAppearances => Workload.TotalUnresolvedCount;
 
     public string BuildPageUrl(int pageNumber)
     {
@@ -123,18 +127,6 @@ public sealed class IndexModel : PageModel
                     SelectedIds.Length > 0 ? 120 : DefaultPageSize),
                 cancellationToken);
             PageNumber = Result.PageNumber;
-
-            if (_options.People.GroupingEnabled)
-            {
-                var grouping = _groupingState.GetSnapshot();
-                if (grouping.IsReady && grouping.Result is not null)
-                {
-                    SuggestedGroupCount = grouping.Result.TotalGroups;
-                    GroupedFaceCount = grouping.Result.GroupedFaceCount;
-                    IndividualReviewCount = grouping.Result.RemainingIndividualFaceCount;
-                    HasGroupingWorkload = true;
-                }
-            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -145,6 +137,24 @@ public sealed class IndexModel : PageModel
             DirectoryAvailable = false;
             _logger.LogError(exception,
                 "The confirmed-people directory could not be loaded.");
+            return;
+        }
+
+        try
+        {
+            Workload = await _workload.GetAsync(
+                new FaceReviewWorkloadQuery(),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            WorkloadAvailable = false;
+            _logger.LogWarning(exception,
+                "The People review workload summary could not be loaded; the confirmed-people directory remains available.");
         }
     }
 }

@@ -486,7 +486,7 @@
     border-radius: 1rem;
     display: grid;
     gap: .7rem 1.4rem;
-    grid-template-columns: repeat(3, auto) minmax(18rem, 1fr);
+    grid-template-columns: repeat(4, auto) minmax(18rem, 1fr);
     margin-bottom: 1rem;
     padding: .8rem 1rem;
 }
@@ -569,23 +569,6 @@
 .identity-group-selection > div { display: grid; }
 .identity-group-selection strong { font-size: .78rem; }
 .identity-group-selection span { color: var(--people-muted); font-size: .67rem; }
-.identity-group-checkboxes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .42rem;
-    margin-bottom: .8rem;
-}
-.identity-group-checkboxes label {
-    align-items: center;
-    background: var(--people-soft);
-    border: 1px solid var(--people-line);
-    border-radius: 999px;
-    display: inline-flex;
-    gap: .35rem;
-    max-width: 18rem;
-    padding: .3rem .55rem;
-}
-.identity-group-checkboxes label span { font-size: .67rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .identity-group-actions { display: grid; gap: .8rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .identity-group-actions > div { align-items: end; display: grid; gap: .42rem; grid-template-columns: minmax(0, 1fr) auto; }
 .identity-group-actions label { font-size: .7rem; font-weight: 750; grid-column: 1 / -1; }
@@ -595,7 +578,7 @@
 .candidate-strength.is-ambiguous { background: #fff0cf; color: #835a00; }
 
 @media (max-width: 991.98px) {
-    .review-summary--people { grid-template-columns: repeat(3, 1fr); }
+    .review-summary--people { grid-template-columns: repeat(4, 1fr); }
     .review-summary--people > p { grid-column: 1 / -1; text-align: left; }
 }
 
@@ -1155,7 +1138,7 @@
 
 .face-review-batch {
     position: sticky;
-    top: .55rem;
+    top: calc(var(--app-header-height, var(--pm-header-height, 72px)) + .55rem);
     z-index: 15;
 }
 .face-review-batch .card-body {
@@ -1276,3 +1259,334 @@
 }
 .people-insight__work:hover { background: #f1f5fb; color: #2458a6; }
 .people-insight__work.is-warning:hover { background: #fff6ed; color: #b54708; }
+
+
+/* People review workflow integrity and throughput */
+.people-review-workspace {
+    padding-top: .35rem;
+}
+.people-header--review {
+    align-items: center;
+    margin-bottom: .45rem;
+}
+.people-header--review h1 {
+    font-size: clamp(2rem, 3.2vw, 2.8rem);
+    line-height: .98;
+    margin-bottom: .28rem;
+}
+.people-header--review p {
+    font-size: .84rem;
+    line-height: 1.45;
+    margin-bottom: 0;
+    max-width: 48rem;
+}
+.people-header--review .people-eyebrow {
+    margin-bottom: .25rem;
+}
+.people-header--review .people-header__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+}
+.people-header--review .dropdown-menu form {
+    margin: 0;
+}
+.people-header--review .dropdown-item .bi {
+    margin-right: .42rem;
+}
+
+.identity-review-tabs {
+    margin-bottom: .55rem;
+}
+.identity-review-tab {
+    padding-bottom: .58rem;
+    padding-top: .58rem;
+}
+
+.identity-review-workload-strip {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .42rem;
+    margin: -.05rem 0 .7rem;
+    min-height: 1.85rem;
+}
+.identity-workload-pill {
+    align-items: center;
+    background: #f3f6fa;
+    border: 1px solid #e0e6ef;
+    border-radius: 999px;
+    color: #536176;
+    display: inline-flex;
+    font-size: .69rem;
+    gap: .3rem;
+    padding: .25rem .52rem;
+    text-decoration: none;
+}
+a.identity-workload-pill:hover {
+    background: #eaf1fb;
+    color: #2458a6;
+}
+.identity-workload-pill strong {
+    color: var(--people-ink);
+    font-size: .73rem;
+}
+.identity-workload-pill.is-processing {
+    background: #edf7fb;
+    border-color: #c7e7f2;
+    color: #28708a;
+}
+.identity-workload-pill.is-processing .bi,
+.identity-group-refresh-notice.is-refreshing > .bi,
+.identity-refresh-icon {
+    animation: people-review-spin 1.15s linear infinite;
+}
+.identity-workload-pill.is-warning {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #9a5a14;
+}
+.identity-workload-pill.is-active {
+    background: #eef3ff;
+    border-color: #cbd8fb;
+    color: #315fc6;
+}
+.identity-review-workload-strip__total {
+    color: var(--people-muted);
+    font-size: .69rem;
+    margin-left: .15rem;
+}
+.identity-review-workload-strip__total strong {
+    color: var(--people-ink);
+}
+.identity-review-workload-strip__live {
+    color: #536176;
+    font-size: .68rem;
+    margin-left: auto;
+    min-height: 1em;
+}
+@keyframes people-review-spin {
+    to { transform: rotate(360deg); }
+}
+
+.identity-group-refresh-notice {
+    align-items: center;
+    background: #f6f8fb;
+    border: 1px solid #dfe5ee;
+    border-radius: .8rem;
+    color: #57667a;
+    display: grid;
+    font-size: .72rem;
+    gap: .18rem .48rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    margin-bottom: .7rem;
+    padding: .55rem .72rem;
+}
+.identity-group-refresh-notice > .bi {
+    color: #4f6f9e;
+    grid-row: 1 / span 2;
+}
+.identity-group-refresh-notice small {
+    color: #7b8797;
+    font-size: .63rem;
+    white-space: nowrap;
+}
+.identity-group-refresh-notice.is-refreshing {
+    background: #eef8fb;
+    border-color: #c9e6ef;
+}
+.people-empty--compact {
+    min-height: 16rem;
+    padding-bottom: 2.5rem;
+    padding-top: 2.5rem;
+}
+
+/* The group mosaic is the selection surface. Reviewers no longer have to reconcile a
+   second checkbox list with the same faces shown above it. */
+.identity-group-face {
+    cursor: pointer;
+    overflow: visible;
+}
+.identity-group-face__checkbox {
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    width: 1px;
+}
+.identity-group-face__selectable {
+    border-radius: calc(.8rem - 2px);
+    cursor: pointer;
+    display: block;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+.identity-group-face__selectable img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+.identity-group-face__check {
+    align-items: center;
+    background: rgba(255, 255, 255, .95);
+    border: 1px solid rgba(65, 82, 107, .3);
+    border-radius: 999px;
+    color: transparent;
+    display: flex;
+    height: 1.42rem;
+    justify-content: center;
+    left: .32rem;
+    padding: 0 !important;
+    position: absolute;
+    top: .32rem;
+    width: 1.42rem;
+    z-index: 3;
+}
+.identity-group-face.is-selected {
+    border-color: #3569e8;
+    box-shadow: 0 0 0 2px rgba(53, 105, 232, .16);
+}
+.identity-group-face.is-selected .identity-group-face__check {
+    background: #3569e8;
+    border-color: #3569e8;
+    color: #fff;
+}
+.identity-group-face.is-representative:not(.is-selected) {
+    border-color: #e2ad32;
+}
+.identity-group-face__open {
+    align-items: center;
+    background: rgba(24, 34, 53, .74);
+    border-radius: 999px;
+    color: #fff;
+    display: flex;
+    font-size: .62rem;
+    height: 1.35rem;
+    justify-content: center;
+    position: absolute;
+    right: .32rem;
+    text-decoration: none;
+    top: .32rem;
+    width: 1.35rem;
+    z-index: 4;
+}
+.identity-group-face__open:hover {
+    background: rgba(24, 34, 53, .92);
+    color: #fff;
+}
+.identity-group-face .identity-similarity {
+    bottom: .28rem;
+    left: .28rem;
+    max-width: calc(100% - .56rem);
+    position: absolute;
+    right: auto;
+    z-index: 3;
+}
+.identity-group-actions--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.face-review-select-page {
+    white-space: nowrap;
+}
+.face-review-select-page:disabled {
+    opacity: .58;
+}
+.face-review-batch[hidden] {
+    display: none !important;
+}
+.face-review-batch__selection {
+    align-self: center;
+    color: #45546a;
+    font-size: .75rem;
+    min-width: 4.75rem;
+}
+.face-review-batch__person {
+    min-width: min(19rem, 100%);
+}
+.face-review-batch__person .form-label {
+    color: var(--people-muted);
+    font-size: .62rem;
+    font-weight: 750;
+    text-transform: uppercase;
+}
+.face-review-batch .card-body {
+    box-shadow: 0 8px 24px rgba(29, 43, 69, .08);
+}
+
+[data-matching-empty-state] {
+    display: grid;
+    justify-items: center;
+}
+[data-matching-empty-action] {
+    margin-top: .45rem;
+}
+
+@media (max-width: 991.98px) {
+    .people-header--review {
+        align-items: flex-start;
+    }
+    .identity-review-workload-strip__live {
+        flex-basis: 100%;
+        margin-left: 0;
+    }
+    .identity-group-refresh-notice {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+    .identity-group-refresh-notice small {
+        grid-column: 2;
+        white-space: normal;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .people-header--review h1 {
+        font-size: 2rem;
+    }
+    .people-header--review .people-header__actions {
+        width: auto;
+    }
+    .identity-review-tabs {
+        margin-bottom: .45rem;
+    }
+    .identity-review-workload-strip {
+        align-items: flex-start;
+    }
+    .identity-review-workload-strip__total {
+        flex-basis: 100%;
+    }
+    .review-summary--people {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+.identity-group-refresh-notice [data-grouping-refresh-action] {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    white-space: nowrap;
+}
+@media (max-width: 991.98px) {
+    .identity-group-refresh-notice [data-grouping-refresh-action] {
+        grid-column: 2;
+        grid-row: auto;
+        justify-self: start;
+    }
+}
+.identity-group-face__checkbox:disabled + .identity-group-face__selectable {
+    cursor: not-allowed;
+    opacity: .88;
+}
+.identity-group-refresh-notice.has-failure {
+    border-color: rgba(180, 83, 9, .22);
+    background: rgba(255, 247, 237, .76);
+}
+
+.people-insight__workload-unavailable {
+    align-items: center;
+    color: #8a5a12;
+    display: inline-flex;
+    font-size: .74rem;
+    gap: .35rem;
+}

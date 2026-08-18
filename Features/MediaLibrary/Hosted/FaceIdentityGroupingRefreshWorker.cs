@@ -29,6 +29,10 @@ public sealed class FaceIdentityGroupingRefreshWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The runtime state is process-local. Mark the initial snapshot as pending before the
+        // first await so HTTP requests never mistake an operational grouping worker that has
+        // not produced its first snapshot for an empty/current grouping result.
+        _state.Invalidate();
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
@@ -44,10 +48,11 @@ public sealed class FaceIdentityGroupingRefreshWorker : BackgroundService
         {
             try
             {
+                var refreshGeneration = _state.GetSnapshot().RefreshGeneration;
                 using var scope = _scopeFactory.CreateScope();
                 var grouping = scope.ServiceProvider.GetRequiredService<IFaceIdentityGroupingService>();
                 var result = await grouping.GetGroupsAsync(stoppingToken);
-                _state.SetResult(result, DateTimeOffset.UtcNow);
+                _state.SetResult(result, DateTimeOffset.UtcNow, refreshGeneration);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -61,7 +66,7 @@ public sealed class FaceIdentityGroupingRefreshWorker : BackgroundService
                     "Background identity grouping failed. The last successful snapshot remains available.");
             }
 
-            await Task.Delay(interval, stoppingToken);
+            await _state.WaitForRefreshRequestAsync(interval, stoppingToken);
         }
     }
 }

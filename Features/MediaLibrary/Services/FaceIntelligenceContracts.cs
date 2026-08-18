@@ -154,6 +154,9 @@ public interface IFaceCandidateSuggestionService
 public interface IFaceCandidateRefreshQueueService
 {
     Task<bool> QueueFaceAsync(Guid faceId, CancellationToken cancellationToken);
+    Task<int> QueueFacesAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        CancellationToken cancellationToken);
     Task<int> QueueAllUnassignedAsync(CancellationToken cancellationToken);
 }
 
@@ -181,7 +184,7 @@ public sealed record FaceIdentityGroupingResult(
     IReadOnlyList<FaceIdentityGroup> Groups,
     int TotalGroups,
     int GroupedFaceCount,
-    int RemainingIndividualFaceCount);
+    int UngroupedFaceCount);
 
 public interface IFaceIdentityGroupingService
 {
@@ -191,7 +194,10 @@ public interface IFaceIdentityGroupingService
 public sealed record FaceIdentityGroupingRuntimeSnapshot(
     FaceIdentityGroupingResult? Result,
     DateTimeOffset? RefreshedAtUtc,
-    string? FailureReason)
+    string? FailureReason,
+    bool IsRefreshPending = false,
+    DateTimeOffset? InvalidatedAtUtc = null,
+    long RefreshGeneration = 0)
 {
     public bool IsReady => Result is not null;
 }
@@ -199,9 +205,13 @@ public sealed record FaceIdentityGroupingRuntimeSnapshot(
 public interface IFaceIdentityGroupingRuntimeState
 {
     FaceIdentityGroupingRuntimeSnapshot GetSnapshot();
-    void SetResult(FaceIdentityGroupingResult result, DateTimeOffset refreshedAtUtc);
+    void SetResult(
+        FaceIdentityGroupingResult result,
+        DateTimeOffset refreshedAtUtc,
+        long? refreshGeneration = null);
     void SetFailure(string failureReason, DateTimeOffset failedAtUtc);
     void Invalidate();
+    Task WaitForRefreshRequestAsync(TimeSpan maximumDelay, CancellationToken cancellationToken);
 }
 
 public interface IFaceReviewService
@@ -250,6 +260,16 @@ public interface IFaceReviewService
         CancellationToken cancellationToken);
 
     Task IgnoreManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task ReopenUnidentifiedAsync(
+        Guid faceId,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task ReopenUnidentifiedManyAsync(
         IReadOnlyCollection<Guid> faceIds,
         string userId,
         CancellationToken cancellationToken);

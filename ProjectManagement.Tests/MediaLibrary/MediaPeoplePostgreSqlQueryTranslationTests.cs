@@ -194,14 +194,25 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
                 0.55d,
                 visibleAssetIds)
             .ToQueryString();
+        var closedReviewSql = FaceReviewWorkloadService.BuildClosedUnidentifiedFacesQuery(
+                db,
+                visibleAssetIds)
+            .ToQueryString();
+        var activeKnownPersonSql = FaceReviewWorkloadService
+            .BuildActivePendingKnownPersonDecisions(db)
+            .ToQueryString();
 
-        foreach (var sql in new[] { peopleSql, groupingSql, referenceSql, queueSql })
+        foreach (var sql in new[] { peopleSql, groupingSql, referenceSql, queueSql, closedReviewSql })
         {
             Assert.Contains("MediaAssets", sql);
             Assert.Contains("MediaLibrarySources", sql);
             Assert.Contains("IsVisibleInLibrary", sql);
             Assert.Contains("AvailabilityStatus", sql);
         }
+
+        Assert.Contains("MediaPersons", activeKnownPersonSql);
+        Assert.Contains("IsHidden", activeKnownPersonSql);
+        Assert.Contains("Status", activeKnownPersonSql);
     }
 
     private static MediaLibraryDbContext CreateContext()

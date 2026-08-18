@@ -1,9 +1,11 @@
-STATIC VALIDATION
-=================
+Validation performed in the artifact environment
+================================================
+PASS  node --check wwwroot/js/pages/photos-people-review.js
+PASS  node --check wwwroot/js/pages/photos-people-directory.js
+PASS  C# lexical/string/comment/delimiter validation for every changed C# source file
+PASS  workflow interface/implementation and stale-symbol consistency scan
+PASS  unified patch dry-run against clean Photos v3 baseline
+PASS  unified patch actual apply + byte-for-byte comparison against implementation tree
+PASS  ZIP archive integrity test
 
-PASS  failing table.TableProperties member access removed
-PASS  TableProperties retrieved with GetFirstChild<W.TableProperties>()
-PASS  TableCellMarginDefault assertion preserved
-
-NOTE: The .NET SDK is unavailable in this execution environment.
-Run the supplied build/test command on the development machine.
+Not available in this environment: .NET SDK / Razor compiler. Therefore dotnet build and xUnit execution must be run on the development machine after paste; commands are in README-APPLY.md.

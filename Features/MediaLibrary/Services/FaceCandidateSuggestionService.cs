@@ -15,17 +15,20 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IFaceCandidateSearchService _candidateSearch;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
     private readonly ILogger<FaceCandidateSuggestionService> _logger;
 
     public FaceCandidateSuggestionService(
         MediaLibraryDbContext db,
         IFaceCandidateSearchService candidateSearch,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options,
         ILogger<FaceCandidateSuggestionService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _candidateSearch = candidateSearch ?? throw new ArgumentNullException(nameof(candidateSearch));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -109,12 +112,16 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
         var dimension = _options.Embedder.EmbeddingDimension;
+        var visibleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
         return FaceCandidateRefreshQueueService.BuildQueueableFacesQuery(
                 _db,
                 modelKey,
                 modelVersion,
                 dimension,
-                _options.CandidateMinimumFaceQuality)
+                _options.CandidateMinimumFaceQuality,
+                visibleAssetIds)
             .Include(face => face.Embeddings.Where(embedding =>
                 embedding.InvalidatedAtUtc == null
                 && embedding.ModelKey == modelKey

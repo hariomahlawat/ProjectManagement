@@ -85,7 +85,8 @@ public sealed record MediaIdentityHistoryItem(
 public enum FaceReviewQueueKind
 {
     KnownMatches = 0,
-    Unidentified = 1
+    Unidentified = 1,
+    ClosedUnidentified = 2
 }
 
 

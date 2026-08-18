@@ -1,34 +1,33 @@
-# Implementation Notes
+# PRISM Photos — People Review Workflow Integrity & Throughput
 
-## ZIP pipeline
+This package is a ready-to-paste delta over the current PRISM Photos v3 / Bulk Export Hardening implementation.
 
-The previous handler created `ZipArchive` directly on `Response.Body`. Although media copying used `CopyToAsync`, `ZipArchive.Dispose()` writes the central directory synchronously. Kestrel correctly rejected that synchronous response write.
+## Implemented
 
-The revised design is:
+- Canonical review workload semantics for known matches, individual review, active matching, matching failures, closed-unidentified appearances, total unresolved appearances, and identity-group snapshot metrics.
+- Faces in Pending/Processing remain unresolved but are not shown as actionable individual review; queue-clear messaging no longer hides active matching.
+- Evidence-driven candidate invalidation: routine review decisions only invalidate grouping; trusted-reference/person-visibility changes requeue the unresolved candidate corpus; candidate rejection/reopen uses bounded face-only rematching.
+- Bounded rematching is batched server-side rather than issuing one database update per selected face.
+- Identity grouping runtime retains the last successful snapshot, tracks invalidation generations, wakes promptly on mutations, exposes freshness, and protects against stale in-flight refreshes.
+- Groups remain on the Groups workspace during background refresh. A stale snapshot is view-only until the refreshed snapshot is explicitly reloaded.
+- Group metrics now distinguish ungrouped appearances from the live individual-review workload.
+- Group mosaic thumbnails are the selection surface; no duplicate checkbox list and nothing is preselected.
+- “Leave unidentified” is replaced by reversible “Close unidentified”; a dedicated Closed unidentified queue supports single/bulk reopen and bounded rematching.
+- Not-a-face single/bulk actions require explicit client confirmation and retain server-side validation.
+- Review workstation header/toolbars are more compact; batch toolbar is hidden until selection exists and uses a shell-aware sticky offset.
+- Routine matching is automatic. Manual corpus-wide “Re-run matching” is demoted to More and requires confirmation.
+- Lightweight workload polling updates counts/status while matching or grouping refresh is active without reloading the page.
+- Media-scoped review does not mix global identity-group metrics into the scoped workload; the Groups workspace remains corpus-level.
+- Existing-person controls are omitted when no confirmed person exists; explanatory copy adapts accordingly.
+- Candidate matching and new close/suppress review mutations consistently respect the canonical media-visibility policy.
+- People directory remains available if only the review-workload summary fails to load.
+- Operational grouping is exposed only when the People worker and grouping worker are actually enabled.
+- Deployment checklist terminology updated for Close/Reopen semantics.
 
-`selected asset IDs -> canonical visibility -> content resolution -> private temp ZIP -> finalise ZIP -> reopen read-only -> FileStreamResult`
+## Persistence
 
-This keeps synchronous ZIP finalisation on a local `FileStream`, where it is valid, and never weakens ASP.NET Core's synchronous-I/O protection.
+No EF Core migration is required. Closed-unidentified state reuses the existing candidate-null `Ignored` review decision and audit infrastructure.
 
-## Failure semantics
+## Deliberately not included
 
-- A source that cannot be opened **before** its ZIP entry exists is skipped.
-- A source that fails **after** its entry exists aborts the archive. This avoids returning a ZIP that knowingly contains a truncated member.
-- A stale/hidden/archived/disabled-source asset is excluded again on the server, irrespective of what the browser selected earlier.
-- If all selected assets are no longer eligible/readable, no download is started.
-
-## Temporary-file ownership
-
-Archives are created under:
-
-`<MediaLibrary CacheRoot>/bulk-downloads/`
-
-They are not static web assets. A successful archive is reopened with `DeleteOnClose`; failure/cancellation paths delete it explicitly. A bounded best-effort sweep removes abandoned `.zip.partial` files older than 24 hours.
-
-## Visibility policy
-
-`IMediaAssetVisibilityPolicy` is now propagated further into People/identity reads and mutations so disabling/hiding a media source cannot leave that source contributing to identity matching or directory statistics after it has disappeared from Photos.
-
-## Database
-
-No schema change and no EF migration.
+This phase does not change recognition models, similarity thresholds, automatic identity-confirmation policy, or introduce a new identity schema. Searchable/typeahead person selection and deeper service/CSS decomposition remain future scalability/maintenance work; the current confirmed-person population does not justify destabilising this integrity phase.

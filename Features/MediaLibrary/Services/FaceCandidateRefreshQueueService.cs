@@ -53,6 +53,48 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
         return true;
     }
 
+    public async Task<int> QueueFacesAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(faceIds);
+        if (!_options.Enabled || !_options.WorkerEnabled || !_options.CandidateSearchEnabled)
+        {
+            return 0;
+        }
+
+        var selected = faceIds
+            .Where(faceId => faceId != Guid.Empty)
+            .Distinct()
+            .Take(500)
+            .ToArray();
+        if (selected.Length == 0)
+        {
+            return 0;
+        }
+
+        var modelKey = _options.Embedder.Key;
+        var modelVersion = _options.Embedder.Version;
+        var now = DateTimeOffset.UtcNow;
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
+        return await BuildQueueableFacesQuery(
+                _db,
+                modelKey,
+                modelVersion,
+                _options.Embedder.EmbeddingDimension,
+                _options.CandidateMinimumFaceQuality,
+                visibleAssetIds)
+            .Where(face => selected.Contains(face.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(face => face.CandidateSearchStatus, FaceCandidateSearchStatus.Pending)
+                .SetProperty(face => face.CandidateSearchModelKey, modelKey)
+                .SetProperty(face => face.CandidateSearchModelVersion, modelVersion)
+                .SetProperty(face => face.CandidateSearchFailureReason, (string?)null)
+                .SetProperty(face => face.CandidateSearchCompletedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(face => face.UpdatedAtUtc, now),
+                cancellationToken);
+    }
+
     public async Task<int> QueueAllUnassignedAsync(CancellationToken cancellationToken)
     {
         if (!_options.Enabled || !_options.WorkerEnabled || !_options.CandidateSearchEnabled)
