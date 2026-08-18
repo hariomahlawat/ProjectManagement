@@ -74,6 +74,18 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 baseQuery = baseQuery.Where(asset => asset.CollectionKey == collectionKey);
             }
 
+            if (request.AssetIds is not null)
+            {
+                var requestedAssetIds = request.AssetIds
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .Take(500)
+                    .ToArray();
+                baseQuery = requestedAssetIds.Length == 0
+                    ? baseQuery.Where(_ => false)
+                    : baseQuery.Where(asset => requestedAssetIds.Contains(asset.Id));
+            }
+
             var selectedPersonIds = NormalizeSelectedPeople(request);
             if (request.IncludePeople && selectedPersonIds.Count > 0)
             {
@@ -89,23 +101,29 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 var metadataMatches = baseQuery.Where(asset =>
                     EF.Functions.ILike(asset.Title, pattern, "\\")
                     || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern, "\\"))
+                    || (asset.EditorialCaption != null && EF.Functions.ILike(asset.EditorialCaption, pattern, "\\"))
                     || EF.Functions.ILike(asset.ContextTitle, pattern, "\\")
                     || EF.Functions.ILike(asset.ContextSubtitle, pattern, "\\")
                     || EF.Functions.ILike(asset.OriginalFileName, pattern, "\\")
                     || EF.Functions.ILike(asset.SourceLabel, pattern, "\\")
                     || EF.Functions.ILike(asset.Source.Name, pattern, "\\")
-                    || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\")));
+                    || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
+                    || asset.AlbumItems.Any(item => !item.MediaAlbum.IsArchived
+                        && EF.Functions.ILike(item.MediaAlbum.Name, pattern, "\\")));
 
                 baseQuery = request.IncludePeople
                     ? baseQuery.Where(asset =>
                         EF.Functions.ILike(asset.Title, pattern, "\\")
                         || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern, "\\"))
+                        || (asset.EditorialCaption != null && EF.Functions.ILike(asset.EditorialCaption, pattern, "\\"))
                         || EF.Functions.ILike(asset.ContextTitle, pattern, "\\")
                         || EF.Functions.ILike(asset.ContextSubtitle, pattern, "\\")
                         || EF.Functions.ILike(asset.OriginalFileName, pattern, "\\")
                         || EF.Functions.ILike(asset.SourceLabel, pattern, "\\")
                         || EF.Functions.ILike(asset.Source.Name, pattern, "\\")
                         || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
+                        || asset.AlbumItems.Any(item => !item.MediaAlbum.IsArchived
+                            && EF.Functions.ILike(item.MediaAlbum.Name, pattern, "\\"))
                         || asset.Faces.Any(face => face.PersonAssignments.Any(assignment =>
                             assignment.RemovedAtUtc == null
                             && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
@@ -152,7 +170,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     asset.SourceLabel,
                     asset.Title,
                     asset.Caption,
+                    asset.EditorialCaption,
+                    asset.EditorialConcurrencyToken,
                     asset.OriginalFileName,
+                    asset.FileSizeBytes,
                     asset.MediaDateUtc,
                     asset.Width,
                     asset.Height,
@@ -205,6 +226,31 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 }
             }
 
+            var albumsByAsset = new Dictionary<long, IReadOnlyList<MediaLibraryAlbumSummary>>();
+            if (assetIds.Length > 0)
+            {
+                var albumRows = await _db.AlbumItems
+                    .AsNoTracking()
+                    .Where(item => assetIds.Contains(item.MediaAssetId) && !item.MediaAlbum.IsArchived)
+                    .Select(item => new
+                    {
+                        item.MediaAssetId,
+                        AlbumId = item.MediaAlbumId,
+                        item.MediaAlbum.Name
+                    })
+                    .OrderBy(item => item.Name)
+                    .ThenBy(item => item.AlbumId)
+                    .ToListAsync(cancellationToken);
+
+                albumsByAsset = albumRows
+                    .GroupBy(item => item.MediaAssetId)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => (IReadOnlyList<MediaLibraryAlbumSummary>)group
+                            .Select(item => new MediaLibraryAlbumSummary(item.AlbumId, item.Name))
+                            .ToList());
+            }
+
             items = rows.Select(row => new MediaLibraryQueryItem(
                 row.Id,
                 row.SourceId,
@@ -220,7 +266,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 row.SourceLabel,
                 row.Title,
                 row.Caption,
+                row.EditorialCaption,
+                row.EditorialConcurrencyToken,
                 row.OriginalFileName,
+                row.FileSizeBytes,
                 row.MediaDateUtc,
                 row.Width,
                 row.Height,
@@ -230,7 +279,8 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 row.CacheVersion,
                 row.VersionToken,
                 peopleByAsset.GetValueOrDefault(row.Id) ?? Array.Empty<MediaLibraryPersonSummary>(),
-                unidentifiedByAsset.GetValueOrDefault(row.Id)))
+                unidentifiedByAsset.GetValueOrDefault(row.Id),
+                albumsByAsset.GetValueOrDefault(row.Id) ?? Array.Empty<MediaLibraryAlbumSummary>()))
                 .ToList();
 
             primaryStopwatch.Stop();
@@ -554,7 +604,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         string SourceLabel,
         string Title,
         string? Caption,
+        string? EditorialCaption,
+        Guid EditorialConcurrencyToken,
         string OriginalFileName,
+        long FileSizeBytes,
         DateTimeOffset MediaDateUtc,
         int? Width,
         int? Height,

@@ -54,6 +54,9 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.SourceLabel).HasMaxLength(160).IsRequired();
             entity.Property(x => x.Title).HasMaxLength(300).IsRequired();
             entity.Property(x => x.Caption).HasMaxLength(1024);
+            entity.Property(x => x.EditorialCaption).HasMaxLength(1024);
+            entity.Property(x => x.EditorialCaptionUpdatedByUserId).HasMaxLength(450);
+            entity.Property(x => x.EditorialConcurrencyToken).IsConcurrencyToken();
             entity.Property(x => x.VersionToken).HasMaxLength(128);
             // --- Classification prediction and decision columns ---
             entity.Property(x => x.PredictedClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
@@ -318,6 +321,60 @@ public static class MediaLibraryModelConfiguration
             entity.HasIndex(x => new { x.FaceId, x.PerformedAtUtc });
             entity.HasIndex(x => new { x.PersonId, x.PerformedAtUtc })
                 .HasDatabaseName("IX_MediaIdentityAudits_Person");
+        });
+
+        modelBuilder.Entity<MediaAlbum>(entity =>
+        {
+            entity.ToTable("MediaAlbums");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1024);
+            entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.ArchivedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
+            entity.HasIndex(x => new { x.IsArchived, x.UpdatedAtUtc });
+            entity.HasIndex(x => x.CreatedByUserId);
+            entity.HasOne(x => x.CoverMediaAsset)
+                .WithMany()
+                .HasForeignKey(x => x.CoverMediaAssetId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<MediaAlbumItem>(entity =>
+        {
+            entity.ToTable("MediaAlbumItems");
+            entity.HasKey(x => new { x.MediaAlbumId, x.MediaAssetId });
+            entity.Property(x => x.AddedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(x => new { x.MediaAlbumId, x.SortOrder });
+            entity.HasIndex(x => x.MediaAssetId);
+            entity.HasOne(x => x.MediaAlbum)
+                .WithMany(x => x.Items)
+                .HasForeignKey(x => x.MediaAlbumId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.MediaAsset)
+                .WithMany(x => x.AlbumItems)
+                .HasForeignKey(x => x.MediaAssetId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MediaCurationAudit>(entity =>
+        {
+            entity.ToTable("MediaCurationAudits");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Action).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PerformedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.MetadataJson).HasColumnType("jsonb");
+            entity.HasIndex(x => new { x.MediaAlbumId, x.PerformedAtUtc });
+            entity.HasIndex(x => new { x.MediaAssetId, x.PerformedAtUtc });
+            entity.HasOne(x => x.MediaAlbum)
+                .WithMany()
+                .HasForeignKey(x => x.MediaAlbumId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.MediaAsset)
+                .WithMany()
+                .HasForeignKey(x => x.MediaAssetId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

@@ -27,6 +27,9 @@ public sealed class MediaLibraryDbContext : DbContext
     public DbSet<MediaPersonFace> PersonFaces => Set<MediaPersonFace>();
     public DbSet<MediaFaceReviewDecision> FaceReviewDecisions => Set<MediaFaceReviewDecision>();
     public DbSet<MediaIdentityAudit> IdentityAudits => Set<MediaIdentityAudit>();
+    public DbSet<MediaAlbum> Albums => Set<MediaAlbum>();
+    public DbSet<MediaAlbumItem> AlbumItems => Set<MediaAlbumItem>();
+    public DbSet<MediaCurationAudit> CurationAudits => Set<MediaCurationAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

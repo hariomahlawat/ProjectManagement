@@ -36,6 +36,9 @@ public sealed record MediaCollectionSummary(
 public sealed record MediaCollectionQueryResult(
     IReadOnlyList<MediaCollectionSummary> Collections,
     int TotalCollections,
+    int TotalItems,
+    int TotalPhotos,
+    int TotalVideos,
     int PageNumber,
     int PageSize,
     bool HasPreviousPage,

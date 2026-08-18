@@ -56,6 +56,8 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
                 ? query.Where(asset =>
                     EF.Functions.ILike(asset.Title, pattern, "\\")
                     || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern, "\\"))
+                    || (asset.EditorialCaption != null && EF.Functions.ILike(asset.EditorialCaption, pattern, "\\"))
+                    || asset.AlbumItems.Any(item => !item.MediaAlbum.IsArchived && EF.Functions.ILike(item.MediaAlbum.Name, pattern, "\\"))
                     || EF.Functions.ILike(asset.ContextTitle, pattern, "\\")
                     || EF.Functions.ILike(asset.ContextSubtitle, pattern, "\\")
                     || EF.Functions.ILike(asset.OriginalFileName, pattern, "\\")
@@ -70,6 +72,8 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
                 : query.Where(asset =>
                     EF.Functions.ILike(asset.Title, pattern, "\\")
                     || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern, "\\"))
+                    || (asset.EditorialCaption != null && EF.Functions.ILike(asset.EditorialCaption, pattern, "\\"))
+                    || asset.AlbumItems.Any(item => !item.MediaAlbum.IsArchived && EF.Functions.ILike(item.MediaAlbum.Name, pattern, "\\"))
                     || EF.Functions.ILike(asset.ContextTitle, pattern, "\\")
                     || EF.Functions.ILike(asset.ContextSubtitle, pattern, "\\")
                     || EF.Functions.ILike(asset.OriginalFileName, pattern, "\\")
@@ -98,7 +102,20 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
             grouped = grouped.Where(group => group.ItemCount > 1 || group.HasNonProjectMedia);
         }
 
-        var totalCollections = await grouped.CountAsync(cancellationToken);
+        var totals = await grouped
+            .GroupBy(_ => 1)
+            .Select(all => new
+            {
+                Collections = all.Count(),
+                Items = all.Sum(row => row.ItemCount),
+                Photos = all.Sum(row => row.PhotoCount),
+                Videos = all.Sum(row => row.VideoCount)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        var totalCollections = totals?.Collections ?? 0;
+        var totalItems = totals?.Items ?? 0;
+        var totalPhotos = totals?.Photos ?? 0;
+        var totalVideos = totals?.Videos ?? 0;
         var pageSize = Math.Clamp(request.PageSize, 12, 96);
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalCollections / (double)pageSize));
         var pageNumber = Math.Clamp(request.PageNumber, 1, pageCount);
@@ -119,6 +136,9 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
             return new MediaCollectionQueryResult(
                 Array.Empty<MediaCollectionSummary>(),
                 totalCollections,
+                totalItems,
+                totalPhotos,
+                totalVideos,
                 pageNumber,
                 pageSize,
                 pageNumber > 1,
@@ -191,6 +211,9 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
         return new MediaCollectionQueryResult(
             collections,
             totalCollections,
+            totalItems,
+            totalPhotos,
+            totalVideos,
             pageNumber,
             pageSize,
             pageNumber > 1,

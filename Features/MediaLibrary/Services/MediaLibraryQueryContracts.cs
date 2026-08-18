@@ -17,9 +17,11 @@ public sealed record MediaLibraryQuery(
     string PeopleMatch = "all",
     bool IncludeUnidentifiedFaces = false,
     string Sort = "newest",
-    string? CollectionKey = null);
+    string? CollectionKey = null,
+    IReadOnlyList<long>? AssetIds = null);
 
 public sealed record MediaLibraryPersonSummary(Guid Id, string DisplayName);
+public sealed record MediaLibraryAlbumSummary(Guid Id, string Name);
 
 public sealed record MediaLibraryQueryItem(
     long Id,
@@ -36,7 +38,10 @@ public sealed record MediaLibraryQueryItem(
     string SourceLabel,
     string Title,
     string? Caption,
+    string? EditorialCaption,
+    Guid EditorialConcurrencyToken,
     string OriginalFileName,
+    long FileSizeBytes,
     DateTimeOffset MediaDateUtc,
     int? Width,
     int? Height,
@@ -46,7 +51,8 @@ public sealed record MediaLibraryQueryItem(
     int CacheVersion,
     string? VersionToken,
     IReadOnlyList<MediaLibraryPersonSummary> People,
-    int UnidentifiedFaceCount);
+    int UnidentifiedFaceCount,
+    IReadOnlyList<MediaLibraryAlbumSummary> Albums);
 
 public sealed record MediaLibraryProjectOption(int Id, string Name);
 public sealed record MediaLibraryPersonOption(Guid Id, string Name, int PhotoCount, Guid? RepresentativeFaceId = null);

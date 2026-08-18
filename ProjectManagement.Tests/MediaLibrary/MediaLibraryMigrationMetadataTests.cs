@@ -99,7 +99,7 @@ public sealed class MediaLibraryMigrationMetadataTests
         var resolved = MediaLibrarySchemaService.ResolveLatestRequiredMigrationId(migrations);
 
         Assert.Equal(migrations[^1], resolved);
-        Assert.Equal("20260630113000_AddIdentityReferenceGovernance", resolved);
+        Assert.Equal("20260818170000_AddOrganisationalMediaAlbums", resolved);
     }
 
     private static MediaLibraryDbContext CreateMetadataContext()

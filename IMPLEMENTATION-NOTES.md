@@ -1,33 +1,61 @@
-# PRISM Photos — People Review Workflow Integrity & Throughput
+# Implementation notes — Organisation-wide Albums & Curation
 
-This package is a ready-to-paste delta over the current PRISM Photos v3 / Bulk Export Hardening implementation.
+## Scope
+
+This phase deliberately keeps PRISM source-derived Collections and user-curated Albums as separate concepts.
+
+### Source collections
+Project, Visit, Activity and Event collections remain automatic and source-owned.
+
+### Organisation-wide albums
+Albums are curated sets that all authorised Photos users can view. They do not move, duplicate or delete source media. A media asset can belong to several albums.
 
 ## Implemented
 
-- Canonical review workload semantics for known matches, individual review, active matching, matching failures, closed-unidentified appearances, total unresolved appearances, and identity-group snapshot metrics.
-- Faces in Pending/Processing remain unresolved but are not shown as actionable individual review; queue-clear messaging no longer hides active matching.
-- Evidence-driven candidate invalidation: routine review decisions only invalidate grouping; trusted-reference/person-visibility changes requeue the unresolved candidate corpus; candidate rejection/reopen uses bounded face-only rematching.
-- Bounded rematching is batched server-side rather than issuing one database update per selected face.
-- Identity grouping runtime retains the last successful snapshot, tracks invalidation generations, wakes promptly on mutations, exposes freshness, and protects against stale in-flight refreshes.
-- Groups remain on the Groups workspace during background refresh. A stale snapshot is view-only until the refreshed snapshot is explicitly reloaded.
-- Group metrics now distinguish ungrouped appearances from the live individual-review workload.
-- Group mosaic thumbnails are the selection surface; no duplicate checkbox list and nothing is preselected.
-- “Leave unidentified” is replaced by reversible “Close unidentified”; a dedicated Closed unidentified queue supports single/bulk reopen and bounded rematching.
-- Not-a-face single/bulk actions require explicit client confirmation and retain server-side validation.
-- Review workstation header/toolbars are more compact; batch toolbar is hidden until selection exists and uses a shell-aware sticky offset.
-- Routine matching is automatic. Manual corpus-wide “Re-run matching” is demoted to More and requires confirmation.
-- Lightweight workload polling updates counts/status while matching or grouping refresh is active without reloading the page.
-- Media-scoped review does not mix global identity-group metrics into the scoped workload; the Groups workspace remains corpus-level.
-- Existing-person controls are omitted when no confirmed person exists; explanatory copy adapts accordingly.
-- Candidate matching and new close/suppress review mutations consistently respect the canonical media-visibility policy.
-- People directory remains available if only the review-workload summary fails to load.
-- Operational grouping is exposed only when the People worker and grouping worker are actually enabled.
-- Deployment checklist terminology updated for Close/Reopen semantics.
+- Organisation-wide album domain, membership ordering, cover, archive/restore, concurrency token and durable curation audit.
+- Creator-owned routine management; Admin/HoD/Comdt management of any album.
+- Collections workspace split into **Source collections** and **Albums** without adding another primary Photos tab.
+- `Select → Add to album`, including creation of a new album without leaving the Photos wall.
+- Album detail inside Photos with selection, download, people review, remove from album and photo-only cover selection.
+- Manual drag ordering in explicit **Organise** mode with server-side membership/permission validation and automatic save.
+- Album edit, archive and restore. No destructive media delete is introduced.
+- Active album-name uniqueness, case-insensitive at PostgreSQL level.
+- Canonical media-visibility policy applied to album lists, album membership operations and covers.
+- Editorial Photos caption, stored separately from the source Project/Visit/Activity/Event caption, with optimistic concurrency and audit.
+- Media Info panel enriched with albums, people, unidentified-face count, filename, file size, dimensions/duration, caption and source actions.
+- Unified Photos search extended to editorial captions and active album names.
+- Central display-metadata formatter prevents repeated title/context presentation such as `Visit of X / VISIT OF X`.
+- Source Collections summary now counts only the source collections actually represented by the current singleton-suppression policy.
+- Source Collection and Album cards use whole-card primary navigation while `Open source` remains an independent secondary action.
+- Slightly tighter Photos presentation for the curation workspace.
 
 ## Persistence
 
-No EF Core migration is required. Closed-unidentified state reuses the existing candidate-null `Ignored` review decision and audit infrastructure.
+Migration: `20260818170000_AddOrganisationalMediaAlbums`
 
-## Deliberately not included
+New tables:
+- `MediaAlbums`
+- `MediaAlbumItems`
+- `MediaCurationAudits`
 
-This phase does not change recognition models, similarity thresholds, automatic identity-confirmation policy, or introduce a new identity schema. Searchable/typeahead person selection and deeper service/CSS decomposition remain future scalability/maintenance work; the current confirmed-person population does not justify destabilising this integrity phase.
+New `MediaAssets` fields:
+- `EditorialCaption`
+- `EditorialCaptionUpdatedByUserId`
+- `EditorialCaptionUpdatedAtUtc`
+- `EditorialConcurrencyToken`
+
+The migration backfills the concurrency token for existing assets and then removes the temporary database default so the physical schema remains aligned with the EF model.
+
+## Governance
+
+- No personal/private albums.
+- No generic bulk delete.
+- No manual mutation of source Collection membership.
+- Removing media from an Album affects only that Album.
+- Album covers must be currently visible photographs.
+- Unavailable/hidden media is automatically excluded from album presentation and cover fallback.
+- Media editorial captions are organisation-level metadata and therefore restricted to Admin/HoD/Comdt.
+
+## Capacity
+
+An album is capped at 250 media assets in this phase. Membership is idempotent: adding the same media twice does not duplicate it.

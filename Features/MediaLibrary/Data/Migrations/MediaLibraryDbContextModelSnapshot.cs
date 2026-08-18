@@ -79,6 +79,10 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<string>("FaceProcessingFailureReason").HasMaxLength(2048).HasColumnType("character varying(2048)");
             entity.Property<int>("CacheVersion").HasColumnType("integer");
             entity.Property<string>("Caption").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<string>("EditorialCaption").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<string>("EditorialCaptionUpdatedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset?>("EditorialCaptionUpdatedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<Guid>("EditorialConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
             entity.Property<string>("Classification").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
             entity.Property<bool>("ClassificationIsManual").HasColumnType("boolean");
             entity.Property<string>("ClassificationUpdatedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
@@ -292,6 +296,55 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.HasKey("Id"); entity.HasIndex("FaceId", "PerformedAtUtc"); entity.HasIndex("PersonId", "PerformedAtUtc").HasDatabaseName("IX_MediaIdentityAudits_Person"); entity.ToTable("MediaIdentityAudits");
         });
 
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbum", entity =>
+        {
+            entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+            entity.Property<string>("Name").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
+            entity.Property<string>("Description").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<string>("CreatedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("UpdatedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<bool>("IsArchived").HasColumnType("boolean");
+            entity.Property<string>("ArchivedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset?>("ArchivedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<long?>("CoverMediaAssetId").HasColumnType("bigint");
+            entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
+            entity.HasKey("Id");
+            entity.HasIndex("CoverMediaAssetId");
+            entity.HasIndex("CreatedByUserId");
+            entity.HasIndex("IsArchived", "UpdatedAtUtc");
+            entity.ToTable("MediaAlbums");
+        });
+
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbumItem", entity =>
+        {
+            entity.Property<Guid>("MediaAlbumId").HasColumnType("uuid");
+            entity.Property<long>("MediaAssetId").HasColumnType("bigint");
+            entity.Property<long>("SortOrder").HasColumnType("bigint");
+            entity.Property<string>("AddedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset>("AddedAtUtc").HasColumnType("timestamp with time zone");
+            entity.HasKey("MediaAlbumId", "MediaAssetId");
+            entity.HasIndex("MediaAssetId");
+            entity.HasIndex("MediaAlbumId", "SortOrder");
+            entity.ToTable("MediaAlbumItems");
+        });
+
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaCurationAudit", entity =>
+        {
+            entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+            entity.Property<string>("Action").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+            entity.Property<Guid?>("MediaAlbumId").HasColumnType("uuid");
+            entity.Property<long?>("MediaAssetId").HasColumnType("bigint");
+            entity.Property<string>("PerformedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset>("PerformedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("MetadataJson").HasColumnType("jsonb");
+            entity.HasKey("Id");
+            entity.HasIndex("MediaAlbumId", "PerformedAtUtc");
+            entity.HasIndex("MediaAssetId", "PerformedAtUtc");
+            entity.ToTable("MediaCurationAudits");
+        });
+
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", entity =>
         {
             entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaLibrarySource", "Source")
@@ -341,11 +394,31 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaPerson", "CandidatePerson").WithMany().HasForeignKey("CandidatePersonId").OnDelete(DeleteBehavior.SetNull);
             entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaFace", "MediaFace").WithMany().HasForeignKey("MediaFaceId").OnDelete(DeleteBehavior.Cascade).IsRequired(); entity.Navigation("CandidatePerson"); entity.Navigation("MediaFace");
         });
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbum", entity =>
+        {
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", "CoverMediaAsset").WithMany().HasForeignKey("CoverMediaAssetId").OnDelete(DeleteBehavior.SetNull);
+            entity.Navigation("CoverMediaAsset");
+        });
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbumItem", entity =>
+        {
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbum", "MediaAlbum").WithMany("Items").HasForeignKey("MediaAlbumId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", "MediaAsset").WithMany("AlbumItems").HasForeignKey("MediaAssetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            entity.Navigation("MediaAlbum"); entity.Navigation("MediaAsset");
+        });
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaCurationAudit", entity =>
+        {
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbum", "MediaAlbum").WithMany().HasForeignKey("MediaAlbumId").OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", "MediaAsset").WithMany().HasForeignKey("MediaAssetId").OnDelete(DeleteBehavior.SetNull);
+            entity.Navigation("MediaAlbum"); entity.Navigation("MediaAsset");
+        });
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAlbum", entity => { entity.Navigation("Items"); });
+
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaFace", entity => { entity.Navigation("Embeddings"); entity.Navigation("PersonAssignments"); });
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPerson", entity => { entity.Navigation("FaceAssignments"); });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", entity =>
         {
+            entity.Navigation("AlbumItems");
             entity.Navigation("ClassificationRuns");
             entity.Navigation("Faces");
             entity.Navigation("ProcessingJobs");

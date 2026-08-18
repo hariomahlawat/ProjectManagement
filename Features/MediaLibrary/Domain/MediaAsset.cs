@@ -57,6 +57,21 @@ public sealed class MediaAsset
     [MaxLength(1024)]
     public string? Caption { get; set; }
 
+    /// <summary>
+    /// Optional organisation-authored caption. Source Caption remains owned by the
+    /// originating Project/Visit/Activity record and may be refreshed by catalogue
+    /// synchronisation; this editorial value is deliberately preserved separately.
+    /// </summary>
+    [MaxLength(1024)]
+    public string? EditorialCaption { get; set; }
+
+    [MaxLength(450)]
+    public string? EditorialCaptionUpdatedByUserId { get; set; }
+
+    public DateTimeOffset? EditorialCaptionUpdatedAtUtc { get; set; }
+
+    public Guid EditorialConcurrencyToken { get; set; } = Guid.NewGuid();
+
     public int? ProjectId { get; set; }
     public DateTimeOffset MediaDateUtc { get; set; }
     public DateTimeOffset IndexedAtUtc { get; set; }
@@ -143,4 +158,5 @@ public sealed class MediaAsset
     public ICollection<MediaProcessingJob> ProcessingJobs { get; set; } = new List<MediaProcessingJob>();
     public ICollection<MediaFace> Faces { get; set; } = new List<MediaFace>();
     public ICollection<MediaClassificationRun> ClassificationRuns { get; set; } = new List<MediaClassificationRun>();
+    public ICollection<MediaAlbumItem> AlbumItems { get; set; } = new List<MediaAlbumItem>();
 }

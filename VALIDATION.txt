@@ -1,11 +1,22 @@
+PRISM Photos — Organisation-wide Albums & Curation
 Validation performed in the artifact environment
-================================================
-PASS  node --check wwwroot/js/pages/photos-people-review.js
-PASS  node --check wwwroot/js/pages/photos-people-directory.js
-PASS  C# lexical/string/comment/delimiter validation for every changed C# source file
-PASS  workflow interface/implementation and stale-symbol consistency scan
-PASS  unified patch dry-run against clean Photos v3 baseline
-PASS  unified patch actual apply + byte-for-byte comparison against implementation tree
-PASS  ZIP archive integrity test
 
-Not available in this environment: .NET SDK / Razor compiler. Therefore dotnet build and xUnit execution must be run on the development machine after paste; commands are in README-APPLY.md.
+Project delta files: 28
+C# project files changed/new: 23
+Razor files changed/new: 2
+JavaScript files changed/new: 1
+CSS files changed/new: 1
+Migration manifest changed: yes
+New migration: 20260818170000_AddOrganisationalMediaAlbums
+
+PASS  node --check wwwroot/js/pages/photos-library.js
+PASS  node --check wwwroot/js/pages/photos-people-review.js (unchanged regression dependency)
+PASS  git apply --check of the generated phase patch against a clean current baseline
+PASS  patch applied to a clean current baseline
+PASS  byte-for-byte comparison of all 28 resulting project files against the ready-to-paste implementation
+PASS  changed-file manifest contains no project-file deletions
+PASS  migration manifest contains 20260818170000_AddOrganisationalMediaAlbums as the latest immutable media migration
+PASS  automatic delimiter scan on 21 changed C# sources; the two remaining changed C# sources contain raw/interpolated-string constructs that the lightweight scanner cannot parse reliably and were inspected separately
+
+NOT RUN: dotnet build / xUnit tests. The .NET SDK is not installed in this artifact environment.
+Run the commands in README-APPLY.md on the development machine before production deployment.

@@ -1,24 +1,34 @@
-# Apply first — People Review Workflow Integrity
+# PRISM Photos — Organisation-wide Albums & Curation
 
-**Baseline:** apply this over the current Photos v3 / Bulk Export Hardening implementation already running in your project.
+## Apply
 
-Copy the contents of this package into:
+This package is a **delta over the current Photos implementation after the People Review Workflow Integrity phase**.
 
-`E:\Dot Net Web Development\ProjectManagement\`
+1. Stop the application / IIS app pool if this is the production machine.
+2. Take a PostgreSQL backup before first deployment of this phase.
+3. Copy the contents of this package over the PRISM project root and overwrite matching files.
+4. Build and test the solution.
+5. Start the application. The existing startup migration mechanism will apply `20260818170000_AddOrganisationalMediaAlbums`.
+6. Verify Photos → Collections → Albums, then create a small test album and exercise Add to album / reorder / cover / archive.
 
-and overwrite the matching files. Directory structure is already preserved.
+No manual SQL is required when the normal PRISM startup migrator is enabled.
 
-No database migration is required.
-
-After copying, run:
+## Recommended verification
 
 ```powershell
 dotnet clean
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-node --check .\wwwroot\js\pages\photos-people-review.js
-node --check .\wwwroot\js\pages\photos-people-directory.js
+node --check .\wwwroot\js\pages\photos-library.js
 ```
 
-Key manual regression checks: open Individual review while matching is active; Close and Reopen an unidentified face; confirm bulk Not-a-face prompt; open Groups during a refresh and verify the retained snapshot is read-only; reject a candidate and confirm only the affected face returns to matching; change a trusted reference/hide a person and confirm unresolved matching is requeued; verify People directory remains usable if review workload data is unavailable.
+## Permission model
+
+- Every authenticated Photos user can view active organisation-wide albums.
+- Every authenticated Photos user can create albums.
+- The creator can manage their own albums.
+- `Admin`, `HoD`, and `Comdt` can manage any album.
+- `Admin`, `HoD`, and `Comdt` can edit the organisation-wide editorial caption on media.
+- There are no personal/private/shared album states.
+- Archiving an album never deletes its source media.

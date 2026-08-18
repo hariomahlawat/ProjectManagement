@@ -42,7 +42,10 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         "MediaPersons",
         "MediaPersonFaces",
         "MediaFaceReviewDecisions",
-        "MediaIdentityAudits"
+        "MediaIdentityAudits",
+        "MediaAlbums",
+        "MediaAlbumItems",
+        "MediaCurationAudits"
     };
 
     private static readonly (string Table, string Column)[] RequiredColumns =
@@ -53,6 +56,10 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         ("MediaAssets", "ClassificationDecisionStatus"),
         ("MediaAssets", "ClassificationConcurrencyToken"),
         ("MediaAssets", "FaceAnalysisStatus"),
+        ("MediaAssets", "EditorialCaption"),
+        ("MediaAssets", "EditorialConcurrencyToken"),
+        ("MediaAlbums", "ConcurrencyToken"),
+        ("MediaAlbumItems", "SortOrder"),
         ("MediaFaces", "ConcurrencyToken"),
         ("MediaFaces", "CandidateSearchStatus"),
         ("MediaPersonFaces", "ConcurrencyToken"),

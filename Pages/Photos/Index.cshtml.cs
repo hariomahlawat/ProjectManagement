@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Globalization;
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,10 +23,12 @@ public sealed class IndexModel : PageModel
 {
     private const int PageSize = 120;
     private const int CollectionPageSize = 48;
+    private const int AlbumPageSize = 48;
     private readonly ApplicationDbContext _db;
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly IMediaLibraryQueryService _library;
     private readonly IMediaCollectionQueryService _collections;
+    private readonly IMediaAlbumService _albums;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
@@ -36,6 +39,7 @@ public sealed class IndexModel : PageModel
         MediaLibraryDbContext mediaDb,
         IMediaLibraryQueryService library,
         IMediaCollectionQueryService collections,
+        IMediaAlbumService albums,
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IOptions<MediaLibraryOptions> mediaOptions,
         IProtectedFileUrlBuilder fileUrlBuilder,
@@ -45,6 +49,7 @@ public sealed class IndexModel : PageModel
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _library = library ?? throw new ArgumentNullException(nameof(library));
         _collections = collections ?? throw new ArgumentNullException(nameof(collections));
+        _albums = albums ?? throw new ArgumentNullException(nameof(albums));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
         _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
@@ -65,12 +70,19 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public int? Year { get; set; }
     [BindProperty(SupportsGet = true)] public string Sort { get; set; } = "newest";
     [BindProperty(SupportsGet = true)] public string? Collection { get; set; }
+    [BindProperty(SupportsGet = true)] public string CollectionTab { get; set; } = "source";
+    [BindProperty(SupportsGet = true)] public Guid? AlbumId { get; set; }
     [BindProperty(SupportsGet = true)] public bool IncludeSingletonCollections { get; set; }
+    [BindProperty(SupportsGet = true)] public bool IncludeArchivedAlbums { get; set; }
+    [BindProperty(SupportsGet = true)] public bool OrganizeAlbum { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<MediaItem> Items { get; private set; } = Array.Empty<MediaItem>();
     public IReadOnlyList<MediaGroup> Groups { get; private set; } = Array.Empty<MediaGroup>();
     public IReadOnlyList<CollectionCard> Collections { get; private set; } = Array.Empty<CollectionCard>();
+    public IReadOnlyList<AlbumCard> Albums { get; private set; } = Array.Empty<AlbumCard>();
+    public IReadOnlyList<MediaAlbumOption> ManageableAlbums { get; private set; } = Array.Empty<MediaAlbumOption>();
+    public MediaAlbumDetails? CurrentAlbum { get; private set; }
     public IReadOnlyList<ProjectOption> Projects { get; private set; } = Array.Empty<ProjectOption>();
     public IReadOnlyList<PersonOption> People { get; private set; } = Array.Empty<PersonOption>();
     public IReadOnlyList<PersonOption> SelectedPeople { get; private set; } = Array.Empty<PersonOption>();
@@ -82,8 +94,13 @@ public sealed class IndexModel : PageModel
     public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
     public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled;
     public bool CanManagePeople => User.IsInRole("Admin") || User.IsInRole("HoD");
+    public bool CanManageAnyAlbum => User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Comdt");
+    public bool CanCurateMedia => CanManageAnyAlbum;
     public bool IsPeopleGallery => PersonIds.Length > 0;
     public bool IsCollectionDetail => !string.IsNullOrWhiteSpace(Collection);
+    public bool IsAlbumsWorkspace => View == "collections" && CollectionTab == "albums" && !AlbumId.HasValue;
+    public bool IsAlbumDetail => View == "album" && AlbumId.HasValue;
+    public bool CanManageCurrentAlbum => CurrentAlbum?.CanManage == true;
     public bool MatchAllSelectedPeople => !string.Equals(PeopleMatch, "any", StringComparison.OrdinalIgnoreCase);
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
@@ -104,6 +121,18 @@ public sealed class IndexModel : PageModel
         SourceVisibleCount = sourceSnapshot.TotalCount;
         CatalogueBackedCount = catalogueFreshness.IndexedAssetCount;
         LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
+
+        if (IsAlbumsWorkspace)
+        {
+            await LoadAlbumsWorkspaceAsync(cancellationToken);
+            return;
+        }
+
+        if (IsAlbumDetail)
+        {
+            await LoadAlbumDetailAsync(cancellationToken);
+            return;
+        }
 
         var result = await _library.SearchAsync(
             new MediaLibraryQuery(
@@ -136,6 +165,7 @@ public sealed class IndexModel : PageModel
             else
             {
                 ApplyCatalogueResult(result, includeTimeline: true);
+                await LoadManageableAlbumsSafeAsync(cancellationToken);
             }
             return;
         }
@@ -187,9 +217,60 @@ public sealed class IndexModel : PageModel
             await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
         }
 
+        var revision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
+        if (string.Equals(CollectionTab, "albums", StringComparison.OrdinalIgnoreCase) && !AlbumId.HasValue)
+        {
+            try
+            {
+                var albumRevision = await _mediaDb.Albums
+                    .AsNoTracking()
+                    .GroupBy(_ => 1)
+                    .Select(group => new { Count = group.Count(), UpdatedAt = group.Max(album => album.UpdatedAtUtc) })
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (albumRevision is not null)
+                {
+                    revision = string.Concat(
+                        revision,
+                        ":albums:",
+                        albumRevision.Count.ToString(CultureInfo.InvariantCulture),
+                        ":",
+                        albumRevision.UpdatedAt.UtcDateTime.Ticks.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
+            {
+                _logger.LogDebug(exception, "Albums revision could not be included in Photos polling.");
+            }
+        }
+
+        if (AlbumId.HasValue && AlbumId.Value != Guid.Empty)
+        {
+            try
+            {
+                var albumUpdatedAt = await _mediaDb.Albums
+                    .AsNoTracking()
+                    .Where(album => album.Id == AlbumId.Value)
+                    .Select(album => (DateTimeOffset?)album.UpdatedAtUtc)
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (albumUpdatedAt.HasValue)
+                {
+                    revision = string.Concat(
+                        revision,
+                        ":album:",
+                        AlbumId.Value.ToString("N"),
+                        ":",
+                        albumUpdatedAt.Value.UtcDateTime.Ticks.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
+            {
+                _logger.LogDebug(exception, "Album revision could not be included in Photos polling.");
+            }
+        }
+
         return new JsonResult(new
         {
-            revision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness),
+            revision,
             sourceCount = sourceSnapshot.TotalCount,
             catalogueFresh = catalogueFreshness.IsFresh
         });
@@ -289,11 +370,59 @@ public sealed class IndexModel : PageModel
 
     private void NormalizeRequest()
     {
-        View = string.Equals(View?.Trim(), "collections", StringComparison.OrdinalIgnoreCase) ? "collections" : "photos";
+        View = View?.Trim().ToLowerInvariant() switch
+        {
+            "collections" => "collections",
+            "album" => "album",
+            _ => "photos"
+        };
+        CollectionTab = string.Equals(CollectionTab?.Trim(), "albums", StringComparison.OrdinalIgnoreCase)
+            ? "albums"
+            : "source";
         Sort = string.Equals(Sort?.Trim(), "oldest", StringComparison.OrdinalIgnoreCase) ? "oldest" : "newest";
         Collection = string.IsNullOrWhiteSpace(Collection) ? null : Collection.Trim();
         if (Collection is { Length: > 300 }) Collection = Collection[..300];
-        if (Collection is not null) View = "photos";
+        if (AlbumId == Guid.Empty) AlbumId = null;
+
+        if (AlbumId.HasValue)
+        {
+            View = "album";
+            Collection = null;
+            CollectionTab = "albums";
+            // Album membership defines the media set. Mixing source/project/person filters
+            // into a curated album would make its contents appear to change unexpectedly.
+            Source = "all";
+            Kind = "all";
+            Classification = "all";
+            ProjectId = null;
+            Year = null;
+            PersonId = null;
+            PersonIds = Array.Empty<Guid>();
+            PeopleMatch = "all";
+            Q = null;
+        }
+        else if (View == "album")
+        {
+            View = "collections";
+            CollectionTab = "albums";
+        }
+
+        if (Collection is not null)
+        {
+            View = "photos";
+            AlbumId = null;
+            CollectionTab = "source";
+        }
+
+        if (View != "collections")
+        {
+            IncludeArchivedAlbums = false;
+        }
+        if (!IsAlbumDetail)
+        {
+            OrganizeAlbum = false;
+        }
+
         PageNumber = Math.Max(1, PageNumber);
         Source = NormalizeSource(Source);
         if (!ExternalSourcesEnabled && Source == "external")
@@ -308,7 +437,7 @@ public sealed class IndexModel : PageModel
             ? "any"
             : "all";
 
-        if (!PeopleFeatureEnabled)
+        if (!PeopleFeatureEnabled || IsAlbumDetail)
         {
             PersonId = null;
             PersonIds = Array.Empty<Guid>();
@@ -528,6 +657,14 @@ public sealed class IndexModel : PageModel
                 break;
         }
 
+        var displayMetadata = MediaDisplayMetadataFormatter.Format(
+            row.Origin,
+            row.Title,
+            row.Caption,
+            row.EditorialCaption,
+            row.ContextTitle,
+            row.ContextSubtitle);
+
         return new MediaItem
         {
             Id = $"catalogue:{row.Id}",
@@ -542,11 +679,16 @@ public sealed class IndexModel : PageModel
             CollectionKey = row.CollectionKey,
             ContextTitle = MediaCollectionTitleFormatter.FormatCollectionTitle(row.Origin, row.ContextTitle),
             ContextSubtitle = row.ContextSubtitle,
-            Title = row.Origin == MediaAssetOrigin.VisitPhoto && string.IsNullOrWhiteSpace(row.Caption)
-                ? MediaCollectionTitleFormatter.FormatVisitTitle(row.Title)
-                : row.Title,
-            Caption = row.Caption,
+            OriginalTitle = row.Title,
+            Title = displayMetadata.DisplayTitle,
+            DisplayContext = displayMetadata.DisplayContext,
+            DisplaySubtitle = displayMetadata.DisplaySubtitle,
+            Caption = displayMetadata.EffectiveCaption,
+            EditorialCaption = row.EditorialCaption,
+            EditorialConcurrencyToken = row.EditorialConcurrencyToken,
             OriginalFileName = row.OriginalFileName,
+            FileSizeBytes = row.FileSizeBytes,
+            Albums = row.Albums.Select(album => new AlbumSummary(album.Id, album.Name)).ToList(),
             MediaDate = row.MediaDateUtc.ToLocalTime().DateTime,
             ThumbnailUrl = thumbnail,
             DisplayUrl = display,
@@ -560,6 +702,256 @@ public sealed class IndexModel : PageModel
             SortOrder = row.SortOrder,
             VersionToken = row.VersionToken
         };
+    }
+
+    private async Task LoadAlbumsWorkspaceAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IsUsingCatalogue = true;
+            var result = await _albums.SearchAsync(
+                new MediaAlbumListQuery(
+                    Q,
+                    Sort,
+                    PageNumber,
+                    AlbumPageSize,
+                    IncludeArchivedAlbums,
+                    CurrentAlbumActor()),
+                cancellationToken);
+
+            var latestAlbumUpdate = result.Albums.Count == 0
+                ? (DateTimeOffset?)null
+                : result.Albums.Max(album => album.UpdatedAtUtc);
+            LibraryRevision = string.Concat(
+                LibraryRevision,
+                ":albums:",
+                result.TotalAlbums.ToString(CultureInfo.InvariantCulture),
+                ":",
+                latestAlbumUpdate?.UtcDateTime.Ticks.ToString(CultureInfo.InvariantCulture) ?? "0");
+
+            PageNumber = result.PageNumber;
+            HasPreviousPage = result.HasPreviousPage;
+            HasNextPage = result.HasNextPage;
+            Albums = result.Albums.Select(MapAlbum).ToList();
+            Collections = Array.Empty<CollectionCard>();
+            Items = Array.Empty<MediaItem>();
+            Groups = Array.Empty<MediaGroup>();
+            Stats = new LibraryStats
+            {
+                Total = result.TotalVisibleItems,
+                Photos = result.TotalPhotos,
+                Videos = result.TotalVideos,
+                Collections = result.TotalAlbums
+            };
+        }
+        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(exception, "Unable to load organisation-wide media albums.");
+            ExternalLibraryAvailable = false;
+            ExternalLibraryWarning = "Organisation-wide albums are temporarily unavailable while the media catalogue is being prepared.";
+            Albums = Array.Empty<AlbumCard>();
+            Stats = new LibraryStats();
+        }
+    }
+
+    private async Task LoadAlbumDetailAsync(CancellationToken cancellationToken)
+    {
+        if (!AlbumId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            CurrentAlbum = await _albums.GetDetailsAsync(
+                AlbumId.Value,
+                CurrentAlbumActor(),
+                cancellationToken);
+            if (CurrentAlbum is null)
+            {
+                Response.StatusCode = StatusCodes.Status404NotFound;
+                ExternalLibraryAvailable = false;
+                ExternalLibraryWarning = "This album could not be found.";
+                Items = Array.Empty<MediaItem>();
+                Groups = Array.Empty<MediaGroup>();
+                return;
+            }
+
+            LibraryRevision = string.Concat(
+                LibraryRevision,
+                ":album:",
+                CurrentAlbum.Id.ToString("N"),
+                ":",
+                CurrentAlbum.UpdatedAtUtc.UtcDateTime.Ticks.ToString(CultureInfo.InvariantCulture));
+
+            Stats = new LibraryStats
+            {
+                Total = CurrentAlbum.ItemCount,
+                Photos = CurrentAlbum.PhotoCount,
+                Videos = CurrentAlbum.VideoCount,
+                Collections = 1
+            };
+            HasPreviousPage = false;
+            HasNextPage = false;
+            PageNumber = 1;
+            Collections = Array.Empty<CollectionCard>();
+            Albums = Array.Empty<AlbumCard>();
+
+            if (CurrentAlbum.OrderedVisibleAssetIds.Count == 0)
+            {
+                Items = Array.Empty<MediaItem>();
+                Groups = Array.Empty<MediaGroup>();
+                await LoadManageableAlbumsSafeAsync(cancellationToken);
+                return;
+            }
+
+            var result = await _library.SearchAsync(
+                new MediaLibraryQuery(
+                    Query: null,
+                    Source: "all",
+                    Kind: "all",
+                    Classification: "all",
+                    ProjectId: null,
+                    PersonId: null,
+                    Year: null,
+                    PageNumber: 1,
+                    PageSize: MediaAlbumService.MaximumAlbumItems,
+                    IncludePeople: PeopleFeatureEnabled,
+                    PersonIds: Array.Empty<Guid>(),
+                    PeopleMatch: "all",
+                    IncludeUnidentifiedFaces: CanManagePeople,
+                    Sort: "newest",
+                    CollectionKey: null,
+                    AssetIds: CurrentAlbum.OrderedVisibleAssetIds),
+                cancellationToken);
+
+            if (!result.IsAvailable)
+            {
+                ExternalLibraryAvailable = false;
+                ExternalLibraryWarning = result.Warning ?? "The album media could not be loaded from the catalogue.";
+                Items = Array.Empty<MediaItem>();
+                Groups = Array.Empty<MediaGroup>();
+                return;
+            }
+
+            IsUsingCatalogue = true;
+            ExternalLibraryAvailable = true;
+            ExternalLibraryWarning = result.Warning;
+            var byAssetId = result.Items.ToDictionary(item => item.Id);
+            var mapped = new List<MediaItem>(CurrentAlbum.OrderedVisibleAssetIds.Count);
+            foreach (var assetId in CurrentAlbum.OrderedVisibleAssetIds)
+            {
+                if (!byAssetId.TryGetValue(assetId, out var row)) continue;
+                var item = MapCatalogueItem(row);
+                mapped.Add(CloneWithAlbumCover(item, assetId == CurrentAlbum.CoverMediaAssetId));
+            }
+
+            Items = mapped;
+            Groups = mapped.Count == 0
+                ? Array.Empty<MediaGroup>()
+                : new[]
+                {
+                    new MediaGroup(
+                        $"album:{CurrentAlbum.Id:N}",
+                        CurrentAlbum.Name,
+                        CurrentAlbum.Description ?? string.Empty,
+                        CurrentAlbum.UpdatedAtUtc.ToLocalTime().DateTime,
+                        mapped)
+                };
+
+            await LoadManageableAlbumsSafeAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(exception, "Unable to load media album {AlbumId}.", AlbumId);
+            ExternalLibraryAvailable = false;
+            ExternalLibraryWarning = "This album is temporarily unavailable.";
+            Items = Array.Empty<MediaItem>();
+            Groups = Array.Empty<MediaGroup>();
+        }
+    }
+
+    private async Task LoadManageableAlbumsSafeAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            ManageableAlbums = await _albums.GetManageableOptionsAsync(CurrentAlbumActor(), cancellationToken);
+        }
+        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(exception, "Unable to load manageable media album options.");
+            ManageableAlbums = Array.Empty<MediaAlbumOption>();
+        }
+    }
+
+    private AlbumCard MapAlbum(MediaAlbumSummary row)
+    {
+        var coverUrl = row.CoverMediaAssetId.HasValue
+            ? Url.Page("/Photos/Media", new { id = row.CoverMediaAssetId.Value, variant = "thumb" })
+            : null;
+        return new AlbumCard(
+            row.Id,
+            row.Name,
+            row.Description,
+            row.ItemCount,
+            row.PhotoCount,
+            row.VideoCount,
+            row.UpdatedAtUtc.ToLocalTime().DateTime,
+            row.CoverMediaAssetId,
+            coverUrl,
+            row.IsArchived,
+            row.CanManage,
+            string.Equals(row.CreatedByUserId, CurrentAlbumActor().UserId, StringComparison.Ordinal));
+    }
+
+    private static MediaItem CloneWithAlbumCover(MediaItem item, bool isAlbumCover)
+        => new()
+        {
+            Id = item.Id,
+            AssetId = item.AssetId,
+            Kind = item.Kind,
+            Source = item.Source,
+            SourceLabel = item.SourceLabel,
+            Classification = item.Classification,
+            People = item.People,
+            UnidentifiedFaceCount = item.UnidentifiedFaceCount,
+            ContextKey = item.ContextKey,
+            CollectionKey = item.CollectionKey,
+            ContextTitle = item.ContextTitle,
+            ContextSubtitle = item.ContextSubtitle,
+            OriginalTitle = item.OriginalTitle,
+            Title = item.Title,
+            DisplayContext = item.DisplayContext,
+            DisplaySubtitle = item.DisplaySubtitle,
+            Caption = item.Caption,
+            EditorialCaption = item.EditorialCaption,
+            EditorialConcurrencyToken = item.EditorialConcurrencyToken,
+            OriginalFileName = item.OriginalFileName,
+            FileSizeBytes = item.FileSizeBytes,
+            Albums = item.Albums,
+            MediaDate = item.MediaDate,
+            ThumbnailUrl = item.ThumbnailUrl,
+            DisplayUrl = item.DisplayUrl,
+            OriginalUrl = item.OriginalUrl,
+            DownloadUrl = item.DownloadUrl,
+            SourceUrl = item.SourceUrl,
+            Width = item.Width,
+            Height = item.Height,
+            DurationSeconds = item.DurationSeconds,
+            IsCover = item.IsCover,
+            IsAlbumCover = isAlbumCover,
+            SortOrder = item.SortOrder,
+            VersionToken = item.VersionToken
+        };
+
+    private MediaAlbumActor CurrentAlbumActor()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("Authenticated Photos user identifier is unavailable.");
+        }
+        return new MediaAlbumActor(userId, CanManageAnyAlbum);
     }
 
     private async Task LoadCatalogueCollectionsAsync(CancellationToken cancellationToken)
@@ -587,9 +979,9 @@ public sealed class IndexModel : PageModel
         Collections = result.Collections.Select(MapCollection).ToList();
         Stats = new LibraryStats
         {
-            Total = Stats.Total,
-            Photos = Stats.Photos,
-            Videos = Stats.Videos,
+            Total = result.TotalItems,
+            Photos = result.TotalPhotos,
+            Videos = result.TotalVideos,
             Collections = result.TotalCollections
         };
     }
@@ -613,7 +1005,7 @@ public sealed class IndexModel : PageModel
             BuildSourceRecordUrl(row.Origin, row.ContextKey));
     }
 
-    private int BuildFallbackCollections(IReadOnlyList<MediaItem> filtered)
+    private LibraryStats BuildFallbackCollections(IReadOnlyList<MediaItem> filtered)
     {
         var query = filtered
             .GroupBy(item => item.CollectionKey, StringComparer.Ordinal)
@@ -675,7 +1067,13 @@ public sealed class IndexModel : PageModel
                 group.Representative.SourceUrl))
             .ToList();
 
-        return totalCollections;
+        return new LibraryStats
+        {
+            Total = allCollections.Sum(group => group.Rows.Count),
+            Photos = allCollections.Sum(group => group.Rows.Count(item => item.Kind == MediaKind.Photo)),
+            Videos = allCollections.Sum(group => group.Rows.Count(item => item.Kind == MediaKind.Video)),
+            Collections = totalCollections
+        };
     }
 
     private string? BuildSourceRecordUrl(MediaAssetOrigin origin, string contextKey)
@@ -791,9 +1189,11 @@ public sealed class IndexModel : PageModel
 
         var total = filtered.Count;
         var visibleCollectionCount = filtered.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count();
+        LibraryStats? fallbackCollectionStats = null;
         if (View == "collections" && Collection is null)
         {
-            visibleCollectionCount = BuildFallbackCollections(filtered);
+            fallbackCollectionStats = BuildFallbackCollections(filtered);
+            visibleCollectionCount = fallbackCollectionStats.Collections;
             Items = Array.Empty<MediaItem>();
             Groups = Array.Empty<MediaGroup>();
         }
@@ -817,7 +1217,7 @@ public sealed class IndexModel : PageModel
             .OrderBy(project => project.Name)
             .Select(project => new ProjectOption(project.Id, project.Name))
             .ToListAsync(cancellationToken);
-        Stats = new LibraryStats
+        Stats = fallbackCollectionStats ?? new LibraryStats
         {
             Total = total,
             Photos = filtered.Count(item => item.Kind == MediaKind.Photo),
@@ -1072,10 +1472,25 @@ public sealed class IndexModel : PageModel
         };
 
     public string BuildMediaTypeUrl(string kind)
-        => BuildPhotosUrl(PersonIds, kind: kind);
+        => BuildPhotosUrl(PersonIds, kind: kind, pageNumber: 1);
 
     public string BuildPageUrl(int pageNumber)
-        => BuildPhotosUrl(PersonIds, pageNumber: pageNumber);
+    {
+        if (IsAlbumsWorkspace)
+        {
+            return Url.Page("/Photos/Index", new
+            {
+                View = "collections",
+                CollectionTab = "albums",
+                Q,
+                Sort = Sort == "newest" ? null : Sort,
+                IncludeArchivedAlbums = IncludeArchivedAlbums ? true : (bool?)null,
+                PageNumber = pageNumber > 1 ? pageNumber : (int?)null
+            }) ?? "/Photos?View=collections&CollectionTab=albums";
+        }
+
+        return BuildPhotosUrl(PersonIds, pageNumber: pageNumber);
+    }
 
     public string BuildPeopleMatchUrl(string matchMode)
         => BuildPhotosUrl(PersonIds, peopleMatch: matchMode);
@@ -1112,9 +1527,10 @@ public sealed class IndexModel : PageModel
         string? collection = null,
         string? sort = null)
     {
+        var targetView = view ?? View;
         var values = new RouteValueDictionary
         {
-            ["View"] = view ?? View,
+            ["View"] = targetView,
             ["Q"] = Q,
             ["Source"] = Source == "all" ? null : Source,
             ["Kind"] = kind ?? Kind,
@@ -1123,9 +1539,11 @@ public sealed class IndexModel : PageModel
             ["Year"] = Year,
             ["Sort"] = (sort ?? Sort) == "newest" ? null : (sort ?? Sort),
             ["Collection"] = collection ?? Collection,
-            ["IncludeSingletonCollections"] = IncludeSingletonCollections ? true : null,
+            ["CollectionTab"] = targetView == "collections" ? CollectionTab : null,
+            ["IncludeSingletonCollections"] = targetView == "collections" && CollectionTab == "source" && IncludeSingletonCollections ? true : (bool?)null,
+            ["IncludeArchivedAlbums"] = targetView == "collections" && CollectionTab == "albums" && IncludeArchivedAlbums ? true : (bool?)null,
             ["PeopleMatch"] = peopleMatch ?? PeopleMatch,
-            ["PageNumber"] = pageNumber is > 1 ? pageNumber : null
+            ["PageNumber"] = pageNumber is > 1 ? pageNumber : (int?)null
         };
 
         var index = 0;
@@ -1143,16 +1561,80 @@ public sealed class IndexModel : PageModel
     }
 
     public string BuildSortUrl(string sort)
-        => BuildPhotosUrl(PersonIds, sort: sort, pageNumber: 1);
+    {
+        if (IsAlbumsWorkspace)
+        {
+            return Url.Page("/Photos/Index", new
+            {
+                View = "collections",
+                CollectionTab = "albums",
+                Q,
+                Sort = sort == "newest" ? null : sort,
+                IncludeArchivedAlbums = IncludeArchivedAlbums ? true : (bool?)null
+            }) ?? "/Photos?View=collections&CollectionTab=albums";
+        }
+        return BuildPhotosUrl(PersonIds, sort: sort, pageNumber: 1);
+    }
 
     public string BuildCollectionUrl(string collectionKey)
         => BuildPhotosUrl(PersonIds, view: "photos", collection: collectionKey, pageNumber: 1);
 
     public string BuildCollectionsUrl()
-        => BuildPhotosUrl(PersonIds, view: "collections", collection: string.Empty, pageNumber: 1);
+        => Url.Page("/Photos/Index", new { View = "collections", CollectionTab = "source" }) ?? "/Photos?View=collections";
+
+    public string BuildAlbumsUrl(bool? includeArchived = null)
+        => Url.Page("/Photos/Index", new
+        {
+            View = "collections",
+            CollectionTab = "albums",
+            IncludeArchivedAlbums = (includeArchived ?? IncludeArchivedAlbums) ? true : (bool?)null
+        }) ?? "/Photos?View=collections&CollectionTab=albums";
+
+    public string BuildAlbumUrl(Guid albumId, bool organize = false)
+        => Url.Page("/Photos/Index", new
+        {
+            View = "album",
+            AlbumId = albumId,
+            OrganizeAlbum = organize ? true : (bool?)null
+        }) ?? $"/Photos?View=album&AlbumId={albumId:D}";
 
     public string BuildClearCollectionUrl()
         => BuildPhotosUrl(PersonIds, view: "photos", collection: string.Empty, pageNumber: 1);
+
+    public string CurrentReturnUrl
+        => $"{Request.PathBase}{Request.Path}{Request.QueryString}";
+
+    public string SerializeViewerAlbums(MediaItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return JsonSerializer.Serialize(item.Albums.Select(album => new
+        {
+            name = album.Name,
+            url = BuildAlbumUrl(album.Id)
+        }));
+    }
+
+    public static string FormatFileSize(long? bytes)
+    {
+        if (!bytes.HasValue || bytes.Value < 0) return string.Empty;
+        var value = (double)bytes.Value;
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var unit = 0;
+        while (value >= 1024d && unit < units.Length - 1)
+        {
+            value /= 1024d;
+            unit++;
+        }
+        var format = unit == 0 || value >= 100d ? "0" : value >= 10d ? "0.0" : "0.00";
+        return $"{value.ToString(format, CultureInfo.InvariantCulture)} {units[unit]}";
+    }
+
+    public static string? DisplayContext(MediaItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return item.DisplayContext
+               ?? MediaDisplayMetadataFormatter.DistinctOrNull(item.ContextTitle, item.Title);
+    }
 
     public string? CurrentCollectionTitle
         => IsCollectionDetail
@@ -1262,9 +1744,16 @@ public sealed class IndexModel : PageModel
         public required string CollectionKey { get; init; }
         public required string ContextTitle { get; init; }
         public required string ContextSubtitle { get; init; }
+        public string? OriginalTitle { get; init; }
         public required string Title { get; init; }
+        public string? DisplayContext { get; init; }
+        public string? DisplaySubtitle { get; init; }
         public string? Caption { get; init; }
+        public string? EditorialCaption { get; init; }
+        public Guid? EditorialConcurrencyToken { get; init; }
         public string? OriginalFileName { get; init; }
+        public long? FileSizeBytes { get; init; }
+        public IReadOnlyList<AlbumSummary> Albums { get; init; } = Array.Empty<AlbumSummary>();
         public required DateTime MediaDate { get; init; }
         public required string ThumbnailUrl { get; init; }
         public required string DisplayUrl { get; init; }
@@ -1275,6 +1764,7 @@ public sealed class IndexModel : PageModel
         public int? Height { get; init; }
         public int? DurationSeconds { get; init; }
         public bool IsCover { get; init; }
+        public bool IsAlbumCover { get; init; }
         public long SortOrder { get; init; }
         public string? VersionToken { get; init; }
         public double AspectRatio => Width.GetValueOrDefault() > 0 && Height.GetValueOrDefault() > 0
@@ -1283,6 +1773,21 @@ public sealed class IndexModel : PageModel
     }
 
     public sealed record MediaGroup(string Key, string Title, string Subtitle, DateTime Date, IReadOnlyList<MediaItem> Items);
+    public sealed record AlbumSummary(Guid Id, string Name);
+    public sealed record AlbumCard(
+        Guid Id,
+        string Name,
+        string? Description,
+        int ItemCount,
+        int PhotoCount,
+        int VideoCount,
+        DateTime UpdatedAt,
+        long? CoverAssetId,
+        string? CoverThumbnailUrl,
+        bool IsArchived,
+        bool CanManage,
+        bool IsOwner);
+
     public sealed record CollectionCard(
         string CollectionKey,
         string Title,
