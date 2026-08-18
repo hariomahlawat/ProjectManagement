@@ -321,6 +321,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             warnings,
             cancellationToken);
 
+        var visiblePeopleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
+
         IReadOnlyList<MediaLibraryPersonOption> people = request.IncludePeople && _options.People.Enabled
             ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryPersonOption>>(
                 MediaLibraryQueryOperation.People,
@@ -333,9 +337,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                         person.DisplayName,
                         person.FaceAssignments
                             .Where(assignment => assignment.RemovedAtUtc == null
-                                                 && assignment.MediaFace.MediaAsset.IsAvailable
-                                                 && !assignment.MediaFace.MediaAsset.IsDeleted
-                                                 && !assignment.MediaFace.MediaAsset.IsArchived)
+                                                 && visiblePeopleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
                             .Select(assignment => assignment.MediaFace.MediaAssetId)
                             .Distinct()
                             .Count(),

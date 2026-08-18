@@ -20,6 +20,7 @@ public sealed class MediaLibraryOptions
     public MediaCatalogueOptions Catalogue { get; set; } = new();
     public ExternalMediaSourcesOptions ExternalSources { get; set; } = new();
     public MediaProcessingOptions Processing { get; set; } = new();
+    public MediaBulkDownloadOptions BulkDownload { get; set; } = new();
     public MediaClassificationOptions Classification { get; set; } = new();
     public MediaPeopleOptions People { get; set; } = new();
 
@@ -108,6 +109,18 @@ public sealed class MediaProcessingOptions
     public int ThumbnailMaxPixels { get; set; } = 480;
     public int PreviewMaxPixels { get; set; } = 1920;
     public int WebpQuality { get; set; } = 84;
+}
+
+public sealed class MediaBulkDownloadOptions
+{
+    /// <summary>Maximum catalogue assets accepted in one Photos ZIP request.</summary>
+    public int MaxItems { get; set; } = 120;
+
+    /// <summary>
+    /// Maximum uncompressed source bytes read while constructing one archive. Most Photos
+    /// payloads are already compressed, so source bytes are the meaningful resource guard.
+    /// </summary>
+    public long MaxSourceBytes { get; set; } = 2L * 1024 * 1024 * 1024;
 }
 
 public sealed class MediaClassificationOptions

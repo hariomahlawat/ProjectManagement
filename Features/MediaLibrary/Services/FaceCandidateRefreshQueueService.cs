@@ -14,13 +14,16 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueueService
 {
     private readonly MediaLibraryDbContext _db;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
 
     public FaceCandidateRefreshQueueService(
         MediaLibraryDbContext db,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -31,12 +34,14 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
             return false;
         }
 
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         var face = await BuildQueueableFacesQuery(
                 _db,
                 _options.Embedder.Key,
                 _options.Embedder.Version,
                 _options.Embedder.EmbeddingDimension,
-                _options.CandidateMinimumFaceQuality)
+                _options.CandidateMinimumFaceQuality,
+                visibleAssetIds)
             .SingleOrDefaultAsync(item => item.Id == faceId, cancellationToken);
         if (face is null)
         {
@@ -58,12 +63,14 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
         var now = DateTimeOffset.UtcNow;
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         return await BuildQueueableFacesQuery(
                 _db,
                 modelKey,
                 modelVersion,
                 _options.Embedder.EmbeddingDimension,
-                _options.CandidateMinimumFaceQuality)
+                _options.CandidateMinimumFaceQuality,
+                visibleAssetIds)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(face => face.CandidateSearchStatus, FaceCandidateSearchStatus.Pending)
                 .SetProperty(face => face.CandidateSearchModelKey, modelKey)
@@ -79,13 +86,14 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
         string modelKey,
         string modelVersion,
         int dimension,
-        double minimumFaceQuality)
+        double minimumFaceQuality,
+        IQueryable<long>? visibleAssetIds = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelVersion);
 
-        return db.Faces
+        var query = db.Faces
             .Where(face => !face.IsSuppressed
                            && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
                            && face.QualityScore >= minimumFaceQuality
@@ -102,7 +110,16 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
                                decision.MediaFaceId == face.Id
                                && !decision.CandidatePersonId.HasValue
                                && decision.Decision == FaceReviewDecisionType.Ignored));
+
+        return visibleAssetIds is null
+            ? query
+            : query.Where(face => visibleAssetIds.Contains(face.MediaAssetId));
     }
+
+    private IQueryable<long> BuildVisibleAssetIdsQuery()
+        => _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
 
     private void MarkPending(MediaFace face)
     {

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
+using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Pages.Photos.People;
 
@@ -17,15 +18,18 @@ namespace ProjectManagement.Pages.Photos.People;
 public sealed class PortraitModel : PageModel
 {
     private readonly MediaLibraryDbContext _db;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaLibraryOptions _options;
     private readonly IWebHostEnvironment _environment;
 
     public PortraitModel(
         MediaLibraryDbContext db,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options,
         IWebHostEnvironment environment)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
     }
@@ -37,6 +41,9 @@ public sealed class PortraitModel : PageModel
             return NotFound();
         }
 
+        var visibleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
         var relativePath = await (
                 from person in _db.Persons.AsNoTracking()
                 join face in _db.Faces.AsNoTracking()
@@ -45,6 +52,7 @@ public sealed class PortraitModel : PageModel
                       && person.Status == MediaPersonStatus.Confirmed
                       && !person.IsHidden
                       && !face.IsSuppressed
+                      && visibleAssetIds.Contains(face.MediaAssetId)
                       && face.PersonAssignments.Any(assignment =>
                           assignment.MediaPersonId == person.Id
                           && assignment.RemovedAtUtc == null)
@@ -65,7 +73,7 @@ public sealed class PortraitModel : PageModel
             return NotFound();
         }
 
-        Response.Headers.CacheControl = "private, max-age=300";
+        Response.Headers["Cache-Control"] = "private, max-age=300";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return new PhysicalFileResult(candidate, "image/webp")
         {

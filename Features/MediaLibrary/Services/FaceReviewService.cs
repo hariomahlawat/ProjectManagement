@@ -17,6 +17,7 @@ public sealed class FaceReviewService : IFaceReviewService
     private readonly MediaLibraryDbContext _db;
     private readonly IFaceCandidateRefreshQueueService _candidateRefreshQueue;
     private readonly IFaceIdentityGroupingRuntimeState _groupingState;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
     private readonly ILogger<FaceReviewService> _logger;
 
@@ -24,12 +25,14 @@ public sealed class FaceReviewService : IFaceReviewService
         MediaLibraryDbContext db,
         IFaceCandidateRefreshQueueService candidateRefreshQueue,
         IFaceIdentityGroupingRuntimeState groupingState,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options,
         ILogger<FaceReviewService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _candidateRefreshQueue = candidateRefreshQueue ?? throw new ArgumentNullException(nameof(candidateRefreshQueue));
         _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -726,6 +729,7 @@ public sealed class FaceReviewService : IFaceReviewService
             var assignment = await _db.PersonFaces
                 .Include(item => item.MediaFace)
                     .ThenInclude(face => face.MediaAsset)
+                    .ThenInclude(asset => asset.Source)
                 .SingleOrDefaultAsync(item => item.MediaPersonId == personId
                                               && item.MediaFaceId == faceId
                                               && item.RemovedAtUtc == null,
@@ -744,9 +748,7 @@ public sealed class FaceReviewService : IFaceReviewService
                 if (face.IsSuppressed
                     || face.QualityStatus != FaceQualityStatus.EmbeddingEligible
                     || face.QualityScore < _options.CandidateMinimumTrustedReferenceQuality
-                    || !face.MediaAsset.IsAvailable
-                    || face.MediaAsset.IsDeleted
-                    || face.MediaAsset.IsArchived)
+                    || !_visibility.IsVisible(face.MediaAsset))
                 {
                     throw new FaceIdentityConflictException(
                         "Only an available, embedding-eligible, sufficiently clear face can be trusted for matching.");
@@ -767,11 +769,13 @@ public sealed class FaceReviewService : IFaceReviewService
             }
             else
             {
+                var visibleAssetIds = BuildVisibleAssetIdsQuery();
                 var otherTrustedReferenceExists = await _db.PersonFaces.AsNoTracking().AnyAsync(
                     item => item.MediaPersonId == personId
                             && item.MediaFaceId != faceId
                             && item.RemovedAtUtc == null
-                            && item.ReferenceStatus == FaceReferenceStatus.TrustedReference,
+                            && item.ReferenceStatus == FaceReferenceStatus.TrustedReference
+                            && visibleAssetIds.Contains(item.MediaFace.MediaAssetId),
                     cancellationToken);
                 if (!otherTrustedReferenceExists)
                 {
@@ -1521,15 +1525,14 @@ public sealed class FaceReviewService : IFaceReviewService
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
         var dimension = _options.Embedder.EmbeddingDimension;
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         return await _db.Faces
             .AsNoTracking()
             .Where(face => faceIds.Contains(face.Id)
                            && !face.IsSuppressed
                            && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
                            && face.QualityScore >= _options.CandidateMinimumTrustedReferenceQuality
-                           && face.MediaAsset.IsAvailable
-                           && !face.MediaAsset.IsDeleted
-                           && !face.MediaAsset.IsArchived
+                           && visibleAssetIds.Contains(face.MediaAssetId)
                            && face.Embeddings.Any(embedding =>
                                embedding.InvalidatedAtUtc == null
                                && embedding.ModelKey == modelKey
@@ -1546,14 +1549,13 @@ public sealed class FaceReviewService : IFaceReviewService
         IReadOnlyList<Guid> faceIds,
         CancellationToken cancellationToken)
     {
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         var assignments = await _db.PersonFaces
             .Where(assignment => assignment.MediaPersonId == sourcePersonId
                                  && faceIds.Contains(assignment.MediaFaceId)
                                  && assignment.RemovedAtUtc == null
                                  && !assignment.MediaFace.IsSuppressed
-                                 && assignment.MediaFace.MediaAsset.IsAvailable
-                                 && !assignment.MediaFace.MediaAsset.IsDeleted
-                                 && !assignment.MediaFace.MediaAsset.IsArchived)
+                                 && visibleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
             .ToListAsync(cancellationToken);
         if (assignments.Count != faceIds.Count)
         {
@@ -1645,12 +1647,11 @@ public sealed class FaceReviewService : IFaceReviewService
             return;
         }
 
-        // Prefer an appearance whose source is currently available, while still
+        // Prefer an appearance whose source is currently visible, while still
         // retaining the person when only audited/unavailable appearances remain.
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         var availableRepresentative = await activeAssignments
-            .Where(assignment => assignment.MediaFace.MediaAsset.IsAvailable
-                                 && !assignment.MediaFace.MediaAsset.IsDeleted
-                                 && !assignment.MediaFace.MediaAsset.IsArchived)
+            .Where(assignment => visibleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
             .OrderByDescending(assignment => assignment.MediaFace.QualityScore)
             .ThenByDescending(assignment => assignment.AssignedAtUtc)
             .Select(assignment => (Guid?)assignment.MediaFaceId)
@@ -1669,14 +1670,13 @@ public sealed class FaceReviewService : IFaceReviewService
         Guid faceId,
         CancellationToken cancellationToken)
     {
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         var valid = await _db.Faces
             .AsNoTracking()
             .AnyAsync(face => face.Id == faceId
                               && !face.IsSuppressed
                               && face.QualityStatus != FaceQualityStatus.ProcessingFailed
-                              && face.MediaAsset.IsAvailable
-                              && !face.MediaAsset.IsDeleted
-                              && !face.MediaAsset.IsArchived
+                              && visibleAssetIds.Contains(face.MediaAssetId)
                               && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null),
                 cancellationToken);
         if (!valid)
@@ -1701,14 +1701,13 @@ public sealed class FaceReviewService : IFaceReviewService
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
         var dimension = _options.Embedder.EmbeddingDimension;
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
         var rows = await _db.Faces
             .AsNoTracking()
             .Where(face => faceIds.Contains(face.Id)
                            && !face.IsSuppressed
                            && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
-                           && face.MediaAsset.IsAvailable
-                           && !face.MediaAsset.IsDeleted
-                           && !face.MediaAsset.IsArchived
+                           && visibleAssetIds.Contains(face.MediaAssetId)
                            && (!requireUnassigned
                                || !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
                            && face.Embeddings.Any(embedding =>
@@ -1730,6 +1729,11 @@ public sealed class FaceReviewService : IFaceReviewService
                 "Two faces from the same photograph cannot be confirmed as one person in a batch. Review those faces individually.");
         }
     }
+
+    private IQueryable<long> BuildVisibleAssetIdsQuery()
+        => _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
 
     private static IReadOnlyList<Guid> NormalizeFaceSelection(IReadOnlyCollection<Guid> faceIds)
     {

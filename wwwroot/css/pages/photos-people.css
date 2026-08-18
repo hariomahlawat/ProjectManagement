@@ -1261,3 +1261,18 @@
     border-color: #d8e0ea;
     color: #526276;
 }
+
+/* Review workload navigation. Queue counts are deliberately independent links rather
+   than one ambiguous aggregate because known matches, groups and individual review can overlap. */
+.people-insight__work {
+    align-items: baseline;
+    border-radius: .45rem;
+    color: inherit;
+    display: inline-flex;
+    gap: .3rem;
+    margin: -.22rem -.32rem;
+    padding: .22rem .32rem;
+    text-decoration: none;
+}
+.people-insight__work:hover { background: #f1f5fb; color: #2458a6; }
+.people-insight__work.is-warning:hover { background: #fff6ed; color: #b54708; }

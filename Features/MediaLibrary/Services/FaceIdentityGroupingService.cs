@@ -17,15 +17,18 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IFaceCandidateSearchService _candidateSearch;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
 
     public FaceIdentityGroupingService(
         MediaLibraryDbContext db,
         IFaceCandidateSearchService candidateSearch,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _candidateSearch = candidateSearch ?? throw new ArgumentNullException(nameof(candidateSearch));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -45,13 +48,17 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
         // SelectMany/custom-record projection caused Npgsql to reject the expression tree at
         // runtime. Ordering and limiting now happen over scalar database columns; construction
         // of the in-memory grouping row happens only after materialisation.
+        var visibleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
         var databaseRows = await BuildGroupingRowsQuery(
                 _db,
                 modelKey,
                 modelVersion,
                 dimension,
                 _options.MinimumQualityScore,
-                maximumFaces)
+                maximumFaces,
+                visibleAssetIds)
             .ToListAsync(cancellationToken);
 
         var validRows = databaseRows
@@ -165,11 +172,12 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
         string modelVersion,
         int dimension,
         double minimumQualityScore,
-        int maximumFaces)
+        int maximumFaces,
+        IQueryable<long>? visibleAssetIds = null)
     {
         ArgumentNullException.ThrowIfNull(db);
 
-        var ordered =
+        var eligible =
             from embedding in db.FaceEmbeddings.AsNoTracking()
             join face in db.Faces.AsNoTracking()
                 on embedding.MediaFaceId equals face.Id
@@ -192,10 +200,6 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                       decision.MediaFaceId == face.Id
                       && !decision.CandidatePersonId.HasValue
                       && decision.Decision == FaceReviewDecisionType.Ignored)
-            orderby face.QualityScore descending,
-                asset.MediaDateUtc descending,
-                embedding.QualityScore descending,
-                face.Id
             select new
             {
                 FaceId = face.Id,
@@ -210,6 +214,17 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                 embedding.ModelVersion,
                 embedding.Dimension
             };
+
+        if (visibleAssetIds is not null)
+        {
+            eligible = eligible.Where(row => visibleAssetIds.Contains(row.AssetId));
+        }
+
+        var ordered = eligible
+            .OrderByDescending(row => row.QualityScore)
+            .ThenByDescending(row => row.MediaDateUtc)
+            .ThenByDescending(row => row.EmbeddingQualityScore)
+            .ThenBy(row => row.FaceId);
 
         return ordered
             .Take(Math.Clamp(maximumFaces, 1, 25_000))

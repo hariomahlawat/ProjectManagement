@@ -44,12 +44,16 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         // Aggregation, ordering and pagination all remain on scalar SQL columns. The former
         // query projected a MediaPersonCard containing correlated subqueries and then ordered
         // the CLR record; Npgsql correctly rejected that non-translatable expression tree.
+        var visibleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
         var databaseRows = await BuildPeopleIndexRowsQuery(
                 _db,
                 filteredPeople,
                 normalizedSort,
                 (pageNumber - 1) * pageSize,
-                pageSize)
+                pageSize,
+                visibleAssetIds)
             .ToListAsync(cancellationToken);
 
         var people = databaseRows
@@ -66,6 +70,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             .ToList();
 
         var reviewableFaces = BuildVisibleReviewableFacesQuery();
+        var totalUnassignedFaceCount = await reviewableFaces.CountAsync(cancellationToken);
         var knownPersonSuggestionCount = await reviewableFaces.CountAsync(face =>
             _db.FaceReviewDecisions.Any(decision =>
                 decision.MediaFaceId == face.Id
@@ -100,7 +105,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             pageNumber < pageCount,
             knownPersonSuggestionCount,
             candidateSearchPendingCount,
-            candidateSearchFailureCount);
+            candidateSearchFailureCount,
+            totalUnassignedFaceCount);
     }
 
     public async Task<MediaPersonDetailsResult?> GetPersonAsync(
@@ -127,6 +133,10 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             return null;
         }
 
+        var visiblePersonAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
+
         var assignmentRows = await (
                 from assignment in _db.PersonFaces.AsNoTracking()
                 join face in _db.Faces.AsNoTracking()
@@ -136,9 +146,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 where assignment.MediaPersonId == personId
                       && assignment.RemovedAtUtc == null
                       && !face.IsSuppressed
-                      && asset.IsAvailable
-                      && !asset.IsDeleted
-                      && !asset.IsArchived
+                      && visiblePersonAssetIds.Contains(asset.Id)
                 orderby asset.MediaDateUtc descending, asset.Id, face.Id
                 select new MediaPersonPhotoDatabaseRow
                 {
@@ -479,7 +487,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         IQueryable<MediaPerson> filteredPeople,
         string sort,
         int skip,
-        int take)
+        int take,
+        IQueryable<long>? visibleAssetIds = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(filteredPeople);
@@ -512,6 +521,12 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 AssetId = asset.Id,
                 asset.MediaDateUtc
             };
+
+        if (visibleAssetIds is not null)
+        {
+            availableAssignmentRows = availableAssignmentRows
+                .Where(row => visibleAssetIds.Contains(row.AssetId));
+        }
 
         var availablePhotoStats =
             from row in availableAssignmentRows

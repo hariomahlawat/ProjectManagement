@@ -48,12 +48,10 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
                 : ValidateOptionsResult.Fail(failures);
         }
 
-        if ((options.IsExternalSourceFeatureEnabled
-             || options.IsAnyProcessingWorkerEnabled
-             || options.People.Enabled)
+        if (options.IsCatalogueEnabled
             && string.IsNullOrWhiteSpace(options.CacheRoot))
         {
-            failures.Add("MediaLibrary:CacheRoot is required while external media or processing is enabled.");
+            failures.Add("MediaLibrary:CacheRoot is required while the media catalogue is enabled.");
         }
 
         if (options.Catalogue.SynchronizePrismMedia
@@ -80,6 +78,7 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             ValidateProcessingOptions(options, failures);
         }
 
+        ValidateBulkDownloadOptions(options.BulkDownload, failures);
         ValidateClassificationOptions(options.Classification, failures);
 
         if (options.People.WorkerEnabled && !options.People.Enabled)
@@ -157,6 +156,23 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         foreach (var source in enabledSources)
         {
             ValidateSource(source, failures);
+        }
+    }
+
+    private static void ValidateBulkDownloadOptions(
+        MediaBulkDownloadOptions options,
+        ICollection<string> failures)
+    {
+        if (options.MaxItems is < 1 or > 500)
+        {
+            failures.Add("MediaLibrary:BulkDownload:MaxItems must be between 1 and 500.");
+        }
+
+        const long minimumBytes = 10L * 1024 * 1024;
+        const long maximumBytes = 50L * 1024 * 1024 * 1024;
+        if (options.MaxSourceBytes < minimumBytes || options.MaxSourceBytes > maximumBytes)
+        {
+            failures.Add("MediaLibrary:BulkDownload:MaxSourceBytes must be between 10 MB and 50 GB.");
         }
     }
 

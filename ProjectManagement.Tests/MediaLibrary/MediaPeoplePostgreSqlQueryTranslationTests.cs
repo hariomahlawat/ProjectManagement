@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Tests.MediaLibrary;
@@ -140,6 +142,66 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("MediaFaceEmbeddings", sql);
         Assert.Contains("MediaPersonFaces", sql);
         Assert.Contains("NOT EXISTS", sql.ToUpperInvariant());
+    }
+
+
+    [Fact]
+    public void Canonical_visibility_subquery_translates_across_people_workflows()
+    {
+        using var db = CreateContext();
+        var options = new MediaLibraryOptions
+        {
+            Enabled = true,
+            Catalogue = new MediaCatalogueOptions { Enabled = true },
+            ExternalSources = new ExternalMediaSourcesOptions { Enabled = true }
+        };
+        var visibleAssetIds = new MediaAssetVisibilityPolicy(Options.Create(options))
+            .Apply(db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
+
+        var peopleSql = MediaPeopleQueryService.BuildPeopleIndexRowsQuery(
+                db,
+                MediaPeopleQueryService.BuildFilteredPeopleQuery(db, null, includeHidden: false),
+                "recent",
+                0,
+                36,
+                visibleAssetIds)
+            .ToQueryString();
+        var groupingSql = FaceIdentityGroupingService.BuildGroupingRowsQuery(
+                db,
+                "opencv-sface",
+                "2021dec",
+                128,
+                0.45d,
+                2_000,
+                visibleAssetIds)
+            .ToQueryString();
+        var referenceSql = FaceCandidateSearchService.BuildReferenceRowsQuery(
+                db,
+                Guid.Empty,
+                "opencv-sface",
+                "2021dec",
+                128,
+                0.65d,
+                10_000,
+                visibleAssetIds)
+            .ToQueryString();
+        var queueSql = FaceCandidateRefreshQueueService.BuildQueueableFacesQuery(
+                db,
+                "opencv-sface",
+                "2021dec",
+                128,
+                0.55d,
+                visibleAssetIds)
+            .ToQueryString();
+
+        foreach (var sql in new[] { peopleSql, groupingSql, referenceSql, queueSql })
+        {
+            Assert.Contains("MediaAssets", sql);
+            Assert.Contains("MediaLibrarySources", sql);
+            Assert.Contains("IsVisibleInLibrary", sql);
+            Assert.Contains("AvailabilityStatus", sql);
+        }
     }
 
     private static MediaLibraryDbContext CreateContext()

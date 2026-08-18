@@ -62,9 +62,7 @@ public sealed class IndexModel : PageModel
         : SuggestedGroupCount > 0
             ? "groups"
             : "unidentified";
-    public int ReviewWorkCount => HasGroupingWorkload
-        ? SuggestedGroupCount + IndividualReviewCount
-        : Result.PendingReviewCount;
+    public int TotalReviewableAppearances => Result.TotalUnassignedFaceCount;
 
     public string BuildPageUrl(int pageNumber)
     {

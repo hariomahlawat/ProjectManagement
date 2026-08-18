@@ -31,7 +31,8 @@ public sealed record MediaPeopleIndexResult(
     bool HasNextPage,
     int KnownPersonSuggestionCount = 0,
     int CandidateSearchPendingCount = 0,
-    int CandidateSearchFailureCount = 0);
+    int CandidateSearchFailureCount = 0,
+    int TotalUnassignedFaceCount = 0);
 
 public sealed record MediaPersonDetailsResult(
     Guid Id,

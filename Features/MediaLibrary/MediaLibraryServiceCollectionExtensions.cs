@@ -68,6 +68,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaAssetVisibilityPolicy, MediaAssetVisibilityPolicy>();
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
         services.AddScoped<IMediaCollectionQueryService, MediaCollectionQueryService>();
+        services.AddScoped<IMediaBulkDownloadService, MediaBulkDownloadService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();

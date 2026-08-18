@@ -13,13 +13,16 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
 {
     private readonly MediaLibraryDbContext _db;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
 
     public FaceCandidateSearchService(
         MediaLibraryDbContext db,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -104,6 +107,9 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 100,
                 250_000);
 
+            var visibleAssetIds = _visibility
+                .Apply(_db.Assets.AsNoTracking())
+                .Select(asset => asset.Id);
             var databaseRows = await BuildReferenceRowsQuery(
                     _db,
                     Guid.Empty,
@@ -111,7 +117,8 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                     modelGroup.Key.ModelVersion,
                     modelGroup.Key.Dimension,
                     _options.CandidateMinimumTrustedReferenceQuality,
-                    maximumReferences)
+                    maximumReferences,
+                    visibleAssetIds)
                 .ToListAsync(cancellationToken);
 
             var references = databaseRows
@@ -268,11 +275,12 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
         string modelVersion,
         int dimension,
         double minimumReferenceQuality,
-        int maximumReferences)
+        int maximumReferences,
+        IQueryable<long>? visibleAssetIds = null)
     {
         ArgumentNullException.ThrowIfNull(db);
 
-        var ordered =
+        var eligible =
             from assignment in db.PersonFaces.AsNoTracking()
             join person in db.Persons.AsNoTracking()
                 on assignment.MediaPersonId equals person.Id
@@ -299,11 +307,9 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                   && reference.ModelKey == modelKey
                   && reference.ModelVersion == modelVersion
                   && reference.Dimension == dimension
-            orderby reference.QualityScore descending,
-                assignment.AssignedAtUtc descending,
-                reference.Id descending
             select new
             {
+                AssetId = asset.Id,
                 FaceId = face.Id,
                 EmbeddingId = reference.Id,
                 PersonId = assignment.MediaPersonId,
@@ -313,6 +319,16 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 QualityScore = reference.QualityScore,
                 assignment.AssignedAtUtc
             };
+
+        if (visibleAssetIds is not null)
+        {
+            eligible = eligible.Where(row => visibleAssetIds.Contains(row.AssetId));
+        }
+
+        var ordered = eligible
+            .OrderByDescending(row => row.QualityScore)
+            .ThenByDescending(row => row.AssignedAtUtc)
+            .ThenByDescending(row => row.EmbeddingId);
 
         return ordered
             .Take(Math.Clamp(maximumReferences, 1, 250_000))
