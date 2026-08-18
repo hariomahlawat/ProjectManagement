@@ -222,6 +222,9 @@ public sealed class MediaPeopleOptions
     /// <summary>Maximum faces that may be human-confirmed together for one known person.</summary>
     public int CandidateBatchConfirmationLimit { get; set; } = 25;
 
+    /// <summary>Maximum appearances that may be triaged together as unidentified/not-a-face.</summary>
+    public int ReviewTriageBatchLimit { get; set; } = 100;
+
     /// <summary>
     /// Groups unassigned, model-compatible embeddings into strict unnamed-person sets.
     /// Grouping never creates or confirms an identity; it only reduces human review effort.
@@ -239,6 +242,10 @@ public sealed class MediaPeopleOptions
     /// </summary>
     public double GroupingSimilarityThreshold { get; set; } = 0.42;
     public double GroupingMinimumPairwiseSimilarity { get; set; } = 0.38;
+
+    /// <summary>Presentation-only review bands. These remain similarity signals, never identity probabilities.</summary>
+    public double GroupingReviewModerateSimilarityThreshold { get; set; } = 0.50;
+    public double GroupingReviewStrongSimilarityThreshold { get; set; } = 0.65;
 
     /// <summary>
     /// Retained only for configuration compatibility. The production service never

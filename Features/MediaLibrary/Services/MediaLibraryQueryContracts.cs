@@ -15,7 +15,9 @@ public sealed record MediaLibraryQuery(
     bool IncludePeople,
     IReadOnlyList<Guid>? PersonIds = null,
     string PeopleMatch = "all",
-    bool IncludeUnidentifiedFaces = false);
+    bool IncludeUnidentifiedFaces = false,
+    string Sort = "newest",
+    string? CollectionKey = null);
 
 public sealed record MediaLibraryPersonSummary(Guid Id, string DisplayName);
 

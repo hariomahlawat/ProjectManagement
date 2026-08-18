@@ -56,11 +56,22 @@
             <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
             @if (Model.CanManageIdentities)
             {
-                <div><strong>@Model.Result.PendingReviewCount</strong><span>to review</span></div>
-                <div><strong>@Model.Result.UnidentifiedFaceCount</strong><span>unidentified</span></div>
+                @if (Model.HasGroupingWorkload)
+                {
+                    <div><strong>@Model.SuggestedGroupCount</strong><span>suggested groups</span></div>
+                    <div><strong>@Model.IndividualReviewCount</strong><span>individual reviews</span></div>
+                }
+                else
+                {
+                    <div><strong>@Model.Result.PendingReviewCount</strong><span>review items</span></div>
+                }
                 @if (Model.Result.CandidateSearchFailureCount > 0) { <div class="is-warning"><strong>@Model.Result.CandidateSearchFailureCount</strong><span>matching failures</span></div> }
             }
         </section>
+        @if (Model.CanManageIdentities && Model.Result.UnidentifiedFaceCount > 0)
+        {
+            <p class="people-workload-note"><strong>@Model.Result.UnidentifiedFaceCount</strong> unidentified face appearance@(Model.Result.UnidentifiedFaceCount == 1 ? "" : "s") in the current review corpus@(Model.HasGroupingWorkload ? $"; {Model.GroupedFaceCount} are already organised into suggested groups." : ".")</p>
+        }
 
         <section class="people-toolbar">
             <form method="get" class="people-search" role="search" data-people-search-form>

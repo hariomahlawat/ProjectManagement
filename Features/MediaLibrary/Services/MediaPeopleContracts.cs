@@ -87,6 +87,17 @@ public enum FaceReviewQueueKind
     Unidentified = 1
 }
 
+
+public sealed record FaceReviewQueueQuery(
+    FaceReviewQueueKind Kind,
+    int PageNumber,
+    int PageSize,
+    string Sort = "quality-desc",
+    IReadOnlyList<long>? AssetIds = null,
+    string Source = "all",
+    int? Year = null,
+    string MatchStatus = "all");
+
 public sealed record FaceReviewCandidateItem(
     long DecisionId,
     Guid PersonId,
@@ -126,7 +137,8 @@ public sealed record FaceReviewQueueResult(
     int KnownMatchCount = 0,
     int UnidentifiedCount = 0,
     int CandidateSearchPendingCount = 0,
-    int CandidateSearchFailureCount = 0);
+    int CandidateSearchFailureCount = 0,
+    IReadOnlyList<int>? AvailableYears = null);
 
 public interface IMediaPeopleQueryService
 {
@@ -142,6 +154,10 @@ public interface IMediaPeopleQueryService
         FaceReviewQueueKind kind,
         int pageNumber,
         int pageSize,
+        CancellationToken cancellationToken);
+
+    Task<FaceReviewQueueResult> GetReviewQueueAsync(
+        FaceReviewQueueQuery query,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MediaPersonOption>> GetPersonOptionsAsync(

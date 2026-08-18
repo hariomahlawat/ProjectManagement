@@ -11,11 +11,21 @@
     // navigation. The background worker discovers PRISM-owned media; this lightweight
     // check only refreshes the UI after the rendered result set changes.
     const autoRefreshUrl = root.dataset.autoRefreshUrl;
+    const updateBanner = root.querySelector('[data-library-update-banner]');
+    const refreshButton = root.querySelector('[data-library-refresh]');
     let currentLibraryVersion = root.dataset.libraryVersion || '';
     let updateCheckInProgress = false;
 
+    const showUpdateAvailable = () => {
+        if (!updateBanner) return;
+        updateBanner.hidden = false;
+        updateBanner.classList.add('is-visible');
+    };
+
+    refreshButton?.addEventListener('click', () => window.location.reload());
+
     const checkForLibraryUpdates = async () => {
-        if (!autoRefreshUrl || updateCheckInProgress || document.hidden || !viewer.hidden) return;
+        if (!autoRefreshUrl || updateCheckInProgress || document.hidden || !updateBanner?.hidden) return;
         updateCheckInProgress = true;
         try {
             const response = await fetch(autoRefreshUrl, {
@@ -35,7 +45,7 @@
 
             if (nextVersion && nextVersion !== currentLibraryVersion) {
                 currentLibraryVersion = nextVersion;
-                window.location.reload();
+                showUpdateAvailable();
             }
         } catch {
             // Enhancement only. A failed update check must not affect normal browsing.
@@ -79,6 +89,7 @@
     const downloadLink = viewer.querySelector('[data-viewer-download]');
     const infoButton = viewer.querySelector('[data-viewer-info]');
     const infoPanel = viewer.querySelector('[data-viewer-info-panel]');
+    if (infoPanel) infoPanel.inert = true;
     const previousButton = viewer.querySelector('[data-viewer-prev]');
     const nextButton = viewer.querySelector('[data-viewer-next]');
     const zoomInButton = viewer.querySelector('[data-viewer-zoom-in]');
@@ -260,6 +271,7 @@
         viewer.classList.remove('is-info-open');
         infoButton.setAttribute('aria-pressed', 'false');
         infoPanel.setAttribute('aria-hidden', 'true');
+        infoPanel.inert = true;
         mediaHost.replaceChildren();
         setZoom(1);
         document.body.classList.remove('photos-viewer-open');
@@ -293,6 +305,7 @@
         const openNow = viewer.classList.toggle('is-info-open');
         infoButton.setAttribute('aria-pressed', String(openNow));
         infoPanel.setAttribute('aria-hidden', String(!openNow));
+        infoPanel.inert = !openNow;
     });
 
     document.addEventListener('keydown', event => {
@@ -363,6 +376,7 @@
         const gap = 5;
         const containerWidth = grid.clientWidth;
         const target = gridTargetHeight();
+        const sparseLastRow = root.dataset.sparseLastRow === 'true';
         const minHeight = Math.max(120, target * 0.72);
         const maxHeight = target * 1.26;
 
@@ -419,7 +433,8 @@
             const available = containerWidth - gap * (entries.length - 1);
             let height = available / sum;
 
-            if (isLast && height > target) height = target;
+            const lastRowCeiling = sparseLastRow ? target * 1.18 : target;
+            if (isLast && height > lastRowCeiling) height = lastRowCeiling;
             height = Math.max(minHeight, Math.min(maxHeight, height));
 
             entries.forEach(({ tile, ratio }) => {
@@ -478,50 +493,230 @@
 
 })();
 
-// Media-first selection mode. Kept independent from the viewer so normal clicks
-// continue to open media unless the user explicitly enters Select mode.
+// Media-first selection mode. Normal clicks continue to open media unless the user
+// explicitly enters Select mode. Selection state is local to the current rendered page.
 (() => {
+    'use strict';
+
     const library = document.querySelector('[data-photos-library]');
     const toggle = document.querySelector('[data-photos-select-toggle]');
     if (!library || !toggle) return;
 
-    let selecting = false;
-    const selected = new Set();
+    const tiles = Array.from(library.querySelectorAll('[data-media-item]'));
+    const actionBar = library.querySelector('[data-photos-selection-bar]');
+    const countLabel = actionBar?.querySelector('[data-selection-count]');
+    const noteLabel = actionBar?.querySelector('[data-selection-note]');
+    const clearButton = actionBar?.querySelector('[data-selection-clear]');
+    const selectAllButton = actionBar?.querySelector('[data-selection-select-all]');
+    const downloadForm = actionBar?.querySelector('[data-selection-download-form]');
+    const downloadButton = actionBar?.querySelector('[data-selection-download]');
+    const reviewPeopleLink = actionBar?.querySelector('[data-selection-review-people]');
     const label = toggle.querySelector('span');
+
+    let selecting = false;
+    let lastSelectedIndex = -1;
+    let suppressNextClick = false;
+    const selected = new Set();
+
+    const keyFor = (tile, index) => tile.dataset.mediaKey || String(index);
+    const assetIdFor = tile => {
+        const value = Number.parseInt(tile.dataset.assetId || '', 10);
+        return Number.isSafeInteger(value) && value > 0 ? value : null;
+    };
+
+    const selectedTiles = () => tiles.filter((tile, index) => selected.has(keyFor(tile, index)));
+
+    const setTileSelected = (tile, index, value) => {
+        const key = keyFor(tile, index);
+        if (value) selected.add(key);
+        else selected.delete(key);
+        tile.classList.toggle('is-selected', value);
+        if (selecting) tile.setAttribute('aria-pressed', String(value));
+    };
+
+    const rebuildActionTargets = () => {
+        if (!actionBar) return;
+        const chosen = selectedTiles();
+        const assetIds = chosen.map(assetIdFor).filter(id => id !== null);
+
+        if (downloadForm) {
+            downloadForm.querySelectorAll('input[name="assetIds"]').forEach(input => input.remove());
+            assetIds.forEach(assetId => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'assetIds';
+                input.value = String(assetId);
+                downloadForm.appendChild(input);
+            });
+        }
+
+        if (downloadButton) downloadButton.disabled = assetIds.length === 0;
+
+        if (reviewPeopleLink) {
+            const base = reviewPeopleLink.dataset.baseUrl || reviewPeopleLink.getAttribute('href') || '';
+            if (assetIds.length > 0 && base) {
+                const url = new URL(base, window.location.origin);
+                url.searchParams.delete('AssetIds');
+                assetIds.forEach(assetId => url.searchParams.append('AssetIds', String(assetId)));
+                reviewPeopleLink.href = `${url.pathname}${url.search}${url.hash}`;
+                reviewPeopleLink.classList.remove('disabled');
+                reviewPeopleLink.setAttribute('aria-disabled', 'false');
+            } else {
+                reviewPeopleLink.classList.add('disabled');
+                reviewPeopleLink.setAttribute('aria-disabled', 'true');
+            }
+        }
+
+        if (countLabel) countLabel.textContent = `${chosen.length} selected`;
+        if (noteLabel) {
+            const unsupported = chosen.length - assetIds.length;
+            noteLabel.textContent = unsupported > 0
+                ? `${unsupported} item${unsupported === 1 ? '' : 's'} still awaiting catalogue actions`
+                : '';
+        }
+    };
 
     const render = () => {
         library.classList.toggle('is-selecting', selecting);
         toggle.setAttribute('aria-pressed', String(selecting));
-        if (label) label.textContent = selecting
-            ? (selected.size > 0 ? `${selected.size} selected` : 'Cancel')
-            : 'Select';
+        if (label) label.textContent = selecting ? 'Cancel' : 'Select';
+
+        tiles.forEach((tile, index) => {
+            if (selecting) tile.setAttribute('aria-pressed', String(selected.has(keyFor(tile, index))));
+            else tile.removeAttribute('aria-pressed');
+        });
+
+        if (actionBar) actionBar.hidden = !selecting;
+        rebuildActionTargets();
+    };
+
+    const clearSelection = () => {
+        selected.clear();
+        tiles.forEach(tile => tile.classList.remove('is-selected'));
+        lastSelectedIndex = -1;
+        rebuildActionTargets();
+    };
+
+    const leaveSelectionMode = () => {
+        selecting = false;
+        clearSelection();
+        render();
     };
 
     toggle.addEventListener('click', () => {
         selecting = !selecting;
-        if (!selecting) {
-            selected.clear();
-            library.querySelectorAll('.photos-tile.is-selected').forEach(tile => tile.classList.remove('is-selected'));
-        }
+        if (!selecting) clearSelection();
         render();
+    });
+
+    clearButton?.addEventListener('click', clearSelection);
+    selectAllButton?.addEventListener('click', () => {
+        tiles.forEach((tile, index) => {
+            if (!tile.disabled && !tile.classList.contains('photos-tile--unavailable')) {
+                setTileSelected(tile, index, true);
+            }
+        });
+        lastSelectedIndex = tiles.length - 1;
+        rebuildActionTargets();
+    });
+
+    reviewPeopleLink?.addEventListener('click', event => {
+        if (reviewPeopleLink.getAttribute('aria-disabled') === 'true') event.preventDefault();
     });
 
     library.addEventListener('click', event => {
         if (!selecting) return;
         const tile = event.target.closest('[data-media-item]');
         if (!tile) return;
+
         event.preventDefault();
         event.stopImmediatePropagation();
-        const key = tile.dataset.mediaKey || String(Array.from(library.querySelectorAll('[data-media-item]')).indexOf(tile));
-        if (selected.has(key)) {
-            selected.delete(key);
-            tile.classList.remove('is-selected');
-        } else {
-            selected.add(key);
-            tile.classList.add('is-selected');
+        if (suppressNextClick) {
+            suppressNextClick = false;
+            return;
         }
-        render();
+
+        const index = tiles.indexOf(tile);
+        if (index < 0) return;
+
+        if (event.shiftKey && lastSelectedIndex >= 0) {
+            const from = Math.min(lastSelectedIndex, index);
+            const to = Math.max(lastSelectedIndex, index);
+            for (let position = from; position <= to; position += 1) {
+                if (!tiles[position].disabled) setTileSelected(tiles[position], position, true);
+            }
+        } else {
+            setTileSelected(tile, index, !selected.has(keyFor(tile, index)));
+        }
+
+        lastSelectedIndex = index;
+        rebuildActionTargets();
     }, true);
+
+    // Desktop lasso selection. It is deliberately available only in explicit Select mode
+    // and only for a primary mouse pointer, so touch scrolling and normal gallery browsing
+    // keep their native behaviour.
+    let dragStart = null;
+    let dragGrid = null;
+    let lasso = null;
+
+    const removeLasso = () => {
+        lasso?.remove();
+        lasso = null;
+        dragStart = null;
+        dragGrid = null;
+    };
+
+    const intersect = (a, b) => !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+
+    library.querySelectorAll('.photos-grid').forEach(grid => {
+        grid.addEventListener('pointerdown', event => {
+            if (!selecting || event.pointerType !== 'mouse' || event.button !== 0) return;
+            dragStart = { x: event.clientX, y: event.clientY };
+            dragGrid = grid;
+        });
+    });
+
+    document.addEventListener('pointermove', event => {
+        if (!selecting || !dragStart || !dragGrid) return;
+        const dx = event.clientX - dragStart.x;
+        const dy = event.clientY - dragStart.y;
+        if (!lasso && Math.hypot(dx, dy) < 7) return;
+
+        if (!lasso) {
+            lasso = document.createElement('div');
+            lasso.className = 'photos-selection-lasso';
+            document.body.appendChild(lasso);
+        }
+
+        event.preventDefault();
+        const left = Math.min(dragStart.x, event.clientX);
+        const top = Math.min(dragStart.y, event.clientY);
+        const right = Math.max(dragStart.x, event.clientX);
+        const bottom = Math.max(dragStart.y, event.clientY);
+        Object.assign(lasso.style, {
+            left: `${left}px`,
+            top: `${top}px`,
+            width: `${right - left}px`,
+            height: `${bottom - top}px`
+        });
+
+        const lassoRect = { left, top, right, bottom };
+        tiles.forEach((tile, index) => {
+            if (tile.closest('.photos-grid') !== dragGrid || tile.disabled) return;
+            if (intersect(lassoRect, tile.getBoundingClientRect())) setTileSelected(tile, index, true);
+        });
+        rebuildActionTargets();
+    }, { passive: false });
+
+    document.addEventListener('pointerup', () => {
+        if (lasso) suppressNextClick = true;
+        removeLasso();
+    });
+    document.addEventListener('pointercancel', removeLasso);
+    document.addEventListener('keydown', event => {
+        if (selecting && event.key === 'Escape') leaveSelectionMode();
+    });
 
     render();
 })();

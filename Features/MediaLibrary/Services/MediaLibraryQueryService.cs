@@ -16,17 +16,20 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
     private readonly MediaLibraryDbContext _db;
     private readonly MediaLibraryOptions _options;
     private readonly IMediaLibraryDiagnostics _diagnostics;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly ILogger<MediaLibraryQueryService> _logger;
 
     public MediaLibraryQueryService(
         MediaLibraryDbContext db,
         IOptions<MediaLibraryOptions> options,
         IMediaLibraryDiagnostics diagnostics,
+        IMediaAssetVisibilityPolicy visibility,
         ILogger<MediaLibraryQueryService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _diagnostics = diagnostics ?? throw new ArgumentNullException(nameof(diagnostics));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -63,6 +66,12 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             if (request.ProjectId.HasValue)
             {
                 baseQuery = baseQuery.Where(asset => asset.ProjectId == request.ProjectId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.CollectionKey))
+            {
+                var collectionKey = request.CollectionKey.Trim();
+                baseQuery = baseQuery.Where(asset => asset.CollectionKey == collectionKey);
             }
 
             var selectedPersonIds = NormalizeSelectedPeople(request);
@@ -115,11 +124,17 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             pageNumber = Math.Clamp(request.PageNumber, 1, pageCount);
             skip = (pageNumber - 1) * pageSize;
 
-            var rows = await filteredQuery
-                .OrderByDescending(asset => asset.MediaDateUtc)
-                .ThenBy(asset => asset.ContextTitle)
-                .ThenBy(asset => asset.SortOrder)
-                .ThenBy(asset => asset.Id)
+            var orderedQuery = string.Equals(request.Sort?.Trim(), "oldest", StringComparison.OrdinalIgnoreCase)
+                ? filteredQuery.OrderBy(asset => asset.MediaDateUtc)
+                    .ThenBy(asset => asset.ContextTitle)
+                    .ThenBy(asset => asset.SortOrder)
+                    .ThenBy(asset => asset.Id)
+                : filteredQuery.OrderByDescending(asset => asset.MediaDateUtc)
+                    .ThenBy(asset => asset.ContextTitle)
+                    .ThenBy(asset => asset.SortOrder)
+                    .ThenBy(asset => asset.Id);
+
+            var rows = await orderedQuery
                 .Skip(skip)
                 .Take(pageSize)
                 .Select(asset => new TimelineRow(
@@ -366,18 +381,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
     }
 
     private IQueryable<MediaAsset> BuildBaseQuery()
-        => _db.Assets
-            .AsNoTracking()
-            .Where(asset => asset.IsAvailable
-                            && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
-                            && !asset.IsDeleted
-                            && !asset.IsArchived)
-            .Where(asset => !asset.Source.IsDeleted)
-            .Where(asset => asset.Origin != MediaAssetOrigin.ExternalFile
-                            || (_options.IsExternalSourceFeatureEnabled
-                                && asset.Source.IsEnabled
-                                && asset.Source.IsVisibleInLibrary
-                                && asset.Source.SourceType == MediaLibrarySourceType.FileSystem));
+        => _visibility.Apply(_db.Assets.AsNoTracking());
 
     private async Task<T> ExecuteOptionalAsync<T>(
         MediaLibraryQueryOperation operation,

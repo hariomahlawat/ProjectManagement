@@ -1,0 +1,15 @@
+@model ProjectManagement.Pages.Photos.People.ReviewModel
+<input type="hidden" name="Mode" value="@Model.Mode" />
+<input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+<input type="hidden" name="Sort" value="@Model.Sort" />
+<input type="hidden" name="Layout" value="@Model.Layout" />
+<input type="hidden" name="Source" value="@Model.Source" />
+@if (Model.Year.HasValue)
+{
+    <input type="hidden" name="Year" value="@Model.Year" />
+}
+<input type="hidden" name="MatchStatus" value="@Model.MatchStatus" />
+@foreach (var scopedAssetId in Model.AssetIds)
+{
+    <input type="hidden" name="AssetIds" value="@scopedAssetId" />
+}

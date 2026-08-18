@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
@@ -41,6 +42,24 @@ public sealed class ReviewModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
 
+    [BindProperty(SupportsGet = true)]
+    public string Sort { get; set; } = "quality-desc";
+
+    [BindProperty(SupportsGet = true)]
+    public string Layout { get; set; } = "triage";
+
+    [BindProperty(SupportsGet = true)]
+    public long[] AssetIds { get; set; } = Array.Empty<long>();
+
+    [BindProperty(SupportsGet = true)]
+    public string Source { get; set; } = "all";
+
+    [BindProperty(SupportsGet = true)]
+    public int? Year { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string MatchStatus { get; set; } = "all";
+
     public FaceIdentityGroupingResult GroupResult { get; private set; } = new(
         Array.Empty<FaceIdentityGroup>(), 0, 0, 0);
 
@@ -57,13 +76,88 @@ public sealed class ReviewModel : PageModel
         = Array.Empty<MediaPersonOption>();
 
     public bool FeatureEnabled => _options.People.Enabled;
+    public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
     public bool GroupingEnabled => _options.People.GroupingEnabled;
     public bool GroupingAvailable { get; private set; } = true;
     public bool ReviewDataAvailable { get; private set; } = true;
     public bool IsGroupsMode => Mode == "groups";
     public bool IsMatchesMode => Mode == "matches";
     public bool IsUnidentifiedMode => Mode == "unidentified";
+    public bool IsTriageLayout => IsUnidentifiedMode && Layout == "triage";
+    public bool IsScopedToMedia => AssetIds.Length > 0;
+    public bool HasQueueFilters => Source != "all" || Year.HasValue || MatchStatus != "all";
+    public IReadOnlyList<int> AvailableYears => Result.AvailableYears ?? Array.Empty<int>();
     public double CandidateStrongSimilarityThreshold => _options.People.CandidateStrongSimilarityThreshold;
+    public double GroupingReviewModerateSimilarityThreshold => _options.People.GroupingReviewModerateSimilarityThreshold;
+    public double GroupingReviewStrongSimilarityThreshold => _options.People.GroupingReviewStrongSimilarityThreshold;
+
+    public string GroupSimilarityBand(double similarity)
+        => similarity >= GroupingReviewStrongSimilarityThreshold
+            ? "strong"
+            : similarity >= GroupingReviewModerateSimilarityThreshold
+                ? "moderate"
+                : "weak";
+
+    public string BuildReviewUrl(
+        string? mode = null,
+        int? pageNumber = null,
+        string? layout = null,
+        string? sort = null,
+        string? source = null,
+        int? year = null,
+        string? matchStatus = null)
+    {
+        var targetMode = mode ?? Mode;
+        var targetSource = source ?? Source;
+        var targetMatchStatus = matchStatus ?? MatchStatus;
+        var values = new RouteValueDictionary
+        {
+            ["Mode"] = targetMode,
+            ["PageNumber"] = pageNumber is > 1 ? pageNumber : null,
+            ["Layout"] = (layout ?? Layout) == "detail" ? "detail" : null,
+            ["Sort"] = (sort ?? Sort) == "quality-desc" ? null : (sort ?? Sort),
+            ["Source"] = targetMode == "groups" || targetSource == "all" ? null : targetSource,
+            ["Year"] = targetMode == "groups" ? null : year ?? Year,
+            ["MatchStatus"] = targetMode == "groups" || targetMatchStatus == "all" ? null : targetMatchStatus
+        };
+        if (targetMode != "groups")
+        {
+            for (var index = 0; index < AssetIds.Length; index++)
+            {
+                values[$"AssetIds[{index}]"] = AssetIds[index];
+            }
+        }
+        return Url.Page("/Photos/People/Review", values) ?? "/Photos/People/Review";
+    }
+
+    public string BuildClearQueueFiltersUrl()
+    {
+        var values = new RouteValueDictionary
+        {
+            ["Mode"] = Mode,
+            ["Layout"] = Layout == "detail" ? "detail" : null,
+            ["Sort"] = Sort == "quality-desc" ? null : Sort
+        };
+        for (var index = 0; index < AssetIds.Length; index++)
+        {
+            values[$"AssetIds[{index}]"] = AssetIds[index];
+        }
+        return Url.Page("/Photos/People/Review", values) ?? "/Photos/People/Review";
+    }
+
+    public string BuildClearMediaScopeUrl()
+    {
+        var values = new RouteValueDictionary
+        {
+            ["Mode"] = Mode,
+            ["Layout"] = Layout == "detail" ? "detail" : null,
+            ["Sort"] = Sort == "quality-desc" ? null : Sort,
+            ["Source"] = Source == "all" ? null : Source,
+            ["Year"] = Year,
+            ["MatchStatus"] = MatchStatus == "all" ? null : MatchStatus
+        };
+        return Url.Page("/Photos/People/Review", values) ?? "/Photos/People/Review";
+    }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -73,7 +167,7 @@ public sealed class ReviewModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        NormalizeMode();
+        NormalizeRequest();
         if (!FeatureEnabled)
         {
             return Page();
@@ -117,9 +211,15 @@ public sealed class ReviewModel : PageModel
                 ? FaceReviewQueueKind.KnownMatches
                 : FaceReviewQueueKind.Unidentified;
             Result = await _people.GetReviewQueueAsync(
-                kind,
-                Math.Max(1, PageNumber),
-                PageSize,
+                new FaceReviewQueueQuery(
+                    kind,
+                    Math.Max(1, PageNumber),
+                    PageSize,
+                    Sort,
+                    AssetIds,
+                    Source,
+                    Year,
+                    MatchStatus),
                 cancellationToken);
             AvailablePeople = Result.AvailablePeople;
             PageNumber = Result.PageNumber;
@@ -181,6 +281,22 @@ public sealed class ReviewModel : PageModel
             "Selected appearances were assigned to the confirmed person.",
             Mode);
 
+    public Task<IActionResult> OnPostIgnoreSelectedAsync(
+        List<Guid> faceIds,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.IgnoreManyAsync(faceIds, UserId, cancellationToken),
+            "Selected appearances were acknowledged and left unidentified.",
+            Mode);
+
+    public Task<IActionResult> OnPostSuppressSelectedAsync(
+        List<Guid> faceIds,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.SuppressManyAsync(faceIds, UserId, cancellationToken),
+            "Selected detections were marked as not faces.",
+            Mode);
+
     public Task<IActionResult> OnPostIgnoreAsync(
         Guid faceId,
         CancellationToken cancellationToken)
@@ -217,11 +333,11 @@ public sealed class ReviewModel : PageModel
 
     public Task<IActionResult> OnPostRejectGroupCandidateAsync(
         List<Guid> faceIds,
-        Guid personId,
+        Guid candidatePersonId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            () => _review.RejectManyAsync(faceIds, personId, UserId, cancellationToken),
-            "The known-person suggestion was rejected for this group.",
+            () => _review.RejectManyAsync(faceIds, candidatePersonId, UserId, cancellationToken),
+            "The known-person suggestion was rejected for the selected appearances.",
             "groups");
 
     public Task<IActionResult> OnPostAssignGroupAsync(
@@ -251,6 +367,50 @@ public sealed class ReviewModel : PageModel
            ?? User.Identity?.Name
            ?? "unknown";
 
+    private void NormalizeRequest()
+    {
+        NormalizeMode();
+        PageNumber = Math.Max(1, PageNumber);
+        Sort = Sort?.Trim().ToLowerInvariant() switch
+        {
+            "quality-asc" => "quality-asc",
+            "newest" => "newest",
+            "oldest" => "oldest",
+            _ => "quality-desc"
+        };
+        Source = Source?.Trim().ToLowerInvariant() switch
+        {
+            "projects" => "projects",
+            "visits" => "visits",
+            "events" => "events",
+            "activities" => "activities",
+            "external" => "external",
+            _ => "all"
+        };
+        Year = Year is >= 1900 and <= 2200 ? Year : null;
+        MatchStatus = MatchStatus?.Trim().ToLowerInvariant() switch
+        {
+            "no-match" => "no-match",
+            "failed" => "failed",
+            "not-requested" => "not-requested",
+            _ => "all"
+        };
+        if (IsGroupsMode)
+        {
+            Source = "all";
+            Year = null;
+            MatchStatus = "all";
+        }
+        Layout = IsUnidentifiedMode
+            ? string.Equals(Layout, "detail", StringComparison.OrdinalIgnoreCase) ? "detail" : "triage"
+            : "detail";
+        AssetIds = (AssetIds ?? Array.Empty<long>())
+            .Where(id => id > 0)
+            .Distinct()
+            .Take(250)
+            .ToArray();
+    }
+
     private void NormalizeMode()
     {
         if (GroupingEnabled && string.Equals(Mode, "groups", StringComparison.OrdinalIgnoreCase))
@@ -269,7 +429,7 @@ public sealed class ReviewModel : PageModel
         string? successMessage,
         string redirectMode)
     {
-        NormalizeMode();
+        NormalizeRequest();
         var normalizedRedirectMode = GroupingEnabled
                                      && string.Equals(redirectMode, "groups", StringComparison.OrdinalIgnoreCase)
             ? "groups"
@@ -279,7 +439,7 @@ public sealed class ReviewModel : PageModel
         if (!FeatureEnabled)
         {
             ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";
-            return RedirectToPage(new { Mode = normalizedRedirectMode, PageNumber });
+            return Redirect(BuildReviewUrl(normalizedRedirectMode, PageNumber));
         }
 
         try
@@ -298,6 +458,6 @@ public sealed class ReviewModel : PageModel
             ErrorMessage = exception.Message;
         }
 
-        return RedirectToPage(new { Mode = normalizedRedirectMode, PageNumber });
+        return Redirect(BuildReviewUrl(normalizedRedirectMode, PageNumber));
     }
 }

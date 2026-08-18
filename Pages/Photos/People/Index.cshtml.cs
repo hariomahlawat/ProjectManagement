@@ -13,15 +13,18 @@ public sealed class IndexModel : PageModel
 {
     private const int DefaultPageSize = 36;
     private readonly IMediaPeopleQueryService _people;
+    private readonly IFaceIdentityGroupingRuntimeState _groupingState;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         IMediaPeopleQueryService people,
+        IFaceIdentityGroupingRuntimeState groupingState,
         IOptions<MediaLibraryOptions> options,
         ILogger<IndexModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
+        _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -50,12 +53,18 @@ public sealed class IndexModel : PageModel
     public bool FeatureEnabled => _options.People.Enabled;
     public bool CanManageIdentities => User.IsInRole("Admin") || User.IsInRole("HoD");
     public bool DirectoryAvailable { get; private set; } = true;
+    public int SuggestedGroupCount { get; private set; }
+    public int GroupedFaceCount { get; private set; }
+    public int IndividualReviewCount { get; private set; }
+    public bool HasGroupingWorkload { get; private set; }
     public string ReviewMode => Result.KnownPersonSuggestionCount > 0
         ? "matches"
-        : Result.UnidentifiedFaceCount > 0
-            ? "unidentified"
-            : "groups";
-    public int ReviewWorkCount => Result.PendingReviewCount;
+        : SuggestedGroupCount > 0
+            ? "groups"
+            : "unidentified";
+    public int ReviewWorkCount => HasGroupingWorkload
+        ? SuggestedGroupCount + IndividualReviewCount
+        : Result.PendingReviewCount;
 
     public string BuildPageUrl(int pageNumber)
     {
@@ -116,6 +125,18 @@ public sealed class IndexModel : PageModel
                     SelectedIds.Length > 0 ? 120 : DefaultPageSize),
                 cancellationToken);
             PageNumber = Result.PageNumber;
+
+            if (_options.People.GroupingEnabled)
+            {
+                var grouping = _groupingState.GetSnapshot();
+                if (grouping.IsReady && grouping.Result is not null)
+                {
+                    SuggestedGroupCount = grouping.Result.TotalGroups;
+                    GroupedFaceCount = grouping.Result.GroupedFaceCount;
+                    IndividualReviewCount = grouping.Result.RemainingIndividualFaceCount;
+                    HasGroupingWorkload = true;
+                }
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

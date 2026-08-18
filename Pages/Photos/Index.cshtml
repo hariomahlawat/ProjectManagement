@@ -15,7 +15,8 @@
                      || Model.Classification != "all"
                      || Model.ProjectId.HasValue
                      || hasPeopleFilter
-                     || Model.Year.HasValue;
+                     || Model.Year.HasValue
+                     || Model.IsCollectionDetail;
     var activeFilterCount = new[]
     {
         !string.IsNullOrWhiteSpace(Model.Q),
@@ -24,7 +25,8 @@
         Model.Classification != "all",
         Model.ProjectId.HasValue,
         hasPeopleFilter,
-        Model.Year.HasValue
+        Model.Year.HasValue,
+        Model.IsCollectionDetail
     }.Count(value => value);
     var galleryHeading = Model.SelectedPeople.Count == 1
         ? Model.SelectedPeople[0].Name
@@ -37,7 +39,8 @@
 <div class="photos-library @(Model.IsPeopleGallery ? "photos-library--people" : null)"
      data-photos-library
      data-library-version="@Model.LibraryRevision"
-     data-auto-refresh-url="@Url.Page("./Index", "Revision")">
+     data-auto-refresh-url="@Url.Page("./Index", "Revision")"
+     data-sparse-last-row="@(Model.IsPeopleGallery || Model.IsCollectionDetail ? "true" : "false")">
     <header class="photos-hero @(Model.IsPeopleGallery ? "photos-hero--person" : null)">
         @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
         {
@@ -97,7 +100,10 @@
                     <a class="photos-action photos-action--quiet" asp-page="/Photos/People/Details" asp-route-id="@Model.SelectedPeople[0].Id"><i class="bi bi-sliders"></i><span>Manage identity</span></a>
                 }
             }
-            <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle><i class="bi bi-check2-circle"></i><span>Select</span></button>
+            @if (Model.View == "photos" && Model.Groups.Count > 0)
+            {
+                <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle aria-pressed="false"><i class="bi bi-check2-circle"></i><span>Select</span></button>
+            }
             <div class="dropdown">
                 <button class="photos-action photos-action--quiet" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More options"><i class="bi bi-three-dots"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
@@ -116,13 +122,21 @@
     </header>
 
     <nav class="photos-primary-tabs" aria-label="Photos sections">
-        <a asp-page="./Index" asp-route-View="photos" class="@(!Model.IsPeopleGallery && Model.View == "photos" ? "is-active" : null)">Photos</a>
-        <a asp-page="./Index" asp-route-View="collections" class="@(!Model.IsPeopleGallery && Model.View == "collections" ? "is-active" : null)">Collections</a>
+        <a asp-page="./Index" asp-route-View="photos" class="@(!Model.IsPeopleGallery && Model.View == "photos" && !Model.IsCollectionDetail ? "is-active" : null)">Photos</a>
+        <a asp-page="./Index" asp-route-View="collections" class="@(!Model.IsPeopleGallery && (Model.View == "collections" || Model.IsCollectionDetail) ? "is-active" : null)">Collections</a>
         @if (Model.PeopleFeatureEnabled)
         {
             <a class="@(Model.IsPeopleGallery ? "is-active" : null)" asp-page="/Photos/People/Index">People</a>
         }
     </nav>
+
+    @if (Model.IsCollectionDetail)
+    {
+        <section class="photos-collection-context" aria-label="Current collection">
+            <a href="@Model.BuildCollectionsUrl()"><i class="bi bi-chevron-left" aria-hidden="true"></i> Collections</a>
+            <span>@(Model.CurrentCollectionTitle ?? "Selected collection")</span>
+        </section>
+    }
 
     @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
     {
@@ -158,15 +172,27 @@
         <form method="get" class="photos-search" role="search">
             <input type="hidden" name="View" value="@Model.View" />
             <i class="bi bi-search"></i>
-            <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : "Search photos, projects, visits, activities, events or people")" autocomplete="off" data-photos-search />
+            <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : Model.PeopleFeatureEnabled ? "Search photos, projects, visits, activities, events or people" : "Search photos, projects, visits, activities or events")" autocomplete="off" data-photos-search />
             <input type="hidden" name="Source" value="@Model.Source" /><input type="hidden" name="Kind" value="@Model.Kind" /><input type="hidden" name="Classification" value="@Model.Classification" />
             @if (Model.ProjectId.HasValue) { <input type="hidden" name="ProjectId" value="@Model.ProjectId" /> }
             @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
             @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
             @if (Model.Year.HasValue) { <input type="hidden" name="Year" value="@Model.Year" /> }
+            @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
+            @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
+            @if (Model.IncludeSingletonCollections) { <input type="hidden" name="IncludeSingletonCollections" value="true" /> }
         </form>
         <div class="photos-toolbar__controls">
             <button class="photos-control" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters"><i class="bi bi-sliders2"></i><span>Filters</span>@if(activeFilterCount>0){<b>@activeFilterCount</b>}</button>
+            <div class="dropdown photos-sort">
+                <button class="photos-control" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Sort media">
+                    <i class="bi bi-arrow-down-up"></i><span>@(Model.Sort == "oldest" ? "Oldest" : "Newest")</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <li><a class="dropdown-item @(Model.Sort == "newest" ? "active" : null)" href="@Model.BuildSortUrl("newest")">Newest first</a></li>
+                    <li><a class="dropdown-item @(Model.Sort == "oldest" ? "active" : null)" href="@Model.BuildSortUrl("oldest")">Oldest first</a></li>
+                </ul>
+            </div>
             <nav class="photos-segments" aria-label="Media type">
                 <a class="@(Model.Kind == "all" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("all")">All</a>
                 <a class="@(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")">Photos</a>
@@ -175,7 +201,31 @@
         </div>
     </section>
 
-    <div class="photos-summary"><strong>@Model.Stats.Total</strong> items <span>·</span> @Model.Stats.Photos photos <span>·</span> @Model.Stats.Videos videos</div>
+    <div class="photos-summary">
+        @if (Model.View == "collections" && !Model.IsCollectionDetail)
+        {
+            <span class="photos-summary__metric"><strong>@Model.Stats.Collections</strong> collection@(Model.Stats.Collections == 1 ? "" : "s")</span>
+            <span class="photos-summary__separator" aria-hidden="true">·</span>
+            <span class="photos-summary__metric"><strong>@Model.Stats.Total</strong> media item@(Model.Stats.Total == 1 ? "" : "s")</span>
+            <span class="photos-summary__separator" aria-hidden="true">·</span>
+            <span class="photos-summary__metric"><strong>@Model.Stats.Photos</strong> photo@(Model.Stats.Photos == 1 ? "" : "s")</span>
+            <span class="photos-summary__separator" aria-hidden="true">·</span>
+            <span class="photos-summary__metric"><strong>@Model.Stats.Videos</strong> video@(Model.Stats.Videos == 1 ? "" : "s")</span>
+        }
+        else
+        {
+            <span class="photos-summary__metric"><strong>@Model.Stats.Total</strong> item@(Model.Stats.Total == 1 ? "" : "s")</span>
+            <span class="photos-summary__separator" aria-hidden="true">·</span>
+            <span class="photos-summary__metric"><strong>@Model.Stats.Photos</strong> photo@(Model.Stats.Photos == 1 ? "" : "s")</span>
+            <span class="photos-summary__separator" aria-hidden="true">·</span>
+            <span class="photos-summary__metric"><strong>@Model.Stats.Videos</strong> video@(Model.Stats.Videos == 1 ? "" : "s")</span>
+        }
+    </div>
+
+    <div class="photos-update-banner" data-library-update-banner hidden role="status" aria-live="polite">
+        <span><i class="bi bi-arrow-repeat" aria-hidden="true"></i><strong>New media is available.</strong> Refresh when convenient; your current work will not be interrupted.</span>
+        <button type="button" class="btn btn-sm btn-primary" data-library-refresh>Refresh</button>
+    </div>
 
     @if (!string.IsNullOrWhiteSpace(Model.ExternalLibraryWarning))
     {
@@ -198,12 +248,17 @@
         <div class="photos-active-filters">
             @if (!string.IsNullOrWhiteSpace(Model.Q)) { <span class="photos-filter-chip"><i class="bi bi-search"></i>@Model.Q</span> }
             @if (Model.Source != "all") { <span class="photos-filter-chip"><i class="bi bi-folder2"></i>@Model.Source</span> }
-            @if (Model.Classification != "all") { <span class="photos-filter-chip"><i class="bi bi-stars"></i>@Model.Classification</span> }
+            @if (Model.Kind != "all") { <span class="photos-filter-chip"><i class="bi bi-images"></i>@Model.Kind</span> }
+            @if (Model.Classification != "all") { <span class="photos-filter-chip"><i class="bi bi-stars"></i>@Model.Classification.Replace("-", " ")</span> }
+            @if (Model.ProjectId.HasValue) { <span class="photos-filter-chip"><i class="bi bi-folder"></i>@(Model.SelectedProjectName ?? $"Project {Model.ProjectId}")</span> }
+            @if (Model.Year.HasValue) { <span class="photos-filter-chip"><i class="bi bi-calendar3"></i>@Model.Year</span> }
+            @if (hasPeopleFilter) { <span class="photos-filter-chip"><i class="bi bi-people"></i>@Model.SelectedPeople.Count person@(Model.SelectedPeople.Count == 1 ? "" : "s")@(Model.PersonIds.Length > 1 ? $" · {Model.PeopleMatch}" : "")</span> }
+            @if (Model.IsCollectionDetail) { <span class="photos-filter-chip"><i class="bi bi-collection"></i>@(Model.CurrentCollectionTitle ?? "Collection")</span> }
             <a asp-page="./Index" asp-route-View="@Model.View">Clear filters</a>
         </div>
     }
 
-    @if (Model.Groups.Count == 0)
+    @if ((Model.View == "collections" && !Model.IsCollectionDetail ? Model.Collections.Count : Model.Groups.Count) == 0)
     {
         <section class="photos-empty">
             <i class="bi bi-images"></i>
@@ -218,42 +273,69 @@
                 <h2>No matching photographs</h2>
                 <p>Try clearing the search or another filter. Only human-confirmed appearances are included.</p>
             }
+            else if (Model.View == "collections")
+            {
+                <h2>No collections found</h2>
+                <p>@(hasFilters ? "Try clearing one or more filters." : "Collections will appear as organisational media is added.")</p>
+            }
             else
             {
                 <h2>No media found</h2><p>@(hasFilters ? "Try clearing one or more filters." : "New PRISM photos will appear here automatically.")</p>
             }
         </section>
     }
-    else if (Model.View == "collections")
+    else if (Model.View == "collections" && !Model.IsCollectionDetail)
     {
         <section class="collections-grid" aria-label="Media collections">
-            @foreach (var group in Model.Groups.OrderByDescending(group => group.Date))
+            @foreach (var collection in Model.Collections)
             {
-                var cover = group.Items.FirstOrDefault(item => item.IsCover) ?? group.Items.First();
                 <article class="collection-card">
-                    <a class="collection-card__cover" href="@(cover.SourceUrl ?? "#")">
-                        <img src="@cover.ThumbnailUrl" alt="" loading="lazy" decoding="async" />
-                        @if(group.Items.Count > 1){<span class="collection-card__stack">@group.Items.Count</span>}
+                    <a class="collection-card__cover" href="@Model.BuildCollectionUrl(collection.CollectionKey)" aria-label="Open @collection.Title collection">
+                        @if (!string.IsNullOrWhiteSpace(collection.CoverThumbnailUrl))
+                        {
+                            <img src="@collection.CoverThumbnailUrl" alt="" loading="lazy" decoding="async" />
+                        }
+                        else
+                        {
+                            <span class="collection-card__placeholder" aria-hidden="true"><i class="bi bi-collection"></i></span>
+                        }
+                        @if(collection.ItemCount > 1){<span class="collection-card__stack">@collection.ItemCount</span>}
                     </a>
-                    <div class="collection-card__body"><strong>@group.Title</strong><span>@group.Subtitle · @group.Items.Count item@(group.Items.Count == 1 ? "" : "s")</span></div>
+                    <div class="collection-card__body">
+                        <span class="collection-card__type">@collection.TypeLabel</span>
+                        <strong title="@collection.Title">@collection.Title</strong>
+                        <span>@collection.Subtitle · @collection.ItemCount item@(collection.ItemCount == 1 ? "" : "s") · @collection.LatestDate.ToString("dd MMM yyyy")</span>
+                        @if (!string.IsNullOrWhiteSpace(collection.SourceUrl))
+                        {
+                            <a class="collection-card__source" href="@collection.SourceUrl">Open source <i class="bi bi-arrow-up-right"></i></a>
+                        }
+                    </div>
                 </article>
             }
         </section>
+        <nav class="photos-pagination" aria-label="Collection pages">
+            @if(Model.HasPreviousPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage - 1)"><i class="bi bi-arrow-left"></i> Previous</a>}
+            <span>Page @Model.CurrentPage</span>
+            @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
+        </nav>
     }
     else
     {
         <div class="photos-timeline">
-            @foreach (var day in Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key))
+            @foreach (var day in (Model.Sort == "oldest"
+                ? Model.Groups.GroupBy(group => group.Date.Date).OrderBy(group => group.Key)
+                : Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key)))
             {
-                var dayItems = day.SelectMany(group => group.Items).OrderByDescending(item => item.MediaDate).ToList();
+                var dayItems = (Model.Sort == "oldest"
+                    ? day.SelectMany(group => group.Items).OrderBy(item => item.MediaDate)
+                    : day.SelectMany(group => group.Items).OrderByDescending(item => item.MediaDate)).ToList();
                 <section class="photos-day" aria-labelledby="day-@day.Key.ToString("yyyyMMdd")">
                     <header class="photos-day__header"><h2 id="day-@day.Key.ToString("yyyyMMdd")">@day.Key.ToString("dd MMMM yyyy")</h2><span>@day.Key.ToString("dddd") · @dayItems.Count item@(dayItems.Count == 1 ? "" : "s")</span></header>
-                    <div class="photos-grid" role="list">
+                    <div class="photos-grid" role="group" aria-label="Media for @day.Key.ToString("dd MMMM yyyy")">
                         @foreach (var item in dayItems)
                         {
                             <button type="button"
                                                 class="photos-tile"
-                                                role="listitem"
                                                 style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
                                                 data-aspect-ratio="@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
                                                 data-media-item
@@ -308,6 +390,24 @@
             @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
         </nav>
     }
+
+    @if (Model.View == "photos" && Model.Groups.Count > 0)
+    {
+        <div class="photos-selection-bar" data-photos-selection-bar hidden aria-live="polite">
+            <div class="photos-selection-bar__count"><strong data-selection-count>0 selected</strong><span data-selection-note></span></div>
+            <div class="photos-selection-bar__actions">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-selection-select-all>Select all visible</button>
+                <form method="post" asp-page="/Photos/Download" data-selection-download-form>
+                    <button type="submit" class="btn btn-sm btn-primary" data-selection-download disabled><i class="bi bi-file-zip"></i> Download ZIP</button>
+                </form>
+                @if (Model.CanManagePeople && Model.PeopleFeatureEnabled)
+                {
+                    <a class="btn btn-sm btn-outline-primary disabled" href="@Url.Page("/Photos/People/Review", new { Mode = "unidentified" })" data-selection-review-people data-base-url="@Url.Page("/Photos/People/Review", new { Mode = "unidentified" })" aria-disabled="true"><i class="bi bi-people"></i> Review people</a>
+                }
+                <button type="button" class="btn btn-sm btn-link" data-selection-clear>Clear</button>
+            </div>
+        </div>
+    }
 </div>
 
 <div class="offcanvas offcanvas-end photos-filters" tabindex="-1" id="photosFilters" aria-labelledby="photosFiltersTitle">
@@ -324,6 +424,8 @@
             <input type="hidden" name="Q" value="@Model.Q" />
             @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
             @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+            @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
+            @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
             <div>
                 <label for="sourceFilter">Source</label>
                 <select id="sourceFilter" name="Source" class="form-select">
@@ -408,6 +510,14 @@
                     }
                 </select>
             </div>
+            @if (Model.View == "collections")
+            {
+                <div class="form-check form-switch photos-collection-singletons">
+                    <input class="form-check-input" type="checkbox" role="switch" id="singletonCollections" name="IncludeSingletonCollections" value="true" checked="@Model.IncludeSingletonCollections" />
+                    <label class="form-check-label" for="singletonCollections">Include single-item project collections</label>
+                    <small>Visits, events and activities remain visible even when they contain one item.</small>
+                </div>
+            }
             <div class="photos-filter-form__actions">
                 <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
                 <button type="submit" class="btn btn-primary" data-photos-filter-submit disabled>Apply filters</button>

@@ -249,7 +249,17 @@ public interface IFaceReviewService
         string userId,
         CancellationToken cancellationToken);
 
+    Task IgnoreManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        CancellationToken cancellationToken);
+
     Task SuppressAsync(Guid faceId, string userId, CancellationToken cancellationToken);
+
+    Task SuppressManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        CancellationToken cancellationToken);
 
     Task SuppressAsync(
         Guid faceId,

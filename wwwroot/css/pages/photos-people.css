@@ -1056,3 +1056,208 @@
     .person-card__open { opacity: 1; transform: none; }
     .person-card__manage { opacity: 1; }
 }
+
+/* Photos operational hardening — identity review throughput */
+.people-workload-note {
+    color: var(--people-muted);
+    font-size: .72rem;
+    margin: -.45rem 0 .85rem;
+}
+.people-workload-note strong { color: var(--people-ink); }
+
+.identity-review-scope {
+    align-items: center;
+    background: #f2f6ff;
+    border: 1px solid #d8e4fb;
+    border-radius: .8rem;
+    color: #415675;
+    display: flex;
+    font-size: .74rem;
+    gap: .85rem;
+    justify-content: space-between;
+    margin: -.15rem 0 .9rem;
+    padding: .58rem .75rem;
+}
+.identity-review-scope a { font-weight: 750; white-space: nowrap; }
+
+.identity-similarity {
+    align-items: center;
+    border-radius: .42rem;
+    display: inline-flex;
+    gap: .22rem;
+    line-height: 1;
+    padding: .2rem .3rem !important;
+}
+.identity-similarity em {
+    font-size: .54rem;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+.identity-similarity.is-strong { background: rgba(31, 111, 83, .84); }
+.identity-similarity.is-moderate { background: rgba(157, 108, 25, .86); }
+.identity-similarity.is-weak { background: rgba(72, 83, 102, .84); }
+
+.face-review-queue-controls {
+    align-items: end;
+    background: #fff;
+    border: 1px solid var(--people-line);
+    border-radius: .9rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem 1rem;
+    justify-content: space-between;
+    margin-bottom: .8rem;
+    padding: .65rem .75rem;
+}
+.face-review-layout-toggle {
+    background: #f2f4f7;
+    border-radius: .62rem;
+    display: inline-flex;
+    padding: .18rem;
+}
+.face-review-layout-toggle a {
+    border-radius: .48rem;
+    color: #667286;
+    font-size: .72rem;
+    font-weight: 750;
+    padding: .38rem .58rem;
+    text-decoration: none;
+}
+.face-review-layout-toggle a.is-active {
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(25, 39, 63, .13);
+    color: #2d5fcf;
+}
+.face-review-filters {
+    align-items: end;
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: .55rem;
+}
+.face-review-filters label,
+.face-review-sort {
+    display: grid;
+    gap: .18rem;
+}
+.face-review-filters label > span,
+.face-review-sort > span {
+    color: var(--people-muted);
+    font-size: .62rem;
+    font-weight: 750;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+.face-review-filters select { min-width: 8.5rem; }
+.face-review-sort select { min-width: 10.5rem; }
+
+.face-review-batch {
+    position: sticky;
+    top: .55rem;
+    z-index: 15;
+}
+.face-review-batch .card-body {
+    background: rgba(255, 255, 255, .97);
+    border: 1px solid var(--people-line);
+    border-radius: .9rem;
+}
+
+.face-review-triage-grid {
+    display: grid;
+    gap: .8rem;
+    grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+}
+.face-triage-card {
+    background: #fff;
+    border: 1px solid var(--people-line);
+    border-radius: .85rem;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+}
+.face-triage-card > img {
+    aspect-ratio: 1 / 1;
+    background: #e9edf2;
+    display: block;
+    object-fit: cover;
+    width: 100%;
+}
+.face-triage-card__select {
+    align-items: center;
+    background: rgba(255, 255, 255, .94);
+    border: 1px solid rgba(80, 96, 118, .25);
+    border-radius: .55rem;
+    cursor: pointer;
+    display: inline-flex;
+    left: .5rem;
+    padding: .36rem;
+    position: absolute;
+    top: .5rem;
+    z-index: 3;
+}
+.face-triage-card__select .form-check-input { margin: 0; }
+.face-triage-card:has(.face-triage-card__select input:checked) {
+    border-color: #4b75e7;
+    box-shadow: 0 0 0 2px rgba(75, 117, 231, .14);
+}
+.face-triage-card__body { padding: .62rem .68rem .7rem; }
+.face-triage-card__body > div:first-child {
+    align-items: baseline;
+    display: flex;
+    gap: .45rem;
+    justify-content: space-between;
+}
+.face-triage-card__body > div:first-child strong { font-size: .69rem; }
+.face-triage-card__body > div:first-child span { color: var(--people-muted); font-size: .62rem; }
+.face-triage-card h2 {
+    font-size: .78rem;
+    margin: .35rem 0 .1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.face-triage-card p {
+    color: var(--people-muted);
+    font-size: .64rem;
+    margin: 0;
+    min-height: 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.face-triage-card__actions {
+    align-items: center;
+    display: flex;
+    font-size: .65rem;
+    gap: .65rem;
+    margin-top: .5rem;
+}
+.face-triage-card__actions a { font-weight: 700; text-decoration: none; }
+
+@media (min-width: 1600px) {
+    .face-review-triage-grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
+}
+
+@media (max-width: 991.98px) {
+    .face-review-queue-controls { align-items: stretch; }
+    .face-review-filters { order: 3; width: 100%; }
+    .face-review-batch { position: static; }
+}
+
+@media (max-width: 575.98px) {
+    .identity-review-scope { align-items: flex-start; flex-direction: column; }
+    .face-review-queue-controls { flex-direction: column; }
+    .face-review-layout-toggle { align-self: flex-start; }
+    .face-review-filters { display: grid; grid-template-columns: 1fr 1fr; }
+    .face-review-filters label:last-child { grid-column: 1 / -1; }
+    .face-review-filters select,
+    .face-review-sort select { min-width: 0; width: 100%; }
+    .face-review-triage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+}
+.identity-similarity.is-representative {
+    background: #eef2f7;
+    border-color: #d8e0ea;
+    color: #526276;
+}

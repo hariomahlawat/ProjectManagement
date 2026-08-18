@@ -9,13 +9,16 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
 {
     private readonly MediaLibraryDbContext _db;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly MediaPeopleOptions _options;
 
     public MediaPeopleQueryService(
         MediaLibraryDbContext db,
+        IMediaAssetVisibilityPolicy visibility,
         IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -62,7 +65,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 row.ConcurrencyToken))
             .ToList();
 
-        var reviewableFaces = BuildReviewableFacesQuery(_db);
+        var reviewableFaces = BuildVisibleReviewableFacesQuery();
         var knownPersonSuggestionCount = await reviewableFaces.CountAsync(face =>
             _db.FaceReviewDecisions.Any(decision =>
                 decision.MediaFaceId == face.Id
@@ -231,14 +234,49 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             history);
     }
 
-    public async Task<FaceReviewQueueResult> GetReviewQueueAsync(
+    public Task<FaceReviewQueueResult> GetReviewQueueAsync(
         FaceReviewQueueKind kind,
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken)
+        => GetReviewQueueAsync(
+            new FaceReviewQueueQuery(kind, pageNumber, pageSize),
+            cancellationToken);
+
+    public async Task<FaceReviewQueueResult> GetReviewQueueAsync(
+        FaceReviewQueueQuery request,
+        CancellationToken cancellationToken)
     {
-        pageSize = Math.Clamp(pageSize, 12, 100);
-        var allReviewableFaces = BuildReviewableFacesQuery(_db);
+        ArgumentNullException.ThrowIfNull(request);
+        var kind = request.Kind;
+        var pageNumber = Math.Max(1, request.PageNumber);
+        var pageSize = Math.Clamp(request.PageSize, 12, 100);
+        var allReviewableFaces = BuildVisibleReviewableFacesQuery();
+        var assetIds = (request.AssetIds ?? Array.Empty<long>())
+            .Where(id => id > 0)
+            .Distinct()
+            .Take(250)
+            .ToArray();
+        if (assetIds.Length > 0)
+        {
+            allReviewableFaces = allReviewableFaces.Where(face => assetIds.Contains(face.MediaAssetId));
+        }
+
+        allReviewableFaces = ApplyReviewSourceFilter(allReviewableFaces, request.Source);
+        var availableYears = await allReviewableFaces
+            .Select(face => face.MediaAsset.MediaDateUtc.Year)
+            .Distinct()
+            .OrderByDescending(year => year)
+            .ToListAsync(cancellationToken);
+
+        if (request.Year.HasValue)
+        {
+            allReviewableFaces = allReviewableFaces
+                .Where(face => face.MediaAsset.MediaDateUtc.Year == request.Year.Value);
+        }
+
+        allReviewableFaces = ApplyReviewMatchStatusFilter(allReviewableFaces, request.MatchStatus);
+
         var knownMatchCount = await allReviewableFaces.CountAsync(face =>
             _db.FaceReviewDecisions.Any(decision =>
                 decision.MediaFaceId == face.Id
@@ -276,13 +314,27 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         var totalFaces = await reviewableFaces.CountAsync(cancellationToken);
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalFaces / (double)pageSize));
         pageNumber = Math.Clamp(pageNumber, 1, pageCount);
-        var faceRows = await reviewableFaces
-            .OrderByDescending(face => _db.FaceReviewDecisions.Any(decision =>
-                decision.MediaFaceId == face.Id
-                && decision.Decision == FaceReviewDecisionType.Pending
-                && decision.CandidatePersonId.HasValue))
-            .ThenByDescending(face => face.QualityScore)
-            .ThenByDescending(face => face.CreatedAtUtc)
+        var orderedFaces = request.Sort?.Trim().ToLowerInvariant() switch
+        {
+            "quality-asc" => reviewableFaces
+                .OrderBy(face => face.QualityScore)
+                .ThenByDescending(face => face.CreatedAtUtc),
+            "newest" => reviewableFaces
+                .OrderByDescending(face => face.MediaAsset.MediaDateUtc)
+                .ThenByDescending(face => face.QualityScore),
+            "oldest" => reviewableFaces
+                .OrderBy(face => face.MediaAsset.MediaDateUtc)
+                .ThenByDescending(face => face.QualityScore),
+            _ => reviewableFaces
+                .OrderByDescending(face => _db.FaceReviewDecisions.Any(decision =>
+                    decision.MediaFaceId == face.Id
+                    && decision.Decision == FaceReviewDecisionType.Pending
+                    && decision.CandidatePersonId.HasValue))
+                .ThenByDescending(face => face.QualityScore)
+                .ThenByDescending(face => face.CreatedAtUtc)
+        };
+
+        var faceRows = await orderedFaces
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(face => new ReviewFaceDatabaseRow
@@ -375,7 +427,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             knownMatchCount,
             unidentifiedCount,
             candidateSearchPendingCount,
-            candidateSearchFailureCount);
+            candidateSearchFailureCount,
+            availableYears);
     }
 
     public async Task<IReadOnlyList<MediaPersonOption>> GetPersonOptionsAsync(
@@ -519,6 +572,42 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 IsMinor = person.IsMinor,
                 ConcurrencyToken = person.ConcurrencyToken
             });
+    }
+
+    private static IQueryable<MediaFace> ApplyReviewSourceFilter(
+        IQueryable<MediaFace> query,
+        string? source)
+        => source?.Trim().ToLowerInvariant() switch
+        {
+            "projects" => query.Where(face =>
+                face.MediaAsset.Origin == MediaAssetOrigin.ProjectPhoto
+                || face.MediaAsset.Origin == MediaAssetOrigin.ProjectVideo),
+            "visits" => query.Where(face => face.MediaAsset.Origin == MediaAssetOrigin.VisitPhoto),
+            "events" => query.Where(face => face.MediaAsset.Origin == MediaAssetOrigin.SocialMediaEventPhoto),
+            "activities" => query.Where(face => face.MediaAsset.Origin == MediaAssetOrigin.ActivityPhoto),
+            "external" => query.Where(face => face.MediaAsset.Origin == MediaAssetOrigin.ExternalFile),
+            _ => query
+        };
+
+    private static IQueryable<MediaFace> ApplyReviewMatchStatusFilter(
+        IQueryable<MediaFace> query,
+        string? matchStatus)
+        => matchStatus?.Trim().ToLowerInvariant() switch
+        {
+            "no-match" => query.Where(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.Ready),
+            "failed" => query.Where(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.Failed),
+            "not-requested" => query.Where(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.NotRequested),
+            _ => query
+        };
+
+    private IQueryable<MediaFace> BuildVisibleReviewableFacesQuery()
+    {
+        var visibleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
+
+        return BuildReviewableFacesQuery(_db)
+            .Where(face => visibleAssetIds.Contains(face.MediaAssetId));
     }
 
     internal static IQueryable<MediaFace> BuildReviewableFacesQuery(MediaLibraryDbContext db)

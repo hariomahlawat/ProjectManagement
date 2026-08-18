@@ -18,14 +18,15 @@ public sealed class MediaModel : PageModel
     private readonly IMediaDerivativeService _derivatives;
     private readonly IMediaContentProviderResolver _contentResolver;
     private readonly MediaLibraryOptions _options;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly ILogger<MediaModel> _logger;
 
     public MediaModel(MediaLibraryDbContext db, IMediaDerivativeService derivatives,
         IMediaContentProviderResolver contentResolver, IOptions<MediaLibraryOptions> options,
-        ILogger<MediaModel> logger)
+        IMediaAssetVisibilityPolicy visibility, ILogger<MediaModel> logger)
     {
         _db = db; _derivatives = derivatives; _contentResolver = contentResolver;
-        _options = options.Value; _logger = logger;
+        _options = options.Value; _visibility = visibility; _logger = logger;
     }
 
     public async Task<IActionResult> OnGetAsync(long id, string? variant, bool download = false,
@@ -45,9 +46,7 @@ public sealed class MediaModel : PageModel
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
-        if (asset is null || !asset.IsAvailable || asset.IsDeleted || asset.Source.IsDeleted)
-            return NotFound();
-        if (asset.Source.SourceType == MediaLibrarySourceType.FileSystem && !asset.Source.IsVisibleInLibrary)
+        if (asset is null || !_visibility.IsVisible(asset))
             return NotFound();
 
         variant = variant?.Trim().ToLowerInvariant() switch

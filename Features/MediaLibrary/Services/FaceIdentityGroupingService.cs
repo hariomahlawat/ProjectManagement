@@ -119,8 +119,6 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                 .Where(candidate => !rejected.Contains(candidate.PersonId))
                 .ToList();
             var members = group.Members
-                .OrderByDescending(member => member.QualityScore)
-                .ThenByDescending(member => member.MediaDateUtc)
                 .Select(member => new FaceIdentityGroupMember(
                     member.FaceId,
                     member.AssetId,
@@ -129,6 +127,9 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                     member.MediaDateUtc,
                     member.QualityScore,
                     FaceSimilarityScoring.CosineSimilarity(member.Embedding, representative.Embedding)))
+                .OrderByDescending(member => member.SimilarityToRepresentative)
+                .ThenByDescending(member => member.QualityScore)
+                .ThenByDescending(member => member.MediaDateUtc)
                 .ToList();
             var cohesion = members.Count == 0
                 ? 0d
