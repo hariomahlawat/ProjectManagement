@@ -204,6 +204,12 @@ public sealed class MediaAlbumService : IMediaAlbumService
             .Select(item => new { item.MediaAssetId, item.MediaAsset.Kind })
             .ToListAsync(cancellationToken);
 
+        // Capacity is a membership invariant, not a visibility invariant. Unavailable/hidden
+        // assets remain album members and therefore continue to consume album capacity.
+        var totalMembershipCount = await _db.AlbumItems
+            .AsNoTracking()
+            .CountAsync(item => item.MediaAlbumId == albumId, cancellationToken);
+
         return new MediaAlbumDetails(
             album.Id,
             album.Name,
@@ -216,6 +222,7 @@ public sealed class MediaAlbumService : IMediaAlbumService
             album.ConcurrencyToken,
             CanManage(actor, album.CreatedByUserId),
             visibleItems.Select(item => item.MediaAssetId).ToArray(),
+            totalMembershipCount,
             visibleItems.Count,
             visibleItems.Count(item => item.Kind == MediaAssetKind.Photo),
             visibleItems.Count(item => item.Kind == MediaAssetKind.Video));

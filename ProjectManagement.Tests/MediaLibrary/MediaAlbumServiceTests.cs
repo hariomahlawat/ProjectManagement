@@ -81,6 +81,44 @@ public sealed class MediaAlbumServiceTests
     }
 
     [Fact]
+    public async Task AddItems_AddsOnlyNewMemberships_WhenSelectionContainsExistingMedia()
+    {
+        await using var db = CreateContext();
+        await SeedVisibleAssetAsync(db, 1);
+        await SeedVisibleAssetAsync(db, 2);
+        var service = CreateService(db);
+        var actor = new MediaAlbumActor("user-a", false);
+        var created = await service.CreateAsync("Target album", null, new long[] { 1 }, actor, CancellationToken.None);
+
+        var result = await service.AddItemsAsync(created.AlbumId!.Value, new long[] { 1, 2 }, actor, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(1, result.AffectedCount);
+        Assert.Equal(new long[] { 1, 2 }, await db.AlbumItems.OrderBy(item => item.MediaAssetId).Select(item => item.MediaAssetId).ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task ArchivedAlbum_RejectsTargetedAddItems()
+    {
+        await using var db = CreateContext();
+        await SeedVisibleAssetAsync(db, 1);
+        await SeedVisibleAssetAsync(db, 2);
+        var service = CreateService(db);
+        var actor = new MediaAlbumActor("user-a", false);
+        var created = await service.CreateAsync("Archived target", null, new long[] { 1 }, actor, CancellationToken.None);
+        var details = await service.GetDetailsAsync(created.AlbumId!.Value, actor, CancellationToken.None);
+        Assert.NotNull(details);
+        var archived = await service.SetArchivedAsync(details.Id, true, details.ConcurrencyToken, actor, CancellationToken.None);
+        Assert.True(archived.Succeeded);
+
+        var result = await service.AddItemsAsync(details.Id, new long[] { 2 }, actor, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(MediaAlbumMutationFailure.InvalidRequest, result.Failure);
+        Assert.Contains("Restore", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task EditorialCaption_RequiresElevatedCurationAuthority()
     {
         await using var db = CreateContext();

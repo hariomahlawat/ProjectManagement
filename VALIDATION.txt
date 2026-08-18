@@ -1,22 +1,23 @@
-PRISM Photos — Organisation-wide Albums & Curation
-Validation performed in the artifact environment
+PRISM Photos — Consolidation & Curation UX validation
+====================================================
 
-Project delta files: 28
-C# project files changed/new: 23
-Razor files changed/new: 2
-JavaScript files changed/new: 1
-CSS files changed/new: 1
-Migration manifest changed: yes
-New migration: 20260818170000_AddOrganisationalMediaAlbums
+Performed in the generation environment:
 
 PASS  node --check wwwroot/js/pages/photos-library.js
-PASS  node --check wwwroot/js/pages/photos-people-review.js (unchanged regression dependency)
-PASS  git apply --check of the generated phase patch against a clean current baseline
-PASS  patch applied to a clean current baseline
-PASS  byte-for-byte comparison of all 28 resulting project files against the ready-to-paste implementation
-PASS  changed-file manifest contains no project-file deletions
-PASS  migration manifest contains 20260818170000_AddOrganisationalMediaAlbums as the latest immutable media migration
-PASS  automatic delimiter scan on 21 changed C# sources; the two remaining changed C# sources contain raw/interpolated-string constructs that the lightweight scanner cannot parse reliably and were inspected separately
+PASS  node --check wwwroot/js/pages/photos-curation.js
+PASS  node --test  wwwroot/js/pages/photos-curation-contract.test.js
+      3 tests passed / 0 failed
+PASS  lexical string/comment/delimiter structural validation of all changed C# source files
+PASS  CSS block/brace validation for photos-library.css and photos-curation.css
+PASS  album-specific curation selectors removed from the core photos-library.css
+PASS  all MediaAlbumDetails positional construction sites reconciled after TotalMembershipCount contract addition
+PASS  unified patch dry-run against the current Albums v2 baseline
+PASS  unified patch applied to a clean baseline
+PASS  every patched project file compared byte-for-byte with the ready-to-paste implementation
 
-NOT RUN: dotnet build / xUnit tests. The .NET SDK is not installed in this artifact environment.
-Run the commands in README-APPLY.md on the development machine before production deployment.
+Not available in this environment:
+- .NET SDK / Razor compiler
+- dotnet build
+- xUnit execution
+
+Run the build/test commands in README-APPLY.md on the development machine before deployment.

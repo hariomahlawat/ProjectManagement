@@ -1,6 +1,5 @@
 using System.Data.Common;
 using System.Globalization;
-using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +18,7 @@ using ProjectManagement.Services.Storage;
 namespace ProjectManagement.Pages.Photos;
 
 [Authorize]
-public sealed class IndexModel : PageModel
+public sealed partial class IndexModel : PageModel
 {
     private const int PageSize = 120;
     private const int CollectionPageSize = 48;
@@ -72,6 +71,7 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? Collection { get; set; }
     [BindProperty(SupportsGet = true)] public string CollectionTab { get; set; } = "source";
     [BindProperty(SupportsGet = true)] public Guid? AlbumId { get; set; }
+    [BindProperty(SupportsGet = true)] public Guid? AddToAlbumId { get; set; }
     [BindProperty(SupportsGet = true)] public bool IncludeSingletonCollections { get; set; }
     [BindProperty(SupportsGet = true)] public bool IncludeArchivedAlbums { get; set; }
     [BindProperty(SupportsGet = true)] public bool OrganizeAlbum { get; set; }
@@ -83,6 +83,10 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<AlbumCard> Albums { get; private set; } = Array.Empty<AlbumCard>();
     public IReadOnlyList<MediaAlbumOption> ManageableAlbums { get; private set; } = Array.Empty<MediaAlbumOption>();
     public MediaAlbumDetails? CurrentAlbum { get; private set; }
+    public MediaAlbumDetails? AddMediaTargetAlbum { get; private set; }
+    public IReadOnlySet<long> AddMediaExistingAssetIds { get; private set; } = new HashSet<long>();
+    public string? CurrentAlbumCreatorDisplayName { get; private set; }
+    public string? AddMediaTargetWarning { get; private set; }
     public IReadOnlyList<ProjectOption> Projects { get; private set; } = Array.Empty<ProjectOption>();
     public IReadOnlyList<PersonOption> People { get; private set; } = Array.Empty<PersonOption>();
     public IReadOnlyList<PersonOption> SelectedPeople { get; private set; } = Array.Empty<PersonOption>();
@@ -95,12 +99,15 @@ public sealed class IndexModel : PageModel
     public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled;
     public bool CanManagePeople => User.IsInRole("Admin") || User.IsInRole("HoD");
     public bool CanManageAnyAlbum => User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Comdt");
-    public bool CanCurateMedia => CanManageAnyAlbum;
+    public bool CanEditEditorialMetadata => CanManageAnyAlbum;
     public bool IsPeopleGallery => PersonIds.Length > 0;
     public bool IsCollectionDetail => !string.IsNullOrWhiteSpace(Collection);
     public bool IsAlbumsWorkspace => View == "collections" && CollectionTab == "albums" && !AlbumId.HasValue;
     public bool IsAlbumDetail => View == "album" && AlbumId.HasValue;
     public bool CanManageCurrentAlbum => CurrentAlbum?.CanManage == true;
+    public bool CanAddMediaToCurrentAlbum => PhotosCurationPresentation.CanAddMedia(CurrentAlbum);
+    public bool CanOrganizeCurrentAlbum => PhotosCurationPresentation.CanOrganize(CurrentAlbum);
+    public bool IsAddMediaMode => View == "photos" && AddMediaTargetAlbum is not null;
     public bool MatchAllSelectedPeople => !string.Equals(PeopleMatch, "any", StringComparison.OrdinalIgnoreCase);
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
@@ -115,6 +122,7 @@ public sealed class IndexModel : PageModel
     {
         NormalizeRequest();
         await LoadSelectedPeopleAsync(cancellationToken);
+        await LoadAddMediaTargetAsync(cancellationToken);
 
         var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
@@ -383,6 +391,7 @@ public sealed class IndexModel : PageModel
         Collection = string.IsNullOrWhiteSpace(Collection) ? null : Collection.Trim();
         if (Collection is { Length: > 300 }) Collection = Collection[..300];
         if (AlbumId == Guid.Empty) AlbumId = null;
+        if (AddToAlbumId == Guid.Empty) AddToAlbumId = null;
 
         if (AlbumId.HasValue)
         {
@@ -400,6 +409,7 @@ public sealed class IndexModel : PageModel
             PersonIds = Array.Empty<Guid>();
             PeopleMatch = "all";
             Q = null;
+            AddToAlbumId = null;
         }
         else if (View == "album")
         {
@@ -411,7 +421,20 @@ public sealed class IndexModel : PageModel
         {
             View = "photos";
             AlbumId = null;
+            AddToAlbumId = null;
             CollectionTab = "source";
+        }
+
+        if (AddToAlbumId.HasValue)
+        {
+            // Target-album curation is a focused Photos workflow. Album membership is
+            // applied only after explicit media selection; source records remain unchanged.
+            View = "photos";
+            AlbumId = null;
+            Collection = null;
+            CollectionTab = "source";
+            IncludeArchivedAlbums = false;
+            OrganizeAlbum = false;
         }
 
         if (View != "collections")
@@ -702,256 +725,6 @@ public sealed class IndexModel : PageModel
             SortOrder = row.SortOrder,
             VersionToken = row.VersionToken
         };
-    }
-
-    private async Task LoadAlbumsWorkspaceAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            IsUsingCatalogue = true;
-            var result = await _albums.SearchAsync(
-                new MediaAlbumListQuery(
-                    Q,
-                    Sort,
-                    PageNumber,
-                    AlbumPageSize,
-                    IncludeArchivedAlbums,
-                    CurrentAlbumActor()),
-                cancellationToken);
-
-            var latestAlbumUpdate = result.Albums.Count == 0
-                ? (DateTimeOffset?)null
-                : result.Albums.Max(album => album.UpdatedAtUtc);
-            LibraryRevision = string.Concat(
-                LibraryRevision,
-                ":albums:",
-                result.TotalAlbums.ToString(CultureInfo.InvariantCulture),
-                ":",
-                latestAlbumUpdate?.UtcDateTime.Ticks.ToString(CultureInfo.InvariantCulture) ?? "0");
-
-            PageNumber = result.PageNumber;
-            HasPreviousPage = result.HasPreviousPage;
-            HasNextPage = result.HasNextPage;
-            Albums = result.Albums.Select(MapAlbum).ToList();
-            Collections = Array.Empty<CollectionCard>();
-            Items = Array.Empty<MediaItem>();
-            Groups = Array.Empty<MediaGroup>();
-            Stats = new LibraryStats
-            {
-                Total = result.TotalVisibleItems,
-                Photos = result.TotalPhotos,
-                Videos = result.TotalVideos,
-                Collections = result.TotalAlbums
-            };
-        }
-        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
-        {
-            _logger.LogWarning(exception, "Unable to load organisation-wide media albums.");
-            ExternalLibraryAvailable = false;
-            ExternalLibraryWarning = "Organisation-wide albums are temporarily unavailable while the media catalogue is being prepared.";
-            Albums = Array.Empty<AlbumCard>();
-            Stats = new LibraryStats();
-        }
-    }
-
-    private async Task LoadAlbumDetailAsync(CancellationToken cancellationToken)
-    {
-        if (!AlbumId.HasValue)
-        {
-            return;
-        }
-
-        try
-        {
-            CurrentAlbum = await _albums.GetDetailsAsync(
-                AlbumId.Value,
-                CurrentAlbumActor(),
-                cancellationToken);
-            if (CurrentAlbum is null)
-            {
-                Response.StatusCode = StatusCodes.Status404NotFound;
-                ExternalLibraryAvailable = false;
-                ExternalLibraryWarning = "This album could not be found.";
-                Items = Array.Empty<MediaItem>();
-                Groups = Array.Empty<MediaGroup>();
-                return;
-            }
-
-            LibraryRevision = string.Concat(
-                LibraryRevision,
-                ":album:",
-                CurrentAlbum.Id.ToString("N"),
-                ":",
-                CurrentAlbum.UpdatedAtUtc.UtcDateTime.Ticks.ToString(CultureInfo.InvariantCulture));
-
-            Stats = new LibraryStats
-            {
-                Total = CurrentAlbum.ItemCount,
-                Photos = CurrentAlbum.PhotoCount,
-                Videos = CurrentAlbum.VideoCount,
-                Collections = 1
-            };
-            HasPreviousPage = false;
-            HasNextPage = false;
-            PageNumber = 1;
-            Collections = Array.Empty<CollectionCard>();
-            Albums = Array.Empty<AlbumCard>();
-
-            if (CurrentAlbum.OrderedVisibleAssetIds.Count == 0)
-            {
-                Items = Array.Empty<MediaItem>();
-                Groups = Array.Empty<MediaGroup>();
-                await LoadManageableAlbumsSafeAsync(cancellationToken);
-                return;
-            }
-
-            var result = await _library.SearchAsync(
-                new MediaLibraryQuery(
-                    Query: null,
-                    Source: "all",
-                    Kind: "all",
-                    Classification: "all",
-                    ProjectId: null,
-                    PersonId: null,
-                    Year: null,
-                    PageNumber: 1,
-                    PageSize: MediaAlbumService.MaximumAlbumItems,
-                    IncludePeople: PeopleFeatureEnabled,
-                    PersonIds: Array.Empty<Guid>(),
-                    PeopleMatch: "all",
-                    IncludeUnidentifiedFaces: CanManagePeople,
-                    Sort: "newest",
-                    CollectionKey: null,
-                    AssetIds: CurrentAlbum.OrderedVisibleAssetIds),
-                cancellationToken);
-
-            if (!result.IsAvailable)
-            {
-                ExternalLibraryAvailable = false;
-                ExternalLibraryWarning = result.Warning ?? "The album media could not be loaded from the catalogue.";
-                Items = Array.Empty<MediaItem>();
-                Groups = Array.Empty<MediaGroup>();
-                return;
-            }
-
-            IsUsingCatalogue = true;
-            ExternalLibraryAvailable = true;
-            ExternalLibraryWarning = result.Warning;
-            var byAssetId = result.Items.ToDictionary(item => item.Id);
-            var mapped = new List<MediaItem>(CurrentAlbum.OrderedVisibleAssetIds.Count);
-            foreach (var assetId in CurrentAlbum.OrderedVisibleAssetIds)
-            {
-                if (!byAssetId.TryGetValue(assetId, out var row)) continue;
-                var item = MapCatalogueItem(row);
-                mapped.Add(CloneWithAlbumCover(item, assetId == CurrentAlbum.CoverMediaAssetId));
-            }
-
-            Items = mapped;
-            Groups = mapped.Count == 0
-                ? Array.Empty<MediaGroup>()
-                : new[]
-                {
-                    new MediaGroup(
-                        $"album:{CurrentAlbum.Id:N}",
-                        CurrentAlbum.Name,
-                        CurrentAlbum.Description ?? string.Empty,
-                        CurrentAlbum.UpdatedAtUtc.ToLocalTime().DateTime,
-                        mapped)
-                };
-
-            await LoadManageableAlbumsSafeAsync(cancellationToken);
-        }
-        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
-        {
-            _logger.LogWarning(exception, "Unable to load media album {AlbumId}.", AlbumId);
-            ExternalLibraryAvailable = false;
-            ExternalLibraryWarning = "This album is temporarily unavailable.";
-            Items = Array.Empty<MediaItem>();
-            Groups = Array.Empty<MediaGroup>();
-        }
-    }
-
-    private async Task LoadManageableAlbumsSafeAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            ManageableAlbums = await _albums.GetManageableOptionsAsync(CurrentAlbumActor(), cancellationToken);
-        }
-        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
-        {
-            _logger.LogWarning(exception, "Unable to load manageable media album options.");
-            ManageableAlbums = Array.Empty<MediaAlbumOption>();
-        }
-    }
-
-    private AlbumCard MapAlbum(MediaAlbumSummary row)
-    {
-        var coverUrl = row.CoverMediaAssetId.HasValue
-            ? Url.Page("/Photos/Media", new { id = row.CoverMediaAssetId.Value, variant = "thumb" })
-            : null;
-        return new AlbumCard(
-            row.Id,
-            row.Name,
-            row.Description,
-            row.ItemCount,
-            row.PhotoCount,
-            row.VideoCount,
-            row.UpdatedAtUtc.ToLocalTime().DateTime,
-            row.CoverMediaAssetId,
-            coverUrl,
-            row.IsArchived,
-            row.CanManage,
-            string.Equals(row.CreatedByUserId, CurrentAlbumActor().UserId, StringComparison.Ordinal));
-    }
-
-    private static MediaItem CloneWithAlbumCover(MediaItem item, bool isAlbumCover)
-        => new()
-        {
-            Id = item.Id,
-            AssetId = item.AssetId,
-            Kind = item.Kind,
-            Source = item.Source,
-            SourceLabel = item.SourceLabel,
-            Classification = item.Classification,
-            People = item.People,
-            UnidentifiedFaceCount = item.UnidentifiedFaceCount,
-            ContextKey = item.ContextKey,
-            CollectionKey = item.CollectionKey,
-            ContextTitle = item.ContextTitle,
-            ContextSubtitle = item.ContextSubtitle,
-            OriginalTitle = item.OriginalTitle,
-            Title = item.Title,
-            DisplayContext = item.DisplayContext,
-            DisplaySubtitle = item.DisplaySubtitle,
-            Caption = item.Caption,
-            EditorialCaption = item.EditorialCaption,
-            EditorialConcurrencyToken = item.EditorialConcurrencyToken,
-            OriginalFileName = item.OriginalFileName,
-            FileSizeBytes = item.FileSizeBytes,
-            Albums = item.Albums,
-            MediaDate = item.MediaDate,
-            ThumbnailUrl = item.ThumbnailUrl,
-            DisplayUrl = item.DisplayUrl,
-            OriginalUrl = item.OriginalUrl,
-            DownloadUrl = item.DownloadUrl,
-            SourceUrl = item.SourceUrl,
-            Width = item.Width,
-            Height = item.Height,
-            DurationSeconds = item.DurationSeconds,
-            IsCover = item.IsCover,
-            IsAlbumCover = isAlbumCover,
-            SortOrder = item.SortOrder,
-            VersionToken = item.VersionToken
-        };
-
-    private MediaAlbumActor CurrentAlbumActor()
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new InvalidOperationException("Authenticated Photos user identifier is unavailable.");
-        }
-        return new MediaAlbumActor(userId, CanManageAnyAlbum);
     }
 
     private async Task LoadCatalogueCollectionsAsync(CancellationToken cancellationToken)
@@ -1542,6 +1315,7 @@ public sealed class IndexModel : PageModel
             ["CollectionTab"] = targetView == "collections" ? CollectionTab : null,
             ["IncludeSingletonCollections"] = targetView == "collections" && CollectionTab == "source" && IncludeSingletonCollections ? true : (bool?)null,
             ["IncludeArchivedAlbums"] = targetView == "collections" && CollectionTab == "albums" && IncludeArchivedAlbums ? true : (bool?)null,
+            ["AddToAlbumId"] = targetView == "photos" && AddMediaTargetAlbum is not null ? AddMediaTargetAlbum.Id : (Guid?)null,
             ["PeopleMatch"] = peopleMatch ?? PeopleMatch,
             ["PageNumber"] = pageNumber is > 1 ? pageNumber : (int?)null
         };
@@ -1598,8 +1372,26 @@ public sealed class IndexModel : PageModel
             OrganizeAlbum = organize ? true : (bool?)null
         }) ?? $"/Photos?View=album&AlbumId={albumId:D}";
 
+    public string BuildAddMediaToAlbumUrl(Guid albumId)
+        => Url.Page("/Photos/Index", new
+        {
+            View = "photos",
+            AddToAlbumId = albumId
+        }) ?? $"/Photos?View=photos&AddToAlbumId={albumId:D}";
+
     public string BuildClearCollectionUrl()
         => BuildPhotosUrl(PersonIds, view: "photos", collection: string.Empty, pageNumber: 1);
+
+    public string BuildClearFiltersUrl()
+        => Url.Page("/Photos/Index", new
+        {
+            View,
+            CollectionTab = View == "collections" ? CollectionTab : null,
+            Sort = Sort == "newest" ? null : Sort,
+            AddToAlbumId = IsAddMediaMode && AddMediaTargetAlbum is not null
+                ? AddMediaTargetAlbum.Id
+                : (Guid?)null
+        }) ?? "/Photos";
 
     public string CurrentReturnUrl
         => $"{Request.PathBase}{Request.Path}{Request.QueryString}";
@@ -1781,12 +1573,14 @@ public sealed class IndexModel : PageModel
         int ItemCount,
         int PhotoCount,
         int VideoCount,
+        DateTime CreatedAt,
         DateTime UpdatedAt,
         long? CoverAssetId,
         string? CoverThumbnailUrl,
         bool IsArchived,
         bool CanManage,
-        bool IsOwner);
+        bool IsOwner,
+        string CreatorDisplayName);
 
     public sealed record CollectionCard(
         string CollectionKey,

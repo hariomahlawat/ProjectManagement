@@ -56,6 +56,7 @@ public sealed record MediaAlbumDetails(
     Guid ConcurrencyToken,
     bool CanManage,
     IReadOnlyList<long> OrderedVisibleAssetIds,
+    int TotalMembershipCount,
     int ItemCount,
     int PhotoCount,
     int VideoCount);

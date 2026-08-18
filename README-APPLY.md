@@ -1,34 +1,43 @@
-# PRISM Photos — Organisation-wide Albums & Curation
+# Apply instructions
 
-## Apply
+This package is a ready-to-paste delta for the current PRISM Photos codebase after **Organisation-wide Albums v2 / CS0173 hotfix**.
 
-This package is a **delta over the current Photos implementation after the People Review Workflow Integrity phase**.
+Copy the package contents over the project root, for example:
 
-1. Stop the application / IIS app pool if this is the production machine.
-2. Take a PostgreSQL backup before first deployment of this phase.
-3. Copy the contents of this package over the PRISM project root and overwrite matching files.
-4. Build and test the solution.
-5. Start the application. The existing startup migration mechanism will apply `20260818170000_AddOrganisationalMediaAlbums`.
-6. Verify Photos → Collections → Albums, then create a small test album and exercise Add to album / reorder / cover / archive.
+```text
+E:\Dot Net Web Development\ProjectManagement\
+```
 
-No manual SQL is required when the normal PRISM startup migrator is enabled.
+Overwrite matching files. New files will be created in their preserved project paths.
+
+## No database migration
+
+This phase requires no EF migration and no appsettings change.
 
 ## Recommended verification
 
 ```powershell
 dotnet clean
-Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+
+Remove-Item .\bin, .\obj `
+    -Recurse -Force `
+    -ErrorAction SilentlyContinue
+
 dotnet build .\ProjectManagement.csproj
+
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+
 node --check .\wwwroot\js\pages\photos-library.js
+node --check .\wwwroot\js\pages\photos-curation.js
+node --test .\wwwroot\js\pages\photos-curation-contract.test.js
 ```
 
-## Permission model
+## Functional smoke test
 
-- Every authenticated Photos user can view active organisation-wide albums.
-- Every authenticated Photos user can create albums.
-- The creator can manage their own albums.
-- `Admin`, `HoD`, and `Comdt` can manage any album.
-- `Admin`, `HoD`, and `Comdt` can edit the organisation-wide editorial caption on media.
-- There are no personal/private/shared album states.
-- Archiving an album never deletes its source media.
+1. Open a manageable empty album: **Add media** is shown; **Organise** is not.
+2. Press **Add media**: Photos opens directly in selection mode with the album named in the context strip.
+3. Select media and press **Add selected**: the user returns to that album and the new media is present.
+4. Re-enter Add media: existing album items are visibly marked **In album** and cannot be selected again.
+5. Add a second media item: **Organise** becomes available.
+6. Verify search/filter/sort and **Clear filters** retain target-album mode until Cancel or successful add.
+7. Verify albums belonging to another ordinary user remain viewable but not manageable; Admin/HoD/Comdt can manage them.

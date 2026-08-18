@@ -1,9 +1,7 @@
-# PRISM Photos Albums CS0173 Hotfix
+# PRISM Photos Consolidation — Url.Page Compile Hotfix
 
-Replace `Pages/Photos/Index.cshtml.cs` with the supplied file.
+Fixes CS1061 in `Pages/Photos/Index.Albums.cs` by importing the ASP.NET Core MVC namespace that contains the `IUrlHelper.Page(...)` extension method.
 
-The fix explicitly types nullable route values used in anonymous objects and route dictionaries:
-- `bool?` for optional boolean query-string values.
-- `int?` for optional page numbers.
+Copy `Pages/Photos/Index.Albums.cs` over the current project file and rebuild.
 
-This resolves the CS0173 errors at the reported album URL-builder lines. No database migration or configuration change is required.
+No database or configuration change is required.
