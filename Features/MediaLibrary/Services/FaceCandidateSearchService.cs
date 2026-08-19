@@ -110,6 +110,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             var visibleAssetIds = _visibility
                 .Apply(_db.Assets.AsNoTracking())
                 .Select(asset => asset.Id);
+
             var databaseRows = await BuildReferenceRowsQuery(
                     _db,
                     Guid.Empty,
@@ -193,6 +194,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
 
             foreach (var input in groupInputs)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var rejected = rejectedByFace.GetValueOrDefault(input.FaceId)
                                ?? new HashSet<Guid>();
                 var alreadyPresent = assignedByAsset.GetValueOrDefault(input.AssetId)
@@ -205,6 +207,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                                         && !alreadyPresent.Contains(reference.PersonId))
                     .Select(reference =>
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         var score = FaceSimilarityScoring.ScoreReferences(
                             input.Embedding,
                             reference.Embeddings.Select(vector => (IReadOnlyList<float>)vector),

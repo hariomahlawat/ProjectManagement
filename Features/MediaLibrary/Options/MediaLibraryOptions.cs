@@ -229,6 +229,15 @@ public sealed class MediaPeopleOptions
     /// <summary>Delay between candidate-search discovery cycles when no work is available.</summary>
     public int CandidateRefreshIdleDelaySeconds { get; set; } = 15;
 
+    /// <summary>Maximum wall-clock duration allowed for one bounded known-person candidate-search batch.</summary>
+    public int CandidateSearchTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>Processing lease after which an unfinished candidate-search claim is considered stale and recovered.</summary>
+    public int CandidateProcessingStaleSeconds { get; set; } = 180;
+
+    /// <summary>Delay before a failed candidate-search face is eligible for automatic retry.</summary>
+    public int CandidateFailureRetryDelaySeconds { get; set; } = 300;
+
     /// <summary>Minimum face-quality score required before known-person matching is attempted.</summary>
     public double CandidateMinimumFaceQuality { get; set; } = 0.55;
 

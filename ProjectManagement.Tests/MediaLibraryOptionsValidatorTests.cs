@@ -317,6 +317,33 @@ public sealed class MediaLibraryOptionsValidatorTests
     }
 
 
+    [Fact]
+    public void Validate_RejectsCandidateProcessingLeaseNotLongerThanSearchTimeout()
+    {
+        var options = CreateApprovedPeopleOptions();
+        options.People.CandidateSearchTimeoutSeconds = 90;
+        options.People.CandidateProcessingStaleSeconds = 90;
+
+        var result = _validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures!, failure =>
+            failure.Contains("CandidateProcessingStaleSeconds", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_AllowsBoundedCandidateRecoveryDefaults()
+    {
+        var options = CreateApprovedPeopleOptions();
+        options.People.CandidateSearchTimeoutSeconds = 60;
+        options.People.CandidateProcessingStaleSeconds = 180;
+        options.People.CandidateFailureRetryDelaySeconds = 300;
+
+        var result = _validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed, string.Join(Environment.NewLine, result.Failures ?? Array.Empty<string>()));
+    }
+
     private static MediaLibraryOptions CreateApprovedPeopleOptions()
         => new()
         {

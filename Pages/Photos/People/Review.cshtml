@@ -122,6 +122,14 @@
             <span class="identity-review-workload-strip__live" data-workload-live-status aria-live="polite"></span>
         </div>
 
+        <div class="alert alert-warning identity-review-worker-warning py-2 mb-3"
+             role="status"
+             data-matching-worker-warning
+             hidden="@(!Model.MatchingWorkerDelayed ? "hidden" : null)">
+            <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+            <strong>Matching worker delayed.</strong> PRISM will recover stale Processing leases automatically. Timed-out searches move to the failed queue for controlled retry rather than remaining stuck indefinitely.
+        </div>
+
         @if (Model.IsScopedToMedia && !Model.IsGroupsMode)
         {
             <div class="identity-review-scope" role="status">
@@ -732,21 +740,24 @@
                     </div>
                 }
 
-                <nav class="people-pagination" aria-label="Review pages">
-                    @if (Model.Result.HasPreviousPage)
-                    {
-                        <a class="btn btn-outline-secondary" href="@(Model.BuildReviewUrl(pageNumber: Model.Result.PageNumber - 1))">
-                            <i class="bi bi-arrow-left"></i> Previous
-                        </a>
-                    }
-                    <span>Page @Model.Result.PageNumber</span>
-                    @if (Model.Result.HasNextPage)
-                    {
-                        <a class="btn btn-outline-secondary" href="@(Model.BuildReviewUrl(pageNumber: Model.Result.PageNumber + 1))">
-                            Next <i class="bi bi-arrow-right"></i>
-                        </a>
-                    }
-                </nav>
+                @if (Model.Result.HasPreviousPage || Model.Result.HasNextPage)
+                {
+                    <nav class="people-pagination" aria-label="Review pages">
+                        @if (Model.Result.HasPreviousPage)
+                        {
+                            <a class="btn btn-outline-secondary" href="@(Model.BuildReviewUrl(pageNumber: Model.Result.PageNumber - 1))">
+                                <i class="bi bi-arrow-left"></i> Previous
+                            </a>
+                        }
+                        <span>Page @Model.Result.PageNumber</span>
+                        @if (Model.Result.HasNextPage)
+                        {
+                            <a class="btn btn-outline-secondary" href="@(Model.BuildReviewUrl(pageNumber: Model.Result.PageNumber + 1))">
+                                Next <i class="bi bi-arrow-right"></i>
+                            </a>
+                        }
+                    </nav>
+                }
             }
         }
 

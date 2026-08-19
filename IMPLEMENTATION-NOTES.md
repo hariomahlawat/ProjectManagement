@@ -1,90 +1,86 @@
-# PRISM Photos — Consolidation & Curation UX
+# PRISM Photos — Matching Recovery & Pagination Stabilisation
 
-## Scope
+## Purpose
+This phase resolves the observed condition where unresolved faces could remain in **Matching** for an extended period without becoming actionable, and removes redundant single-page `Page 1` pagination from Photos/Collections/Albums/People review surfaces.
 
-This phase is intentionally a consolidation and curation-throughput phase over the current organisation-wide Albums implementation. It does not introduce personal/private albums, a new media ownership model, automatic identity decisions, or another database migration.
+## Candidate-matching reliability changes
 
-## Implemented
+### 1. Bounded candidate-search execution
+Known-person candidate search now has a hard per-batch execution timeout. Default:
 
-### 1. Direct **Add media** from an Album
+- `CandidateSearchTimeoutSeconds = 60`
 
-Album managers can now start curation from the album itself rather than navigating back to Photos and choosing the album again.
+If the bounded candidate-search operation exceeds this limit, the affected face records are moved to `Failed` with an explicit failure reason instead of remaining indefinitely in `Processing`.
 
-- Active, manageable albums below capacity expose **Add media** in the album header.
-- Empty albums use **Add media** as their primary call to action.
-- The action opens the normal Photos wall in a dedicated target-album selection mode.
-- Selection starts automatically and the target album remains explicit throughout the workflow.
-- Search, filters, sorting and pagination preserve the target album.
-- **Clear filters** also preserves the target album.
-- Cancel / Escape returns to the album rather than leaving the user in an ambiguous selection state.
-- The selection bar becomes target-specific: **Select page · Add selected · Clear**.
-- Media already in the album is dimmed, labelled **In album**, disabled and excluded from click, range, Select page and lasso selection.
-- The server remains authoritative and re-validates album permission, archive state, membership, visibility and capacity.
+### 2. Processing lease and stale recovery
+Candidate `Processing` is now treated as a lease, not a permanent state. Default:
 
-### 2. Correct capacity semantics
+- `CandidateProcessingStaleSeconds = 180`
 
-Album capacity is now based on **total membership**, not only currently visible media. A hidden or temporarily unavailable album member still occupies a membership slot, matching the mutation service's invariant.
+The background worker checks for stale Processing rows on every cycle and moves eligible stale rows back to `Pending` before continuing. This also recovers work left behind by application restarts or interrupted worker cycles.
 
-`MediaAlbumDetails` now exposes `TotalMembershipCount`; this is a contract/query change only and does not require a schema change.
+### 3. Controlled automatic retry
+Failed candidate searches remain reviewable and retry automatically after:
 
-### 3. Album action semantics tightened
+- `CandidateFailureRetryDelaySeconds = 300`
 
-- **Organise** is available only when the user can manage the album, it is active, and at least two visible media items exist.
-- Direct `OrganizeAlbum=true` URLs are normalised back out when organisation is not meaningful.
-- **Add media** is hidden when the album is archived, read-only, or at the membership limit.
+The reviewer therefore sees a real failure state rather than a false endless “Matching” state.
 
-### 4. Creator/audit presentation
+### 4. Worker-cycle safety
+The entire candidate-refresh cycle is bounded to the configured search timeout plus a small orchestration allowance. This prevents the hosted service itself from becoming permanently blocked around queue/query orchestration.
 
-Album list cards and album detail resolve the creator from the application user directory.
+### 5. Immediate worker wake-up
+Queue mutations now signal the candidate worker immediately. Polling remains as a resilience fallback, but newly queued/rematched faces no longer need to wait for the normal idle interval.
 
-- Owner cards show **Created by you**.
-- Other albums show the creator's resolved display name.
-- Album detail shows creator, created date and last-updated timestamp.
-- Rank/name formatting avoids duplicate rank prefixes.
-- Directory lookup failure is non-fatal; album access remains available with a safe fallback label.
+### 6. Worker runtime telemetry
+A process-local candidate-worker runtime state now records:
 
-### 5. Photos UX refinement
+- configured / started state;
+- worker ID;
+- heartbeat;
+- current batch start;
+- last successful batch;
+- last failure;
+- processed count;
+- stale leases recovered.
 
-- Desktop Photos header and tab spacing are more compact so media appears higher in the viewport.
-- Source Collection/Album grid minimum width is reduced from 245px to 220px to make better use of wide displays.
-- Pagination is hidden when there is only one page instead of displaying a redundant `Page 1` footer.
+The existing **Media Intelligence / Readiness** workspace exposes queued, processing, failed and oldest-active metrics together with worker health.
 
-### 6. Maintainability consolidation
+### 7. Reviewer warning for delayed worker
+The People review workspace now detects a stale matcher heartbeat while unresolved matching work exists. It surfaces a warning instead of silently continuing to claim matching is progressing normally. Live workload polling can clear/show this warning without a full page reload.
 
-The current behaviour was retained while separating responsibilities:
+## Current stuck-face recovery after deployment
+On application start, the matcher begins within a few seconds. Existing rows behave as follows:
 
-- Album-specific `IndexModel` orchestration moved to `Pages/Photos/Index.Albums.cs` using a partial PageModel.
-- Album/caption/reorder browser behaviour moved out of `photos-library.js` into `photos-curation.js`.
-- Curation-specific styling moved out of `photos-library.css` into `photos-curation.css`.
-- Small deterministic curation-state rules moved into `PhotosCurationPresentation` and are unit-testable without Razor infrastructure.
+- `Pending` → picked up normally;
+- stale `Processing` older than the configured lease → recovered to `Pending` and processed;
+- candidate search succeeds → `Ready`;
+- candidate search times out/errors during the bounded search → `Failed` with a visible failure reason and later controlled retry.
 
-This reduces the tendency to append further album phases into the already-large core Photos PageModel, JS and CSS files.
+Confirmed identities are never modified automatically.
 
-### 7. Regression coverage
+## Pagination correction
+Single-page pagination is now hidden in:
 
-Added coverage for:
+- Source Collections;
+- Albums;
+- People directory;
+- People review queue.
 
-- creator label normalisation;
-- Add-media authority/archive/capacity semantics;
-- total-membership capacity despite fewer visible items;
-- Organise minimum-item semantics;
-- mixed existing/new album additions remaining idempotent;
-- archived album rejecting targeted additions;
-- target-album browser contract, Cancel destination and automatic selection;
-- existing album members being excluded from selection;
-- curation JS being isolated from the core gallery JS.
+Pagination appears only when Previous or Next actually exists.
 
-## Database impact
+## Configuration
+No `appsettings` change is required. New options have safe defaults in `MediaPeopleOptions`:
 
-**No EF migration is required.**
+```json
+{
+  "CandidateSearchTimeoutSeconds": 60,
+  "CandidateProcessingStaleSeconds": 180,
+  "CandidateFailureRetryDelaySeconds": 300
+}
+```
 
-The phase uses the existing organisational Albums schema. `TotalMembershipCount` is derived from existing `MediaAlbumItems` rows.
+They may be overridden later if production measurements justify it.
 
-## Permissions
-
-Permissions are unchanged:
-
-- all authorised Photos users can view organisation-wide active albums;
-- album creators manage their own albums;
-- Admin / HoD / Comdt can manage any album;
-- organisation-level editorial-caption authority remains elevated-role controlled.
+## Database
+No EF migration is required.

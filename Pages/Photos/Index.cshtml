@@ -437,11 +437,14 @@
                 </article>
             }
         </section>
-        <nav class="photos-pagination" aria-label="Album pages">
-            @if(Model.HasPreviousPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage - 1)"><i class="bi bi-arrow-left"></i> Previous</a>}
-            <span>Page @Model.CurrentPage</span>
-            @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
-        </nav>
+        @if (Model.HasPreviousPage || Model.HasNextPage)
+        {
+            <nav class="photos-pagination" aria-label="Album pages">
+                @if(Model.HasPreviousPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage - 1)"><i class="bi bi-arrow-left"></i> Previous</a>}
+                <span>Page @Model.CurrentPage</span>
+                @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
+            </nav>
+        }
     }
     else if (Model.View == "collections" && !Model.IsCollectionDetail)
     {
@@ -472,11 +475,14 @@
                 </article>
             }
         </section>
-        <nav class="photos-pagination" aria-label="Collection pages">
-            @if(Model.HasPreviousPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage - 1)"><i class="bi bi-arrow-left"></i> Previous</a>}
-            <span>Page @Model.CurrentPage</span>
-            @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
-        </nav>
+        @if (Model.HasPreviousPage || Model.HasNextPage)
+        {
+            <nav class="photos-pagination" aria-label="Collection pages">
+                @if(Model.HasPreviousPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage - 1)"><i class="bi bi-arrow-left"></i> Previous</a>}
+                <span>Page @Model.CurrentPage</span>
+                @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
+            </nav>
+        }
     }
     else
     {

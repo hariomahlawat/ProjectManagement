@@ -15,21 +15,24 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaAssetVisibilityPolicy _visibility;
+    private readonly IFaceCandidateRefreshRuntimeState _runtime;
     private readonly MediaPeopleOptions _options;
 
     public FaceCandidateRefreshQueueService(
         MediaLibraryDbContext db,
         IMediaAssetVisibilityPolicy visibility,
+        IFaceCandidateRefreshRuntimeState runtime,
         IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
+        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
     }
 
     public async Task<bool> QueueFaceAsync(Guid faceId, CancellationToken cancellationToken)
     {
-        if (!_options.Enabled || !_options.WorkerEnabled || !_options.CandidateSearchEnabled)
+        if (!IsOperational())
         {
             return false;
         }
@@ -50,6 +53,7 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
 
         MarkPending(face);
         await _db.SaveChangesAsync(cancellationToken);
+        _runtime.RequestRun();
         return true;
     }
 
@@ -58,7 +62,7 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(faceIds);
-        if (!_options.Enabled || !_options.WorkerEnabled || !_options.CandidateSearchEnabled)
+        if (!IsOperational())
         {
             return 0;
         }
@@ -73,54 +77,65 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
             return 0;
         }
 
-        var modelKey = _options.Embedder.Key;
-        var modelVersion = _options.Embedder.Version;
-        var now = DateTimeOffset.UtcNow;
-        var visibleAssetIds = BuildVisibleAssetIdsQuery();
-        return await BuildQueueableFacesQuery(
-                _db,
-                modelKey,
-                modelVersion,
-                _options.Embedder.EmbeddingDimension,
-                _options.CandidateMinimumFaceQuality,
-                visibleAssetIds)
-            .Where(face => selected.Contains(face.Id))
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(face => face.CandidateSearchStatus, FaceCandidateSearchStatus.Pending)
-                .SetProperty(face => face.CandidateSearchModelKey, modelKey)
-                .SetProperty(face => face.CandidateSearchModelVersion, modelVersion)
-                .SetProperty(face => face.CandidateSearchFailureReason, (string?)null)
-                .SetProperty(face => face.CandidateSearchCompletedAtUtc, (DateTimeOffset?)null)
-                .SetProperty(face => face.UpdatedAtUtc, now),
-                cancellationToken);
+        var queued = await QueueQueryAsync(
+            query => query.Where(face => selected.Contains(face.Id)),
+            cancellationToken);
+        if (queued > 0)
+        {
+            _runtime.RequestRun();
+        }
+        return queued;
     }
 
     public async Task<int> QueueAllUnassignedAsync(CancellationToken cancellationToken)
     {
-        if (!_options.Enabled || !_options.WorkerEnabled || !_options.CandidateSearchEnabled)
+        if (!IsOperational())
         {
             return 0;
         }
 
-        var modelKey = _options.Embedder.Key;
-        var modelVersion = _options.Embedder.Version;
+        var queued = await QueueQueryAsync(query => query, cancellationToken);
+        if (queued > 0)
+        {
+            _runtime.RequestRun();
+        }
+        return queued;
+    }
+
+    public async Task<int> RecoverStaleProcessingAsync(CancellationToken cancellationToken)
+    {
+        if (!IsOperational())
+        {
+            return 0;
+        }
+
+        var staleBeforeUtc = DateTimeOffset.UtcNow.AddSeconds(
+            -Math.Clamp(_options.CandidateProcessingStaleSeconds, 30, 3600));
         var now = DateTimeOffset.UtcNow;
         var visibleAssetIds = BuildVisibleAssetIdsQuery();
-        return await BuildQueueableFacesQuery(
+
+        var recovered = await BuildQueueableFacesQuery(
                 _db,
-                modelKey,
-                modelVersion,
+                _options.Embedder.Key,
+                _options.Embedder.Version,
                 _options.Embedder.EmbeddingDimension,
                 _options.CandidateMinimumFaceQuality,
                 visibleAssetIds)
+            .Where(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing
+                           && face.UpdatedAtUtc < staleBeforeUtc)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(face => face.CandidateSearchStatus, FaceCandidateSearchStatus.Pending)
-                .SetProperty(face => face.CandidateSearchModelKey, modelKey)
-                .SetProperty(face => face.CandidateSearchModelVersion, modelVersion)
                 .SetProperty(face => face.CandidateSearchFailureReason, (string?)null)
                 .SetProperty(face => face.CandidateSearchCompletedAtUtc, (DateTimeOffset?)null)
                 .SetProperty(face => face.UpdatedAtUtc, now),
                 cancellationToken);
+
+        if (recovered > 0)
+        {
+            _runtime.MarkRecovered(recovered);
+            _runtime.RequestRun();
+        }
+        return recovered;
     }
 
     internal static IQueryable<MediaFace> BuildQueueableFacesQuery(
@@ -158,10 +173,40 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
             : query.Where(face => visibleAssetIds.Contains(face.MediaAssetId));
     }
 
+    private async Task<int> QueueQueryAsync(
+        Func<IQueryable<MediaFace>, IQueryable<MediaFace>> shape,
+        CancellationToken cancellationToken)
+    {
+        var modelKey = _options.Embedder.Key;
+        var modelVersion = _options.Embedder.Version;
+        var now = DateTimeOffset.UtcNow;
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
+        var query = BuildQueueableFacesQuery(
+            _db,
+            modelKey,
+            modelVersion,
+            _options.Embedder.EmbeddingDimension,
+            _options.CandidateMinimumFaceQuality,
+            visibleAssetIds);
+
+        return await shape(query)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(face => face.CandidateSearchStatus, FaceCandidateSearchStatus.Pending)
+                .SetProperty(face => face.CandidateSearchModelKey, modelKey)
+                .SetProperty(face => face.CandidateSearchModelVersion, modelVersion)
+                .SetProperty(face => face.CandidateSearchFailureReason, (string?)null)
+                .SetProperty(face => face.CandidateSearchCompletedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(face => face.UpdatedAtUtc, now),
+                cancellationToken);
+    }
+
     private IQueryable<long> BuildVisibleAssetIdsQuery()
         => _visibility
             .Apply(_db.Assets.AsNoTracking())
             .Select(asset => asset.Id);
+
+    private bool IsOperational()
+        => _options.Enabled && _options.WorkerEnabled && _options.CandidateSearchEnabled;
 
     private void MarkPending(MediaFace face)
     {

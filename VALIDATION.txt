@@ -1,23 +1,24 @@
-PRISM Photos — Consolidation & Curation UX validation
-====================================================
+PRISM Photos — Matching Recovery & Pagination Stabilisation
+Validation performed in this environment
 
-Performed in the generation environment:
+Baseline
+- Current consolidated Photos code reconstructed from the latest conversation implementation packages.
+- Delta contains 19 project files (17 modified + 2 new).
 
-PASS  node --check wwwroot/js/pages/photos-library.js
-PASS  node --check wwwroot/js/pages/photos-curation.js
-PASS  node --test  wwwroot/js/pages/photos-curation-contract.test.js
-      3 tests passed / 0 failed
-PASS  lexical string/comment/delimiter structural validation of all changed C# source files
-PASS  CSS block/brace validation for photos-library.css and photos-curation.css
-PASS  album-specific curation selectors removed from the core photos-library.css
-PASS  all MediaAlbumDetails positional construction sites reconciled after TotalMembershipCount contract addition
-PASS  unified patch dry-run against the current Albums v2 baseline
-PASS  unified patch applied to a clean baseline
-PASS  every patched project file compared byte-for-byte with the ready-to-paste implementation
+Checks completed
+- node --check wwwroot/js/pages/photos-people-review.js: PASSED
+- C# lexical/string/comment/delimiter structural validation: PASSED for all 14 changed C# files
+- IFaceCandidateRefreshQueueService implementation contract check: PASSED
+- New runtime-state service registration verified in MediaLibraryServiceCollectionExtensions: PASSED
+- Single-page pagination guards verified in Source Collections, Albums, People directory and People review: PASSED
+- Unified patch dry-run against clean current baseline: PASSED
+- Unified patch applied to clean baseline: PASSED
+- Patched project files compared byte-for-byte with implementation: 19 files, 0 mismatches
 
-Not available in this environment:
-- .NET SDK / Razor compiler
+Not executable in this environment
 - dotnet build
-- xUnit execution
+- xUnit test execution
+The .NET SDK/compiler is not installed in this runtime. Run the commands in README-APPLY.md on the development machine.
 
-Run the build/test commands in README-APPLY.md on the development machine before deployment.
+Database
+- No EF migration required.

@@ -1,13 +1,1 @@
-Features/MediaLibrary/Services/MediaAlbumContracts.cs
-Features/MediaLibrary/Services/MediaAlbumService.cs
-Pages/Photos/Index.Albums.cs
-Pages/Photos/Index.cshtml
-Pages/Photos/Index.cshtml.cs
-Pages/Photos/PhotosCurationPresentation.cs
-ProjectManagement.Tests/MediaLibrary/MediaAlbumServiceTests.cs
-ProjectManagement.Tests/MediaLibrary/PhotosCurationPresentationTests.cs
-wwwroot/css/pages/photos-curation.css
-wwwroot/css/pages/photos-library.css
-wwwroot/js/pages/photos-curation-contract.test.js
-wwwroot/js/pages/photos-curation.js
-wwwroot/js/pages/photos-library.js
+Features/MediaLibrary/Services/FaceCandidateSearchService.cs

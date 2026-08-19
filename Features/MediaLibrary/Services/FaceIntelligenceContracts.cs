@@ -158,6 +158,39 @@ public interface IFaceCandidateRefreshQueueService
         IReadOnlyCollection<Guid> faceIds,
         CancellationToken cancellationToken);
     Task<int> QueueAllUnassignedAsync(CancellationToken cancellationToken);
+    Task<int> RecoverStaleProcessingAsync(CancellationToken cancellationToken);
+}
+
+public sealed record FaceCandidateRefreshRuntimeSnapshot(
+    bool WorkerConfigured,
+    bool WorkerStarted,
+    string State,
+    string WorkerId,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? LastHeartbeatUtc,
+    DateTimeOffset? CurrentBatchStartedAtUtc,
+    DateTimeOffset? LastCompletedAtUtc,
+    DateTimeOffset? LastFailedAtUtc,
+    int LastBatchProcessedCount,
+    int ProcessedSinceStart,
+    int FailureCountSinceStart,
+    int RecoveredStaleSinceStart,
+    string? LastFailureCode,
+    string? LastFailureMessage);
+
+public interface IFaceCandidateRefreshRuntimeState
+{
+    void MarkConfigured(bool configured);
+    void MarkStarted(string workerId);
+    void Heartbeat(string state);
+    void MarkBatchStarted();
+    void MarkBatchCompleted(int processedCount);
+    void MarkFailed(Exception exception);
+    void MarkRecovered(int recoveredCount);
+    void MarkIdle();
+    void RequestRun();
+    Task WaitForRunRequestAsync(TimeSpan maximumDelay, CancellationToken cancellationToken);
+    FaceCandidateRefreshRuntimeSnapshot GetSnapshot();
 }
 
 public sealed record FaceIdentityGroupMember(

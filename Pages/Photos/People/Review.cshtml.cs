@@ -18,6 +18,7 @@ public sealed class ReviewModel : PageModel
     private readonly IFaceIdentityGroupingRuntimeState _groupingState;
     private readonly IFaceReviewInvalidationCoordinator _invalidation;
     private readonly IFaceReviewService _review;
+    private readonly IFaceCandidateRefreshRuntimeState _candidateRuntime;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<ReviewModel> _logger;
 
@@ -27,6 +28,7 @@ public sealed class ReviewModel : PageModel
         IFaceIdentityGroupingRuntimeState groupingState,
         IFaceReviewInvalidationCoordinator invalidation,
         IFaceReviewService review,
+        IFaceCandidateRefreshRuntimeState candidateRuntime,
         IOptions<MediaLibraryOptions> options,
         ILogger<ReviewModel> logger)
     {
@@ -35,6 +37,7 @@ public sealed class ReviewModel : PageModel
         _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
         _invalidation = invalidation ?? throw new ArgumentNullException(nameof(invalidation));
         _review = review ?? throw new ArgumentNullException(nameof(review));
+        _candidateRuntime = candidateRuntime ?? throw new ArgumentNullException(nameof(candidateRuntime));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -79,6 +82,8 @@ public sealed class ReviewModel : PageModel
         = FaceReviewWorkloadSummary.Empty;
     public FaceIdentityGroupingRuntimeSnapshot GroupingSnapshot { get; private set; }
         = new(null, null, null);
+    public FaceCandidateRefreshRuntimeSnapshot CandidateRuntime { get; private set; } = new(
+        false, false, "Not started", string.Empty, null, null, null, null, null, 0, 0, 0, 0, null, null);
 
     public IReadOnlyList<MediaPersonOption> AvailablePeople { get; private set; }
         = Array.Empty<MediaPersonOption>();
@@ -86,6 +91,7 @@ public sealed class ReviewModel : PageModel
     public bool FeatureEnabled => _options.People.Enabled;
     public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
     public bool MatchingWorkerEnabled => _options.IsPeopleWorkerEnabled && _options.People.CandidateSearchEnabled;
+    public bool MatchingWorkerDelayed => IsMatchingWorkerDelayed(CandidateRuntime);
     public bool GroupingEnabled => _options.IsPeopleWorkerEnabled && _options.People.GroupingEnabled;
     public bool GroupingSnapshotAvailable => IsGroupsMode
         ? GroupingSnapshot.IsReady
@@ -210,6 +216,7 @@ public sealed class ReviewModel : PageModel
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeRequest();
+        CandidateRuntime = _candidateRuntime.GetSnapshot();
         if (!FeatureEnabled)
         {
             return Page();
@@ -267,6 +274,7 @@ public sealed class ReviewModel : PageModel
             var workload = await _workloadService.GetAsync(
                 new FaceReviewWorkloadQuery(AssetIds),
                 cancellationToken);
+            var candidateRuntime = _candidateRuntime.GetSnapshot();
             return new JsonResult(new
             {
                 enabled = true,
@@ -282,7 +290,10 @@ public sealed class ReviewModel : PageModel
                 groupingSnapshotAvailable = workload.GroupingSnapshotAvailable,
                 groupingRefreshPending = workload.GroupingRefreshPending,
                 groupingRefreshedAtUtc = workload.GroupingRefreshedAtUtc?.ToString("O"),
-                groupingFailureReason = workload.GroupingFailureReason
+                groupingFailureReason = workload.GroupingFailureReason,
+                matchingWorkerDelayed = IsMatchingWorkerDelayed(candidateRuntime),
+                matchingWorkerState = candidateRuntime.State,
+                matchingWorkerLastHeartbeatUtc = candidateRuntime.LastHeartbeatUtc?.ToString("O")
             });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -551,6 +562,24 @@ public sealed class ReviewModel : PageModel
         {
             AssetIds = Array.Empty<long>();
         }
+    }
+
+    private bool IsMatchingWorkerDelayed(FaceCandidateRefreshRuntimeSnapshot runtime)
+    {
+        if (!MatchingWorkerEnabled || !runtime.WorkerConfigured)
+        {
+            return false;
+        }
+        if (!runtime.WorkerStarted || !runtime.LastHeartbeatUtc.HasValue)
+        {
+            return Workload.MatchingCount > 0;
+        }
+
+        var allowedSilenceSeconds = Math.Max(
+            _options.People.CandidateSearchTimeoutSeconds + 30,
+            Math.Max(60, _options.People.CandidateRefreshIdleDelaySeconds * 4));
+        return DateTimeOffset.UtcNow - runtime.LastHeartbeatUtc.Value
+               > TimeSpan.FromSeconds(allowedSilenceSeconds);
     }
 
     private string NormalizeModeValue(string? value)

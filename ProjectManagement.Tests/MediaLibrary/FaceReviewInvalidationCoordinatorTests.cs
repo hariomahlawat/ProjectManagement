@@ -143,6 +143,9 @@ public sealed class FaceReviewInvalidationCoordinatorTests
             QueueAllCount++;
             return Task.FromResult(QueueAllResult);
         }
+
+        public Task<int> RecoverStaleProcessingAsync(CancellationToken cancellationToken)
+            => Task.FromResult(0);
     }
 
     private sealed class FakeGroupingState : IFaceIdentityGroupingRuntimeState

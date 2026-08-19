@@ -48,10 +48,12 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
                 : ValidateOptionsResult.Fail(failures);
         }
 
-        if (options.IsCatalogueEnabled
+        if ((options.IsExternalSourceFeatureEnabled
+             || options.IsAnyProcessingWorkerEnabled
+             || options.People.Enabled)
             && string.IsNullOrWhiteSpace(options.CacheRoot))
         {
-            failures.Add("MediaLibrary:CacheRoot is required while the media catalogue is enabled.");
+            failures.Add("MediaLibrary:CacheRoot is required while external media or processing is enabled.");
         }
 
         if (options.Catalogue.SynchronizePrismMedia
@@ -291,6 +293,14 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add("MediaLibrary:People:CandidateRefreshBatchSize must be between 1 and 10000.");
         if (people.CandidateRefreshIdleDelaySeconds is < 1 or > 3600)
             failures.Add("MediaLibrary:People:CandidateRefreshIdleDelaySeconds must be between 1 and 3600.");
+        if (people.CandidateSearchTimeoutSeconds is < 5 or > 600)
+            failures.Add("MediaLibrary:People:CandidateSearchTimeoutSeconds must be between 5 and 600.");
+        if (people.CandidateProcessingStaleSeconds is < 30 or > 3600)
+            failures.Add("MediaLibrary:People:CandidateProcessingStaleSeconds must be between 30 and 3600.");
+        if (people.CandidateProcessingStaleSeconds <= people.CandidateSearchTimeoutSeconds)
+            failures.Add("MediaLibrary:People:CandidateProcessingStaleSeconds must be greater than CandidateSearchTimeoutSeconds.");
+        if (people.CandidateFailureRetryDelaySeconds is < 30 or > 86400)
+            failures.Add("MediaLibrary:People:CandidateFailureRetryDelaySeconds must be between 30 and 86400.");
         if (people.CandidateMinimumFaceQuality is < 0 or > 1)
             failures.Add("MediaLibrary:People:CandidateMinimumFaceQuality must be between 0 and 1.");
         if (people.CandidateBatchConfirmationLimit is < 1 or > 100)

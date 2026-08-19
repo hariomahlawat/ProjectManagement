@@ -42,6 +42,14 @@ public static class MediaLibraryServiceCollectionExtensions
             state.MarkConfigured(configuredOptions.IsAnyProcessingWorkerEnabled);
             return state;
         });
+        services.AddSingleton<IFaceCandidateRefreshRuntimeState>(_ =>
+        {
+            var state = new FaceCandidateRefreshRuntimeState();
+            state.MarkConfigured(
+                configuredOptions.IsPeopleWorkerEnabled
+                && configuredOptions.People.CandidateSearchEnabled);
+            return state;
+        });
         services.AddScoped<IMediaCacheHealthService, MediaCacheHealthService>();
         services.AddScoped<SafeFileEnumerator>();
         services.AddScoped<IFileSystemSourceHealthService, FileSystemSourceHealthService>();

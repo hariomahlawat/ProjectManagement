@@ -1,16 +1,19 @@
-PRISM Photos Razor compile fix
+PRISM Photos - Matching Recovery Options Compatibility Hotfix
 
-Paste these files over the project root, preserving paths:
-  Pages/Photos/Index.cshtml
-  wwwroot/css/pages/photos-library.css
+Replace these two files under the project root:
+  Features/MediaLibrary/Options/MediaLibraryOptions.cs
+  Features/MediaLibrary/Options/MediaLibraryOptionsValidator.cs
 
-Root cause fixed:
-The Photos summary inside an @if Razor code block mixed markup elements with bare text after implicit Razor expressions. At code-block scope Razor parsed the trailing words/HTML as C#, causing CS1056/CS0103/CS1525/CS1002 cascade errors at lines 207/211.
+This fixes a regression in the Matching Recovery package where option declarations from earlier Photos phases were accidentally omitted.
 
-After copying, clean and rebuild:
-  dotnet clean
-  Remove-Item -Recurse -Force .\bin, .\obj -ErrorAction SilentlyContinue
-  dotnet build .\ProjectManagement.csproj
-  dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+Restored and preserved together:
+- MediaBulkDownloadOptions + BulkDownload bind point
+- ReviewTriageBatchLimit
+- GroupingReviewModerateSimilarityThreshold
+- GroupingReviewStrongSimilarityThreshold
+- CandidateSearchTimeoutSeconds
+- CandidateProcessingStaleSeconds
+- CandidateFailureRetryDelaySeconds
+- validation for all of the above
 
-The ProjectManagement.Tests CS0006 error is downstream of the main ProjectManagement build failure and should disappear after the Razor file compiles.
+No EF migration or appsettings change is required.

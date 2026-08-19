@@ -70,7 +70,11 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
         var maximum = Math.Clamp(limit, 1, 10_000);
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
-        var retryBeforeUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var retryBeforeUtc = nowUtc.AddSeconds(
+            -Math.Clamp(_options.CandidateFailureRetryDelaySeconds, 30, 86_400));
+        var staleProcessingBeforeUtc = nowUtc.AddSeconds(
+            -Math.Clamp(_options.CandidateProcessingStaleSeconds, 30, 3_600));
         var faces = await BuildCandidateFaceQuery()
             .Where(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending
                            || face.CandidateSearchStatus == FaceCandidateSearchStatus.NotRequested
@@ -80,7 +84,7 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
                                && (!face.CandidateSearchCompletedAtUtc.HasValue
                                    || face.CandidateSearchCompletedAtUtc < retryBeforeUtc))
                            || (face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing
-                               && face.UpdatedAtUtc < retryBeforeUtc))
+                               && face.UpdatedAtUtc < staleProcessingBeforeUtc))
             .OrderBy(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending ? 0 : 1)
             .ThenByDescending(face => face.MediaAsset.MediaDateUtc)
             .ThenByDescending(face => face.QualityScore)
@@ -188,27 +192,32 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
         }
 
         IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>> candidatesByFace;
+        using var searchTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var timeoutSeconds = Math.Clamp(_options.CandidateSearchTimeoutSeconds, 5, 600);
+        searchTimeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
         try
         {
-            candidatesByFace = await _candidateSearch.SearchBatchAsync(inputs, cancellationToken);
+            candidatesByFace = await _candidateSearch.SearchBatchAsync(inputs, searchTimeout.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
+        catch (OperationCanceledException exception) when (searchTimeout.IsCancellationRequested)
+        {
+            var timeoutException = new TimeoutException(
+                $"Known-person candidate search exceeded the configured {timeoutSeconds}-second timeout.",
+                exception);
+            await MarkSearchFailedAsync(faces, inputs, timeoutException, CancellationToken.None);
+            _logger.LogWarning(
+                timeoutException,
+                "Known-person candidate search timed out for {FaceCount} face(s). The faces were moved to Failed and remain eligible for controlled retry.",
+                inputs.Count);
+            throw timeoutException;
+        }
         catch (Exception exception)
         {
-            var message = Trim(exception.GetBaseException().Message, 2048);
-            var searchableFaceIds = inputs.Select(input => input.FaceId).ToHashSet();
-            foreach (var face in faces.Where(face => searchableFaceIds.Contains(face.Id)))
-            {
-                face.CandidateSearchStatus = FaceCandidateSearchStatus.Failed;
-                face.CandidateSearchFailureReason = message;
-                face.CandidateSearchCompletedAtUtc = DateTimeOffset.UtcNow;
-                face.UpdatedAtUtc = DateTimeOffset.UtcNow;
-                face.ConcurrencyToken = Guid.NewGuid();
-            }
-            await _db.SaveChangesAsync(CancellationToken.None);
+            await MarkSearchFailedAsync(faces, inputs, exception, CancellationToken.None);
             throw;
         }
 
@@ -303,6 +312,28 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
             "Refreshed known-person candidates for {FaceCount} face(s) using one bounded reference-set load.",
             inputs.Count);
         return inputs.Count;
+    }
+
+    private async Task MarkSearchFailedAsync(
+        IReadOnlyCollection<MediaFace> faces,
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        var message = Trim(
+            exception is TimeoutException ? exception.Message : exception.GetBaseException().Message,
+            2048);
+        var searchableFaceIds = inputs.Select(input => input.FaceId).ToHashSet();
+        var failedAtUtc = DateTimeOffset.UtcNow;
+        foreach (var face in faces.Where(face => searchableFaceIds.Contains(face.Id)))
+        {
+            face.CandidateSearchStatus = FaceCandidateSearchStatus.Failed;
+            face.CandidateSearchFailureReason = message;
+            face.CandidateSearchCompletedAtUtc = failedAtUtc;
+            face.UpdatedAtUtc = failedAtUtc;
+            face.ConcurrencyToken = Guid.NewGuid();
+        }
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private static string BuildEvidenceNote(FaceCandidate candidate)

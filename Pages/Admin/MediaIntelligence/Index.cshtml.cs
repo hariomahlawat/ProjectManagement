@@ -34,6 +34,7 @@ public sealed class IndexModel : PageModel
     private readonly IMediaProcessingRuntimeState _runtime;
     private readonly IFaceEligibilityPolicy _eligibility;
     private readonly IFaceCandidateRefreshQueueService _candidateQueue;
+    private readonly IFaceCandidateRefreshRuntimeState _candidateRuntime;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<IndexModel> _logger;
 
@@ -45,6 +46,7 @@ public sealed class IndexModel : PageModel
         IMediaProcessingRuntimeState runtime,
         IFaceEligibilityPolicy eligibility,
         IFaceCandidateRefreshQueueService candidateQueue,
+        IFaceCandidateRefreshRuntimeState candidateRuntime,
         IOptions<MediaLibraryOptions> options,
         ILogger<IndexModel> logger)
     {
@@ -55,6 +57,7 @@ public sealed class IndexModel : PageModel
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
         _candidateQueue = candidateQueue ?? throw new ArgumentNullException(nameof(candidateQueue));
+        _candidateRuntime = candidateRuntime ?? throw new ArgumentNullException(nameof(candidateRuntime));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -82,7 +85,38 @@ public sealed class IndexModel : PageModel
     public int KnownPersonSuggestions { get; private set; }
     public int UnidentifiedFaces { get; private set; }
     public int CandidateSearchPending { get; private set; }
+    public int CandidateSearchQueued { get; private set; }
+    public int CandidateSearchProcessing { get; private set; }
     public int CandidateSearchFailures { get; private set; }
+    public DateTimeOffset? CandidateSearchOldestActiveAtUtc { get; private set; }
+    public FaceCandidateRefreshRuntimeSnapshot CandidateRuntime { get; private set; } = new(
+        false, false, "Not started", string.Empty, null, null, null, null, null, 0, 0, 0, 0, null, null);
+
+    public bool CandidateWorkerDelayed
+    {
+        get
+        {
+            if (!CandidateRuntime.WorkerConfigured)
+            {
+                return false;
+            }
+            if (!CandidateRuntime.WorkerStarted || !CandidateRuntime.LastHeartbeatUtc.HasValue)
+            {
+                return CandidateSearchPending > 0;
+            }
+
+            var allowedSilenceSeconds = Math.Max(
+                _options.People.CandidateSearchTimeoutSeconds + 30,
+                Math.Max(60, _options.People.CandidateRefreshIdleDelaySeconds * 4));
+            return DateTimeOffset.UtcNow - CandidateRuntime.LastHeartbeatUtc.Value
+                   > TimeSpan.FromSeconds(allowedSilenceSeconds);
+        }
+    }
+
+    public string CandidateSearchOldestAge
+        => CandidateSearchOldestActiveAtUtc.HasValue
+            ? FormatAge(DateTimeOffset.UtcNow - CandidateSearchOldestActiveAtUtc.Value)
+            : "—";
     public int PendingFaceJobs { get; private set; }
     public int FailedFaceJobs { get; private set; }
     public int CurrentClassifierAssets { get; private set; }
@@ -97,6 +131,7 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         ProcessingRuntime = _runtime.GetSnapshot();
+        CandidateRuntime = _candidateRuntime.GetSnapshot();
         SchemaStatus = await _schema.GetStatusAsync(cancellationToken);
 
         if (!SchemaStatus.IsCurrent)
@@ -179,11 +214,19 @@ public sealed class IndexModel : PageModel
                         decision.MediaFaceId == face.Id
                         && decision.CandidatePersonId.HasValue
                         && decision.Decision == FaceReviewDecisionType.Pending), cancellationToken);
-                CandidateSearchPending = await reviewableFaces.CountAsync(face =>
-                    face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending
-                    || face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing, cancellationToken);
+                CandidateSearchQueued = await reviewableFaces.CountAsync(face =>
+                    face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending, cancellationToken);
+                CandidateSearchProcessing = await reviewableFaces.CountAsync(face =>
+                    face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing, cancellationToken);
+                CandidateSearchPending = CandidateSearchQueued + CandidateSearchProcessing;
                 CandidateSearchFailures = await reviewableFaces.CountAsync(face =>
                     face.CandidateSearchStatus == FaceCandidateSearchStatus.Failed, cancellationToken);
+                CandidateSearchOldestActiveAtUtc = await reviewableFaces
+                    .Where(face => face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending
+                                   || face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing)
+                    .OrderBy(face => face.UpdatedAtUtc)
+                    .Select(face => (DateTimeOffset?)face.UpdatedAtUtc)
+                    .FirstOrDefaultAsync(cancellationToken);
                 UnidentifiedFaces = await reviewableFaces.CountAsync(face =>
                     !_db.FaceReviewDecisions.Any(decision =>
                         decision.MediaFaceId == face.Id
@@ -386,6 +429,23 @@ public sealed class IndexModel : PageModel
                     "Unavailable",
                     "Apply and validate the MediaLibraryDbContext migrations.")
             });
+
+    private static string FormatAge(TimeSpan age)
+    {
+        if (age < TimeSpan.Zero)
+        {
+            age = TimeSpan.Zero;
+        }
+        if (age.TotalSeconds < 60)
+        {
+            return $"{Math.Max(0, (int)age.TotalSeconds)}s";
+        }
+        if (age.TotalMinutes < 60)
+        {
+            return $"{(int)age.TotalMinutes}m {age.Seconds}s";
+        }
+        return $"{(int)age.TotalHours}h {age.Minutes}m";
+    }
 
     private static FaceDetectorReadiness CreateUnavailableDetectorReadiness(string message)
         => new(

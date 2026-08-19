@@ -237,6 +237,7 @@
     const matchingEmptyTitle = matchingEmptyState?.querySelector("[data-matching-empty-title]");
     const matchingEmptyCopy = matchingEmptyState?.querySelector("[data-matching-empty-copy]");
     const matchingEmptyAction = matchingEmptyState?.querySelector("[data-matching-empty-action]");
+    const workerWarning = root.querySelector("[data-matching-worker-warning]");
 
     let previousMatching = Number.parseInt(root.dataset.initialMatching ?? "0", 10) || 0;
     let previousGroupingRefreshing = root.dataset.groupingRefreshing === "true";
@@ -278,7 +279,9 @@
             return;
         }
 
-        if (data.matching > 0) {
+        if (data.matching > 0 && data.matchingWorkerDelayed) {
+            liveStatus.textContent = `Matching worker delayed — ${data.matching} ${plural(data.matching, "appearance")} remain unresolved.`;
+        } else if (data.matching > 0) {
             liveStatus.textContent = `${data.matching} ${plural(data.matching, "appearance")} being matched in the background.`;
         } else if (data.groupingRefreshPending) {
             liveStatus.textContent = "Identity groups are refreshing in the background.";
@@ -302,6 +305,9 @@
         setHiddenForCount(matchingWrap, data.matching);
         setHiddenForCount(failureWrap, data.matchingFailures);
         setHiddenForCount(closedWrap, data.closedUnidentified, closedWrap?.classList.contains("is-active") === true);
+        if (workerWarning instanceof HTMLElement) {
+            workerWarning.hidden = !data.matchingWorkerDelayed;
+        }
 
         if (data.groupingRefreshPending) {
             root.querySelectorAll(

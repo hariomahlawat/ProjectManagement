@@ -199,11 +199,14 @@
                 <button type="button" class="people-selection-bar__cancel" data-people-selection-cancel aria-label="Cancel selection"><i class="bi bi-x-lg"></i></button>
             </div>
 
-            <nav class="people-pagination" aria-label="People pages">
-                @if (Model.Result.HasPreviousPage) { <a class="people-page-button" href="@Model.BuildPageUrl(Model.Result.PageNumber - 1)"><i class="bi bi-arrow-left"></i> Previous</a> }
-                <span>Page @Model.Result.PageNumber</span>
-                @if (Model.Result.HasNextPage) { <a class="people-page-button" href="@Model.BuildPageUrl(Model.Result.PageNumber + 1)">Next <i class="bi bi-arrow-right"></i></a> }
-            </nav>
+            @if (Model.Result.HasPreviousPage || Model.Result.HasNextPage)
+            {
+                <nav class="people-pagination" aria-label="People pages">
+                    @if (Model.Result.HasPreviousPage) { <a class="people-page-button" href="@Model.BuildPageUrl(Model.Result.PageNumber - 1)"><i class="bi bi-arrow-left"></i> Previous</a> }
+                    <span>Page @Model.Result.PageNumber</span>
+                    @if (Model.Result.HasNextPage) { <a class="people-page-button" href="@Model.BuildPageUrl(Model.Result.PageNumber + 1)">Next <i class="bi bi-arrow-right"></i></a> }
+                </nav>
+            }
         }
     }
 </div>
