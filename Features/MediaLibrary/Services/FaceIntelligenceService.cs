@@ -390,7 +390,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
 
             if (detection.Embedding is { Length: > 0 }
                 && detection.Embedding.Length == _options.People.Embedder.EmbeddingDimension
-                && detection.QualityStatus == FaceQualityStatus.EmbeddingEligible)
+                && FaceQualityEvaluator.CanGenerateEmbedding(detection.QualityStatus))
             {
                 foreach (var existing in activeEmbeddings)
                 {
@@ -437,7 +437,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         {
             asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
             asset.FaceProcessingFailureReason =
-                "No existing confirmed face could be matched to a current embedding-eligible detection. Choose another clear appearance.";
+                "No existing confirmed face could be matched to a current technically usable face embedding. Choose another clear appearance or review the detection.";
             await _db.SaveChangesAsync(cancellationToken);
             throw new InvalidOperationException(asset.FaceProcessingFailureReason);
         }

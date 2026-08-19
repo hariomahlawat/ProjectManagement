@@ -1,0 +1,976 @@
+--- a/Features/MediaLibrary/Domain/MediaLibraryEnums.cs
++++ b/Features/MediaLibrary/Domain/MediaLibraryEnums.cs
+@@ -129,9 +129,12 @@
+     Blurred = 3,
+     PoorExposure = 4,
+     ExtremePose = 5,
++    // Legacy value retained for existing rows created before crop-boundary semantics were named accurately.
+     Occluded = 6,
+     Suppressed = 7,
+-    ProcessingFailed = 8
++    ProcessingFailed = 8,
++    CropIncomplete = 9,
++    SeverelyCropped = 10
+ }
+ 
+ public enum MediaPersonStatus { Unreviewed = 0, Confirmed = 1, Hidden = 2, Merged = 3, Archived = 4 }
+--- a/Features/MediaLibrary/Services/FaceCandidateRefreshQueueService.cs
++++ b/Features/MediaLibrary/Services/FaceCandidateRefreshQueueService.cs
+@@ -152,7 +152,10 @@
+ 
+         var query = db.Faces
+             .Where(face => !face.IsSuppressed
+-                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                           && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                                   || face.QualityStatus == FaceQualityStatus.Detected
++                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
++                                   || face.QualityStatus == FaceQualityStatus.Occluded)
+                            && face.QualityScore >= minimumFaceQuality
+                            && face.MediaAsset.IsAvailable
+                            && !face.MediaAsset.IsDeleted
+--- a/Features/MediaLibrary/Services/FaceCandidateSearchService.cs
++++ b/Features/MediaLibrary/Services/FaceCandidateSearchService.cs
+@@ -299,7 +299,10 @@
+                   && !person.IsHidden
+                   && person.Status == MediaPersonStatus.Confirmed
+                   && !face.IsSuppressed
+-                  && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                  && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                                   || face.QualityStatus == FaceQualityStatus.Detected
++                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
++                                   || face.QualityStatus == FaceQualityStatus.Occluded)
+                   && face.QualityScore >= minimumReferenceQuality
+                   && asset.IsAvailable
+                   && !asset.IsDeleted
+--- a/Features/MediaLibrary/Services/FaceIdentityGroupingService.cs
++++ b/Features/MediaLibrary/Services/FaceIdentityGroupingService.cs
+@@ -184,7 +184,10 @@
+             join asset in db.Assets.AsNoTracking()
+                 on face.MediaAssetId equals asset.Id
+             where !face.IsSuppressed
+-                  && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                  && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                                   || face.QualityStatus == FaceQualityStatus.Detected
++                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
++                                   || face.QualityStatus == FaceQualityStatus.Occluded)
+                   && face.QualityScore >= minimumQualityScore
+                   && asset.IsAvailable
+                   && !asset.IsDeleted
+--- a/Features/MediaLibrary/Services/FaceIntelligenceService.cs
++++ b/Features/MediaLibrary/Services/FaceIntelligenceService.cs
+@@ -390,7 +390,7 @@
+ 
+             if (detection.Embedding is { Length: > 0 }
+                 && detection.Embedding.Length == _options.People.Embedder.EmbeddingDimension
+-                && detection.QualityStatus == FaceQualityStatus.EmbeddingEligible)
++                && FaceQualityEvaluator.CanGenerateEmbedding(detection.QualityStatus))
+             {
+                 foreach (var existing in activeEmbeddings)
+                 {
+@@ -437,7 +437,7 @@
+         {
+             asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
+             asset.FaceProcessingFailureReason =
+-                "No existing confirmed face could be matched to a current embedding-eligible detection. Choose another clear appearance.";
++                "No existing confirmed face could be matched to a current technically usable face embedding. Choose another clear appearance or review the detection.";
+             await _db.SaveChangesAsync(cancellationToken);
+             throw new InvalidOperationException(asset.FaceProcessingFailureReason);
+         }
+--- a/Features/MediaLibrary/Services/FaceQualityEvaluator.cs
++++ b/Features/MediaLibrary/Services/FaceQualityEvaluator.cs
+@@ -45,7 +45,7 @@
+         if (pose < 0.35)
+             reasons.Add("The face pose is too oblique for reliable matching.");
+         if (cropCompleteness < 0.65)
+-            reasons.Add("The face is too close to the image boundary.");
++            reasons.Add("The detected face crop is close to the image boundary and may be incomplete.");
+ 
+         // Resolution and sharpness carry the highest weight because an embedding cannot
+         // recover detail that was never captured. The score remains explainable and bounded.
+@@ -64,6 +64,7 @@
+             options.MinimumFacePixels,
+             sharpness,
+             exposure,
++            contrast,
+             pose,
+             cropCompleteness,
+             score,
+@@ -87,6 +88,7 @@
+         int minimumFacePixels,
+         double sharpness,
+         double exposure,
++        double contrast,
+         double pose,
+         double cropCompleteness,
+         double score,
+@@ -96,11 +98,32 @@
+         if (sharpness < 0.25) return FaceQualityStatus.Blurred;
+         if (exposure < 0.25) return FaceQualityStatus.PoorExposure;
+         if (pose < 0.25) return FaceQualityStatus.ExtremePose;
+-        if (cropCompleteness < 0.50) return FaceQualityStatus.Occluded;
++        if (cropCompleteness < 0.15) return FaceQualityStatus.SeverelyCropped;
++        if (cropCompleteness < 0.65) return FaceQualityStatus.CropIncomplete;
++        if (sharpness < 0.35 || exposure < 0.35 || contrast < 0.25 || pose < 0.35)
++            return FaceQualityStatus.Detected;
+         return score >= minimumQualityScore
+             ? FaceQualityStatus.EmbeddingEligible
+             : FaceQualityStatus.Detected;
+     }
++
++    /// <summary>
++    /// Determines whether the face-analysis engine may attempt to compute an embedding.
++    /// This is deliberately broader than trusted-reference suitability: a technically usable
++    /// embedding can support review/grouping even when the face is not an ideal biometric reference.
++    /// </summary>
++    public static bool CanGenerateEmbedding(FaceQualityStatus status)
++        => status is FaceQualityStatus.EmbeddingEligible
++            or FaceQualityStatus.Detected
++            or FaceQualityStatus.CropIncomplete;
++
++    /// <summary>
++    /// Legacy Occluded rows were produced solely from crop-boundary completeness before that
++    /// condition was named accurately. They should be re-evaluated from their persisted signals
++    /// rather than treated as proof of real-world occlusion.
++    /// </summary>
++    public static bool IsLegacyCropStatus(FaceQualityStatus status)
++        => status == FaceQualityStatus.Occluded;
+ 
+     private static (double Mean, double StandardDeviation, double LaplacianVariance)
+         CalculateLuminanceStatistics(SKBitmap image, SKRectI rectangle)
+--- a/Features/MediaLibrary/Services/FaceReferenceReadinessService.cs
++++ b/Features/MediaLibrary/Services/FaceReferenceReadinessService.cs
+@@ -1,3 +1,4 @@
++using System.Text.Json;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Options;
+ using ProjectManagement.Features.MediaLibrary.Data;
+@@ -19,7 +20,20 @@
+     PreparationPending = 8,
+     PreparationFailed = 9,
+     FaceProcessingNotAllowed = 10,
+-    AssignmentUnavailable = 11
++    AssignmentUnavailable = 11,
++    EligibleWithCaution = 12,
++    CropTooIncomplete = 13
++}
++
++/// <summary>
++/// Separates technical embedding availability from the stricter governance decision about
++/// whether an appearance is suitable as trusted biometric evidence.
++/// </summary>
++public enum FaceReferenceSuitability
++{
++    NotUsable = 0,
++    Preferred = 1,
++    UsableWithCaution = 2
+ }
+ 
+ public sealed record FaceReferenceReadiness(
+@@ -30,12 +44,19 @@
+     bool CanPrepare,
+     bool IsPreparationPending,
+     bool IsTrusted,
++    FaceReferenceSuitability Suitability,
+     string Label,
+     string Message,
+     string? FailureReason = null)
+ {
+     public bool IsUsableReference
+-        => CanTrust || (IsTrusted && Code == FaceReferenceReadinessCode.AlreadyTrusted);
++        => IsTrusted
++           && (Suitability is FaceReferenceSuitability.Preferred
++               or FaceReferenceSuitability.UsableWithCaution)
++           && Code == FaceReferenceReadinessCode.AlreadyTrusted;
++
++    public bool RequiresCaution
++        => Suitability == FaceReferenceSuitability.UsableWithCaution;
+ }
+ 
+ public interface IFaceReferenceReadinessService
+@@ -228,6 +249,8 @@
+         var face = assignment.MediaFace;
+         var asset = face.MediaAsset;
+         var people = _options.People;
++        var signals = ParseSignals(face.QualitySignalsJson);
++        var quality = AssessReferenceQuality(face, signals, people.CandidateMinimumTrustedReferenceQuality);
+         var hasCurrentEmbedding = face.Embeddings.Any(item =>
+             item.InvalidatedAtUtc == null
+             && item.ModelKey == people.Embedder.Key
+@@ -247,89 +270,360 @@
+             bool canTrust,
+             bool canPrepare,
+             bool pending,
++            FaceReferenceSuitability suitability,
+             string label,
+             string message,
+             string? failure = null)
+-            => new(face.Id, asset.Id, code, canTrust, canPrepare, pending, isTrusted, label, message, failure);
++            => new(
++                face.Id,
++                asset.Id,
++                code,
++                canTrust,
++                canPrepare,
++                pending,
++                isTrusted,
++                suitability,
++                label,
++                message,
++                failure);
+ 
+         if (!_visibility.IsVisible(asset))
+         {
+-            return Result(FaceReferenceReadinessCode.MediaUnavailable, false, false, false,
+-                "Source unavailable", "The source photograph is not currently available in Photos.");
+-        }
++            return Result(
++                FaceReferenceReadinessCode.MediaUnavailable,
++                false,
++                false,
++                false,
++                FaceReferenceSuitability.NotUsable,
++                "Source unavailable",
++                "The source photograph is not currently available in Photos.");
++        }
++
+         if (face.IsSuppressed)
+         {
+-            return Result(FaceReferenceReadinessCode.FaceSuppressed, false, false, false,
+-                "Detection retired", "This detection has been marked as not a valid face and cannot be used for matching.");
+-        }
+-        if (face.QualityScore < people.CandidateMinimumTrustedReferenceQuality)
+-        {
+-            return Result(FaceReferenceReadinessCode.QualityTooLow, false, false, false,
++            return Result(
++                FaceReferenceReadinessCode.FaceSuppressed,
++                false,
++                false,
++                false,
++                FaceReferenceSuitability.NotUsable,
++                "Detection retired",
++                "This detection has been marked as not a valid face and cannot be used for matching.");
++        }
++
++        if (quality.Suitability == FaceReferenceSuitability.NotUsable
++            && !quality.CanReprocess)
++        {
++            return Result(
++                quality.Code,
++                false,
++                false,
++                false,
++                FaceReferenceSuitability.NotUsable,
++                quality.Label,
++                quality.Message);
++        }
++
++        if (hasCurrentEmbedding
++            && (quality.Suitability is FaceReferenceSuitability.Preferred
++                or FaceReferenceSuitability.UsableWithCaution))
++        {
++            if (isTrusted)
++            {
++                return quality.Suitability == FaceReferenceSuitability.UsableWithCaution
++                    ? Result(
++                        FaceReferenceReadinessCode.AlreadyTrusted,
++                        false,
++                        false,
++                        false,
++                        quality.Suitability,
++                        "Trusted with caution",
++                        quality.Message)
++                    : Result(
++                        FaceReferenceReadinessCode.AlreadyTrusted,
++                        false,
++                        false,
++                        false,
++                        quality.Suitability,
++                        "Trusted reference ready",
++                        "This appearance is a current, preferred trusted matching reference.");
++            }
++
++            return quality.Suitability == FaceReferenceSuitability.UsableWithCaution
++                ? Result(
++                    FaceReferenceReadinessCode.EligibleWithCaution,
++                    true,
++                    false,
++                    false,
++                    quality.Suitability,
++                    "Usable with caution",
++                    quality.Message)
++                : Result(
++                    FaceReferenceReadinessCode.Eligible,
++                    true,
++                    false,
++                    false,
++                    quality.Suitability,
++                    "Preferred reference",
++                    "Current face quality and embedding satisfy the preferred trusted-reference policy.");
++        }
++
++        if (latestPreparation?.Status is MediaProcessingJobStatus.Pending or MediaProcessingJobStatus.Running)
++        {
++            return Result(
++                FaceReferenceReadinessCode.PreparationPending,
++                false,
++                false,
++                true,
++                quality.Suitability,
++                "Preparing embedding",
++                "PRISM is preparing a current matching embedding for this confirmed appearance.");
++        }
++
++        var faceProcessing = _faceEligibility.Evaluate(asset);
++        if (!faceProcessing.IsEligible)
++        {
++            return Result(
++                FaceReferenceReadinessCode.FaceProcessingNotAllowed,
++                false,
++                false,
++                false,
++                FaceReferenceSuitability.NotUsable,
++                "Reprocessing unavailable",
++                faceProcessing.Reason);
++        }
++
++        if (latestPreparation?.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter)
++        {
++            var failure = latestPreparation.FailureMessage ?? asset.FaceProcessingFailureReason;
++            return Result(
++                FaceReferenceReadinessCode.PreparationFailed,
++                false,
++                quality.CanReprocess,
++                false,
++                quality.Suitability,
++                "Embedding preparation failed",
++                quality.CanReprocess
++                    ? "The previous embedding-preparation attempt did not complete. You can retry this appearance."
++                    : quality.Message,
++                failure);
++        }
++
++        if (!quality.CanReprocess)
++        {
++            return Result(
++                quality.Code,
++                false,
++                false,
++                false,
++                FaceReferenceSuitability.NotUsable,
++                quality.Label,
++                quality.Message);
++        }
++
++        var preparationLabel = quality.Suitability == FaceReferenceSuitability.UsableWithCaution
++            ? "Prepare with caution"
++            : hasAnyActiveEmbedding
++                ? "Embedding needs refresh"
++                : "Embedding not available";
++        var preparationMessage = quality.Suitability == FaceReferenceSuitability.UsableWithCaution
++            ? quality.Message + " PRISM can prepare a current embedding, but another complete, frontal appearance is preferred when available."
++            : hasAnyActiveEmbedding
++                ? "This appearance has face data from an older or incompatible model. Prepare a current embedding before trusting it for matching."
++                : "This confirmed face does not yet have a current matching embedding. Prepare it before using it as a trusted reference.";
++
++        return Result(
++            hasAnyActiveEmbedding
++                ? FaceReferenceReadinessCode.EmbeddingOutdated
++                : FaceReferenceReadinessCode.EmbeddingMissing,
++            false,
++            true,
++            false,
++            quality.Suitability,
++            preparationLabel,
++            preparationMessage);
++    }
++
++    private static ReferenceQualityAssessment AssessReferenceQuality(
++        MediaFace face,
++        FaceQualitySignals? signals,
++        double minimumTrustedReferenceQuality)
++    {
++        if (face.QualityScore < minimumTrustedReferenceQuality)
++        {
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.NotUsable,
++                false,
++                FaceReferenceReadinessCode.QualityTooLow,
+                 "Quality below reference threshold",
+-                $"Face quality {face.QualityScore:P0} is below the configured {people.CandidateMinimumTrustedReferenceQuality:P0} trusted-reference threshold. Choose another appearance.");
+-        }
++                $"Face quality {face.QualityScore:P0} is below the configured {minimumTrustedReferenceQuality:P0} trusted-reference threshold. Choose another appearance.");
++        }
++
+         if (face.QualityStatus is FaceQualityStatus.LowResolution
+             or FaceQualityStatus.Blurred
+             or FaceQualityStatus.PoorExposure
+             or FaceQualityStatus.ExtremePose
+-            or FaceQualityStatus.Occluded)
+-        {
+-            return Result(FaceReferenceReadinessCode.QualityNotEligible, false, false, false,
+-                "Face not embedding-eligible",
+-                $"This appearance is classified as {Humanize(face.QualityStatus)} and is not suitable as trusted matching evidence. Choose another clear appearance.");
+-        }
+-
+-        if (hasCurrentEmbedding && face.QualityStatus == FaceQualityStatus.EmbeddingEligible)
+-        {
+-            return isTrusted
+-                ? Result(FaceReferenceReadinessCode.AlreadyTrusted, false, false, false,
+-                    "Trusted reference ready", "This appearance is a current, usable trusted matching reference.")
+-                : Result(FaceReferenceReadinessCode.Eligible, true, false, false,
+-                    "Ready to trust", "Current face quality and embedding satisfy the trusted-reference policy.");
+-        }
+-
+-        if (latestPreparation?.Status is MediaProcessingJobStatus.Pending or MediaProcessingJobStatus.Running)
+-        {
+-            return Result(FaceReferenceReadinessCode.PreparationPending, false, false, true,
+-                "Preparing embedding", "PRISM is preparing a current matching embedding for this confirmed appearance.");
+-        }
+-
+-        var faceProcessing = _faceEligibility.Evaluate(asset);
+-        if (!faceProcessing.IsEligible)
+-        {
+-            return Result(FaceReferenceReadinessCode.FaceProcessingNotAllowed, false, false, false,
+-                "Reprocessing unavailable", faceProcessing.Reason);
+-        }
+-
+-        if (latestPreparation?.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter)
+-        {
+-            var failure = latestPreparation.FailureMessage ?? asset.FaceProcessingFailureReason;
+-            return Result(FaceReferenceReadinessCode.PreparationFailed, false, true, false,
+-                "Embedding preparation failed",
+-                "The previous embedding-preparation attempt did not complete. You can retry this appearance.", failure);
+-        }
+-
+-        if (face.QualityStatus is not (FaceQualityStatus.EmbeddingEligible
+-            or FaceQualityStatus.Detected
+-            or FaceQualityStatus.ProcessingFailed))
+-        {
+-            return Result(FaceReferenceReadinessCode.QualityNotEligible, false, false, false,
+-                "Face not embedding-eligible",
++            or FaceQualityStatus.SeverelyCropped
++            or FaceQualityStatus.Suppressed)
++        {
++            var (label, message, code) = face.QualityStatus switch
++            {
++                FaceQualityStatus.LowResolution => (
++                    "Face resolution too low",
++                    "The detected face is too small for reliable trusted-reference evidence. Choose a larger, clearer appearance.",
++                    FaceReferenceReadinessCode.QualityNotEligible),
++                FaceQualityStatus.Blurred => (
++                    "Face too blurred",
++                    "The detected face lacks sufficient detail for reliable trusted-reference evidence. Choose a sharper appearance.",
++                    FaceReferenceReadinessCode.QualityNotEligible),
++                FaceQualityStatus.PoorExposure => (
++                    "Exposure unsuitable",
++                    "The detected face is too dark or too bright for reliable trusted-reference evidence. Choose a better exposed appearance.",
++                    FaceReferenceReadinessCode.QualityNotEligible),
++                FaceQualityStatus.ExtremePose => (
++                    "Face pose unsuitable",
++                    "The detected face angle is too oblique for reliable trusted-reference evidence. Choose a more frontal appearance.",
++                    FaceReferenceReadinessCode.QualityNotEligible),
++                FaceQualityStatus.SeverelyCropped => (
++                    "Face crop too incomplete",
++                    "Too much of the detected face lies at the photograph boundary for reliable matching evidence. Choose another appearance.",
++                    FaceReferenceReadinessCode.CropTooIncomplete),
++                _ => (
++                    "Face not usable",
++                    "This appearance cannot be used as trusted matching evidence.",
++                    FaceReferenceReadinessCode.QualityNotEligible)
++            };
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.NotUsable,
++                false,
++                code,
++                label,
++                message);
++        }
++
++        if (face.QualityStatus == FaceQualityStatus.ProcessingFailed)
++        {
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.NotUsable,
++                true,
++                FaceReferenceReadinessCode.PreparationFailed,
++                "Needs reprocessing",
++                "The previous face-processing result was incomplete. Reprocess this appearance before deciding whether to trust it.");
++        }
++
++        if (face.QualityStatus == FaceQualityStatus.Occluded)
++        {
++            // Historical rows used Occluded for a crop-boundary measurement; no actual
++            // occlusion detector existed. Use the persisted crop signal when available.
++            if (signals?.CropCompleteness is { } legacyCrop && legacyCrop < 0.15d)
++            {
++                return new ReferenceQualityAssessment(
++                    FaceReferenceSuitability.NotUsable,
++                    false,
++                    FaceReferenceReadinessCode.CropTooIncomplete,
++                    "Face crop too incomplete",
++                    "This legacy appearance is very close to the photograph boundary. Re-detect or choose another appearance.");
++            }
++
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.UsableWithCaution,
++                true,
++                FaceReferenceReadinessCode.EligibleWithCaution,
++                "Crop incomplete",
++                "This legacy quality state represents crop-boundary completeness, not detected real-world occlusion. PRISM may prepare an embedding, but another complete face is preferred.");
++        }
++
++        if (face.QualityStatus == FaceQualityStatus.CropIncomplete)
++        {
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.UsableWithCaution,
++                true,
++                FaceReferenceReadinessCode.EligibleWithCaution,
++                "Crop incomplete",
++                "The detected face is close to the photograph boundary. It may be used only after explicit reviewer trust; another complete face is preferred.");
++        }
++
++        if (face.QualityStatus == FaceQualityStatus.Detected)
++        {
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.UsableWithCaution,
++                true,
++                FaceReferenceReadinessCode.EligibleWithCaution,
++                "Usable with caution",
++                "The face is technically usable for embedding but falls outside the preferred quality state. Explicit reviewer trust is required.");
++        }
++
++        if (face.QualityStatus != FaceQualityStatus.EmbeddingEligible)
++        {
++            return new ReferenceQualityAssessment(
++                FaceReferenceSuitability.NotUsable,
++                false,
++                FaceReferenceReadinessCode.QualityNotEligible,
++                "Face not usable",
+                 $"This appearance has quality state {Humanize(face.QualityStatus)} and cannot currently become a trusted reference.");
+         }
+ 
+-        return hasAnyActiveEmbedding
+-            ? Result(FaceReferenceReadinessCode.EmbeddingOutdated, false, true, false,
+-                "Embedding needs refresh",
+-                "This appearance has face data from an older or incompatible model. Prepare a current embedding before trusting it for matching.")
+-            : Result(FaceReferenceReadinessCode.EmbeddingMissing, false, true, false,
+-                "Embedding not available",
+-                "This confirmed face does not yet have a current matching embedding. Prepare it before using it as a trusted reference.");
++        var cautions = new List<string>();
++        if (signals is not null)
++        {
++            if (signals.Sharpness < 0.35d) cautions.Add("detail is below the preferred sharpness level");
++            if (signals.Exposure < 0.35d) cautions.Add("exposure is outside the preferred range");
++            if (signals.Contrast < 0.25d) cautions.Add("tonal contrast is below the preferred level");
++            if (signals.Pose < 0.35d) cautions.Add("face pose is less frontal than preferred");
++            if (signals.CropCompleteness < 0.65d) cautions.Add("the detected face crop is close to the photograph boundary");
++        }
++
++        return cautions.Count == 0
++            ? new ReferenceQualityAssessment(
++                FaceReferenceSuitability.Preferred,
++                true,
++                FaceReferenceReadinessCode.Eligible,
++                "Preferred reference",
++                "This appearance meets the preferred face-quality criteria for trusted matching evidence.")
++            : new ReferenceQualityAssessment(
++                FaceReferenceSuitability.UsableWithCaution,
++                true,
++                FaceReferenceReadinessCode.EligibleWithCaution,
++                "Usable with caution",
++                "This face has a valid embedding but " + string.Join(", ", cautions) + ". Explicit reviewer trust is required.");
+     }
+ 
++    private static FaceQualitySignals? ParseSignals(string? json)
++    {
++        if (string.IsNullOrWhiteSpace(json))
++        {
++            return null;
++        }
++
++        try
++        {
++            return JsonSerializer.Deserialize<FaceQualitySignals>(json);
++        }
++        catch (JsonException)
++        {
++            return null;
++        }
++    }
++
++    private sealed record ReferenceQualityAssessment(
++        FaceReferenceSuitability Suitability,
++        bool CanReprocess,
++        FaceReferenceReadinessCode Code,
++        string Label,
++        string Message);
++
+     private static FaceReferenceReadiness Missing(Guid faceId)
+-        => new(faceId, 0, FaceReferenceReadinessCode.AssignmentUnavailable, false, false, false, false,
+-            "Appearance unavailable", "This appearance is no longer actively assigned to this person.");
++        => new(
++            faceId,
++            0,
++            FaceReferenceReadinessCode.AssignmentUnavailable,
++            false,
++            false,
++            false,
++            false,
++            FaceReferenceSuitability.NotUsable,
++            "Appearance unavailable",
++            "This appearance is no longer actively assigned to this person.");
+ 
+     private static string Humanize(FaceQualityStatus status)
+         => status switch
+@@ -338,11 +632,14 @@
+             FaceQualityStatus.Blurred => "blurred",
+             FaceQualityStatus.PoorExposure => "poor exposure",
+             FaceQualityStatus.ExtremePose => "extreme pose",
+-            FaceQualityStatus.Occluded => "occluded",
++            FaceQualityStatus.Occluded => "legacy crop-incomplete",
++            FaceQualityStatus.CropIncomplete => "crop incomplete",
++            FaceQualityStatus.SeverelyCropped => "severely cropped",
+             FaceQualityStatus.ProcessingFailed => "processing failed",
+             FaceQualityStatus.EmbeddingEligible => "embedding eligible",
+             FaceQualityStatus.Detected => "detected",
+             FaceQualityStatus.Suppressed => "suppressed",
+             _ => status.ToString()
+         };
++
+ }
+--- a/Features/MediaLibrary/Services/FaceReviewService.cs
++++ b/Features/MediaLibrary/Services/FaceReviewService.cs
+@@ -954,15 +954,16 @@
+                 return;
+             }
+ 
++            FaceReferenceReadiness? trustReadiness = null;
+             if (referenceStatus == FaceReferenceStatus.TrustedReference)
+             {
+-                var readiness = await _referenceReadiness.GetAsync(
++                trustReadiness = await _referenceReadiness.GetAsync(
+                     personId,
+                     faceId,
+                     cancellationToken);
+-                if (!readiness.CanTrust)
+-                {
+-                    throw new FaceIdentityConflictException(readiness.Message);
++                if (!trustReadiness.CanTrust)
++                {
++                    throw new FaceIdentityConflictException(trustReadiness.Message);
+                 }
+             }
+             else
+@@ -1007,6 +1008,7 @@
+                 MetadataJson = JsonSerializer.Serialize(new
+                 {
+                     ReferenceStatus = referenceStatus.ToString(),
++                    ReferenceSuitability = trustReadiness?.Suitability.ToString(),
+                     assignment.MediaFace.QualityScore
+                 }),
+                 PerformedAtUtc = now
+@@ -1926,7 +1928,10 @@
+             .AsNoTracking()
+             .Where(face => faceIds.Contains(face.Id)
+                            && !face.IsSuppressed
+-                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                           && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                               || face.QualityStatus == FaceQualityStatus.Detected
++                               || face.QualityStatus == FaceQualityStatus.CropIncomplete
++                               || face.QualityStatus == FaceQualityStatus.Occluded)
+                            && visibleAssetIds.Contains(face.MediaAssetId)
+                            && (!requireUnassigned
+                                || !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
+--- a/Features/MediaLibrary/Services/OnnxFaceAnalysisEngine.cs
++++ b/Features/MediaLibrary/Services/OnnxFaceAnalysisEngine.cs
+@@ -100,7 +100,7 @@
+                     detection.Landmarks,
+                     _options.People);
+                 float[]? embedding = null;
+-                if (quality.Status == FaceQualityStatus.EmbeddingEligible)
++                if (FaceQualityEvaluator.CanGenerateEmbedding(quality.Status))
+                 {
+                     embedding = Embed(bitmap, rectangle, detection.Landmarks);
+                 }
+--- a/Features/MediaLibrary/Services/PersonPhotoDiscoveryQueryService.cs
++++ b/Features/MediaLibrary/Services/PersonPhotoDiscoveryQueryService.cs
+@@ -92,7 +92,8 @@
+                 _options.Embedder.Key,
+                 _options.Embedder.Version,
+                 _options.Embedder.EmbeddingDimension,
+-                visibleAssetIds)
++                visibleAssetIds,
++                _options.CandidateMinimumTrustedReferenceQuality)
+             .CountAsync(cancellationToken);
+ 
+         var possibleMatchCount = trustedReferenceCount == 0
+@@ -201,7 +202,8 @@
+                 _options.Embedder.Key,
+                 _options.Embedder.Version,
+                 _options.Embedder.EmbeddingDimension,
+-                visibleAssetIds)
++                visibleAssetIds,
++                _options.CandidateMinimumTrustedReferenceQuality)
+             .AnyAsync(cancellationToken);
+         if (!hasTrustedReference)
+         {
+@@ -298,7 +300,8 @@
+         string modelKey,
+         string modelVersion,
+         int dimension,
+-        IQueryable<long>? visibleAssetIds = null)
++        IQueryable<long>? visibleAssetIds = null,
++        double minimumReferenceQuality = 0d)
+     {
+         ArgumentNullException.ThrowIfNull(db);
+ 
+@@ -310,6 +313,11 @@
+                   && assignment.RemovedAtUtc == null
+                   && assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference
+                   && !face.IsSuppressed
++                  && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                      || face.QualityStatus == FaceQualityStatus.Detected
++                      || face.QualityStatus == FaceQualityStatus.CropIncomplete
++                      || face.QualityStatus == FaceQualityStatus.Occluded)
++                  && face.QualityScore >= minimumReferenceQuality
+                   && face.Embeddings.Any(embedding =>
+                       embedding.InvalidatedAtUtc == null
+                       && embedding.ModelKey == modelKey
+--- a/Pages/Admin/MediaIntelligence/Index.cshtml.cs
++++ b/Pages/Admin/MediaIntelligence/Index.cshtml.cs
+@@ -200,7 +200,10 @@
+ 
+                 var reviewableFaces = _db.Faces.AsNoTracking()
+                     .Where(face => !face.IsSuppressed
+-                                   && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                                   && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
++                                   || face.QualityStatus == FaceQualityStatus.Detected
++                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
++                                   || face.QualityStatus == FaceQualityStatus.Occluded)
+                                    && face.MediaAsset.IsAvailable
+                                    && !face.MediaAsset.IsDeleted
+                                    && !face.MediaAsset.IsArchived
+--- a/Pages/Photos/People/Details.cshtml
++++ b/Pages/Photos/People/Details.cshtml
+@@ -1,6 +1,7 @@
+ @page "{id:guid}"
+ @using System.Globalization
+ @using ProjectManagement.Features.MediaLibrary.Domain
++@using ProjectManagement.Features.MediaLibrary.Services
+ @model ProjectManagement.Pages.Photos.People.DetailsModel
+ @{
+     ViewData["Title"] = Model.Person.DisplayName;
+@@ -212,7 +213,7 @@
+                             }
+                             @if (readiness is not null)
+                             {
+-                                <div class="reference-readiness @(readiness.IsUsableReference ? "is-ready" : readiness.IsPreparationPending ? "is-pending" : readiness.CanPrepare ? "is-repairable" : "is-blocked")">
++                                <div class="reference-readiness @(readiness.IsUsableReference ? "is-ready" : readiness.IsPreparationPending ? "is-pending" : readiness.CanPrepare ? "is-repairable" : "is-blocked") @(readiness.RequiresCaution ? "is-caution" : null)">
+                                     <div class="reference-readiness__row">
+                                         <span>Matching readiness</span>
+                                         <strong>@readiness.Label</strong>
+@@ -254,18 +255,18 @@
+                                 else if (readiness?.CanTrust == true)
+                                 {
+                                     <details class="person-reference-menu">
+-                                        <summary class="btn btn-sm btn-outline-primary">
+-                                            <i class="bi bi-shield-check"></i> Use as matching reference
++                                        <summary class="btn btn-sm @(readiness.RequiresCaution ? "btn-outline-warning" : "btn-outline-primary")">
++                                            <i class="bi bi-shield-check"></i> @(readiness.RequiresCaution ? "Use with caution" : "Use as matching reference")
+                                         </summary>
+                                         <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
+                                             <input type="hidden" name="id" value="@Model.Person.Id" />
+                                             <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                             <input type="hidden" name="referenceAction" value="trust" />
+-                                            <strong>Trust for matching</strong>
+-                                            <p>Use this clear, verified face as evidence for future known-person suggestions.</p>
++                                            <strong>@(readiness.RequiresCaution ? "Trust with caution" : "Trust for matching")</strong>
++                                            <p>@(readiness.RequiresCaution ? readiness.Message + " Record why this appearance is still acceptable as trusted evidence." : "Use this clear, verified face as evidence for future known-person suggestions.")</p>
+                                             <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                       placeholder="Why is this appearance suitable as a trusted reference?" required></textarea>
+-                                            <button type="submit" class="btn btn-sm btn-primary">Trust reference</button>
++                                            <button type="submit" class="btn btn-sm @(readiness.RequiresCaution ? "btn-warning" : "btn-primary")">@(readiness.RequiresCaution ? "Trust with caution" : "Trust reference")</button>
+                                         </form>
+                                     </details>
+                                 }
+@@ -291,9 +292,9 @@
+                                         <i class="bi bi-shield-x"></i> Not eligible for matching
+                                     </button>
+                                 }
+-                                <details>
++                                <details class="person-correction-inline">
+                                     <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Correct appearance</summary>
+-                                    <div class="person-correction-menu">
++                                    <div class="person-correction-inline__panel">
+                                         <form method="post" asp-page-handler="RemoveAssignment" class="person-remove-form person-remove-form--static">
+                                             <input type="hidden" name="id" value="@Model.Person.Id" />
+                                             <input type="hidden" name="faceId" value="@photo.FaceId" />
+--- a/ProjectManagement.Tests/MediaLibrary/FaceQualityPolicyTests.cs
++++ b/ProjectManagement.Tests/MediaLibrary/FaceQualityPolicyTests.cs
+@@ -0,0 +1,23 @@
++using ProjectManagement.Features.MediaLibrary.Domain;
++using ProjectManagement.Features.MediaLibrary.Services;
++
++namespace ProjectManagement.Tests.MediaLibrary;
++
++public sealed class FaceQualityPolicyTests
++{
++    [Theory]
++    [InlineData(FaceQualityStatus.EmbeddingEligible, true)]
++    [InlineData(FaceQualityStatus.Detected, true)]
++    [InlineData(FaceQualityStatus.CropIncomplete, true)]
++    [InlineData(FaceQualityStatus.LowResolution, false)]
++    [InlineData(FaceQualityStatus.Blurred, false)]
++    [InlineData(FaceQualityStatus.PoorExposure, false)]
++    [InlineData(FaceQualityStatus.ExtremePose, false)]
++    [InlineData(FaceQualityStatus.SeverelyCropped, false)]
++    public void EmbeddingGeneration_IsBroaderThanPreferredReferenceSuitability(
++        FaceQualityStatus status,
++        bool expected)
++    {
++        Assert.Equal(expected, FaceQualityEvaluator.CanGenerateEmbedding(status));
++    }
++}
+--- a/ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs
++++ b/ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs
+@@ -1,3 +1,4 @@
++using System.Text.Json;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Options;
+ using ProjectManagement.Features.MediaLibrary.Data;
+@@ -40,6 +41,89 @@
+         Assert.Equal(FaceReferenceReadinessCode.Eligible, ready.Code);
+         Assert.True(ready.CanTrust);
+         Assert.False(ready.CanPrepare);
++    }
++
++
++    [Fact]
++    public async Task LegacyCropBoundaryState_IsRepairableAndExplicitlyCautionary()
++    {
++        await using var db = CreateContext();
++        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: false);
++        var face = await db.Faces.SingleAsync(item => item.Id == seeded.FaceId);
++        face.QualityScore = .89;
++        face.QualityStatus = FaceQualityStatus.Occluded;
++        face.QualitySignalsJson = JsonSerializer.Serialize(new FaceQualitySignals(
++            Resolution: .95,
++            Sharpness: .90,
++            Exposure: .88,
++            Contrast: .80,
++            Pose: .92,
++            CropCompleteness: .40,
++            Reasons: new[] { "The detected face crop is close to the image boundary and may be incomplete." }));
++        await db.SaveChangesAsync();
++
++        var service = CreateService(db);
++        var readiness = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
++
++        Assert.True(readiness.CanPrepare);
++        Assert.False(readiness.CanTrust);
++        Assert.Equal(FaceReferenceSuitability.UsableWithCaution, readiness.Suitability);
++        Assert.Contains("crop", readiness.Message.ToLowerInvariant());
++        Assert.DoesNotContain("occluded", readiness.Message.ToLowerInvariant());
++    }
++
++    [Fact]
++    public async Task CropIncomplete_WithCurrentEmbedding_CanBeTrustedOnlyWithCaution()
++    {
++        await using var db = CreateContext();
++        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: true);
++        var face = await db.Faces.SingleAsync(item => item.Id == seeded.FaceId);
++        face.QualityScore = .89;
++        face.QualityStatus = FaceQualityStatus.CropIncomplete;
++        face.QualitySignalsJson = JsonSerializer.Serialize(new FaceQualitySignals(
++            Resolution: .95,
++            Sharpness: .90,
++            Exposure: .88,
++            Contrast: .80,
++            Pose: .92,
++            CropCompleteness: .40,
++            Reasons: Array.Empty<string>()));
++        await db.SaveChangesAsync();
++
++        var service = CreateService(db);
++        var readiness = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
++
++        Assert.Equal(FaceReferenceReadinessCode.EligibleWithCaution, readiness.Code);
++        Assert.Equal(FaceReferenceSuitability.UsableWithCaution, readiness.Suitability);
++        Assert.True(readiness.CanTrust);
++        Assert.True(readiness.RequiresCaution);
++    }
++
++    [Fact]
++    public async Task SeverelyCroppedFace_IsNotReferenceUsableOrRepairable()
++    {
++        await using var db = CreateContext();
++        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: false);
++        var face = await db.Faces.SingleAsync(item => item.Id == seeded.FaceId);
++        face.QualityScore = .89;
++        face.QualityStatus = FaceQualityStatus.SeverelyCropped;
++        face.QualitySignalsJson = JsonSerializer.Serialize(new FaceQualitySignals(
++            Resolution: .95,
++            Sharpness: .90,
++            Exposure: .88,
++            Contrast: .80,
++            Pose: .92,
++            CropCompleteness: .05,
++            Reasons: Array.Empty<string>()));
++        await db.SaveChangesAsync();
++
++        var service = CreateService(db);
++        var readiness = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
++
++        Assert.Equal(FaceReferenceReadinessCode.CropTooIncomplete, readiness.Code);
++        Assert.Equal(FaceReferenceSuitability.NotUsable, readiness.Suitability);
++        Assert.False(readiness.CanTrust);
++        Assert.False(readiness.CanPrepare);
+     }
+ 
+     [Fact]
+--- a/wwwroot/css/pages/photos-reference-readiness.css
++++ b/wwwroot/css/pages/photos-reference-readiness.css
+@@ -23,4 +23,43 @@
+ .reference-readiness.is-repairable { border-color: rgba(255, 193, 7, .42); background: rgba(255, 193, 7, .06); }
+ .reference-readiness.is-blocked { border-color: rgba(108, 117, 125, .22); }
+ 
+-#matching-reference-setup { scroll-margin-top: 5rem; }
++
++/* Reference-quality semantics and governance ergonomics. */
++.reference-readiness.is-caution {
++    border-color: rgba(255, 193, 7, .52);
++    background: rgba(255, 193, 7, .075);
++}
++.reference-readiness.is-caution .reference-readiness__row > strong { color: #7a5a00; }
++
++#matching-reference-setup {
++    scroll-margin-top: calc(var(--pm-header-height, 72px) + 1rem);
++}
++
++.person-correction-inline {
++    flex-basis: 100%;
++    width: 100%;
++}
++.person-correction-inline > summary { width: max-content; }
++.person-correction-inline__panel {
++    background: #fff;
++    border: 1px solid var(--people-line, #dfe5ef);
++    border-radius: .75rem;
++    display: grid;
++    gap: .75rem;
++    margin-top: .55rem;
++    padding: .75rem;
++    width: min(100%, 30rem);
++}
++
++.person-reference-menu {
++    flex-basis: 100%;
++    width: 100%;
++}
++.person-reference-menu > summary { width: max-content; }
++.person-reference-menu .person-correction-menu {
++    box-shadow: none;
++    margin-top: .55rem;
++    max-width: 30rem;
++    position: static;
++    width: 100%;
++}

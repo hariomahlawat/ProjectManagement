@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
@@ -19,7 +20,20 @@ public enum FaceReferenceReadinessCode
     PreparationPending = 8,
     PreparationFailed = 9,
     FaceProcessingNotAllowed = 10,
-    AssignmentUnavailable = 11
+    AssignmentUnavailable = 11,
+    EligibleWithCaution = 12,
+    CropTooIncomplete = 13
+}
+
+/// <summary>
+/// Separates technical embedding availability from the stricter governance decision about
+/// whether an appearance is suitable as trusted biometric evidence.
+/// </summary>
+public enum FaceReferenceSuitability
+{
+    NotUsable = 0,
+    Preferred = 1,
+    UsableWithCaution = 2
 }
 
 public sealed record FaceReferenceReadiness(
@@ -30,12 +44,19 @@ public sealed record FaceReferenceReadiness(
     bool CanPrepare,
     bool IsPreparationPending,
     bool IsTrusted,
+    FaceReferenceSuitability Suitability,
     string Label,
     string Message,
     string? FailureReason = null)
 {
     public bool IsUsableReference
-        => CanTrust || (IsTrusted && Code == FaceReferenceReadinessCode.AlreadyTrusted);
+        => IsTrusted
+           && (Suitability is FaceReferenceSuitability.Preferred
+               or FaceReferenceSuitability.UsableWithCaution)
+           && Code == FaceReferenceReadinessCode.AlreadyTrusted;
+
+    public bool RequiresCaution
+        => Suitability == FaceReferenceSuitability.UsableWithCaution;
 }
 
 public interface IFaceReferenceReadinessService
@@ -228,6 +249,8 @@ public sealed class FaceReferenceReadinessService : IFaceReferenceReadinessServi
         var face = assignment.MediaFace;
         var asset = face.MediaAsset;
         var people = _options.People;
+        var signals = ParseSignals(face.QualitySignalsJson);
+        var quality = AssessReferenceQuality(face, signals, people.CandidateMinimumTrustedReferenceQuality);
         var hasCurrentEmbedding = face.Embeddings.Any(item =>
             item.InvalidatedAtUtc == null
             && item.ModelKey == people.Embedder.Key
@@ -247,89 +270,360 @@ public sealed class FaceReferenceReadinessService : IFaceReferenceReadinessServi
             bool canTrust,
             bool canPrepare,
             bool pending,
+            FaceReferenceSuitability suitability,
             string label,
             string message,
             string? failure = null)
-            => new(face.Id, asset.Id, code, canTrust, canPrepare, pending, isTrusted, label, message, failure);
+            => new(
+                face.Id,
+                asset.Id,
+                code,
+                canTrust,
+                canPrepare,
+                pending,
+                isTrusted,
+                suitability,
+                label,
+                message,
+                failure);
 
         if (!_visibility.IsVisible(asset))
         {
-            return Result(FaceReferenceReadinessCode.MediaUnavailable, false, false, false,
-                "Source unavailable", "The source photograph is not currently available in Photos.");
-        }
-        if (face.IsSuppressed)
-        {
-            return Result(FaceReferenceReadinessCode.FaceSuppressed, false, false, false,
-                "Detection retired", "This detection has been marked as not a valid face and cannot be used for matching.");
-        }
-        if (face.QualityScore < people.CandidateMinimumTrustedReferenceQuality)
-        {
-            return Result(FaceReferenceReadinessCode.QualityTooLow, false, false, false,
-                "Quality below reference threshold",
-                $"Face quality {face.QualityScore:P0} is below the configured {people.CandidateMinimumTrustedReferenceQuality:P0} trusted-reference threshold. Choose another appearance.");
-        }
-        if (face.QualityStatus is FaceQualityStatus.LowResolution
-            or FaceQualityStatus.Blurred
-            or FaceQualityStatus.PoorExposure
-            or FaceQualityStatus.ExtremePose
-            or FaceQualityStatus.Occluded)
-        {
-            return Result(FaceReferenceReadinessCode.QualityNotEligible, false, false, false,
-                "Face not embedding-eligible",
-                $"This appearance is classified as {Humanize(face.QualityStatus)} and is not suitable as trusted matching evidence. Choose another clear appearance.");
+            return Result(
+                FaceReferenceReadinessCode.MediaUnavailable,
+                false,
+                false,
+                false,
+                FaceReferenceSuitability.NotUsable,
+                "Source unavailable",
+                "The source photograph is not currently available in Photos.");
         }
 
-        if (hasCurrentEmbedding && face.QualityStatus == FaceQualityStatus.EmbeddingEligible)
+        if (face.IsSuppressed)
         {
-            return isTrusted
-                ? Result(FaceReferenceReadinessCode.AlreadyTrusted, false, false, false,
-                    "Trusted reference ready", "This appearance is a current, usable trusted matching reference.")
-                : Result(FaceReferenceReadinessCode.Eligible, true, false, false,
-                    "Ready to trust", "Current face quality and embedding satisfy the trusted-reference policy.");
+            return Result(
+                FaceReferenceReadinessCode.FaceSuppressed,
+                false,
+                false,
+                false,
+                FaceReferenceSuitability.NotUsable,
+                "Detection retired",
+                "This detection has been marked as not a valid face and cannot be used for matching.");
+        }
+
+        if (quality.Suitability == FaceReferenceSuitability.NotUsable
+            && !quality.CanReprocess)
+        {
+            return Result(
+                quality.Code,
+                false,
+                false,
+                false,
+                FaceReferenceSuitability.NotUsable,
+                quality.Label,
+                quality.Message);
+        }
+
+        if (hasCurrentEmbedding
+            && (quality.Suitability is FaceReferenceSuitability.Preferred
+                or FaceReferenceSuitability.UsableWithCaution))
+        {
+            if (isTrusted)
+            {
+                return quality.Suitability == FaceReferenceSuitability.UsableWithCaution
+                    ? Result(
+                        FaceReferenceReadinessCode.AlreadyTrusted,
+                        false,
+                        false,
+                        false,
+                        quality.Suitability,
+                        "Trusted with caution",
+                        quality.Message)
+                    : Result(
+                        FaceReferenceReadinessCode.AlreadyTrusted,
+                        false,
+                        false,
+                        false,
+                        quality.Suitability,
+                        "Trusted reference ready",
+                        "This appearance is a current, preferred trusted matching reference.");
+            }
+
+            return quality.Suitability == FaceReferenceSuitability.UsableWithCaution
+                ? Result(
+                    FaceReferenceReadinessCode.EligibleWithCaution,
+                    true,
+                    false,
+                    false,
+                    quality.Suitability,
+                    "Usable with caution",
+                    quality.Message)
+                : Result(
+                    FaceReferenceReadinessCode.Eligible,
+                    true,
+                    false,
+                    false,
+                    quality.Suitability,
+                    "Preferred reference",
+                    "Current face quality and embedding satisfy the preferred trusted-reference policy.");
         }
 
         if (latestPreparation?.Status is MediaProcessingJobStatus.Pending or MediaProcessingJobStatus.Running)
         {
-            return Result(FaceReferenceReadinessCode.PreparationPending, false, false, true,
-                "Preparing embedding", "PRISM is preparing a current matching embedding for this confirmed appearance.");
+            return Result(
+                FaceReferenceReadinessCode.PreparationPending,
+                false,
+                false,
+                true,
+                quality.Suitability,
+                "Preparing embedding",
+                "PRISM is preparing a current matching embedding for this confirmed appearance.");
         }
 
         var faceProcessing = _faceEligibility.Evaluate(asset);
         if (!faceProcessing.IsEligible)
         {
-            return Result(FaceReferenceReadinessCode.FaceProcessingNotAllowed, false, false, false,
-                "Reprocessing unavailable", faceProcessing.Reason);
+            return Result(
+                FaceReferenceReadinessCode.FaceProcessingNotAllowed,
+                false,
+                false,
+                false,
+                FaceReferenceSuitability.NotUsable,
+                "Reprocessing unavailable",
+                faceProcessing.Reason);
         }
 
         if (latestPreparation?.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter)
         {
             var failure = latestPreparation.FailureMessage ?? asset.FaceProcessingFailureReason;
-            return Result(FaceReferenceReadinessCode.PreparationFailed, false, true, false,
+            return Result(
+                FaceReferenceReadinessCode.PreparationFailed,
+                false,
+                quality.CanReprocess,
+                false,
+                quality.Suitability,
                 "Embedding preparation failed",
-                "The previous embedding-preparation attempt did not complete. You can retry this appearance.", failure);
+                quality.CanReprocess
+                    ? "The previous embedding-preparation attempt did not complete. You can retry this appearance."
+                    : quality.Message,
+                failure);
         }
 
-        if (face.QualityStatus is not (FaceQualityStatus.EmbeddingEligible
-            or FaceQualityStatus.Detected
-            or FaceQualityStatus.ProcessingFailed))
+        if (!quality.CanReprocess)
         {
-            return Result(FaceReferenceReadinessCode.QualityNotEligible, false, false, false,
-                "Face not embedding-eligible",
+            return Result(
+                quality.Code,
+                false,
+                false,
+                false,
+                FaceReferenceSuitability.NotUsable,
+                quality.Label,
+                quality.Message);
+        }
+
+        var preparationLabel = quality.Suitability == FaceReferenceSuitability.UsableWithCaution
+            ? "Prepare with caution"
+            : hasAnyActiveEmbedding
+                ? "Embedding needs refresh"
+                : "Embedding not available";
+        var preparationMessage = quality.Suitability == FaceReferenceSuitability.UsableWithCaution
+            ? quality.Message + " PRISM can prepare a current embedding, but another complete, frontal appearance is preferred when available."
+            : hasAnyActiveEmbedding
+                ? "This appearance has face data from an older or incompatible model. Prepare a current embedding before trusting it for matching."
+                : "This confirmed face does not yet have a current matching embedding. Prepare it before using it as a trusted reference.";
+
+        return Result(
+            hasAnyActiveEmbedding
+                ? FaceReferenceReadinessCode.EmbeddingOutdated
+                : FaceReferenceReadinessCode.EmbeddingMissing,
+            false,
+            true,
+            false,
+            quality.Suitability,
+            preparationLabel,
+            preparationMessage);
+    }
+
+    private static ReferenceQualityAssessment AssessReferenceQuality(
+        MediaFace face,
+        FaceQualitySignals? signals,
+        double minimumTrustedReferenceQuality)
+    {
+        if (face.QualityScore < minimumTrustedReferenceQuality)
+        {
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.NotUsable,
+                false,
+                FaceReferenceReadinessCode.QualityTooLow,
+                "Quality below reference threshold",
+                $"Face quality {face.QualityScore:P0} is below the configured {minimumTrustedReferenceQuality:P0} trusted-reference threshold. Choose another appearance.");
+        }
+
+        if (face.QualityStatus is FaceQualityStatus.LowResolution
+            or FaceQualityStatus.Blurred
+            or FaceQualityStatus.PoorExposure
+            or FaceQualityStatus.ExtremePose
+            or FaceQualityStatus.SeverelyCropped
+            or FaceQualityStatus.Suppressed)
+        {
+            var (label, message, code) = face.QualityStatus switch
+            {
+                FaceQualityStatus.LowResolution => (
+                    "Face resolution too low",
+                    "The detected face is too small for reliable trusted-reference evidence. Choose a larger, clearer appearance.",
+                    FaceReferenceReadinessCode.QualityNotEligible),
+                FaceQualityStatus.Blurred => (
+                    "Face too blurred",
+                    "The detected face lacks sufficient detail for reliable trusted-reference evidence. Choose a sharper appearance.",
+                    FaceReferenceReadinessCode.QualityNotEligible),
+                FaceQualityStatus.PoorExposure => (
+                    "Exposure unsuitable",
+                    "The detected face is too dark or too bright for reliable trusted-reference evidence. Choose a better exposed appearance.",
+                    FaceReferenceReadinessCode.QualityNotEligible),
+                FaceQualityStatus.ExtremePose => (
+                    "Face pose unsuitable",
+                    "The detected face angle is too oblique for reliable trusted-reference evidence. Choose a more frontal appearance.",
+                    FaceReferenceReadinessCode.QualityNotEligible),
+                FaceQualityStatus.SeverelyCropped => (
+                    "Face crop too incomplete",
+                    "Too much of the detected face lies at the photograph boundary for reliable matching evidence. Choose another appearance.",
+                    FaceReferenceReadinessCode.CropTooIncomplete),
+                _ => (
+                    "Face not usable",
+                    "This appearance cannot be used as trusted matching evidence.",
+                    FaceReferenceReadinessCode.QualityNotEligible)
+            };
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.NotUsable,
+                false,
+                code,
+                label,
+                message);
+        }
+
+        if (face.QualityStatus == FaceQualityStatus.ProcessingFailed)
+        {
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.NotUsable,
+                true,
+                FaceReferenceReadinessCode.PreparationFailed,
+                "Needs reprocessing",
+                "The previous face-processing result was incomplete. Reprocess this appearance before deciding whether to trust it.");
+        }
+
+        if (face.QualityStatus == FaceQualityStatus.Occluded)
+        {
+            // Historical rows used Occluded for a crop-boundary measurement; no actual
+            // occlusion detector existed. Use the persisted crop signal when available.
+            if (signals?.CropCompleteness is { } legacyCrop && legacyCrop < 0.15d)
+            {
+                return new ReferenceQualityAssessment(
+                    FaceReferenceSuitability.NotUsable,
+                    false,
+                    FaceReferenceReadinessCode.CropTooIncomplete,
+                    "Face crop too incomplete",
+                    "This legacy appearance is very close to the photograph boundary. Re-detect or choose another appearance.");
+            }
+
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.UsableWithCaution,
+                true,
+                FaceReferenceReadinessCode.EligibleWithCaution,
+                "Crop incomplete",
+                "This legacy quality state represents crop-boundary completeness, not detected real-world occlusion. PRISM may prepare an embedding, but another complete face is preferred.");
+        }
+
+        if (face.QualityStatus == FaceQualityStatus.CropIncomplete)
+        {
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.UsableWithCaution,
+                true,
+                FaceReferenceReadinessCode.EligibleWithCaution,
+                "Crop incomplete",
+                "The detected face is close to the photograph boundary. It may be used only after explicit reviewer trust; another complete face is preferred.");
+        }
+
+        if (face.QualityStatus == FaceQualityStatus.Detected)
+        {
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.UsableWithCaution,
+                true,
+                FaceReferenceReadinessCode.EligibleWithCaution,
+                "Usable with caution",
+                "The face is technically usable for embedding but falls outside the preferred quality state. Explicit reviewer trust is required.");
+        }
+
+        if (face.QualityStatus != FaceQualityStatus.EmbeddingEligible)
+        {
+            return new ReferenceQualityAssessment(
+                FaceReferenceSuitability.NotUsable,
+                false,
+                FaceReferenceReadinessCode.QualityNotEligible,
+                "Face not usable",
                 $"This appearance has quality state {Humanize(face.QualityStatus)} and cannot currently become a trusted reference.");
         }
 
-        return hasAnyActiveEmbedding
-            ? Result(FaceReferenceReadinessCode.EmbeddingOutdated, false, true, false,
-                "Embedding needs refresh",
-                "This appearance has face data from an older or incompatible model. Prepare a current embedding before trusting it for matching.")
-            : Result(FaceReferenceReadinessCode.EmbeddingMissing, false, true, false,
-                "Embedding not available",
-                "This confirmed face does not yet have a current matching embedding. Prepare it before using it as a trusted reference.");
+        var cautions = new List<string>();
+        if (signals is not null)
+        {
+            if (signals.Sharpness < 0.35d) cautions.Add("detail is below the preferred sharpness level");
+            if (signals.Exposure < 0.35d) cautions.Add("exposure is outside the preferred range");
+            if (signals.Contrast < 0.25d) cautions.Add("tonal contrast is below the preferred level");
+            if (signals.Pose < 0.35d) cautions.Add("face pose is less frontal than preferred");
+            if (signals.CropCompleteness < 0.65d) cautions.Add("the detected face crop is close to the photograph boundary");
+        }
+
+        return cautions.Count == 0
+            ? new ReferenceQualityAssessment(
+                FaceReferenceSuitability.Preferred,
+                true,
+                FaceReferenceReadinessCode.Eligible,
+                "Preferred reference",
+                "This appearance meets the preferred face-quality criteria for trusted matching evidence.")
+            : new ReferenceQualityAssessment(
+                FaceReferenceSuitability.UsableWithCaution,
+                true,
+                FaceReferenceReadinessCode.EligibleWithCaution,
+                "Usable with caution",
+                "This face has a valid embedding but " + string.Join(", ", cautions) + ". Explicit reviewer trust is required.");
     }
 
+    private static FaceQualitySignals? ParseSignals(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<FaceQualitySignals>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record ReferenceQualityAssessment(
+        FaceReferenceSuitability Suitability,
+        bool CanReprocess,
+        FaceReferenceReadinessCode Code,
+        string Label,
+        string Message);
+
     private static FaceReferenceReadiness Missing(Guid faceId)
-        => new(faceId, 0, FaceReferenceReadinessCode.AssignmentUnavailable, false, false, false, false,
-            "Appearance unavailable", "This appearance is no longer actively assigned to this person.");
+        => new(
+            faceId,
+            0,
+            FaceReferenceReadinessCode.AssignmentUnavailable,
+            false,
+            false,
+            false,
+            false,
+            FaceReferenceSuitability.NotUsable,
+            "Appearance unavailable",
+            "This appearance is no longer actively assigned to this person.");
 
     private static string Humanize(FaceQualityStatus status)
         => status switch
@@ -338,11 +632,14 @@ public sealed class FaceReferenceReadinessService : IFaceReferenceReadinessServi
             FaceQualityStatus.Blurred => "blurred",
             FaceQualityStatus.PoorExposure => "poor exposure",
             FaceQualityStatus.ExtremePose => "extreme pose",
-            FaceQualityStatus.Occluded => "occluded",
+            FaceQualityStatus.Occluded => "legacy crop-incomplete",
+            FaceQualityStatus.CropIncomplete => "crop incomplete",
+            FaceQualityStatus.SeverelyCropped => "severely cropped",
             FaceQualityStatus.ProcessingFailed => "processing failed",
             FaceQualityStatus.EmbeddingEligible => "embedding eligible",
             FaceQualityStatus.Detected => "detected",
             FaceQualityStatus.Suppressed => "suppressed",
             _ => status.ToString()
         };
+
 }

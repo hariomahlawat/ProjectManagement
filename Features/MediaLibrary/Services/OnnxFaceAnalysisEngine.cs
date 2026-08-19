@@ -100,7 +100,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
                     detection.Landmarks,
                     _options.People);
                 float[]? embedding = null;
-                if (quality.Status == FaceQualityStatus.EmbeddingEligible)
+                if (FaceQualityEvaluator.CanGenerateEmbedding(quality.Status))
                 {
                     embedding = Embed(bitmap, rectangle, detection.Landmarks);
                 }

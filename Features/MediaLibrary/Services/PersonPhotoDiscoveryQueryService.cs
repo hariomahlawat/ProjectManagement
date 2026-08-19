@@ -92,7 +92,8 @@ public sealed class PersonPhotoDiscoveryQueryService : IPersonPhotoDiscoveryQuer
                 _options.Embedder.Key,
                 _options.Embedder.Version,
                 _options.Embedder.EmbeddingDimension,
-                visibleAssetIds)
+                visibleAssetIds,
+                _options.CandidateMinimumTrustedReferenceQuality)
             .CountAsync(cancellationToken);
 
         var possibleMatchCount = trustedReferenceCount == 0
@@ -201,7 +202,8 @@ public sealed class PersonPhotoDiscoveryQueryService : IPersonPhotoDiscoveryQuer
                 _options.Embedder.Key,
                 _options.Embedder.Version,
                 _options.Embedder.EmbeddingDimension,
-                visibleAssetIds)
+                visibleAssetIds,
+                _options.CandidateMinimumTrustedReferenceQuality)
             .AnyAsync(cancellationToken);
         if (!hasTrustedReference)
         {
@@ -298,7 +300,8 @@ public sealed class PersonPhotoDiscoveryQueryService : IPersonPhotoDiscoveryQuer
         string modelKey,
         string modelVersion,
         int dimension,
-        IQueryable<long>? visibleAssetIds = null)
+        IQueryable<long>? visibleAssetIds = null,
+        double minimumReferenceQuality = 0d)
     {
         ArgumentNullException.ThrowIfNull(db);
 
@@ -310,6 +313,11 @@ public sealed class PersonPhotoDiscoveryQueryService : IPersonPhotoDiscoveryQuer
                   && assignment.RemovedAtUtc == null
                   && assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference
                   && !face.IsSuppressed
+                  && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                      || face.QualityStatus == FaceQualityStatus.Detected
+                      || face.QualityStatus == FaceQualityStatus.CropIncomplete
+                      || face.QualityStatus == FaceQualityStatus.Occluded)
+                  && face.QualityScore >= minimumReferenceQuality
                   && face.Embeddings.Any(embedding =>
                       embedding.InvalidatedAtUtc == null
                       && embedding.ModelKey == modelKey

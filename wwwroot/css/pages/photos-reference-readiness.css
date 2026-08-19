@@ -23,4 +23,43 @@
 .reference-readiness.is-repairable { border-color: rgba(255, 193, 7, .42); background: rgba(255, 193, 7, .06); }
 .reference-readiness.is-blocked { border-color: rgba(108, 117, 125, .22); }
 
-#matching-reference-setup { scroll-margin-top: 5rem; }
+
+/* Reference-quality semantics and governance ergonomics. */
+.reference-readiness.is-caution {
+    border-color: rgba(255, 193, 7, .52);
+    background: rgba(255, 193, 7, .075);
+}
+.reference-readiness.is-caution .reference-readiness__row > strong { color: #7a5a00; }
+
+#matching-reference-setup {
+    scroll-margin-top: calc(var(--pm-header-height, 72px) + 1rem);
+}
+
+.person-correction-inline {
+    flex-basis: 100%;
+    width: 100%;
+}
+.person-correction-inline > summary { width: max-content; }
+.person-correction-inline__panel {
+    background: #fff;
+    border: 1px solid var(--people-line, #dfe5ef);
+    border-radius: .75rem;
+    display: grid;
+    gap: .75rem;
+    margin-top: .55rem;
+    padding: .75rem;
+    width: min(100%, 30rem);
+}
+
+.person-reference-menu {
+    flex-basis: 100%;
+    width: 100%;
+}
+.person-reference-menu > summary { width: max-content; }
+.person-reference-menu .person-correction-menu {
+    box-shadow: none;
+    margin-top: .55rem;
+    max-width: 30rem;
+    position: static;
+    width: 100%;
+}

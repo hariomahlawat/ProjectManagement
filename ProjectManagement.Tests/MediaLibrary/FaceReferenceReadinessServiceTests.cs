@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
@@ -40,6 +41,89 @@ public sealed class FaceReferenceReadinessServiceTests
         Assert.Equal(FaceReferenceReadinessCode.Eligible, ready.Code);
         Assert.True(ready.CanTrust);
         Assert.False(ready.CanPrepare);
+    }
+
+
+    [Fact]
+    public async Task LegacyCropBoundaryState_IsRepairableAndExplicitlyCautionary()
+    {
+        await using var db = CreateContext();
+        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: false);
+        var face = await db.Faces.SingleAsync(item => item.Id == seeded.FaceId);
+        face.QualityScore = .89;
+        face.QualityStatus = FaceQualityStatus.Occluded;
+        face.QualitySignalsJson = JsonSerializer.Serialize(new FaceQualitySignals(
+            Resolution: .95,
+            Sharpness: .90,
+            Exposure: .88,
+            Contrast: .80,
+            Pose: .92,
+            CropCompleteness: .40,
+            Reasons: new[] { "The detected face crop is close to the image boundary and may be incomplete." }));
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var readiness = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
+
+        Assert.True(readiness.CanPrepare);
+        Assert.False(readiness.CanTrust);
+        Assert.Equal(FaceReferenceSuitability.UsableWithCaution, readiness.Suitability);
+        Assert.Contains("crop", readiness.Message.ToLowerInvariant());
+        Assert.DoesNotContain("occluded", readiness.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task CropIncomplete_WithCurrentEmbedding_CanBeTrustedOnlyWithCaution()
+    {
+        await using var db = CreateContext();
+        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: true);
+        var face = await db.Faces.SingleAsync(item => item.Id == seeded.FaceId);
+        face.QualityScore = .89;
+        face.QualityStatus = FaceQualityStatus.CropIncomplete;
+        face.QualitySignalsJson = JsonSerializer.Serialize(new FaceQualitySignals(
+            Resolution: .95,
+            Sharpness: .90,
+            Exposure: .88,
+            Contrast: .80,
+            Pose: .92,
+            CropCompleteness: .40,
+            Reasons: Array.Empty<string>()));
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var readiness = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
+
+        Assert.Equal(FaceReferenceReadinessCode.EligibleWithCaution, readiness.Code);
+        Assert.Equal(FaceReferenceSuitability.UsableWithCaution, readiness.Suitability);
+        Assert.True(readiness.CanTrust);
+        Assert.True(readiness.RequiresCaution);
+    }
+
+    [Fact]
+    public async Task SeverelyCroppedFace_IsNotReferenceUsableOrRepairable()
+    {
+        await using var db = CreateContext();
+        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: false);
+        var face = await db.Faces.SingleAsync(item => item.Id == seeded.FaceId);
+        face.QualityScore = .89;
+        face.QualityStatus = FaceQualityStatus.SeverelyCropped;
+        face.QualitySignalsJson = JsonSerializer.Serialize(new FaceQualitySignals(
+            Resolution: .95,
+            Sharpness: .90,
+            Exposure: .88,
+            Contrast: .80,
+            Pose: .92,
+            CropCompleteness: .05,
+            Reasons: Array.Empty<string>()));
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var readiness = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
+
+        Assert.Equal(FaceReferenceReadinessCode.CropTooIncomplete, readiness.Code);
+        Assert.Equal(FaceReferenceSuitability.NotUsable, readiness.Suitability);
+        Assert.False(readiness.CanTrust);
+        Assert.False(readiness.CanPrepare);
     }
 
     [Fact]

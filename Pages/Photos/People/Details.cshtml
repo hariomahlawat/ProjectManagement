@@ -1,6 +1,7 @@
 @page "{id:guid}"
 @using System.Globalization
 @using ProjectManagement.Features.MediaLibrary.Domain
+@using ProjectManagement.Features.MediaLibrary.Services
 @model ProjectManagement.Pages.Photos.People.DetailsModel
 @{
     ViewData["Title"] = Model.Person.DisplayName;
@@ -212,7 +213,7 @@
                             }
                             @if (readiness is not null)
                             {
-                                <div class="reference-readiness @(readiness.IsUsableReference ? "is-ready" : readiness.IsPreparationPending ? "is-pending" : readiness.CanPrepare ? "is-repairable" : "is-blocked")">
+                                <div class="reference-readiness @(readiness.IsUsableReference ? "is-ready" : readiness.IsPreparationPending ? "is-pending" : readiness.CanPrepare ? "is-repairable" : "is-blocked") @(readiness.RequiresCaution ? "is-caution" : null)">
                                     <div class="reference-readiness__row">
                                         <span>Matching readiness</span>
                                         <strong>@readiness.Label</strong>
@@ -254,18 +255,18 @@
                                 else if (readiness?.CanTrust == true)
                                 {
                                     <details class="person-reference-menu">
-                                        <summary class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-shield-check"></i> Use as matching reference
+                                        <summary class="btn btn-sm @(readiness.RequiresCaution ? "btn-outline-warning" : "btn-outline-primary")">
+                                            <i class="bi bi-shield-check"></i> @(readiness.RequiresCaution ? "Use with caution" : "Use as matching reference")
                                         </summary>
                                         <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
                                             <input type="hidden" name="id" value="@Model.Person.Id" />
                                             <input type="hidden" name="faceId" value="@photo.FaceId" />
                                             <input type="hidden" name="referenceAction" value="trust" />
-                                            <strong>Trust for matching</strong>
-                                            <p>Use this clear, verified face as evidence for future known-person suggestions.</p>
+                                            <strong>@(readiness.RequiresCaution ? "Trust with caution" : "Trust for matching")</strong>
+                                            <p>@(readiness.RequiresCaution ? readiness.Message + " Record why this appearance is still acceptable as trusted evidence." : "Use this clear, verified face as evidence for future known-person suggestions.")</p>
                                             <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
                                                       placeholder="Why is this appearance suitable as a trusted reference?" required></textarea>
-                                            <button type="submit" class="btn btn-sm btn-primary">Trust reference</button>
+                                            <button type="submit" class="btn btn-sm @(readiness.RequiresCaution ? "btn-warning" : "btn-primary")">@(readiness.RequiresCaution ? "Trust with caution" : "Trust reference")</button>
                                         </form>
                                     </details>
                                 }
@@ -291,9 +292,9 @@
                                         <i class="bi bi-shield-x"></i> Not eligible for matching
                                     </button>
                                 }
-                                <details>
+                                <details class="person-correction-inline">
                                     <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Correct appearance</summary>
-                                    <div class="person-correction-menu">
+                                    <div class="person-correction-inline__panel">
                                         <form method="post" asp-page-handler="RemoveAssignment" class="person-remove-form person-remove-form--static">
                                             <input type="hidden" name="id" value="@Model.Person.Id" />
                                             <input type="hidden" name="faceId" value="@photo.FaceId" />

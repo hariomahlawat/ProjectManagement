@@ -152,7 +152,10 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
 
         var query = db.Faces
             .Where(face => !face.IsSuppressed
-                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                           && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                                   || face.QualityStatus == FaceQualityStatus.Detected
+                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
+                                   || face.QualityStatus == FaceQualityStatus.Occluded)
                            && face.QualityScore >= minimumFaceQuality
                            && face.MediaAsset.IsAvailable
                            && !face.MediaAsset.IsDeleted

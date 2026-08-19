@@ -184,7 +184,10 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
             join asset in db.Assets.AsNoTracking()
                 on face.MediaAssetId equals asset.Id
             where !face.IsSuppressed
-                  && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                  && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                                   || face.QualityStatus == FaceQualityStatus.Detected
+                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
+                                   || face.QualityStatus == FaceQualityStatus.Occluded)
                   && face.QualityScore >= minimumQualityScore
                   && asset.IsAvailable
                   && !asset.IsDeleted

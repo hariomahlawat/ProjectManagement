@@ -200,7 +200,10 @@ public sealed class IndexModel : PageModel
 
                 var reviewableFaces = _db.Faces.AsNoTracking()
                     .Where(face => !face.IsSuppressed
-                                   && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                                   && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                                   || face.QualityStatus == FaceQualityStatus.Detected
+                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
+                                   || face.QualityStatus == FaceQualityStatus.Occluded)
                                    && face.MediaAsset.IsAvailable
                                    && !face.MediaAsset.IsDeleted
                                    && !face.MediaAsset.IsArchived

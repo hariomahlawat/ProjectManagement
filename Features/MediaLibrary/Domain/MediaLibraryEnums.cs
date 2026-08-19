@@ -129,9 +129,12 @@ public enum FaceQualityStatus
     Blurred = 3,
     PoorExposure = 4,
     ExtremePose = 5,
+    // Legacy value retained for existing rows created before crop-boundary semantics were named accurately.
     Occluded = 6,
     Suppressed = 7,
-    ProcessingFailed = 8
+    ProcessingFailed = 8,
+    CropIncomplete = 9,
+    SeverelyCropped = 10
 }
 
 public enum MediaPersonStatus { Unreviewed = 0, Confirmed = 1, Hidden = 2, Merged = 3, Archived = 4 }

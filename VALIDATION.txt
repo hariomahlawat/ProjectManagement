@@ -1,40 +1,25 @@
-PRISM Photos — Identity Matching Bootstrap & Reference Readiness
+PRISM Photos — Reference Quality Semantics & Matching Usability
 Validation summary
 
 Baseline
-- Reconstructed from the supplied project source plus all current Photos/People packages and hotfixes through:
-  Person Profile Discovery + Razor Context hotfix + Album DI + Matching Recovery/options/candidate-visibility compatibility.
+- Implemented against the reconstructed current Photos baseline containing the latest Albums, Matching Recovery, compatibility hotfixes, Person Profile Discovery, Razor Context hotfix, and Identity Matching Bootstrap phase.
 
-Changed/new project files: 17
+Checks completed
+- 15 changed/new project files packaged with exact project-relative paths.
+- C# / Razor / CSS structural delimiter checks passed.
+- Produced unified patch dry-run against the current baseline passed.
+- Produced unified patch applied successfully to a clean baseline copy.
+- All 15 patched project files compared byte-for-byte with the ready-to-paste implementation: 0 mismatches.
+- ZIP archive integrity test passed.
+- Existing IMediaAlbumService / matching-recovery / person-discovery work was not overwritten by this delta.
+- No JavaScript files changed in this phase.
 
-Static validation performed
-- C# lexical/string/comment/delimiter structural validation: PASS on all changed C# sources.
-- Razor brace/parenthesis structural checks: PASS on Index.cshtml and People/Details.cshtml.
-- New CSS brace validation: PASS.
-- git diff --check: PASS (no whitespace errors).
-- IFaceIntelligenceService contract/implementation/routing reconciliation: PASS.
-- IFaceReferenceReadinessService DI and consumer reconciliation: PASS.
-- Existing IMediaAlbumService registration preserved: PASS.
-- Existing IPersonPhotoDiscoveryQueryService registration preserved: PASS.
-- Existing matching recovery runtime/queue registrations preserved: PASS.
-- Old generic trusted-reference eligibility error removed from project sources: PASS.
-- Single-person route canonicalization present: PASS.
-- Zero-reference candidate fast path present: PASS.
+Key compatibility checks
+- Legacy FaceQualityStatus.Occluded remains in the enum so existing varchar-backed database rows remain readable.
+- New quality enum values require no schema change because MediaFaces.QualityStatus is already varchar(32).
+- PersonPhotoDiscoveryQueryService's trusted-reference helper remains source-compatible: the new minimum-quality argument is optional.
+- FaceReviewService's automatic initial-reference selector remains Preferred-only (EmbeddingEligible); cautionary references require explicit human trust.
 
-JavaScript regression validation
-- node --check wwwroot/js/pages/photos-library.js: PASS
-- node --check wwwroot/js/pages/photos-curation.js: PASS
-- node --check wwwroot/js/pages/photos-person-profile.js: PASS
-- node --test wwwroot/js/pages/photos-person-profile-contract.test.js: PASS (3/3)
-
-Patch/package validation
-- Unified patch generated against exact reconstructed current baseline.
-- git diff --check: PASS.
-- Ready-to-paste package contains only the 17 project delta files plus documentation/patch.
-
-Limitation
-- The .NET SDK/Razor compiler is not installed in the execution environment, so `dotnet build` and xUnit execution could not be run here. Run the commands in README-APPLY.md on the development machine before deployment.
-- Unified patch dry-run/apply verification against clean reconstructed baseline: PASS.
-- Patched result compared byte-for-byte with implementation: PASS (17/17 project files, 0 mismatches).
-- Ready-to-paste project files compared byte-for-byte with implementation: PASS (17/17, 0 mismatches).
-- ZIP archive integrity: PASS.
+Environment limitation
+- The .NET SDK / Razor compiler is not installed in this execution environment, so dotnet build and xUnit execution could not be run here.
+- Run the commands in README-APPLY.md on the PRISM development machine before deployment.

@@ -45,7 +45,7 @@ public static class FaceQualityEvaluator
         if (pose < 0.35)
             reasons.Add("The face pose is too oblique for reliable matching.");
         if (cropCompleteness < 0.65)
-            reasons.Add("The face is too close to the image boundary.");
+            reasons.Add("The detected face crop is close to the image boundary and may be incomplete.");
 
         // Resolution and sharpness carry the highest weight because an embedding cannot
         // recover detail that was never captured. The score remains explainable and bounded.
@@ -64,6 +64,7 @@ public static class FaceQualityEvaluator
             options.MinimumFacePixels,
             sharpness,
             exposure,
+            contrast,
             pose,
             cropCompleteness,
             score,
@@ -87,6 +88,7 @@ public static class FaceQualityEvaluator
         int minimumFacePixels,
         double sharpness,
         double exposure,
+        double contrast,
         double pose,
         double cropCompleteness,
         double score,
@@ -96,11 +98,32 @@ public static class FaceQualityEvaluator
         if (sharpness < 0.25) return FaceQualityStatus.Blurred;
         if (exposure < 0.25) return FaceQualityStatus.PoorExposure;
         if (pose < 0.25) return FaceQualityStatus.ExtremePose;
-        if (cropCompleteness < 0.50) return FaceQualityStatus.Occluded;
+        if (cropCompleteness < 0.15) return FaceQualityStatus.SeverelyCropped;
+        if (cropCompleteness < 0.65) return FaceQualityStatus.CropIncomplete;
+        if (sharpness < 0.35 || exposure < 0.35 || contrast < 0.25 || pose < 0.35)
+            return FaceQualityStatus.Detected;
         return score >= minimumQualityScore
             ? FaceQualityStatus.EmbeddingEligible
             : FaceQualityStatus.Detected;
     }
+
+    /// <summary>
+    /// Determines whether the face-analysis engine may attempt to compute an embedding.
+    /// This is deliberately broader than trusted-reference suitability: a technically usable
+    /// embedding can support review/grouping even when the face is not an ideal biometric reference.
+    /// </summary>
+    public static bool CanGenerateEmbedding(FaceQualityStatus status)
+        => status is FaceQualityStatus.EmbeddingEligible
+            or FaceQualityStatus.Detected
+            or FaceQualityStatus.CropIncomplete;
+
+    /// <summary>
+    /// Legacy Occluded rows were produced solely from crop-boundary completeness before that
+    /// condition was named accurately. They should be re-evaluated from their persisted signals
+    /// rather than treated as proof of real-world occlusion.
+    /// </summary>
+    public static bool IsLegacyCropStatus(FaceQualityStatus status)
+        => status == FaceQualityStatus.Occluded;
 
     private static (double Mean, double StandardDeviation, double LaplacianVariance)
         CalculateLuminanceStatistics(SKBitmap image, SKRectI rectangle)

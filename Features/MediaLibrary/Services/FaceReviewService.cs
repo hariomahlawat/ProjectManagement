@@ -954,15 +954,16 @@ public sealed class FaceReviewService : IFaceReviewService
                 return;
             }
 
+            FaceReferenceReadiness? trustReadiness = null;
             if (referenceStatus == FaceReferenceStatus.TrustedReference)
             {
-                var readiness = await _referenceReadiness.GetAsync(
+                trustReadiness = await _referenceReadiness.GetAsync(
                     personId,
                     faceId,
                     cancellationToken);
-                if (!readiness.CanTrust)
+                if (!trustReadiness.CanTrust)
                 {
-                    throw new FaceIdentityConflictException(readiness.Message);
+                    throw new FaceIdentityConflictException(trustReadiness.Message);
                 }
             }
             else
@@ -1007,6 +1008,7 @@ public sealed class FaceReviewService : IFaceReviewService
                 MetadataJson = JsonSerializer.Serialize(new
                 {
                     ReferenceStatus = referenceStatus.ToString(),
+                    ReferenceSuitability = trustReadiness?.Suitability.ToString(),
                     assignment.MediaFace.QualityScore
                 }),
                 PerformedAtUtc = now
@@ -1926,7 +1928,10 @@ public sealed class FaceReviewService : IFaceReviewService
             .AsNoTracking()
             .Where(face => faceIds.Contains(face.Id)
                            && !face.IsSuppressed
-                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                           && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                               || face.QualityStatus == FaceQualityStatus.Detected
+                               || face.QualityStatus == FaceQualityStatus.CropIncomplete
+                               || face.QualityStatus == FaceQualityStatus.Occluded)
                            && visibleAssetIds.Contains(face.MediaAssetId)
                            && (!requireUnassigned
                                || !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))

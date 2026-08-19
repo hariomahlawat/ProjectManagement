@@ -299,7 +299,10 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                   && !person.IsHidden
                   && person.Status == MediaPersonStatus.Confirmed
                   && !face.IsSuppressed
-                  && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                  && (face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                                   || face.QualityStatus == FaceQualityStatus.Detected
+                                   || face.QualityStatus == FaceQualityStatus.CropIncomplete
+                                   || face.QualityStatus == FaceQualityStatus.Occluded)
                   && face.QualityScore >= minimumReferenceQuality
                   && asset.IsAvailable
                   && !asset.IsDeleted

@@ -1,21 +1,19 @@
-PRISM Photos — Identity Matching Bootstrap & Reference Readiness
+PRISM Photos — Reference Quality Semantics & Matching Usability
 
-Project files changed/added: 17
+15 project files changed/added:
 
-Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs
-Features/MediaLibrary/Services/FaceCandidateSuggestionService.cs
-Features/MediaLibrary/Services/FaceIntelligenceContracts.cs
+Features/MediaLibrary/Domain/MediaLibraryEnums.cs
+Features/MediaLibrary/Services/FaceCandidateRefreshQueueService.cs
+Features/MediaLibrary/Services/FaceCandidateSearchService.cs
+Features/MediaLibrary/Services/FaceIdentityGroupingService.cs
 Features/MediaLibrary/Services/FaceIntelligenceService.cs
-Features/MediaLibrary/Services/FaceReferenceReadinessService.cs                         [NEW]
+Features/MediaLibrary/Services/FaceQualityEvaluator.cs
+Features/MediaLibrary/Services/FaceReferenceReadinessService.cs
 Features/MediaLibrary/Services/FaceReviewService.cs
-Features/MediaLibrary/Services/MediaAssetProcessor.cs
-Features/MediaLibrary/Services/MediaPeopleQueryService.cs
-Pages/Photos/Index.People.cs
-Pages/Photos/Index.cshtml
-Pages/Photos/Index.cshtml.cs
+Features/MediaLibrary/Services/OnnxFaceAnalysisEngine.cs
+Features/MediaLibrary/Services/PersonPhotoDiscoveryQueryService.cs
+Pages/Admin/MediaIntelligence/Index.cshtml.cs
 Pages/Photos/People/Details.cshtml
-Pages/Photos/People/Details.cshtml.cs
-ProjectManagement.Tests/MediaLibrary/FaceCandidateZeroReferenceBootstrapTests.cs      [NEW]
-ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs            [NEW]
-ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs
-wwwroot/css/pages/photos-reference-readiness.css                                      [NEW]
+ProjectManagement.Tests/MediaLibrary/FaceQualityPolicyTests.cs
+ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs
+wwwroot/css/pages/photos-reference-readiness.css
