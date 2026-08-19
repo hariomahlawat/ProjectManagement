@@ -1,1 +1,13 @@
-Features/MediaLibrary/Services/FaceCandidateSearchService.cs
+Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs
+Features/MediaLibrary/Services/FaceIntelligenceContracts.cs
+Features/MediaLibrary/Services/FaceReviewService.cs
+Features/MediaLibrary/Services/PersonPhotoDiscoveryContracts.cs
+Features/MediaLibrary/Services/PersonPhotoDiscoveryQueryService.cs
+Pages/Photos/Index.cshtml
+Pages/Photos/Index.cshtml.cs
+Pages/Photos/Index.People.cs
+ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs
+ProjectManagement.Tests/MediaLibrary/PersonPhotoDiscoveryPostgreSqlQueryTranslationTests.cs
+wwwroot/css/pages/photos-person-profile.css
+wwwroot/js/pages/photos-person-profile.js
+wwwroot/js/pages/photos-person-profile-contract.test.js

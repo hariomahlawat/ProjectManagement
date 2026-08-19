@@ -7,16 +7,17 @@
         : Model.SelectedPeople.Count == 1
             ? $"{Model.SelectedPeople[0].Name} — Photos"
             : Model.SelectedPeople.Count > 1
-                ? "People together — Photos"
+                ? "Selected people — Photos"
                 : "Photos";
     ViewData["PageShell"] = "wide";
     var hasPeopleFilter = Model.PersonIds.Length > 0;
+    var showPeopleFilterChip = hasPeopleFilter && !Model.IsSinglePersonProfile;
     var hasFilters = !Model.IsAlbumsWorkspace && !Model.IsAlbumDetail && (!string.IsNullOrWhiteSpace(Model.Q)
                      || Model.Source != "all"
                      || Model.Kind != "all"
                      || Model.Classification != "all"
                      || Model.ProjectId.HasValue
-                     || hasPeopleFilter
+                     || showPeopleFilterChip
                      || Model.Year.HasValue
                      || Model.IsCollectionDetail);
     var activeFilterCount = new[]
@@ -26,22 +27,24 @@
         Model.Kind != "all",
         Model.Classification != "all",
         Model.ProjectId.HasValue,
-        hasPeopleFilter,
+        showPeopleFilterChip,
         Model.Year.HasValue,
         Model.IsCollectionDetail
     }.Count(value => value);
-    var galleryHeading = Model.SelectedPeople.Count == 1
+    var galleryHeading = Model.IsSinglePersonProfile
         ? Model.SelectedPeople[0].Name
-        : "Photos together";
+        : "Photos with selected people";
     var selectedNames = string.Join(", ", Model.SelectedPeople.Select(person => person.Name));
+    var personProfile = Model.PersonProfile;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/photos-library.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/photos-curation.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/photos-person-profile.css" asp-append-version="true" />
 }
 
-<div class="photos-library @(Model.IsPeopleGallery ? "photos-library--people" : null)"
+<div class="photos-library @(Model.IsPeopleGallery ? "photos-library--people" : null) @(Model.IsSinglePersonProfile ? "photos-library--person-profile" : null)"
      data-photos-library
      data-library-version="@Model.LibraryRevision"
      data-auto-refresh-url="@(Model.IsAlbumsWorkspace ? null : Url.Page("./Index", "Revision", new { AlbumId = Model.AlbumId }))"
@@ -70,23 +73,35 @@
                             </span>
                         }
                     </div>
-                    <div>
-                        <span class="photos-eyebrow">People in Photos</span>
+                    <div class="photos-person-hero__identity">
+                        <span class="photos-eyebrow">@(Model.IsSinglePersonProfile ? "People in Photos" : "People together")</span>
                         <h1>@galleryHeading</h1>
-                        <p>
-                            @if (Model.SelectedPeople.Count == 1)
-                            {
-                                <text>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") featuring @Model.SelectedPeople[0].Name.</text>
-                            }
-                            else if (Model.MatchAllSelectedPeople)
-                            {
-                                <text>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing all selected people.</text>
-                            }
-                            else
-                            {
-                                <text>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing any selected person.</text>
-                            }
-                        </p>
+                        @if (Model.IsSinglePersonProfile)
+                        {
+                            <p class="photos-person-profile__meta">
+                                <span><strong data-person-confirmed-count>@(personProfile?.ConfirmedPhotoCount ?? Model.Stats.Photos)</strong> confirmed photo@((personProfile?.ConfirmedPhotoCount ?? Model.Stats.Photos) == 1 ? "" : "s")</span>
+                                @if (personProfile?.LatestMediaDateUtc is DateTimeOffset lastSeen)
+                                {
+                                    <span>Last seen <strong data-person-last-seen>@lastSeen.ToLocalTime().ToString("dd MMM yyyy")</strong></span>
+                                }
+                                @if (Model.CanReviewPersonCandidates && personProfile is not null && personProfile.PossibleMatchCount > 0)
+                                {
+                                    <span class="photos-person-profile__possible"><strong data-person-discovery-count>@personProfile.PossibleMatchCount</strong> possible match@(personProfile.PossibleMatchCount == 1 ? "" : "es")</span>
+                                }
+                                else if (Model.CanReviewPersonCandidates && personProfile?.HasTrustedReference == true && personProfile.BackgroundMatchingCount > 0)
+                                {
+                                    <span class="photos-person-profile__matching"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Checking unresolved appearances</span>
+                                }
+                            </p>
+                        }
+                        else if (Model.MatchAllSelectedPeople)
+                        {
+                            <p>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing all selected people.</p>
+                        }
+                        else
+                        {
+                            <p>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing any selected person.</p>
+                        }
                     </div>
                 </div>
             </div>
@@ -100,15 +115,33 @@
             </div>
         }
         <div class="photos-hero__actions">
-            @if (Model.IsPeopleGallery)
+            @if (Model.IsSinglePersonProfile)
             {
-                <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-people"></i><span>Choose people</span></a>
-                @if (Model.CanManagePeople && Model.SelectedPeople.Count == 1)
+                @if (Model.CanReviewPersonCandidates)
+                {
+                    <a class="photos-action photos-action--primary photos-person-profile__discover"
+                       href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
+                       aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
+                       aria-controls="personPhotoDiscovery">
+                        <i class="bi bi-person-bounding-box"></i>
+                        <span>@(Model.ShowPersonDiscovery ? "Hide matches" : "Find more photos")</span>
+                        @if (personProfile is not null)
+                        {
+                            <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
+                        }
+                    </a>
+                }
+                <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
+                @if (Model.CanManagePeople)
                 {
                     <a class="photos-action photos-action--quiet" asp-page="/Photos/People/Details" asp-route-id="@Model.SelectedPeople[0].Id"><i class="bi bi-sliders"></i><span>Manage identity</span></a>
                 }
             }
-            @if ((Model.View == "photos" || Model.IsAlbumDetail) && Model.Groups.Count > 0 && !Model.OrganizeAlbum)
+            else if (Model.IsMultiPersonGallery)
+            {
+                <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
+            }
+            @if (!Model.IsPeopleGallery && (Model.View == "photos" || Model.IsAlbumDetail) && Model.Groups.Count > 0 && !Model.OrganizeAlbum)
             {
                 <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle aria-pressed="@(Model.IsAddMediaMode ? "true" : "false")"><i class="bi bi-check2-circle"></i><span>@(Model.IsAddMediaMode ? "Cancel" : "Select")</span></button>
             }
@@ -121,7 +154,7 @@
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                     @if (Model.IsPeopleGallery)
                     {
-                        <li><a class="dropdown-item" href="@Model.BuildClearPeopleUrl()"><i class="bi bi-images me-2"></i>Remove people filter</a></li>
+                        <li><a class="dropdown-item" href="@Model.BuildClearPeopleUrl()"><i class="bi bi-images me-2"></i>All photos</a></li>
                     }
                     @if (Model.CanManagePeople)
                     {
@@ -206,7 +239,7 @@
         </section>
     }
 
-    @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
+    @if (Model.IsMultiPersonGallery)
     {
         <section class="photos-people-bar" aria-label="Selected people">
             <div class="photos-people-chips">
@@ -265,6 +298,7 @@
                     @if (Model.ProjectId.HasValue) { <input type="hidden" name="ProjectId" value="@Model.ProjectId" /> }
                     @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
                     @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                    @if (Model.IsSinglePersonProfile && Model.FindMore) { <input type="hidden" name="FindMore" value="true" /> }
                     @if (Model.Year.HasValue) { <input type="hidden" name="Year" value="@Model.Year" /> }
                     @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
                     @if (Model.IncludeSingletonCollections) { <input type="hidden" name="IncludeSingletonCollections" value="true" /> }
@@ -297,6 +331,10 @@
                         <a class="@(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")">Photos</a>
                         <a class="@(Model.Kind == "video" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("video")">Videos</a>
                     </nav>
+                    @if (Model.IsPeopleGallery && Model.Groups.Count > 0)
+                    {
+                        <button type="button" class="photos-control photos-control--select" data-photos-select-toggle aria-pressed="false"><i class="bi bi-check2-circle"></i><span>Select</span></button>
+                    }
                 }
             </div>
         </section>
@@ -333,6 +371,160 @@
         }
     </div>
 
+    @if (Model.ShowPersonDiscovery && Model.IsSinglePersonProfile && personProfile is not null)
+    {
+        var currentRequest = ViewContext.HttpContext.Request;
+        var profileReturnUrl = $"{currentRequest.PathBase}{currentRequest.Path}{currentRequest.QueryString}";
+        var discovery = Model.PersonDiscovery;
+        <section id="personPhotoDiscovery"
+                 class="person-photo-discovery"
+                 aria-labelledby="personPhotoDiscoveryTitle"
+                 data-person-photo-discovery
+                 data-person-id="@personProfile.PersonId"
+                 data-status-url="@Model.BuildPersonDiscoveryStatusUrl(personProfile.PersonId)"
+                 data-confirm-batch-url="@Url.Page("./Index", "ConfirmPersonCandidates")"
+                 data-reject-batch-url="@Url.Page("./Index", "RejectPersonCandidates")">
+            <header class="person-photo-discovery__header">
+                <div>
+                    <span class="person-photo-discovery__eyebrow">Human-confirmed discovery</span>
+                    <h2 id="personPhotoDiscoveryTitle">Possible photos of @personProfile.DisplayName</h2>
+                    <p>PRISM is showing unresolved face appearances ranked against trusted matching references. Similarity is a ranking signal, not identity probability.</p>
+                </div>
+                <a class="btn btn-sm btn-outline-secondary" href="@Model.BuildPersonDiscoveryUrl(false)"><i class="bi bi-chevron-up"></i> Collapse</a>
+            </header>
+
+            <div class="person-photo-discovery__status" role="status" aria-live="polite">
+                <span><strong data-person-discovery-panel-count>@personProfile.PossibleMatchCount</strong> possible photo@(personProfile.PossibleMatchCount == 1 ? "" : "s")</span>
+                @if (personProfile.BackgroundMatchingCount > 0)
+                {
+                    <span class="is-matching" data-person-discovery-matching><i class="bi bi-arrow-repeat"></i> @personProfile.BackgroundMatchingCount unresolved appearance@(personProfile.BackgroundMatchingCount == 1 ? " is" : "s are") still being checked</span>
+                }
+                else
+                {
+                    <span class="is-matching" data-person-discovery-matching hidden></span>
+                }
+            </div>
+
+            @if (!personProfile.HasTrustedReference)
+            {
+                <div class="person-photo-discovery__empty">
+                    <i class="bi bi-shield-check" aria-hidden="true"></i>
+                    <div>
+                        <h3>Trusted matching reference required</h3>
+                        <p>PRISM needs at least one explicitly trusted appearance of @personProfile.DisplayName before it can suggest additional photographs. Confirmed photographs are never promoted to matching references automatically.</p>
+                    </div>
+                    @if (Model.CanManagePeople)
+                    {
+                        <a class="btn btn-outline-primary" asp-page="/Photos/People/Details" asp-route-id="@personProfile.PersonId">Manage identity</a>
+                    }
+                </div>
+            }
+            else if (discovery is not null && discovery.Candidates.Count > 0)
+            {
+                <form method="post" class="d-none" data-person-discovery-batch-token-form>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="personId" value="@personProfile.PersonId" />
+                    <input type="hidden" name="returnUrl" value="@profileReturnUrl" />
+                </form>
+
+                <div class="person-photo-discovery__batch" data-person-discovery-batch hidden>
+                    <strong><span data-person-discovery-selected-count>0</span> selected</strong>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-primary" data-person-discovery-batch-confirm>Confirm selected as @personProfile.DisplayName</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-person-discovery-batch-reject>Not @personProfile.DisplayName</button>
+                        <button type="button" class="btn btn-sm btn-link" data-person-discovery-batch-clear>Clear</button>
+                    </div>
+                </div>
+
+                <div class="person-photo-discovery__grid" data-person-discovery-grid>
+                    @foreach (var candidate in discovery.Candidates)
+                    {
+                        var evidenceClass = IndexModel.CandidateEvidenceCssClass(candidate.ConfidenceLevel);
+                        <article class="person-photo-candidate" data-person-candidate data-face-id="@candidate.FaceId">
+                            <label class="person-photo-candidate__select" title="Select this possible appearance">
+                                <input type="checkbox" class="form-check-input" value="@candidate.FaceId" data-person-candidate-select />
+                                <span class="visually-hidden">Select possible appearance from @candidate.ContextTitle</span>
+                            </label>
+                            <div class="person-photo-candidate__face">
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.FaceId })" alt="Possible appearance of @personProfile.DisplayName from @candidate.ContextTitle" loading="lazy" />
+                                <span class="person-photo-candidate__evidence @evidenceClass" title="Similarity is a ranking signal, not identity probability.">
+                                    @IndexModel.CandidateEvidenceLabel(candidate.ConfidenceLevel) · @candidate.Similarity.ToString("0.000")
+                                </span>
+                            </div>
+                            <div class="person-photo-candidate__body">
+                                <h3>@candidate.ContextTitle</h3>
+                                <p>
+                                    @if (!string.IsNullOrWhiteSpace(candidate.ContextSubtitle))
+                                    {
+                                        <span>@candidate.ContextSubtitle · </span>
+                                    }
+                                    <span>@candidate.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                </p>
+                                <div class="person-photo-candidate__evidence-detail">
+                                    <span>@candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")</span>
+                                    @if (candidate.MarginAvailable && candidate.MarginToNext.HasValue)
+                                    {
+                                        <span>Separation @candidate.MarginToNext.Value.ToString("0.000")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Separation unavailable</span>
+                                    }
+                                </div>
+                                <a class="person-photo-candidate__view" href="@Url.Page("/Photos/Media", new { id = candidate.AssetId, variant = "preview" })" target="_blank" rel="noopener">View photograph <i class="bi bi-arrow-up-right"></i></a>
+                            </div>
+                            <div class="person-photo-candidate__actions">
+                                <form method="post" asp-page-handler="ConfirmPersonCandidate" data-person-candidate-form>
+                                    <input type="hidden" name="personId" value="@personProfile.PersonId" />
+                                    <input type="hidden" name="faceId" value="@candidate.FaceId" />
+                                    <input type="hidden" name="returnUrl" value="@profileReturnUrl" />
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Yes, @personProfile.DisplayName</button>
+                                </form>
+                                <form method="post" asp-page-handler="RejectPersonCandidate" data-person-candidate-form>
+                                    <input type="hidden" name="personId" value="@personProfile.PersonId" />
+                                    <input type="hidden" name="faceId" value="@candidate.FaceId" />
+                                    <input type="hidden" name="returnUrl" value="@profileReturnUrl" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Not @personProfile.DisplayName</button>
+                                </form>
+                            </div>
+                        </article>
+                    }
+                </div>
+
+                @if (discovery.TotalCandidates > discovery.Candidates.Count)
+                {
+                    <div class="person-photo-discovery__more">Showing the strongest @discovery.Candidates.Count of @discovery.TotalCandidates possible photos. Review these first; the next candidates will surface as decisions are completed.</div>
+                }
+            }
+            else if (personProfile.BackgroundMatchingCount > 0)
+            {
+                <div class="person-photo-discovery__empty" data-person-discovery-empty>
+                    <i class="bi bi-arrow-repeat person-photo-discovery__spinner" aria-hidden="true"></i>
+                    <div>
+                        <h3>Checking unresolved photos</h3>
+                        <p>No possible appearance is ready for review yet. Background matching is still comparing unresolved faces with the trusted references for confirmed people.</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="person-photo-discovery__empty" data-person-discovery-empty>
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                    <div>
+                        <h3>No possible matches currently found</h3>
+                        <p>There is no unresolved face currently suggested as @personProfile.DisplayName. New suggestions will appear automatically when additional media is processed.</p>
+                        @if (personProfile.MatchingFailureCount > 0)
+                        {
+                            <small>@personProfile.MatchingFailureCount unresolved appearance@(personProfile.MatchingFailureCount == 1 ? " has" : "s have") a matching failure and can be reviewed from Media Intelligence.</small>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="person-photo-discovery__notice" data-person-discovery-notice hidden role="status" aria-live="polite"></div>
+        </section>
+    }
+
     <div class="photos-update-banner" data-library-update-banner hidden role="status" aria-live="polite">
         <span><i class="bi bi-arrow-repeat" aria-hidden="true"></i><strong>New media is available.</strong> Refresh when convenient; your current work will not be interrupted.</span>
         <button type="button" class="btn btn-sm btn-primary" data-library-refresh>Refresh</button>
@@ -363,7 +555,7 @@
             @if (Model.Classification != "all") { <span class="photos-filter-chip"><i class="bi bi-stars"></i>@Model.Classification.Replace("-", " ")</span> }
             @if (Model.ProjectId.HasValue) { <span class="photos-filter-chip"><i class="bi bi-folder"></i>@(Model.SelectedProjectName ?? $"Project {Model.ProjectId}")</span> }
             @if (Model.Year.HasValue) { <span class="photos-filter-chip"><i class="bi bi-calendar3"></i>@Model.Year</span> }
-            @if (hasPeopleFilter) { <span class="photos-filter-chip"><i class="bi bi-people"></i>@Model.SelectedPeople.Count person@(Model.SelectedPeople.Count == 1 ? "" : "s")@(Model.PersonIds.Length > 1 ? $" · {Model.PeopleMatch}" : "")</span> }
+            @if (showPeopleFilterChip) { <span class="photos-filter-chip"><i class="bi bi-people"></i>@Model.SelectedPeople.Count people · @Model.PeopleMatch</span> }
             @if (Model.IsCollectionDetail) { <span class="photos-filter-chip"><i class="bi bi-collection"></i>@(Model.CurrentCollectionTitle ?? "Collection")</span> }
             <a href="@Model.BuildClearFiltersUrl()">Clear filters</a>
         </div>
@@ -761,6 +953,7 @@
             <input type="hidden" name="Q" value="@Model.Q" />
             @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
             @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+            @if (Model.IsSinglePersonProfile && Model.FindMore) { <input type="hidden" name="FindMore" value="true" /> }
             @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
             @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
             <div>
@@ -810,7 +1003,7 @@
                 </select>
                 <small>Selecting a project limits the library to project media.</small>
             </div>
-            @if (Model.PeopleFeatureEnabled && Model.People.Count > 0)
+            @if (Model.PeopleFeatureEnabled && Model.People.Count > 0 && !Model.IsSinglePersonProfile)
             {
                 <div>
                     <label for="personFilter">People</label>
@@ -856,7 +1049,7 @@
                 </div>
             }
             <div class="photos-filter-form__actions">
-                <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
+                <a href="@Model.BuildClearFiltersUrl()" class="btn btn-outline-secondary">Reset</a>
                 <button type="submit" class="btn btn-primary" data-photos-filter-submit disabled>Apply filters</button>
             </div>
         </form>
@@ -919,4 +1112,5 @@
 @section Scripts {
     <script src="~/js/pages/photos-library.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-curation.js" asp-append-version="true"></script>
+    <script src="~/js/pages/photos-person-profile.js" asp-append-version="true"></script>
 }

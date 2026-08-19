@@ -1,7 +1,18 @@
-# PRISM Photos candidate visibility compatibility hotfix
+# Apply instructions
 
-Copy the project files in this package over the project root and overwrite the matching file.
+Copy the package contents over the ProjectManagement project root, preserving folders and overwriting the matching files.
 
-This hotfix restores the canonical `IMediaAssetVisibilityPolicy` dependency and the optional `visibleAssetIds` argument on `FaceCandidateSearchService.BuildReferenceRowsQuery` while retaining the cancellation checks added by the matching-recovery phase.
+Recommended verification from the project root:
 
-No database migration or configuration change is required.
+```powershell
+dotnet clean
+Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+dotnet build .\ProjectManagement.csproj
+dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+node --check .\wwwroot\js\pages\photos-library.js
+node --check .\wwwroot\js\pages\photos-curation.js
+node --check .\wwwroot\js\pages\photos-person-profile.js
+node --test .\wwwroot\js\pages\photos-person-profile-contract.test.js
+```
+
+No EF migration or appsettings change is required.

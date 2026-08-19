@@ -79,6 +79,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaAlbumService, MediaAlbumService>();
         services.AddScoped<IMediaBulkDownloadService, MediaBulkDownloadService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
+        services.AddScoped<IPersonPhotoDiscoveryQueryService, PersonPhotoDiscoveryQueryService>();
         services.AddScoped<IFaceReviewWorkloadService, FaceReviewWorkloadService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();

@@ -275,6 +275,30 @@ public interface IFaceReviewService
         double? confidence,
         CancellationToken cancellationToken);
 
+    Task ConfirmCandidateAsync(
+        Guid faceId,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task ConfirmCandidateManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task RejectCandidateAsync(
+        Guid faceId,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task RejectCandidateManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken);
+
     Task RejectAsync(
         Guid faceId,
         Guid? personId,

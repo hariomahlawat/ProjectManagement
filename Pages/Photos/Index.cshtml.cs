@@ -28,6 +28,8 @@ public sealed partial class IndexModel : PageModel
     private readonly IMediaLibraryQueryService _library;
     private readonly IMediaCollectionQueryService _collections;
     private readonly IMediaAlbumService _albums;
+    private readonly IPersonPhotoDiscoveryQueryService _personDiscovery;
+    private readonly IFaceReviewService _faceReview;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
@@ -39,6 +41,8 @@ public sealed partial class IndexModel : PageModel
         IMediaLibraryQueryService library,
         IMediaCollectionQueryService collections,
         IMediaAlbumService albums,
+        IPersonPhotoDiscoveryQueryService personDiscovery,
+        IFaceReviewService faceReview,
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IOptions<MediaLibraryOptions> mediaOptions,
         IProtectedFileUrlBuilder fileUrlBuilder,
@@ -49,6 +53,8 @@ public sealed partial class IndexModel : PageModel
         _library = library ?? throw new ArgumentNullException(nameof(library));
         _collections = collections ?? throw new ArgumentNullException(nameof(collections));
         _albums = albums ?? throw new ArgumentNullException(nameof(albums));
+        _personDiscovery = personDiscovery ?? throw new ArgumentNullException(nameof(personDiscovery));
+        _faceReview = faceReview ?? throw new ArgumentNullException(nameof(faceReview));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
         _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
@@ -75,6 +81,7 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public bool IncludeSingletonCollections { get; set; }
     [BindProperty(SupportsGet = true)] public bool IncludeArchivedAlbums { get; set; }
     [BindProperty(SupportsGet = true)] public bool OrganizeAlbum { get; set; }
+    [BindProperty(SupportsGet = true)] public bool FindMore { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<MediaItem> Items { get; private set; } = Array.Empty<MediaItem>();
@@ -122,6 +129,7 @@ public sealed partial class IndexModel : PageModel
     {
         NormalizeRequest();
         await LoadSelectedPeopleAsync(cancellationToken);
+        await LoadPersonPhotoProfileAsync(cancellationToken);
         await LoadAddMediaTargetAsync(cancellationToken);
 
         var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
@@ -1298,7 +1306,8 @@ public sealed partial class IndexModel : PageModel
         string? peopleMatch = null,
         string? view = null,
         string? collection = null,
-        string? sort = null)
+        string? sort = null,
+        bool? findMore = null)
     {
         var targetView = view ?? View;
         var values = new RouteValueDictionary
@@ -1330,6 +1339,11 @@ public sealed partial class IndexModel : PageModel
         {
             values["PeopleMatch"] = null;
         }
+
+        var discoveryOpen = findMore ?? FindMore;
+        values["FindMore"] = targetView == "photos" && index == 1 && discoveryOpen
+            ? true
+            : (bool?)null;
 
         return Url.Page("/Photos/Index", values) ?? "/Photos";
     }
@@ -1383,7 +1397,20 @@ public sealed partial class IndexModel : PageModel
         => BuildPhotosUrl(PersonIds, view: "photos", collection: string.Empty, pageNumber: 1);
 
     public string BuildClearFiltersUrl()
-        => Url.Page("/Photos/Index", new
+    {
+        if (IsSinglePersonProfile)
+        {
+            var values = new RouteValueDictionary
+            {
+                ["View"] = "photos",
+                ["Sort"] = Sort == "newest" ? null : Sort,
+                ["FindMore"] = FindMore ? true : (bool?)null,
+                ["PersonIds[0]"] = SelectedPeople[0].Id
+            };
+            return Url.Page("/Photos/Index", values) ?? "/Photos";
+        }
+
+        return Url.Page("/Photos/Index", new
         {
             View,
             CollectionTab = View == "collections" ? CollectionTab : null,
@@ -1392,6 +1419,7 @@ public sealed partial class IndexModel : PageModel
                 ? AddMediaTargetAlbum.Id
                 : (Guid?)null
         }) ?? "/Photos";
+    }
 
     public string CurrentReturnUrl
         => $"{Request.PathBase}{Request.Path}{Request.QueryString}";

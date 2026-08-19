@@ -1,24 +1,21 @@
-PRISM Photos — Matching Recovery & Pagination Stabilisation
-Validation performed in this environment
+PRISM Photos — Person Photo Profile & Find More Photos
+Validation performed in this environment:
 
-Baseline
-- Current consolidated Photos code reconstructed from the latest conversation implementation packages.
-- Delta contains 19 project files (17 modified + 2 new).
+- Changed/new project files: 13
+- C# lexical/string/comment/delimiter structural validation: PASS (9 affected C# source/test files)
+- CSS structural validation: PASS
+- node --check photos-library.js: PASS
+- node --check photos-curation.js: PASS
+- node --check photos-person-profile.js: PASS
+- node --test photos-person-profile-contract.test.js: PASS (3/3)
+- Unified patch dry-run against exact merged current baseline: PASS
+- Unified patch apply against clean merged current baseline: PASS
+- Patched files byte-for-byte against ready-to-paste implementation: PASS (13/13)
+- Existing IMediaAlbumService DI registration preserved: PASS
+- New IPersonPhotoDiscoveryQueryService DI registration present: PASS
+- Existing MediaBulkDownloadOptions compatibility preserved: PASS
+- Existing candidate reference-query compatibility preserved: PASS
+- EF migration required: NO
+- appsettings change required: NO
 
-Checks completed
-- node --check wwwroot/js/pages/photos-people-review.js: PASSED
-- C# lexical/string/comment/delimiter structural validation: PASSED for all 14 changed C# files
-- IFaceCandidateRefreshQueueService implementation contract check: PASSED
-- New runtime-state service registration verified in MediaLibraryServiceCollectionExtensions: PASSED
-- Single-page pagination guards verified in Source Collections, Albums, People directory and People review: PASSED
-- Unified patch dry-run against clean current baseline: PASSED
-- Unified patch applied to clean baseline: PASSED
-- Patched project files compared byte-for-byte with implementation: 19 files, 0 mismatches
-
-Not executable in this environment
-- dotnet build
-- xUnit test execution
-The .NET SDK/compiler is not installed in this runtime. Run the commands in README-APPLY.md on the development machine.
-
-Database
-- No EF migration required.
+Not executable here: dotnet build / xUnit, because the .NET SDK is not installed in this environment.

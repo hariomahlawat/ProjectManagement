@@ -196,6 +196,149 @@ public sealed class FaceReviewService : IFaceReviewService
         _invalidation.NotifyGroupingChanged();
     }
 
+    public Task ConfirmCandidateAsync(
+        Guid faceId,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken)
+        => ConfirmCandidateManyAsync(
+            new[] { faceId },
+            personId,
+            userId,
+            cancellationToken);
+
+    public async Task ConfirmCandidateManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        var selectedFaces = NormalizeFaceSelection(faceIds);
+        ValidateUserId(userId);
+        if (selectedFaces.Count > Math.Clamp(_options.CandidateBatchConfirmationLimit, 1, 100))
+        {
+            throw new FaceIdentityConflictException(
+                $"No more than {_options.CandidateBatchConfirmationLimit} candidate appearances may be confirmed in one operation.");
+        }
+        if (selectedFaces.Count > 1)
+        {
+            await ValidateGroupSelectionAsync(selectedFaces, requireUnassigned: true, cancellationToken);
+        }
+
+        await ExecuteTransactionalAsync(async () =>
+        {
+            var person = await RequireActivePersonAsync(personId, cancellationToken);
+            await RequireCurrentCandidateEvidenceAsync(selectedFaces, person.Id, cancellationToken);
+
+            foreach (var faceId in selectedFaces)
+            {
+                await AssignCoreAsync(
+                    faceId,
+                    person,
+                    userId,
+                    null,
+                    FaceAssignmentType.HumanConfirmed,
+                    trustAsReference: false,
+                    cancellationToken);
+            }
+
+            if (selectedFaces.Count > 1)
+            {
+                _db.IdentityAudits.Add(new MediaIdentityAudit
+                {
+                    FaceId = selectedFaces[0],
+                    PersonId = person.Id,
+                    NewPersonId = person.Id,
+                    Action = "FaceGroupAssigned",
+                    PerformedByUserId = userId,
+                    Notes = $"Confirmed {selectedFaces.Count} reviewer-selected candidate appearances as '{person.DisplayName}'.",
+                    MetadataJson = JsonSerializer.Serialize(new
+                    {
+                        FaceIds = selectedFaces,
+                        Source = "PersonPhotoProfile"
+                    }),
+                    PerformedAtUtc = DateTimeOffset.UtcNow
+                });
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        _invalidation.NotifyGroupingChanged();
+    }
+
+    public Task RejectCandidateAsync(
+        Guid faceId,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken)
+        => RejectCandidateManyAsync(
+            new[] { faceId },
+            personId,
+            userId,
+            cancellationToken);
+
+    public async Task RejectCandidateManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        var selectedFaces = NormalizeFaceSelection(faceIds);
+        ValidateUserId(userId);
+        if (selectedFaces.Count > Math.Clamp(_options.CandidateBatchConfirmationLimit, 1, 100))
+        {
+            throw new FaceIdentityConflictException(
+                $"No more than {_options.CandidateBatchConfirmationLimit} candidate appearances may be rejected in one operation.");
+        }
+
+        await ExecuteTransactionalAsync(async () =>
+        {
+            var person = await RequireActivePersonAsync(personId, cancellationToken);
+            await RequireCurrentCandidateEvidenceAsync(selectedFaces, person.Id, cancellationToken);
+
+            var decisions = await _db.FaceReviewDecisions
+                .Where(decision => selectedFaces.Contains(decision.MediaFaceId)
+                                   && decision.CandidatePersonId == person.Id
+                                   && decision.Decision == FaceReviewDecisionType.Pending
+                                   && decision.ModelKey == _options.Embedder.Key
+                                   && decision.ModelVersion == _options.Embedder.Version)
+                .ToListAsync(cancellationToken);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var decision in decisions)
+            {
+                decision.Decision = FaceReviewDecisionType.Rejected;
+                decision.DecidedByUserId = userId;
+                decision.DecidedAtUtc = now;
+                decision.Notes = "Known-person suggestion rejected from the person photo profile.";
+                decision.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            _db.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                FaceId = selectedFaces[0],
+                PersonId = person.Id,
+                PreviousPersonId = person.Id,
+                Action = selectedFaces.Count == 1 ? "CandidateRejected" : "GroupCandidateRejected",
+                PerformedByUserId = userId,
+                Notes = selectedFaces.Count == 1
+                    ? $"Rejected the suggestion that this appearance is '{person.DisplayName}'."
+                    : $"Rejected the suggestion that {selectedFaces.Count} reviewer-selected appearances are '{person.DisplayName}'.",
+                MetadataJson = JsonSerializer.Serialize(new
+                {
+                    FaceIds = selectedFaces,
+                    CandidatePersonId = person.Id,
+                    Source = "PersonPhotoProfile"
+                }),
+                PerformedAtUtc = now
+            });
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        await _invalidation.NotifyFacesNeedRematchAsync(selectedFaces, cancellationToken);
+    }
+
     public async Task RejectAsync(
         Guid faceId,
         Guid? personId,
@@ -1491,6 +1634,45 @@ public sealed class FaceReviewService : IFaceReviewService
             decision.DecidedByUserId = userId;
             decision.DecidedAtUtc = now;
             decision.ConcurrencyToken = Guid.NewGuid();
+        }
+    }
+
+    private async Task RequireCurrentCandidateEvidenceAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
+        CancellationToken cancellationToken)
+    {
+        var visibleAssetIds = BuildVisibleAssetIdsQuery();
+        var eligibleFaceIds = await PersonPhotoDiscoveryQueryService
+            .BuildCandidateRowsQuery(
+                _db,
+                personId,
+                _options.Embedder.Key,
+                _options.Embedder.Version,
+                visibleAssetIds)
+            .Where(row => faceIds.Contains(row.FaceId))
+            .Select(row => row.FaceId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (eligibleFaceIds.Count != faceIds.Count)
+        {
+            throw new FaceIdentityConflictException(
+                "One or more person-match suggestions are no longer current, visible, or unassigned. Refresh the profile and review the remaining suggestions.");
+        }
+
+        var hasTrustedReference = await PersonPhotoDiscoveryQueryService
+            .BuildValidTrustedReferenceFacesQuery(
+                _db,
+                personId,
+                _options.Embedder.Key,
+                _options.Embedder.Version,
+                _options.Embedder.EmbeddingDimension,
+                visibleAssetIds)
+            .AnyAsync(cancellationToken);
+        if (!hasTrustedReference)
+        {
+            throw new FaceIdentityConflictException(
+                "This person no longer has a current trusted matching reference. Review the identity before confirming suggested appearances.");
         }
     }
 
