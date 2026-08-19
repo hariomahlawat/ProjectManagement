@@ -1310,12 +1310,13 @@ public sealed partial class IndexModel : PageModel
         bool? findMore = null)
     {
         var targetView = view ?? View;
+        var targetKind = kind ?? Kind;
         var values = new RouteValueDictionary
         {
             ["View"] = targetView,
             ["Q"] = Q,
             ["Source"] = Source == "all" ? null : Source,
-            ["Kind"] = kind ?? Kind,
+            ["Kind"] = targetKind == "all" ? null : targetKind,
             ["Classification"] = Classification == "all" ? null : Classification,
             ["ProjectId"] = ProjectId,
             ["Year"] = Year,
@@ -1329,19 +1330,32 @@ public sealed partial class IndexModel : PageModel
             ["PageNumber"] = pageNumber is > 1 ? pageNumber : (int?)null
         };
 
-        var index = 0;
-        foreach (var personId in personIds.Distinct().Take(10))
+        var selectedPersonIds = personIds
+            .Where(personId => personId != Guid.Empty)
+            .Distinct()
+            .Take(10)
+            .ToArray();
+        if (selectedPersonIds.Length == 1)
         {
-            values[$"PersonIds[{index++}]"] = personId;
+            // Keep single-person profile URLs canonical and readable. Razor model binding
+            // accepts PersonIds=<guid>; indexed keys are only needed for multi-person state.
+            values["PersonIds"] = selectedPersonIds[0];
+        }
+        else
+        {
+            for (var index = 0; index < selectedPersonIds.Length; index++)
+            {
+                values[$"PersonIds[{index}]"] = selectedPersonIds[index];
+            }
         }
 
-        if (index < 2)
+        if (selectedPersonIds.Length < 2)
         {
             values["PeopleMatch"] = null;
         }
 
         var discoveryOpen = findMore ?? FindMore;
-        values["FindMore"] = targetView == "photos" && index == 1 && discoveryOpen
+        values["FindMore"] = targetView == "photos" && selectedPersonIds.Length == 1 && discoveryOpen
             ? true
             : (bool?)null;
 
@@ -1405,7 +1419,7 @@ public sealed partial class IndexModel : PageModel
                 ["View"] = "photos",
                 ["Sort"] = Sort == "newest" ? null : Sort,
                 ["FindMore"] = FindMore ? true : (bool?)null,
-                ["PersonIds[0]"] = SelectedPeople[0].Id
+                ["PersonIds"] = SelectedPeople[0].Id
             };
             return Url.Page("/Photos/Index", values) ?? "/Photos";
         }

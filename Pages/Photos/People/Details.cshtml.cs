@@ -14,22 +14,27 @@ public sealed class DetailsModel : PageModel
 {
     private readonly IMediaPeopleQueryService _people;
     private readonly IFaceReviewService _review;
+    private readonly IFaceReferenceReadinessService _referenceReadiness;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<DetailsModel> _logger;
 
     public DetailsModel(
         IMediaPeopleQueryService people,
         IFaceReviewService review,
+        IFaceReferenceReadinessService referenceReadiness,
         IOptions<MediaLibraryOptions> options,
         ILogger<DetailsModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
         _review = review ?? throw new ArgumentNullException(nameof(review));
+        _referenceReadiness = referenceReadiness ?? throw new ArgumentNullException(nameof(referenceReadiness));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public MediaPersonDetailsResult Person { get; private set; } = null!;
+    public IReadOnlyDictionary<Guid, FaceReferenceReadiness> ReferenceReadiness { get; private set; }
+        = new Dictionary<Guid, FaceReferenceReadiness>();
     public bool FeatureEnabled => _options.People.Enabled;
 
     [TempData]
@@ -52,6 +57,10 @@ public sealed class DetailsModel : PageModel
         }
 
         Person = person;
+        ReferenceReadiness = await _referenceReadiness.GetManyAsync(
+            person.Id,
+            person.Photos.Select(photo => photo.FaceId).ToArray(),
+            cancellationToken);
         return Page();
     }
 
@@ -107,6 +116,40 @@ public sealed class DetailsModel : PageModel
             status == FaceReferenceStatus.TrustedReference
                 ? "Appearance is now a trusted matching reference."
                 : "Appearance has been excluded from matching references.");
+    }
+
+    public async Task<IActionResult> OnPostPrepareReferenceAsync(
+        Guid id,
+        Guid faceId,
+        CancellationToken cancellationToken)
+    {
+        if (!FeatureEnabled)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var readiness = await _referenceReadiness.QueuePreparationAsync(
+                id,
+                faceId,
+                UserId,
+                cancellationToken);
+            StatusMessage = readiness.IsPreparationPending
+                ? "Face embedding preparation queued. PRISM will preserve this confirmed identity while rebuilding current matching evidence in the background."
+                : readiness.Message;
+        }
+        catch (Exception exception) when (IsExpectedReviewException(exception))
+        {
+            _logger.LogWarning(
+                exception,
+                "Unable to prepare face {FaceId} as matching evidence for person {PersonId}.",
+                faceId,
+                id);
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage("./Details", pageHandler: null, routeValues: new { id }, fragment: "matching-reference-setup");
     }
 
     public Task<IActionResult> OnPostRemoveAssignmentAsync(

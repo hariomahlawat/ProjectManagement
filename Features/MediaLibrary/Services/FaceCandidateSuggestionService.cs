@@ -191,6 +191,21 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
             return 0;
         }
 
+        // Bootstrap fast-path: a new installation may legitimately have unresolved faces
+        // before any confirmed person has a trusted reference. There is nothing to compare
+        // in that state, so complete candidate search deterministically instead of leaving
+        // faces Pending/Processing. When the first trusted reference is created, the normal
+        // evidence-invalidation path requeues unresolved faces automatically.
+        if (!await HasUsableReferenceCorpusAsync(
+                modelKey,
+                modelVersion,
+                dimension,
+                cancellationToken))
+        {
+            await CompleteWithoutReferenceCorpusAsync(faces, inputs, cancellationToken);
+            return inputs.Count;
+        }
+
         IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>> candidatesByFace;
         using var searchTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var timeoutSeconds = Math.Clamp(_options.CandidateSearchTimeoutSeconds, 5, 600);
@@ -312,6 +327,63 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
             "Refreshed known-person candidates for {FaceCount} face(s) using one bounded reference-set load.",
             inputs.Count);
         return inputs.Count;
+    }
+
+    private async Task<bool> HasUsableReferenceCorpusAsync(
+        string modelKey,
+        string modelVersion,
+        int dimension,
+        CancellationToken cancellationToken)
+    {
+        var visibleAssetIds = _visibility
+            .Apply(_db.Assets.AsNoTracking())
+            .Select(asset => asset.Id);
+        return await FaceCandidateSearchService.BuildReferenceRowsQuery(
+                _db,
+                Guid.Empty,
+                modelKey,
+                modelVersion,
+                dimension,
+                _options.CandidateMinimumTrustedReferenceQuality,
+                1,
+                visibleAssetIds)
+            .AnyAsync(cancellationToken);
+    }
+
+    private async Task CompleteWithoutReferenceCorpusAsync(
+        IReadOnlyCollection<MediaFace> faces,
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        CancellationToken cancellationToken)
+    {
+        var faceIds = inputs.Select(input => input.FaceId).ToArray();
+        var staleSuggestions = await _db.FaceReviewDecisions
+            .Where(decision => faceIds.Contains(decision.MediaFaceId)
+                               && decision.CandidatePersonId.HasValue
+                               && decision.Decision == FaceReviewDecisionType.Pending)
+            .ToListAsync(cancellationToken);
+        if (staleSuggestions.Count > 0)
+        {
+            _db.FaceReviewDecisions.RemoveRange(staleSuggestions);
+        }
+
+        var completedAt = DateTimeOffset.UtcNow;
+        var inputByFace = inputs.ToDictionary(input => input.FaceId);
+        foreach (var face in faces.Where(face => inputByFace.ContainsKey(face.Id)))
+        {
+            var input = inputByFace[face.Id];
+            face.CandidateSearchStatus = FaceCandidateSearchStatus.Ready;
+            face.CandidateSearchModelKey = input.ModelKey;
+            face.CandidateSearchModelVersion = input.ModelVersion;
+            face.CandidateSearchFailureReason = null;
+            face.CandidateSearchCompletedAtUtc = completedAt;
+            face.UpdatedAtUtc = completedAt;
+            face.ConcurrencyToken = Guid.NewGuid();
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Completed candidate search for {FaceCount} unresolved face(s) with zero candidates because no usable trusted-reference corpus exists.",
+            inputs.Count);
     }
 
     private async Task MarkSearchFailedAsync(

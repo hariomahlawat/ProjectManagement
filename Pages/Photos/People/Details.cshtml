@@ -7,10 +7,12 @@
     ViewData["PageShell"] = "wide";
     var firstSeen = Model.Person.FirstMediaDateUtc?.ToLocalTime();
     var lastSeen = Model.Person.LatestMediaDateUtc?.ToLocalTime();
+    var usableTrustedReferenceCount = Model.ReferenceReadiness.Values.Count(item => item.IsTrusted && item.IsUsableReference);
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/photos-reference-readiness.css" asp-append-version="true" />
 }
 
 <div class="people-workspace" data-person-details>
@@ -38,7 +40,7 @@
             <p>
                 @Model.Person.ConfirmedFaceCount confirmed appearance@(Model.Person.ConfirmedFaceCount == 1 ? string.Empty : "s")
                 in @Model.Person.PhotoCount photo@(Model.Person.PhotoCount == 1 ? string.Empty : "s")
-                · @Model.Person.TrustedReferenceCount trusted matching reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s")
+                · @usableTrustedReferenceCount usable trusted matching reference@(usableTrustedReferenceCount == 1 ? string.Empty : "s")
                 @if (firstSeen.HasValue && lastSeen.HasValue)
                 {
                     if (firstSeen.Value.Date == lastSeen.Value.Date)
@@ -69,16 +71,17 @@
         <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
     }
 
-    @if (Model.Person.TrustedReferenceCount == 0)
+    @if (usableTrustedReferenceCount == 0)
     {
         <div class="alert alert-warning" role="alert">
-            <strong>No trusted matching reference.</strong> This person remains fully confirmed, but PRISM will not use these appearances for future identity suggestions until a clear, verified face is explicitly trusted.
+            <strong>No usable trusted matching reference.</strong> This person remains fully confirmed, but Find More Photos needs one current, explicitly trusted face embedding.
+            <a href="#matching-reference-setup" class="alert-link">Choose or prepare a matching reference below.</a>
         </div>
     }
-    else if (Model.Person.ConfirmedFaceCount > Model.Person.TrustedReferenceCount)
+    else if (Model.Person.ConfirmedFaceCount > usableTrustedReferenceCount)
     {
         <div class="alert alert-info" role="status">
-            Only the @Model.Person.TrustedReferenceCount explicitly trusted reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s") influence future matching. Other confirmed appearances remain part of this person but do not train or expand the reference set automatically.
+            Only the @usableTrustedReferenceCount current trusted reference@(usableTrustedReferenceCount == 1 ? string.Empty : "s") influence future matching. Other confirmed appearances remain part of this person but do not train or expand the reference set automatically.
         </div>
     }
 
@@ -143,7 +146,7 @@
     }
     else
     {
-        <section class="person-photo-section" aria-labelledby="personPhotosTitle">
+        <section class="person-photo-section" id="matching-reference-setup" aria-labelledby="personPhotosTitle">
             <header>
                 <div>
                     <span class="people-eyebrow">Confirmed appearances</span>
@@ -204,6 +207,23 @@
                             <span class="person-photo-card__quality" title="Face-image quality used for processing; this is not identity confidence.">
                                 Face quality @(Math.Round(photo.FaceQualityScore * 100))% · @photo.AssignmentType
                             </span>
+                            @{
+                                var readiness = Model.ReferenceReadiness.GetValueOrDefault(photo.FaceId);
+                            }
+                            @if (readiness is not null)
+                            {
+                                <div class="reference-readiness @(readiness.IsUsableReference ? "is-ready" : readiness.IsPreparationPending ? "is-pending" : readiness.CanPrepare ? "is-repairable" : "is-blocked")">
+                                    <div class="reference-readiness__row">
+                                        <span>Matching readiness</span>
+                                        <strong>@readiness.Label</strong>
+                                    </div>
+                                    <p>@readiness.Message</p>
+                                    @if (!string.IsNullOrWhiteSpace(readiness.FailureReason))
+                                    {
+                                        <small title="Last background-processing failure">Last failure: @readiness.FailureReason</small>
+                                    }
+                                </div>
+                            }
                             <div class="person-photo-card__actions">
                                 @if (!photo.IsRepresentative)
                                 {
@@ -213,33 +233,64 @@
                                         <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-star"></i> Use as cover</button>
                                     </form>
                                 }
-                                <details class="person-reference-menu">
-                                    <summary class="btn btn-sm @(photo.ReferenceStatus == FaceReferenceStatus.TrustedReference ? "btn-outline-success" : "btn-outline-primary")">
-                                        <i class="bi bi-shield-check"></i> Matching reference
-                                    </summary>
-                                    <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
-                                        <input type="hidden" name="id" value="@Model.Person.Id" />
-                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
-                                        @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference)
-                                        {
+                                @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference && readiness?.IsUsableReference == true)
+                                {
+                                    <details class="person-reference-menu">
+                                        <summary class="btn btn-sm btn-outline-success">
+                                            <i class="bi bi-shield-check"></i> Matching reference
+                                        </summary>
+                                        <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
+                                            <input type="hidden" name="id" value="@Model.Person.Id" />
+                                            <input type="hidden" name="faceId" value="@photo.FaceId" />
                                             <input type="hidden" name="referenceAction" value="exclude" />
                                             <strong>Exclude from matching</strong>
                                             <p>This appearance remains confirmed but will no longer influence future suggestions.</p>
                                             <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
                                                       placeholder="Why should this face no longer be a matching reference?" required></textarea>
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Exclude reference</button>
-                                        }
-                                        else
-                                        {
+                                        </form>
+                                    </details>
+                                }
+                                else if (readiness?.CanTrust == true)
+                                {
+                                    <details class="person-reference-menu">
+                                        <summary class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-shield-check"></i> Use as matching reference
+                                        </summary>
+                                        <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
+                                            <input type="hidden" name="id" value="@Model.Person.Id" />
+                                            <input type="hidden" name="faceId" value="@photo.FaceId" />
                                             <input type="hidden" name="referenceAction" value="trust" />
                                             <strong>Trust for matching</strong>
                                             <p>Use this clear, verified face as evidence for future known-person suggestions.</p>
                                             <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
                                                       placeholder="Why is this appearance suitable as a trusted reference?" required></textarea>
                                             <button type="submit" class="btn btn-sm btn-primary">Trust reference</button>
-                                        }
+                                        </form>
+                                    </details>
+                                }
+                                else if (readiness?.IsPreparationPending == true)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="PRISM is rebuilding current matching evidence in the background.">
+                                        <i class="bi bi-arrow-repeat"></i> Preparing embedding
+                                    </button>
+                                }
+                                else if (readiness?.CanPrepare == true)
+                                {
+                                    <form method="post" asp-page-handler="PrepareReference">
+                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                        <button type="submit" class="btn btn-sm btn-outline-primary" title="@readiness.Message">
+                                            <i class="bi bi-cpu"></i> Prepare for matching
+                                        </button>
                                     </form>
-                                </details>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="@(readiness?.Message ?? "This appearance cannot be used as matching evidence.")">
+                                        <i class="bi bi-shield-x"></i> Not eligible for matching
+                                    </button>
+                                }
                                 <details>
                                     <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Correct appearance</summary>
                                     <div class="person-correction-menu">

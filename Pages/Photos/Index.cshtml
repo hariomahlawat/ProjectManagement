@@ -119,17 +119,29 @@
             {
                 @if (Model.CanReviewPersonCandidates)
                 {
-                    <a class="photos-action photos-action--primary photos-person-profile__discover"
-                       href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
-                       aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
-                       aria-controls="personPhotoDiscovery">
-                        <i class="bi bi-person-bounding-box"></i>
-                        <span>@(Model.ShowPersonDiscovery ? "Hide matches" : "Find more photos")</span>
-                        @if (personProfile is not null)
-                        {
-                            <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
-                        }
-                    </a>
+                    @if (personProfile?.HasTrustedReference == false)
+                    {
+                        <a class="photos-action photos-action--primary photos-person-profile__discover"
+                           href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)"
+                           title="Choose or prepare a trusted matching reference before searching for additional photographs.">
+                            <i class="bi bi-shield-check"></i>
+                            <span>Set up matching</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <a class="photos-action photos-action--primary photos-person-profile__discover"
+                           href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
+                           aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
+                           aria-controls="personPhotoDiscovery">
+                            <i class="bi bi-person-bounding-box"></i>
+                            <span>@(Model.ShowPersonDiscovery ? "Hide matches" : "Find more photos")</span>
+                            @if (personProfile is not null)
+                            {
+                                <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
+                            }
+                        </a>
+                    }
                 }
                 <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
                 @if (Model.CanManagePeople)
@@ -415,7 +427,7 @@
                     </div>
                     @if (Model.CanManagePeople)
                     {
-                        <a class="btn btn-outline-primary" asp-page="/Photos/People/Details" asp-route-id="@personProfile.PersonId">Manage identity</a>
+                        <a class="btn btn-outline-primary" href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)">Choose matching reference</a>
                     }
                 </div>
             }

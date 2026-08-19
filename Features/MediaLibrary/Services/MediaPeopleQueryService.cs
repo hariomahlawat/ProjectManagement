@@ -694,6 +694,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             "PersonRestored" => "Person restored",
             "RepresentativeFaceChanged" => "Cover appearance changed",
             "ReferenceTrusted" => "Appearance trusted for matching",
+            "ReferencePreparationQueued" => "Matching evidence preparation queued",
             "ReferenceRemoved" => "Appearance removed from matching references",
             "ReferenceExcluded" => "Appearance excluded from matching",
             "FaceSuppressed" => "Invalid face detection removed",

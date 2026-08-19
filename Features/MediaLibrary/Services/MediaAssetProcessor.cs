@@ -31,7 +31,12 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
 
     public async Task ProcessAsync(long assetId, MediaProcessingJobType jobType, CancellationToken cancellationToken)
     {
-        if (jobType is MediaProcessingJobType.DetectFaces or MediaProcessingJobType.GenerateFaceEmbeddings or MediaProcessingJobType.AssignFaceCluster)
+        if (jobType == MediaProcessingJobType.GenerateFaceEmbeddings)
+        {
+            await _faceIntelligence.RefreshEmbeddingsAsync(assetId, cancellationToken);
+            return;
+        }
+        if (jobType is MediaProcessingJobType.DetectFaces or MediaProcessingJobType.AssignFaceCluster)
         {
             await _faceIntelligence.ProcessAssetAsync(assetId, cancellationToken);
             return;

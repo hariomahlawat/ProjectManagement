@@ -41,6 +41,13 @@ public sealed partial class IndexModel
                new { personId })
            ?? $"/Photos?handler=PersonDiscoveryStatus&personId={personId:D}";
 
+    public string BuildPersonMatchingSetupUrl(Guid personId)
+    {
+        var page = Url.Page("/Photos/People/Details", new { id = personId })
+                   ?? $"/Photos/People/Details/{personId:D}";
+        return page + "#matching-reference-setup";
+    }
+
     public static string CandidateEvidenceLabel(FaceCandidateConfidenceLevel level)
         => level switch
         {
@@ -330,7 +337,7 @@ public sealed partial class IndexModel
                    new
                    {
                        View = "photos",
-                       PersonIds = new[] { personId },
+                       PersonIds = personId,
                        FindMore = true
                    })
                ?? $"/Photos?View=photos&PersonIds={personId:D}&FindMore=true";

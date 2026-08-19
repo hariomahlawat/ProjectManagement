@@ -122,6 +122,12 @@ public interface IFaceAnalysisEngine
 public interface IFaceIntelligenceService
 {
     Task ProcessAssetAsync(long assetId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Regenerates current-model embeddings for existing detected faces while preserving
+    /// face identities, bounding boxes and human-reviewed assignments.
+    /// </summary>
+    Task<int> RefreshEmbeddingsAsync(long assetId, CancellationToken cancellationToken);
 }
 
 public interface IFaceQueueService

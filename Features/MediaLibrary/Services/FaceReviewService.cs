@@ -17,6 +17,7 @@ public sealed class FaceReviewService : IFaceReviewService
     private readonly MediaLibraryDbContext _db;
     private readonly IFaceReviewInvalidationCoordinator _invalidation;
     private readonly IMediaAssetVisibilityPolicy _visibility;
+    private readonly IFaceReferenceReadinessService _referenceReadiness;
     private readonly MediaPeopleOptions _options;
     private readonly ILogger<FaceReviewService> _logger;
 
@@ -24,12 +25,14 @@ public sealed class FaceReviewService : IFaceReviewService
         MediaLibraryDbContext db,
         IFaceReviewInvalidationCoordinator invalidation,
         IMediaAssetVisibilityPolicy visibility,
+        IFaceReferenceReadinessService referenceReadiness,
         IOptions<MediaLibraryOptions> options,
         ILogger<FaceReviewService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _invalidation = invalidation ?? throw new ArgumentNullException(nameof(invalidation));
         _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
+        _referenceReadiness = referenceReadiness ?? throw new ArgumentNullException(nameof(referenceReadiness));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -953,43 +956,33 @@ public sealed class FaceReviewService : IFaceReviewService
 
             if (referenceStatus == FaceReferenceStatus.TrustedReference)
             {
-                var face = assignment.MediaFace;
-                if (face.IsSuppressed
-                    || face.QualityStatus != FaceQualityStatus.EmbeddingEligible
-                    || face.QualityScore < _options.CandidateMinimumTrustedReferenceQuality
-                    || !_visibility.IsVisible(face.MediaAsset))
-                {
-                    throw new FaceIdentityConflictException(
-                        "Only an available, embedding-eligible, sufficiently clear face can be trusted for matching.");
-                }
-
-                var hasCurrentEmbedding = await _db.FaceEmbeddings.AsNoTracking().AnyAsync(
-                    embedding => embedding.MediaFaceId == faceId
-                                 && embedding.InvalidatedAtUtc == null
-                                 && embedding.ModelKey == _options.Embedder.Key
-                                 && embedding.ModelVersion == _options.Embedder.Version
-                                 && embedding.Dimension == _options.Embedder.EmbeddingDimension,
+                var readiness = await _referenceReadiness.GetAsync(
+                    personId,
+                    faceId,
                     cancellationToken);
-                if (!hasCurrentEmbedding)
+                if (!readiness.CanTrust)
                 {
-                    throw new FaceIdentityConflictException(
-                        "This appearance does not have a current valid embedding and cannot be used for matching.");
+                    throw new FaceIdentityConflictException(readiness.Message);
                 }
             }
             else
             {
-                var visibleAssetIds = BuildVisibleAssetIdsQuery();
-                var otherTrustedReferenceExists = await _db.PersonFaces.AsNoTracking().AnyAsync(
-                    item => item.MediaPersonId == personId
-                            && item.MediaFaceId != faceId
-                            && item.RemovedAtUtc == null
-                            && item.ReferenceStatus == FaceReferenceStatus.TrustedReference
-                            && visibleAssetIds.Contains(item.MediaFace.MediaAssetId),
+                var otherTrustedFaceIds = await _db.PersonFaces
+                    .AsNoTracking()
+                    .Where(item => item.MediaPersonId == personId
+                                   && item.MediaFaceId != faceId
+                                   && item.RemovedAtUtc == null
+                                   && item.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+                    .Select(item => item.MediaFaceId)
+                    .ToListAsync(cancellationToken);
+                var otherReadiness = await _referenceReadiness.GetManyAsync(
+                    personId,
+                    otherTrustedFaceIds,
                     cancellationToken);
-                if (!otherTrustedReferenceExists)
+                if (!otherReadiness.Values.Any(item => item.IsTrusted && item.IsUsableReference))
                 {
                     throw new FaceIdentityConflictException(
-                        "Promote another trusted reference before excluding the last matching reference for this person.");
+                        "Prepare and trust another usable matching reference before excluding the last usable reference for this person.");
                 }
             }
 

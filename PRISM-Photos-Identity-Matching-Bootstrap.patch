@@ -1,0 +1,1646 @@
+diff --git a/Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs b/Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs
+index 13509f9..4a72654 100644
+--- a/Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs
++++ b/Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs
+@@ -81,6 +81,7 @@ public static class MediaLibraryServiceCollectionExtensions
+         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
+         services.AddScoped<IPersonPhotoDiscoveryQueryService, PersonPhotoDiscoveryQueryService>();
+         services.AddScoped<IFaceReviewWorkloadService, FaceReviewWorkloadService>();
++        services.AddScoped<IFaceReferenceReadinessService, FaceReferenceReadinessService>();
+         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
+         services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();
+         services.AddScoped<IMediaContentProvider, ProjectVideoMediaContentProvider>();
+diff --git a/Features/MediaLibrary/Services/FaceCandidateSuggestionService.cs b/Features/MediaLibrary/Services/FaceCandidateSuggestionService.cs
+index fd20cda..8f89338 100644
+--- a/Features/MediaLibrary/Services/FaceCandidateSuggestionService.cs
++++ b/Features/MediaLibrary/Services/FaceCandidateSuggestionService.cs
+@@ -191,6 +191,21 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
+             return 0;
+         }
+ 
++        // Bootstrap fast-path: a new installation may legitimately have unresolved faces
++        // before any confirmed person has a trusted reference. There is nothing to compare
++        // in that state, so complete candidate search deterministically instead of leaving
++        // faces Pending/Processing. When the first trusted reference is created, the normal
++        // evidence-invalidation path requeues unresolved faces automatically.
++        if (!await HasUsableReferenceCorpusAsync(
++                modelKey,
++                modelVersion,
++                dimension,
++                cancellationToken))
++        {
++            await CompleteWithoutReferenceCorpusAsync(faces, inputs, cancellationToken);
++            return inputs.Count;
++        }
++
+         IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>> candidatesByFace;
+         using var searchTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+         var timeoutSeconds = Math.Clamp(_options.CandidateSearchTimeoutSeconds, 5, 600);
+@@ -314,6 +329,63 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
+         return inputs.Count;
+     }
+ 
++    private async Task<bool> HasUsableReferenceCorpusAsync(
++        string modelKey,
++        string modelVersion,
++        int dimension,
++        CancellationToken cancellationToken)
++    {
++        var visibleAssetIds = _visibility
++            .Apply(_db.Assets.AsNoTracking())
++            .Select(asset => asset.Id);
++        return await FaceCandidateSearchService.BuildReferenceRowsQuery(
++                _db,
++                Guid.Empty,
++                modelKey,
++                modelVersion,
++                dimension,
++                _options.CandidateMinimumTrustedReferenceQuality,
++                1,
++                visibleAssetIds)
++            .AnyAsync(cancellationToken);
++    }
++
++    private async Task CompleteWithoutReferenceCorpusAsync(
++        IReadOnlyCollection<MediaFace> faces,
++        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
++        CancellationToken cancellationToken)
++    {
++        var faceIds = inputs.Select(input => input.FaceId).ToArray();
++        var staleSuggestions = await _db.FaceReviewDecisions
++            .Where(decision => faceIds.Contains(decision.MediaFaceId)
++                               && decision.CandidatePersonId.HasValue
++                               && decision.Decision == FaceReviewDecisionType.Pending)
++            .ToListAsync(cancellationToken);
++        if (staleSuggestions.Count > 0)
++        {
++            _db.FaceReviewDecisions.RemoveRange(staleSuggestions);
++        }
++
++        var completedAt = DateTimeOffset.UtcNow;
++        var inputByFace = inputs.ToDictionary(input => input.FaceId);
++        foreach (var face in faces.Where(face => inputByFace.ContainsKey(face.Id)))
++        {
++            var input = inputByFace[face.Id];
++            face.CandidateSearchStatus = FaceCandidateSearchStatus.Ready;
++            face.CandidateSearchModelKey = input.ModelKey;
++            face.CandidateSearchModelVersion = input.ModelVersion;
++            face.CandidateSearchFailureReason = null;
++            face.CandidateSearchCompletedAtUtc = completedAt;
++            face.UpdatedAtUtc = completedAt;
++            face.ConcurrencyToken = Guid.NewGuid();
++        }
++
++        await _db.SaveChangesAsync(cancellationToken);
++        _logger.LogInformation(
++            "Completed candidate search for {FaceCount} unresolved face(s) with zero candidates because no usable trusted-reference corpus exists.",
++            inputs.Count);
++    }
++
+     private async Task MarkSearchFailedAsync(
+         IReadOnlyCollection<MediaFace> faces,
+         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+diff --git a/Features/MediaLibrary/Services/FaceIntelligenceContracts.cs b/Features/MediaLibrary/Services/FaceIntelligenceContracts.cs
+index 996f85c..06d0fe1 100644
+--- a/Features/MediaLibrary/Services/FaceIntelligenceContracts.cs
++++ b/Features/MediaLibrary/Services/FaceIntelligenceContracts.cs
+@@ -122,6 +122,12 @@ public interface IFaceAnalysisEngine
+ public interface IFaceIntelligenceService
+ {
+     Task ProcessAssetAsync(long assetId, CancellationToken cancellationToken);
++
++    /// <summary>
++    /// Regenerates current-model embeddings for existing detected faces while preserving
++    /// face identities, bounding boxes and human-reviewed assignments.
++    /// </summary>
++    Task<int> RefreshEmbeddingsAsync(long assetId, CancellationToken cancellationToken);
+ }
+ 
+ public interface IFaceQueueService
+diff --git a/Features/MediaLibrary/Services/FaceIntelligenceService.cs b/Features/MediaLibrary/Services/FaceIntelligenceService.cs
+index 7b1bc75..9b0954f 100644
+--- a/Features/MediaLibrary/Services/FaceIntelligenceService.cs
++++ b/Features/MediaLibrary/Services/FaceIntelligenceService.cs
+@@ -15,6 +15,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
+     private readonly IFaceAnalysisEngine _engine;
+     private readonly IFaceEligibilityPolicy _eligibility;
+     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
++    private readonly IFaceReviewInvalidationCoordinator _reviewInvalidation;
+     private readonly MediaLibraryOptions _options;
+     private readonly IWebHostEnvironment _environment;
+     private readonly ILogger<FaceIntelligenceService> _logger;
+@@ -25,6 +26,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
+         IFaceAnalysisEngine engine,
+         IFaceEligibilityPolicy eligibility,
+         IMediaContentChangeInvalidationService contentInvalidation,
++        IFaceReviewInvalidationCoordinator reviewInvalidation,
+         IOptions<MediaLibraryOptions> options,
+         IWebHostEnvironment environment,
+         ILogger<FaceIntelligenceService> logger)
+@@ -34,6 +36,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
+         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
+         _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
++        _reviewInvalidation = reviewInvalidation ?? throw new ArgumentNullException(nameof(reviewInvalidation));
+         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+@@ -259,6 +262,222 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
+         // candidate worker will perform bounded matching outside this processing transaction.
+     }
+ 
++    public async Task<int> RefreshEmbeddingsAsync(
++        long assetId,
++        CancellationToken cancellationToken)
++    {
++        if (!_options.People.Enabled)
++        {
++            return 0;
++        }
++
++        var asset = await _db.Assets
++            .Include(item => item.Source)
++            .Include(item => item.Faces)
++                .ThenInclude(face => face.Embeddings)
++            .Include(item => item.Faces)
++                .ThenInclude(face => face.PersonAssignments)
++            .SingleOrDefaultAsync(item => item.Id == assetId, cancellationToken)
++            ?? throw new MediaProcessingSupersededException(
++                $"Media asset {assetId} no longer exists for face-embedding preparation.");
++
++        if (!asset.IsAvailable || asset.IsDeleted || asset.IsArchived)
++        {
++            throw new MediaProcessingSupersededException(
++                $"Media asset {assetId} is no longer available for face-embedding preparation.");
++        }
++        if (asset.Faces.Count == 0)
++        {
++            throw new InvalidOperationException(
++                "No existing face detections are available to prepare for matching.");
++        }
++
++        var eligibility = _eligibility.Evaluate(asset);
++        if (!eligibility.IsEligible)
++        {
++            throw new InvalidOperationException(
++                $"Face-embedding preparation is not permitted for this photograph: {eligibility.Reason}");
++        }
++
++        var processingCacheVersion = asset.CacheVersion;
++        var originalHash = asset.ContentHash;
++        var content = await _resolver.ResolveAsync(asset, cancellationToken)
++            ?? throw new MediaContentUnavailableException(
++                $"Media content is unavailable for face-embedding preparation of asset {asset.Id}.");
++        var bytes = await ReadBoundedAsync(
++            await content.OpenReadAsync(cancellationToken),
++            _options.Processing.MaxImageFileSizeBytes,
++            cancellationToken);
++        var actualHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
++        if (!string.IsNullOrWhiteSpace(originalHash)
++            && !string.Equals(originalHash, actualHash, StringComparison.OrdinalIgnoreCase))
++        {
++            throw new MediaProcessingSupersededException(
++                "The source photograph changed after its confirmed face was reviewed. Review the photograph before rebuilding biometric evidence.");
++        }
++
++        asset.ContentHash ??= actualHash;
++        asset.FaceAnalysisStatus = MediaProcessingStatus.Processing;
++        asset.FaceProcessingFailureReason = null;
++        await _db.SaveChangesAsync(cancellationToken);
++
++        IReadOnlyList<DetectedFaceData> detections;
++        try
++        {
++            detections = await _engine.AnalyseAsync(bytes, cancellationToken);
++        }
++        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
++        {
++            throw;
++        }
++        catch (Exception exception)
++        {
++            var failure = exception.GetBaseException().Message;
++            asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
++            asset.FaceProcessingFailureReason = failure.Length <= 2048 ? failure : failure[..2048];
++            await _db.SaveChangesAsync(CancellationToken.None);
++            throw;
++        }
++
++        var usableDetections = detections
++            .Select((detection, index) => new { Detection = detection, Index = index })
++            .ToList();
++        var usedDetectionIndexes = new HashSet<int>();
++        var now = DateTimeOffset.UtcNow;
++        var refreshed = 0;
++        var trustedEvidenceChanged = false;
++
++        foreach (var face in asset.Faces.OrderBy(item => item.SequenceNumber))
++        {
++            var best = usableDetections
++                .Where(item => !usedDetectionIndexes.Contains(item.Index))
++                .Select(item => new
++                {
++                    item.Detection,
++                    item.Index,
++                    Overlap = IntersectionOverUnion(face, item.Detection)
++                })
++                .OrderByDescending(item => item.Overlap)
++                .FirstOrDefault();
++
++            if (best is null || best.Overlap < 0.25d)
++            {
++                continue;
++            }
++
++            usedDetectionIndexes.Add(best.Index);
++            var detection = best.Detection;
++            face.DetectionConfidence = detection.Confidence;
++            face.QualityScore = detection.QualityScore;
++            face.QualityStatus = detection.QualityStatus;
++            face.BlurScore = detection.BlurScore;
++            face.BrightnessScore = detection.BrightnessScore;
++            face.PoseScore = detection.PoseScore;
++            face.QualitySignalsJson = detection.QualitySignals is null
++                ? null
++                : JsonSerializer.Serialize(detection.QualitySignals);
++            face.DetectorModelKey = _options.People.Detector.Key;
++            face.DetectorModelVersion = _options.People.Detector.Version;
++            face.UpdatedAtUtc = now;
++            face.ConcurrencyToken = Guid.NewGuid();
++
++            var activeEmbeddings = face.Embeddings
++                .Where(item => item.InvalidatedAtUtc == null)
++                .ToList();
++            var hasTrustedAssignment = face.PersonAssignments.Any(assignment =>
++                assignment.RemovedAtUtc == null
++                && assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference);
++
++            if (detection.Embedding is { Length: > 0 }
++                && detection.Embedding.Length == _options.People.Embedder.EmbeddingDimension
++                && detection.QualityStatus == FaceQualityStatus.EmbeddingEligible)
++            {
++                foreach (var existing in activeEmbeddings)
++                {
++                    existing.InvalidatedAtUtc = now;
++                }
++
++                face.Embeddings.Add(new MediaFaceEmbedding
++                {
++                    MediaFaceId = face.Id,
++                    Embedding = detection.Embedding,
++                    Dimension = detection.Embedding.Length,
++                    ModelKey = _options.People.Embedder.Key,
++                    ModelVersion = _options.People.Embedder.Version,
++                    Normalization = "L2",
++                    QualityScore = detection.QualityScore,
++                    CreatedAtUtc = now
++                });
++                refreshed++;
++                trustedEvidenceChanged |= hasTrustedAssignment;
++
++                if (!face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
++                {
++                    face.CandidateSearchStatus = FaceCandidateSearchStatus.Pending;
++                    face.CandidateSearchModelKey = _options.People.Embedder.Key;
++                    face.CandidateSearchModelVersion = _options.People.Embedder.Version;
++                    face.CandidateSearchFailureReason = null;
++                    face.CandidateSearchCompletedAtUtc = null;
++                }
++            }
++        }
++
++        await _db.Entry(asset).ReloadAsync(cancellationToken);
++        if (!asset.IsAvailable
++            || asset.IsDeleted
++            || asset.IsArchived
++            || asset.CacheVersion != processingCacheVersion)
++        {
++            _db.ChangeTracker.Clear();
++            throw new MediaProcessingSupersededException(
++                $"Face-embedding preparation for media asset {assetId} was superseded by a source or catalogue change.");
++        }
++
++        if (refreshed == 0)
++        {
++            asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
++            asset.FaceProcessingFailureReason =
++                "No existing confirmed face could be matched to a current embedding-eligible detection. Choose another clear appearance.";
++            await _db.SaveChangesAsync(cancellationToken);
++            throw new InvalidOperationException(asset.FaceProcessingFailureReason);
++        }
++
++        asset.FaceAnalysisStatus = MediaProcessingStatus.Ready;
++        asset.FaceAnalysisVersion = CurrentAnalysisVersion;
++        asset.FaceAnalysedAtUtc = now;
++        asset.FaceProcessingFailureReason = null;
++        await _db.SaveChangesAsync(cancellationToken);
++
++        if (trustedEvidenceChanged)
++        {
++            await _reviewInvalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
++        }
++
++        _logger.LogInformation(
++            "Prepared {FaceCount} current face embedding(s) for media asset {AssetId} without replacing human-reviewed face assignments.",
++            refreshed,
++            assetId);
++        return refreshed;
++    }
++
++    private static double IntersectionOverUnion(MediaFace face, DetectedFaceData detection)
++    {
++        var left = Math.Max(face.Left, detection.Left);
++        var top = Math.Max(face.Top, detection.Top);
++        var right = Math.Min(face.Left + face.Width, detection.Left + detection.Width);
++        var bottom = Math.Min(face.Top + face.Height, detection.Top + detection.Height);
++        var intersection = Math.Max(0d, right - left) * Math.Max(0d, bottom - top);
++        if (intersection <= 0d)
++        {
++            return 0d;
++        }
++
++        var faceArea = Math.Max(0d, face.Width) * Math.Max(0d, face.Height);
++        var detectionArea = Math.Max(0d, detection.Width) * Math.Max(0d, detection.Height);
++        var union = faceArea + detectionArea - intersection;
++        return union <= 0d ? 0d : intersection / union;
++    }
++
+     private string CurrentAnalysisVersion
+         => $"{_options.People.Detector.Key}:{_options.People.Detector.Version}|{_options.People.Embedder.Key}:{_options.People.Embedder.Version}";
+ 
+diff --git a/Features/MediaLibrary/Services/FaceReferenceReadinessService.cs b/Features/MediaLibrary/Services/FaceReferenceReadinessService.cs
+new file mode 100644
+index 0000000..d5b4714
+--- /dev/null
++++ b/Features/MediaLibrary/Services/FaceReferenceReadinessService.cs
+@@ -0,0 +1,348 @@
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Options;
++using ProjectManagement.Features.MediaLibrary.Data;
++using ProjectManagement.Features.MediaLibrary.Domain;
++using ProjectManagement.Features.MediaLibrary.Options;
++
++namespace ProjectManagement.Features.MediaLibrary.Services;
++
++public enum FaceReferenceReadinessCode
++{
++    Eligible = 0,
++    AlreadyTrusted = 1,
++    MediaUnavailable = 2,
++    FaceSuppressed = 3,
++    QualityTooLow = 4,
++    QualityNotEligible = 5,
++    EmbeddingMissing = 6,
++    EmbeddingOutdated = 7,
++    PreparationPending = 8,
++    PreparationFailed = 9,
++    FaceProcessingNotAllowed = 10,
++    AssignmentUnavailable = 11
++}
++
++public sealed record FaceReferenceReadiness(
++    Guid FaceId,
++    long AssetId,
++    FaceReferenceReadinessCode Code,
++    bool CanTrust,
++    bool CanPrepare,
++    bool IsPreparationPending,
++    bool IsTrusted,
++    string Label,
++    string Message,
++    string? FailureReason = null)
++{
++    public bool IsUsableReference
++        => CanTrust || (IsTrusted && Code == FaceReferenceReadinessCode.AlreadyTrusted);
++}
++
++public interface IFaceReferenceReadinessService
++{
++    Task<FaceReferenceReadiness> GetAsync(
++        Guid personId,
++        Guid faceId,
++        CancellationToken cancellationToken);
++
++    Task<IReadOnlyDictionary<Guid, FaceReferenceReadiness>> GetManyAsync(
++        Guid personId,
++        IReadOnlyCollection<Guid> faceIds,
++        CancellationToken cancellationToken);
++
++    Task<FaceReferenceReadiness> QueuePreparationAsync(
++        Guid personId,
++        Guid faceId,
++        string userId,
++        CancellationToken cancellationToken);
++}
++
++/// <summary>
++/// Single source of truth for whether a confirmed appearance may become trusted biometric
++/// matching evidence. The identity-governance UI and mutation service consume the same
++/// evaluation so an action cannot be presented as valid and then rejected by a different
++/// server rule. Missing or stale embeddings are repaired through the durable media job queue
++/// without replacing confirmed faces or human-reviewed assignments.
++/// </summary>
++public sealed class FaceReferenceReadinessService : IFaceReferenceReadinessService
++{
++    private readonly MediaLibraryDbContext _db;
++    private readonly IMediaAssetVisibilityPolicy _visibility;
++    private readonly IFaceEligibilityPolicy _faceEligibility;
++    private readonly MediaLibraryOptions _options;
++
++    public FaceReferenceReadinessService(
++        MediaLibraryDbContext db,
++        IMediaAssetVisibilityPolicy visibility,
++        IFaceEligibilityPolicy faceEligibility,
++        IOptions<MediaLibraryOptions> options)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
++        _faceEligibility = faceEligibility ?? throw new ArgumentNullException(nameof(faceEligibility));
++        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
++    }
++
++    public async Task<FaceReferenceReadiness> GetAsync(
++        Guid personId,
++        Guid faceId,
++        CancellationToken cancellationToken)
++    {
++        var result = await GetManyAsync(personId, new[] { faceId }, cancellationToken);
++        return result.GetValueOrDefault(faceId) ?? Missing(faceId);
++    }
++
++    public async Task<IReadOnlyDictionary<Guid, FaceReferenceReadiness>> GetManyAsync(
++        Guid personId,
++        IReadOnlyCollection<Guid> faceIds,
++        CancellationToken cancellationToken)
++    {
++        ArgumentNullException.ThrowIfNull(faceIds);
++        var selected = faceIds
++            .Where(id => id != Guid.Empty)
++            .Distinct()
++            .Take(250)
++            .ToArray();
++        if (personId == Guid.Empty || selected.Length == 0)
++        {
++            return new Dictionary<Guid, FaceReferenceReadiness>();
++        }
++
++        var assignments = await _db.PersonFaces
++            .AsNoTracking()
++            .AsSplitQuery()
++            .Include(item => item.MediaFace)
++                .ThenInclude(face => face.MediaAsset)
++                    .ThenInclude(asset => asset.Source)
++            .Include(item => item.MediaFace)
++                .ThenInclude(face => face.MediaAsset)
++                    .ThenInclude(asset => asset.ProcessingJobs)
++            .Include(item => item.MediaFace)
++                .ThenInclude(face => face.Embeddings)
++            .Where(item => item.MediaPersonId == personId
++                           && selected.Contains(item.MediaFaceId)
++                           && item.RemovedAtUtc == null)
++            .ToListAsync(cancellationToken);
++
++        var result = new Dictionary<Guid, FaceReferenceReadiness>();
++        foreach (var assignment in assignments)
++        {
++            result[assignment.MediaFaceId] = Evaluate(assignment);
++        }
++
++        foreach (var faceId in selected)
++        {
++            result.TryAdd(faceId, Missing(faceId));
++        }
++
++        return result;
++    }
++
++    public async Task<FaceReferenceReadiness> QueuePreparationAsync(
++        Guid personId,
++        Guid faceId,
++        string userId,
++        CancellationToken cancellationToken)
++    {
++        if (string.IsNullOrWhiteSpace(userId))
++        {
++            throw new ArgumentException("A reviewer identity is required.", nameof(userId));
++        }
++
++        var readiness = await GetAsync(personId, faceId, cancellationToken);
++        if (readiness.IsPreparationPending)
++        {
++            return readiness;
++        }
++        if (!readiness.CanPrepare)
++        {
++            throw new FaceIdentityConflictException(readiness.Message);
++        }
++
++        var asset = await _db.Assets
++            .Include(item => item.ProcessingJobs)
++            .SingleOrDefaultAsync(item => item.Id == readiness.AssetId, cancellationToken)
++            ?? throw new FaceIdentityConflictException("The source photograph is no longer available.");
++
++        var now = DateTimeOffset.UtcNow;
++        var job = asset.ProcessingJobs
++            .Where(item => item.JobType == MediaProcessingJobType.GenerateFaceEmbeddings)
++            .OrderByDescending(item => item.Id)
++            .FirstOrDefault();
++
++        if (job is null)
++        {
++            job = new MediaProcessingJob
++            {
++                MediaAssetId = asset.Id,
++                JobType = MediaProcessingJobType.GenerateFaceEmbeddings,
++                Status = MediaProcessingJobStatus.Pending,
++                AttemptCount = 0,
++                MaxAttempts = Math.Max(3, _options.Processing.MaxAttempts),
++                AvailableAfterUtc = now,
++                CreatedAtUtc = now,
++                UpdatedAtUtc = now
++            };
++            _db.ProcessingJobs.Add(job);
++        }
++        else if (job.Status is not (MediaProcessingJobStatus.Pending or MediaProcessingJobStatus.Running))
++        {
++            job.Status = MediaProcessingJobStatus.Pending;
++            job.AttemptCount = 0;
++            job.MaxAttempts = Math.Max(3, _options.Processing.MaxAttempts);
++            job.AvailableAfterUtc = now;
++            job.StartedAtUtc = null;
++            job.CompletedAtUtc = null;
++            job.LockedBy = null;
++            job.LockExpiresAtUtc = null;
++            job.FailureCode = null;
++            job.FailureMessage = null;
++            job.UpdatedAtUtc = now;
++        }
++
++        asset.FaceAnalysisStatus = MediaProcessingStatus.Pending;
++        asset.FaceProcessingFailureReason = null;
++        _db.IdentityAudits.Add(new MediaIdentityAudit
++        {
++            FaceId = faceId,
++            PersonId = personId,
++            Action = "ReferencePreparationQueued",
++            PerformedByUserId = userId.Trim(),
++            Notes = "Queued current-model face embedding preparation for a confirmed appearance.",
++            PerformedAtUtc = now
++        });
++        await _db.SaveChangesAsync(cancellationToken);
++
++        return readiness with
++        {
++            Code = FaceReferenceReadinessCode.PreparationPending,
++            CanPrepare = false,
++            IsPreparationPending = true,
++            Label = "Preparing embedding",
++            Message = "PRISM queued this photograph for current-model face embedding preparation. Refresh after background processing completes."
++        };
++    }
++
++    private FaceReferenceReadiness Evaluate(MediaPersonFace assignment)
++    {
++        var face = assignment.MediaFace;
++        var asset = face.MediaAsset;
++        var people = _options.People;
++        var hasCurrentEmbedding = face.Embeddings.Any(item =>
++            item.InvalidatedAtUtc == null
++            && item.ModelKey == people.Embedder.Key
++            && item.ModelVersion == people.Embedder.Version
++            && item.Dimension == people.Embedder.EmbeddingDimension
++            && item.Embedding.Length > 0);
++        var hasAnyActiveEmbedding = face.Embeddings.Any(item =>
++            item.InvalidatedAtUtc == null && item.Embedding.Length > 0);
++        var latestPreparation = asset.ProcessingJobs
++            .Where(item => item.JobType == MediaProcessingJobType.GenerateFaceEmbeddings)
++            .OrderByDescending(item => item.Id)
++            .FirstOrDefault();
++        var isTrusted = assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference;
++
++        FaceReferenceReadiness Result(
++            FaceReferenceReadinessCode code,
++            bool canTrust,
++            bool canPrepare,
++            bool pending,
++            string label,
++            string message,
++            string? failure = null)
++            => new(face.Id, asset.Id, code, canTrust, canPrepare, pending, isTrusted, label, message, failure);
++
++        if (!_visibility.IsVisible(asset))
++        {
++            return Result(FaceReferenceReadinessCode.MediaUnavailable, false, false, false,
++                "Source unavailable", "The source photograph is not currently available in Photos.");
++        }
++        if (face.IsSuppressed)
++        {
++            return Result(FaceReferenceReadinessCode.FaceSuppressed, false, false, false,
++                "Detection retired", "This detection has been marked as not a valid face and cannot be used for matching.");
++        }
++        if (face.QualityScore < people.CandidateMinimumTrustedReferenceQuality)
++        {
++            return Result(FaceReferenceReadinessCode.QualityTooLow, false, false, false,
++                "Quality below reference threshold",
++                $"Face quality {face.QualityScore:P0} is below the configured {people.CandidateMinimumTrustedReferenceQuality:P0} trusted-reference threshold. Choose another appearance.");
++        }
++        if (face.QualityStatus is FaceQualityStatus.LowResolution
++            or FaceQualityStatus.Blurred
++            or FaceQualityStatus.PoorExposure
++            or FaceQualityStatus.ExtremePose
++            or FaceQualityStatus.Occluded)
++        {
++            return Result(FaceReferenceReadinessCode.QualityNotEligible, false, false, false,
++                "Face not embedding-eligible",
++                $"This appearance is classified as {Humanize(face.QualityStatus)} and is not suitable as trusted matching evidence. Choose another clear appearance.");
++        }
++
++        if (hasCurrentEmbedding && face.QualityStatus == FaceQualityStatus.EmbeddingEligible)
++        {
++            return isTrusted
++                ? Result(FaceReferenceReadinessCode.AlreadyTrusted, false, false, false,
++                    "Trusted reference ready", "This appearance is a current, usable trusted matching reference.")
++                : Result(FaceReferenceReadinessCode.Eligible, true, false, false,
++                    "Ready to trust", "Current face quality and embedding satisfy the trusted-reference policy.");
++        }
++
++        if (latestPreparation?.Status is MediaProcessingJobStatus.Pending or MediaProcessingJobStatus.Running)
++        {
++            return Result(FaceReferenceReadinessCode.PreparationPending, false, false, true,
++                "Preparing embedding", "PRISM is preparing a current matching embedding for this confirmed appearance.");
++        }
++
++        var faceProcessing = _faceEligibility.Evaluate(asset);
++        if (!faceProcessing.IsEligible)
++        {
++            return Result(FaceReferenceReadinessCode.FaceProcessingNotAllowed, false, false, false,
++                "Reprocessing unavailable", faceProcessing.Reason);
++        }
++
++        if (latestPreparation?.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter)
++        {
++            var failure = latestPreparation.FailureMessage ?? asset.FaceProcessingFailureReason;
++            return Result(FaceReferenceReadinessCode.PreparationFailed, false, true, false,
++                "Embedding preparation failed",
++                "The previous embedding-preparation attempt did not complete. You can retry this appearance.", failure);
++        }
++
++        if (face.QualityStatus is not (FaceQualityStatus.EmbeddingEligible
++            or FaceQualityStatus.Detected
++            or FaceQualityStatus.ProcessingFailed))
++        {
++            return Result(FaceReferenceReadinessCode.QualityNotEligible, false, false, false,
++                "Face not embedding-eligible",
++                $"This appearance has quality state {Humanize(face.QualityStatus)} and cannot currently become a trusted reference.");
++        }
++
++        return hasAnyActiveEmbedding
++            ? Result(FaceReferenceReadinessCode.EmbeddingOutdated, false, true, false,
++                "Embedding needs refresh",
++                "This appearance has face data from an older or incompatible model. Prepare a current embedding before trusting it for matching.")
++            : Result(FaceReferenceReadinessCode.EmbeddingMissing, false, true, false,
++                "Embedding not available",
++                "This confirmed face does not yet have a current matching embedding. Prepare it before using it as a trusted reference.");
++    }
++
++    private static FaceReferenceReadiness Missing(Guid faceId)
++        => new(faceId, 0, FaceReferenceReadinessCode.AssignmentUnavailable, false, false, false, false,
++            "Appearance unavailable", "This appearance is no longer actively assigned to this person.");
++
++    private static string Humanize(FaceQualityStatus status)
++        => status switch
++        {
++            FaceQualityStatus.LowResolution => "low resolution",
++            FaceQualityStatus.Blurred => "blurred",
++            FaceQualityStatus.PoorExposure => "poor exposure",
++            FaceQualityStatus.ExtremePose => "extreme pose",
++            FaceQualityStatus.Occluded => "occluded",
++            FaceQualityStatus.ProcessingFailed => "processing failed",
++            FaceQualityStatus.EmbeddingEligible => "embedding eligible",
++            FaceQualityStatus.Detected => "detected",
++            FaceQualityStatus.Suppressed => "suppressed",
++            _ => status.ToString()
++        };
++}
+diff --git a/Features/MediaLibrary/Services/FaceReviewService.cs b/Features/MediaLibrary/Services/FaceReviewService.cs
+index e9bc9d9..39ccf4b 100644
+--- a/Features/MediaLibrary/Services/FaceReviewService.cs
++++ b/Features/MediaLibrary/Services/FaceReviewService.cs
+@@ -17,6 +17,7 @@ public sealed class FaceReviewService : IFaceReviewService
+     private readonly MediaLibraryDbContext _db;
+     private readonly IFaceReviewInvalidationCoordinator _invalidation;
+     private readonly IMediaAssetVisibilityPolicy _visibility;
++    private readonly IFaceReferenceReadinessService _referenceReadiness;
+     private readonly MediaPeopleOptions _options;
+     private readonly ILogger<FaceReviewService> _logger;
+ 
+@@ -24,12 +25,14 @@ public sealed class FaceReviewService : IFaceReviewService
+         MediaLibraryDbContext db,
+         IFaceReviewInvalidationCoordinator invalidation,
+         IMediaAssetVisibilityPolicy visibility,
++        IFaceReferenceReadinessService referenceReadiness,
+         IOptions<MediaLibraryOptions> options,
+         ILogger<FaceReviewService> logger)
+     {
+         _db = db ?? throw new ArgumentNullException(nameof(db));
+         _invalidation = invalidation ?? throw new ArgumentNullException(nameof(invalidation));
+         _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
++        _referenceReadiness = referenceReadiness ?? throw new ArgumentNullException(nameof(referenceReadiness));
+         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+     }
+@@ -953,43 +956,33 @@ public sealed class FaceReviewService : IFaceReviewService
+ 
+             if (referenceStatus == FaceReferenceStatus.TrustedReference)
+             {
+-                var face = assignment.MediaFace;
+-                if (face.IsSuppressed
+-                    || face.QualityStatus != FaceQualityStatus.EmbeddingEligible
+-                    || face.QualityScore < _options.CandidateMinimumTrustedReferenceQuality
+-                    || !_visibility.IsVisible(face.MediaAsset))
+-                {
+-                    throw new FaceIdentityConflictException(
+-                        "Only an available, embedding-eligible, sufficiently clear face can be trusted for matching.");
+-                }
+-
+-                var hasCurrentEmbedding = await _db.FaceEmbeddings.AsNoTracking().AnyAsync(
+-                    embedding => embedding.MediaFaceId == faceId
+-                                 && embedding.InvalidatedAtUtc == null
+-                                 && embedding.ModelKey == _options.Embedder.Key
+-                                 && embedding.ModelVersion == _options.Embedder.Version
+-                                 && embedding.Dimension == _options.Embedder.EmbeddingDimension,
++                var readiness = await _referenceReadiness.GetAsync(
++                    personId,
++                    faceId,
+                     cancellationToken);
+-                if (!hasCurrentEmbedding)
++                if (!readiness.CanTrust)
+                 {
+-                    throw new FaceIdentityConflictException(
+-                        "This appearance does not have a current valid embedding and cannot be used for matching.");
++                    throw new FaceIdentityConflictException(readiness.Message);
+                 }
+             }
+             else
+             {
+-                var visibleAssetIds = BuildVisibleAssetIdsQuery();
+-                var otherTrustedReferenceExists = await _db.PersonFaces.AsNoTracking().AnyAsync(
+-                    item => item.MediaPersonId == personId
+-                            && item.MediaFaceId != faceId
+-                            && item.RemovedAtUtc == null
+-                            && item.ReferenceStatus == FaceReferenceStatus.TrustedReference
+-                            && visibleAssetIds.Contains(item.MediaFace.MediaAssetId),
++                var otherTrustedFaceIds = await _db.PersonFaces
++                    .AsNoTracking()
++                    .Where(item => item.MediaPersonId == personId
++                                   && item.MediaFaceId != faceId
++                                   && item.RemovedAtUtc == null
++                                   && item.ReferenceStatus == FaceReferenceStatus.TrustedReference)
++                    .Select(item => item.MediaFaceId)
++                    .ToListAsync(cancellationToken);
++                var otherReadiness = await _referenceReadiness.GetManyAsync(
++                    personId,
++                    otherTrustedFaceIds,
+                     cancellationToken);
+-                if (!otherTrustedReferenceExists)
++                if (!otherReadiness.Values.Any(item => item.IsTrusted && item.IsUsableReference))
+                 {
+                     throw new FaceIdentityConflictException(
+-                        "Promote another trusted reference before excluding the last matching reference for this person.");
++                        "Prepare and trust another usable matching reference before excluding the last usable reference for this person.");
+                 }
+             }
+ 
+diff --git a/Features/MediaLibrary/Services/MediaAssetProcessor.cs b/Features/MediaLibrary/Services/MediaAssetProcessor.cs
+index 1b57ef1..0a6e145 100644
+--- a/Features/MediaLibrary/Services/MediaAssetProcessor.cs
++++ b/Features/MediaLibrary/Services/MediaAssetProcessor.cs
+@@ -31,7 +31,12 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
+ 
+     public async Task ProcessAsync(long assetId, MediaProcessingJobType jobType, CancellationToken cancellationToken)
+     {
+-        if (jobType is MediaProcessingJobType.DetectFaces or MediaProcessingJobType.GenerateFaceEmbeddings or MediaProcessingJobType.AssignFaceCluster)
++        if (jobType == MediaProcessingJobType.GenerateFaceEmbeddings)
++        {
++            await _faceIntelligence.RefreshEmbeddingsAsync(assetId, cancellationToken);
++            return;
++        }
++        if (jobType is MediaProcessingJobType.DetectFaces or MediaProcessingJobType.AssignFaceCluster)
+         {
+             await _faceIntelligence.ProcessAssetAsync(assetId, cancellationToken);
+             return;
+diff --git a/Features/MediaLibrary/Services/MediaPeopleQueryService.cs b/Features/MediaLibrary/Services/MediaPeopleQueryService.cs
+index ee0efc4..02563f1 100644
+--- a/Features/MediaLibrary/Services/MediaPeopleQueryService.cs
++++ b/Features/MediaLibrary/Services/MediaPeopleQueryService.cs
+@@ -694,6 +694,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
+             "PersonRestored" => "Person restored",
+             "RepresentativeFaceChanged" => "Cover appearance changed",
+             "ReferenceTrusted" => "Appearance trusted for matching",
++            "ReferencePreparationQueued" => "Matching evidence preparation queued",
+             "ReferenceRemoved" => "Appearance removed from matching references",
+             "ReferenceExcluded" => "Appearance excluded from matching",
+             "FaceSuppressed" => "Invalid face detection removed",
+diff --git a/Pages/Photos/Index.People.cs b/Pages/Photos/Index.People.cs
+index 33d7bec..7a3650a 100644
+--- a/Pages/Photos/Index.People.cs
++++ b/Pages/Photos/Index.People.cs
+@@ -41,6 +41,13 @@ public sealed partial class IndexModel
+                new { personId })
+            ?? $"/Photos?handler=PersonDiscoveryStatus&personId={personId:D}";
+ 
++    public string BuildPersonMatchingSetupUrl(Guid personId)
++    {
++        var page = Url.Page("/Photos/People/Details", new { id = personId })
++                   ?? $"/Photos/People/Details/{personId:D}";
++        return page + "#matching-reference-setup";
++    }
++
+     public static string CandidateEvidenceLabel(FaceCandidateConfidenceLevel level)
+         => level switch
+         {
+@@ -330,7 +337,7 @@ public sealed partial class IndexModel
+                    new
+                    {
+                        View = "photos",
+-                       PersonIds = new[] { personId },
++                       PersonIds = personId,
+                        FindMore = true
+                    })
+                ?? $"/Photos?View=photos&PersonIds={personId:D}&FindMore=true";
+diff --git a/Pages/Photos/Index.cshtml b/Pages/Photos/Index.cshtml
+index 88e6cc9..8f2bcdb 100644
+--- a/Pages/Photos/Index.cshtml
++++ b/Pages/Photos/Index.cshtml
+@@ -119,17 +119,29 @@
+             {
+                 @if (Model.CanReviewPersonCandidates)
+                 {
+-                    <a class="photos-action photos-action--primary photos-person-profile__discover"
+-                       href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
+-                       aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
+-                       aria-controls="personPhotoDiscovery">
+-                        <i class="bi bi-person-bounding-box"></i>
+-                        <span>@(Model.ShowPersonDiscovery ? "Hide matches" : "Find more photos")</span>
+-                        @if (personProfile is not null)
+-                        {
+-                            <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
+-                        }
+-                    </a>
++                    @if (personProfile?.HasTrustedReference == false)
++                    {
++                        <a class="photos-action photos-action--primary photos-person-profile__discover"
++                           href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)"
++                           title="Choose or prepare a trusted matching reference before searching for additional photographs.">
++                            <i class="bi bi-shield-check"></i>
++                            <span>Set up matching</span>
++                        </a>
++                    }
++                    else
++                    {
++                        <a class="photos-action photos-action--primary photos-person-profile__discover"
++                           href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
++                           aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
++                           aria-controls="personPhotoDiscovery">
++                            <i class="bi bi-person-bounding-box"></i>
++                            <span>@(Model.ShowPersonDiscovery ? "Hide matches" : "Find more photos")</span>
++                            @if (personProfile is not null)
++                            {
++                                <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
++                            }
++                        </a>
++                    }
+                 }
+                 <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
+                 @if (Model.CanManagePeople)
+@@ -415,7 +427,7 @@
+                     </div>
+                     @if (Model.CanManagePeople)
+                     {
+-                        <a class="btn btn-outline-primary" asp-page="/Photos/People/Details" asp-route-id="@personProfile.PersonId">Manage identity</a>
++                        <a class="btn btn-outline-primary" href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)">Choose matching reference</a>
+                     }
+                 </div>
+             }
+diff --git a/Pages/Photos/Index.cshtml.cs b/Pages/Photos/Index.cshtml.cs
+index 2c97aa7..5a8ed64 100644
+--- a/Pages/Photos/Index.cshtml.cs
++++ b/Pages/Photos/Index.cshtml.cs
+@@ -1310,12 +1310,13 @@ public sealed partial class IndexModel : PageModel
+         bool? findMore = null)
+     {
+         var targetView = view ?? View;
++        var targetKind = kind ?? Kind;
+         var values = new RouteValueDictionary
+         {
+             ["View"] = targetView,
+             ["Q"] = Q,
+             ["Source"] = Source == "all" ? null : Source,
+-            ["Kind"] = kind ?? Kind,
++            ["Kind"] = targetKind == "all" ? null : targetKind,
+             ["Classification"] = Classification == "all" ? null : Classification,
+             ["ProjectId"] = ProjectId,
+             ["Year"] = Year,
+@@ -1329,19 +1330,32 @@ public sealed partial class IndexModel : PageModel
+             ["PageNumber"] = pageNumber is > 1 ? pageNumber : (int?)null
+         };
+ 
+-        var index = 0;
+-        foreach (var personId in personIds.Distinct().Take(10))
++        var selectedPersonIds = personIds
++            .Where(personId => personId != Guid.Empty)
++            .Distinct()
++            .Take(10)
++            .ToArray();
++        if (selectedPersonIds.Length == 1)
+         {
+-            values[$"PersonIds[{index++}]"] = personId;
++            // Keep single-person profile URLs canonical and readable. Razor model binding
++            // accepts PersonIds=<guid>; indexed keys are only needed for multi-person state.
++            values["PersonIds"] = selectedPersonIds[0];
++        }
++        else
++        {
++            for (var index = 0; index < selectedPersonIds.Length; index++)
++            {
++                values[$"PersonIds[{index}]"] = selectedPersonIds[index];
++            }
+         }
+ 
+-        if (index < 2)
++        if (selectedPersonIds.Length < 2)
+         {
+             values["PeopleMatch"] = null;
+         }
+ 
+         var discoveryOpen = findMore ?? FindMore;
+-        values["FindMore"] = targetView == "photos" && index == 1 && discoveryOpen
++        values["FindMore"] = targetView == "photos" && selectedPersonIds.Length == 1 && discoveryOpen
+             ? true
+             : (bool?)null;
+ 
+@@ -1405,7 +1419,7 @@ public sealed partial class IndexModel : PageModel
+                 ["View"] = "photos",
+                 ["Sort"] = Sort == "newest" ? null : Sort,
+                 ["FindMore"] = FindMore ? true : (bool?)null,
+-                ["PersonIds[0]"] = SelectedPeople[0].Id
++                ["PersonIds"] = SelectedPeople[0].Id
+             };
+             return Url.Page("/Photos/Index", values) ?? "/Photos";
+         }
+diff --git a/Pages/Photos/People/Details.cshtml b/Pages/Photos/People/Details.cshtml
+index 6154261..aafcde0 100644
+--- a/Pages/Photos/People/Details.cshtml
++++ b/Pages/Photos/People/Details.cshtml
+@@ -7,10 +7,12 @@
+     ViewData["PageShell"] = "wide";
+     var firstSeen = Model.Person.FirstMediaDateUtc?.ToLocalTime();
+     var lastSeen = Model.Person.LatestMediaDateUtc?.ToLocalTime();
++    var usableTrustedReferenceCount = Model.ReferenceReadiness.Values.Count(item => item.IsTrusted && item.IsUsableReference);
+ }
+ 
+ @section Styles {
+     <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
++    <link rel="stylesheet" href="~/css/pages/photos-reference-readiness.css" asp-append-version="true" />
+ }
+ 
+ <div class="people-workspace" data-person-details>
+@@ -38,7 +40,7 @@
+             <p>
+                 @Model.Person.ConfirmedFaceCount confirmed appearance@(Model.Person.ConfirmedFaceCount == 1 ? string.Empty : "s")
+                 in @Model.Person.PhotoCount photo@(Model.Person.PhotoCount == 1 ? string.Empty : "s")
+-                · @Model.Person.TrustedReferenceCount trusted matching reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s")
++                · @usableTrustedReferenceCount usable trusted matching reference@(usableTrustedReferenceCount == 1 ? string.Empty : "s")
+                 @if (firstSeen.HasValue && lastSeen.HasValue)
+                 {
+                     if (firstSeen.Value.Date == lastSeen.Value.Date)
+@@ -69,16 +71,17 @@
+         <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+     }
+ 
+-    @if (Model.Person.TrustedReferenceCount == 0)
++    @if (usableTrustedReferenceCount == 0)
+     {
+         <div class="alert alert-warning" role="alert">
+-            <strong>No trusted matching reference.</strong> This person remains fully confirmed, but PRISM will not use these appearances for future identity suggestions until a clear, verified face is explicitly trusted.
++            <strong>No usable trusted matching reference.</strong> This person remains fully confirmed, but Find More Photos needs one current, explicitly trusted face embedding.
++            <a href="#matching-reference-setup" class="alert-link">Choose or prepare a matching reference below.</a>
+         </div>
+     }
+-    else if (Model.Person.ConfirmedFaceCount > Model.Person.TrustedReferenceCount)
++    else if (Model.Person.ConfirmedFaceCount > usableTrustedReferenceCount)
+     {
+         <div class="alert alert-info" role="status">
+-            Only the @Model.Person.TrustedReferenceCount explicitly trusted reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s") influence future matching. Other confirmed appearances remain part of this person but do not train or expand the reference set automatically.
++            Only the @usableTrustedReferenceCount current trusted reference@(usableTrustedReferenceCount == 1 ? string.Empty : "s") influence future matching. Other confirmed appearances remain part of this person but do not train or expand the reference set automatically.
+         </div>
+     }
+ 
+@@ -143,7 +146,7 @@
+     }
+     else
+     {
+-        <section class="person-photo-section" aria-labelledby="personPhotosTitle">
++        <section class="person-photo-section" id="matching-reference-setup" aria-labelledby="personPhotosTitle">
+             <header>
+                 <div>
+                     <span class="people-eyebrow">Confirmed appearances</span>
+@@ -204,6 +207,23 @@
+                             <span class="person-photo-card__quality" title="Face-image quality used for processing; this is not identity confidence.">
+                                 Face quality @(Math.Round(photo.FaceQualityScore * 100))% · @photo.AssignmentType
+                             </span>
++                            @{
++                                var readiness = Model.ReferenceReadiness.GetValueOrDefault(photo.FaceId);
++                            }
++                            @if (readiness is not null)
++                            {
++                                <div class="reference-readiness @(readiness.IsUsableReference ? "is-ready" : readiness.IsPreparationPending ? "is-pending" : readiness.CanPrepare ? "is-repairable" : "is-blocked")">
++                                    <div class="reference-readiness__row">
++                                        <span>Matching readiness</span>
++                                        <strong>@readiness.Label</strong>
++                                    </div>
++                                    <p>@readiness.Message</p>
++                                    @if (!string.IsNullOrWhiteSpace(readiness.FailureReason))
++                                    {
++                                        <small title="Last background-processing failure">Last failure: @readiness.FailureReason</small>
++                                    }
++                                </div>
++                            }
+                             <div class="person-photo-card__actions">
+                                 @if (!photo.IsRepresentative)
+                                 {
+@@ -213,33 +233,64 @@
+                                         <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-star"></i> Use as cover</button>
+                                     </form>
+                                 }
+-                                <details class="person-reference-menu">
+-                                    <summary class="btn btn-sm @(photo.ReferenceStatus == FaceReferenceStatus.TrustedReference ? "btn-outline-success" : "btn-outline-primary")">
+-                                        <i class="bi bi-shield-check"></i> Matching reference
+-                                    </summary>
+-                                    <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
+-                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+-                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+-                                        @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+-                                        {
++                                @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference && readiness?.IsUsableReference == true)
++                                {
++                                    <details class="person-reference-menu">
++                                        <summary class="btn btn-sm btn-outline-success">
++                                            <i class="bi bi-shield-check"></i> Matching reference
++                                        </summary>
++                                        <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
++                                            <input type="hidden" name="id" value="@Model.Person.Id" />
++                                            <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                             <input type="hidden" name="referenceAction" value="exclude" />
+                                             <strong>Exclude from matching</strong>
+                                             <p>This appearance remains confirmed but will no longer influence future suggestions.</p>
+                                             <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                       placeholder="Why should this face no longer be a matching reference?" required></textarea>
+                                             <button type="submit" class="btn btn-sm btn-outline-danger">Exclude reference</button>
+-                                        }
+-                                        else
+-                                        {
++                                        </form>
++                                    </details>
++                                }
++                                else if (readiness?.CanTrust == true)
++                                {
++                                    <details class="person-reference-menu">
++                                        <summary class="btn btn-sm btn-outline-primary">
++                                            <i class="bi bi-shield-check"></i> Use as matching reference
++                                        </summary>
++                                        <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
++                                            <input type="hidden" name="id" value="@Model.Person.Id" />
++                                            <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                             <input type="hidden" name="referenceAction" value="trust" />
+                                             <strong>Trust for matching</strong>
+                                             <p>Use this clear, verified face as evidence for future known-person suggestions.</p>
+                                             <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                       placeholder="Why is this appearance suitable as a trusted reference?" required></textarea>
+                                             <button type="submit" class="btn btn-sm btn-primary">Trust reference</button>
+-                                        }
++                                        </form>
++                                    </details>
++                                }
++                                else if (readiness?.IsPreparationPending == true)
++                                {
++                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="PRISM is rebuilding current matching evidence in the background.">
++                                        <i class="bi bi-arrow-repeat"></i> Preparing embedding
++                                    </button>
++                                }
++                                else if (readiness?.CanPrepare == true)
++                                {
++                                    <form method="post" asp-page-handler="PrepareReference">
++                                        <input type="hidden" name="id" value="@Model.Person.Id" />
++                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
++                                        <button type="submit" class="btn btn-sm btn-outline-primary" title="@readiness.Message">
++                                            <i class="bi bi-cpu"></i> Prepare for matching
++                                        </button>
+                                     </form>
+-                                </details>
++                                }
++                                else
++                                {
++                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="@(readiness?.Message ?? "This appearance cannot be used as matching evidence.")">
++                                        <i class="bi bi-shield-x"></i> Not eligible for matching
++                                    </button>
++                                }
+                                 <details>
+                                     <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Correct appearance</summary>
+                                     <div class="person-correction-menu">
+diff --git a/Pages/Photos/People/Details.cshtml.cs b/Pages/Photos/People/Details.cshtml.cs
+index c912199..0a43b78 100644
+--- a/Pages/Photos/People/Details.cshtml.cs
++++ b/Pages/Photos/People/Details.cshtml.cs
+@@ -14,22 +14,27 @@ public sealed class DetailsModel : PageModel
+ {
+     private readonly IMediaPeopleQueryService _people;
+     private readonly IFaceReviewService _review;
++    private readonly IFaceReferenceReadinessService _referenceReadiness;
+     private readonly MediaLibraryOptions _options;
+     private readonly ILogger<DetailsModel> _logger;
+ 
+     public DetailsModel(
+         IMediaPeopleQueryService people,
+         IFaceReviewService review,
++        IFaceReferenceReadinessService referenceReadiness,
+         IOptions<MediaLibraryOptions> options,
+         ILogger<DetailsModel> logger)
+     {
+         _people = people ?? throw new ArgumentNullException(nameof(people));
+         _review = review ?? throw new ArgumentNullException(nameof(review));
++        _referenceReadiness = referenceReadiness ?? throw new ArgumentNullException(nameof(referenceReadiness));
+         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+     }
+ 
+     public MediaPersonDetailsResult Person { get; private set; } = null!;
++    public IReadOnlyDictionary<Guid, FaceReferenceReadiness> ReferenceReadiness { get; private set; }
++        = new Dictionary<Guid, FaceReferenceReadiness>();
+     public bool FeatureEnabled => _options.People.Enabled;
+ 
+     [TempData]
+@@ -52,6 +57,10 @@ public sealed class DetailsModel : PageModel
+         }
+ 
+         Person = person;
++        ReferenceReadiness = await _referenceReadiness.GetManyAsync(
++            person.Id,
++            person.Photos.Select(photo => photo.FaceId).ToArray(),
++            cancellationToken);
+         return Page();
+     }
+ 
+@@ -109,6 +118,40 @@ public sealed class DetailsModel : PageModel
+                 : "Appearance has been excluded from matching references.");
+     }
+ 
++    public async Task<IActionResult> OnPostPrepareReferenceAsync(
++        Guid id,
++        Guid faceId,
++        CancellationToken cancellationToken)
++    {
++        if (!FeatureEnabled)
++        {
++            return NotFound();
++        }
++
++        try
++        {
++            var readiness = await _referenceReadiness.QueuePreparationAsync(
++                id,
++                faceId,
++                UserId,
++                cancellationToken);
++            StatusMessage = readiness.IsPreparationPending
++                ? "Face embedding preparation queued. PRISM will preserve this confirmed identity while rebuilding current matching evidence in the background."
++                : readiness.Message;
++        }
++        catch (Exception exception) when (IsExpectedReviewException(exception))
++        {
++            _logger.LogWarning(
++                exception,
++                "Unable to prepare face {FaceId} as matching evidence for person {PersonId}.",
++                faceId,
++                id);
++            ErrorMessage = exception.Message;
++        }
++
++        return RedirectToPage("./Details", pageHandler: null, routeValues: new { id }, fragment: "matching-reference-setup");
++    }
++
+     public Task<IActionResult> OnPostRemoveAssignmentAsync(
+         Guid id,
+         Guid faceId,
+diff --git a/ProjectManagement.Tests/MediaLibrary/FaceCandidateZeroReferenceBootstrapTests.cs b/ProjectManagement.Tests/MediaLibrary/FaceCandidateZeroReferenceBootstrapTests.cs
+new file mode 100644
+index 0000000..3223c98
+--- /dev/null
++++ b/ProjectManagement.Tests/MediaLibrary/FaceCandidateZeroReferenceBootstrapTests.cs
+@@ -0,0 +1,155 @@
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Logging.Abstractions;
++using Microsoft.Extensions.Options;
++using ProjectManagement.Features.MediaLibrary.Data;
++using ProjectManagement.Features.MediaLibrary.Domain;
++using ProjectManagement.Features.MediaLibrary.Options;
++using ProjectManagement.Features.MediaLibrary.Services;
++
++namespace ProjectManagement.Tests.MediaLibrary;
++
++public sealed class FaceCandidateZeroReferenceBootstrapTests
++{
++    [Fact]
++    public async Task NoTrustedReferenceCorpus_CompletesCandidateSearchWithoutCallingSimilarityEngine()
++    {
++        await using var db = CreateContext();
++        var options = CreateOptions();
++        var faceId = await SeedUnassignedFaceAsync(db);
++        var service = new FaceCandidateSuggestionService(
++            db,
++            new ThrowingCandidateSearchService(),
++            new MediaAssetVisibilityPolicy(Options.Create(options)),
++            Options.Create(options),
++            NullLogger<FaceCandidateSuggestionService>.Instance);
++
++        var processed = await service.RefreshUnassignedAsync(10, CancellationToken.None);
++
++        Assert.Equal(1, processed);
++        var face = await db.Faces.SingleAsync(item => item.Id == faceId);
++        Assert.Equal(FaceCandidateSearchStatus.Ready, face.CandidateSearchStatus);
++        Assert.NotNull(face.CandidateSearchCompletedAtUtc);
++        Assert.Empty(await db.FaceReviewDecisions.ToListAsync());
++    }
++
++    private static MediaLibraryDbContext CreateContext()
++    {
++        var options = new DbContextOptionsBuilder<MediaLibraryDbContext>()
++            .UseInMemoryDatabase($"zero-reference-bootstrap-{Guid.NewGuid():N}")
++            .Options;
++        return new MediaLibraryDbContext(options);
++    }
++
++    private static MediaLibraryOptions CreateOptions()
++        => new()
++        {
++            Enabled = true,
++            Catalogue = new MediaCatalogueOptions { Enabled = true },
++            People = new MediaPeopleOptions
++            {
++                Enabled = true,
++                WorkerEnabled = true,
++                ProcessPhotographsOnly = false,
++                CandidateSearchEnabled = true,
++                CandidateMinimumFaceQuality = .55,
++                CandidateMinimumTrustedReferenceQuality = .65,
++                Embedder = new FaceModelOptions
++                {
++                    Key = "sface",
++                    Version = "v1",
++                    EmbeddingDimension = 4
++                }
++            }
++        };
++
++    private static async Task<Guid> SeedUnassignedFaceAsync(MediaLibraryDbContext db)
++    {
++        var now = DateTimeOffset.UtcNow;
++        var source = new MediaLibrarySource
++        {
++            Id = Guid.NewGuid(),
++            Key = "test",
++            Name = "Test",
++            SourceType = MediaLibrarySourceType.Prism,
++            IsEnabled = true,
++            IsVisibleInLibrary = true
++        };
++        var asset = new MediaAsset
++        {
++            Id = 1,
++            SourceId = source.Id,
++            Source = source,
++            Origin = MediaAssetOrigin.ProjectPhoto,
++            Kind = MediaAssetKind.Photo,
++            IsAvailable = true,
++            AvailabilityStatus = MediaAvailabilityStatus.Available,
++            SourceEntityId = "photo:1",
++            ContextKey = "project:1",
++            CollectionKey = "project:1",
++            ContextTitle = "Test",
++            ContextSubtitle = "Project media",
++            SourceLabel = "Project",
++            Title = "Photo",
++            OriginalFileName = "photo.jpg",
++            ContentType = "image/jpeg",
++            MediaDateUtc = now,
++            IndexedAtUtc = now,
++            LastSeenAtUtc = now
++        };
++        var faceId = Guid.NewGuid();
++        var face = new MediaFace
++        {
++            Id = faceId,
++            MediaAsset = asset,
++            MediaAssetId = asset.Id,
++            SequenceNumber = 1,
++            Left = .2,
++            Top = .2,
++            Width = .3,
++            Height = .3,
++            DetectionConfidence = .95,
++            QualityScore = .9,
++            QualityStatus = FaceQualityStatus.EmbeddingEligible,
++            DetectorModelKey = "detector",
++            DetectorModelVersion = "v1",
++            CandidateSearchStatus = FaceCandidateSearchStatus.Pending,
++            CandidateSearchModelKey = "sface",
++            CandidateSearchModelVersion = "v1",
++            CreatedAtUtc = now,
++            UpdatedAtUtc = now
++        };
++        face.Embeddings.Add(new MediaFaceEmbedding
++        {
++            MediaFaceId = faceId,
++            Embedding = new float[] { 1f, 0f, 0f, 0f },
++            Dimension = 4,
++            ModelKey = "sface",
++            ModelVersion = "v1",
++            Normalization = "L2",
++            QualityScore = .9,
++            CreatedAtUtc = now
++        });
++        db.Sources.Add(source);
++        db.Assets.Add(asset);
++        db.Faces.Add(face);
++        await db.SaveChangesAsync();
++        return faceId;
++    }
++
++    private sealed class ThrowingCandidateSearchService : IFaceCandidateSearchService
++    {
++        public Task<IReadOnlyList<FaceCandidate>> SearchAsync(
++            Guid faceId,
++            float[] embedding,
++            string modelKey,
++            string modelVersion,
++            int dimension,
++            CancellationToken cancellationToken)
++            => throw new InvalidOperationException("Candidate search must not execute when no trusted-reference corpus exists.");
++
++        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
++            IReadOnlyCollection<FaceCandidateSearchInput> inputs,
++            CancellationToken cancellationToken)
++            => throw new InvalidOperationException("Candidate search must not execute when no trusted-reference corpus exists.");
++    }
++}
+diff --git a/ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs b/ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs
+new file mode 100644
+index 0000000..fdbc33d
+--- /dev/null
++++ b/ProjectManagement.Tests/MediaLibrary/FaceReferenceReadinessServiceTests.cs
+@@ -0,0 +1,201 @@
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Options;
++using ProjectManagement.Features.MediaLibrary.Data;
++using ProjectManagement.Features.MediaLibrary.Domain;
++using ProjectManagement.Features.MediaLibrary.Options;
++using ProjectManagement.Features.MediaLibrary.Services;
++
++namespace ProjectManagement.Tests.MediaLibrary;
++
++public sealed class FaceReferenceReadinessServiceTests
++{
++    [Fact]
++    public async Task MissingCurrentEmbedding_IsRepairable_ThenCurrentEmbeddingBecomesTrustable()
++    {
++        await using var db = CreateContext();
++        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: false);
++        var service = CreateService(db);
++
++        var missing = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
++
++        Assert.Equal(FaceReferenceReadinessCode.EmbeddingMissing, missing.Code);
++        Assert.True(missing.CanPrepare);
++        Assert.False(missing.CanTrust);
++
++        db.FaceEmbeddings.Add(new MediaFaceEmbedding
++        {
++            MediaFaceId = seeded.FaceId,
++            Embedding = new float[] { 1f, 0f, 0f, 0f },
++            Dimension = 4,
++            ModelKey = "sface",
++            ModelVersion = "v1",
++            Normalization = "L2",
++            QualityScore = .9,
++            CreatedAtUtc = DateTimeOffset.UtcNow
++        });
++        await db.SaveChangesAsync();
++
++        var ready = await service.GetAsync(seeded.PersonId, seeded.FaceId, CancellationToken.None);
++
++        Assert.Equal(FaceReferenceReadinessCode.Eligible, ready.Code);
++        Assert.True(ready.CanTrust);
++        Assert.False(ready.CanPrepare);
++    }
++
++    [Fact]
++    public async Task QueuePreparation_CreatesDurableEmbeddingJob_AndAudit()
++    {
++        await using var db = CreateContext();
++        var seeded = await SeedConfirmedFaceAsync(db, includeCurrentEmbedding: false);
++        var service = CreateService(db);
++
++        var result = await service.QueuePreparationAsync(
++            seeded.PersonId,
++            seeded.FaceId,
++            "reviewer",
++            CancellationToken.None);
++
++        Assert.True(result.IsPreparationPending);
++        var job = Assert.Single(await db.ProcessingJobs.ToListAsync());
++        Assert.Equal(MediaProcessingJobType.GenerateFaceEmbeddings, job.JobType);
++        Assert.Equal(MediaProcessingJobStatus.Pending, job.Status);
++        Assert.Contains(await db.IdentityAudits.ToListAsync(), audit =>
++            audit.FaceId == seeded.FaceId && audit.Action == "ReferencePreparationQueued");
++    }
++
++    private static MediaLibraryDbContext CreateContext()
++    {
++        var options = new DbContextOptionsBuilder<MediaLibraryDbContext>()
++            .UseInMemoryDatabase($"face-reference-readiness-{Guid.NewGuid():N}")
++            .Options;
++        return new MediaLibraryDbContext(options);
++    }
++
++    private static FaceReferenceReadinessService CreateService(MediaLibraryDbContext db)
++    {
++        var options = CreateOptions();
++        return new FaceReferenceReadinessService(
++            db,
++            new MediaAssetVisibilityPolicy(Options.Create(options)),
++            new FaceEligibilityPolicy(Options.Create(options)),
++            Options.Create(options));
++    }
++
++    private static MediaLibraryOptions CreateOptions()
++        => new()
++        {
++            Enabled = true,
++            Catalogue = new MediaCatalogueOptions { Enabled = true },
++            People = new MediaPeopleOptions
++            {
++                Enabled = true,
++                WorkerEnabled = true,
++                ProcessPhotographsOnly = false,
++                CandidateSearchEnabled = true,
++                CandidateMinimumTrustedReferenceQuality = .65,
++                Embedder = new FaceModelOptions
++                {
++                    Key = "sface",
++                    Version = "v1",
++                    EmbeddingDimension = 4
++                }
++            }
++        };
++
++    private static async Task<(Guid PersonId, Guid FaceId)> SeedConfirmedFaceAsync(
++        MediaLibraryDbContext db,
++        bool includeCurrentEmbedding)
++    {
++        var now = DateTimeOffset.UtcNow;
++        var source = new MediaLibrarySource
++        {
++            Id = Guid.NewGuid(),
++            Key = "test",
++            Name = "Test",
++            SourceType = MediaLibrarySourceType.Prism,
++            IsEnabled = true,
++            IsVisibleInLibrary = true
++        };
++        var asset = new MediaAsset
++        {
++            Id = 1,
++            SourceId = source.Id,
++            Source = source,
++            Origin = MediaAssetOrigin.ProjectPhoto,
++            Kind = MediaAssetKind.Photo,
++            IsAvailable = true,
++            AvailabilityStatus = MediaAvailabilityStatus.Available,
++            SourceEntityId = "photo:1",
++            ContextKey = "project:1",
++            CollectionKey = "project:1",
++            ContextTitle = "Test",
++            ContextSubtitle = "Project media",
++            SourceLabel = "Project",
++            Title = "Photo",
++            OriginalFileName = "photo.jpg",
++            ContentType = "image/jpeg",
++            MediaDateUtc = now,
++            IndexedAtUtc = now,
++            LastSeenAtUtc = now
++        };
++        var faceId = Guid.NewGuid();
++        var face = new MediaFace
++        {
++            Id = faceId,
++            MediaAsset = asset,
++            MediaAssetId = asset.Id,
++            SequenceNumber = 1,
++            Left = .2,
++            Top = .2,
++            Width = .3,
++            Height = .3,
++            DetectionConfidence = .95,
++            QualityScore = .9,
++            QualityStatus = FaceQualityStatus.EmbeddingEligible,
++            DetectorModelKey = "detector",
++            DetectorModelVersion = "v1",
++            CreatedAtUtc = now,
++            UpdatedAtUtc = now
++        };
++        if (includeCurrentEmbedding)
++        {
++            face.Embeddings.Add(new MediaFaceEmbedding
++            {
++                MediaFaceId = faceId,
++                Embedding = new float[] { 1f, 0f, 0f, 0f },
++                Dimension = 4,
++                ModelKey = "sface",
++                ModelVersion = "v1",
++                Normalization = "L2",
++                QualityScore = .9,
++                CreatedAtUtc = now
++            });
++        }
++        var personId = Guid.NewGuid();
++        var person = new MediaPerson
++        {
++            Id = personId,
++            DisplayName = "Person",
++            NormalizedName = "PERSON",
++            Status = MediaPersonStatus.Confirmed,
++            CreatedByUserId = "reviewer",
++            CreatedAtUtc = now,
++            UpdatedAtUtc = now
++        };
++        db.Sources.Add(source);
++        db.Assets.Add(asset);
++        db.Faces.Add(face);
++        db.Persons.Add(person);
++        db.PersonFaces.Add(new MediaPersonFace
++        {
++            MediaPersonId = personId,
++            MediaFaceId = faceId,
++            AssignmentType = FaceAssignmentType.HumanConfirmed,
++            ReferenceStatus = FaceReferenceStatus.NotReference,
++            AssignedByUserId = "reviewer",
++            AssignedAtUtc = now
++        });
++        await db.SaveChangesAsync();
++        return (personId, faceId);
++    }
++}
+diff --git a/ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs b/ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs
+index 7876093..3fe83cb 100644
+--- a/ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs
++++ b/ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs
+@@ -22,6 +22,7 @@ public sealed class MediaLibraryDependencyRegistrationTests
+         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IMediaAlbumService));
+         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IPersonPhotoDiscoveryQueryService));
+         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IFaceReviewService));
++        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IFaceReferenceReadinessService));
+         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IFaceCandidateRefreshQueueService));
+     }
+ }
+diff --git a/wwwroot/css/pages/photos-reference-readiness.css b/wwwroot/css/pages/photos-reference-readiness.css
+new file mode 100644
+index 0000000..0e636ea
+--- /dev/null
++++ b/wwwroot/css/pages/photos-reference-readiness.css
+@@ -0,0 +1,26 @@
++.reference-readiness {
++    margin-top: .55rem;
++    padding: .55rem .65rem;
++    border: 1px solid var(--bs-border-color, #dfe5ef);
++    border-radius: .6rem;
++    background: rgba(255, 255, 255, .58);
++    font-size: .76rem;
++}
++
++.reference-readiness__row {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .75rem;
++}
++
++.reference-readiness__row > span { color: #69758a; }
++.reference-readiness__row > strong { color: #22304a; font-weight: 650; }
++.reference-readiness p { margin: .25rem 0 0; color: #647086; line-height: 1.35; }
++.reference-readiness small { display: block; margin-top: .3rem; color: #a23b42; }
++.reference-readiness.is-ready { border-color: rgba(25, 135, 84, .26); background: rgba(25, 135, 84, .045); }
++.reference-readiness.is-pending { border-color: rgba(13, 110, 253, .24); background: rgba(13, 110, 253, .045); }
++.reference-readiness.is-repairable { border-color: rgba(255, 193, 7, .42); background: rgba(255, 193, 7, .06); }
++.reference-readiness.is-blocked { border-color: rgba(108, 117, 125, .22); }
++
++#matching-reference-setup { scroll-margin-top: 5rem; }

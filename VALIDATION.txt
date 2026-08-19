@@ -1,21 +1,40 @@
-PRISM Photos — Person Photo Profile & Find More Photos
-Validation performed in this environment:
+PRISM Photos — Identity Matching Bootstrap & Reference Readiness
+Validation summary
 
-- Changed/new project files: 13
-- C# lexical/string/comment/delimiter structural validation: PASS (9 affected C# source/test files)
-- CSS structural validation: PASS
-- node --check photos-library.js: PASS
-- node --check photos-curation.js: PASS
-- node --check photos-person-profile.js: PASS
-- node --test photos-person-profile-contract.test.js: PASS (3/3)
-- Unified patch dry-run against exact merged current baseline: PASS
-- Unified patch apply against clean merged current baseline: PASS
-- Patched files byte-for-byte against ready-to-paste implementation: PASS (13/13)
-- Existing IMediaAlbumService DI registration preserved: PASS
-- New IPersonPhotoDiscoveryQueryService DI registration present: PASS
-- Existing MediaBulkDownloadOptions compatibility preserved: PASS
-- Existing candidate reference-query compatibility preserved: PASS
-- EF migration required: NO
-- appsettings change required: NO
+Baseline
+- Reconstructed from the supplied project source plus all current Photos/People packages and hotfixes through:
+  Person Profile Discovery + Razor Context hotfix + Album DI + Matching Recovery/options/candidate-visibility compatibility.
 
-Not executable here: dotnet build / xUnit, because the .NET SDK is not installed in this environment.
+Changed/new project files: 17
+
+Static validation performed
+- C# lexical/string/comment/delimiter structural validation: PASS on all changed C# sources.
+- Razor brace/parenthesis structural checks: PASS on Index.cshtml and People/Details.cshtml.
+- New CSS brace validation: PASS.
+- git diff --check: PASS (no whitespace errors).
+- IFaceIntelligenceService contract/implementation/routing reconciliation: PASS.
+- IFaceReferenceReadinessService DI and consumer reconciliation: PASS.
+- Existing IMediaAlbumService registration preserved: PASS.
+- Existing IPersonPhotoDiscoveryQueryService registration preserved: PASS.
+- Existing matching recovery runtime/queue registrations preserved: PASS.
+- Old generic trusted-reference eligibility error removed from project sources: PASS.
+- Single-person route canonicalization present: PASS.
+- Zero-reference candidate fast path present: PASS.
+
+JavaScript regression validation
+- node --check wwwroot/js/pages/photos-library.js: PASS
+- node --check wwwroot/js/pages/photos-curation.js: PASS
+- node --check wwwroot/js/pages/photos-person-profile.js: PASS
+- node --test wwwroot/js/pages/photos-person-profile-contract.test.js: PASS (3/3)
+
+Patch/package validation
+- Unified patch generated against exact reconstructed current baseline.
+- git diff --check: PASS.
+- Ready-to-paste package contains only the 17 project delta files plus documentation/patch.
+
+Limitation
+- The .NET SDK/Razor compiler is not installed in the execution environment, so `dotnet build` and xUnit execution could not be run here. Run the commands in README-APPLY.md on the development machine before deployment.
+- Unified patch dry-run/apply verification against clean reconstructed baseline: PASS.
+- Patched result compared byte-for-byte with implementation: PASS (17/17 project files, 0 mismatches).
+- Ready-to-paste project files compared byte-for-byte with implementation: PASS (17/17, 0 mismatches).
+- ZIP archive integrity: PASS.

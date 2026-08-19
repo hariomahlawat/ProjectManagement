@@ -22,6 +22,7 @@ public sealed class MediaLibraryDependencyRegistrationTests
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IMediaAlbumService));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IPersonPhotoDiscoveryQueryService));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IFaceReviewService));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IFaceReferenceReadinessService));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IFaceCandidateRefreshQueueService));
     }
 }

@@ -1,0 +1,26 @@
+.reference-readiness {
+    margin-top: .55rem;
+    padding: .55rem .65rem;
+    border: 1px solid var(--bs-border-color, #dfe5ef);
+    border-radius: .6rem;
+    background: rgba(255, 255, 255, .58);
+    font-size: .76rem;
+}
+
+.reference-readiness__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.reference-readiness__row > span { color: #69758a; }
+.reference-readiness__row > strong { color: #22304a; font-weight: 650; }
+.reference-readiness p { margin: .25rem 0 0; color: #647086; line-height: 1.35; }
+.reference-readiness small { display: block; margin-top: .3rem; color: #a23b42; }
+.reference-readiness.is-ready { border-color: rgba(25, 135, 84, .26); background: rgba(25, 135, 84, .045); }
+.reference-readiness.is-pending { border-color: rgba(13, 110, 253, .24); background: rgba(13, 110, 253, .045); }
+.reference-readiness.is-repairable { border-color: rgba(255, 193, 7, .42); background: rgba(255, 193, 7, .06); }
+.reference-readiness.is-blocked { border-color: rgba(108, 117, 125, .22); }
+
+#matching-reference-setup { scroll-margin-top: 5rem; }
