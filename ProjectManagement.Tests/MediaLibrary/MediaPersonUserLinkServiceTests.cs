@@ -32,6 +32,8 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.NotNull(lightweight);
         Assert.Equal(person.Id, lightweight!.PersonId);
         Assert.Equal(person.DisplayName, lightweight.PersonDisplayName);
+        Assert.False(lightweight.UsePortraitAsAvatar);
+        Assert.False(linked.UsePortraitAsAvatar);
         Assert.Single(media.PersonUserLinks.Where(item => item.UnlinkedAtUtc == null));
         Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinked" && audit.PersonId == person.Id);
 
@@ -112,6 +114,62 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.Equal(2, await media.PersonUserLinks.CountAsync());
         Assert.Single(await media.PersonUserLinks.Where(item => item.UnlinkedAtUtc == null).ToListAsync());
         Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserUnlinked" && audit.PersonId == first.Id);
+    }
+
+
+    [Fact]
+    public async Task AvatarPreference_IsOptIn_AndRequiresAUsableRepresentativePortrait()
+    {
+        await using var media = CreateMediaContext();
+        await using var app = CreateApplicationContext();
+        var person = ConfirmedPerson("Portrait Preference");
+        media.Persons.Add(person);
+        app.Users.Add(ActiveUser("user-1", "Portrait User", "Col"));
+        await media.SaveChangesAsync();
+        await app.SaveChangesAsync();
+
+        var service = new MediaPersonUserLinkService(media, app, NullLogger<MediaPersonUserLinkService>.Instance);
+        await service.LinkAsync(person.Id, "user-1", "reviewer", CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SetAvatarPreferenceAsync("user-1", true, CancellationToken.None));
+
+        var link = await media.PersonUserLinks.SingleAsync();
+        Assert.False(link.UsePortraitAsAvatar);
+    }
+
+    [Fact]
+    public async Task IncorrectIdentityReport_DisablesAvatarAndCanBeResolvedByManager()
+    {
+        await using var media = CreateMediaContext();
+        await using var app = CreateApplicationContext();
+        var person = ConfirmedPerson("Reported Identity");
+        media.Persons.Add(person);
+        app.Users.Add(ActiveUser("user-1", "Reported User", "Col"));
+        await media.SaveChangesAsync();
+        await app.SaveChangesAsync();
+
+        var service = new MediaPersonUserLinkService(media, app, NullLogger<MediaPersonUserLinkService>.Instance);
+        await service.LinkAsync(person.Id, "user-1", "reviewer", CancellationToken.None);
+        var stored = await media.PersonUserLinks.SingleAsync();
+        stored.UsePortraitAsAvatar = true;
+        await media.SaveChangesAsync();
+
+        await service.ReportIncorrectLinkAsync("user-1", "This is a different person", CancellationToken.None);
+
+        stored = await media.PersonUserLinks.SingleAsync();
+        Assert.False(stored.UsePortraitAsAvatar);
+        Assert.NotNull(stored.ConcernRaisedAtUtc);
+        Assert.Null(stored.ConcernResolvedAtUtc);
+        var lightweight = await service.GetPhotoIdentityForUserAsync("user-1", CancellationToken.None);
+        Assert.NotNull(lightweight);
+        Assert.True(lightweight!.HasOpenConcern);
+        Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinkConcernRaised");
+
+        await service.ResolveLinkConcernAsync(person.Id, "reviewer", "Account holder and identity were re-verified", CancellationToken.None);
+        stored = await media.PersonUserLinks.SingleAsync();
+        Assert.NotNull(stored.ConcernResolvedAtUtc);
+        Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinkConcernResolved");
     }
 
     private static MediaLibraryDbContext CreateMediaContext()

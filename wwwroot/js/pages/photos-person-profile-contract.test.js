@@ -6,6 +6,8 @@ const path = require('node:path');
 const script = fs.readFileSync(path.resolve(__dirname, 'photos-person-profile.js'), 'utf8');
 const page = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml'), 'utf8');
 const card = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/_PersonPhotoCandidateCard.cshtml'), 'utf8');
+const pageModel = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml.cs'), 'utf8');
+const peopleModel = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.People.cs'), 'utf8');
 
 test('person discovery exposes direct evidence bands and identity-group evidence', () => {
     assert.match(page, /Strong possibilities/);
@@ -33,7 +35,20 @@ test('processing-only discovery remains compact and never claims the queue is cl
 });
 
 test('single-person profile supports linked PRISM user context', () => {
-    assert.match(page, /Linked to your PRISM account/);
+    assert.match(page, /Your photos in PRISM/);
+    assert.match(page, /Photo identity/);
     assert.match(page, /PersonDiscoveryPrimaryLabel/);
     assert.match(page, /photos-control--select/);
+});
+
+
+test('My Photos opens the confirmed gallery without automatically entering discovery', () => {
+    assert.match(pageModel, /if \(MyPhotos\)/);
+    assert.match(pageModel, /PersonIds = new\[\] \{ link\.PersonId \};/);
+    assert.match(pageModel, /FindMore = false;/);
+    assert.match(pageModel, /link\?\.HasOpenConcern == true/);
+});
+
+test('an open identity-link concern suspends linked-user self review', () => {
+    assert.match(peopleModel, /link\?\.PersonId == personId[\s\S]*link\.HasOpenConcern == false/);
 });

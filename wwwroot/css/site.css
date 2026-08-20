@@ -11307,3 +11307,47 @@ main[role="main"].analytics-main > .pm-page-shell {
     margin-left: 72px;
   }
 }
+
+/* Account ↔ Photos identity --------------------------------------------- */
+.account-photo-identity.has-concern { border-color: rgba(220, 53, 69, .28); }
+.account-photo-identity__header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+.account-photo-identity__settings {
+  align-items: center;
+  border-top: 1px solid var(--bs-border-color, #e2e7ef);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+.account-photo-identity__settings strong { display: block; font-size: .85rem; }
+.account-photo-identity__settings p { color: #68758a; font-size: .76rem; line-height: 1.45; }
+.account-photo-identity__report { border-top: 1px solid var(--bs-border-color, #e2e7ef); margin-top: 1rem; padding-top: .8rem; }
+.account-photo-identity__report > summary { color: #b23a48; cursor: pointer; font-size: .78rem; font-weight: 700; width: max-content; }
+.account-photo-identity__report-form { display: grid; gap: .65rem; margin-top: .65rem; max-width: 42rem; }
+.account-photo-identity__report-form p { color: #68758a; font-size: .76rem; margin: 0; }
+.account-photo-identity__report-form .btn { justify-self: start; }
+.account-photo-identity__concern {
+  align-items: start;
+  background: #fff7df;
+  border: 1px solid #efd17a;
+  border-radius: .75rem;
+  color: #67561c;
+  display: flex;
+  gap: .7rem;
+  margin-top: 1rem;
+  padding: .75rem .85rem;
+}
+.account-photo-identity__concern > i { margin-top: .1rem; }
+.account-photo-identity__concern strong { color: #715600; display: block; font-size: .82rem; }
+.account-photo-identity__concern p { font-size: .76rem; margin-top: .15rem; }
+.account-photo-identity__concern small { color: #867440; font-size: .7rem; }
+@media (max-width: 767.98px) {
+  .account-photo-identity__header { align-items: flex-start; flex-wrap: wrap; }
+  .account-photo-identity__header .btn { width: 100%; }
+  .account-photo-identity__settings { grid-template-columns: 1fr; }
+}

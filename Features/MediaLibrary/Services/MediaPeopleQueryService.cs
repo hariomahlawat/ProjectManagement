@@ -36,7 +36,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         var filteredPeople = BuildFilteredPeopleQuery(
             _db,
             normalizedQuery,
-            request.IncludeHidden);
+            request.IncludeHidden,
+            request.AccountLinkFilter);
         var total = await filteredPeople.CountAsync(cancellationToken);
         var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         var pageNumber = Math.Clamp(request.PageNumber, 1, pageCount);
@@ -66,7 +67,9 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 row.LatestMediaDateUtc,
                 row.IsHidden,
                 row.IsMinor,
-                row.ConcurrencyToken))
+                row.ConcurrencyToken,
+                row.IsPrismUserLinked,
+                row.HasOpenPrismLinkConcern))
             .ToList();
 
         var reviewableFaces = BuildVisibleReviewableFacesQuery();
@@ -453,7 +456,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
     internal static IQueryable<MediaPerson> BuildFilteredPeopleQuery(
         MediaLibraryDbContext db,
         string? query,
-        bool includeHidden)
+        bool includeHidden,
+        string accountLinkFilter = "all")
     {
         ArgumentNullException.ThrowIfNull(db);
 
@@ -469,6 +473,25 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             var escapedTerm = EscapeLikePattern(query.Trim());
             peopleQuery = peopleQuery.Where(person =>
                 EF.Functions.ILike(person.DisplayName, $"%{escapedTerm}%", "\\"));
+        }
+
+        var normalizedLinkFilter = NormalizeAccountLinkFilter(accountLinkFilter);
+        if (normalizedLinkFilter != "all")
+        {
+            var activeLinks = db.PersonUserLinks.AsNoTracking()
+                .Where(link => link.UnlinkedAtUtc == null);
+            peopleQuery = normalizedLinkFilter switch
+            {
+                "linked" => peopleQuery.Where(person =>
+                    activeLinks.Any(link => link.MediaPersonId == person.Id)),
+                "unlinked" => peopleQuery.Where(person =>
+                    !activeLinks.Any(link => link.MediaPersonId == person.Id)),
+                "reported" => peopleQuery.Where(person =>
+                    activeLinks.Any(link => link.MediaPersonId == person.Id
+                                            && link.ConcernRaisedAtUtc != null
+                                            && link.ConcernResolvedAtUtc == null)),
+                _ => peopleQuery
+            };
         }
 
         return peopleQuery;
@@ -553,7 +576,14 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 LatestMediaDateUtc = photoStats.LatestMediaDateUtc,
                 person.IsHidden,
                 person.IsMinor,
-                person.ConcurrencyToken
+                person.ConcurrencyToken,
+                IsPrismUserLinked = db.PersonUserLinks.Any(link =>
+                    link.MediaPersonId == person.Id && link.UnlinkedAtUtc == null),
+                HasOpenPrismLinkConcern = db.PersonUserLinks.Any(link =>
+                    link.MediaPersonId == person.Id
+                    && link.UnlinkedAtUtc == null
+                    && link.ConcernRaisedAtUtc != null
+                    && link.ConcernResolvedAtUtc == null)
             };
 
         var ordered = NormalizeSort(sort) switch
@@ -581,7 +611,9 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 LatestMediaDateUtc = person.LatestMediaDateUtc,
                 IsHidden = person.IsHidden,
                 IsMinor = person.IsMinor,
-                ConcurrencyToken = person.ConcurrencyToken
+                ConcurrencyToken = person.ConcurrencyToken,
+                IsPrismUserLinked = person.IsPrismUserLinked,
+                HasOpenPrismLinkConcern = person.HasOpenPrismLinkConcern
             });
     }
 
@@ -702,6 +734,11 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             "FaceUnidentifiedReopened" => "Face reopened for review",
             "CandidateRejected" => "Identity suggestion rejected",
             "GroupCandidateRejected" => "Group identity suggestion rejected",
+            "PrismUserLinked" => "PRISM account linked",
+            "PrismUserUnlinked" => "PRISM account unlinked",
+            "PrismUserAvatarPreferenceChanged" => "PRISM avatar preference changed",
+            "PrismUserLinkConcernRaised" => "PRISM account link reported",
+            "PrismUserLinkConcernResolved" => "PRISM account link report resolved",
             _ => action
         };
 
@@ -711,6 +748,15 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             "photos" => "photos",
             "recent" => "recent",
             _ => "name"
+        };
+
+    internal static string NormalizeAccountLinkFilter(string? value)
+        => value?.Trim().ToLowerInvariant() switch
+        {
+            "linked" => "linked",
+            "unlinked" => "unlinked",
+            "reported" => "reported",
+            _ => "all"
         };
 
     private static string EscapeLikePattern(string value)
@@ -745,6 +791,8 @@ internal sealed class MediaPersonIndexDatabaseRow
     public bool IsHidden { get; init; }
     public bool IsMinor { get; init; }
     public Guid ConcurrencyToken { get; init; }
+    public bool IsPrismUserLinked { get; init; }
+    public bool HasOpenPrismLinkConcern { get; init; }
 }
 
 internal sealed class MediaPersonPhotoDatabaseRow

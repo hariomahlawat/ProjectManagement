@@ -4,8 +4,10 @@
 @{
     ViewData["Title"] = Model.IsAlbumDetail && Model.CurrentAlbum is not null
         ? $"{Model.CurrentAlbum.Name} — Photos"
-        : Model.SelectedPeople.Count == 1
-            ? $"{Model.SelectedPeople[0].Name} — Photos"
+        : Model.IsPersonalPhotoProfile
+            ? "My Photos — PRISM"
+            : Model.SelectedPeople.Count == 1
+                ? $"{Model.SelectedPeople[0].Name} — Photos"
             : Model.SelectedPeople.Count > 1
                 ? "Selected people — Photos"
                 : "Photos";
@@ -31,9 +33,11 @@
         Model.Year.HasValue,
         Model.IsCollectionDetail
     }.Count(value => value);
-    var galleryHeading = Model.IsSinglePersonProfile
-        ? Model.SelectedPeople[0].Name
-        : "Photos with selected people";
+    var galleryHeading = Model.IsPersonalPhotoProfile
+        ? "My Photos"
+        : Model.IsSinglePersonProfile
+            ? Model.SelectedPeople[0].Name
+            : "Photos with selected people";
     var selectedNames = string.Join(", ", Model.SelectedPeople.Select(person => person.Name));
     var personProfile = Model.PersonProfile;
 }
@@ -56,7 +60,14 @@
         @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
         {
             <div class="photos-person-hero">
-                <a class="photos-person-hero__back" asp-page="/Photos/People/Index"><i class="bi bi-chevron-left"></i> People</a>
+                @if (Model.IsPersonalPhotoProfile)
+                {
+                    <a class="photos-person-hero__back" asp-page="./Index" asp-route-View="photos"><i class="bi bi-chevron-left"></i> Photos</a>
+                }
+                else
+                {
+                    <a class="photos-person-hero__back" asp-page="/Photos/People/Index"><i class="bi bi-chevron-left"></i> People</a>
+                }
                 <div class="photos-person-hero__main">
                     <div class="photos-person-hero__faces" aria-hidden="true">
                         @foreach (var person in Model.SelectedPeople.Take(4))
@@ -74,7 +85,7 @@
                         }
                     </div>
                     <div class="photos-person-hero__identity">
-                        <span class="photos-eyebrow">@(Model.IsSinglePersonProfile ? "People in Photos" : "People together")</span>
+                        <span class="photos-eyebrow">@(Model.IsPersonalPhotoProfile ? "Your photos in PRISM" : Model.IsSinglePersonProfile ? "People in Photos" : "People together")</span>
                         <h1>@galleryHeading</h1>
                         @if (Model.IsSinglePersonProfile)
                         {
@@ -95,7 +106,7 @@
                             </p>
                             @if (Model.IsCurrentUserLinkedPerson)
                             {
-                                <span class="photos-person-profile__self-link"><i class="bi bi-person-check" aria-hidden="true"></i> Linked to your PRISM account</span>
+                                <span class="photos-person-profile__self-link"><i class="bi bi-person-check" aria-hidden="true"></i> Photo identity · @personProfile?.DisplayName</span>
                             }
                         }
                         else if (Model.MatchAllSelectedPeople)
@@ -195,11 +206,11 @@
     </header>
 
     <nav class="photos-primary-tabs" aria-label="Photos sections">
-        <a asp-page="./Index" asp-route-View="photos" class="@(!Model.IsPeopleGallery && Model.View == "photos" && !Model.IsCollectionDetail ? "is-active" : null)">Photos</a>
+        <a asp-page="./Index" asp-route-View="photos" class="@((Model.IsPersonalPhotoProfile || (!Model.IsPeopleGallery && Model.View == "photos" && !Model.IsCollectionDetail)) ? "is-active" : null)">Photos</a>
         <a asp-page="./Index" asp-route-View="collections" class="@(!Model.IsPeopleGallery && (Model.View == "collections" || Model.IsCollectionDetail || Model.IsAlbumDetail) ? "is-active" : null)">Collections</a>
         @if (Model.PeopleFeatureEnabled)
         {
-            <a class="@(Model.IsPeopleGallery ? "is-active" : null)" asp-page="/Photos/People/Index">People</a>
+            <a class="@(Model.IsPeopleGallery && !Model.IsPersonalPhotoProfile ? "is-active" : null)" asp-page="/Photos/People/Index">People</a>
         }
     </nav>
 
@@ -319,7 +330,7 @@
                 @if (Model.IsAddMediaMode && Model.AddMediaTargetAlbum is not null) { <input type="hidden" name="AddToAlbumId" value="@Model.AddMediaTargetAlbum.Id" /> }
                 @if (Model.IsAlbumsWorkspace) { <input type="hidden" name="CollectionTab" value="albums" /> }
                 <i class="bi bi-search"></i>
-                <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsAlbumsWorkspace ? "Search albums" : Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : Model.PeopleFeatureEnabled ? "Search photos, projects, visits, activities, events, albums or people" : "Search photos, projects, visits, activities, events or albums")" autocomplete="off" data-photos-search />
+                <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsAlbumsWorkspace ? "Search albums" : Model.IsPersonalPhotoProfile ? "Search my photos" : Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : Model.PeopleFeatureEnabled ? "Search photos, projects, visits, activities, events, albums or people" : "Search photos, projects, visits, activities, events or albums")" autocomplete="off" data-photos-search />
                 @if (!Model.IsAlbumsWorkspace)
                 {
                     <input type="hidden" name="Source" value="@Model.Source" /><input type="hidden" name="Kind" value="@Model.Kind" /><input type="hidden" name="Classification" value="@Model.Classification" />

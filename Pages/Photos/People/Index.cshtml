@@ -106,6 +106,7 @@
                 <i class="bi bi-search"></i>
                 <input type="search" name="Q" value="@Model.Q" placeholder="Search people" autocomplete="off" data-people-search-input />
                 <input type="hidden" name="Sort" value="@Model.Sort" />
+                @if (Model.CanManageIdentities && Model.AccountLink != "all") { <input type="hidden" name="AccountLink" value="@Model.AccountLink" /> }
                 @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
                 @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
                 @if (Model.CanManageIdentities && Model.IncludeHidden) { <input type="hidden" name="IncludeHidden" value="true" /> }
@@ -122,6 +123,12 @@
                 </select>
                 @if (Model.CanManageIdentities)
                 {
+                    <select id="peopleAccountLink" name="AccountLink" class="form-select people-account-filter" aria-label="Filter by PRISM account linkage" onchange="this.form.submit()">
+                        <option value="all" selected="@(Model.AccountLink == "all")">All accounts</option>
+                        <option value="linked" selected="@(Model.AccountLink == "linked")">Linked</option>
+                        <option value="unlinked" selected="@(Model.AccountLink == "unlinked")">Unlinked</option>
+                        <option value="reported" selected="@(Model.AccountLink == "reported")">Needs review</option>
+                    </select>
                     <label class="people-hidden-toggle"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" onchange="this.form.submit()" /><span>Hidden</span></label>
                 }
             </form>
@@ -172,6 +179,14 @@
                                 else { <i class="bi bi-person-fill"></i> }
                                 @if (person.IsHidden) { <span class="person-card__state"><i class="bi bi-eye-slash"></i> Hidden</span> }
                                 else { <span class="person-card__open"><i class="bi bi-images"></i> View photos</span> }
+                                @if (person.HasOpenPrismLinkConcern)
+                                {
+                                    <span class="person-card__account-link is-warning" title="The linked PRISM user has reported that this may not be their Photos identity." aria-label="PRISM account link needs review"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                                }
+                                else if (person.IsPrismUserLinked)
+                                {
+                                    <span class="person-card__account-link" title="Linked to a PRISM account" aria-label="Linked to PRISM account"><i class="bi bi-person-check-fill"></i></span>
+                                }
                             </span>
                             <span class="person-card__body">
                                 <strong>@person.DisplayName</strong>

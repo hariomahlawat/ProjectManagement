@@ -1590,3 +1590,24 @@ a.identity-workload-pill:hover {
     font-size: .74rem;
     gap: .35rem;
 }
+
+/* PRISM account linkage indicators -------------------------------------- */
+.people-account-filter { min-width: 8.6rem !important; }
+.person-card__account-link {
+    align-items: center;
+    backdrop-filter: blur(8px);
+    background: rgba(25, 135, 84, .88);
+    border: 1px solid rgba(255,255,255,.35);
+    border-radius: 50%;
+    bottom: .5rem;
+    color: #fff;
+    display: inline-flex;
+    height: 1.65rem;
+    justify-content: center;
+    position: absolute;
+    right: .5rem;
+    width: 1.65rem;
+    z-index: 3;
+}
+.person-card__account-link.is-warning { background: rgba(181, 121, 0, .94); }
+.people-workspace.is-selecting .person-card__account-link { display: none; }

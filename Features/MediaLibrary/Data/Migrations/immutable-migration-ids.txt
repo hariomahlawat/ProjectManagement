@@ -10,3 +10,5 @@
 20260630113000_AddIdentityReferenceGovernance
 20260818170000_AddOrganisationalMediaAlbums
 20260819190000_LinkMediaPeopleToPrismUsers
+
+20260820103000_HardenMediaPersonUserLinkExperience

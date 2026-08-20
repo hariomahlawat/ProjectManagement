@@ -39,6 +39,9 @@ public sealed class IndexModel : PageModel
     public bool IncludeHidden { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string AccountLink { get; set; } = "all";
+
+    [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
 
     [BindProperty(SupportsGet = true)]
@@ -75,6 +78,7 @@ public sealed class IndexModel : PageModel
             ["Q"] = Q,
             ["Sort"] = Sort,
             ["IncludeHidden"] = CanManageIdentities && IncludeHidden ? true : null,
+            ["AccountLink"] = CanManageIdentities && AccountLink != "all" ? AccountLink : null,
             ["PageNumber"] = pageNumber > 1 ? pageNumber : null,
             ["PeopleMatch"] = SelectedIds.Length > 1 ? PeopleMatch : null
         };
@@ -95,6 +99,9 @@ public sealed class IndexModel : PageModel
             "recent" => "recent",
             _ => "name"
         };
+        AccountLink = CanManageIdentities
+            ? MediaPeopleQueryService.NormalizeAccountLinkFilter(AccountLink)
+            : "all";
         PageNumber = Math.Max(1, PageNumber);
         SelectedIds = (SelectedIds ?? Array.Empty<Guid>())
             .Where(id => id != Guid.Empty)
@@ -124,7 +131,8 @@ public sealed class IndexModel : PageModel
                     Sort,
                     CanManageIdentities && IncludeHidden,
                     PageNumber,
-                    SelectedIds.Length > 0 ? 120 : DefaultPageSize),
+                    SelectedIds.Length > 0 ? 120 : DefaultPageSize,
+                    AccountLink),
                 cancellationToken);
             PageNumber = Result.PageNumber;
         }

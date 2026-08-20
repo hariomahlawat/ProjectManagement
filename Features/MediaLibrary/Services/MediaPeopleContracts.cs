@@ -7,7 +7,8 @@ public sealed record MediaPeopleIndexQuery(
     string Sort,
     bool IncludeHidden,
     int PageNumber,
-    int PageSize);
+    int PageSize,
+    string AccountLinkFilter = "all");
 
 public sealed record MediaPersonCard(
     Guid Id,
@@ -18,7 +19,9 @@ public sealed record MediaPersonCard(
     DateTimeOffset? LatestMediaDateUtc,
     bool IsHidden,
     bool IsMinor,
-    Guid ConcurrencyToken);
+    Guid ConcurrencyToken,
+    bool IsPrismUserLinked = false,
+    bool HasOpenPrismLinkConcern = false);
 
 public sealed record MediaPeopleIndexResult(
     IReadOnlyList<MediaPersonCard> People,

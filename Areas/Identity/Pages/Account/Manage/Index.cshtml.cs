@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Models;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 {
@@ -28,6 +28,12 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
         public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
+
+        [TempData]
+        public string? StatusMessage { get; set; }
+
+        [TempData]
+        public string? ErrorMessage { get; set; }
 
         public async Task<IActionResult> OnGetAsync()
         {
@@ -52,5 +58,54 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 
             return Page();
         }
+
+        public async Task<IActionResult> OnPostPhotoAvatarAsync(bool usePhotosPortrait)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null) return Challenge();
+
+            try
+            {
+                await _mediaPersonUserLinks.SetAvatarPreferenceAsync(
+                    user.Id,
+                    usePhotosPortrait,
+                    HttpContext.RequestAborted);
+                StatusMessage = usePhotosPortrait
+                    ? "Your linked Photos portrait will now be used as your PRISM profile image."
+                    : "Your Photos portrait is no longer being used as your PRISM profile image.";
+            }
+            catch (Exception exception) when (IsExpectedLinkException(exception))
+            {
+                ErrorMessage = exception.Message;
+            }
+
+            return RedirectToPage();
+        }
+
+        public async Task<IActionResult> OnPostReportPhotoIdentityAsync(string? reason)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null) return Challenge();
+
+            try
+            {
+                await _mediaPersonUserLinks.ReportIncorrectLinkAsync(
+                    user.Id,
+                    reason ?? string.Empty,
+                    HttpContext.RequestAborted);
+                StatusMessage = "Your Photos identity-link report has been sent for identity-manager review. The linked portrait has been removed from your PRISM avatar while the report is open.";
+            }
+            catch (Exception exception) when (IsExpectedLinkException(exception))
+            {
+                ErrorMessage = exception.Message;
+            }
+
+            return RedirectToPage();
+        }
+
+        private static bool IsExpectedLinkException(Exception exception)
+            => exception is ArgumentException
+                or InvalidOperationException
+                or KeyNotFoundException;
     }
 }

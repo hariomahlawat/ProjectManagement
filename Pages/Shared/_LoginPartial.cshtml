@@ -19,8 +19,8 @@
         : await MediaPersonUserLinks.TryGetPhotoIdentityForUserAsync(userId, ViewContext.HttpContext.RequestAborted);
     <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="avatar me-2 text-uppercase @(photoIdentity?.HasPortrait == true ? "avatar--photo" : null)">
-                @if (photoIdentity?.HasPortrait == true)
+            <span class="avatar me-2 text-uppercase @(photoIdentity?.HasPortrait == true && photoIdentity.UsePortraitAsAvatar ? "avatar--photo" : null)">
+                @if (photoIdentity?.HasPortrait == true && photoIdentity.UsePortraitAsAvatar)
                 {
                     <img src="@Url.Page("/Photos/People/Portrait", new { area = "", id = photoIdentity.PersonId })"
                          alt="" loading="lazy" decoding="async" />
@@ -34,11 +34,19 @@
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
             <li><a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index">Profile</a></li>
-            @if (photoIdentity is not null)
+            @if (photoIdentity is not null && !photoIdentity.HasOpenConcern)
             {
                 <li>
                     <a class="dropdown-item" asp-area="" asp-page="/Photos/Index" asp-route-MyPhotos="true">
                         <i class="bi bi-images me-2" aria-hidden="true"></i>My Photos
+                    </a>
+                </li>
+            }
+            else if (photoIdentity?.HasOpenConcern == true)
+            {
+                <li>
+                    <a class="dropdown-item text-warning-emphasis" asp-area="Identity" asp-page="/Account/Manage/Index" asp-fragment="photosIdentity">
+                        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>Photos identity review
                     </a>
                 </li>
             }

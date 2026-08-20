@@ -80,17 +80,42 @@ public sealed class DetailsModel : PageModel
     public async Task<IActionResult> OnPostLinkUserAsync(
         Guid id,
         string userId,
+        bool identityVerified,
         CancellationToken cancellationToken)
     {
         if (!FeatureEnabled) return NotFound();
         try
         {
+            if (!identityVerified)
+            {
+                throw new InvalidOperationException("Confirm that you have visually checked the Media Person and PRISM account before linking them.");
+            }
             var link = await _userLinks.LinkAsync(id, userId, UserId, cancellationToken);
             StatusMessage = $"Linked to PRISM user {link.UserDisplayName}.";
         }
         catch (Exception exception) when (IsExpectedReviewException(exception))
         {
             _logger.LogWarning(exception, "Unable to link media person {PersonId} to PRISM user {UserId}.", id, userId);
+            ErrorMessage = exception.Message;
+        }
+        return RedirectToPage("./Details", new { id });
+    }
+
+
+    public async Task<IActionResult> OnPostResolveLinkConcernAsync(
+        Guid id,
+        string? resolution,
+        CancellationToken cancellationToken)
+    {
+        if (!FeatureEnabled) return NotFound();
+        try
+        {
+            await _userLinks.ResolveLinkConcernAsync(id, UserId, resolution ?? string.Empty, cancellationToken);
+            StatusMessage = "PRISM account-link report resolved. The existing account link has been retained.";
+        }
+        catch (Exception exception) when (IsExpectedReviewException(exception))
+        {
+            _logger.LogWarning(exception, "Unable to resolve PRISM account-link report for media person {PersonId}.", id);
             ErrorMessage = exception.Message;
         }
         return RedirectToPage("./Details", new { id });

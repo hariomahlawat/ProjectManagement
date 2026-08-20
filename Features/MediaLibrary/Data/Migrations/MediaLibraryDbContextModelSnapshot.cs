@@ -277,6 +277,12 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPersonUserLink", entity =>
         {
             entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+            entity.Property<DateTimeOffset?>("ConcernRaisedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("ConcernRaisedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<string>("ConcernReason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<DateTimeOffset?>("ConcernResolvedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("ConcernResolvedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<string>("ConcernResolution").HasMaxLength(1024).HasColumnType("character varying(1024)");
             entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
             entity.Property<DateTimeOffset>("LinkedAtUtc").HasColumnType("timestamp with time zone");
             entity.Property<string>("LinkedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
@@ -284,9 +290,11 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<DateTimeOffset?>("UnlinkedAtUtc").HasColumnType("timestamp with time zone");
             entity.Property<string>("UnlinkedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
             entity.Property<string>("UnlinkReason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<bool>("UsePortraitAsAvatar").HasColumnType("boolean");
             entity.Property<string>("UserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
             entity.HasKey("Id");
             entity.HasIndex("MediaPersonId").IsUnique().HasFilter("\"UnlinkedAtUtc\" IS NULL").HasDatabaseName("UX_MediaPersonUserLinks_ActivePerson");
+            entity.HasIndex("MediaPersonId").HasFilter("\"UnlinkedAtUtc\" IS NULL AND \"ConcernRaisedAtUtc\" IS NOT NULL AND \"ConcernResolvedAtUtc\" IS NULL").HasDatabaseName("IX_MediaPersonUserLinks_OpenConcern");
             entity.HasIndex("UserId").IsUnique().HasFilter("\"UnlinkedAtUtc\" IS NULL").HasDatabaseName("UX_MediaPersonUserLinks_ActiveUser");
             entity.HasIndex("UserId", "LinkedAtUtc").HasDatabaseName("IX_MediaPersonUserLinks_UserHistory");
             entity.ToTable("MediaPersonUserLinks");

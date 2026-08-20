@@ -60,6 +60,31 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
     }
 
     [Theory]
+    [InlineData("linked")]
+    [InlineData("unlinked")]
+    [InlineData("reported")]
+    public void People_account_link_filter_translates_for_postgresql(string accountLinkFilter)
+    {
+        using var db = CreateContext();
+
+        var sql = MediaPeopleQueryService.BuildFilteredPeopleQuery(
+                db,
+                null,
+                includeHidden: false,
+                accountLinkFilter)
+            .ToQueryString();
+
+        Assert.Contains("MediaPersons", sql);
+        Assert.Contains("MediaPersonUserLinks", sql);
+        Assert.Contains("UnlinkedAtUtc", sql);
+        if (accountLinkFilter == "reported")
+        {
+            Assert.Contains("ConcernRaisedAtUtc", sql);
+            Assert.Contains("ConcernResolvedAtUtc", sql);
+        }
+    }
+
+    [Theory]
     [InlineData("all")]
     [InlineData("any")]
     public void People_photo_gallery_filter_translates_for_postgresql(string matchMode)

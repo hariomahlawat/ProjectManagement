@@ -138,18 +138,22 @@ public sealed partial class IndexModel : PageModel
             if (!string.IsNullOrWhiteSpace(userId))
             {
                 var link = await _personUserLinks.TryGetPhotoIdentityForUserAsync(userId, cancellationToken);
-                if (link is not null)
+                if (link is not null && !link.HasOpenConcern)
                 {
                     View = "photos";
                     PersonId = null;
                     PersonIds = new[] { link.PersonId };
+                    FindMore = false;
                     PageNumber = 1;
                 }
                 else
                 {
-                    TempData["PhotosError"] = "Your PRISM account is not yet linked to a confirmed person in Photos.";
+                    TempData["PhotosError"] = link?.HasOpenConcern == true
+                        ? "Your Photos identity link is under review. My Photos will be available again after an identity manager resolves the report."
+                        : "Your PRISM account is not yet linked to a confirmed person in Photos.";
                     View = "photos";
                     PersonIds = Array.Empty<Guid>();
+                    FindMore = false;
                 }
             }
         }

@@ -118,6 +118,15 @@ public sealed class AccountManagePageTests
         public Task<MediaPersonUserLinkInfo> LinkAsync(Guid personId, string userId, string linkedByUserId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
+        public Task SetAvatarPreferenceAsync(string userId, bool usePortraitAsAvatar, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task ReportIncorrectLinkAsync(string userId, string reason, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task ResolveLinkConcernAsync(Guid personId, string resolvedByUserId, string resolution, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
         public Task UnlinkAsync(Guid personId, string unlinkedByUserId, string reason, CancellationToken cancellationToken)
             => throw new NotSupportedException();
     }

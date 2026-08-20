@@ -19,12 +19,20 @@ public sealed record MediaPersonUserLinkInfo(
     DateTimeOffset LinkedAtUtc,
     string LinkedByUserId,
     bool HasPortrait,
+    bool UsePortraitAsAvatar,
+    bool HasOpenConcern,
+    string? ConcernReason,
+    DateTimeOffset? ConcernRaisedAtUtc,
     bool UserIsActive = true);
 
 public sealed record MediaUserPhotoIdentityLink(
     Guid PersonId,
     string PersonDisplayName,
-    bool HasPortrait);
+    bool HasPortrait,
+    bool UsePortraitAsAvatar,
+    bool HasOpenConcern,
+    string? ConcernReason,
+    DateTimeOffset? ConcernRaisedAtUtc);
 
 public sealed record MediaPrismUserOption(
     string UserId,
@@ -43,6 +51,9 @@ public interface IMediaPersonUserLinkService
     Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MediaPrismUserOption>> SearchUsersAsync(string? query, int limit, CancellationToken cancellationToken);
     Task<MediaPersonUserLinkInfo> LinkAsync(Guid personId, string userId, string linkedByUserId, CancellationToken cancellationToken);
+    Task SetAvatarPreferenceAsync(string userId, bool usePortraitAsAvatar, CancellationToken cancellationToken);
+    Task ReportIncorrectLinkAsync(string userId, string reason, CancellationToken cancellationToken);
+    Task ResolveLinkConcernAsync(Guid personId, string resolvedByUserId, string resolution, CancellationToken cancellationToken);
     Task UnlinkAsync(Guid personId, string unlinkedByUserId, string reason, CancellationToken cancellationToken);
 }
 
@@ -80,6 +91,10 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                 UserId = link.UserId,
                 LinkedAtUtc = link.LinkedAtUtc,
                 LinkedByUserId = link.LinkedByUserId,
+                UsePortraitAsAvatar = link.UsePortraitAsAvatar,
+                ConcernRaisedAtUtc = link.ConcernRaisedAtUtc,
+                ConcernResolvedAtUtc = link.ConcernResolvedAtUtc,
+                ConcernReason = link.ConcernReason,
                 HasPortrait = link.MediaPerson.RepresentativeFaceId.HasValue
                               && link.MediaPerson.FaceAssignments.Any(assignment =>
                                   assignment.RemovedAtUtc == null
@@ -105,6 +120,10 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                 UserId = link.UserId,
                 LinkedAtUtc = link.LinkedAtUtc,
                 LinkedByUserId = link.LinkedByUserId,
+                UsePortraitAsAvatar = link.UsePortraitAsAvatar,
+                ConcernRaisedAtUtc = link.ConcernRaisedAtUtc,
+                ConcernResolvedAtUtc = link.ConcernResolvedAtUtc,
+                ConcernReason = link.ConcernReason,
                 HasPortrait = link.MediaPerson.RepresentativeFaceId.HasValue
                               && link.MediaPerson.FaceAssignments.Any(assignment =>
                                   assignment.RemovedAtUtc == null
@@ -132,7 +151,11 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                     assignment.RemovedAtUtc == null
                     && assignment.MediaFaceId == link.MediaPerson.RepresentativeFaceId.Value
                     && !assignment.MediaFace.IsSuppressed
-                    && assignment.MediaFace.ReviewThumbnailPath != null)))
+                    && assignment.MediaFace.ReviewThumbnailPath != null),
+                link.UsePortraitAsAvatar,
+                link.ConcernRaisedAtUtc != null && link.ConcernResolvedAtUtc == null,
+                link.ConcernReason,
+                link.ConcernRaisedAtUtc))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -267,6 +290,7 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
             UserId = user.Id,
             LinkedByUserId = linkedByUserId.Trim(),
             LinkedAtUtc = now,
+            UsePortraitAsAvatar = false,
             ConcurrencyToken = Guid.NewGuid()
         };
         _media.PersonUserLinks.Add(link);
@@ -303,6 +327,169 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                ?? throw new InvalidOperationException("The PRISM user link was saved but could not be reloaded.");
     }
 
+    public async Task SetAvatarPreferenceAsync(
+        string userId,
+        bool usePortraitAsAvatar,
+        CancellationToken cancellationToken)
+    {
+        ValidateActor(userId);
+        var normalizedUserId = userId.Trim();
+        var link = await _media.PersonUserLinks
+            .Include(item => item.MediaPerson)
+            .SingleOrDefaultAsync(item => item.UserId == normalizedUserId && item.UnlinkedAtUtc == null, cancellationToken)
+            ?? throw new KeyNotFoundException("Your PRISM account is not linked to a Photos identity.");
+
+        if (usePortraitAsAvatar)
+        {
+            if (link.ConcernRaisedAtUtc.HasValue && !link.ConcernResolvedAtUtc.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "The Photos identity link is under review. Resolve the identity-link report before using its portrait as your PRISM avatar.");
+            }
+            if (link.MediaPerson.IsHidden || link.MediaPerson.Status != MediaPersonStatus.Confirmed)
+            {
+                throw new InvalidOperationException(
+                    "This Photos identity is not currently available for PRISM profile presentation.");
+            }
+
+            var representativeFaceId = link.MediaPerson.RepresentativeFaceId;
+            var hasUsablePortrait = representativeFaceId.HasValue
+                                    && await _media.PersonFaces.AsNoTracking()
+                                        .AnyAsync(assignment =>
+                                            assignment.MediaPersonId == link.MediaPersonId
+                                            && assignment.RemovedAtUtc == null
+                                            && assignment.MediaFaceId == representativeFaceId.Value
+                                            && !assignment.MediaFace.IsSuppressed
+                                            && assignment.MediaFace.ReviewThumbnailPath != null,
+                                            cancellationToken);
+            if (!hasUsablePortrait)
+            {
+                throw new InvalidOperationException(
+                    "This Photos identity does not currently have an available representative portrait. Choose a cover appearance in Photos before enabling the PRISM avatar.");
+            }
+        }
+
+        if (link.UsePortraitAsAvatar == usePortraitAsAvatar)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        link.UsePortraitAsAvatar = usePortraitAsAvatar;
+        link.ConcurrencyToken = Guid.NewGuid();
+        _media.IdentityAudits.Add(new MediaIdentityAudit
+        {
+            PersonId = link.MediaPersonId,
+            Action = "PrismUserAvatarPreferenceChanged",
+            PerformedByUserId = normalizedUserId,
+            Notes = usePortraitAsAvatar
+                ? "The linked PRISM user chose to use the Photos representative portrait as their PRISM avatar."
+                : "The linked PRISM user stopped using the Photos representative portrait as their PRISM avatar.",
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                link.UserId,
+                LinkId = link.Id,
+                UsePortraitAsAvatar = usePortraitAsAvatar
+            }),
+            PerformedAtUtc = now
+        });
+        await _media.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ReportIncorrectLinkAsync(
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        ValidateActor(userId);
+        var normalizedUserId = userId.Trim();
+        var normalizedReason = NormalizeReason(
+            reason,
+            "Briefly explain why this Photos identity is not yours.",
+            nameof(reason));
+
+        var link = await _media.PersonUserLinks
+            .Include(item => item.MediaPerson)
+            .SingleOrDefaultAsync(item => item.UserId == normalizedUserId && item.UnlinkedAtUtc == null, cancellationToken)
+            ?? throw new KeyNotFoundException("Your PRISM account is not linked to a Photos identity.");
+
+        if (link.ConcernRaisedAtUtc.HasValue && !link.ConcernResolvedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException(
+                "You have already reported this Photos identity link. An identity manager must review the existing report before another can be raised.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        link.ConcernRaisedAtUtc = now;
+        link.ConcernRaisedByUserId = normalizedUserId;
+        link.ConcernReason = normalizedReason;
+        link.ConcernResolvedAtUtc = null;
+        link.ConcernResolvedByUserId = null;
+        link.ConcernResolution = null;
+        link.UsePortraitAsAvatar = false;
+        link.ConcurrencyToken = Guid.NewGuid();
+        _media.IdentityAudits.Add(new MediaIdentityAudit
+        {
+            PersonId = link.MediaPersonId,
+            Action = "PrismUserLinkConcernRaised",
+            PerformedByUserId = normalizedUserId,
+            Notes = $"The linked PRISM user reported that media identity '{link.MediaPerson.DisplayName}' may not be theirs. Reason: {normalizedReason}",
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                link.UserId,
+                LinkId = link.Id,
+                Reason = normalizedReason
+            }),
+            PerformedAtUtc = now
+        });
+        await _media.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ResolveLinkConcernAsync(
+        Guid personId,
+        string resolvedByUserId,
+        string resolution,
+        CancellationToken cancellationToken)
+    {
+        ValidateActor(resolvedByUserId);
+        if (personId == Guid.Empty) throw new ArgumentException("A media person is required.", nameof(personId));
+        var normalizedResolution = NormalizeReason(
+            resolution,
+            "Record why the existing PRISM account link is correct.",
+            nameof(resolution));
+
+        var link = await _media.PersonUserLinks
+            .Include(item => item.MediaPerson)
+            .SingleOrDefaultAsync(item => item.MediaPersonId == personId && item.UnlinkedAtUtc == null, cancellationToken)
+            ?? throw new KeyNotFoundException("This media person is not currently linked to a PRISM user.");
+
+        if (!link.ConcernRaisedAtUtc.HasValue || link.ConcernResolvedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("There is no open account-link concern to resolve for this person.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        link.ConcernResolvedAtUtc = now;
+        link.ConcernResolvedByUserId = resolvedByUserId.Trim();
+        link.ConcernResolution = normalizedResolution;
+        link.ConcurrencyToken = Guid.NewGuid();
+        _media.IdentityAudits.Add(new MediaIdentityAudit
+        {
+            PersonId = link.MediaPersonId,
+            Action = "PrismUserLinkConcernResolved",
+            PerformedByUserId = resolvedByUserId.Trim(),
+            Notes = $"The PRISM account-link concern was reviewed and the existing link retained. Resolution: {normalizedResolution}",
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                link.UserId,
+                LinkId = link.Id,
+                Resolution = normalizedResolution
+            }),
+            PerformedAtUtc = now
+        });
+        await _media.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task UnlinkAsync(
         Guid personId,
         string unlinkedByUserId,
@@ -329,6 +516,13 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
         link.UnlinkedAtUtc = now;
         link.UnlinkedByUserId = unlinkedByUserId.Trim();
         link.UnlinkReason = normalizedReason;
+        link.UsePortraitAsAvatar = false;
+        if (link.ConcernRaisedAtUtc.HasValue && !link.ConcernResolvedAtUtc.HasValue)
+        {
+            link.ConcernResolvedAtUtc = now;
+            link.ConcernResolvedByUserId = unlinkedByUserId.Trim();
+            link.ConcernResolution = $"Link removed: {normalizedReason}";
+        }
         link.ConcurrencyToken = Guid.NewGuid();
         _media.IdentityAudits.Add(new MediaIdentityAudit
         {
@@ -383,6 +577,10 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                 row.LinkedAtUtc,
                 row.LinkedByUserId,
                 row.HasPortrait,
+                row.UsePortraitAsAvatar,
+                row.ConcernRaisedAtUtc.HasValue && !row.ConcernResolvedAtUtc.HasValue,
+                row.ConcernReason,
+                row.ConcernRaisedAtUtc,
                 UserIsActive: false);
         }
         return new MediaPersonUserLinkInfo(
@@ -396,6 +594,10 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
             row.LinkedAtUtc,
             row.LinkedByUserId,
             row.HasPortrait,
+            row.UsePortraitAsAvatar,
+            row.ConcernRaisedAtUtc.HasValue && !row.ConcernResolvedAtUtc.HasValue,
+            row.ConcernReason,
+            row.ConcernRaisedAtUtc,
             UserIsActive: true);
     }
 
@@ -405,6 +607,20 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
             : !string.IsNullOrWhiteSpace(userName)
                 ? userName.Trim()
                 : "PRISM user";
+
+    private static string NormalizeReason(string? reason, string emptyMessage, string parameterName)
+    {
+        var normalized = reason?.Trim() ?? string.Empty;
+        if (normalized.Length < 3)
+        {
+            throw new ArgumentException(emptyMessage, parameterName);
+        }
+        if (normalized.Length > 1024)
+        {
+            throw new ArgumentException("The reason is too long.", parameterName);
+        }
+        return normalized;
+    }
 
     private static void ValidateActor(string userId)
     {
@@ -423,5 +639,9 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
         public DateTimeOffset LinkedAtUtc { get; init; }
         public string LinkedByUserId { get; init; } = string.Empty;
         public bool HasPortrait { get; init; }
+        public bool UsePortraitAsAvatar { get; init; }
+        public DateTimeOffset? ConcernRaisedAtUtc { get; init; }
+        public DateTimeOffset? ConcernResolvedAtUtc { get; init; }
+        public string? ConcernReason { get; init; }
     }
 }

@@ -67,7 +67,10 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         ("MediaPersonFaces", "ReferenceStatus"),
         ("MediaFaceReviewDecisions", "ConcurrencyToken"),
         ("MediaFaceReviewDecisions", "ConfidenceLevel"),
-        ("MediaPersonUserLinks", "ConcurrencyToken")
+        ("MediaPersonUserLinks", "ConcurrencyToken"),
+        ("MediaPersonUserLinks", "UsePortraitAsAvatar"),
+        ("MediaPersonUserLinks", "ConcernRaisedAtUtc"),
+        ("MediaPersonUserLinks", "ConcernResolvedAtUtc")
     };
 
     private readonly MediaLibraryDbContext _db;

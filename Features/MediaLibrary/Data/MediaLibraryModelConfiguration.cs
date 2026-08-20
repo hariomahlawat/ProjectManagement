@@ -248,6 +248,10 @@ public static class MediaLibraryModelConfiguration
             entity.HasKey(x => x.Id);
             entity.Property(x => x.UserId).HasMaxLength(450).IsRequired();
             entity.Property(x => x.LinkedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.ConcernRaisedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ConcernReason).HasMaxLength(1024);
+            entity.Property(x => x.ConcernResolvedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ConcernResolution).HasMaxLength(1024);
             entity.Property(x => x.UnlinkedByUserId).HasMaxLength(450);
             entity.Property(x => x.UnlinkReason).HasMaxLength(1024);
             entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
@@ -261,6 +265,9 @@ public static class MediaLibraryModelConfiguration
                 .HasDatabaseName("UX_MediaPersonUserLinks_ActiveUser");
             entity.HasIndex(x => new { x.UserId, x.LinkedAtUtc })
                 .HasDatabaseName("IX_MediaPersonUserLinks_UserHistory");
+            entity.HasIndex(x => x.MediaPersonId)
+                .HasFilter("\"UnlinkedAtUtc\" IS NULL AND \"ConcernRaisedAtUtc\" IS NOT NULL AND \"ConcernResolvedAtUtc\" IS NULL")
+                .HasDatabaseName("IX_MediaPersonUserLinks_OpenConcern");
             entity.HasOne(x => x.MediaPerson)
                 .WithMany()
                 .HasForeignKey(x => x.MediaPersonId)

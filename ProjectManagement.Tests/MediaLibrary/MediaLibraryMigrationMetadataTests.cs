@@ -99,7 +99,7 @@ public sealed class MediaLibraryMigrationMetadataTests
         var resolved = MediaLibrarySchemaService.ResolveLatestRequiredMigrationId(migrations);
 
         Assert.Equal(migrations[^1], resolved);
-        Assert.Equal("20260819190000_LinkMediaPeopleToPrismUsers", resolved);
+        Assert.Equal("20260820103000_HardenMediaPersonUserLinkExperience", resolved);
     }
 
     private static MediaLibraryDbContext CreateMetadataContext()

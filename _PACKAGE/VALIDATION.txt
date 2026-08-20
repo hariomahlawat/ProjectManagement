@@ -1,0 +1,11 @@
+PRISM Photos — User Linkage Governance Hardening
+
+Validation performed in the packaging environment:
+- node --check wwwroot/js/pages/photos-person-linkage.js : PASS
+- node --check wwwroot/js/pages/photos-person-profile.js : PASS
+- node --test photos-person-linkage-contract.test.js + photos-person-profile-contract.test.js : PASS (8/8)
+- git diff --check for tracked changed files : PASS
+- package file presence / source hash comparison : PASS
+
+.NET SDK is not installed in this packaging environment, so dotnet build/xUnit execution could not be run here.
+Run the commands in README-APPLY.md on the PRISM development machine before production deployment.

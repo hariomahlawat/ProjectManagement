@@ -21,6 +21,9 @@ public sealed partial class IndexModel
     public bool IsMultiPersonGallery
         => IsPeopleGallery && SelectedPeople.Count > 1;
 
+    public bool IsPersonalPhotoProfile
+        => IsSinglePersonProfile && IsCurrentUserLinkedPerson;
+
     public bool CanReviewPersonCandidates
         => PeopleFeatureEnabled && (CanManagePeople || IsCurrentUserLinkedPerson);
 
@@ -96,7 +99,8 @@ public sealed partial class IndexModel
         {
             var personId = SelectedPeople[0].Id;
             CurrentUserMediaLink = await _personUserLinks.TryGetPhotoIdentityForUserAsync(PersonProfileUserId, cancellationToken);
-            IsCurrentUserLinkedPerson = CurrentUserMediaLink?.PersonId == personId;
+            IsCurrentUserLinkedPerson = CurrentUserMediaLink?.PersonId == personId
+                                        && CurrentUserMediaLink.HasOpenConcern == false;
             if (!CanReviewPersonCandidates)
             {
                 FindMore = false;
@@ -369,7 +373,8 @@ public sealed partial class IndexModel
     private async Task<bool> IsLinkedSelfAsync(Guid personId, CancellationToken cancellationToken)
     {
         var link = await _personUserLinks.TryGetPhotoIdentityForUserAsync(PersonProfileUserId, cancellationToken);
-        return link?.PersonId == personId;
+        return link?.PersonId == personId
+               && link.HasOpenConcern == false;
     }
 
     private string GetSafePersonProfileReturnUrl(string? returnUrl, Guid personId)

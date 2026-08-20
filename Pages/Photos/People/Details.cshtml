@@ -135,16 +135,77 @@
                 </form>
             </details>
         }
+        @if (Model.PrismUserLink is null)
+        {
+            <details class="person-account-link__setup" open="@(!string.IsNullOrWhiteSpace(Model.UserSearch))">
+                <summary><i class="bi bi-person-badge"></i> Link PRISM account</summary>
+                <div class="person-account-link__setup-panel">
+                    <p>Link this confirmed media identity to an existing PRISM account. Linkage is explicit, one-to-one and never inferred from a name or face similarity.</p>
+                    <form method="get" class="person-account-link__search">
+                        <label for="userSearch">Find an existing PRISM user</label>
+                        <div class="input-group">
+                            <input id="userSearch" name="UserSearch" value="@Model.UserSearch" class="form-control"
+                                   placeholder="Search by name, username or rank" autocomplete="off" />
+                            <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search"></i> Search</button>
+                        </div>
+                    </form>
+                    @if (!string.IsNullOrWhiteSpace(Model.UserSearch))
+                    {
+                        <div class="person-account-link__results">
+                            @if (Model.PrismUserCandidates.Count == 0)
+                            {
+                                <p class="text-body-secondary mb-0">No active PRISM users matched this search.</p>
+                            }
+                            else
+                            {
+                                @foreach (var candidate in Model.PrismUserCandidates)
+                                {
+                                    <article class="person-account-user @(candidate.AlreadyLinked ? "is-linked" : null)">
+                                        <span class="person-account-user__avatar" aria-hidden="true"><i class="bi bi-person"></i></span>
+                                        <div class="person-account-user__identity">
+                                            <strong>@candidate.DisplayName</strong>
+                                            <span>@(string.IsNullOrWhiteSpace(candidate.Rank) ? candidate.UserName : $"{candidate.Rank} · {candidate.UserName}")</span>
+                                            @if (candidate.AlreadyLinked)
+                                            {
+                                                <small><i class="bi bi-link-45deg" aria-hidden="true"></i> Already linked to @candidate.LinkedPersonName</small>
+                                            }
+                                        </div>
+                                        @if (candidate.AlreadyLinked)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Linked</button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#prismUserLinkConfirmModal"
+                                                    data-prism-link-candidate
+                                                    data-user-id="@candidate.UserId"
+                                                    data-user-name="@candidate.DisplayName"
+                                                    data-user-rank="@candidate.Rank"
+                                                    data-user-username="@candidate.UserName">
+                                                Review &amp; link
+                                            </button>
+                                        }
+                                    </article>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            </details>
+        }
     </section>
 
-    <section class="person-account-link" aria-labelledby="prismAccountTitle">
-        <div class="person-account-link__intro">
-            <span class="people-eyebrow">PRISM account</span>
-            <h2 id="prismAccountTitle">User linkage</h2>
-            <p>Link this confirmed media identity to the matching PRISM account. Linkage is explicit, one-to-one and never inferred from a name or face similarity.</p>
-        </div>
-        @if (Model.PrismUserLink is not null)
-        {
+    @if (Model.PrismUserLink is not null)
+    {
+        <section class="person-account-link person-account-link--linked @(Model.PrismUserLink.HasOpenConcern ? "has-concern" : null)" aria-labelledby="prismAccountTitle">
+            <div class="person-account-link__intro">
+                <span class="people-eyebrow">PRISM account</span>
+                <h2 id="prismAccountTitle">Linked account</h2>
+                <p>This institutional link is independent of biometric matching and profile-avatar preference.</p>
+            </div>
             <div class="person-account-link__current">
                 <div class="person-account-link__avatar">
                     @if (Model.PrismUserLink.HasPortrait)
@@ -156,10 +217,14 @@
                         <i class="bi bi-person-badge" aria-hidden="true"></i>
                     }
                 </div>
-                <div>
+                <div class="person-account-link__identity">
                     <strong>@Model.PrismUserLink.UserDisplayName</strong>
                     <span>@(string.IsNullOrWhiteSpace(Model.PrismUserLink.UserRank) ? Model.PrismUserLink.UserName : $"{Model.PrismUserLink.UserRank} · {Model.PrismUserLink.UserName}")</span>
                     <small>Linked @Model.PrismUserLink.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>
+                    <small class="person-account-link__avatar-state">
+                        <i class="bi @(Model.PrismUserLink.UsePortraitAsAvatar ? "bi-person-circle" : "bi-circle")" aria-hidden="true"></i>
+                        @(Model.PrismUserLink.UsePortraitAsAvatar ? "Photos portrait enabled as PRISM avatar by the user" : "Photos portrait is not being used as the PRISM avatar")
+                    </small>
                     @if (!Model.PrismUserLink.UserIsActive)
                     {
                         <small class="text-danger">This PRISM account is inactive or unavailable. Unlink it before choosing another account.</small>
@@ -177,53 +242,89 @@
                     </form>
                 </details>
             </div>
-        }
-        else
-        {
-            <form method="get" class="person-account-link__search">
-                <input type="hidden" name="id" value="@Model.Person.Id" />
-                <label for="userSearch">Find an existing PRISM user</label>
-                <div class="input-group">
-                    <input id="userSearch" name="UserSearch" value="@Model.UserSearch" class="form-control"
-                           placeholder="Search by name, username or rank" autocomplete="off" />
-                    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search"></i> Search</button>
-                </div>
-            </form>
-            @if (!string.IsNullOrWhiteSpace(Model.UserSearch))
+            @if (Model.PrismUserLink.HasOpenConcern)
             {
-                <div class="person-account-link__results">
-                    @if (Model.PrismUserCandidates.Count == 0)
-                    {
-                        <p class="text-body-secondary mb-0">No active PRISM users matched this search.</p>
-                    }
-                    else
-                    {
-                        @foreach (var candidate in Model.PrismUserCandidates)
+                <div class="person-account-link__concern" role="alert">
+                    <div>
+                        <strong><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Account holder reported this link</strong>
+                        <p>@Model.PrismUserLink.ConcernReason</p>
+                        @if (Model.PrismUserLink.ConcernRaisedAtUtc.HasValue)
                         {
-                            <article class="person-account-user @(candidate.AlreadyLinked ? "is-linked" : null)">
-                                <div>
-                                    <strong>@candidate.DisplayName</strong>
-                                    <span>@(string.IsNullOrWhiteSpace(candidate.Rank) ? candidate.UserName : $"{candidate.Rank} · {candidate.UserName}")</span>
-                                    @if (candidate.AlreadyLinked)
-                                    {
-                                        <small>Already linked to @candidate.LinkedPersonName</small>
-                                    }
-                                </div>
-                                <form method="post" asp-page-handler="LinkUser"
-                                      onsubmit="return confirm('Link this media identity to the selected PRISM user?');">
-                                    <input type="hidden" name="id" value="@Model.Person.Id" />
-                                    <input type="hidden" name="userId" value="@candidate.UserId" />
-                                    <button type="submit" class="btn btn-sm btn-primary" disabled="@candidate.AlreadyLinked">
-                                        Link user
-                                    </button>
-                                </form>
-                            </article>
+                            <small>Reported @Model.PrismUserLink.ConcernRaisedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>
                         }
-                    }
+                    </div>
+                    <details>
+                        <summary class="btn btn-sm btn-outline-success">Link is correct</summary>
+                        <form method="post" asp-page-handler="ResolveLinkConcern" class="people-action-form">
+                            <input type="hidden" name="id" value="@Model.Person.Id" />
+                            <label for="linkConcernResolution">Resolution note</label>
+                            <textarea id="linkConcernResolution" name="resolution" class="form-control" rows="2" maxlength="1024" required
+                                      placeholder="Why has this link been verified as correct?"></textarea>
+                            <button type="submit" class="btn btn-success">Resolve and retain link</button>
+                        </form>
+                    </details>
                 </div>
             }
-        }
-    </section>
+        </section>
+    }
+
+    @if (Model.PrismUserLink is null)
+    {
+        <div class="modal fade" id="prismUserLinkConfirmModal" tabindex="-1" aria-labelledby="prismUserLinkConfirmTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content prism-user-link-confirm">
+                    <form method="post" asp-page-handler="LinkUser" data-prism-link-confirm-form>
+                        <div class="modal-header">
+                            <div>
+                                <span class="people-eyebrow">Identity verification</span>
+                                <h2 class="modal-title fs-5" id="prismUserLinkConfirmTitle">Confirm PRISM account linkage</h2>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="id" value="@Model.Person.Id" />
+                            <input type="hidden" name="userId" value="" data-prism-link-user-id />
+                            <div class="prism-user-link-confirm__comparison">
+                                <section>
+                                    <span class="prism-user-link-confirm__label">Media identity</span>
+                                    <div class="prism-user-link-confirm__portrait">
+                                        @if (Model.Person.RepresentativeFaceId.HasValue)
+                                        {
+                                            <img src="@Url.Page("/Photos/People/Portrait", new { id = Model.Person.Id })" alt="Representative portrait for @Model.Person.DisplayName" />
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-person" aria-hidden="true"></i>
+                                        }
+                                    </div>
+                                    <strong>@Model.Person.DisplayName</strong>
+                                    <small>@Model.Person.PhotoCount confirmed photo@(Model.Person.PhotoCount == 1 ? string.Empty : "s")</small>
+                                </section>
+                                <i class="bi bi-arrow-left-right prism-user-link-confirm__bridge" aria-hidden="true"></i>
+                                <section>
+                                    <span class="prism-user-link-confirm__label">PRISM account</span>
+                                    <div class="prism-user-link-confirm__account-avatar" data-prism-link-account-initials aria-hidden="true">?</div>
+                                    <strong data-prism-link-account-name>Selected PRISM user</strong>
+                                    <small data-prism-link-account-meta></small>
+                                </section>
+                            </div>
+                            <div class="alert alert-warning mb-3">
+                                <strong>Verify both identities visually.</strong> PRISM does not infer this relationship from the name or face. Linking gives the account a personal My Photos experience. It does <strong>not</strong> automatically change the user's PRISM avatar.
+                            </div>
+                            <label class="form-check prism-user-link-confirm__check">
+                                <input class="form-check-input" type="checkbox" name="identityVerified" value="true" data-prism-link-verified />
+                                <span class="form-check-label">I have checked the Media Person and PRISM account and confirm they represent the same individual.</span>
+                            </label>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" data-prism-link-submit disabled>Confirm linkage</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
 
     @if (Model.Person.Photos.Count == 0)
     {
@@ -513,4 +614,5 @@
 
 @section Scripts {
     <script src="~/js/pages/photos-person-details.js" asp-append-version="true"></script>
+    <script src="~/js/pages/photos-person-linkage.js" asp-append-version="true"></script>
 }
