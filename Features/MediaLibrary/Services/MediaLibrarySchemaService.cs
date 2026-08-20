@@ -45,7 +45,8 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         "MediaIdentityAudits",
         "MediaAlbums",
         "MediaAlbumItems",
-        "MediaCurationAudits"
+        "MediaCurationAudits",
+        "MediaPersonUserLinks"
     };
 
     private static readonly (string Table, string Column)[] RequiredColumns =
@@ -65,7 +66,8 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         ("MediaPersonFaces", "ConcurrencyToken"),
         ("MediaPersonFaces", "ReferenceStatus"),
         ("MediaFaceReviewDecisions", "ConcurrencyToken"),
-        ("MediaFaceReviewDecisions", "ConfidenceLevel")
+        ("MediaFaceReviewDecisions", "ConfidenceLevel"),
+        ("MediaPersonUserLinks", "ConcurrencyToken")
     };
 
     private readonly MediaLibraryDbContext _db;
@@ -229,6 +231,7 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         await _db.FaceEmbeddings.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
         await _db.Persons.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
         await _db.IdentityAudits.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
+        await _db.PersonUserLinks.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
     }
 
     private async Task<PhysicalSchemaState> VerifyPhysicalSchemaAsync(

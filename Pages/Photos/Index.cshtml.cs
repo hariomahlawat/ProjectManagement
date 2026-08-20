@@ -29,6 +29,7 @@ public sealed partial class IndexModel : PageModel
     private readonly IMediaCollectionQueryService _collections;
     private readonly IMediaAlbumService _albums;
     private readonly IPersonPhotoDiscoveryQueryService _personDiscovery;
+    private readonly IMediaPersonUserLinkService _personUserLinks;
     private readonly IFaceReviewService _faceReview;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
@@ -42,6 +43,7 @@ public sealed partial class IndexModel : PageModel
         IMediaCollectionQueryService collections,
         IMediaAlbumService albums,
         IPersonPhotoDiscoveryQueryService personDiscovery,
+        IMediaPersonUserLinkService personUserLinks,
         IFaceReviewService faceReview,
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IOptions<MediaLibraryOptions> mediaOptions,
@@ -54,6 +56,7 @@ public sealed partial class IndexModel : PageModel
         _collections = collections ?? throw new ArgumentNullException(nameof(collections));
         _albums = albums ?? throw new ArgumentNullException(nameof(albums));
         _personDiscovery = personDiscovery ?? throw new ArgumentNullException(nameof(personDiscovery));
+        _personUserLinks = personUserLinks ?? throw new ArgumentNullException(nameof(personUserLinks));
         _faceReview = faceReview ?? throw new ArgumentNullException(nameof(faceReview));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
@@ -82,6 +85,7 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public bool IncludeArchivedAlbums { get; set; }
     [BindProperty(SupportsGet = true)] public bool OrganizeAlbum { get; set; }
     [BindProperty(SupportsGet = true)] public bool FindMore { get; set; }
+    [BindProperty(SupportsGet = true)] public bool MyPhotos { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<MediaItem> Items { get; private set; } = Array.Empty<MediaItem>();
@@ -127,6 +131,29 @@ public sealed partial class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        if (MyPhotos)
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                         ?? User.Identity?.Name;
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                var link = await _personUserLinks.TryGetPhotoIdentityForUserAsync(userId, cancellationToken);
+                if (link is not null)
+                {
+                    View = "photos";
+                    PersonId = null;
+                    PersonIds = new[] { link.PersonId };
+                    PageNumber = 1;
+                }
+                else
+                {
+                    TempData["PhotosError"] = "Your PRISM account is not yet linked to a confirmed person in Photos.";
+                    View = "photos";
+                    PersonIds = Array.Empty<Guid>();
+                }
+            }
+        }
+
         NormalizeRequest();
         await LoadSelectedPeopleAsync(cancellationToken);
         await LoadPersonPhotoProfileAsync(cancellationToken);

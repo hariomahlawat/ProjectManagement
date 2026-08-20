@@ -1,7 +1,9 @@
 @using Microsoft.AspNetCore.Identity
+@using ProjectManagement.Features.MediaLibrary.Services
 @using ProjectManagement.Models
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@inject IMediaPersonUserLinkService MediaPersonUserLinks
 
 <ul class="navbar-nav ms-auto">
 @if (SignInManager.IsSignedIn(User))
@@ -11,13 +13,35 @@
     var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
     var initials = parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}" : $"{name[0]}";
     var logoutUrl = Url.Page("/Account/Logout", new { area = "Identity" }) ?? "/Identity/Account/Logout";
+    var userId = UserManager.GetUserId(User);
+    var photoIdentity = string.IsNullOrWhiteSpace(userId)
+        ? null
+        : await MediaPersonUserLinks.TryGetPhotoIdentityForUserAsync(userId, ViewContext.HttpContext.RequestAborted);
     <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="avatar me-2 text-uppercase">@initials</span>
+            <span class="avatar me-2 text-uppercase @(photoIdentity?.HasPortrait == true ? "avatar--photo" : null)">
+                @if (photoIdentity?.HasPortrait == true)
+                {
+                    <img src="@Url.Page("/Photos/People/Portrait", new { area = "", id = photoIdentity.PersonId })"
+                         alt="" loading="lazy" decoding="async" />
+                }
+                else
+                {
+                    @initials
+                }
+            </span>
             <span class="d-none d-sm-inline">@name</span>
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
             <li><a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index">Profile</a></li>
+            @if (photoIdentity is not null)
+            {
+                <li>
+                    <a class="dropdown-item" asp-area="" asp-page="/Photos/Index" asp-route-MyPhotos="true">
+                        <i class="bi bi-images me-2" aria-hidden="true"></i>My Photos
+                    </a>
+                </li>
+            }
             @if (User.IsInRole("Admin"))
             {
                 <li><a class="dropdown-item" asp-area="Admin" asp-page="/Index">Admin</a></li>
@@ -40,4 +64,3 @@ else
     </li>
 }
 </ul>
-

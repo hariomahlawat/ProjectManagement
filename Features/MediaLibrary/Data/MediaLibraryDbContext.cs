@@ -25,6 +25,7 @@ public sealed class MediaLibraryDbContext : DbContext
     public DbSet<MediaFaceEmbedding> FaceEmbeddings => Set<MediaFaceEmbedding>();
     public DbSet<MediaPerson> Persons => Set<MediaPerson>();
     public DbSet<MediaPersonFace> PersonFaces => Set<MediaPersonFace>();
+    public DbSet<MediaPersonUserLink> PersonUserLinks => Set<MediaPersonUserLink>();
     public DbSet<MediaFaceReviewDecision> FaceReviewDecisions => Set<MediaFaceReviewDecision>();
     public DbSet<MediaIdentityAudit> IdentityAudits => Set<MediaIdentityAudit>();
     public DbSet<MediaAlbum> Albums => Set<MediaAlbum>();

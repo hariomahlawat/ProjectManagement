@@ -93,6 +93,10 @@
                                     <span class="photos-person-profile__matching"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Checking unresolved appearances</span>
                                 }
                             </p>
+                            @if (Model.IsCurrentUserLinkedPerson)
+                            {
+                                <span class="photos-person-profile__self-link"><i class="bi bi-person-check" aria-hidden="true"></i> Linked to your PRISM account</span>
+                            }
                         }
                         else if (Model.MatchAllSelectedPeople)
                         {
@@ -121,12 +125,24 @@
                 {
                     @if (personProfile?.HasTrustedReference == false)
                     {
-                        <a class="photos-action photos-action--primary photos-person-profile__discover"
-                           href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)"
-                           title="Choose or prepare a trusted matching reference before searching for additional photographs.">
-                            <i class="bi bi-shield-check"></i>
-                            <span>Set up matching</span>
-                        </a>
+                        @if (Model.CanManagePeople)
+                        {
+                            <a class="photos-action photos-action--primary photos-person-profile__discover"
+                               href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)"
+                               title="Choose or prepare a trusted matching reference before searching for additional photographs.">
+                                <i class="bi bi-shield-check"></i>
+                                <span>Set up matching</span>
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="photos-action photos-action--quiet photos-person-profile__discover is-disabled"
+                                  title="An identity manager must set up a trusted matching reference before PRISM can search for more photos of you."
+                                  aria-disabled="true">
+                                <i class="bi bi-shield-exclamation"></i>
+                                <span>Matching setup required</span>
+                            </span>
+                        }
                     }
                     else
                     {
@@ -135,7 +151,7 @@
                            aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
                            aria-controls="personPhotoDiscovery">
                             <i class="bi bi-person-bounding-box"></i>
-                            <span>@(Model.ShowPersonDiscovery ? "Hide matches" : "Find more photos")</span>
+                            <span>@(Model.ShowPersonDiscovery ? "Hide matches" : Model.PersonDiscoveryPrimaryLabel)</span>
                             @if (personProfile is not null)
                             {
                                 <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
@@ -388,25 +404,41 @@
         var currentRequest = ViewContext.HttpContext.Request;
         var profileReturnUrl = $"{currentRequest.PathBase}{currentRequest.Path}{currentRequest.QueryString}";
         var discovery = Model.PersonDiscovery;
+        var processingOnly = personProfile.HasTrustedReference
+                             && (discovery is null || discovery.TotalCandidates == 0)
+                             && personProfile.BackgroundMatchingCount > 0;
         <section id="personPhotoDiscovery"
-                 class="person-photo-discovery"
+                 class="person-photo-discovery @(processingOnly ? "person-photo-discovery--processing-only" : null)"
                  aria-labelledby="personPhotoDiscoveryTitle"
                  data-person-photo-discovery
                  data-person-id="@personProfile.PersonId"
                  data-status-url="@Model.BuildPersonDiscoveryStatusUrl(personProfile.PersonId)"
+                 data-initial-candidate-count="@(discovery?.TotalCandidates ?? personProfile.PossibleMatchCount)"
+                 data-self-review="@(Model.IsCurrentUserLinkedPerson ? "true" : "false")"
                  data-confirm-batch-url="@Url.Page("./Index", "ConfirmPersonCandidates")"
                  data-reject-batch-url="@Url.Page("./Index", "RejectPersonCandidates")">
             <header class="person-photo-discovery__header">
                 <div>
                     <span class="person-photo-discovery__eyebrow">Human-confirmed discovery</span>
-                    <h2 id="personPhotoDiscoveryTitle">Possible photos of @personProfile.DisplayName</h2>
-                    <p>PRISM is showing unresolved face appearances ranked against trusted matching references. Similarity is a ranking signal, not identity probability.</p>
+                    <h2 id="personPhotoDiscoveryTitle">@Model.PersonDiscoveryHeading</h2>
+                    <p>PRISM brings together direct person suggestions and relevant identity groups. Similarity is a ranking signal, not identity probability; nothing is selected or confirmed automatically.</p>
                 </div>
                 <a class="btn btn-sm btn-outline-secondary" href="@Model.BuildPersonDiscoveryUrl(false)"><i class="bi bi-chevron-up"></i> Collapse</a>
             </header>
 
             <div class="person-photo-discovery__status" role="status" aria-live="polite">
                 <span><strong data-person-discovery-panel-count>@personProfile.PossibleMatchCount</strong> possible photo@(personProfile.PossibleMatchCount == 1 ? "" : "s")</span>
+                @if (discovery is not null && discovery.TotalCandidates > 0)
+                {
+                    @if (discovery.TotalDirectCandidates > 0)
+                    {
+                        <span>@discovery.TotalDirectCandidates direct suggestion@(discovery.TotalDirectCandidates == 1 ? "" : "s")</span>
+                    }
+                    @if (discovery.IdentityGroups.Count > 0)
+                    {
+                        <span>@discovery.TotalGroupCandidateAppearances appearance@(discovery.TotalGroupCandidateAppearances == 1 ? "" : "s") in @discovery.IdentityGroups.Count identity group@(discovery.IdentityGroups.Count == 1 ? "" : "s")</span>
+                    }
+                }
                 @if (personProfile.BackgroundMatchingCount > 0)
                 {
                     <span class="is-matching" data-person-discovery-matching><i class="bi bi-arrow-repeat"></i> @personProfile.BackgroundMatchingCount unresolved appearance@(personProfile.BackgroundMatchingCount == 1 ? " is" : "s are") still being checked</span>
@@ -431,7 +463,7 @@
                     }
                 </div>
             }
-            else if (discovery is not null && discovery.Candidates.Count > 0)
+            else if (discovery is not null && discovery.TotalCandidates > 0)
             {
                 <form method="post" class="d-none" data-person-discovery-batch-token-form>
                     @Html.AntiForgeryToken()
@@ -442,79 +474,104 @@
                 <div class="person-photo-discovery__batch" data-person-discovery-batch hidden>
                     <strong><span data-person-discovery-selected-count>0</span> selected</strong>
                     <div>
-                        <button type="button" class="btn btn-sm btn-primary" data-person-discovery-batch-confirm>Confirm selected as @personProfile.DisplayName</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-person-discovery-batch-reject>Not @personProfile.DisplayName</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-person-discovery-batch-confirm>@Model.CandidateConfirmLabel</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-person-discovery-batch-reject>@Model.CandidateRejectLabel</button>
                         <button type="button" class="btn btn-sm btn-link" data-person-discovery-batch-clear>Clear</button>
                     </div>
                 </div>
 
-                <div class="person-photo-discovery__grid" data-person-discovery-grid>
-                    @foreach (var candidate in discovery.Candidates)
-                    {
-                        var evidenceClass = IndexModel.CandidateEvidenceCssClass(candidate.ConfidenceLevel);
-                        <article class="person-photo-candidate" data-person-candidate data-face-id="@candidate.FaceId">
-                            <label class="person-photo-candidate__select" title="Select this possible appearance">
-                                <input type="checkbox" class="form-check-input" value="@candidate.FaceId" data-person-candidate-select />
-                                <span class="visually-hidden">Select possible appearance from @candidate.ContextTitle</span>
-                            </label>
-                            <div class="person-photo-candidate__face">
-                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.FaceId })" alt="Possible appearance of @personProfile.DisplayName from @candidate.ContextTitle" loading="lazy" />
-                                <span class="person-photo-candidate__evidence @evidenceClass" title="Similarity is a ranking signal, not identity probability.">
-                                    @IndexModel.CandidateEvidenceLabel(candidate.ConfidenceLevel) · @candidate.Similarity.ToString("0.000")
-                                </span>
+                @if (discovery.StrongCandidates.Count > 0)
+                {
+                    <section class="person-photo-discovery__band" aria-labelledby="strongPersonCandidates">
+                        <header class="person-photo-discovery__band-header">
+                            <div><h3 id="strongPersonCandidates">Strong possibilities</h3><p>Highest-ranking direct matches to trusted references.</p></div>
+                            <span>@discovery.StrongCandidates.Count</span>
+                        </header>
+                        <div class="person-photo-discovery__grid" data-person-discovery-grid>
+                            @foreach (var candidate in discovery.StrongCandidates)
+                            {
+                                <partial name="_PersonPhotoCandidateCard" model="@(new PersonPhotoCandidateCardViewModel(candidate, personProfile.PersonId, personProfile.DisplayName, Model.CandidateConfirmLabel, Model.CandidateRejectLabel, profileReturnUrl))" />
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (discovery.ModerateCandidates.Count > 0)
+                {
+                    <section class="person-photo-discovery__band" aria-labelledby="moderatePersonCandidates">
+                        <header class="person-photo-discovery__band-header">
+                            <div><h3 id="moderatePersonCandidates">Moderate possibilities</h3><p>Useful candidates that need careful visual confirmation.</p></div>
+                            <span>@discovery.ModerateCandidates.Count</span>
+                        </header>
+                        <div class="person-photo-discovery__grid" data-person-discovery-grid>
+                            @foreach (var candidate in discovery.ModerateCandidates)
+                            {
+                                <partial name="_PersonPhotoCandidateCard" model="@(new PersonPhotoCandidateCardViewModel(candidate, personProfile.PersonId, personProfile.DisplayName, Model.CandidateConfirmLabel, Model.CandidateRejectLabel, profileReturnUrl))" />
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (discovery.IdentityGroups.Count > 0)
+                {
+                    <section class="person-photo-discovery__groups" aria-labelledby="groupPersonCandidates">
+                        <header class="person-photo-discovery__band-header is-groups">
+                            <div>
+                                <h3 id="groupPersonCandidates">Possible identity groups</h3>
+                                <p>PRISM has already organised these appearances as likely the same unnamed person, and the group itself resembles @personProfile.DisplayName.</p>
                             </div>
-                            <div class="person-photo-candidate__body">
-                                <h3>@candidate.ContextTitle</h3>
-                                <p>
-                                    @if (!string.IsNullOrWhiteSpace(candidate.ContextSubtitle))
+                            <span>@discovery.IdentityGroups.Count</span>
+                        </header>
+                        @for (var groupIndex = 0; groupIndex < discovery.IdentityGroups.Count; groupIndex++)
+                        {
+                            var groupCandidate = discovery.IdentityGroups[groupIndex];
+                            var groupDomId = $"person-group-{groupIndex + 1}";
+                            <article class="person-photo-group-candidate" data-person-group-candidate>
+                                <header>
+                                    <div>
+                                        <span class="person-photo-group-candidate__eyebrow">Likely same unnamed person</span>
+                                        <h4>@groupCandidate.Candidates.Count appearance@(groupCandidate.Candidates.Count == 1 ? "" : "s") across @groupCandidate.PhotoCount photograph@(groupCandidate.PhotoCount == 1 ? "" : "s")</h4>
+                                        <p>Possible group identity: @personProfile.DisplayName · similarity <strong>@groupCandidate.PersonSimilarity.ToString("0.000")</strong> · group cohesion @groupCandidate.CohesionScore.ToString("0.000")</p>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-select-person-group data-group-target="@groupDomId">Select all @groupCandidate.Candidates.Count</button>
+                                </header>
+                                <div id="@groupDomId" class="person-photo-discovery__grid person-photo-discovery__grid--group" data-person-discovery-grid>
+                                    @foreach (var candidate in groupCandidate.Candidates)
                                     {
-                                        <span>@candidate.ContextSubtitle · </span>
-                                    }
-                                    <span>@candidate.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                </p>
-                                <div class="person-photo-candidate__evidence-detail">
-                                    <span>@candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")</span>
-                                    @if (candidate.MarginAvailable && candidate.MarginToNext.HasValue)
-                                    {
-                                        <span>Separation @candidate.MarginToNext.Value.ToString("0.000")</span>
-                                    }
-                                    else
-                                    {
-                                        <span>Separation unavailable</span>
+                                        <partial name="_PersonPhotoCandidateCard" model="@(new PersonPhotoCandidateCardViewModel(candidate, personProfile.PersonId, personProfile.DisplayName, Model.CandidateConfirmLabel, Model.CandidateRejectLabel, profileReturnUrl))" />
                                     }
                                 </div>
-                                <a class="person-photo-candidate__view" href="@Url.Page("/Photos/Media", new { id = candidate.AssetId, variant = "preview" })" target="_blank" rel="noopener">View photograph <i class="bi bi-arrow-up-right"></i></a>
-                            </div>
-                            <div class="person-photo-candidate__actions">
-                                <form method="post" asp-page-handler="ConfirmPersonCandidate" data-person-candidate-form>
-                                    <input type="hidden" name="personId" value="@personProfile.PersonId" />
-                                    <input type="hidden" name="faceId" value="@candidate.FaceId" />
-                                    <input type="hidden" name="returnUrl" value="@profileReturnUrl" />
-                                    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Yes, @personProfile.DisplayName</button>
-                                </form>
-                                <form method="post" asp-page-handler="RejectPersonCandidate" data-person-candidate-form>
-                                    <input type="hidden" name="personId" value="@personProfile.PersonId" />
-                                    <input type="hidden" name="faceId" value="@candidate.FaceId" />
-                                    <input type="hidden" name="returnUrl" value="@profileReturnUrl" />
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Not @personProfile.DisplayName</button>
-                                </form>
-                            </div>
-                        </article>
-                    }
-                </div>
+                            </article>
+                        }
+                    </section>
+                }
 
-                @if (discovery.TotalCandidates > discovery.Candidates.Count)
+                @if (discovery.OtherCandidates.Count > 0)
                 {
-                    <div class="person-photo-discovery__more">Showing the strongest @discovery.Candidates.Count of @discovery.TotalCandidates possible photos. Review these first; the next candidates will surface as decisions are completed.</div>
+                    <details class="person-photo-discovery__weaker">
+                        <summary>Show @discovery.OtherCandidates.Count lower-confidence possibilit@(discovery.OtherCandidates.Count == 1 ? "y" : "ies")</summary>
+                        <p>These remain plausible enough for human review, but the ranking evidence is weaker. They are never preselected.</p>
+                        <div class="person-photo-discovery__grid" data-person-discovery-grid>
+                            @foreach (var candidate in discovery.OtherCandidates)
+                            {
+                                <partial name="_PersonPhotoCandidateCard" model="@(new PersonPhotoCandidateCardViewModel(candidate, personProfile.PersonId, personProfile.DisplayName, Model.CandidateConfirmLabel, Model.CandidateRejectLabel, profileReturnUrl))" />
+                            }
+                        </div>
+                    </details>
+                }
+
+                @if (personProfile.BackgroundMatchingCount > 0)
+                {
+                    <div class="person-photo-discovery__progress-note"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Background matching is still checking @personProfile.BackgroundMatchingCount unresolved appearance@(personProfile.BackgroundMatchingCount == 1 ? "" : "s"). New possibilities will be offered without disturbing your current selections.</div>
                 }
             }
             else if (personProfile.BackgroundMatchingCount > 0)
             {
-                <div class="person-photo-discovery__empty" data-person-discovery-empty>
+                <div class="person-photo-discovery__processing" data-person-discovery-empty>
                     <i class="bi bi-arrow-repeat person-photo-discovery__spinner" aria-hidden="true"></i>
                     <div>
-                        <h3>Checking unresolved photos</h3>
-                        <p>No possible appearance is ready for review yet. Background matching is still comparing unresolved faces with the trusted references for confirmed people.</p>
+                        <h3>Checking for more photos…</h3>
+                        <p>@personProfile.BackgroundMatchingCount unresolved appearance@(personProfile.BackgroundMatchingCount == 1 ? " is" : "s are") still being compared. The confirmed-photo gallery remains available below.</p>
                     </div>
                 </div>
             }

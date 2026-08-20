@@ -1,0 +1,76 @@
+@model ProjectManagement.Pages.Photos.PersonPhotoCandidateCardViewModel
+@using ProjectManagement.Features.MediaLibrary.Services
+@{
+    var candidate = Model.Candidate;
+    var evidenceClass = ProjectManagement.Pages.Photos.IndexModel.CandidateEvidenceCssClass(candidate.ConfidenceLevel);
+    var isGroup = candidate.EvidenceSource == PersonPhotoDiscoveryEvidenceSource.IdentityGroupCandidate;
+    var evidenceLabel = isGroup
+        ? $"Group identity · {(candidate.GroupPersonSimilarity ?? candidate.Similarity):0.000}"
+        : $"{ProjectManagement.Pages.Photos.IndexModel.CandidateEvidenceLabel(candidate.ConfidenceLevel)} · {candidate.Similarity:0.000}";
+}
+<article class="person-photo-candidate @(isGroup ? "is-group-evidence" : null)"
+         data-person-candidate
+         data-face-id="@candidate.FaceId"
+         data-evidence-source="@candidate.EvidenceSource">
+    <label class="person-photo-candidate__select" title="Select this possible appearance">
+        <input type="checkbox" class="form-check-input" value="@candidate.FaceId" data-person-candidate-select />
+        <span class="visually-hidden">Select possible appearance from @candidate.ContextTitle</span>
+    </label>
+    <div class="person-photo-candidate__face">
+        <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.FaceId })"
+             alt="Possible appearance of @Model.PersonDisplayName from @candidate.ContextTitle"
+             loading="lazy" decoding="async" />
+        <span class="person-photo-candidate__evidence @evidenceClass" title="Similarity is a ranking signal, not identity probability.">
+            @evidenceLabel
+        </span>
+    </div>
+    <div class="person-photo-candidate__body">
+        <h3>@candidate.ContextTitle</h3>
+        <p>
+            @if (!string.IsNullOrWhiteSpace(candidate.ContextSubtitle))
+            {
+                <span>@candidate.ContextSubtitle · </span>
+            }
+            <span>@candidate.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
+        </p>
+        <div class="person-photo-candidate__evidence-detail">
+            @if (isGroup)
+            {
+                @if (candidate.SimilarityToGroupRepresentative.HasValue)
+                {
+                    <span>Within-group @candidate.SimilarityToGroupRepresentative.Value.ToString("0.000")</span>
+                }
+                <span>@candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")</span>
+            }
+            else
+            {
+                <span>@candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")</span>
+                @if (candidate.MarginAvailable && candidate.MarginToNext.HasValue)
+                {
+                    <span>Separation @candidate.MarginToNext.Value.ToString("0.000")</span>
+                }
+                else
+                {
+                    <span>Separation unavailable</span>
+                }
+            }
+        </div>
+        <a class="person-photo-candidate__view"
+           href="@Url.Page("/Photos/Media", new { id = candidate.AssetId, variant = "preview" })"
+           target="_blank" rel="noopener">View photograph <i class="bi bi-arrow-up-right"></i></a>
+    </div>
+    <div class="person-photo-candidate__actions">
+        <form method="post" asp-page="/Photos/Index" asp-page-handler="ConfirmPersonCandidate" data-person-candidate-form>
+            <input type="hidden" name="personId" value="@Model.PersonId" />
+            <input type="hidden" name="faceId" value="@candidate.FaceId" />
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> @Model.ConfirmLabel</button>
+        </form>
+        <form method="post" asp-page="/Photos/Index" asp-page-handler="RejectPersonCandidate" data-person-candidate-form>
+            <input type="hidden" name="personId" value="@Model.PersonId" />
+            <input type="hidden" name="faceId" value="@candidate.FaceId" />
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> @Model.RejectLabel</button>
+        </form>
+    </div>
+</article>

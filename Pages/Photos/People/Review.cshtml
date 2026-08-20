@@ -78,7 +78,7 @@
             <a class="identity-review-tab @(Model.IsMatchesMode ? "is-active" : null)"
                href="@(Model.BuildReviewUrl("matches", 1, "detail"))">
                 <i class="bi bi-person-check"></i>
-                <span>Known matches</span>
+                <span>Direct person suggestions</span>
                 <strong data-workload-known>@Model.Workload.KnownMatchCount</strong>
             </a>
             <a class="identity-review-tab @(Model.IsUnidentifiedMode ? "is-active" : null)"
@@ -262,7 +262,7 @@
                                 @if (group.Candidates.Count > 0)
                                 {
                                     <section class="identity-group-candidates" aria-label="Known-person matches">
-                                        <h3>Possible existing person</h3>
+                                        <h3>Possible group identity</h3>
                                         @foreach (var candidate in group.Candidates.Take(3))
                                         {
                                             var isStrong = candidate.ConfidenceLevel == FaceCandidateConfidenceLevel.Strong;
@@ -293,7 +293,7 @@
                                                             data-person-id="@candidate.PersonId"
                                                             data-target-select="existing-@group.GroupKey"
                                                             disabled="@Model.GroupingActionsLocked">
-                                                        Use @candidate.DisplayName
+                                                        Choose @candidate.DisplayName
                                                     </button>
                                                     <button type="submit"
                                                             form="@groupFormId"
@@ -392,8 +392,8 @@
                         <i class="bi @(Model.Workload.MatchingCount > 0 ? "bi-arrow-repeat identity-refresh-icon" : "bi-check2-circle")"></i>
                         @if (Model.Workload.MatchingCount > 0)
                         {
-                            <h2>No known matches ready yet</h2>
-                            <p><strong>@Model.Workload.MatchingCount</strong> unresolved face appearance@(Model.Workload.MatchingCount == 1 ? " is" : "s are") still being compared with trusted references. Any known-person suggestions will appear here after background matching completes.</p>
+                            <h2>No direct person suggestions ready yet</h2>
+                            <p><strong>@Model.Workload.MatchingCount</strong> unresolved face appearance@(Model.Workload.MatchingCount == 1 ? " is" : "s are") still being compared with trusted references. Any direct person suggestions will appear here after background matching completes.</p>
                         }
                         else
                         {

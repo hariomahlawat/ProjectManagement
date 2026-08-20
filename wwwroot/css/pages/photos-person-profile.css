@@ -448,3 +448,203 @@
         margin-left: 0;
     }
 }
+
+/* Linked-user context ------------------------------------------------------ */
+.photos-person-profile__self-link {
+    align-items: center;
+    background: #eef5ff;
+    border: 1px solid #d7e5fb;
+    border-radius: 999px;
+    color: #41679e;
+    display: inline-flex;
+    font-size: .67rem;
+    font-weight: 700;
+    gap: .3rem;
+    margin-top: .42rem;
+    padding: .26rem .52rem;
+}
+
+/* Evidence bands ---------------------------------------------------------- */
+.person-photo-discovery__band,
+.person-photo-discovery__groups {
+    border-bottom: 1px solid #e8edf3;
+}
+
+.person-photo-discovery__band-header {
+    align-items: center;
+    background: #fbfcfe;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: .7rem 1rem .55rem;
+}
+
+.person-photo-discovery__band-header h3 {
+    color: #26364e;
+    font-size: .84rem;
+    font-weight: 780;
+    margin: 0 0 .12rem;
+}
+
+.person-photo-discovery__band-header p {
+    color: #78869a;
+    font-size: .68rem;
+    margin: 0;
+}
+
+.person-photo-discovery__band-header > span {
+    align-items: center;
+    background: #eef3fb;
+    border-radius: 999px;
+    color: #48668f;
+    display: inline-flex;
+    font-size: .68rem;
+    font-weight: 800;
+    justify-content: center;
+    min-width: 1.75rem;
+    padding: .22rem .48rem;
+}
+
+.person-photo-discovery__band-header.is-groups {
+    background: #f8fbff;
+}
+
+.person-photo-group-candidate {
+    background: #fff;
+    border: 1px solid #dbe5f2;
+    border-radius: .88rem;
+    margin: .72rem 1rem 1rem;
+    overflow: hidden;
+}
+
+.person-photo-group-candidate > header {
+    align-items: flex-start;
+    background: #f8fbff;
+    border-bottom: 1px solid #e4ebf5;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: .72rem .82rem;
+}
+
+.person-photo-group-candidate__eyebrow {
+    color: #5877a5;
+    display: block;
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .07em;
+    margin-bottom: .18rem;
+    text-transform: uppercase;
+}
+
+.person-photo-group-candidate h4 {
+    color: #25364f;
+    font-size: .82rem;
+    margin: 0 0 .2rem;
+}
+
+.person-photo-group-candidate header p {
+    color: #6e7e93;
+    font-size: .68rem;
+    margin: 0;
+}
+
+.person-photo-discovery__grid--group {
+    grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+    padding: .72rem;
+}
+
+.person-photo-candidate.is-group-evidence .person-photo-candidate__evidence {
+    background: rgba(63,79,126,.9);
+}
+
+.person-photo-discovery__weaker {
+    border-bottom: 1px solid #e8edf3;
+    padding: .7rem 1rem .9rem;
+}
+
+.person-photo-discovery__weaker > summary {
+    color: #526c94;
+    cursor: pointer;
+    font-size: .75rem;
+    font-weight: 750;
+}
+
+.person-photo-discovery__weaker > p {
+    color: #7a8798;
+    font-size: .68rem;
+    margin: .35rem 0 0;
+}
+
+.person-photo-discovery__weaker[open] > .person-photo-discovery__grid {
+    padding-left: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+}
+
+.person-photo-discovery__progress-note {
+    align-items: center;
+    background: #f8faff;
+    color: #65758c;
+    display: flex;
+    font-size: .68rem;
+    gap: .4rem;
+    padding: .55rem 1rem;
+}
+
+.person-photo-discovery__progress-note i {
+    color: #5878aa;
+}
+
+/* Processing-only state stays intentionally compact so confirmed photos
+   remain the primary content while the background worker is still running. */
+.person-photo-discovery--processing-only .person-photo-discovery__header {
+    padding-bottom: .6rem;
+}
+
+.person-photo-discovery--processing-only .person-photo-discovery__status {
+    min-height: 2rem;
+}
+
+.person-photo-discovery__processing {
+    align-items: center;
+    color: #68778b;
+    display: flex;
+    gap: .7rem;
+    min-height: 4.4rem;
+    padding: .72rem 1rem;
+}
+
+.person-photo-discovery__processing > i {
+    color: #6583ad;
+    font-size: 1.25rem;
+}
+
+.person-photo-discovery__processing h3 {
+    color: #2b3b53;
+    font-size: .82rem;
+    margin: 0 0 .12rem;
+}
+
+.person-photo-discovery__processing p {
+    font-size: .69rem;
+    margin: 0;
+}
+
+@media (max-width: 767.98px) {
+    .person-photo-group-candidate > header,
+    .person-photo-discovery__band-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .person-photo-group-candidate > header .btn {
+        align-self: flex-start;
+    }
+}
+
+.photos-person-profile__discover.is-disabled {
+    cursor: help;
+    opacity: .72;
+    pointer-events: auto;
+}

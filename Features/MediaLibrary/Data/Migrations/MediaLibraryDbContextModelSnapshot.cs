@@ -273,6 +273,25 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.HasKey("Id"); entity.HasIndex("MergedIntoPersonId"); entity.HasIndex("NormalizedName"); entity.HasIndex("Status", "IsHidden"); entity.ToTable("MediaPersons");
         });
 
+
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPersonUserLink", entity =>
+        {
+            entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+            entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
+            entity.Property<DateTimeOffset>("LinkedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("LinkedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<Guid>("MediaPersonId").HasColumnType("uuid");
+            entity.Property<DateTimeOffset?>("UnlinkedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("UnlinkedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<string>("UnlinkReason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<string>("UserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.HasKey("Id");
+            entity.HasIndex("MediaPersonId").IsUnique().HasFilter("\"UnlinkedAtUtc\" IS NULL").HasDatabaseName("UX_MediaPersonUserLinks_ActivePerson");
+            entity.HasIndex("UserId").IsUnique().HasFilter("\"UnlinkedAtUtc\" IS NULL").HasDatabaseName("UX_MediaPersonUserLinks_ActiveUser");
+            entity.HasIndex("UserId", "LinkedAtUtc").HasDatabaseName("IX_MediaPersonUserLinks_UserHistory");
+            entity.ToTable("MediaPersonUserLinks");
+        });
+
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPersonFace", entity =>
         {
             entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
@@ -384,6 +403,13 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
         {
             entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaFace", "MediaFace").WithMany("Embeddings").HasForeignKey("MediaFaceId").OnDelete(DeleteBehavior.Cascade).IsRequired(); entity.Navigation("MediaFace");
         });
+
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPersonUserLink", entity =>
+        {
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaPerson", "MediaPerson").WithMany().HasForeignKey("MediaPersonId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            entity.Navigation("MediaPerson");
+        });
+
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPersonFace", entity =>
         {
             entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaFace", "MediaFace").WithMany("PersonAssignments").HasForeignKey("MediaFaceId").OnDelete(DeleteBehavior.Cascade).IsRequired();

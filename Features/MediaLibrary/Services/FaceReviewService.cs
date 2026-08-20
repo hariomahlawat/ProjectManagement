@@ -149,7 +149,8 @@ public sealed class FaceReviewService : IFaceReviewService
         Guid personId,
         string userId,
         double? confidence,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string reviewSource = "IdentityReview")
     {
         var selectedFaces = NormalizeFaceSelection(faceIds);
         ValidateUserId(userId);
@@ -175,7 +176,8 @@ public sealed class FaceReviewService : IFaceReviewService
                     confidence,
                     FaceAssignmentType.HumanConfirmed,
                     trustAsReference: false,
-                    cancellationToken);
+                    cancellationToken,
+                    reviewSource);
             }
 
             if (selectedFaces.Count > 1)
@@ -188,7 +190,7 @@ public sealed class FaceReviewService : IFaceReviewService
                     Action = "FaceGroupAssigned",
                     PerformedByUserId = userId,
                     Notes = $"Assigned {selectedFaces.Count} reviewer-selected faces to '{person.DisplayName}'.",
-                    MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, Similarity = confidence }),
+                    MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, Similarity = confidence, Source = reviewSource }),
                     PerformedAtUtc = DateTimeOffset.UtcNow
                 });
             }
@@ -389,7 +391,8 @@ public sealed class FaceReviewService : IFaceReviewService
         IReadOnlyCollection<Guid> faceIds,
         Guid personId,
         string userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string reviewSource = "IdentityReview")
     {
         var selectedFaces = NormalizeFaceSelection(faceIds);
         ValidateUserId(userId);
@@ -455,7 +458,7 @@ public sealed class FaceReviewService : IFaceReviewService
             Action = "GroupCandidateRejected",
             PerformedByUserId = userId,
             Notes = $"Rejected the suggested person for {selectedFaces.Count} face appearance(s).",
-            MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, CandidatePersonId = personId }),
+            MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, CandidatePersonId = personId, Source = reviewSource }),
             PerformedAtUtc = now
         });
         await SaveWithConflictTranslationAsync(cancellationToken);
@@ -1351,6 +1354,23 @@ public sealed class FaceReviewService : IFaceReviewService
             EnsureActive(source);
             EnsureActive(target);
 
+            // A PRISM account link is institutional identity data, not merely presentation
+            // metadata. Preserve it across a duplicate-person merge, but never collapse two
+            // different linked user accounts into one media identity implicitly.
+            var activeUserLinks = await _db.PersonUserLinks
+                .Where(link => link.UnlinkedAtUtc == null
+                               && (link.MediaPersonId == sourcePersonId
+                                   || link.MediaPersonId == targetPersonId))
+                .ToListAsync(cancellationToken);
+            var sourceUserLink = activeUserLinks.SingleOrDefault(link => link.MediaPersonId == sourcePersonId);
+            var targetUserLink = activeUserLinks.SingleOrDefault(link => link.MediaPersonId == targetPersonId);
+            if (sourceUserLink is not null && targetUserLink is not null
+                                           && !string.Equals(sourceUserLink.UserId, targetUserLink.UserId, StringComparison.Ordinal))
+            {
+                throw new FaceIdentityConflictException(
+                    "Both identities are linked to different PRISM users. Unlink one account before merging the people records.");
+            }
+
             var sourceAssignments = await _db.PersonFaces
                 .Where(assignment => assignment.MediaPersonId == sourcePersonId
                                      && assignment.RemovedAtUtc == null)
@@ -1410,6 +1430,29 @@ public sealed class FaceReviewService : IFaceReviewService
                                               && sourceFaceIds.Contains(source.RepresentativeFaceId.Value)
                     ? source.RepresentativeFaceId
                     : sourceFaceIds.Select(faceId => (Guid?)faceId).FirstOrDefault();
+            }
+
+            if (sourceUserLink is not null && targetUserLink is null)
+            {
+                sourceUserLink.MediaPersonId = target.Id;
+                sourceUserLink.ConcurrencyToken = Guid.NewGuid();
+                _db.IdentityAudits.Add(new MediaIdentityAudit
+                {
+                    PersonId = target.Id,
+                    PreviousPersonId = source.Id,
+                    NewPersonId = target.Id,
+                    Action = "PrismUserLinkTransferred",
+                    PerformedByUserId = userId,
+                    Notes = $"Transferred linked PRISM user '{sourceUserLink.UserId}' while merging '{source.DisplayName}' into '{target.DisplayName}'.",
+                    MetadataJson = JsonSerializer.Serialize(new
+                    {
+                        sourceUserLink.UserId,
+                        LinkId = sourceUserLink.Id,
+                        SourcePersonId = source.Id,
+                        TargetPersonId = target.Id
+                    }),
+                    PerformedAtUtc = now
+                });
             }
 
             source.Status = MediaPersonStatus.Merged;
@@ -1480,7 +1523,8 @@ public sealed class FaceReviewService : IFaceReviewService
         double? confidence,
         FaceAssignmentType assignmentType,
         bool trustAsReference,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string reviewSource = "IdentityReview")
     {
         EnsureActive(person);
         var face = await _db.Faces
@@ -1575,11 +1619,19 @@ public sealed class FaceReviewService : IFaceReviewService
                              && pendingEvidence.MarginToNext.HasValue
             ? pendingEvidence.MarginToNext.Value.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)
             : "unavailable";
+        var selfConfirmed = string.Equals(reviewSource, "SelfConfirmed", StringComparison.OrdinalIgnoreCase);
+        var sourceLabel = selfConfirmed
+            ? "self-confirmation by the linked PRISM user"
+            : "manual reviewer assignment";
         var auditNotes = pendingEvidence is null
-            ? $"Confirmed by manual reviewer assignment in '{face.MediaAsset.ContextTitle}'."
-            : $"Confirmed from a {assignmentMethod} in '{face.MediaAsset.ContextTitle}'. "
-              + $"Similarity {pendingEvidence.Similarity:0.000}; trusted references {pendingEvidence.ReferenceCount}; "
-              + $"separation {separationText}.";
+            ? $"Confirmed by {sourceLabel} in '{face.MediaAsset.ContextTitle}'."
+            : selfConfirmed
+                ? $"Self-confirmed by the linked PRISM user from a {assignmentMethod} in '{face.MediaAsset.ContextTitle}'. "
+                  + $"Similarity {pendingEvidence.Similarity:0.000}; trusted references {pendingEvidence.ReferenceCount}; "
+                  + $"separation {separationText}."
+                : $"Confirmed from a {assignmentMethod} in '{face.MediaAsset.ContextTitle}'. "
+                  + $"Similarity {pendingEvidence.Similarity:0.000}; trusted references {pendingEvidence.ReferenceCount}; "
+                  + $"separation {separationText}.";
 
         _db.IdentityAudits.Add(new MediaIdentityAudit
         {
@@ -1604,7 +1656,8 @@ public sealed class FaceReviewService : IFaceReviewService
                 MarginAvailable = pendingEvidence?.MarginAvailable ?? false,
                 ConfidenceLevel = pendingEvidence?.ConfidenceLevel.ToString(),
                 ModelKey = pendingEvidence?.ModelKey,
-                ModelVersion = pendingEvidence?.ModelVersion
+                ModelVersion = pendingEvidence?.ModelVersion,
+                ReviewSource = reviewSource
             }),
             PerformedAtUtc = now
         });

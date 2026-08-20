@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Models;
+using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 {
@@ -15,13 +16,18 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
     public class IndexModel : PageModel
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IMediaPersonUserLinkService _mediaPersonUserLinks;
 
-        public IndexModel(UserManager<ApplicationUser> userManager)
+        public IndexModel(
+            UserManager<ApplicationUser> userManager,
+            IMediaPersonUserLinkService mediaPersonUserLinks)
         {
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _mediaPersonUserLinks = mediaPersonUserLinks ?? throw new ArgumentNullException(nameof(mediaPersonUserLinks));
         }
 
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
+        public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
 
         public async Task<IActionResult> OnGetAsync()
         {
@@ -30,6 +36,10 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             {
                 return Challenge();
             }
+
+            PhotoIdentity = await _mediaPersonUserLinks.TryGetPhotoIdentityForUserAsync(
+                user.Id,
+                HttpContext.RequestAborted);
 
             var roles = await _userManager.GetRolesAsync(user);
             Roles = roles

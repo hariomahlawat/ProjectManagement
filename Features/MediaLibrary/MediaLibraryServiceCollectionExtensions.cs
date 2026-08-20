@@ -80,6 +80,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaBulkDownloadService, MediaBulkDownloadService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
         services.AddScoped<IPersonPhotoDiscoveryQueryService, PersonPhotoDiscoveryQueryService>();
+        services.AddScoped<IMediaPersonUserLinkService, MediaPersonUserLinkService>();
         services.AddScoped<IFaceReviewWorkloadService, FaceReviewWorkloadService>();
         services.AddScoped<IFaceReferenceReadinessService, FaceReferenceReadinessService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();

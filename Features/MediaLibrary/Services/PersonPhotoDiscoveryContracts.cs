@@ -2,9 +2,22 @@ using ProjectManagement.Features.MediaLibrary.Domain;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
+public enum PersonPhotoDiscoveryEvidenceSource
+{
+    DirectPersonCandidate = 0,
+    IdentityGroupCandidate = 1
+}
+
+public enum PersonPhotoDiscoveryBand
+{
+    Strong = 0,
+    Moderate = 1,
+    Other = 2
+}
+
 /// <summary>
-/// Person-centric, read-only view of the existing known-person candidate evidence.
-/// It never creates identity evidence and never confirms a person automatically.
+/// Person-centric summary of current human-confirmed photographs and machine-generated
+/// review evidence. Counts are suggestions only; no identity is inferred automatically.
 /// </summary>
 public sealed record PersonPhotoDiscoverySummary(
     Guid PersonId,
@@ -14,7 +27,10 @@ public sealed record PersonPhotoDiscoverySummary(
     int TrustedReferenceCount,
     int PossibleMatchCount,
     int BackgroundMatchingCount,
-    int MatchingFailureCount)
+    int MatchingFailureCount,
+    int DirectCandidateCount = 0,
+    int GroupCandidateAppearanceCount = 0,
+    int GroupCandidateCount = 0)
 {
     public bool HasTrustedReference => TrustedReferenceCount > 0;
     public bool HasPossibleMatches => PossibleMatchCount > 0;
@@ -36,12 +52,35 @@ public sealed record PersonPhotoCandidate(
     double? MarginToNext,
     bool MarginAvailable,
     FaceCandidateConfidenceLevel ConfidenceLevel,
-    Guid DecisionConcurrencyToken);
+    Guid DecisionConcurrencyToken,
+    PersonPhotoDiscoveryEvidenceSource EvidenceSource = PersonPhotoDiscoveryEvidenceSource.DirectPersonCandidate,
+    PersonPhotoDiscoveryBand Band = PersonPhotoDiscoveryBand.Moderate,
+    string? GroupKey = null,
+    double? GroupPersonSimilarity = null,
+    double? SimilarityToGroupRepresentative = null);
+
+public sealed record PersonPhotoIdentityGroupCandidate(
+    string GroupKey,
+    double PersonSimilarity,
+    double CohesionScore,
+    int PhotoCount,
+    DateTimeOffset FirstSeenUtc,
+    DateTimeOffset LastSeenUtc,
+    IReadOnlyList<PersonPhotoCandidate> Candidates);
 
 public sealed record PersonPhotoDiscoveryResult(
     PersonPhotoDiscoverySummary Summary,
-    IReadOnlyList<PersonPhotoCandidate> Candidates,
-    int TotalCandidates);
+    IReadOnlyList<PersonPhotoCandidate> StrongCandidates,
+    IReadOnlyList<PersonPhotoCandidate> ModerateCandidates,
+    IReadOnlyList<PersonPhotoCandidate> OtherCandidates,
+    IReadOnlyList<PersonPhotoIdentityGroupCandidate> IdentityGroups,
+    int TotalCandidates,
+    int TotalDirectCandidates,
+    int TotalGroupCandidateAppearances)
+{
+    public IReadOnlyList<PersonPhotoCandidate> Candidates
+        => StrongCandidates.Concat(ModerateCandidates).Concat(OtherCandidates).ToArray();
+}
 
 public interface IPersonPhotoDiscoveryQueryService
 {
@@ -56,8 +95,8 @@ public interface IPersonPhotoDiscoveryQueryService
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Revalidates a reviewer-selected set against current pending candidate evidence.
-    /// This method is read-only; mutations remain the responsibility of IFaceReviewService.
+    /// Revalidates a reviewer-selected set against current direct or identity-group evidence.
+    /// Mutations remain the responsibility of IFaceReviewService.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, PersonPhotoCandidate>> GetEligibleCandidatesAsync(
         Guid personId,

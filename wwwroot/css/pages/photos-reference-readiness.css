@@ -63,3 +63,39 @@
     position: static;
     width: 100%;
 }
+
+/* Explicit PRISM account linkage ----------------------------------------- */
+.person-account-link {
+    align-items: start;
+    background: rgba(255,255,255,.82);
+    border: 1px solid #dde5ef;
+    border-radius: .95rem;
+    display: grid;
+    gap: 1rem 1.4rem;
+    grid-template-columns: minmax(260px, .75fr) minmax(360px, 1.25fr);
+    margin: 0 0 1rem;
+    padding: .95rem 1rem;
+}
+.person-account-link__intro h2 { font-size: 1rem; margin: .15rem 0 .25rem; }
+.person-account-link__intro p { color: #6d798b; font-size: .74rem; line-height: 1.45; margin: 0; }
+.person-account-link__current { align-items: center; display: grid; gap: .75rem; grid-template-columns: auto 1fr auto; }
+.person-account-link__avatar { align-items: center; background: #eef3fa; border-radius: 50%; display: flex; height: 3rem; justify-content: center; overflow: hidden; width: 3rem; }
+.person-account-link__avatar img { height: 100%; object-fit: cover; width: 100%; }
+.person-account-link__current strong, .person-account-user strong { color: #25354c; display: block; font-size: .82rem; }
+.person-account-link__current span, .person-account-user span { color: #6f7c90; display: block; font-size: .7rem; }
+.person-account-link__current small, .person-account-user small { color: #8b6a42; display: block; font-size: .66rem; margin-top: .15rem; }
+.person-account-link__unlink { position: relative; }
+.person-account-link__unlink .people-action-form {
+    box-shadow: none;
+    margin-top: .5rem;
+    min-width: 280px;
+    position: static;
+}
+.person-account-link__search label { color: #34445b; font-size: .72rem; font-weight: 700; margin-bottom: .3rem; }
+.person-account-link__results { border-top: 1px solid #e8edf4; margin-top: .7rem; padding-top: .45rem; }
+.person-account-user { align-items: center; border-bottom: 1px solid #edf1f5; display: flex; gap: .75rem; justify-content: space-between; padding: .48rem .15rem; }
+.person-account-user:last-child { border-bottom: 0; }
+.person-account-user.is-linked { opacity: .65; }
+@media (max-width: 900px) {
+    .person-account-link { grid-template-columns: 1fr; }
+}

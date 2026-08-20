@@ -242,6 +242,31 @@ public static class MediaLibraryModelConfiguration
             entity.HasIndex(x => x.MergedIntoPersonId);
         });
 
+        modelBuilder.Entity<MediaPersonUserLink>(entity =>
+        {
+            entity.ToTable("MediaPersonUserLinks");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.LinkedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.UnlinkedByUserId).HasMaxLength(450);
+            entity.Property(x => x.UnlinkReason).HasMaxLength(1024);
+            entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
+            entity.HasIndex(x => x.MediaPersonId)
+                .IsUnique()
+                .HasFilter("\"UnlinkedAtUtc\" IS NULL")
+                .HasDatabaseName("UX_MediaPersonUserLinks_ActivePerson");
+            entity.HasIndex(x => x.UserId)
+                .IsUnique()
+                .HasFilter("\"UnlinkedAtUtc\" IS NULL")
+                .HasDatabaseName("UX_MediaPersonUserLinks_ActiveUser");
+            entity.HasIndex(x => new { x.UserId, x.LinkedAtUtc })
+                .HasDatabaseName("IX_MediaPersonUserLinks_UserHistory");
+            entity.HasOne(x => x.MediaPerson)
+                .WithMany()
+                .HasForeignKey(x => x.MediaPersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<MediaPersonFace>(entity =>
         {
             entity.ToTable("MediaPersonFaces");

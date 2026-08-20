@@ -279,7 +279,8 @@ public interface IFaceReviewService
         Guid personId,
         string userId,
         double? confidence,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string reviewSource = "IdentityReview");
 
     Task ConfirmCandidateAsync(
         Guid faceId,
@@ -315,7 +316,8 @@ public interface IFaceReviewService
         IReadOnlyCollection<Guid> faceIds,
         Guid personId,
         string userId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string reviewSource = "IdentityReview");
 
     Task IgnoreAsync(
         Guid faceId,

@@ -55,8 +55,8 @@
             <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
             @if (Model.CanManageIdentities && Model.WorkloadAvailable)
             {
-                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open known-person suggestions">
-                    <strong>@Model.Workload.KnownMatchCount</strong><span>known matches</span>
+                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open direct person suggestions">
+                    <strong>@Model.Workload.KnownMatchCount</strong><span>direct person suggestions</span>
                 </a>
                 @if (Model.GroupingEnabled)
                 {

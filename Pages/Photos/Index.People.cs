@@ -8,10 +8,12 @@ namespace ProjectManagement.Pages.Photos;
 
 public sealed partial class IndexModel
 {
-    private const int PersonDiscoveryPageSize = 24;
+    private const int PersonDiscoveryPageSize = 120;
 
     public PersonPhotoDiscoverySummary? PersonProfile { get; private set; }
     public PersonPhotoDiscoveryResult? PersonDiscovery { get; private set; }
+    public MediaUserPhotoIdentityLink? CurrentUserMediaLink { get; private set; }
+    public bool IsCurrentUserLinkedPerson { get; private set; }
 
     public bool IsSinglePersonProfile
         => IsPeopleGallery && SelectedPeople.Count == 1;
@@ -20,13 +22,25 @@ public sealed partial class IndexModel
         => IsPeopleGallery && SelectedPeople.Count > 1;
 
     public bool CanReviewPersonCandidates
-        => PeopleFeatureEnabled && CanManagePeople;
+        => PeopleFeatureEnabled && (CanManagePeople || IsCurrentUserLinkedPerson);
 
     public bool ShowPersonDiscovery
         => IsSinglePersonProfile && CanReviewPersonCandidates && FindMore;
 
     public string? PersonProfileDisplayName
         => PersonProfile?.DisplayName ?? SelectedPeople.FirstOrDefault()?.Name;
+
+    public string PersonDiscoveryPrimaryLabel
+        => IsCurrentUserLinkedPerson ? "Find more photos of me" : "Find more photos";
+
+    public string PersonDiscoveryHeading
+        => IsCurrentUserLinkedPerson ? "Possible photos of me" : $"Possible photos of {PersonProfileDisplayName ?? "this person"}";
+
+    public string CandidateConfirmLabel
+        => IsCurrentUserLinkedPerson ? "Yes, that's me" : $"Confirm as {PersonProfileDisplayName ?? "this person"}";
+
+    public string CandidateRejectLabel
+        => IsCurrentUserLinkedPerson ? "Not me" : $"Not {PersonProfileDisplayName ?? "this person"}";
 
     public string BuildPersonDiscoveryUrl(bool open)
         => BuildPhotosUrl(
@@ -69,20 +83,24 @@ public sealed partial class IndexModel
         PersonProfile = null;
         PersonDiscovery = null;
 
+        CurrentUserMediaLink = null;
+        IsCurrentUserLinkedPerson = false;
+
         if (!IsSinglePersonProfile)
         {
             FindMore = false;
             return;
         }
 
-        if (!CanReviewPersonCandidates)
-        {
-            FindMore = false;
-        }
-
         try
         {
             var personId = SelectedPeople[0].Id;
+            CurrentUserMediaLink = await _personUserLinks.TryGetPhotoIdentityForUserAsync(PersonProfileUserId, cancellationToken);
+            IsCurrentUserLinkedPerson = CurrentUserMediaLink?.PersonId == personId;
+            if (!CanReviewPersonCandidates)
+            {
+                FindMore = false;
+            }
             PersonProfile = await _personDiscovery.GetSummaryAsync(
                 personId,
                 includeDiscoveryState: CanReviewPersonCandidates,
@@ -114,7 +132,7 @@ public sealed partial class IndexModel
         Guid personId,
         CancellationToken cancellationToken)
     {
-        if (!CanReviewPersonCandidates)
+        if (!await CanReviewPersonAsync(personId, cancellationToken))
         {
             return Forbid();
         }
@@ -186,7 +204,7 @@ public sealed partial class IndexModel
         bool confirm,
         CancellationToken cancellationToken)
     {
-        if (!CanReviewPersonCandidates)
+        if (!await CanReviewPersonAsync(personId, cancellationToken))
         {
             return Forbid();
         }
@@ -216,21 +234,26 @@ public sealed partial class IndexModel
                     "One or more suggestions changed while you were reviewing them. Refresh the profile and continue with the remaining matches.");
             }
 
+            var selfReview = await IsLinkedSelfAsync(personId, cancellationToken);
+            var reviewSource = selfReview ? "SelfConfirmed" : "PersonPhotoProfile";
             if (confirm)
             {
-                await _faceReview.ConfirmCandidateManyAsync(
+                await _faceReview.AssignManyAsync(
                     selectedFaces,
                     personId,
                     PersonProfileUserId,
-                    cancellationToken);
+                    confidence: null,
+                    cancellationToken: cancellationToken,
+                    reviewSource: reviewSource);
             }
             else
             {
-                await _faceReview.RejectCandidateManyAsync(
+                await _faceReview.RejectManyAsync(
                     selectedFaces,
                     personId,
                     PersonProfileUserId,
-                    cancellationToken);
+                    cancellationToken: cancellationToken,
+                    reviewSource: reviewSource);
             }
 
             var summary = await _personDiscovery.GetSummaryAsync(
@@ -239,12 +262,20 @@ public sealed partial class IndexModel
                 cancellationToken);
             var personName = summary?.DisplayName ?? "the selected person";
             var message = confirm
-                ? selectedFaces.Length == 1
-                    ? $"Appearance confirmed as {personName}."
-                    : $"{selectedFaces.Length} appearances confirmed as {personName}."
-                : selectedFaces.Length == 1
-                    ? $"Suggestion rejected for {personName}."
-                    : $"{selectedFaces.Length} suggestions rejected for {personName}.";
+                ? selfReview
+                    ? selectedFaces.Length == 1
+                        ? "Photo confirmed as you."
+                        : $"{selectedFaces.Length} photos confirmed as you."
+                    : selectedFaces.Length == 1
+                        ? $"Appearance confirmed as {personName}."
+                        : $"{selectedFaces.Length} appearances confirmed as {personName}."
+                : selfReview
+                    ? selectedFaces.Length == 1
+                        ? "Photo marked as not you."
+                        : $"{selectedFaces.Length} photos marked as not you."
+                    : selectedFaces.Length == 1
+                        ? $"Suggestion rejected for {personName}."
+                        : $"{selectedFaces.Length} suggestions rejected for {personName}.";
 
             if (WantsPersonProfileJson)
             {
@@ -322,8 +353,24 @@ public sealed partial class IndexModel
             trustedReferenceCount = summary.TrustedReferenceCount,
             possibleMatchCount = summary.PossibleMatchCount,
             backgroundMatchingCount = summary.BackgroundMatchingCount,
-            matchingFailureCount = summary.MatchingFailureCount
+            matchingFailureCount = summary.MatchingFailureCount,
+            directCandidateCount = summary.DirectCandidateCount,
+            groupCandidateAppearanceCount = summary.GroupCandidateAppearanceCount,
+            groupCandidateCount = summary.GroupCandidateCount
         };
+
+    private async Task<bool> CanReviewPersonAsync(Guid personId, CancellationToken cancellationToken)
+    {
+        if (!PeopleFeatureEnabled || personId == Guid.Empty) return false;
+        if (CanManagePeople) return true;
+        return await IsLinkedSelfAsync(personId, cancellationToken);
+    }
+
+    private async Task<bool> IsLinkedSelfAsync(Guid personId, CancellationToken cancellationToken)
+    {
+        var link = await _personUserLinks.TryGetPhotoIdentityForUserAsync(PersonProfileUserId, cancellationToken);
+        return link?.PersonId == personId;
+    }
 
     private string GetSafePersonProfileReturnUrl(string? returnUrl, Guid personId)
     {
@@ -354,3 +401,11 @@ public sealed partial class IndexModel
             "XMLHttpRequest",
             StringComparison.OrdinalIgnoreCase);
 }
+
+public sealed record PersonPhotoCandidateCardViewModel(
+    PersonPhotoCandidate Candidate,
+    Guid PersonId,
+    string PersonDisplayName,
+    string ConfirmLabel,
+    string RejectLabel,
+    string ReturnUrl);

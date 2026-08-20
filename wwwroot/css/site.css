@@ -11257,3 +11257,53 @@ main[role="main"].analytics-main > .pm-page-shell {
 [data-bs-theme="dark"] .remarks-stage-context {
     color: #cbd5e1;
 }
+
+/* Linked Photos identity avatar ------------------------------------------- */
+.avatar.avatar--photo {
+  background: var(--bs-secondary-bg, #f1f3f5);
+  overflow: hidden;
+  padding: 0;
+}
+
+.avatar.avatar--photo img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+/* Account → linked Photos identity --------------------------------------- */
+.account-photo-identity__avatar {
+  align-items: center;
+  background: var(--bs-secondary-bg, #f1f3f5);
+  border: 1px solid rgba(0,0,0,.07);
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 56px;
+  height: 56px;
+  justify-content: center;
+  overflow: hidden;
+  width: 56px;
+}
+
+.account-photo-identity__avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.account-photo-identity__avatar i {
+  color: var(--bs-secondary-color, #6c757d);
+  font-size: 1.4rem;
+}
+
+@media (max-width: 575.98px) {
+  .account-photo-identity > .d-flex {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+  }
+
+  .account-photo-identity .btn {
+    margin-left: 72px;
+  }
+}

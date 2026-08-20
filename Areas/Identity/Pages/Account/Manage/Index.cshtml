@@ -4,6 +4,32 @@
     ViewData["Title"] = "Account settings";
 }
 <h3>@ViewData["Title"]</h3>
+
+@if (Model.PhotoIdentity is not null)
+{
+  <div class="pm-card pm-shadow p-4 mb-4 account-photo-identity">
+    <div class="d-flex align-items-center gap-3">
+      <span class="account-photo-identity__avatar">
+        @if (Model.PhotoIdentity.HasPortrait)
+        {
+          <img src="@Url.Page("/Photos/People/Portrait", new { area = "", id = Model.PhotoIdentity.PersonId })" alt="" />
+        }
+        else
+        {
+          <i class="bi bi-person" aria-hidden="true"></i>
+        }
+      </span>
+      <div class="flex-grow-1 min-w-0">
+        <span class="text-uppercase text-body-secondary small fw-semibold">Photos identity</span>
+        <h4 class="h5 mb-1">@Model.PhotoIdentity.PersonDisplayName</h4>
+        <p class="text-muted small mb-0">Your PRISM account is linked to this human-confirmed identity in Photos.</p>
+      </div>
+      <a class="btn btn-primary" asp-area="" asp-page="/Photos/Index" asp-route-MyPhotos="true">
+        <i class="bi bi-images me-1" aria-hidden="true"></i> My Photos
+      </a>
+    </div>
+  </div>
+}
 <div class="pm-card pm-shadow p-4 p-md-5 mb-4">
   <h4 class="h5 mb-3">Current roles</h4>
   @if (Model.Roles.Count > 0)

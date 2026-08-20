@@ -110,20 +110,28 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                 cancellationToken);
 
             var memberFaceIds = group.Members.Select(member => member.FaceId).ToArray();
-            var rejectedPersonIds = await _db.FaceReviewDecisions
+            // Rejections are face/person-specific. Rejecting one reviewed appearance must
+            // not suppress a plausible group-to-person suggestion for every unreviewed
+            // member. Hide the person only when every current group member has been
+            // explicitly rejected for that person.
+            var rejectedPairs = await _db.FaceReviewDecisions
                 .AsNoTracking()
                 .Where(decision => memberFaceIds.Contains(decision.MediaFaceId)
                                    && decision.CandidatePersonId.HasValue
                                    && decision.Decision == FaceReviewDecisionType.Rejected
                                    && decision.ModelKey == representative.ModelKey
                                    && decision.ModelVersion == representative.ModelVersion)
-                .Select(decision => decision.CandidatePersonId!.Value)
-                .Distinct()
+                .Select(decision => new { decision.MediaFaceId, PersonId = decision.CandidatePersonId!.Value })
                 .ToListAsync(cancellationToken);
 
-            var rejected = rejectedPersonIds.ToHashSet();
+            var rejectedByPerson = rejectedPairs
+                .GroupBy(item => item.PersonId)
+                .ToDictionary(
+                    groupByPerson => groupByPerson.Key,
+                    groupByPerson => groupByPerson.Select(item => item.MediaFaceId).Distinct().ToHashSet());
             var candidates = searchedCandidates
-                .Where(candidate => !rejected.Contains(candidate.PersonId))
+                .Where(candidate => !rejectedByPerson.TryGetValue(candidate.PersonId, out var rejectedFaces)
+                                    || rejectedFaces.Count < memberFaceIds.Length)
                 .ToList();
             var members = group.Members
                 .Select(member => new FaceIdentityGroupMember(

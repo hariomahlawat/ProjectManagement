@@ -13,6 +13,8 @@
     const statusUrl = panel.dataset.statusUrl || '';
     let pollHandle = 0;
     let matchingActive = false;
+    let knownServerCandidateCount = Number(panel.dataset.initialCandidateCount || 0);
+    const selfReview = panel.dataset.selfReview === 'true';
 
     const checkboxes = () => Array.from(panel.querySelectorAll('[data-person-candidate-select]'));
     const selectedFaceIds = () => checkboxes().filter(input => input.checked).map(input => input.value);
@@ -64,6 +66,13 @@
             }
         }
 
+        const serverCandidateCount = Number(summary.possibleMatchCount || 0);
+        if (serverCandidateCount > knownServerCandidateCount) {
+            const added = serverCandidateCount - knownServerCandidateCount;
+            setNotice(`${added} new possible photo${added === 1 ? ' is' : 's are'} ready. Refresh this profile when convenient to review them; your current selections will not be changed.`);
+        }
+        knownServerCandidateCount = serverCandidateCount;
+
         matchingActive = Number(summary.backgroundMatchingCount || 0) > 0;
         if (matchingActive) {
             scheduleStatusPoll();
@@ -113,6 +122,9 @@
         });
         window.setTimeout(() => {
             updateSelectionState();
+            panel.querySelectorAll('[data-person-group-candidate]').forEach(group => {
+                if (group.querySelectorAll('[data-person-candidate]').length === 0) group.remove();
+            });
             const remaining = panel.querySelectorAll('[data-person-candidate]').length;
             if (remaining === 0) {
                 setNotice('This review set is complete. Any additional possible photos will surface automatically or when this section is opened again.');
@@ -137,6 +149,21 @@
 
     checkboxes().forEach(input => input.addEventListener('change', updateSelectionState));
 
+    panel.querySelectorAll('[data-select-person-group]').forEach(button => {
+        if (!(button instanceof HTMLButtonElement)) return;
+        button.addEventListener('click', () => {
+            const targetId = button.dataset.groupTarget;
+            if (!targetId) return;
+            const target = document.getElementById(targetId);
+            if (!(target instanceof HTMLElement)) return;
+            const groupCheckboxes = Array.from(target.querySelectorAll('[data-person-candidate-select]'))
+                .filter(input => input instanceof HTMLInputElement && !input.disabled);
+            groupCheckboxes.forEach(input => { input.checked = true; });
+            updateSelectionState();
+            batchBar?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+    });
+
     panel.querySelector('[data-person-discovery-batch-clear]')?.addEventListener('click', () => {
         checkboxes().forEach(input => { input.checked = false; });
         updateSelectionState();
@@ -147,8 +174,12 @@
         if (!url || !tokenForm || faceIds.length === 0) return;
 
         const prompt = confirmAction
-            ? `Confirm ${faceIds.length} selected appearance${faceIds.length === 1 ? '' : 's'} as this person?`
-            : `Reject this person for ${faceIds.length} selected appearance${faceIds.length === 1 ? '' : 's'}?`;
+            ? selfReview
+                ? `Confirm ${faceIds.length} selected photo${faceIds.length === 1 ? '' : 's'} as you?`
+                : `Confirm ${faceIds.length} selected appearance${faceIds.length === 1 ? '' : 's'} as this person?`
+            : selfReview
+                ? `Mark ${faceIds.length} selected photo${faceIds.length === 1 ? '' : 's'} as not you?`
+                : `Reject this person for ${faceIds.length} selected appearance${faceIds.length === 1 ? '' : 's'}?`;
         if (!window.confirm(prompt)) return;
 
         const formData = new FormData(tokenForm);

@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.Identity.Pages.Account.Manage;
 using ProjectManagement.Data;
+using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Models;
 using Xunit;
 
@@ -83,7 +84,7 @@ public sealed class AccountManagePageTests
             }, "TestAuth"))
         };
 
-        var page = new IndexModel(userManager)
+        var page = new IndexModel(userManager, new NullMediaPersonUserLinkService())
         {
             PageContext = new PageContext(new ActionContext(
                 httpContext,
@@ -97,4 +98,28 @@ public sealed class AccountManagePageTests
         Assert.Equal(2, page.Roles.Count);
         Assert.True(page.Roles.SequenceEqual(new[] { "ProjectOfficer", "Reviewer" }));
     }
+    private sealed class NullMediaPersonUserLinkService : IMediaPersonUserLinkService
+    {
+        public Task<MediaPersonUserLinkInfo?> GetForPersonAsync(Guid personId, CancellationToken cancellationToken)
+            => Task.FromResult<MediaPersonUserLinkInfo?>(null);
+
+        public Task<MediaPersonUserLinkInfo?> GetForUserAsync(string userId, CancellationToken cancellationToken)
+            => Task.FromResult<MediaPersonUserLinkInfo?>(null);
+
+        public Task<MediaUserPhotoIdentityLink?> GetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken)
+            => Task.FromResult<MediaUserPhotoIdentityLink?>(null);
+
+        public Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken)
+            => Task.FromResult<MediaUserPhotoIdentityLink?>(null);
+
+        public Task<IReadOnlyList<MediaPrismUserOption>> SearchUsersAsync(string? query, int limit, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MediaPrismUserOption>>(Array.Empty<MediaPrismUserOption>());
+
+        public Task<MediaPersonUserLinkInfo> LinkAsync(Guid personId, string userId, string linkedByUserId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task UnlinkAsync(Guid personId, string unlinkedByUserId, string reason, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+    }
+
 }

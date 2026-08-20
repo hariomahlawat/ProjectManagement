@@ -1,25 +1,33 @@
-PRISM Photos — Reference Quality Semantics & Matching Usability
+PRISM Photos — Person Discovery & PRISM User Linkage
 Validation summary
 
-Baseline
-- Implemented against the reconstructed current Photos baseline containing the latest Albums, Matching Recovery, compatibility hotfixes, Person Profile Discovery, Razor Context hotfix, and Identity Matching Bootstrap phase.
+Validated in this environment:
+- Reconstructed the current Photos baseline from the latest cumulative/hotfix packages used in this conversation.
+- Overlay delta contains 34 project files: 29 modified + 5 new.
+- `git diff --check`: PASS.
+- Merge-conflict marker scan across affected source areas: PASS.
+- Node syntax checks:
+  - photos-person-profile.js: PASS
+  - photos-library.js: PASS
+  - photos-curation.js: PASS
+  - photos-people-review.js: PASS
+- Node contract tests:
+  - photos-curation-contract.test.js
+  - photos-person-profile-contract.test.js
+  Result: 7/7 PASS.
+- Static integration assertions: PASS
+  - new immutable migration id is present;
+  - MediaPersonUserLink DI registration is present;
+  - schema readiness requires MediaPersonUserLinks;
+  - migration metadata test expects the new latest migration;
+  - SelfConfirmed provenance is wired through profile mutation and identity audit logic.
+- Ready-to-paste package overlay compared with implementation: 34/34 project files byte-for-byte identical.
+- Unified patch dry-run/application against clean baseline: PASS.
+- Unified patch result compared with implementation: 34/34 project files byte-for-byte identical.
+- Package SHA-256 manifest verification: PASS.
+- ZIP integrity: PASS.
 
-Checks completed
-- 15 changed/new project files packaged with exact project-relative paths.
-- C# / Razor / CSS structural delimiter checks passed.
-- Produced unified patch dry-run against the current baseline passed.
-- Produced unified patch applied successfully to a clean baseline copy.
-- All 15 patched project files compared byte-for-byte with the ready-to-paste implementation: 0 mismatches.
-- ZIP archive integrity test passed.
-- Existing IMediaAlbumService / matching-recovery / person-discovery work was not overwritten by this delta.
-- No JavaScript files changed in this phase.
+Not available in this execution environment:
+- .NET SDK / MSBuild.
 
-Key compatibility checks
-- Legacy FaceQualityStatus.Occluded remains in the enum so existing varchar-backed database rows remain readable.
-- New quality enum values require no schema change because MediaFaces.QualityStatus is already varchar(32).
-- PersonPhotoDiscoveryQueryService's trusted-reference helper remains source-compatible: the new minimum-quality argument is optional.
-- FaceReviewService's automatic initial-reference selector remains Preferred-only (EmbeddingEligible); cautionary references require explicit human trust.
-
-Environment limitation
-- The .NET SDK / Razor compiler is not installed in this execution environment, so dotnet build and xUnit execution could not be run here.
-- Run the commands in README-APPLY.md on the PRISM development machine before deployment.
+Therefore `dotnet build` and xUnit execution are intentionally NOT claimed here. Run the build and test commands in README-APPLY.md on the PRISM development machine before deployment.

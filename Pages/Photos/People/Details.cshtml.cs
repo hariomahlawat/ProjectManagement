@@ -15,6 +15,7 @@ public sealed class DetailsModel : PageModel
     private readonly IMediaPeopleQueryService _people;
     private readonly IFaceReviewService _review;
     private readonly IFaceReferenceReadinessService _referenceReadiness;
+    private readonly IMediaPersonUserLinkService _userLinks;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<DetailsModel> _logger;
 
@@ -22,12 +23,14 @@ public sealed class DetailsModel : PageModel
         IMediaPeopleQueryService people,
         IFaceReviewService review,
         IFaceReferenceReadinessService referenceReadiness,
+        IMediaPersonUserLinkService userLinks,
         IOptions<MediaLibraryOptions> options,
         ILogger<DetailsModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
         _review = review ?? throw new ArgumentNullException(nameof(review));
         _referenceReadiness = referenceReadiness ?? throw new ArgumentNullException(nameof(referenceReadiness));
+        _userLinks = userLinks ?? throw new ArgumentNullException(nameof(userLinks));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -36,6 +39,11 @@ public sealed class DetailsModel : PageModel
     public IReadOnlyDictionary<Guid, FaceReferenceReadiness> ReferenceReadiness { get; private set; }
         = new Dictionary<Guid, FaceReferenceReadiness>();
     public bool FeatureEnabled => _options.People.Enabled;
+    public MediaPersonUserLinkInfo? PrismUserLink { get; private set; }
+    public IReadOnlyList<MediaPrismUserOption> PrismUserCandidates { get; private set; } = Array.Empty<MediaPrismUserOption>();
+
+    [BindProperty(SupportsGet = true)]
+    public string? UserSearch { get; set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -61,7 +69,50 @@ public sealed class DetailsModel : PageModel
             person.Id,
             person.Photos.Select(photo => photo.FaceId).ToArray(),
             cancellationToken);
+        PrismUserLink = await _userLinks.GetForPersonAsync(person.Id, cancellationToken);
+        if (PrismUserLink is null && !string.IsNullOrWhiteSpace(UserSearch))
+        {
+            PrismUserCandidates = await _userLinks.SearchUsersAsync(UserSearch, 12, cancellationToken);
+        }
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostLinkUserAsync(
+        Guid id,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        if (!FeatureEnabled) return NotFound();
+        try
+        {
+            var link = await _userLinks.LinkAsync(id, userId, UserId, cancellationToken);
+            StatusMessage = $"Linked to PRISM user {link.UserDisplayName}.";
+        }
+        catch (Exception exception) when (IsExpectedReviewException(exception))
+        {
+            _logger.LogWarning(exception, "Unable to link media person {PersonId} to PRISM user {UserId}.", id, userId);
+            ErrorMessage = exception.Message;
+        }
+        return RedirectToPage("./Details", new { id });
+    }
+
+    public async Task<IActionResult> OnPostUnlinkUserAsync(
+        Guid id,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (!FeatureEnabled) return NotFound();
+        try
+        {
+            await _userLinks.UnlinkAsync(id, UserId, reason ?? string.Empty, cancellationToken);
+            StatusMessage = "PRISM user link removed. The media identity and confirmed photographs are unchanged.";
+        }
+        catch (Exception exception) when (IsExpectedReviewException(exception))
+        {
+            _logger.LogWarning(exception, "Unable to unlink PRISM user from media person {PersonId}.", id);
+            ErrorMessage = exception.Message;
+        }
+        return RedirectToPage("./Details", new { id });
     }
 
     public Task<IActionResult> OnPostRenameAsync(
