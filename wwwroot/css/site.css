@@ -11272,21 +11272,80 @@ main[role="main"].analytics-main > .pm-page-shell {
   width: 100%;
 }
 
-/* Account → linked Photos identity --------------------------------------- */
+/* Account settings -------------------------------------------------------- */
+.account-settings {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: .25rem 0 2rem;
+}
+
+.account-settings__heading {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: .75rem;
+}
+
+.account-settings__heading h1 {
+  color: var(--bs-emphasis-color, #182236);
+  font-size: clamp(1.55rem, 2vw, 1.9rem);
+  font-weight: 760;
+  letter-spacing: -.025em;
+  line-height: 1.1;
+  margin: .12rem 0 0;
+}
+
+.account-settings__eyebrow {
+  color: #64748b;
+  display: block;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.account-settings__alert {
+  align-items: center;
+  display: flex;
+  font-size: .82rem;
+  gap: .55rem;
+  margin-bottom: .75rem;
+  padding: .65rem .8rem;
+}
+
+/* Account ↔ Photos identity --------------------------------------------- */
+.account-photo-identity {
+  margin-bottom: .9rem;
+  padding: 1rem 1.1rem;
+}
+
+.account-photo-identity.has-concern {
+  border-color: rgba(220, 53, 69, .28);
+}
+
+.account-photo-identity__header {
+  align-items: center;
+  display: grid;
+  gap: .85rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
 .account-photo-identity__avatar {
   align-items: center;
   background: var(--bs-secondary-bg, #f1f3f5);
-  border: 1px solid rgba(0,0,0,.07);
+  border: 1px solid rgba(15, 23, 42, .08);
   border-radius: 50%;
   display: inline-flex;
-  flex: 0 0 56px;
-  height: 56px;
+  flex: 0 0 52px;
+  height: 52px;
   justify-content: center;
   overflow: hidden;
-  width: 56px;
+  width: 52px;
 }
 
-.account-photo-identity__avatar img {
+.account-photo-identity__avatar img,
+.account-photo-avatar-setting__preview img {
+  display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
@@ -11294,60 +11353,377 @@ main[role="main"].analytics-main > .pm-page-shell {
 
 .account-photo-identity__avatar i {
   color: var(--bs-secondary-color, #6c757d);
-  font-size: 1.4rem;
+  font-size: 1.25rem;
 }
 
-@media (max-width: 575.98px) {
-  .account-photo-identity > .d-flex {
-    align-items: flex-start !important;
-    flex-wrap: wrap;
-  }
-
-  .account-photo-identity .btn {
-    margin-left: 72px;
-  }
+.account-photo-identity__identity h2 {
+  color: var(--bs-emphasis-color, #1e293b);
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.2;
+  margin: .12rem 0 .18rem;
 }
 
-/* Account ↔ Photos identity --------------------------------------------- */
-.account-photo-identity.has-concern { border-color: rgba(220, 53, 69, .28); }
-.account-photo-identity__header {
+.account-photo-identity__identity p {
+  color: #68758a;
+  font-size: .75rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.account-photo-identity__primary-action .btn,
+.account-photo-avatar-setting__action .btn {
   align-items: center;
-  display: flex;
-  gap: 1rem;
+  display: inline-flex;
+  gap: .38rem;
+  white-space: nowrap;
 }
-.account-photo-identity__settings {
+
+.account-photo-avatar-setting {
   align-items: center;
   border-top: 1px solid var(--bs-border-color, #e2e7ef);
   display: grid;
-  gap: 1rem;
-  grid-template-columns: 1fr auto;
-  margin-top: 1rem;
-  padding-top: 1rem;
+  gap: .8rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-top: .9rem;
+  padding-top: .9rem;
 }
-.account-photo-identity__settings strong { display: block; font-size: .85rem; }
-.account-photo-identity__settings p { color: #68758a; font-size: .76rem; line-height: 1.45; }
-.account-photo-identity__report { border-top: 1px solid var(--bs-border-color, #e2e7ef); margin-top: 1rem; padding-top: .8rem; }
-.account-photo-identity__report > summary { color: #b23a48; cursor: pointer; font-size: .78rem; font-weight: 700; width: max-content; }
-.account-photo-identity__report-form { display: grid; gap: .65rem; margin-top: .65rem; max-width: 42rem; }
-.account-photo-identity__report-form p { color: #68758a; font-size: .76rem; margin: 0; }
-.account-photo-identity__report-form .btn { justify-self: start; }
+
+.account-photo-avatar-setting__preview {
+  align-items: center;
+  background: #eef2f7;
+  border: 1px solid rgba(15, 23, 42, .08);
+  border-radius: 50%;
+  color: #475569;
+  display: inline-flex;
+  font-size: .73rem;
+  font-weight: 800;
+  height: 40px;
+  justify-content: center;
+  letter-spacing: .02em;
+  overflow: hidden;
+  width: 40px;
+}
+
+.account-photo-avatar-setting__preview.is-photo {
+  padding: 0;
+}
+
+.account-photo-avatar-setting__label {
+  color: #64748b;
+  display: block;
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .055em;
+  margin-bottom: .08rem;
+  text-transform: uppercase;
+}
+
+.account-photo-avatar-setting__copy strong {
+  color: var(--bs-emphasis-color, #25354c);
+  display: block;
+  font-size: .82rem;
+  line-height: 1.3;
+}
+
+.account-photo-avatar-setting__copy p {
+  color: #68758a;
+  font-size: .72rem;
+  line-height: 1.4;
+  margin: .12rem 0 0;
+}
+
+.account-photo-avatar-setting__unavailable {
+  align-items: center;
+  color: #7a8699;
+  display: inline-flex;
+  font-size: .72rem;
+  gap: .35rem;
+  max-width: 20rem;
+  text-align: right;
+}
+
+.account-photo-identity__report {
+  border-top: 1px solid var(--bs-border-color, #e2e7ef);
+  margin-top: .85rem;
+  padding-top: .55rem;
+}
+
+.account-photo-identity__report > summary {
+  align-items: center;
+  border-radius: .55rem;
+  color: #9f3342;
+  cursor: pointer;
+  display: grid;
+  gap: .6rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  list-style: none;
+  padding: .42rem .5rem;
+  transition: background-color .15s ease;
+}
+
+.account-photo-identity__report > summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-photo-identity__report > summary:hover {
+  background: rgba(220, 53, 69, .045);
+}
+
+.account-photo-identity__report-icon {
+  align-items: center;
+  background: rgba(220, 53, 69, .09);
+  border-radius: 50%;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.account-photo-identity__report > summary strong {
+  display: block;
+  font-size: .76rem;
+  font-weight: 750;
+}
+
+.account-photo-identity__report > summary small {
+  color: #7d8797;
+  display: block;
+  font-size: .67rem;
+  margin-top: .04rem;
+}
+
+.account-photo-identity__report-chevron {
+  color: #94a3b8;
+  font-size: .72rem;
+  transition: transform .16s ease;
+}
+
+.account-photo-identity__report[open] .account-photo-identity__report-chevron {
+  transform: rotate(180deg);
+}
+
+.account-photo-identity__report-form {
+  background: rgba(220, 53, 69, .025);
+  border: 1px solid rgba(220, 53, 69, .1);
+  border-radius: .65rem;
+  display: grid;
+  gap: .65rem;
+  margin: .5rem 0 .15rem 2.9rem;
+  max-width: 44rem;
+  padding: .75rem;
+}
+
+.account-photo-identity__report-form p {
+  color: #68758a;
+  font-size: .72rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.account-photo-identity__report-form .form-label {
+  color: #475569;
+  font-size: .72rem;
+  font-weight: 700;
+  margin-bottom: .3rem;
+}
+
+.account-photo-identity__report-form .btn {
+  justify-self: start;
+}
+
 .account-photo-identity__concern {
   align-items: start;
-  background: #fff7df;
-  border: 1px solid #efd17a;
-  border-radius: .75rem;
+  background: #fff8e8;
+  border: 1px solid #efd58c;
+  border-radius: .7rem;
   color: #67561c;
   display: flex;
-  gap: .7rem;
-  margin-top: 1rem;
-  padding: .75rem .85rem;
+  gap: .65rem;
+  margin-top: .9rem;
+  padding: .7rem .8rem;
 }
-.account-photo-identity__concern > i { margin-top: .1rem; }
-.account-photo-identity__concern strong { color: #715600; display: block; font-size: .82rem; }
-.account-photo-identity__concern p { font-size: .76rem; margin-top: .15rem; }
-.account-photo-identity__concern small { color: #867440; font-size: .7rem; }
+
+.account-photo-identity__concern > i {
+  margin-top: .1rem;
+}
+
+.account-photo-identity__concern strong {
+  color: #715600;
+  display: block;
+  font-size: .8rem;
+}
+
+.account-photo-identity__concern p {
+  font-size: .73rem;
+  line-height: 1.4;
+  margin: .12rem 0 0;
+}
+
+.account-photo-identity__concern small {
+  color: #867440;
+  display: block;
+  font-size: .67rem;
+  margin-top: .18rem;
+}
+
+/* Compact account access card ------------------------------------------- */
+.account-settings__account-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.account-settings__account-row {
+  align-items: center;
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: .9rem 1.1rem;
+}
+
+.account-settings__account-row + .account-settings__account-row {
+  border-top: 1px solid var(--bs-border-color, #e2e7ef);
+}
+
+.account-settings__row-icon {
+  align-items: center;
+  background: #f0f4f9;
+  border-radius: .55rem;
+  color: #55708f;
+  display: inline-flex;
+  font-size: .9rem;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.account-settings__row-copy h2 {
+  color: var(--bs-emphasis-color, #25354c);
+  font-size: .82rem;
+  font-weight: 750;
+  margin: 0 0 .18rem;
+}
+
+.account-settings__row-copy p {
+  color: #718096;
+  font-size: .71rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.account-settings__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+
+.account-settings__roles .badge {
+  font-size: .66rem;
+  font-weight: 700;
+  padding: .3rem .48rem;
+}
+
 @media (max-width: 767.98px) {
-  .account-photo-identity__header { align-items: flex-start; flex-wrap: wrap; }
-  .account-photo-identity__header .btn { width: 100%; }
-  .account-photo-identity__settings { grid-template-columns: 1fr; }
+  .account-settings {
+    padding-top: 0;
+  }
+
+  .account-photo-identity {
+    padding: .9rem;
+  }
+
+  .account-photo-identity__header,
+  .account-photo-avatar-setting {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .account-photo-identity__primary-action,
+  .account-photo-avatar-setting__action {
+    grid-column: 1 / -1;
+    padding-left: 0;
+  }
+
+  .account-photo-identity__primary-action .btn,
+  .account-photo-avatar-setting__action .btn {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .account-photo-avatar-setting__unavailable {
+    max-width: none;
+    text-align: left;
+  }
+
+  .account-photo-identity__report-form {
+    margin-left: 0;
+  }
+
+  .account-settings__account-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .account-settings__row-action {
+    grid-column: 1 / -1;
+    margin-left: 2.65rem;
+    width: max-content;
+  }
+}
+
+@media (max-width: 420px) {
+  .account-photo-identity__header,
+  .account-photo-avatar-setting {
+    grid-template-columns: 1fr;
+  }
+
+  .account-photo-identity__avatar,
+  .account-photo-avatar-setting__preview {
+    margin-bottom: -.15rem;
+  }
+
+  .account-settings__account-row {
+    align-items: start;
+  }
+
+  .account-settings__row-action {
+    margin-left: 0;
+  }
+}
+
+[data-bs-theme="dark"] .account-settings__eyebrow,
+[data-bs-theme="dark"] .account-photo-identity__identity p,
+[data-bs-theme="dark"] .account-photo-avatar-setting__copy p,
+[data-bs-theme="dark"] .account-settings__row-copy p,
+[data-bs-theme="dark"] .account-photo-identity__report-form p,
+[data-bs-theme="dark"] .account-photo-identity__report > summary small {
+  color: #a8b3c3;
+}
+
+[data-bs-theme="dark"] .account-photo-avatar-setting__preview,
+[data-bs-theme="dark"] .account-settings__row-icon {
+  background: #253244;
+  border-color: rgba(255,255,255,.08);
+  color: #c7d2e0;
+}
+
+[data-bs-theme="dark"] .account-photo-identity__report > summary:hover {
+  background: rgba(248, 113, 113, .08);
+}
+
+[data-bs-theme="dark"] .account-photo-identity__report-form {
+  background: rgba(248, 113, 113, .04);
+  border-color: rgba(248, 113, 113, .16);
+}
+
+[data-bs-theme="dark"] .account-photo-identity__concern {
+  background: #3a321d;
+  border-color: #66552c;
+  color: #ead89b;
+}
+
+[data-bs-theme="dark"] .account-photo-identity__concern strong {
+  color: #f1dc8d;
+}
+
+[data-bs-theme="dark"] .account-photo-identity__concern small {
+  color: #c9b878;
 }

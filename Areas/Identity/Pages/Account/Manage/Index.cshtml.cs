@@ -28,6 +28,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
         public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
+        public string UserInitials { get; private set; } = "U";
 
         [TempData]
         public string? StatusMessage { get; set; }
@@ -42,6 +43,8 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             {
                 return Challenge();
             }
+
+            PopulateAccountPresentation(user);
 
             PhotoIdentity = await _mediaPersonUserLinks.TryGetPhotoIdentityForUserAsync(
                 user.Id,
@@ -59,28 +62,11 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             return Page();
         }
 
-        public async Task<IActionResult> OnPostPhotoAvatarAsync(bool usePhotosPortrait)
-        {
-            var user = await _userManager.GetUserAsync(User);
-            if (user is null) return Challenge();
+        public Task<IActionResult> OnPostUsePhotosPortraitAsync()
+            => SetPhotoAvatarAsync(usePhotosPortrait: true);
 
-            try
-            {
-                await _mediaPersonUserLinks.SetAvatarPreferenceAsync(
-                    user.Id,
-                    usePhotosPortrait,
-                    HttpContext.RequestAborted);
-                StatusMessage = usePhotosPortrait
-                    ? "Your linked Photos portrait will now be used as your PRISM profile image."
-                    : "Your Photos portrait is no longer being used as your PRISM profile image.";
-            }
-            catch (Exception exception) when (IsExpectedLinkException(exception))
-            {
-                ErrorMessage = exception.Message;
-            }
-
-            return RedirectToPage();
-        }
+        public Task<IActionResult> OnPostUseInitialsAsync()
+            => SetPhotoAvatarAsync(usePhotosPortrait: false);
 
         public async Task<IActionResult> OnPostReportPhotoIdentityAsync(string? reason)
         {
@@ -101,6 +87,66 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             }
 
             return RedirectToPage();
+        }
+
+        private async Task<IActionResult> SetPhotoAvatarAsync(bool usePhotosPortrait)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null) return Challenge();
+
+            try
+            {
+                var authoritative = await _mediaPersonUserLinks.SetAvatarPreferenceAsync(
+                    user.Id,
+                    usePhotosPortrait,
+                    HttpContext.RequestAborted);
+
+                if (usePhotosPortrait && !authoritative.ShouldUsePortraitAsAvatar)
+                {
+                    throw new InvalidOperationException(
+                        "PRISM could not verify that the Photos portrait is active as your profile image. Refresh the page and try again.");
+                }
+
+                if (!usePhotosPortrait && authoritative.UsePortraitAsAvatar)
+                {
+                    throw new InvalidOperationException(
+                        "PRISM could not verify that the Photos portrait was disabled. Refresh the page and try again.");
+                }
+
+                StatusMessage = usePhotosPortrait
+                    ? "Your Photos portrait is now being used as your PRISM profile image."
+                    : "Your PRISM profile image is now using your initials.";
+            }
+            catch (Exception exception) when (IsExpectedLinkException(exception))
+            {
+                ErrorMessage = exception.Message;
+            }
+
+            return RedirectToPage();
+        }
+
+        private void PopulateAccountPresentation(ApplicationUser user)
+        {
+            // Keep the preview consistent with _LoginPartial, which is based on the
+            // authenticated account name shown in the PRISM header.
+            var headerName = !string.IsNullOrWhiteSpace(user.UserName)
+                ? user.UserName.Trim()
+                : !string.IsNullOrWhiteSpace(user.FullName)
+                    ? user.FullName.Trim()
+                    : "User";
+            UserInitials = BuildInitials(headerName);
+        }
+
+        private static string BuildInitials(string value)
+        {
+            var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length >= 2)
+            {
+                return string.Concat(parts[0][0], parts[^1][0]).ToUpperInvariant();
+            }
+
+            var source = parts.Length == 1 ? parts[0] : value.Trim();
+            return source.Length == 0 ? "U" : char.ToUpperInvariant(source[0]).ToString();
         }
 
         private static bool IsExpectedLinkException(Exception exception)

@@ -23,7 +23,11 @@ public sealed record MediaPersonUserLinkInfo(
     bool HasOpenConcern,
     string? ConcernReason,
     DateTimeOffset? ConcernRaisedAtUtc,
-    bool UserIsActive = true);
+    bool UserIsActive = true)
+{
+    public bool CanUsePortraitAsAvatar => HasPortrait && !HasOpenConcern;
+    public bool ShouldUsePortraitAsAvatar => CanUsePortraitAsAvatar && UsePortraitAsAvatar;
+}
 
 public sealed record MediaUserPhotoIdentityLink(
     Guid PersonId,
@@ -32,7 +36,11 @@ public sealed record MediaUserPhotoIdentityLink(
     bool UsePortraitAsAvatar,
     bool HasOpenConcern,
     string? ConcernReason,
-    DateTimeOffset? ConcernRaisedAtUtc);
+    DateTimeOffset? ConcernRaisedAtUtc)
+{
+    public bool CanUsePortraitAsAvatar => HasPortrait && !HasOpenConcern;
+    public bool ShouldUsePortraitAsAvatar => CanUsePortraitAsAvatar && UsePortraitAsAvatar;
+}
 
 public sealed record MediaPrismUserOption(
     string UserId,
@@ -51,7 +59,7 @@ public interface IMediaPersonUserLinkService
     Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MediaPrismUserOption>> SearchUsersAsync(string? query, int limit, CancellationToken cancellationToken);
     Task<MediaPersonUserLinkInfo> LinkAsync(Guid personId, string userId, string linkedByUserId, CancellationToken cancellationToken);
-    Task SetAvatarPreferenceAsync(string userId, bool usePortraitAsAvatar, CancellationToken cancellationToken);
+    Task<MediaUserPhotoIdentityLink> SetAvatarPreferenceAsync(string userId, bool usePortraitAsAvatar, CancellationToken cancellationToken);
     Task ReportIncorrectLinkAsync(string userId, string reason, CancellationToken cancellationToken);
     Task ResolveLinkConcernAsync(Guid personId, string resolvedByUserId, string resolution, CancellationToken cancellationToken);
     Task UnlinkAsync(Guid personId, string unlinkedByUserId, string reason, CancellationToken cancellationToken);
@@ -327,7 +335,7 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                ?? throw new InvalidOperationException("The PRISM user link was saved but could not be reloaded.");
     }
 
-    public async Task SetAvatarPreferenceAsync(
+    public async Task<MediaUserPhotoIdentityLink> SetAvatarPreferenceAsync(
         string userId,
         bool usePortraitAsAvatar,
         CancellationToken cancellationToken)
@@ -369,31 +377,67 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
             }
         }
 
-        if (link.UsePortraitAsAvatar == usePortraitAsAvatar)
+        if (link.UsePortraitAsAvatar != usePortraitAsAvatar)
         {
-            return;
+            var now = DateTimeOffset.UtcNow;
+            link.UsePortraitAsAvatar = usePortraitAsAvatar;
+            link.ConcurrencyToken = Guid.NewGuid();
+            _media.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                PersonId = link.MediaPersonId,
+                Action = "PrismUserAvatarPreferenceChanged",
+                PerformedByUserId = normalizedUserId,
+                Notes = usePortraitAsAvatar
+                    ? "The linked PRISM user chose to use the Photos representative portrait as their PRISM avatar."
+                    : "The linked PRISM user stopped using the Photos representative portrait as their PRISM avatar.",
+                MetadataJson = JsonSerializer.Serialize(new
+                {
+                    link.UserId,
+                    LinkId = link.Id,
+                    UsePortraitAsAvatar = usePortraitAsAvatar
+                }),
+                PerformedAtUtc = now
+            });
+            await _media.SaveChangesAsync(cancellationToken);
         }
 
-        var now = DateTimeOffset.UtcNow;
-        link.UsePortraitAsAvatar = usePortraitAsAvatar;
-        link.ConcurrencyToken = Guid.NewGuid();
-        _media.IdentityAudits.Add(new MediaIdentityAudit
+        var persisted = await GetForUserAsync(normalizedUserId, cancellationToken)
+                        ?? throw new InvalidOperationException(
+                            "The Photos avatar preference was saved but the account link could not be reloaded.");
+        if (persisted.UsePortraitAsAvatar != usePortraitAsAvatar)
         {
-            PersonId = link.MediaPersonId,
-            Action = "PrismUserAvatarPreferenceChanged",
-            PerformedByUserId = normalizedUserId,
-            Notes = usePortraitAsAvatar
-                ? "The linked PRISM user chose to use the Photos representative portrait as their PRISM avatar."
-                : "The linked PRISM user stopped using the Photos representative portrait as their PRISM avatar.",
-            MetadataJson = JsonSerializer.Serialize(new
-            {
-                link.UserId,
-                LinkId = link.Id,
-                UsePortraitAsAvatar = usePortraitAsAvatar
-            }),
-            PerformedAtUtc = now
-        });
-        await _media.SaveChangesAsync(cancellationToken);
+            _logger.LogError(
+                "Photos avatar preference persistence verification failed for PRISM user {UserId}. Requested={RequestedState}, Persisted={PersistedState}.",
+                normalizedUserId,
+                usePortraitAsAvatar,
+                persisted.UsePortraitAsAvatar);
+            throw new InvalidOperationException(
+                "PRISM could not verify the saved profile-image choice. Refresh the page and try again.");
+        }
+
+        var authoritative = await GetPhotoIdentityForUserAsync(normalizedUserId, cancellationToken)
+                            ?? new MediaUserPhotoIdentityLink(
+                                persisted.PersonId,
+                                persisted.PersonDisplayName,
+                                false,
+                                persisted.UsePortraitAsAvatar,
+                                persisted.HasOpenConcern,
+                                persisted.ConcernReason,
+                                persisted.ConcernRaisedAtUtc);
+
+        if (usePortraitAsAvatar && !authoritative.ShouldUsePortraitAsAvatar)
+        {
+            _logger.LogError(
+                "Photos avatar presentation verification failed for PRISM user {UserId}. Persisted={PersistedState}, HasPortrait={HasPortrait}, HasOpenConcern={HasOpenConcern}.",
+                normalizedUserId,
+                authoritative.UsePortraitAsAvatar,
+                authoritative.HasPortrait,
+                authoritative.HasOpenConcern);
+            throw new InvalidOperationException(
+                "The Photos portrait preference was saved, but the portrait is not currently available for profile presentation. Refresh the page and try again.");
+        }
+
+        return authoritative;
     }
 
     public async Task ReportIncorrectLinkAsync(

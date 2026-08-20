@@ -3,118 +3,207 @@
 @{
     ViewData["Title"] = "Account settings";
 }
-<h3>@ViewData["Title"]</h3>
 
-@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-{
-  <div class="alert alert-success" role="status">@Model.StatusMessage</div>
-}
-@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
-{
-  <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
-}
-
-@if (Model.PhotoIdentity is not null)
-{
-  <section id="photosIdentity" class="pm-card pm-shadow p-4 mb-4 account-photo-identity @(Model.PhotoIdentity.HasOpenConcern ? "has-concern" : null)" aria-labelledby="photosIdentityTitle">
-    <div class="account-photo-identity__header">
-      <span class="account-photo-identity__avatar">
-        @if (Model.PhotoIdentity.HasPortrait)
-        {
-          <img src="@Url.Page("/Photos/People/Portrait", new { area = "", id = Model.PhotoIdentity.PersonId })" alt="" />
-        }
-        else
-        {
-          <i class="bi bi-person" aria-hidden="true"></i>
-        }
-      </span>
-      <div class="flex-grow-1 min-w-0">
-        <span class="text-uppercase text-body-secondary small fw-semibold">Photos identity</span>
-        <h4 class="h5 mb-1" id="photosIdentityTitle">@Model.PhotoIdentity.PersonDisplayName</h4>
-        <p class="text-muted small mb-0">Your PRISM account is explicitly linked to this human-confirmed identity in Photos.</p>
-      </div>
-      @if (!Model.PhotoIdentity.HasOpenConcern)
-      {
-        <a class="btn btn-primary" asp-area="" asp-page="/Photos/Index" asp-route-MyPhotos="true">
-          <i class="bi bi-images me-1" aria-hidden="true"></i> My Photos
-        </a>
-      }
-      else
-      {
-        <span class="btn btn-outline-secondary disabled" aria-disabled="true"><i class="bi bi-images me-1" aria-hidden="true"></i> My Photos unavailable</span>
-      }
+<div class="account-settings">
+  <header class="account-settings__heading">
+    <div>
+      <span class="account-settings__eyebrow">Profile & access</span>
+      <h1>@ViewData["Title"]</h1>
     </div>
+  </header>
 
-    @if (Model.PhotoIdentity.HasOpenConcern)
-    {
-      <div class="account-photo-identity__concern" role="alert">
-        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
-        <div>
-          <strong>Identity correction reported</strong>
-          <p class="mb-0">@Model.PhotoIdentity.ConcernReason</p>
-          @if (Model.PhotoIdentity.ConcernRaisedAtUtc.HasValue)
+  @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+  {
+    <div class="alert alert-success account-settings__alert" role="status">
+      <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+      <span>@Model.StatusMessage</span>
+    </div>
+  }
+  @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+  {
+    <div class="alert alert-danger account-settings__alert" role="alert">
+      <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+      <span>@Model.ErrorMessage</span>
+    </div>
+  }
+
+  @if (Model.PhotoIdentity is not null)
+  {
+    var portraitUrl = Url.Page("/Photos/People/Portrait", new { area = "", id = Model.PhotoIdentity.PersonId });
+    var usePhotosPortrait = Model.PhotoIdentity.ShouldUsePortraitAsAvatar;
+
+    <section id="photosIdentity"
+             class="pm-card pm-shadow account-photo-identity @(Model.PhotoIdentity.HasOpenConcern ? "has-concern" : null)"
+             aria-labelledby="photosIdentityTitle">
+      <div class="account-photo-identity__header">
+        <span class="account-photo-identity__avatar" aria-hidden="true">
+          @if (Model.PhotoIdentity.HasPortrait)
           {
-            <small>Reported @Model.PhotoIdentity.ConcernRaisedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm"). An identity manager must review the link.</small>
+            <img src="@portraitUrl" alt="" />
+          }
+          else
+          {
+            <i class="bi bi-person" aria-hidden="true"></i>
+          }
+        </span>
+
+        <div class="account-photo-identity__identity">
+          <span class="account-settings__eyebrow">Photos identity</span>
+          <h2 id="photosIdentityTitle">@Model.PhotoIdentity.PersonDisplayName</h2>
+          <p>Your PRISM account is explicitly linked to this human-confirmed identity in Photos.</p>
+        </div>
+
+        <div class="account-photo-identity__primary-action">
+          @if (!Model.PhotoIdentity.HasOpenConcern)
+          {
+            <a class="btn btn-primary btn-sm" asp-area="" asp-page="/Photos/Index" asp-route-MyPhotos="true">
+              <i class="bi bi-images" aria-hidden="true"></i>
+              <span>My Photos</span>
+            </a>
+          }
+          else
+          {
+            <span class="btn btn-outline-secondary btn-sm disabled" aria-disabled="true">
+              <i class="bi bi-images" aria-hidden="true"></i>
+              <span>My Photos unavailable</span>
+            </span>
           }
         </div>
       </div>
-    }
-    else
-    {
-      <div class="account-photo-identity__settings">
-        <div>
-          <strong>PRISM profile image</strong>
-          <p class="mb-0">Account linkage and profile-image choice are separate. You control whether your linked Photos portrait appears in the PRISM header.</p>
+
+      @if (Model.PhotoIdentity.HasOpenConcern)
+      {
+        <div class="account-photo-identity__concern" role="alert">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <div>
+            <strong>Identity correction reported</strong>
+            <p>@Model.PhotoIdentity.ConcernReason</p>
+            @if (Model.PhotoIdentity.ConcernRaisedAtUtc.HasValue)
+            {
+              <small>Reported @Model.PhotoIdentity.ConcernRaisedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm"). An identity manager must review the link.</small>
+            }
+          </div>
         </div>
-        @if (Model.PhotoIdentity.HasPortrait)
-        {
-          <form method="post" asp-page-handler="PhotoAvatar">
-            <input type="hidden" name="usePhotosPortrait" value="@(!Model.PhotoIdentity.UsePortraitAsAvatar)" />
-            <button type="submit" class="btn btn-sm @(Model.PhotoIdentity.UsePortraitAsAvatar ? "btn-outline-secondary" : "btn-outline-primary")">
-              <i class="bi @(Model.PhotoIdentity.UsePortraitAsAvatar ? "bi-person-x" : "bi-person-circle") me-1" aria-hidden="true"></i>
-              @(Model.PhotoIdentity.UsePortraitAsAvatar ? "Stop using Photos portrait" : "Use Photos portrait")
-            </button>
+      }
+      else
+      {
+        <div class="account-photo-avatar-setting">
+          <div class="account-photo-avatar-setting__preview @(usePhotosPortrait ? "is-photo" : null)" aria-label="Current PRISM profile image">
+            @if (usePhotosPortrait)
+            {
+              <img src="@portraitUrl" alt="" />
+            }
+            else
+            {
+              <span>@Model.UserInitials</span>
+            }
+          </div>
+
+          <div class="account-photo-avatar-setting__copy">
+            <span class="account-photo-avatar-setting__label">PRISM profile image</span>
+            <strong>
+              @(usePhotosPortrait
+                  ? "Photos portrait in use"
+                  : Model.PhotoIdentity.UsePortraitAsAvatar && !Model.PhotoIdentity.HasPortrait
+                      ? "Initials in use · portrait unavailable"
+                      : "Initials in use")
+            </strong>
+            <p>
+              @(usePhotosPortrait
+                  ? "Your linked Photos portrait is currently shown in the PRISM header."
+                  : Model.PhotoIdentity.UsePortraitAsAvatar && !Model.PhotoIdentity.HasPortrait
+                      ? "The representative Photos portrait is currently unavailable, so PRISM is safely falling back to your initials."
+                      : "Your PRISM header currently uses your account initials. The Photos identity remains linked separately.")
+            </p>
+          </div>
+
+          <div class="account-photo-avatar-setting__action">
+            @if (Model.PhotoIdentity.UsePortraitAsAvatar)
+            {
+              <form method="post" asp-page-handler="UseInitials">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-person-badge" aria-hidden="true"></i>
+                  <span>Use initials instead</span>
+                </button>
+              </form>
+            }
+            else if (Model.PhotoIdentity.CanUsePortraitAsAvatar)
+            {
+              <form method="post" asp-page-handler="UsePhotosPortrait">
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-person-circle" aria-hidden="true"></i>
+                  <span>Use Photos portrait</span>
+                </button>
+              </form>
+            }
+            else
+            {
+              <span class="account-photo-avatar-setting__unavailable">
+                <i class="bi bi-image" aria-hidden="true"></i>
+                No suitable representative portrait is currently available.
+              </span>
+            }
+          </div>
+        </div>
+
+        <details class="account-photo-identity__report">
+          <summary>
+            <span class="account-photo-identity__report-icon"><i class="bi bi-shield-exclamation" aria-hidden="true"></i></span>
+            <span>
+              <strong>This isn't my identity</strong>
+              <small>Report an incorrect PRISM account ↔ Photos identity link</small>
+            </span>
+            <i class="bi bi-chevron-down account-photo-identity__report-chevron" aria-hidden="true"></i>
+          </summary>
+          <form method="post" asp-page-handler="ReportPhotoIdentity" class="account-photo-identity__report-form">
+            <p>
+              Reporting this link immediately disables the Photos portrait as your PRISM avatar and suspends My Photos/self-review while an identity manager checks the linkage. Existing confirmed photograph assignments are not changed automatically.
+            </p>
+            <div>
+              <label for="photoIdentityConcern" class="form-label">What is wrong with this link?</label>
+              <textarea id="photoIdentityConcern"
+                        name="reason"
+                        class="form-control"
+                        rows="3"
+                        maxlength="1024"
+                        required
+                        placeholder="Briefly explain why this Photos identity is not yours"></textarea>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-danger">Report incorrect identity link</button>
           </form>
+        </details>
+      }
+    </section>
+  }
+
+  <section class="pm-card pm-shadow account-settings__account-card" aria-labelledby="accountAccessTitle">
+    <div class="account-settings__account-row">
+      <div class="account-settings__row-icon" aria-hidden="true"><i class="bi bi-person-vcard"></i></div>
+      <div class="account-settings__row-copy">
+        <h2 id="accountAccessTitle">Current roles</h2>
+        @if (Model.Roles.Count > 0)
+        {
+          <div class="account-settings__roles" aria-label="Assigned roles">
+            @foreach (var role in Model.Roles)
+            {
+              <span class="badge rounded-pill text-bg-secondary">@role</span>
+            }
+          </div>
         }
         else
         {
-          <span class="text-body-secondary small">No suitable representative portrait is currently available.</span>
+          <p>You do not currently have any assigned roles.</p>
         }
       </div>
+    </div>
 
-      <details class="account-photo-identity__report">
-        <summary>This isn't my identity</summary>
-        <form method="post" asp-page-handler="ReportPhotoIdentity" class="account-photo-identity__report-form">
-          <p>If this Photos identity has been linked to your account incorrectly, report it for identity-manager review. Your confirmed photographs are not changed automatically.</p>
-          <label for="photoIdentityConcern" class="form-label">What is wrong with this link?</label>
-          <textarea id="photoIdentityConcern" name="reason" class="form-control" rows="3" maxlength="1024" required
-                    placeholder="Briefly explain why this Photos identity is not yours"></textarea>
-          <button type="submit" class="btn btn-outline-danger">Report incorrect identity link</button>
-        </form>
-      </details>
-    }
+    <div class="account-settings__account-row">
+      <div class="account-settings__row-icon" aria-hidden="true"><i class="bi bi-key"></i></div>
+      <div class="account-settings__row-copy">
+        <h2>Security</h2>
+        <p>Update the password used to sign in to PRISM.</p>
+      </div>
+      <a asp-page="./ChangePassword" class="btn btn-sm btn-outline-primary account-settings__row-action">Change password</a>
+    </div>
   </section>
-}
-<div class="pm-card pm-shadow p-4 p-md-5 mb-4">
-  <h4 class="h5 mb-3">Current roles</h4>
-  @if (Model.Roles.Count > 0)
-  {
-    <ul class="list-unstyled mb-0">
-      @foreach (var role in Model.Roles)
-      {
-        <li class="mb-2">
-          <span class="badge rounded-pill text-bg-secondary">@role</span>
-        </li>
-      }
-    </ul>
-  }
-  else
-  {
-    <p class="text-muted mb-0">You do not currently have any assigned roles.</p>
-  }
-</div>
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <ul class="list-unstyled mb-0">
-    <li><a asp-page="./ChangePassword">Change password</a></li>
-  </ul>
 </div>

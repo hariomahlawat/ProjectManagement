@@ -118,7 +118,7 @@ public sealed class MediaPersonUserLinkServiceTests
 
 
     [Fact]
-    public async Task AvatarPreference_IsOptIn_AndRequiresAUsableRepresentativePortrait()
+    public async Task AvatarPreference_IsExplicit_Verified_AndRequiresAUsableRepresentativePortrait()
     {
         await using var media = CreateMediaContext();
         await using var app = CreateApplicationContext();
@@ -136,6 +136,28 @@ public sealed class MediaPersonUserLinkServiceTests
 
         var link = await media.PersonUserLinks.SingleAsync();
         Assert.False(link.UsePortraitAsAvatar);
+
+        var firstFace = AddUsablePortrait(media, person, "faces/portrait-1.webp");
+        await media.SaveChangesAsync();
+
+        var enabled = await service.SetAvatarPreferenceAsync("user-1", true, CancellationToken.None);
+        Assert.True(enabled.UsePortraitAsAvatar);
+        Assert.True(enabled.CanUsePortraitAsAvatar);
+        Assert.True(enabled.ShouldUsePortraitAsAvatar);
+
+        var secondFace = AddUsablePortrait(media, person, "faces/portrait-2.webp", makeRepresentative: false);
+        person.RepresentativeFaceId = secondFace.Id;
+        await media.SaveChangesAsync();
+
+        var afterRepresentativeChange = await service.GetPhotoIdentityForUserAsync("user-1", CancellationToken.None);
+        Assert.NotNull(afterRepresentativeChange);
+        Assert.True(afterRepresentativeChange!.ShouldUsePortraitAsAvatar);
+        Assert.NotEqual(firstFace.Id, person.RepresentativeFaceId);
+
+        var disabled = await service.SetAvatarPreferenceAsync("user-1", false, CancellationToken.None);
+        Assert.False(disabled.UsePortraitAsAvatar);
+        Assert.False(disabled.ShouldUsePortraitAsAvatar);
+        Assert.Equal(2, await media.IdentityAudits.CountAsync(audit => audit.Action == "PrismUserAvatarPreferenceChanged"));
     }
 
     [Fact]
@@ -164,12 +186,62 @@ public sealed class MediaPersonUserLinkServiceTests
         var lightweight = await service.GetPhotoIdentityForUserAsync("user-1", CancellationToken.None);
         Assert.NotNull(lightweight);
         Assert.True(lightweight!.HasOpenConcern);
+        Assert.False(lightweight.ShouldUsePortraitAsAvatar);
         Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinkConcernRaised");
 
         await service.ResolveLinkConcernAsync(person.Id, "reviewer", "Account holder and identity were re-verified", CancellationToken.None);
         stored = await media.PersonUserLinks.SingleAsync();
         Assert.NotNull(stored.ConcernResolvedAtUtc);
+        Assert.False(stored.UsePortraitAsAvatar);
+        lightweight = await service.GetPhotoIdentityForUserAsync("user-1", CancellationToken.None);
+        Assert.NotNull(lightweight);
+        Assert.False(lightweight!.HasOpenConcern);
+        Assert.False(lightweight.ShouldUsePortraitAsAvatar);
         Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinkConcernResolved");
+    }
+
+
+    private static MediaFace AddUsablePortrait(
+        MediaLibraryDbContext media,
+        MediaPerson person,
+        string thumbnailPath,
+        bool makeRepresentative = true)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var face = new MediaFace
+        {
+            Id = Guid.NewGuid(),
+            MediaAssetId = 0,
+            SequenceNumber = 1,
+            Left = 0.1,
+            Top = 0.1,
+            Width = 0.5,
+            Height = 0.5,
+            DetectionConfidence = 0.99,
+            QualityScore = 0.95,
+            DetectorModelKey = "test",
+            DetectorModelVersion = "1",
+            ReviewThumbnailPath = thumbnailPath,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+        var assignment = new MediaPersonFace
+        {
+            MediaPersonId = person.Id,
+            MediaPerson = person,
+            MediaFaceId = face.Id,
+            MediaFace = face,
+            AssignmentType = FaceAssignmentType.HumanConfirmed,
+            AssignedByUserId = "reviewer",
+            AssignedAtUtc = now
+        };
+        media.Faces.Add(face);
+        media.PersonFaces.Add(assignment);
+        if (makeRepresentative)
+        {
+            person.RepresentativeFaceId = face.Id;
+        }
+        return face;
     }
 
     private static MediaLibraryDbContext CreateMediaContext()

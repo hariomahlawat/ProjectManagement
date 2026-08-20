@@ -1,34 +1,11 @@
-Areas/Identity/Pages/Account/Manage/Index.cshtml
-Areas/Identity/Pages/Account/Manage/Index.cshtml.cs
-Features/MediaLibrary/Data/MediaLibraryDbContext.cs
-Features/MediaLibrary/Data/MediaLibraryModelConfiguration.cs
-Features/MediaLibrary/Data/Migrations/20260819190000_LinkMediaPeopleToPrismUsers.cs
-Features/MediaLibrary/Data/Migrations/MediaLibraryDbContextModelSnapshot.cs
-Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt
-Features/MediaLibrary/Domain/MediaPersonUserLink.cs
-Features/MediaLibrary/MediaLibraryServiceCollectionExtensions.cs
-Features/MediaLibrary/Services/FaceIdentityGroupingService.cs
-Features/MediaLibrary/Services/FaceIntelligenceContracts.cs
-Features/MediaLibrary/Services/FaceReviewService.cs
-Features/MediaLibrary/Services/MediaLibrarySchemaService.cs
-Features/MediaLibrary/Services/MediaPersonUserLinkService.cs
-Features/MediaLibrary/Services/PersonPhotoDiscoveryContracts.cs
-Features/MediaLibrary/Services/PersonPhotoDiscoveryQueryService.cs
-Pages/Photos/Index.People.cs
-Pages/Photos/Index.cshtml
-Pages/Photos/Index.cshtml.cs
-Pages/Photos/People/Details.cshtml
-Pages/Photos/People/Details.cshtml.cs
-Pages/Photos/People/Index.cshtml
-Pages/Photos/People/Review.cshtml
-Pages/Photos/_PersonPhotoCandidateCard.cshtml
-Pages/Shared/_LoginPartial.cshtml
-ProjectManagement.Tests/AccountManagePageTests.cs
-ProjectManagement.Tests/MediaLibrary/MediaLibraryDependencyRegistrationTests.cs
-ProjectManagement.Tests/MediaLibrary/MediaLibraryMigrationMetadataTests.cs
-ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs
-wwwroot/css/pages/photos-person-profile.css
-wwwroot/css/pages/photos-reference-readiness.css
-wwwroot/css/site.css
-wwwroot/js/pages/photos-person-profile-contract.test.js
-wwwroot/js/pages/photos-person-profile.js
+MODIFIED  Areas/Identity/Pages/Account/Manage/Index.cshtml
+MODIFIED  Areas/Identity/Pages/Account/Manage/Index.cshtml.cs
+MODIFIED  Features/MediaLibrary/Services/MediaPersonUserLinkService.cs
+MODIFIED  Pages/Shared/_LoginPartial.cshtml
+MODIFIED  ProjectManagement.Tests/AccountManagePageTests.cs
+ADDED     ProjectManagement.Tests/AccountPhotoAvatarContractTests.cs
+MODIFIED  ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs
+ADDED     tools/Test-PrismPhotosAvatarStabilisation.ps1
+MODIFIED  wwwroot/css/site.css
+
+DATABASE MIGRATION: none

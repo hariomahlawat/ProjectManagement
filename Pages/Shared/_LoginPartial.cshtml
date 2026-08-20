@@ -19,8 +19,8 @@
         : await MediaPersonUserLinks.TryGetPhotoIdentityForUserAsync(userId, ViewContext.HttpContext.RequestAborted);
     <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="avatar me-2 text-uppercase @(photoIdentity?.HasPortrait == true && photoIdentity.UsePortraitAsAvatar ? "avatar--photo" : null)">
-                @if (photoIdentity?.HasPortrait == true && photoIdentity.UsePortraitAsAvatar)
+            <span class="avatar me-2 text-uppercase @(photoIdentity?.ShouldUsePortraitAsAvatar == true ? "avatar--photo" : null)">
+                @if (photoIdentity?.ShouldUsePortraitAsAvatar == true)
                 {
                     <img src="@Url.Page("/Photos/People/Portrait", new { area = "", id = photoIdentity.PersonId })"
                          alt="" loading="lazy" decoding="async" />

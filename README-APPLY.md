@@ -1,67 +1,69 @@
-# PRISM Photos — Person Discovery & PRISM User Linkage
+# PRISM Photos — Avatar State Stabilisation
 
-## Apply
+This package is based on the supplied `ProjectManagement-master (10)(20260820-054526).zip` source and is ready to paste over that codebase.
 
-Copy the contents of this package into the PRISM project root and overwrite matching files:
+## What this phase fixes
 
-```text
-E:\Dot Net Web Development\ProjectManagement\
-```
+- Removes the fragile client-supplied Boolean avatar toggle.
+- Adds explicit **Use Photos portrait** and **Use initials instead** server commands.
+- Verifies the persisted avatar preference after every change before reporting success.
+- Uses one resolved presentation state (`ShouldUsePortraitAsAvatar`) in both Account Settings and the PRISM header.
+- Keeps initials as the deterministic fallback whenever the portrait cannot be presented.
+- Keeps the user able to clear a previously enabled portrait preference even if the representative portrait later becomes unavailable.
+- Compacts Account Settings: Photos identity, avatar choice, roles and password actions now use substantially less vertical space.
+- Converts **This isn't my identity** into a deliberate correction workflow with clear consequences before submission.
+- Adds regression tests for ON → portrait, OFF → initials, failed-state verification, missing portrait, representative portrait change, concern handling and source-contract integrity.
 
-This package is a **delta**, not a replacement project. Apply it over the current codebase that already contains the preceding Photos / People phases.
+## Replace / add these files
 
-## Database migration
+1. `Areas/Identity/Pages/Account/Manage/Index.cshtml`
+2. `Areas/Identity/Pages/Account/Manage/Index.cshtml.cs`
+3. `Features/MediaLibrary/Services/MediaPersonUserLinkService.cs`
+4. `Pages/Shared/_LoginPartial.cshtml`
+5. `wwwroot/css/site.css`
+6. `ProjectManagement.Tests/AccountManagePageTests.cs`
+7. `ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs`
+8. `ProjectManagement.Tests/AccountPhotoAvatarContractTests.cs` — new
+9. `tools/Test-PrismPhotosAvatarStabilisation.ps1` — new validation helper
 
-This phase adds one immutable Media Library migration:
+## Database
 
-```text
-20260819190000_LinkMediaPeopleToPrismUsers
-```
+**No database migration is required.** This phase uses the existing `UsePortraitAsAvatar` persistence and the existing linkage-governance fields.
 
-The migration creates the explicit, audited one-to-one PRISM-user ↔ Media-Person link table. Deploy the complete migration assembly and manifest together.
+## Validation
 
-PRISM's startup migration boundary is governed by:
-
-```text
-Database:ApplyMigrationsOnStartup
-```
-
-- If enabled in the deployed environment, the normal startup gate applies the new migration before Photos becomes available.
-- If disabled, apply the migration through your normal controlled deployment procedure before opening Photos.
-
-Do not manually create the table while leaving the migration history/manifest behind.
-
-## Build / test after paste
+From the project root in PowerShell:
 
 ```powershell
-dotnet clean
+Set-ExecutionPolicy -Scope Process Bypass
+.\tools\Test-PrismPhotosAvatarStabilisation.ps1
+```
 
-Remove-Item .\bin, .\obj `
-    -Recurse -Force `
-    -ErrorAction SilentlyContinue
+The script checks the source contracts, cleans the project, builds it and runs the focused tests.
+
+If you prefer the normal full verification:
+
+```powershell
+dotnet clean .\ProjectManagement.csproj
+Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item .\ProjectManagement.Tests\bin, .\ProjectManagement.Tests\obj -Recurse -Force -ErrorAction SilentlyContinue
 
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-
-node --check .\wwwroot\js\pages\photos-person-profile.js
-node --test .\wwwroot\js\pages\photos-person-profile-contract.test.js
 ```
 
-Then restart PRISM.
+## Functional acceptance check
 
-## Functional verification
+1. Link a confirmed Photos person to the PRISM account. The header must remain on initials initially.
+2. Open **Profile → Account settings**. The current state must read **Initials in use**.
+3. Click **Use Photos portrait**.
+4. After redirect, the success message must say the portrait is now being used; the current-avatar preview and header must both show the portrait.
+5. Click **Use initials instead**. The preview and header must both return to initials.
+6. Refresh the page after each transition. The state must persist.
+7. Change the representative Photos portrait while portrait use is enabled. The header must automatically use the new representative portrait because the avatar references the person endpoint, not a duplicated image.
+8. Report **This isn't my identity**. Portrait use and My Photos/self-review must be disabled while the concern is open.
+9. Resolve the concern as an identity manager. The link may remain, but portrait use must remain OFF until the user explicitly enables it again.
 
-1. Open **Photos → People → Manage identity** as an identity manager.
-2. Search for an existing active human PRISM user and explicitly link the correct Media Person.
-3. Confirm the same PRISM user cannot be linked to another active Media Person and vice versa.
-4. Sign in as the linked user. Verify:
-   - the user menu exposes **My Photos**;
-   - the Media Person portrait is used as the avatar fallback when a representative portrait is available;
-   - **Profile** shows the linked Photos identity.
-5. Open **My Photos** and verify it reuses the normal single-person Photo Profile.
-6. Open **Find more photos**. Verify direct Strong / Moderate suggestions plus relevant identity-group evidence are shown, with weaker direct suggestions collapsed.
-7. Verify **nothing is preselected**. Explicit group **Select all** must be clicked before group-wide confirmation.
-8. As the linked user, verify the actions read **Yes, that's me** / **Not me** and that **Manage identity** remains unavailable unless the account also has the existing manager role.
-9. Confirm self-confirming an appearance creates a normal human-confirmed appearance with `SelfConfirmed` audit provenance but does **not** make it a trusted matching reference.
-10. Unlink the PRISM user with a reason and verify My Photos/avatar/profile enrichment disappears while confirmed Photos identity data remains intact.
-11. Verify merging a linked duplicate into an unlinked surviving person transfers the user link; merging two identities linked to different PRISM users is blocked.
+## Important implementation invariant
+
+The PRISM header must never infer avatar state independently. It renders the Photos portrait only when the linked identity reports `ShouldUsePortraitAsAvatar == true`; otherwise it uses initials.
