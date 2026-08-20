@@ -13,19 +13,9 @@ namespace ProjectManagement.Data
 
         public static async Task SeedAsync(IServiceProvider services)
         {
-            var roles = new[]
-            {
-                RoleNames.ProjectOfficer,
-                RoleNames.HoD,
-                RoleNames.Comdt,
-                RoleNames.Admin,
-                RoleNames.Ta,
-                RoleNames.Mco,
-                RoleNames.ProjectOffice,
-                RoleNames.MainOfficeClerk,
-                RoleNames.McCellClerk,
-                RoleNames.ItCellClerk
-            };
+            // Seed from the same canonical catalogue Administration exposes. This keeps
+            // fresh/development installations aligned with migration-provisioned production.
+            var roles = RoleNames.AssignableRoles;
 
             var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
             foreach (var role in roles)

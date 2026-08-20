@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Configuration;
@@ -176,15 +177,9 @@ public static class Policies
         public const string AddContact = "IndustryPartners.Contact.Add";
         public const string ManageAnyContact = "IndustryPartners.Contact.ManageAny";
 
-        public static readonly string[] ViewAllowedRoles =
-        {
-            RoleNames.Admin,
-            RoleNames.HoD,
-            RoleNames.ProjectOffice,
-            RoleNames.ProjectOfficeAlternate,
-            RoleNames.Comdt,
-            RoleNames.Mco
-        };
+        // View access is intentionally registered as RequireAuthenticatedUser in Program.cs.
+        // Do not maintain a separate role list here; doing so creates misleading
+        // authorization metadata that can drift from the actual policy.
 
         // Organisation creation is intentionally broad: the operational users who
         // discover a new industry contact should be able to add it without routing the
@@ -224,6 +219,28 @@ public static class Policies
         };
     }
 
+    // SECTION: Shared Brochure and Compendium publication governance
+    public static class Publications
+    {
+        /// <summary>
+        /// Roles permitted to create, update, rename, duplicate and retire shared
+        /// Brochure/Compendium configurations, including Compendium cover and
+        /// structure authoring. This deliberately does not grant project-data or
+        /// command/administrative authority outside Publications.
+        /// </summary>
+        public static readonly IReadOnlyList<string> SharedPublicationManagerRoles =
+            Array.AsReadOnly(new[]
+            {
+                RoleNames.Comdt,
+                RoleNames.HoD,
+                RoleNames.Ito
+            });
+
+        public static bool CanManageSharedPublications(ClaimsPrincipal? principal) =>
+            principal?.Identity?.IsAuthenticated == true
+            && SharedPublicationManagerRoles.Any(principal.IsInRole);
+    }
+
     public static class Ipr
     {
         public const string View = "Ipr.View";
@@ -231,10 +248,10 @@ public static class Policies
 
         public static readonly string[] EditAllowedRoles =
         {
-            "Admin",
-            "HoD",
-            "ProjectOffice",
-            "Project Office"
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.ProjectOfficeAlternate,
+            RoleNames.ProjectOffice
         };
     }
     // SECTION: Project briefing decks

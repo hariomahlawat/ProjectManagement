@@ -1,5 +1,6 @@
 using System;
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Configuration;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -7,77 +8,84 @@ public static class ProjectOfficeReportsPolicies
 {
     public static readonly string[] ProjectOfficeManagerRoles =
     {
-        "Admin",
-        "HoD",
-        "ProjectOffice",
-        "Project Office"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice
     };
 
 
     public static readonly string[] ArppViewerRoles =
     {
-        "Admin",
-        "HoD",
-        "Comdt",
-        "ProjectOffice",
-        "Project Office",
-        "MCO",
-        "Project Officer"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.Comdt,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice,
+        RoleNames.Mco,
+        RoleNames.ProjectOfficer
     };
 
 
     public static readonly string[] ArppVerifierRoles =
     {
-        "Admin",
-        "HoD",
-        "Comdt"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.Comdt
     };
 
     public static readonly string[] ArppUnlockRoles =
     {
-        "Admin",
-        "HoD"
+        RoleNames.Admin,
+        RoleNames.HoD
     };
     public static readonly string[] TrainingTrackerViewerRoles =
     {
-        "Admin",
-        "HoD",
-        "ProjectOffice",
-        "Project Office",
-        "Project Officer",
-        "Comdt",
-        "MCO",
-        "TA",
-        "Main Office"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice,
+        RoleNames.ProjectOfficer,
+        RoleNames.Comdt,
+        RoleNames.Mco,
+        RoleNames.Ta,
+        RoleNames.MainOfficeClerk,
+        RoleNames.MainOfficeAlternate
     };
 
     public static readonly string[] TrainingTrackerManagerRoles =
     {
-        "Admin",
-        "HoD",
-        "ProjectOffice",
-        "Project Office"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice
     };
 
     public static readonly string[] ProgressReviewViewerRoles =
     {
-        "Admin",
-        "HoD",
-        "ProjectOffice",
-        "Project Office",
-        "Comdt"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice,
+        RoleNames.Comdt
     };
 
     public static readonly string[] TotTrackerSubmitterRoles =
     {
-        "Admin",
-        "HoD",
-        "ProjectOffice",
-        "Project Office",
-        "Project Officer"
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice,
+        RoleNames.ProjectOfficer
     };
 
-    public static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
+    public static readonly string[] TotTrackerApproverRoles = { RoleNames.Admin, RoleNames.HoD };
+
+    public static readonly string[] TrainingTrackerApproverRoles =
+    {
+        RoleNames.Admin,
+        RoleNames.HoD
+    };
 
     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
@@ -205,7 +213,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(TotTrackerApproverRoles);
+        return builder.RequireRole(TrainingTrackerApproverRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireProgressReviewViewer(this AuthorizationPolicyBuilder builder)

@@ -188,6 +188,14 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 70),
 
             Access(
+                "publications-shared-manage",
+                "Manage shared publications",
+                "Create, update, rename, duplicate and retire shared Brochure and Compendium configurations, including Compendium cover and structure authoring. This does not grant authority to alter underlying project master data.",
+                Policies.Publications.SharedPublicationManagerRoles,
+                Group.Publications,
+                10),
+
+            Access(
                 "command-action-tracker",
                 "Use the action tracker",
                 "View and work on authorised command actions and assigned follow-up tasks.",
@@ -254,7 +262,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 "reports-training-approve",
                 "Approve training records",
                 "Approve or return submitted training tracker entries.",
-                ProjectOfficeReportsPolicies.TotTrackerApproverRoles,
+                ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles,
                 Group.Reports,
                 50),
             Access(
@@ -528,6 +536,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
     {
         Group.Core => "core",
         Group.Projects => "projects",
+        Group.Publications => "publications",
         Group.Command => "command",
         Group.Reports => "reports",
         Group.Industry => "industry",
@@ -541,6 +550,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
     {
         Group.Core => "Common access",
         Group.Projects => "Projects",
+        Group.Publications => "Publications",
         Group.Command => "Command and coordination",
         Group.Reports => "Project Office reports",
         Group.Industry => "Industry Directory",
@@ -554,6 +564,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
     {
         Group.Core => "bi-grid",
         Group.Projects => "bi-kanban",
+        Group.Publications => "bi-journal-richtext",
         Group.Command => "bi-diagram-3",
         Group.Reports => "bi-clipboard-data",
         Group.Industry => "bi-buildings",
@@ -567,12 +578,13 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
     {
         Group.Core => 10,
         Group.Projects => 20,
-        Group.Command => 30,
-        Group.Reports => 40,
-        Group.Industry => 50,
-        Group.Documents => 60,
-        Group.Calendar => 70,
-        Group.Administration => 80,
+        Group.Publications => 30,
+        Group.Command => 40,
+        Group.Reports => 50,
+        Group.Industry => 60,
+        Group.Documents => 70,
+        Group.Calendar => 80,
+        Group.Administration => 90,
         _ => 900
     };
 
@@ -580,6 +592,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
     {
         Core,
         Projects,
+        Publications,
         Command,
         Reports,
         Industry,

@@ -1,0 +1,1078 @@
+--- a/Configuration/RoleNames.cs
++++ b/Configuration/RoleNames.cs
+@@ -1,5 +1,12 @@
++using System.Collections.ObjectModel;
++
+ namespace ProjectManagement.Configuration;
+ 
++/// <summary>
++/// Canonical PRISM Identity role names. New assignments must use the canonical
++/// names in <see cref="AssignableRoles"/>. Legacy aliases are retained only for
++/// compatibility with existing installations and are normalised on new admin writes.
++/// </summary>
+ public static class RoleNames
+ {
+     public const string Admin = "Admin";
+@@ -12,11 +19,66 @@
+     public const string Ta = "TA";
+     public const string Ito = "ITO";
+ 
+-    // The current seeded role uses Main_Office_Clerk. Main Office is retained as a
+-    // compatibility alias for installations that already use the older display-name role.
+     public const string MainOfficeClerk = "Main_Office_Clerk";
+     public const string MainOfficeAlternate = "Main Office";
+ 
+     public const string McCellClerk = "MC_Cell_Clerk";
+     public const string ItCellClerk = "IT_Cell_Clerk";
++
++    private static readonly string[] AssignableRoleArray =
++    {
++        Admin,
++        Comdt,
++        HoD,
++        ProjectOfficer,
++        ProjectOffice,
++        Mco,
++        Ta,
++        Ito,
++        MainOfficeClerk,
++        McCellClerk,
++        ItCellClerk
++    };
++
++    private static readonly IReadOnlyDictionary<string, string> LegacyAliasMap =
++        new ReadOnlyDictionary<string, string>(
++            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
++            {
++                [ProjectOfficeAlternate] = ProjectOffice,
++                [MainOfficeAlternate] = MainOfficeClerk
++            });
++
++    /// <summary>
++    /// The institutional role catalogue shown for new assignments in Administration.
++    /// Compatibility aliases are deliberately excluded.
++    /// </summary>
++    public static IReadOnlyList<string> AssignableRoles { get; } =
++        Array.AsReadOnly(AssignableRoleArray);
++
++    public static bool IsAssignable(string? roleName)
++    {
++        if (string.IsNullOrWhiteSpace(roleName))
++        {
++            return false;
++        }
++
++        var normalized = roleName.Trim();
++        return AssignableRoleArray.Contains(normalized, StringComparer.OrdinalIgnoreCase);
++    }
++
++    public static bool IsLegacyAlias(string? roleName) =>
++        !string.IsNullOrWhiteSpace(roleName)
++        && LegacyAliasMap.ContainsKey(roleName.Trim());
++
++    /// <summary>
++    /// Converts a known legacy role alias to its canonical role name. Unknown role
++    /// names are returned trimmed so compatibility callers do not lose information.
++    /// </summary>
++    public static string Canonicalize(string? roleName)
++    {
++        var normalized = roleName?.Trim() ?? string.Empty;
++        return LegacyAliasMap.TryGetValue(normalized, out var canonical)
++            ? canonical
++            : normalized;
++    }
+ }
+--- a/Configuration/Policies.cs
++++ b/Configuration/Policies.cs
+@@ -1,3 +1,4 @@
++using System.Security.Claims;
+ using ProjectManagement.Models;
+ 
+ namespace ProjectManagement.Configuration;
+@@ -176,15 +177,9 @@
+         public const string AddContact = "IndustryPartners.Contact.Add";
+         public const string ManageAnyContact = "IndustryPartners.Contact.ManageAny";
+ 
+-        public static readonly string[] ViewAllowedRoles =
+-        {
+-            RoleNames.Admin,
+-            RoleNames.HoD,
+-            RoleNames.ProjectOffice,
+-            RoleNames.ProjectOfficeAlternate,
+-            RoleNames.Comdt,
+-            RoleNames.Mco
+-        };
++        // View access is intentionally registered as RequireAuthenticatedUser in Program.cs.
++        // Do not maintain a separate role list here; doing so creates misleading
++        // authorization metadata that can drift from the actual policy.
+ 
+         // Organisation creation is intentionally broad: the operational users who
+         // discover a new industry contact should be able to add it without routing the
+@@ -224,6 +219,28 @@
+         };
+     }
+ 
++    // SECTION: Shared Brochure and Compendium publication governance
++    public static class Publications
++    {
++        /// <summary>
++        /// Roles permitted to create, update, rename, duplicate and retire shared
++        /// Brochure/Compendium configurations, including Compendium cover and
++        /// structure authoring. This deliberately does not grant project-data or
++        /// command/administrative authority outside Publications.
++        /// </summary>
++        public static readonly IReadOnlyList<string> SharedPublicationManagerRoles =
++            Array.AsReadOnly(new[]
++            {
++                RoleNames.Comdt,
++                RoleNames.HoD,
++                RoleNames.Ito
++            });
++
++        public static bool CanManageSharedPublications(ClaimsPrincipal? principal) =>
++            principal?.Identity?.IsAuthenticated == true
++            && SharedPublicationManagerRoles.Any(principal.IsInRole);
++    }
++
+     public static class Ipr
+     {
+         public const string View = "Ipr.View";
+@@ -231,10 +248,10 @@
+ 
+         public static readonly string[] EditAllowedRoles =
+         {
+-            "Admin",
+-            "HoD",
+-            "ProjectOffice",
+-            "Project Office"
++            RoleNames.Admin,
++            RoleNames.HoD,
++            RoleNames.ProjectOfficeAlternate,
++            RoleNames.ProjectOffice
+         };
+     }
+     // SECTION: Project briefing decks
+--- a/Services/UserManagementService.cs
++++ b/Services/UserManagementService.cs
+@@ -58,13 +58,19 @@
+         public Task<ApplicationUser?> GetUserByIdAsync(string userId) =>
+             _userManager.Users.FirstOrDefaultAsync(u => u.Id == userId)!;
+ 
+-        public async Task<IList<string>> GetRolesAsync() =>
+-            await _roleManager.Roles
+-                .Where(r => r.Name != null)
+-                .Select(r => r.Name!)
+-                .OrderBy(n => n)
++        public async Task<IList<string>> GetRolesAsync()
++        {
++            var persisted = await _roleManager.Roles
++                .Where(role => role.Name != null)
++                .Select(role => role.Name!)
+                 .ToListAsync();
+ 
++            var available = persisted.ToHashSet(StringComparer.OrdinalIgnoreCase);
++            return RoleNames.AssignableRoles
++                .Where(available.Contains)
++                .ToList();
++        }
++
+         public async Task<IList<string>> GetUserRolesAsync(string userId)
+         {
+             var user = await _userManager.FindByIdAsync(userId);
+@@ -178,6 +184,20 @@
+ 
+             var currentRoles = await _userManager.GetRolesAsync(user);
+             var targetRoles = new HashSet<string>(roleResolution.Roles, StringComparer.OrdinalIgnoreCase);
++
++            // Administration exposes only the canonical institutional role catalogue.
++            // Preserve any unknown extension role already attached to the account so an
++            // unrelated edit cannot silently strip integration-specific access. Known
++            // legacy aliases are intentionally not preserved: selecting/saving their
++            // canonical equivalent upgrades the assignment in-place.
++            foreach (var currentRole in currentRoles)
++            {
++                if (!RoleNames.IsAssignable(currentRole) && !RoleNames.IsLegacyAlias(currentRole))
++                {
++                    targetRoles.Add(currentRole);
++                }
++            }
++
+             var toRemove = currentRoles.Where(role => !targetRoles.Contains(role)).ToArray();
+             var toAdd = targetRoles
+                 .Where(role => !currentRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+@@ -422,7 +442,7 @@
+         private async Task<(IdentityResult Result, IReadOnlyList<string> Roles)> ResolveRolesAsync(IEnumerable<string>? requestedRoles)
+         {
+             var requested = (requestedRoles ?? Enumerable.Empty<string>())
+-                .Select(role => role?.Trim())
++                .Select(RoleNames.Canonicalize)
+                 .Where(role => !string.IsNullOrWhiteSpace(role))
+                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                 .ToArray();
+@@ -432,6 +452,14 @@
+                 return (Failure("Assign at least one role to the user."), Array.Empty<string>());
+             }
+ 
++            var nonAssignable = requested.Where(role => !RoleNames.IsAssignable(role)).ToArray();
++            if (nonAssignable.Length > 0)
++            {
++                return (
++                    Failure($"Role selection is not assignable from Administration: {string.Join(", ", nonAssignable)}."),
++                    Array.Empty<string>());
++            }
++
+             var available = await _roleManager.Roles
+                 .Where(role => role.Name != null)
+                 .Select(role => role.Name!)
+--- a/Migrations/immutable-migration-ids.txt
++++ b/Migrations/immutable-migration-ids.txt
+@@ -108,3 +108,4 @@
+ 
+ 20261216123000_AddCompendiumProjectParticularsStyle
+ 20261216160000_AddCompendiumCoverIdentity
++20261216170000_EnsureCanonicalIdentityRoles
+--- /dev/null
++++ b/Migrations/20261216170000_EnsureCanonicalIdentityRoles.cs
+@@ -0,0 +1,72 @@
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using ProjectManagement.Data;
++
++#nullable disable
++
++namespace ProjectManagement.Migrations;
++
++[DbContext(typeof(ApplicationDbContext))]
++[Migration("20261216170000_EnsureCanonicalIdentityRoles")]
++public partial class EnsureCanonicalIdentityRoles : Migration
++{
++    protected override void Up(MigrationBuilder migrationBuilder)
++    {
++        // Production does not rely on startup seeders. Keep the institutional
++        // assignable-role catalogue available through the normal migration path.
++        // Existing rows win by normalized role name; only genuinely missing roles
++        // are inserted. This is intentionally idempotent.
++        migrationBuilder.Sql("""
++            INSERT INTO "AspNetRoles" ("Id", "Name", "NormalizedName", "ConcurrencyStamp")
++            SELECT seed."Id", seed."Name", seed."NormalizedName", seed."ConcurrencyStamp"
++            FROM (VALUES
++                ('40746e33-a5d5-52e3-8644-f1b96a005c7a', 'Admin', 'ADMIN', 'prism-role-admin-v1'),
++                ('f4f0c56e-dfc7-56e0-a2ee-3dc71c8f913a', 'Comdt', 'COMDT', 'prism-role-comdt-v1'),
++                ('61f6dd94-ee5e-5e5b-80d7-81c1df3e98ca', 'HoD', 'HOD', 'prism-role-hod-v1'),
++                ('94a1bd25-b087-5442-84c9-b760774e61a5', 'Project Officer', 'PROJECT OFFICER', 'prism-role-project-officer-v1'),
++                ('3e500ad0-1a0c-5b85-a185-3a2fcf554a2c', 'Project Office', 'PROJECT OFFICE', 'prism-role-project-office-v1'),
++                ('5dc290ed-feb6-53d5-9ce1-81086cf8041a', 'MCO', 'MCO', 'prism-role-mco-v1'),
++                ('cc9065d0-bae2-522f-9c9c-45cbdf2b0443', 'TA', 'TA', 'prism-role-ta-v1'),
++                ('7f0e532f-bf53-546a-a9f2-80fa15230b87', 'ITO', 'ITO', 'prism-role-ito-v1'),
++                ('0a5c9f48-6681-5506-a8cb-07e249ecf48c', 'Main_Office_Clerk', 'MAIN_OFFICE_CLERK', 'prism-role-main-office-clerk-v1'),
++                ('98cd4b1b-07f7-5f7c-8ff1-02a83e97d5d0', 'MC_Cell_Clerk', 'MC_CELL_CLERK', 'prism-role-mc-cell-clerk-v1'),
++                ('e39bc4d0-16df-542e-bd1c-12eac5d93d65', 'IT_Cell_Clerk', 'IT_CELL_CLERK', 'prism-role-it-cell-clerk-v1')
++            ) AS seed("Id", "Name", "NormalizedName", "ConcurrencyStamp")
++            WHERE NOT EXISTS (
++                SELECT 1
++                FROM "AspNetRoles" existing
++                WHERE UPPER(COALESCE(existing."NormalizedName", existing."Name", ''))
++                      = seed."NormalizedName"
++            );
++            """);
++    }
++
++    protected override void Down(MigrationBuilder migrationBuilder)
++    {
++        // Delete only rows created with this migration's deterministic identifiers,
++        // and only while they remain completely unused. Assigned roles are retained
++        // during rollback so access records are never orphaned.
++        migrationBuilder.Sql("""
++            DELETE FROM "AspNetRoles" AS r
++            WHERE r."Id" IN (
++                '40746e33-a5d5-52e3-8644-f1b96a005c7a',
++                'f4f0c56e-dfc7-56e0-a2ee-3dc71c8f913a',
++                '61f6dd94-ee5e-5e5b-80d7-81c1df3e98ca',
++                '94a1bd25-b087-5442-84c9-b760774e61a5',
++                '3e500ad0-1a0c-5b85-a185-3a2fcf554a2c',
++                '5dc290ed-feb6-53d5-9ce1-81086cf8041a',
++                'cc9065d0-bae2-522f-9c9c-45cbdf2b0443',
++                '7f0e532f-bf53-546a-a9f2-80fa15230b87',
++                '0a5c9f48-6681-5506-a8cb-07e249ecf48c',
++                '98cd4b1b-07f7-5f7c-8ff1-02a83e97d5d0',
++                'e39bc4d0-16df-542e-bd1c-12eac5d93d65'
++            )
++              AND NOT EXISTS (
++                  SELECT 1 FROM "AspNetUserRoles" ur WHERE ur."RoleId" = r."Id"
++              )
++              AND NOT EXISTS (
++                  SELECT 1 FROM "AspNetRoleClaims" rc WHERE rc."RoleId" = r."Id"
++              );
++            """);
++    }
++}
+--- a/Data/IdentitySeeder.cs
++++ b/Data/IdentitySeeder.cs
+@@ -13,19 +13,9 @@
+ 
+         public static async Task SeedAsync(IServiceProvider services)
+         {
+-            var roles = new[]
+-            {
+-                RoleNames.ProjectOfficer,
+-                RoleNames.HoD,
+-                RoleNames.Comdt,
+-                RoleNames.Admin,
+-                RoleNames.Ta,
+-                RoleNames.Mco,
+-                RoleNames.ProjectOffice,
+-                RoleNames.MainOfficeClerk,
+-                RoleNames.McCellClerk,
+-                RoleNames.ItCellClerk
+-            };
++            // Seed from the same canonical catalogue Administration exposes. This keeps
++            // fresh/development installations aligned with migration-provisioned production.
++            var roles = RoleNames.AssignableRoles;
+ 
+             var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+             foreach (var role in roles)
+--- a/Services/Admin/AdminRoleAccessCatalog.cs
++++ b/Services/Admin/AdminRoleAccessCatalog.cs
+@@ -188,6 +188,14 @@
+                 70),
+ 
+             Access(
++                "publications-shared-manage",
++                "Manage shared publications",
++                "Create, update, rename, duplicate and retire shared Brochure and Compendium configurations, including Compendium cover and structure authoring. This does not grant authority to alter underlying project master data.",
++                Policies.Publications.SharedPublicationManagerRoles,
++                Group.Publications,
++                10),
++
++            Access(
+                 "command-action-tracker",
+                 "Use the action tracker",
+                 "View and work on authorised command actions and assigned follow-up tasks.",
+@@ -254,7 +262,7 @@
+                 "reports-training-approve",
+                 "Approve training records",
+                 "Approve or return submitted training tracker entries.",
+-                ProjectOfficeReportsPolicies.TotTrackerApproverRoles,
++                ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles,
+                 Group.Reports,
+                 50),
+             Access(
+@@ -528,6 +536,7 @@
+     {
+         Group.Core => "core",
+         Group.Projects => "projects",
++        Group.Publications => "publications",
+         Group.Command => "command",
+         Group.Reports => "reports",
+         Group.Industry => "industry",
+@@ -541,6 +550,7 @@
+     {
+         Group.Core => "Common access",
+         Group.Projects => "Projects",
++        Group.Publications => "Publications",
+         Group.Command => "Command and coordination",
+         Group.Reports => "Project Office reports",
+         Group.Industry => "Industry Directory",
+@@ -554,6 +564,7 @@
+     {
+         Group.Core => "bi-grid",
+         Group.Projects => "bi-kanban",
++        Group.Publications => "bi-journal-richtext",
+         Group.Command => "bi-diagram-3",
+         Group.Reports => "bi-clipboard-data",
+         Group.Industry => "bi-buildings",
+@@ -567,12 +578,13 @@
+     {
+         Group.Core => 10,
+         Group.Projects => 20,
+-        Group.Command => 30,
+-        Group.Reports => 40,
+-        Group.Industry => 50,
+-        Group.Documents => 60,
+-        Group.Calendar => 70,
+-        Group.Administration => 80,
++        Group.Publications => 30,
++        Group.Command => 40,
++        Group.Reports => 50,
++        Group.Industry => 60,
++        Group.Documents => 70,
++        Group.Calendar => 80,
++        Group.Administration => 90,
+         _ => 900
+     };
+ 
+@@ -580,6 +592,7 @@
+     {
+         Core,
+         Projects,
++        Publications,
+         Command,
+         Reports,
+         Industry,
+--- a/Services/Admin/AdminRoleDescriptorCatalog.cs
++++ b/Services/Admin/AdminRoleDescriptorCatalog.cs
+@@ -121,7 +121,7 @@
+             Descriptor(
+                 RoleNames.Ito,
+                 "ITO",
+-                "Information-technology operations and authorised technical administration functions.",
++                "Information Technology Officer access for shared Brochure and Compendium publication management and authorised technical operations.",
+                 "Technical & coordination",
+                 "bi-pc-display-horizontal",
+                 privileged: false,
+--- a/Services/Publications/BrochurePresetService.cs
++++ b/Services/Publications/BrochurePresetService.cs
+@@ -913,10 +913,10 @@
+     private void EnsureCanManage()
+     {
+         var user = _httpContextAccessor.HttpContext?.User;
+-        if (user?.Identity?.IsAuthenticated != true
+-            || (!user.IsInRole(RoleNames.HoD) && !user.IsInRole(RoleNames.Comdt)))
++        if (!Policies.Publications.CanManageSharedPublications(user))
+         {
+-            throw new UnauthorizedAccessException("Only HoD or Comdt may maintain shared brochure configurations.");
++            throw new UnauthorizedAccessException(
++                "Only Commandant, HoD or ITO may maintain shared brochure configurations.");
+         }
+     }
+ 
+--- a/Services/Publications/CompendiumPresetService.cs
++++ b/Services/Publications/CompendiumPresetService.cs
+@@ -62,7 +62,7 @@
+ ///
+ /// The preset stores publication choices only: identity, handling marking, membership and order.
+ /// Project facts are deliberately never copied into the preset. Every load rehydrates the ordered
+-/// project list against current PRISM records. HoD/Comdt may maintain shared presets; every
++/// project list against current PRISM records. Commandant/HoD/ITO may maintain shared presets; every
+ /// authenticated Publications user may list and load them.
+ /// </summary>
+ public sealed class CompendiumPresetService : ICompendiumPresetService
+@@ -1296,11 +1296,10 @@
+     private void EnsureCanManage()
+     {
+         var user = _httpContextAccessor.HttpContext?.User;
+-        if (user?.Identity?.IsAuthenticated != true
+-            || (!user.IsInRole(RoleNames.HoD) && !user.IsInRole(RoleNames.Comdt)))
++        if (!Policies.Publications.CanManageSharedPublications(user))
+         {
+             throw new UnauthorizedAccessException(
+-                "Only HoD or Comdt may maintain shared Compendium configurations.");
++                "Only Commandant, HoD or ITO may maintain shared Compendium configurations.");
+         }
+     }
+ 
+--- a/Services/ProjectOfficeReports/Training/TrainingNotificationService.cs
++++ b/Services/ProjectOfficeReports/Training/TrainingNotificationService.cs
+@@ -5,6 +5,7 @@
+ using System.Threading.Tasks;
+ using Microsoft.AspNetCore.Identity;
+ using Microsoft.Extensions.Logging;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.Notifications;
+ using ProjectManagement.Services.Notifications;
+@@ -13,7 +14,8 @@
+ 
+ public sealed class TrainingNotificationService : ITrainingNotificationService
+ {
+-    private static readonly string[] ApproverRoles = { "Admin", "HoD", "ProjectOffice" };
++    private static readonly IReadOnlyList<string> ApproverRoles =
++        ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles;
+ 
+     private readonly UserManager<ApplicationUser> _userManager;
+     private readonly INotificationPublisher _publisher;
+--- a/Pages/Projects/Publications/Brochure/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Brochure/Index.cshtml.cs
+@@ -75,7 +75,7 @@
+     public string? ActivePresetRowVersion { get; set; }
+ 
+     public bool CanManageSavedBrochures
+-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
++        => Policies.Publications.CanManageSharedPublications(User);
+ 
+     public BrochurePrintMatter ApprovedPrintMatter => BrochurePrintPublicationPolicy.ApprovedReference;
+ 
+--- a/Pages/Projects/Publications/Compendium/Cover.cshtml
++++ b/Pages/Projects/Publications/Compendium/Cover.cshtml
+@@ -45,7 +45,7 @@
+             }
+             else
+             {
+-                <span class="compendium-structure-editor-readonly" title="Only HoD or Comdt may save shared Compendium configurations">Preview only</span>
++                <span class="compendium-structure-editor-readonly" title="Only Commandant, HoD or ITO may save shared Compendium configurations">Preview only</span>
+             }
+         </div>
+     </header>
+--- a/Pages/Projects/Publications/Compendium/Cover.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Cover.cshtml.cs
+@@ -41,7 +41,7 @@
+         = Array.Empty<CompendiumPresetDiagnostic>();
+ 
+     public bool CanManagePresets
+-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
++        => Policies.Publications.CanManageSharedPublications(User);
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+     {
+@@ -277,7 +277,7 @@
+         if (!CanManagePresets)
+         {
+             return JsonError(StatusCodes.Status403Forbidden,
+-                "Only HoD or Comdt may save shared Compendium cover changes.");
++                "Only Commandant, HoD or ITO may save shared Compendium cover changes.");
+         }
+ 
+         if (presetId <= 0 || string.IsNullOrWhiteSpace(rowVersion))
+--- a/Pages/Projects/Publications/Compendium/Structure.cshtml
++++ b/Pages/Projects/Publications/Compendium/Structure.cshtml
+@@ -44,7 +44,7 @@
+             }
+             else
+             {
+-                <span class="compendium-structure-editor-readonly" title="Only HoD or Comdt may save shared Compendium configurations">Local editing</span>
++                <span class="compendium-structure-editor-readonly" title="Only Commandant, HoD or ITO may save shared Compendium configurations">Local editing</span>
+             }
+         </div>
+     </header>
+--- a/Pages/Projects/Publications/Compendium/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Index.cshtml.cs
+@@ -66,7 +66,7 @@
+         = Array.Empty<CompendiumPresetDiagnostic>();
+ 
+     public bool CanManagePresets
+-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
++        => Policies.Publications.CanManageSharedPublications(User);
+ 
+     public bool CanMaintainProjectData
+         => User.IsInRole(RoleNames.Admin)
+@@ -641,7 +641,7 @@
+         {
+             return JsonError(
+                 StatusCodes.Status403Forbidden,
+-                "Only HoD or Comdt may maintain shared Compendium configurations.");
++                "Only Commandant, HoD or ITO may maintain shared Compendium configurations.");
+         }
+ 
+         try
+--- a/Pages/Projects/Publications/Compendium/Structure.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Structure.cshtml.cs
+@@ -40,7 +40,7 @@
+         = Array.Empty<CompendiumPresetDiagnostic>();
+ 
+     public bool CanManagePresets
+-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
++        => Policies.Publications.CanManageSharedPublications(User);
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+     {
+@@ -153,7 +153,7 @@
+         if (!CanManagePresets)
+         {
+             return JsonError(StatusCodes.Status403Forbidden,
+-                "Only HoD or Comdt may save shared Compendium structure changes.");
++                "Only Commandant, HoD or ITO may save shared Compendium structure changes.");
+         }
+ 
+         if (presetId <= 0 || string.IsNullOrWhiteSpace(rowVersion))
+--- a/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs
++++ b/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs
+@@ -1,5 +1,6 @@
+ using System;
+ using Microsoft.AspNetCore.Authorization;
++using ProjectManagement.Configuration;
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
+ 
+@@ -7,77 +8,84 @@
+ {
+     public static readonly string[] ProjectOfficeManagerRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "ProjectOffice",
+-        "Project Office"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.ProjectOfficeAlternate,
++        RoleNames.ProjectOffice
+     };
+ 
+ 
+     public static readonly string[] ArppViewerRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "Comdt",
+-        "ProjectOffice",
+-        "Project Office",
+-        "MCO",
+-        "Project Officer"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.Comdt,
++        RoleNames.ProjectOfficeAlternate,
++        RoleNames.ProjectOffice,
++        RoleNames.Mco,
++        RoleNames.ProjectOfficer
+     };
+ 
+ 
+     public static readonly string[] ArppVerifierRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "Comdt"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.Comdt
+     };
+ 
+     public static readonly string[] ArppUnlockRoles =
+     {
+-        "Admin",
+-        "HoD"
++        RoleNames.Admin,
++        RoleNames.HoD
+     };
+     public static readonly string[] TrainingTrackerViewerRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "ProjectOffice",
+-        "Project Office",
+-        "Project Officer",
+-        "Comdt",
+-        "MCO",
+-        "TA",
+-        "Main Office"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.ProjectOfficeAlternate,
++        RoleNames.ProjectOffice,
++        RoleNames.ProjectOfficer,
++        RoleNames.Comdt,
++        RoleNames.Mco,
++        RoleNames.Ta,
++        RoleNames.MainOfficeClerk,
++        RoleNames.MainOfficeAlternate
+     };
+ 
+     public static readonly string[] TrainingTrackerManagerRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "ProjectOffice",
+-        "Project Office"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.ProjectOfficeAlternate,
++        RoleNames.ProjectOffice
+     };
+ 
+     public static readonly string[] ProgressReviewViewerRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "ProjectOffice",
+-        "Project Office",
+-        "Comdt"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.ProjectOfficeAlternate,
++        RoleNames.ProjectOffice,
++        RoleNames.Comdt
+     };
+ 
+     public static readonly string[] TotTrackerSubmitterRoles =
+     {
+-        "Admin",
+-        "HoD",
+-        "ProjectOffice",
+-        "Project Office",
+-        "Project Officer"
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.ProjectOfficeAlternate,
++        RoleNames.ProjectOffice,
++        RoleNames.ProjectOfficer
+     };
+ 
+-    public static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
++    public static readonly string[] TotTrackerApproverRoles = { RoleNames.Admin, RoleNames.HoD };
++
++    public static readonly string[] TrainingTrackerApproverRoles =
++    {
++        RoleNames.Admin,
++        RoleNames.HoD
++    };
+ 
+     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
+     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
+@@ -205,7 +213,7 @@
+             throw new ArgumentNullException(nameof(builder));
+         }
+ 
+-        return builder.RequireRole(TotTrackerApproverRoles);
++        return builder.RequireRole(TrainingTrackerApproverRoles);
+     }
+ 
+     public static AuthorizationPolicyBuilder RequireProgressReviewViewer(this AuthorizationPolicyBuilder builder)
+--- a/Areas/Admin/Pages/Users/Edit.cshtml.cs
++++ b/Areas/Admin/Pages/Users/Edit.cshtml.cs
+@@ -88,7 +88,11 @@
+             FullName = Account.FullName,
+             Rank = Account.Rank,
+             AccountKind = Account.AccountKind,
+-            Roles = Account.Roles.ToList()
++            Roles = Account.Roles
++                .Select(RoleNames.Canonicalize)
++                .Where(RoleNames.IsAssignable)
++                .Distinct(StringComparer.OrdinalIgnoreCase)
++                .ToList()
+         };
+ 
+         await LoadPresentationAsync(cancellationToken);
+@@ -133,11 +137,22 @@
+             return Page();
+         }
+ 
++        // The assignment UI is intentionally limited to PRISM's canonical role
++        // catalogue. Preserve any unknown extension role that may already exist on
++        // the account, but deliberately do not preserve known legacy aliases: those
++        // are normalised to their canonical role the next time the account is saved.
++        var rolesToApply = Input.Roles
++            .Concat(Account.Roles.Where(role =>
++                !RoleNames.IsLegacyAlias(role)
++                && !RoleNames.IsAssignable(RoleNames.Canonicalize(role))))
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++
+         var result = await _users.UpdateUserAsync(
+             Input.Id,
+             Input.FullName,
+             Input.Rank,
+-            Input.Roles,
++            rolesToApply,
+             Input.AccountKind);
+ 
+         if (!result.Succeeded)
+@@ -154,7 +169,7 @@
+             "Administrator {Administrator} updated user {UserId} with roles {Roles}.",
+             User.Identity?.Name,
+             Input.Id,
+-            string.Join(',', Input.Roles));
++            string.Join(',', rolesToApply));
+ 
+         TempData[FlashMessageKeys.AdminUsersSuccess] = $"Account @{Account.UserName} was updated.";
+         return RedirectToPage("./Details", new { id = Input.Id });
+--- a/ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
++++ b/ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
+@@ -111,6 +111,25 @@
+         Assert.Equal("Command Capability", result.Preset.Name);
+     }
+ 
++
++    [Fact]
++    public async Task ITO_CanCreateSharedPresetWithoutCommandRole()
++    {
++        await using var db = CreateContext();
++        await SeedAsync(db);
++        var service = CreateService(db, "ito-1", RoleNames.Ito);
++
++        var result = await service.CreateAsync(
++            "ito-1",
++            "ITO Capability Publication",
++            null,
++            Configuration(projectOrder: [1]),
++            CancellationToken.None);
++
++        Assert.True(result.Preset.Id > 0);
++        Assert.Equal("ITO Capability Publication", result.Preset.Name);
++    }
++
+     [Fact]
+     public async Task Load_WhenSavedPhotoWasRemoved_FallsBackAndReportsDiagnostic()
+     {
+@@ -204,6 +223,7 @@
+         db.Users.AddRange(
+             User("hod-1", "Head of Department"),
+             User("comdt-1", "Commandant"),
++            User("ito-1", "Information Technology Officer"),
+             User("po-1", "Project Officer"));
+ 
+         db.Projects.AddRange(
+--- /dev/null
++++ b/ProjectManagement.Tests/Publications/CompendiumPresetRoleAuthorizationTests.cs
+@@ -0,0 +1,136 @@
++using System.Security.Claims;
++using Microsoft.AspNetCore.Http;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Logging.Abstractions;
++using ProjectManagement.Configuration;
++using ProjectManagement.Data;
++using ProjectManagement.Models;
++using ProjectManagement.Services;
++using ProjectManagement.Services.Publications;
++using Xunit;
++
++namespace ProjectManagement.Tests.Publications;
++
++public sealed class CompendiumPresetRoleAuthorizationTests
++{
++    [Fact]
++    public async Task Ito_CanCreateSharedCompendiumPreset()
++    {
++        await using var db = CreateContext();
++        await SeedAsync(db);
++        var service = CreateService(db, "ito-1", RoleNames.Ito);
++
++        var result = await service.CreateAsync(
++            "ito-1",
++            "ITO Compendium",
++            null,
++            new CompendiumPresetConfiguration(
++                "SDD Simulators Compendium",
++                "Detailed Project Reference",
++                "Capability Edition · 2026",
++                handlingMarking: null,
++                projectIds: new[] { 1 }),
++            CancellationToken.None);
++
++        Assert.True(result.Preset.Id > 0);
++        Assert.Equal("ITO Compendium", result.Preset.Name);
++    }
++
++    [Fact]
++    public async Task ProjectOfficer_CannotMaintainSharedCompendiumPreset()
++    {
++        await using var db = CreateContext();
++        await SeedAsync(db);
++        var service = CreateService(db, "po-1", RoleNames.ProjectOfficer);
++
++        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.CreateAsync(
++            "po-1",
++            "Not Allowed",
++            null,
++            new CompendiumPresetConfiguration(
++                "SDD Simulators Compendium",
++                "Detailed Project Reference",
++                "Capability Edition · 2026",
++                handlingMarking: null,
++                projectIds: new[] { 1 }),
++            CancellationToken.None));
++    }
++
++    private static ApplicationDbContext CreateContext()
++    {
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseInMemoryDatabase($"compendium-role-auth-{Guid.NewGuid():N}")
++            .Options;
++        return new ApplicationDbContext(options);
++    }
++
++    private static async Task SeedAsync(ApplicationDbContext db)
++    {
++        db.Users.AddRange(
++            User("ito-1", "Information Technology Officer"),
++            User("po-1", "Project Officer"));
++
++        db.Projects.Add(new Project
++        {
++            Id = 1,
++            Name = "Project Alpha",
++            LifecycleStatus = ProjectLifecycleStatus.Active,
++            CreatedByUserId = "ito-1",
++            RowVersion = new byte[] { 1 }
++        });
++
++        await db.SaveChangesAsync();
++    }
++
++    private static ApplicationUser User(string id, string fullName) => new()
++    {
++        Id = id,
++        UserName = id,
++        NormalizedUserName = id.ToUpperInvariant(),
++        FullName = fullName,
++        Rank = "Test",
++        SecurityStamp = Guid.NewGuid().ToString("N")
++    };
++
++    private static CompendiumPresetService CreateService(ApplicationDbContext db, string userId, string role)
++    {
++        var identity = new ClaimsIdentity(
++            new[]
++            {
++                new Claim(ClaimTypes.NameIdentifier, userId),
++                new Claim(ClaimTypes.Name, userId),
++                new Claim(ClaimTypes.Role, role)
++            },
++            "TestAuth");
++
++        var accessor = new HttpContextAccessor
++        {
++            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
++        };
++
++        return new CompendiumPresetService(
++            db,
++            accessor,
++            new NullAuditService(),
++            new FixedClock(new DateTimeOffset(2026, 8, 20, 12, 0, 0, TimeSpan.Zero)),
++            NullLogger<CompendiumPresetService>.Instance);
++    }
++
++    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
++    {
++        public DateTimeOffset UtcNow { get; } = utcNow;
++    }
++
++    private sealed class NullAuditService : IAuditService
++    {
++        public Task LogAsync(
++            string action,
++            string? message = null,
++            string level = "Info",
++            string? userId = null,
++            string? userName = null,
++            IDictionary<string, string?>? data = null,
++            HttpContext? http = null)
++            => Task.CompletedTask;
++    }
++}
+--- a/ProjectManagement.Tests/ProjectOfficeReports/Training/TrainingNotificationServiceTests.cs
++++ b/ProjectManagement.Tests/ProjectOfficeReports/Training/TrainingNotificationServiceTests.cs
+@@ -1,6 +1,8 @@
+ using System;
++using System.Collections.Generic;
+ using System.Linq;
+ using System.Reflection;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Services.ProjectOfficeReports.Training;
+ 
+ namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
+@@ -16,9 +18,9 @@
+ 
+         Assert.NotNull(field);
+ 
+-        var roles = Assert.IsType<string[]>(field!.GetValue(null));
++        var roles = Assert.IsAssignableFrom<IReadOnlyList<string>>(field!.GetValue(null));
+         var orderedRoles = roles.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray();
+-        var expected = new[] { "Admin", "HoD", "ProjectOffice" };
++        var expected = ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles;
+         var orderedExpected = expected.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray();
+ 
+         Assert.Equal(orderedExpected, orderedRoles);
+--- /dev/null
++++ b/ProjectManagement.Tests/RoleGovernanceTests.cs
+@@ -0,0 +1,110 @@
++using System.Security.Claims;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Configuration;
++using ProjectManagement.Services.Admin;
++using Xunit;
++
++namespace ProjectManagement.Tests;
++
++public sealed class RoleGovernanceTests
++{
++    [Fact]
++    public void AssignableRoleCatalog_ContainsElevenCanonicalRolesAndNoCompatibilityAliases()
++    {
++        Assert.Equal(11, RoleNames.AssignableRoles.Count);
++        Assert.Contains(RoleNames.Ito, RoleNames.AssignableRoles);
++        Assert.Contains(RoleNames.ProjectOffice, RoleNames.AssignableRoles);
++        Assert.Contains(RoleNames.MainOfficeClerk, RoleNames.AssignableRoles);
++        Assert.DoesNotContain(RoleNames.ProjectOfficeAlternate, RoleNames.AssignableRoles);
++        Assert.DoesNotContain(RoleNames.MainOfficeAlternate, RoleNames.AssignableRoles);
++        Assert.Equal(
++            RoleNames.AssignableRoles.Count,
++            RoleNames.AssignableRoles.Distinct(StringComparer.OrdinalIgnoreCase).Count());
++    }
++
++    [Theory]
++    [InlineData(RoleNames.ProjectOfficeAlternate, RoleNames.ProjectOffice)]
++    [InlineData(RoleNames.MainOfficeAlternate, RoleNames.MainOfficeClerk)]
++    [InlineData(RoleNames.Ito, RoleNames.Ito)]
++    public void Canonicalize_MapsOnlyKnownLegacyAliases(string supplied, string expected)
++    {
++        Assert.Equal(expected, RoleNames.Canonicalize(supplied));
++    }
++
++    [Theory]
++    [InlineData(RoleNames.Comdt, true)]
++    [InlineData(RoleNames.HoD, true)]
++    [InlineData(RoleNames.Ito, true)]
++    [InlineData(RoleNames.Admin, false)]
++    [InlineData(RoleNames.ProjectOfficer, false)]
++    [InlineData(RoleNames.ProjectOffice, false)]
++    public void SharedPublicationGovernance_IsLimitedToCommandantHodAndIto(string role, bool expected)
++    {
++        var principal = Principal(role);
++
++        Assert.Equal(expected, Policies.Publications.CanManageSharedPublications(principal));
++    }
++
++    [Fact]
++    public void ItoEffectivePermissions_IncludeSharedPublicationsWithoutCommandGovernance()
++    {
++        var catalog = new AdminRoleAccessCatalog();
++        var access = catalog.ForRoles(
++            new[] { RoleNames.Ito },
++            RoleNames.AssignableRoles);
++
++        Assert.Contains(access, item => item.Key == "publications-shared-manage");
++        Assert.Contains(access, item => item.Key == "command-action-tracker");
++        Assert.DoesNotContain(access, item => item.Key == "projects-govern");
++        Assert.DoesNotContain(access, item => item.Key == "command-briefing-decks");
++        Assert.DoesNotContain(access, item => item.Key == "command-conference");
++        Assert.DoesNotContain(access, item => item.Key == "admin-users");
++    }
++
++    [Fact]
++    public void TrainingTrackerViewerRoles_IncludeCanonicalMainOfficeClerkAndCompatibilityAlias()
++    {
++        Assert.Contains(RoleNames.MainOfficeClerk, ProjectOfficeReportsPolicies.TrainingTrackerViewerRoles);
++        Assert.Contains(RoleNames.MainOfficeAlternate, ProjectOfficeReportsPolicies.TrainingTrackerViewerRoles);
++    }
++
++    [Fact]
++    public void TrainingTrackerApproverRoles_AreCanonicalAdminAndHodOnly()
++    {
++        Assert.Equal(
++            new[] { RoleNames.Admin, RoleNames.HoD },
++            ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles);
++    }
++
++    [Fact]
++    public void IprRoleList_UsesCanonicalConstantsAndRetainsProjectOfficeCompatibility()
++    {
++        Assert.Contains(RoleNames.Admin, Policies.Ipr.EditAllowedRoles);
++        Assert.Contains(RoleNames.HoD, Policies.Ipr.EditAllowedRoles);
++        Assert.Contains(RoleNames.ProjectOffice, Policies.Ipr.EditAllowedRoles);
++        Assert.Contains(RoleNames.ProjectOfficeAlternate, Policies.Ipr.EditAllowedRoles);
++    }
++
++    [Fact]
++    public void ItoDescriptor_IsNonPrivilegedAndExplainsPublicationResponsibility()
++    {
++        var descriptor = new AdminRoleDescriptorCatalog().Describe(RoleNames.Ito);
++
++        Assert.False(descriptor.IsPrivileged);
++        Assert.Contains("Brochure", descriptor.Description, StringComparison.OrdinalIgnoreCase);
++        Assert.Contains("Compendium", descriptor.Description, StringComparison.OrdinalIgnoreCase);
++    }
++
++    private static ClaimsPrincipal Principal(string role)
++    {
++        var identity = new ClaimsIdentity(
++            new[]
++            {
++                new Claim(ClaimTypes.NameIdentifier, "user-1"),
++                new Claim(ClaimTypes.Role, role)
++            },
++            authenticationType: "TestAuth");
++
++        return new ClaimsPrincipal(identity);
++    }
++}

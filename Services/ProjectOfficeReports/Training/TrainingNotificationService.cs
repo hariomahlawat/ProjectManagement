@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services.Notifications;
@@ -13,7 +14,8 @@ namespace ProjectManagement.Services.ProjectOfficeReports.Training;
 
 public sealed class TrainingNotificationService : ITrainingNotificationService
 {
-    private static readonly string[] ApproverRoles = { "Admin", "HoD", "ProjectOffice" };
+    private static readonly IReadOnlyList<string> ApproverRoles =
+        ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles;
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationPublisher _publisher;

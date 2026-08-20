@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 
 namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
@@ -16,9 +18,9 @@ public sealed class TrainingNotificationServiceTests
 
         Assert.NotNull(field);
 
-        var roles = Assert.IsType<string[]>(field!.GetValue(null));
+        var roles = Assert.IsAssignableFrom<IReadOnlyList<string>>(field!.GetValue(null));
         var orderedRoles = roles.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray();
-        var expected = new[] { "Admin", "HoD", "ProjectOffice" };
+        var expected = ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles;
         var orderedExpected = expected.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray();
 
         Assert.Equal(orderedExpected, orderedRoles);

@@ -121,7 +121,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Ito,
                 "ITO",
-                "Information-technology operations and authorised technical administration functions.",
+                "Information Technology Officer access for shared Brochure and Compendium publication management and authorised technical operations.",
                 "Technical & coordination",
                 "bi-pc-display-horizontal",
                 privileged: false,

@@ -1,0 +1,15 @@
+PRISM Role Governance + ITO Publications — static validation
+
+PASS: 23 expected source/test files present.
+PASS: no merge-conflict markers detected.
+PASS: RoleNames defines ITO and a canonical 11-role assignable catalogue.
+PASS: legacy ProjectOffice and Main Office aliases are compatibility-only.
+PASS: Publications manager contract contains Commandant + HoD + ITO, not Admin/Project Officer.
+PASS: Compendium project-master-data maintenance does not include ITO.
+PASS: ITO is provisioned in the new migration and migration manifest.
+PASS: Main_Office_Clerk is included in Training Tracker viewer roles.
+PASS: Training notification service uses TrainingTrackerApproverRoles.
+PASS: Admin effective-permission catalogue includes Manage shared publications.
+PASS: package preserves Phase 39 Compendium generation backend changes.
+
+LIMITATION: dotnet SDK is unavailable in this environment, therefore C# compile/test execution was not possible here.

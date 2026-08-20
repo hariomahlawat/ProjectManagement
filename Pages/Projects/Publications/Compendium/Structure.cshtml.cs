@@ -40,7 +40,7 @@ public sealed class StructureModel : PageModel
         = Array.Empty<CompendiumPresetDiagnostic>();
 
     public bool CanManagePresets
-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
+        => Policies.Publications.CanManageSharedPublications(User);
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -153,7 +153,7 @@ public sealed class StructureModel : PageModel
         if (!CanManagePresets)
         {
             return JsonError(StatusCodes.Status403Forbidden,
-                "Only HoD or Comdt may save shared Compendium structure changes.");
+                "Only Commandant, HoD or ITO may save shared Compendium structure changes.");
         }
 
         if (presetId <= 0 || string.IsNullOrWhiteSpace(rowVersion))

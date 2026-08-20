@@ -66,7 +66,7 @@ public sealed class IndexModel : PageModel
         = Array.Empty<CompendiumPresetDiagnostic>();
 
     public bool CanManagePresets
-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
+        => Policies.Publications.CanManageSharedPublications(User);
 
     public bool CanMaintainProjectData
         => User.IsInRole(RoleNames.Admin)
@@ -641,7 +641,7 @@ public sealed class IndexModel : PageModel
         {
             return JsonError(
                 StatusCodes.Status403Forbidden,
-                "Only HoD or Comdt may maintain shared Compendium configurations.");
+                "Only Commandant, HoD or ITO may maintain shared Compendium configurations.");
         }
 
         try

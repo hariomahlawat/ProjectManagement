@@ -913,10 +913,10 @@ public sealed class BrochurePresetService : IBrochurePresetService
     private void EnsureCanManage()
     {
         var user = _httpContextAccessor.HttpContext?.User;
-        if (user?.Identity?.IsAuthenticated != true
-            || (!user.IsInRole(RoleNames.HoD) && !user.IsInRole(RoleNames.Comdt)))
+        if (!Policies.Publications.CanManageSharedPublications(user))
         {
-            throw new UnauthorizedAccessException("Only HoD or Comdt may maintain shared brochure configurations.");
+            throw new UnauthorizedAccessException(
+                "Only Commandant, HoD or ITO may maintain shared brochure configurations.");
         }
     }
 

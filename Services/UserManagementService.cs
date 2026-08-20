@@ -58,12 +58,18 @@ namespace ProjectManagement.Services
         public Task<ApplicationUser?> GetUserByIdAsync(string userId) =>
             _userManager.Users.FirstOrDefaultAsync(u => u.Id == userId)!;
 
-        public async Task<IList<string>> GetRolesAsync() =>
-            await _roleManager.Roles
-                .Where(r => r.Name != null)
-                .Select(r => r.Name!)
-                .OrderBy(n => n)
+        public async Task<IList<string>> GetRolesAsync()
+        {
+            var persisted = await _roleManager.Roles
+                .Where(role => role.Name != null)
+                .Select(role => role.Name!)
                 .ToListAsync();
+
+            var available = persisted.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return RoleNames.AssignableRoles
+                .Where(available.Contains)
+                .ToList();
+        }
 
         public async Task<IList<string>> GetUserRolesAsync(string userId)
         {
@@ -178,6 +184,20 @@ namespace ProjectManagement.Services
 
             var currentRoles = await _userManager.GetRolesAsync(user);
             var targetRoles = new HashSet<string>(roleResolution.Roles, StringComparer.OrdinalIgnoreCase);
+
+            // Administration exposes only the canonical institutional role catalogue.
+            // Preserve any unknown extension role already attached to the account so an
+            // unrelated edit cannot silently strip integration-specific access. Known
+            // legacy aliases are intentionally not preserved: selecting/saving their
+            // canonical equivalent upgrades the assignment in-place.
+            foreach (var currentRole in currentRoles)
+            {
+                if (!RoleNames.IsAssignable(currentRole) && !RoleNames.IsLegacyAlias(currentRole))
+                {
+                    targetRoles.Add(currentRole);
+                }
+            }
+
             var toRemove = currentRoles.Where(role => !targetRoles.Contains(role)).ToArray();
             var toAdd = targetRoles
                 .Where(role => !currentRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
@@ -422,7 +442,7 @@ namespace ProjectManagement.Services
         private async Task<(IdentityResult Result, IReadOnlyList<string> Roles)> ResolveRolesAsync(IEnumerable<string>? requestedRoles)
         {
             var requested = (requestedRoles ?? Enumerable.Empty<string>())
-                .Select(role => role?.Trim())
+                .Select(RoleNames.Canonicalize)
                 .Where(role => !string.IsNullOrWhiteSpace(role))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -430,6 +450,14 @@ namespace ProjectManagement.Services
             if (requested.Length == 0)
             {
                 return (Failure("Assign at least one role to the user."), Array.Empty<string>());
+            }
+
+            var nonAssignable = requested.Where(role => !RoleNames.IsAssignable(role)).ToArray();
+            if (nonAssignable.Length > 0)
+            {
+                return (
+                    Failure($"Role selection is not assignable from Administration: {string.Join(", ", nonAssignable)}."),
+                    Array.Empty<string>());
             }
 
             var available = await _roleManager.Roles

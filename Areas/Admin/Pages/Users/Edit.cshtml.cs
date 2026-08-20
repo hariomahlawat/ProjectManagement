@@ -88,7 +88,11 @@ public sealed class EditModel : PageModel
             FullName = Account.FullName,
             Rank = Account.Rank,
             AccountKind = Account.AccountKind,
-            Roles = Account.Roles.ToList()
+            Roles = Account.Roles
+                .Select(RoleNames.Canonicalize)
+                .Where(RoleNames.IsAssignable)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
         };
 
         await LoadPresentationAsync(cancellationToken);
@@ -133,11 +137,22 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
+        // The assignment UI is intentionally limited to PRISM's canonical role
+        // catalogue. Preserve any unknown extension role that may already exist on
+        // the account, but deliberately do not preserve known legacy aliases: those
+        // are normalised to their canonical role the next time the account is saved.
+        var rolesToApply = Input.Roles
+            .Concat(Account.Roles.Where(role =>
+                !RoleNames.IsLegacyAlias(role)
+                && !RoleNames.IsAssignable(RoleNames.Canonicalize(role))))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         var result = await _users.UpdateUserAsync(
             Input.Id,
             Input.FullName,
             Input.Rank,
-            Input.Roles,
+            rolesToApply,
             Input.AccountKind);
 
         if (!result.Succeeded)
@@ -154,7 +169,7 @@ public sealed class EditModel : PageModel
             "Administrator {Administrator} updated user {UserId} with roles {Roles}.",
             User.Identity?.Name,
             Input.Id,
-            string.Join(',', Input.Roles));
+            string.Join(',', rolesToApply));
 
         TempData[FlashMessageKeys.AdminUsersSuccess] = $"Account @{Account.UserName} was updated.";
         return RedirectToPage("./Details", new { id = Input.Id });

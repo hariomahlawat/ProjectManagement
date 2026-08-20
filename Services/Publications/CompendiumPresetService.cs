@@ -62,7 +62,7 @@ public interface ICompendiumPresetService
 ///
 /// The preset stores publication choices only: identity, handling marking, membership and order.
 /// Project facts are deliberately never copied into the preset. Every load rehydrates the ordered
-/// project list against current PRISM records. HoD/Comdt may maintain shared presets; every
+/// project list against current PRISM records. Commandant/HoD/ITO may maintain shared presets; every
 /// authenticated Publications user may list and load them.
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
@@ -1296,11 +1296,10 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
     private void EnsureCanManage()
     {
         var user = _httpContextAccessor.HttpContext?.User;
-        if (user?.Identity?.IsAuthenticated != true
-            || (!user.IsInRole(RoleNames.HoD) && !user.IsInRole(RoleNames.Comdt)))
+        if (!Policies.Publications.CanManageSharedPublications(user))
         {
             throw new UnauthorizedAccessException(
-                "Only HoD or Comdt may maintain shared Compendium configurations.");
+                "Only Commandant, HoD or ITO may maintain shared Compendium configurations.");
         }
     }
 

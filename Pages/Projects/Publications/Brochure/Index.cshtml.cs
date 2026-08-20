@@ -75,7 +75,7 @@ public sealed class IndexModel : PageModel
     public string? ActivePresetRowVersion { get; set; }
 
     public bool CanManageSavedBrochures
-        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
+        => Policies.Publications.CanManageSharedPublications(User);
 
     public BrochurePrintMatter ApprovedPrintMatter => BrochurePrintPublicationPolicy.ApprovedReference;
 

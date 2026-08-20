@@ -111,6 +111,25 @@ public sealed class BrochurePresetServiceTests
         Assert.Equal("Command Capability", result.Preset.Name);
     }
 
+
+    [Fact]
+    public async Task ITO_CanCreateSharedPresetWithoutCommandRole()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db, "ito-1", RoleNames.Ito);
+
+        var result = await service.CreateAsync(
+            "ito-1",
+            "ITO Capability Publication",
+            null,
+            Configuration(projectOrder: [1]),
+            CancellationToken.None);
+
+        Assert.True(result.Preset.Id > 0);
+        Assert.Equal("ITO Capability Publication", result.Preset.Name);
+    }
+
     [Fact]
     public async Task Load_WhenSavedPhotoWasRemoved_FallsBackAndReportsDiagnostic()
     {
@@ -204,6 +223,7 @@ public sealed class BrochurePresetServiceTests
         db.Users.AddRange(
             User("hod-1", "Head of Department"),
             User("comdt-1", "Commandant"),
+            User("ito-1", "Information Technology Officer"),
             User("po-1", "Project Officer"));
 
         db.Projects.AddRange(
