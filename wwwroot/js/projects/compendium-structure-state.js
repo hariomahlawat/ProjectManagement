@@ -6,11 +6,97 @@
     const MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
     const asNumber = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const clamp = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : .5;
     const cleanKey = value => String(value ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
     const cleanName = value => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
+    const cleanText = (value, maximumLength) => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, maximumLength);
     const normalize = value => String(value ?? "").trim().toLowerCase();
 
     const storageKey = presetId => `${PREFIX}${asNumber(presetId)}`;
+
+    const sanitizePublication = source => {
+        if (!source || typeof source !== "object") return null;
+        return {
+            title: cleanText(source.title, 120),
+            subtitle: cleanText(source.subtitle, 160),
+            edition: cleanText(source.edition, 80),
+            handlingMarking: cleanText(source.handlingMarking, 80)
+        };
+    };
+
+    const sanitizeCoverDesign = source => {
+        if (!source || typeof source !== "object") return null;
+        const stringValue = (value, fallback = "") => String(value ?? fallback).trim().slice(0, 80);
+        const optionalText = (value, maximumLength) => {
+            const text = cleanText(value, maximumLength);
+            return text || null;
+        };
+        const booleanValue = (value, fallback = true) => typeof value === "boolean" ? value : fallback;
+        const images = (Array.isArray(source.images) ? source.images : [])
+            .slice(0, 12)
+            .map((item, index) => ({
+                surface: stringValue(item?.surface, "Front"),
+                slotKey: cleanKey(item?.slotKey) || `Slot${index + 1}`,
+                imageMode: normalize(item?.imageMode) === "explicit"
+                    ? "Explicit"
+                    : normalize(item?.imageMode) === "none" ? "None" : "Automatic",
+                projectId: asNumber(item?.projectId) > 0 ? asNumber(item.projectId) : null,
+                photoId: asNumber(item?.photoId) > 0 ? asNumber(item.photoId) : null,
+                focalX: clamp(item?.focalX),
+                focalY: clamp(item?.focalY),
+                fitMode: normalize(item?.fitMode) === "fit" ? "Fit" : "Fill",
+                sortOrder: Number.isFinite(Number(item?.sortOrder)) ? Number(item.sortOrder) : index
+            }));
+
+        return {
+            frontTemplate: stringValue(source.frontTemplate, "InstitutionalHero"),
+            backTemplate: stringValue(source.backTemplate, "MinimalInstitutional"),
+            publicationTheme: stringValue(source.publicationTheme, "InstitutionalGreen"),
+            backgroundTreatment: stringValue(source.backgroundTreatment, "Solid"),
+            frontTitle: optionalText(source.frontTitle, 120),
+            frontSubtitle: optionalText(source.frontSubtitle, 160),
+            frontEdition: optionalText(source.frontEdition, 80),
+            frontEyebrow: optionalText(source.frontEyebrow, 80),
+            backTitle: optionalText(source.backTitle, 120),
+            backSubtitle: optionalText(source.backSubtitle, 160),
+            backEdition: optionalText(source.backEdition, 80),
+            backEyebrow: optionalText(source.backEyebrow, 80),
+            showFrontTitle: booleanValue(source.showFrontTitle),
+            showFrontSubtitle: booleanValue(source.showFrontSubtitle),
+            showFrontEdition: booleanValue(source.showFrontEdition),
+            showFrontLeftLogo: booleanValue(source.showFrontLeftLogo),
+            showFrontRightLogo: booleanValue(source.showFrontRightLogo),
+            frontLogoPlacement: stringValue(source.frontLogoPlacement, "TopCorners"),
+            showBackTitle: booleanValue(source.showBackTitle),
+            showBackSubtitle: booleanValue(source.showBackSubtitle),
+            showBackEdition: booleanValue(source.showBackEdition),
+            showBackLeftLogo: booleanValue(source.showBackLeftLogo),
+            showBackRightLogo: booleanValue(source.showBackRightLogo),
+            backLogoPlacement: stringValue(source.backLogoPlacement, "TopCorners"),
+            images
+        };
+    };
+
+    const sanitizePhotoPreferences = (source, selectedIds) => {
+        if (!Array.isArray(source)) return [];
+        const selected = new Set(selectedIds);
+        const seen = new Set();
+        const result = [];
+        for (const item of source) {
+            const projectId = asNumber(item?.projectId);
+            const photoId = asNumber(item?.photoId);
+            if (projectId <= 0 || photoId <= 0 || !selected.has(projectId)) continue;
+            const key = `${projectId}:${photoId}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const preferredForPublication = item?.preferredForPublication === true;
+            const suitableForCoverHero = item?.suitableForCoverHero === true;
+            if (!preferredForPublication && !suitableForCoverHero) continue;
+            result.push({ projectId, photoId, preferredForPublication, suitableForCoverHero });
+            if (result.length >= selectedIds.length * 6) break;
+        }
+        return result;
+    };
 
     const sanitize = snapshot => {
         if (!snapshot || typeof snapshot !== "object") return null;
@@ -49,20 +135,20 @@
                 const source = snapshot.configs[id] || snapshot.configs[String(id)] || {};
                 configs[id] = {
                     primaryPhotoId: asNumber(source.primaryPhotoId) > 0 ? asNumber(source.primaryPhotoId) : null,
-                    focalX: Number.isFinite(Number(source.focalX)) ? Math.max(0, Math.min(1, Number(source.focalX))) : .5,
-                    focalY: Number.isFinite(Number(source.focalY)) ? Math.max(0, Math.min(1, Number(source.focalY))) : .5,
+                    focalX: clamp(source.focalX),
+                    focalY: clamp(source.focalY),
                     imageSelectionMode: normalize(source.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
                     imageFitMode: normalize(source.imageFitMode) === "fit" ? "fit" : "fill",
                     dossierLayout: ({ automatic:"Automatic", visualhero:"VisualHero", balanced:"Balanced", multiimageeditorial:"MultiImageEditorial", technical:"Technical" }[normalize(source.dossierLayout)] || "Automatic"),
                     balancedTextFlowMode: normalize(source.balancedTextFlowMode) === "sidecolumn" ? "SideColumn" : "FlowBelowImage",
                     dossierImageCount: Math.max(1, Math.min(3, asNumber(source.dossierImageCount) || 1)),
                     supportingPhoto1Id: asNumber(source.supportingPhoto1Id) > 0 ? asNumber(source.supportingPhoto1Id) : null,
-                    supportingPhoto1FocalX: Number.isFinite(Number(source.supportingPhoto1FocalX)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto1FocalX))) : .5,
-                    supportingPhoto1FocalY: Number.isFinite(Number(source.supportingPhoto1FocalY)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto1FocalY))) : .5,
+                    supportingPhoto1FocalX: clamp(source.supportingPhoto1FocalX),
+                    supportingPhoto1FocalY: clamp(source.supportingPhoto1FocalY),
                     supportingPhoto1FitMode: normalize(source.supportingPhoto1FitMode) === "fit" ? "fit" : "fill",
                     supportingPhoto2Id: asNumber(source.supportingPhoto2Id) > 0 ? asNumber(source.supportingPhoto2Id) : null,
-                    supportingPhoto2FocalX: Number.isFinite(Number(source.supportingPhoto2FocalX)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto2FocalX))) : .5,
-                    supportingPhoto2FocalY: Number.isFinite(Number(source.supportingPhoto2FocalY)) ? Math.max(0, Math.min(1, Number(source.supportingPhoto2FocalY))) : .5,
+                    supportingPhoto2FocalX: clamp(source.supportingPhoto2FocalX),
+                    supportingPhoto2FocalY: clamp(source.supportingPhoto2FocalY),
                     supportingPhoto2FitMode: normalize(source.supportingPhoto2FitMode) === "fit" ? "fit" : "fill",
                     reviewFingerprint: String(source.reviewFingerprint || "").trim() || null,
                     customSectionKey: cleanKey(source.customSectionKey) || null,
@@ -99,6 +185,9 @@
             source: String(snapshot.source || "compendium"),
             returnUrl: String(snapshot.returnUrl || ""),
             persisted: snapshot.persisted !== false,
+            publication: sanitizePublication(snapshot.publication),
+            coverDesign: sanitizeCoverDesign(snapshot.coverDesign),
+            photoPreferences: sanitizePhotoPreferences(snapshot.photoPreferences, ids),
             editorialState: snapshot.editorialState && typeof snapshot.editorialState === "object"
                 ? {
                     narrativeSource: String(snapshot.editorialState.narrativeSource || "ProjectBrief"),

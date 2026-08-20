@@ -142,6 +142,79 @@
     };
     if (!frontHeroSlot()) syncLegacyCoverIntoDesign();
 
+    const applyCoverDesignSnapshot = source => {
+        if (!source || typeof source !== "object") return;
+        const normalizedImages = Array.isArray(source.images)
+            ? source.images.slice(0, 12).map((item, index) => ({
+                surface: String(item?.surface || "Front"),
+                slotKey: String(item?.slotKey || `Slot${index + 1}`),
+                imageMode: normalize(item?.imageMode) === "explicit"
+                    ? "Explicit"
+                    : normalize(item?.imageMode) === "none" ? "None" : "Automatic",
+                projectId: Number(item?.projectId || 0) || null,
+                photoId: Number(item?.photoId || 0) || null,
+                focalX: roundFocal(item?.focalX),
+                focalY: roundFocal(item?.focalY),
+                fitMode: normalize(item?.fitMode) === "fit" ? "Fit" : "Fill",
+                sortOrder: Number.isFinite(Number(item?.sortOrder)) ? Number(item.sortOrder) : index
+            }))
+            : [];
+
+        Object.keys(coverDesignState).forEach(key => delete coverDesignState[key]);
+        Object.assign(coverDesignState, {
+            ...source,
+            frontTemplate: normalizeCoverTemplate(source.frontTemplate),
+            backTemplate: normalizeBackTemplate(source.backTemplate),
+            publicationTheme: String(source.publicationTheme || "InstitutionalGreen"),
+            backgroundTreatment: String(source.backgroundTreatment || "Solid"),
+            frontTitle: source.frontTitle ?? null,
+            frontSubtitle: source.frontSubtitle ?? null,
+            frontEdition: source.frontEdition ?? null,
+            frontEyebrow: source.frontEyebrow ?? null,
+            backTitle: source.backTitle ?? null,
+            backSubtitle: source.backSubtitle ?? null,
+            backEdition: source.backEdition ?? null,
+            backEyebrow: source.backEyebrow ?? null,
+            showFrontTitle: source.showFrontTitle !== false,
+            showFrontSubtitle: source.showFrontSubtitle !== false,
+            showFrontEdition: source.showFrontEdition !== false,
+            showFrontLeftLogo: source.showFrontLeftLogo !== false,
+            showFrontRightLogo: source.showFrontRightLogo !== false,
+            frontLogoPlacement: source.frontLogoPlacement || "TopCorners",
+            showBackTitle: source.showBackTitle !== false,
+            showBackSubtitle: source.showBackSubtitle !== false,
+            showBackEdition: source.showBackEdition !== false,
+            showBackLeftLogo: source.showBackLeftLogo !== false,
+            showBackRightLogo: source.showBackRightLogo !== false,
+            backLogoPlacement: source.backLogoPlacement || "TopCorners",
+            images: normalizedImages
+        });
+
+        const hero = frontHeroSlot();
+        coverState.imageMode = normalize(hero?.imageMode) === "explicit"
+            ? "explicit"
+            : normalize(hero?.imageMode) === "none" ? "none" : "automatic";
+        coverState.heroProjectId = coverState.imageMode === "explicit" ? Number(hero?.projectId || 0) || null : null;
+        coverState.heroPhotoId = coverState.imageMode === "explicit" ? Number(hero?.photoId || 0) || null : null;
+        coverState.focalX = roundFocal(hero?.focalX);
+        coverState.focalY = roundFocal(hero?.focalY);
+        if (!hero) syncLegacyCoverIntoDesign();
+    };
+
+    const restorePublicationSnapshot = publication => {
+        if (!publication || typeof publication !== "object") return;
+        const assign = (name, value) => {
+            const control = form.elements[name];
+            if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+                control.value = String(value ?? "");
+            }
+        };
+        assign("Input.Title", publication.title);
+        assign("Input.Subtitle", publication.subtitle);
+        assign("Input.Edition", publication.edition);
+        assign("Input.HandlingMarking", publication.handlingMarking);
+    };
+
     let activePresetId = Number(activeIdInput?.value || activeSeed?.id || 0) || null;
     let activeRowVersion = String(activeVersionInput?.value || activeSeed?.rowVersion || "");
     let orderedIds = String(selectedInput?.value || "")
@@ -403,6 +476,7 @@
     const outputDockPreview = $("[data-output-dock-preview]");
     const outputDockGenerate = $("[data-output-dock-generate]");
     const finalOutputCard = form.querySelector(".compendium-final-card");
+    const builderPage = form.closest(".compendium-builder-page");
     const outputVerification = $("[data-output-verification]");
     const outputVerificationText = $("[data-output-verification-text]");
     const previewUrl = form.dataset.previewUrl || "";
@@ -614,7 +688,12 @@
             source: "compendium",
             returnUrl: `${location.pathname}?presetId=${Number(activePresetId || 0)}&resumeStructure=1#compendium-select`,
             editorialState: { ...editorialState },
-            publication: { title: String(form.elements["Input.Title"]?.value || ""), subtitle: String(form.elements["Input.Subtitle"]?.value || ""), edition: String(form.elements["Input.Edition"]?.value || "") },
+            publication: {
+                title: String(form.elements["Input.Title"]?.value || ""),
+                subtitle: String(form.elements["Input.Subtitle"]?.value || ""),
+                edition: String(form.elements["Input.Edition"]?.value || ""),
+                handlingMarking: String(form.elements["Input.HandlingMarking"]?.value || "")
+            },
             coverDesign: coverDesignState,
             photoPreferences: photoPreferencesState,
             orderedIds: [...orderedIds],
@@ -635,6 +714,12 @@
         if (params.get("resumeStructure") !== "1") return null;
         const snapshot = structureHandoffApi.read(activePresetId);
         if (!snapshot) return null;
+
+        restorePublicationSnapshot(snapshot.publication);
+        if (snapshot.coverDesign) applyCoverDesignSnapshot(snapshot.coverDesign);
+        if (Array.isArray(snapshot.photoPreferences)) {
+            photoPreferencesState = snapshot.photoPreferences.map(item => ({ ...item }));
+        }
 
         const validIds = snapshot.orderedIds.filter(id => projectById.has(Number(id))).map(Number);
         if (validIds.length) orderedIds = [...new Set(validIds)];
@@ -858,8 +943,7 @@
     };
 
     const applyReviewFocusMode = () => {
-        const page = form.closest(".compendium-builder-page");
-        page?.classList.toggle("is-review-focus", reviewFocusMode);
+        builderPage?.classList.toggle("is-review-focus", reviewFocusMode);
         if (reviewFocusToggle) {
             reviewFocusToggle.classList.toggle("active", reviewFocusMode);
             reviewFocusToggle.setAttribute("aria-pressed", reviewFocusMode ? "true" : "false");
@@ -1884,7 +1968,17 @@
         duplicateNarrativeParagraph: "Possible duplicated narrative content",
         additionalNoteLong: "Additional note is lengthy",
         additionalNoteLength: "Additional note length advisory",
-        dossierEditorialWarning: "Layout needs editorial attention"
+        dossierEditorialWarning: "Layout needs editorial attention",
+        coverIdentityDense: "Cover identity needs editorial review",
+        coverImageProjectNotSelected: "Cover image project no longer selected",
+        coverImageUnavailable: "Cover image unavailable",
+        coverImageLowResolution: "Low-resolution cover image",
+        coverAutomaticImageLowResolution: "Automatic cover image has limited resolution",
+        coverAutomaticImageUnavailable: "Automatic cover image unavailable",
+        coverRequiredImageMissing: "Required cover image missing",
+        coverHeroUsesFallback: "Automatic cover imagery uses fallback",
+        portfolioQuartetDuplicate: "Portfolio Quartet repeats an image",
+        portfolioQuartetInsufficientImages: "Portfolio Quartet needs more usable images"
     }[finding.code] || finding.message || "Publication finding");
 
     const findingProjectAction = finding => {
@@ -1977,7 +2071,7 @@
         const setVisible = visible => {
             const shouldShow = Boolean(visible) && window.innerWidth >= 1200;
             outputDock.hidden = !shouldShow;
-            page?.classList.toggle('has-output-dock', shouldShow);
+            builderPage?.classList.toggle('has-output-dock', shouldShow);
         };
         outputDockObserver?.disconnect?.();
         if (reviewFocusMode) { setVisible(true); return; }
@@ -2112,7 +2206,7 @@
         }
     };
 
-    const schedulePreflight = () => {
+    const schedulePreflight = (delayMs = 220) => {
         window.clearTimeout(preflightTimer);
         invalidatePreflight();
         const revision = preflightRevision;
@@ -2134,11 +2228,27 @@
             updateOutput();
             return;
         }
-        preflightTimer = window.setTimeout(() => runPreflight(revision), 220);
+        const delay = Math.max(120, Math.min(1200, Number(delayMs) || 220));
+        preflightTimer = window.setTimeout(() => runPreflight(revision), delay);
     };
 
     const selectionChanged = () => {
-        if (coverState.imageMode === "explicit" && !orderedIds.includes(Number(coverState.heroProjectId))) { coverState.imageMode = "automatic"; coverState.heroProjectId = null; coverState.heroPhotoId = null; coverState.focalX = 0.5; coverState.focalY = 0.5; }
+        const selected = new Set(orderedIds.map(Number));
+        if (coverState.imageMode === "explicit" && !selected.has(Number(coverState.heroProjectId))) {
+            coverState.imageMode = "automatic";
+            coverState.heroProjectId = null;
+            coverState.heroPhotoId = null;
+            coverState.focalX = 0.5;
+            coverState.focalY = 0.5;
+        }
+        coverDesignState.images.forEach(slot => {
+            if (normalize(slot?.imageMode) !== "explicit" || selected.has(Number(slot?.projectId))) return;
+            slot.imageMode = "Automatic";
+            slot.projectId = null;
+            slot.photoId = null;
+            slot.focalX = 0.5;
+            slot.focalY = 0.5;
+        });
         syncHidden(); renderCoverSetting();
         updateCheckboxes();
         renderOrder();
@@ -2637,17 +2747,24 @@
         });
     });
 
-    form.querySelectorAll("[data-compendium-durable]").forEach(input => input.addEventListener("input", () => {
-        renderDirty();
-        if (activeReviewData) renderLivePagePreview(activeReviewData, currentReviewPhoto(activeReviewData));
-        schedulePreflight();
-    }));
+    form.querySelectorAll("[data-compendium-durable]").forEach(input => {
+        input.addEventListener("input", () => {
+            renderDirty();
+            if (activeReviewData) renderLivePagePreview(activeReviewData, currentReviewPhoto(activeReviewData));
+            // Identity fields are cheap to edit but server preflight is intentionally comprehensive.
+            // A longer typing debounce prevents repeated database/image probes while preserving
+            // immediate preflight for structural and project-level changes elsewhere.
+            schedulePreflight(650);
+        });
+        input.addEventListener("change", () => schedulePreflight(180));
+    });
     const publicationErrorFromResponse = async response => {
         const type = response.headers.get("content-type") || "";
         if (type.includes("application/json")) {
             const payload = await response.json().catch(() => ({}));
             const error = new Error(payload?.message || `Publication request failed with HTTP ${response.status}.`);
             error.code = payload?.code || null;
+            error.traceId = payload?.traceId || null;
             return error;
         }
         const text = await response.text();
@@ -2675,6 +2792,17 @@
         updateOutput();
     };
 
+    const openPreviewWindow = () => {
+        const popup = window.open("about:blank", "_blank");
+        if (!popup) return null;
+        try {
+            popup.document.title = "Preparing Compendium preview";
+            popup.document.body.style.cssText = "margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f7f9f8;color:#23302b";
+            popup.document.body.textContent = "Preparing Compendium preview…";
+        } catch { /* about:blank should be same-origin; keep preview non-blocking if a browser differs */ }
+        return popup;
+    };
+
     const requestPdf = async previewRequest => {
         const targetUrl = previewRequest ? previewUrl : generateUrl;
         if (!targetUrl || exportBusy) return;
@@ -2687,7 +2815,7 @@
             return;
         }
 
-        const previewWindow = previewRequest ? window.open("about:blank", "_blank") : null;
+        const previewWindow = previewRequest ? openPreviewWindow() : null;
         syncHidden();
         setExportBusy(true, previewRequest);
         try {
@@ -2723,8 +2851,15 @@
                 window.setTimeout(() => URL.revokeObjectURL(url), 30000);
             }
         } catch (error) {
-            if (previewWindow && !previewWindow.closed) previewWindow.close();
-            window.alert(error?.message || "The Compendium PDF could not be generated.");
+            if (previewWindow && !previewWindow.closed) {
+                try { previewWindow.close(); } catch { /* best effort */ }
+                if (!previewWindow.closed) {
+                    try { previewWindow.document.body.textContent = error?.message || "The Compendium preview could not be generated."; }
+                    catch { /* browser owns the fallback tab */ }
+                }
+            }
+            const reference = error?.traceId ? `\n\nReference: ${error.traceId}` : "";
+            window.alert(`${error?.message || "The Compendium PDF could not be generated."}${reference}`);
         } finally {
             setExportBusy(false, previewRequest);
         }
@@ -2768,7 +2903,11 @@
         }
         syncHidden();
         const persisted = !renderDirty();
-        writeStructureHandoff(persisted);
+        const handoffWritten = writeStructureHandoff(persisted);
+        if (!persisted && !handoffWritten) {
+            window.alert("PRISM could not preserve the current unsaved Compendium state for the Structure Editor. Save the Compendium or retry before leaving this page.");
+            return;
+        }
         const target = new URL(form.dataset.structureEditorUrl || "/Projects/Publications/Compendium/Structure", location.origin);
         target.searchParams.set("presetId", String(activePresetId));
         location.assign(target.toString());

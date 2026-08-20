@@ -1,0 +1,1372 @@
+TAP version 13
+# Subtest: phase 23 preserves all-project candidate selection and proliferation as a filter
+ok 1 - phase 23 preserves all-project candidate selection and proliferation as a filter
+  ---
+  duration_ms: 1.999612
+  type: 'test'
+  ...
+# Subtest: phase 23 keeps user-authored project membership and order authoritative
+ok 2 - phase 23 keeps user-authored project membership and order authoritative
+  ---
+  duration_ms: 0.527324
+  type: 'test'
+  ...
+# Subtest: editorial composer offers project brief by default with capability and description alternatives
+ok 3 - editorial composer offers project brief by default with capability and description alternatives
+  ---
+  duration_ms: 0.342012
+  type: 'test'
+  ...
+# Subtest: editorial composer separates publication grouping from sort order and preserves authoritative technical category
+ok 4 - editorial composer separates publication grouping from sort order and preserves authoritative technical category
+  ---
+  duration_ms: 0.387967
+  type: 'test'
+  ...
+# Subtest: editorial composer exposes a direct cover hero chooser
+ok 5 - editorial composer exposes a direct cover hero chooser
+  ---
+  duration_ms: 0.400438
+  type: 'test'
+  ...
+# Subtest: capability dossier project pages use a consistent editorial grammar and dynamic narrative heading
+ok 6 - capability dossier project pages use a consistent editorial grammar and dynamic narrative heading
+  ---
+  duration_ms: 0.347016
+  type: 'test'
+  ...
+# Subtest: phase 23 turns review into a focused project-by-project workspace
+ok 7 - phase 23 turns review into a focused project-by-project workspace
+  ---
+  duration_ms: 0.503172
+  type: 'test'
+  ...
+# Subtest: phase 23 stores publication-specific image choice and focal crop, not factual project data
+ok 8 - phase 23 stores publication-specific image choice and focal crop, not factual project data
+  ---
+  duration_ms: 0.313468
+  type: 'test'
+  ...
+# Subtest: phase 23 provides automatic and explicit image selection with missing-saved-image recovery
+ok 9 - phase 23 provides automatic and explicit image selection with missing-saved-image recovery
+  ---
+  duration_ms: 0.554701
+  type: 'test'
+  ...
+# Subtest: phase 23 uses the shared Publications image source for probe, preview and final crop render
+ok 10 - phase 23 uses the shared Publications image source for probe, preview and final crop render
+  ---
+  duration_ms: 0.573593
+  type: 'test'
+  ...
+# Subtest: phase 24 evaluates effective DPI against the redesigned reviewed project-image frame
+ok 11 - phase 24 evaluates effective DPI against the redesigned reviewed project-image frame
+  ---
+  duration_ms: 0.606723
+  type: 'test'
+  ...
+# Subtest: phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets
+ok 12 - phase 23 review fingerprint binds live facts and publication imagery but is not persisted in presets
+  ---
+  duration_ms: 0.32251
+  type: 'test'
+  ...
+# Subtest: phase 23 dirty state excludes review fingerprint while including image and crop decisions
+ok 13 - phase 23 dirty state excludes review fingerprint while including image and crop decisions
+  ---
+  duration_ms: 0.275359
+  type: 'test'
+  ...
+# Subtest: phase 24.1 readiness separates workflow review state from publication-quality findings
+ok 14 - phase 24.1 readiness separates workflow review state from publication-quality findings
+  ---
+  duration_ms: 0.357642
+  type: 'test'
+  ...
+# Subtest: phase 23 readiness findings are filterable and actionable rather than a passive warning register
+ok 15 - phase 23 readiness findings are filterable and actionable rather than a passive warning register
+  ---
+  duration_ms: 0.556241
+  type: 'test'
+  ...
+# Subtest: phase 23 review actions respect project maintenance authority
+ok 16 - phase 23 review actions respect project maintenance authority
+  ---
+  duration_ms: 0.172746
+  type: 'test'
+  ...
+# Subtest: phase 23 avoids stale async preflight and review responses
+ok 17 - phase 23 avoids stale async preflight and review responses
+  ---
+  duration_ms: 0.286858
+  type: 'test'
+  ...
+# Subtest: publication workspace persists first-class sections and project narrative overrides through schema v5
+ok 18 - publication workspace persists first-class sections and project narrative overrides through schema v5
+  ---
+  duration_ms: 0.347788
+  type: 'test'
+  ...
+# Subtest: phase 23 registers readiness policy without creating a second factual store
+ok 19 - phase 23 registers readiness policy without creating a second factual store
+  ---
+  duration_ms: 0.183282
+  type: 'test'
+  ...
+# Subtest: phase 23 retains safe shared-preset concurrency and PRISM modal load handling
+ok 20 - phase 23 retains safe shared-preset concurrency and PRISM modal load handling
+  ---
+  duration_ms: 0.438245
+  type: 'test'
+  ...
+# Subtest: phase 23 user-facing copy removes server and data-model language
+ok 21 - phase 23 user-facing copy removes server and data-model language
+  ---
+  duration_ms: 0.291921
+  type: 'test'
+  ...
+# Subtest: phase 23 adds dedicated responsive review and crop presentation
+ok 22 - phase 23 adds dedicated responsive review and crop presentation
+  ---
+  duration_ms: 0.331297
+  type: 'test'
+  ...
+# Subtest: phase 23.1 makes selection readiness semantic without relying on colour alone
+ok 23 - phase 23.1 makes selection readiness semantic without relying on colour alone
+  ---
+  duration_ms: 0.266537
+  type: 'test'
+  ...
+# Subtest: phase 23.1 treats the zero-selection state as setup rather than a visible publication error
+ok 24 - phase 23.1 treats the zero-selection state as setup rather than a visible publication error
+  ---
+  duration_ms: 0.331869
+  type: 'test'
+  ...
+# Subtest: phase 23.1 disables review navigation and output actions with explicit accessibility state
+ok 25 - phase 23.1 disables review navigation and output actions with explicit accessibility state
+  ---
+  duration_ms: 1.034652
+  type: 'test'
+  ...
+# Subtest: phase 24.1 makes initial review sequential and keeps warnings as a separate follow-up pass
+ok 26 - phase 24.1 makes initial review sequential and keeps warnings as a separate follow-up pass
+  ---
+  duration_ms: 0.634403
+  type: 'test'
+  ...
+# Subtest: phase 23.1 presents reviewed project state as Ready Warning or Review required
+ok 27 - phase 23.1 presents reviewed project state as Ready Warning or Review required
+  ---
+  duration_ms: 0.388142
+  type: 'test'
+  ...
+# Subtest: phase 23.1 confirms review immediately while retaining server fingerprint verification
+ok 28 - phase 23.1 confirms review immediately while retaining server fingerprint verification
+  ---
+  duration_ms: 0.321587
+  type: 'test'
+  ...
+# Subtest: phase 23.1 disables findings during refresh but preserves filter context until selection is cleared
+ok 29 - phase 23.1 disables findings during refresh but preserves filter context until selection is cleared
+  ---
+  duration_ms: 0.416439
+  type: 'test'
+  ...
+# Subtest: phase 24 separates physical page planning from QuestPDF composition
+ok 30 - phase 24 separates physical page planning from QuestPDF composition
+  ---
+  duration_ms: 0.457352
+  type: 'test'
+  ...
+# Subtest: phase 24.1 uses content-aware reviewed photo geometry across browser DPI and final PDF
+ok 31 - phase 24.1 uses content-aware reviewed photo geometry across browser DPI and final PDF
+  ---
+  duration_ms: 0.515169
+  type: 'test'
+  ...
+# Subtest: phase 24 supports deterministic continuation pages without emergency font shrinking
+ok 32 - phase 24 supports deterministic continuation pages without emergency font shrinking
+  ---
+  duration_ms: 1.480673
+  type: 'test'
+  ...
+# Subtest: phase 24 replaces the missing-photo placeholder with a designed text-led project layout
+ok 33 - phase 24 replaces the missing-photo placeholder with a designed text-led project layout
+  ---
+  duration_ms: 0.489708
+  type: 'test'
+  ...
+# Subtest: phase 24 cover and back cover use publication-controlled identity without fixed narrative copy
+ok 34 - phase 24 cover and back cover use publication-controlled identity without fixed narrative copy
+  ---
+  duration_ms: 0.493268
+  type: 'test'
+  ...
+# Subtest: phase 24 verifies the physical PDF before it is issued
+ok 35 - phase 24 verifies the physical PDF before it is issued
+  ---
+  duration_ms: 0.409627
+  type: 'test'
+  ...
+# Subtest: phase 24 allows preview before review but gates final issue on complete review
+ok 36 - phase 24 allows preview before review but gates final issue on complete review
+  ---
+  duration_ms: 0.20801
+  type: 'test'
+  ...
+# Subtest: phase 24 renders review markdown instead of exposing markdown source syntax
+ok 37 - phase 24 renders review markdown instead of exposing markdown source syntax
+  ---
+  duration_ms: 0.179466
+  type: 'test'
+  ...
+# Subtest: phase 24.1 removes routine automatic-image and normal proliferation-state noise from readiness
+ok 38 - phase 24.1 removes routine automatic-image and normal proliferation-state noise from readiness
+  ---
+  duration_ms: 0.128346
+  type: 'test'
+  ...
+# Subtest: phase 24 registers page planning and physical verification services
+ok 39 - phase 24 registers page planning and physical verification services
+  ---
+  duration_ms: 0.063938
+  type: 'test'
+  ...
+# Subtest: phase 24.1 supports continuous review with Ctrl Enter while avoiding editable controls and modals
+ok 40 - phase 24.1 supports continuous review with Ctrl Enter while avoiding editable controls and modals
+  ---
+  duration_ms: 0.288901
+  type: 'test'
+  ...
+# Subtest: phase 24.1 makes review metadata context-sensitive and cost units explicit
+ok 41 - phase 24.1 makes review metadata context-sensitive and cost units explicit
+  ---
+  duration_ms: 0.495499
+  type: 'test'
+  ...
+# Subtest: phase 24.1 replaces the automatic cover mosaic with one controlled hero or graphic fallback
+ok 42 - phase 24.1 replaces the automatic cover mosaic with one controlled hero or graphic fallback
+  ---
+  duration_ms: 0.771394
+  type: 'test'
+  ...
+# Subtest: phase 24.1 sanitizes publication text before planning and rendering
+ok 43 - phase 24.1 sanitizes publication text before planning and rendering
+  ---
+  duration_ms: 0.2096
+  type: 'test'
+  ...
+# Subtest: phase 24.1 orders readiness findings by severity and publication order
+ok 44 - phase 24.1 orders readiness findings by severity and publication order
+  ---
+  duration_ms: 1.607893
+  type: 'test'
+  ...
+# Subtest: phase 24.1 has a content-aware no-JS review-image aspect fallback
+ok 45 - phase 24.1 has a content-aware no-JS review-image aspect fallback
+  ---
+  duration_ms: 0.291224
+  type: 'test'
+  ...
+# Subtest: phase 26 makes Brochure and Compendium true full-width publication workspaces
+ok 46 - phase 26 makes Brochure and Compendium true full-width publication workspaces
+  ---
+  duration_ms: 1.034504
+  type: 'test'
+  ...
+# Subtest: phase 26 custom sections are first-class independent objects rather than project-derived names
+ok 47 - phase 26 custom sections are first-class independent objects rather than project-derived names
+  ---
+  duration_ms: 0.273803
+  type: 'test'
+  ...
+# Subtest: phase 26 preserves custom section order while sorting projects within sections
+ok 48 - phase 26 preserves custom section order while sorting projects within sections
+  ---
+  duration_ms: 0.339751
+  type: 'test'
+  ...
+# Subtest: phase 26 supports safe custom section creation rename reorder delete and drag assignment
+ok 49 - phase 26 supports safe custom section creation rename reorder delete and drag assignment
+  ---
+  duration_ms: 1.050222
+  type: 'test'
+  ...
+# Subtest: phase 26 supports a per-project narrative override while retaining a publication default
+ok 50 - phase 26 supports a per-project narrative override while retaining a publication default
+  ---
+  duration_ms: 0.434269
+  type: 'test'
+  ...
+# Subtest: phase 26 aggregates readiness findings and removes authoring language from issued no-photo pages
+ok 51 - phase 26 aggregates readiness findings and removes authoring language from issued no-photo pages
+  ---
+  duration_ms: 0.32618
+  type: 'test'
+  ...
+# Subtest: phase 26 no-grouping index suppresses an artificial Projects section heading
+ok 52 - phase 26 no-grouping index suppresses an artificial Projects section heading
+  ---
+  duration_ms: 0.132345
+  type: 'test'
+  ...
+# Subtest: phase 27 pins final output while the publication structure owns the rail scroll viewport
+ok 53 - phase 27 pins final output while the publication structure owns the rail scroll viewport
+  ---
+  duration_ms: 1.589432
+  type: 'test'
+  ...
+# Subtest: phase 27 uses wide monitors for a readable project publication register
+ok 54 - phase 27 uses wide monitors for a readable project publication register
+  ---
+  duration_ms: 0.460066
+  type: 'test'
+  ...
+# Subtest: phase 27 review includes a near-WYSIWYG dossier page and visible section rename affordance
+ok 55 - phase 27 review includes a near-WYSIWYG dossier page and visible section rename affordance
+  ---
+  duration_ms: 5.961189
+  type: 'test'
+  ...
+# Subtest: phase 27 removes repeated category and lifecycle from the PDF running header
+ok 56 - phase 27 removes repeated category and lifecycle from the PDF running header
+  ---
+  duration_ms: 0.376692
+  type: 'test'
+  ...
+# Subtest: phase 27 adapts PDF fact geometry and narrative image pressure
+ok 57 - phase 27 adapts PDF fact geometry and narrative image pressure
+  ---
+  duration_ms: 0.985589
+  type: 'test'
+  ...
+# Subtest: phase 27 automatic cover selection prefers intentional project cover sources
+ok 58 - phase 27 automatic cover selection prefers intentional project cover sources
+  ---
+  duration_ms: 0.329892
+  type: 'test'
+  ...
+# Subtest: phase 27 latest chronology and technical taxonomy are authoritative and deterministic
+ok 59 - phase 27 latest chronology and technical taxonomy are authoritative and deterministic
+  ---
+  duration_ms: 0.219824
+  type: 'test'
+  ...
+# Subtest: phase 28 makes Review proof-first with focus mode and explicit preview zoom
+ok 60 - phase 28 makes Review proof-first with focus mode and explicit preview zoom
+  ---
+  duration_ms: 1.391557
+  type: 'test'
+  ...
+# Subtest: phase 28 consolidates Review scrolling and compresses duplicate image inspection
+ok 61 - phase 28 consolidates Review scrolling and compresses duplicate image inspection
+  ---
+  duration_ms: 5.103302
+  type: 'test'
+  ...
+# Subtest: phase 28 supports scalable section collapse without changing publication structure
+ok 62 - phase 28 supports scalable section collapse without changing publication structure
+  ---
+  duration_ms: 0.26963
+  type: 'test'
+  ...
+# Subtest: phase 28 keeps issue commands reachable with a viewport output dock
+ok 63 - phase 28 keeps issue commands reachable with a viewport output dock
+  ---
+  duration_ms: 1.606484
+  type: 'test'
+  ...
+# Subtest: phase 28 turns grouped readiness findings into review queues
+ok 64 - phase 28 turns grouped readiness findings into review queues
+  ---
+  duration_ms: 0.392841
+  type: 'test'
+  ...
+# Subtest: phase 29.1 keeps floating output commands visually and functionally aligned with final output
+ok 65 - phase 29.1 keeps floating output commands visually and functionally aligned with final output
+  ---
+  duration_ms: 1.544915
+  type: 'test'
+  ...
+# Subtest: phase 29.1 makes focus review proof-first instead of squeezing the structure rail
+ok 66 - phase 29.1 makes focus review proof-first instead of squeezing the structure rail
+  ---
+  duration_ms: 1.023393
+  type: 'test'
+  ...
+# Subtest: phase 29.1 structure editor is a viewport application with persistent save state
+ok 67 - phase 29.1 structure editor is a viewport application with persistent save state
+  ---
+  duration_ms: 0.510162
+  type: 'test'
+  ...
+# Subtest: phase 29.1 supports filtered bulk selection and a collapsible section navigator
+ok 68 - phase 29.1 supports filtered bulk selection and a collapsible section navigator
+  ---
+  duration_ms: 0.287628
+  type: 'test'
+  ...
+# Subtest: phase 29.1 makes custom section rename affordance explicit
+ok 69 - phase 29.1 makes custom section rename affordance explicit
+  ---
+  duration_ms: 0.279494
+  type: 'test'
+  ...
+# Subtest: phase 29.1 removes desktop project-register horizontal overflow pressure
+ok 70 - phase 29.1 removes desktop project-register horizontal overflow pressure
+  ---
+  duration_ms: 0.528251
+  type: 'test'
+  ...
+# Subtest: phase 29 makes each candidate project row a keyboard accessible selection target
+ok 71 - phase 29 makes each candidate project row a keyboard accessible selection target
+  ---
+  duration_ms: 1.406252
+  type: 'test'
+  ...
+# Subtest: phase 29 exposes a full screen structure editor from the compact rail
+ok 72 - phase 29 exposes a full screen structure editor from the compact rail
+  ---
+  duration_ms: 0.27617
+  type: 'test'
+  ...
+# Subtest: phase 29 structure editor reuses the existing preset model and bulk updates structure without a schema fork
+ok 73 - phase 29 structure editor reuses the existing preset model and bulk updates structure without a schema fork
+  ---
+  duration_ms: 0.213385
+  type: 'test'
+  ...
+# Subtest: phase 29 structure editor supports large publication direct manipulation and bulk movement
+ok 74 - phase 29 structure editor supports large publication direct manipulation and bulk movement
+  ---
+  duration_ms: 0.321593
+  type: 'test'
+  ...
+# Subtest: phase 29 preserves current browser authoring and review state across the structure editor route
+ok 75 - phase 29 preserves current browser authoring and review state across the structure editor route
+  ---
+  duration_ms: 0.172485
+  type: 'test'
+  ...
+# Subtest: phase 29 protects unsaved structure work and supports explicit save and return semantics
+ok 76 - phase 29 protects unsaved structure work and supports explicit save and return semantics
+  ---
+  duration_ms: 0.324841
+  type: 'test'
+  ...
+# Subtest: phase 30.1 makes inherited cover identity explicit and reversible
+ok 77 - phase 30.1 makes inherited cover identity explicit and reversible
+  ---
+  duration_ms: 1.698474
+  type: 'test'
+  ...
+# Subtest: phase 30.1 uses authoritative fixed A4 proof coordinates instead of responsive reflow
+ok 78 - phase 30.1 uses authoritative fixed A4 proof coordinates instead of responsive reflow
+  ---
+  duration_ms: 2.210319
+  type: 'test'
+  ...
+# Subtest: phase 30.1 automatic multi-image composition prefers different photos and projects
+ok 79 - phase 30.1 automatic multi-image composition prefers different photos and projects
+  ---
+  duration_ms: 0.62398
+  type: 'test'
+  ...
+# Subtest: phase 30.1 makes compact cover actions template-aware
+ok 80 - phase 30.1 makes compact cover actions template-aware
+  ---
+  duration_ms: 0.421659
+  type: 'test'
+  ...
+# Subtest: phase 30.1 uses meaningful mark names and optical sizing
+ok 81 - phase 30.1 uses meaningful mark names and optical sizing
+  ---
+  duration_ms: 1.004725
+  type: 'test'
+  ...
+# Subtest: phase 30.1 elevates missing cover-suitable automatic imagery to warning
+ok 82 - phase 30.1 elevates missing cover-suitable automatic imagery to warning
+  ---
+  duration_ms: 0.262884
+  type: 'test'
+  ...
+# Subtest: phase 30.1 keeps crop unavailable while project imagery uses Fit
+ok 83 - phase 30.1 keeps crop unavailable while project imagery uses Fit
+  ---
+  duration_ms: 0.230521
+  type: 'test'
+  ...
+# Subtest: phase 30.1 advances publication build identity without a schema migration
+ok 84 - phase 30.1 advances publication build identity without a schema migration
+  ---
+  duration_ms: 0.159999
+  type: 'test'
+  ...
+# Subtest: phase 30 persists first class front/back cover composition through schema v6
+ok 85 - phase 30 persists first class front/back cover composition through schema v6
+  ---
+  duration_ms: 1.70308
+  type: 'test'
+  ...
+# Subtest: phase 30 exposes a dedicated full screen cover editor with controlled layouts
+ok 86 - phase 30 exposes a dedicated full screen cover editor with controlled layouts
+  ---
+  duration_ms: 0.491356
+  type: 'test'
+  ...
+# Subtest: phase 30 makes cover identity publication-controlled rather than renderer hard-coded
+ok 87 - phase 30 makes cover identity publication-controlled rather than renderer hard-coded
+  ---
+  duration_ms: 0.356948
+  type: 'test'
+  ...
+# Subtest: phase 30 supports single and multi image covers with independent fit and crop
+ok 88 - phase 30 supports single and multi image covers with independent fit and crop
+  ---
+  duration_ms: 0.403252
+  type: 'test'
+  ...
+# Subtest: phase 30 gives project dossier imagery fit/fill parity across review and PDF
+ok 89 - phase 30 gives project dossier imagery fit/fill parity across review and PDF
+  ---
+  duration_ms: 0.204166
+  type: 'test'
+  ...
+# Subtest: phase 30 separates technical image quality from editorial cover suitability
+ok 90 - phase 30 separates technical image quality from editorial cover suitability
+  ---
+  duration_ms: 0.353682
+  type: 'test'
+  ...
+# Subtest: phase 30 blocks stale explicit cover images and retains automatic fallback resilience
+ok 91 - phase 30 blocks stale explicit cover images and retains automatic fallback resilience
+  ---
+  duration_ms: 0.189181
+  type: 'test'
+  ...
+# Subtest: phase 30 adds deterministic publication content hygiene warnings without rewriting source data
+ok 92 - phase 30 adds deterministic publication content hygiene warnings without rewriting source data
+  ---
+  duration_ms: 0.128827
+  type: 'test'
+  ...
+# Subtest: phase 30 preserves cover editor state and logo placement through save contracts
+ok 93 - phase 30 preserves cover editor state and logo placement through save contracts
+  ---
+  duration_ms: 0.481033
+  type: 'test'
+  ...
+# Subtest: phase 31.1 replaces fixed character budgets with a shared geometry-aware fit planner
+ok 94 - phase 31.1 replaces fixed character budgets with a shared geometry-aware fit planner
+  ---
+  duration_ms: 1.057901
+  type: 'test'
+  ...
+# Subtest: phase 31.1 publishes pagination diagnostics into review instead of hiding continuation decisions
+ok 95 - phase 31.1 publishes pagination diagnostics into review instead of hiding continuation decisions
+  ---
+  duration_ms: 0.684014
+  type: 'test'
+  ...
+# Subtest: phase 31.1 uses the exact planned image height for PDF rendering and browser proof geometry
+ok 96 - phase 31.1 uses the exact planned image height for PDF rendering and browser proof geometry
+  ---
+  duration_ms: 0.236791
+  type: 'test'
+  ...
+# Subtest: phase 31.1 protects technical readability using the longest bullet as well as aggregate length
+ok 97 - phase 31.1 protects technical readability using the longest bullet as well as aggregate length
+  ---
+  duration_ms: 0.312637
+  type: 'test'
+  ...
+# Subtest: phase 31.1 aggregates all IPR credentials into one programme module rather than truncating to two records
+ok 98 - phase 31.1 aggregates all IPR credentials into one programme module rather than truncating to two records
+  ---
+  duration_ms: 0.218589
+  type: 'test'
+  ...
+# Subtest: phase 31.1 uses a readable two-by-two programme grid when four optional modules are present
+ok 99 - phase 31.1 uses a readable two-by-two programme grid when four optional modules are present
+  ---
+  duration_ms: 0.378375
+  type: 'test'
+  ...
+# Subtest: phase 31.1 fixes continuation labelling and wide-register collision regression
+ok 100 - phase 31.1 fixes continuation labelling and wide-register collision regression
+  ---
+  duration_ms: 2.062995
+  type: 'test'
+  ...
+# Subtest: phase 31.1 invalidates stale approvals when the pagination contract changes
+ok 101 - phase 31.1 invalidates stale approvals when the pagination contract changes
+  ---
+  duration_ms: 0.619439
+  type: 'test'
+  ...
+# Subtest: phase 31.1 advances the publication build identity
+ok 102 - phase 31.1 advances the publication build identity
+  ---
+  duration_ms: 0.417357
+  type: 'test'
+  ...
+# Subtest: phase 31 exposes four controlled dossier families with Automatic as the default authoring mode
+ok 103 - phase 31 exposes four controlled dossier families with Automatic as the default authoring mode
+  ---
+  duration_ms: 1.666078
+  type: 'test'
+  ...
+# Subtest: phase 31 records authoritative hardware technical specification bullets on the project master record
+ok 104 - phase 31 records authoritative hardware technical specification bullets on the project master record
+  ---
+  duration_ms: 0.199816
+  type: 'test'
+  ...
+# Subtest: phase 31 persists dossier presentation choices through schema v7 and a forward migration
+ok 105 - phase 31 persists dossier presentation choices through schema v7 and a forward migration
+  ---
+  duration_ms: 0.282094
+  type: 'test'
+  ...
+# Subtest: phase 31 resolves programme information from live PRISM data and omits absent optional facts
+ok 106 - phase 31 resolves programme information from live PRISM data and omits absent optional facts
+  ---
+  duration_ms: 0.311935
+  type: 'test'
+  ...
+# Subtest: phase 31 supports one to three distinct dossier images with per-slot fit crop and explicit locking
+ok 107 - phase 31 supports one to three distinct dossier images with per-slot fit crop and explicit locking
+  ---
+  duration_ms: 0.715551
+  type: 'test'
+  ...
+# Subtest: phase 31 renders adaptive technical specifications rather than fixed empty boxes
+ok 108 - phase 31 renders adaptive technical specifications rather than fixed empty boxes
+  ---
+  duration_ms: 0.580973
+  type: 'test'
+  ...
+# Subtest: phase 31 allows photography to yield space before text and provides deterministic technical continuation pages
+ok 109 - phase 31 allows photography to yield space before text and provides deterministic technical continuation pages
+  ---
+  duration_ms: 0.139489
+  type: 'test'
+  ...
+# Subtest: phase 31 live proof mirrors the modular programme specification and multi-image geometry
+ok 110 - phase 31 live proof mirrors the modular programme specification and multi-image geometry
+  ---
+  duration_ms: 0.631975
+  type: 'test'
+  ...
+# Subtest: phase 31 review fingerprint invalidates approval when adaptive dossier facts or presentation changes
+ok 111 - phase 31 review fingerprint invalidates approval when adaptive dossier facts or presentation changes
+  ---
+  duration_ms: 0.389163
+  type: 'test'
+  ...
+# Subtest: phase 31 advances the publication build identity
+ok 112 - phase 31 advances the publication build identity
+  ---
+  duration_ms: 0.44424
+  type: 'test'
+  ...
+# Subtest: phase 32 ranks every valid one-page candidate instead of accepting first fit
+ok 113 - phase 32 ranks every valid one-page candidate instead of accepting first fit
+  ---
+  duration_ms: 0.959833
+  type: 'test'
+  ...
+# Subtest: phase 32 makes narrative typography part of the shared composition contract
+ok 114 - phase 32 makes narrative typography part of the shared composition contract
+  ---
+  duration_ms: 0.511382
+  type: 'test'
+  ...
+# Subtest: phase 32 is conservative with technical specification columns and improves readable type
+ok 115 - phase 32 is conservative with technical specification columns and improves readable type
+  ---
+  duration_ms: 0.71277
+  type: 'test'
+  ...
+# Subtest: phase 32 distinguishes curated photography from images displayed by the selected layout
+ok 116 - phase 32 distinguishes curated photography from images displayed by the selected layout
+  ---
+  duration_ms: 0.50724
+  type: 'test'
+  ...
+# Subtest: phase 32 adapts programme labels and uses coloured programme icon tiles
+ok 117 - phase 32 adapts programme labels and uses coloured programme icon tiles
+  ---
+  duration_ms: 0.537343
+  type: 'test'
+  ...
+# Subtest: phase 32 gives the cover proof Fit 75 and 100 percent controls with viewport reset
+ok 118 - phase 32 gives the cover proof Fit 75 and 100 percent controls with viewport reset
+  ---
+  duration_ms: 0.281774
+  type: 'test'
+  ...
+# Subtest: phase 32 advances review and PDF composition identities
+ok 119 - phase 32 advances review and PDF composition identities
+  ---
+  duration_ms: 0.221115
+  type: 'test'
+  ...
+# Subtest: phase 33 resolves cover modal controls from the document portal
+ok 120 - phase 33 resolves cover modal controls from the document portal
+  ---
+  duration_ms: 1.059942
+  type: 'test'
+  ...
+# Subtest: phase 33 lets a visible automatic Fill image transition directly into crop editing
+ok 121 - phase 33 lets a visible automatic Fill image transition directly into crop editing
+  ---
+  duration_ms: 0.544136
+  type: 'test'
+  ...
+# Subtest: phase 33 fixes icon-text spacing and back-button hover without leaking heading styles into buttons
+ok 122 - phase 33 fixes icon-text spacing and back-button hover without leaking heading styles into buttons
+  ---
+  duration_ms: 1.430436
+  type: 'test'
+  ...
+# Subtest: phase 33 makes dossier layout choices container-safe instead of forcing five narrow equal columns
+ok 123 - phase 33 makes dossier layout choices container-safe instead of forcing five narrow equal columns
+  ---
+  duration_ms: 0.950868
+  type: 'test'
+  ...
+# Subtest: phase 33 uses the same local DM Sans publication family in browser proofs and QuestPDF
+ok 124 - phase 33 uses the same local DM Sans publication family in browser proofs and QuestPDF
+  ---
+  duration_ms: 0.643841
+  type: 'test'
+  ...
+# Subtest: phase 33 normalises publication tracking and title leading
+ok 125 - phase 33 normalises publication tracking and title leading
+  ---
+  duration_ms: 0.274332
+  type: 'test'
+  ...
+# Subtest: phase 33 keeps the fixed output dock from consuming the final working controls
+ok 126 - phase 33 keeps the fixed output dock from consuming the final working controls
+  ---
+  duration_ms: 0.440962
+  type: 'test'
+  ...
+# Subtest: phase 33 advances review and PDF identities so existing approvals do not mask changed presentation
+ok 127 - phase 33 advances review and PDF identities so existing approvals do not mask changed presentation
+  ---
+  duration_ms: 0.200557
+  type: 'test'
+  ...
+# Subtest: phase 34 uses one local, deterministic 24-pixel line-icon system
+ok 128 - phase 34 uses one local, deterministic 24-pixel line-icon system
+  ---
+  duration_ms: 2.739498
+  type: 'test'
+  ...
+# Subtest: phase 34 preserves disciplined category colours without mixed clip-art accents
+ok 129 - phase 34 preserves disciplined category colours without mixed clip-art accents
+  ---
+  duration_ms: 0.627039
+  type: 'test'
+  ...
+# Subtest: phase 34 differentiates filed, granted and mixed IPR within one document-seal family
+ok 130 - phase 34 differentiates filed, granted and mixed IPR within one document-seal family
+  ---
+  duration_ms: 0.314617
+  type: 'test'
+  ...
+# Subtest: phase 34 keeps browser proof and generated PDF programme furniture in parity
+ok 131 - phase 34 keeps browser proof and generated PDF programme furniture in parity
+  ---
+  duration_ms: 2.762732
+  type: 'test'
+  ...
+# Subtest: phase 34 keeps semantic keys stable across subsequent programme refinements
+ok 132 - phase 34 keeps semantic keys stable across subsequent programme refinements
+  ---
+  duration_ms: 0.886405
+  type: 'test'
+  ...
+# Subtest: phase 35 maps Arms / Services strictly from the authoritative Sponsoring Line Directorate
+ok 133 - phase 35 maps Arms / Services strictly from the authoritative Sponsoring Line Directorate
+  ---
+  duration_ms: 1.268889
+  type: 'test'
+  ...
+# Subtest: phase 35 carries the source meaning through DTOs, review JSON and PDF without legacy aliases
+ok 134 - phase 35 carries the source meaning through DTOs, review JSON and PDF without legacy aliases
+  ---
+  duration_ms: 0.72842
+  type: 'test'
+  ...
+# Subtest: phase 35 evaluates readiness and review identity against the same authoritative fact
+ok 135 - phase 35 evaluates readiness and review identity against the same authoritative fact
+  ---
+  duration_ms: 0.333899
+  type: 'test'
+  ...
+# Subtest: phase 35 removes nested icon tiles while retaining a stable alignment column
+ok 136 - phase 35 removes nested icon tiles while retaining a stable alignment column
+  ---
+  duration_ms: 1.136002
+  type: 'test'
+  ...
+# Subtest: phase 35 retains coloured local vectors and the programme panel as the sole container
+ok 137 - phase 35 retains coloured local vectors and the programme panel as the sole container
+  ---
+  duration_ms: 0.598272
+  type: 'test'
+  ...
+# Subtest: phase 36 introduces the quartet and balanced text-flow contracts with schema-safe identity bumps
+ok 138 - phase 36 introduces the quartet and balanced text-flow contracts with schema-safe identity bumps
+  ---
+  duration_ms: 1.75211
+  type: 'test'
+  ...
+# Subtest: phase 36 centralises cover slots and enforces a four-photo Fill-only Portfolio Quartet
+ok 139 - phase 36 centralises cover slots and enforces a four-photo Fill-only Portfolio Quartet
+  ---
+  duration_ms: 0.626293
+  type: 'test'
+  ...
+# Subtest: phase 36 makes existing cover mosaics adaptive instead of rendering blank white cells
+ok 140 - phase 36 makes existing cover mosaics adaptive instead of rendering blank white cells
+  ---
+  duration_ms: 0.350957
+  type: 'test'
+  ...
+# Subtest: phase 36 owns Balanced narrative segmentation on the server and sends exact segments to browser and PDF
+ok 141 - phase 36 owns Balanced narrative segmentation on the server and sends exact segments to browser and PDF
+  ---
+  duration_ms: 0.673039
+  type: 'test'
+  ...
+# Subtest: phase 36 uses server-selected technical/programme columns and quality-aware residual-space scoring
+ok 142 - phase 36 uses server-selected technical/programme columns and quality-aware residual-space scoring
+  ---
+  duration_ms: 0.927172
+  type: 'test'
+  ...
+# Subtest: phase 36 makes Compendium Fit frameless without changing Brochure defaults
+ok 143 - phase 36 makes Compendium Fit frameless without changing Brochure defaults
+  ---
+  duration_ms: 0.528943
+  type: 'test'
+  ...
+# Subtest: phase 36 preserves flow and phase-35 dossier image state through Structure Editor handoff
+ok 144 - phase 36 preserves flow and phase-35 dossier image state through Structure Editor handoff
+  ---
+  duration_ms: 0.605954
+  type: 'test'
+  ...
+# Subtest: phase 36 applies the final composition micro-refinements
+ok 145 - phase 36 applies the final composition micro-refinements
+  ---
+  duration_ms: 2.096322
+  type: 'test'
+  ...
+# Subtest: phase 37.1 centralises physical narrative typography limits
+ok 146 - phase 37.1 centralises physical narrative typography limits
+  ---
+  duration_ms: 1.396908
+  type: 'test'
+  ...
+# Subtest: phase 37.1 measures narrative physically with the publication font instead of character count for candidate height
+ok 147 - phase 37.1 measures narrative physically with the publication font instead of character count for candidate height
+  ---
+  duration_ms: 0.550706
+  type: 'test'
+  ...
+# Subtest: phase 37.1 makes Fit aspect-ratio-aware and passes source dimensions into planning
+ok 148 - phase 37.1 makes Fit aspect-ratio-aware and passes source dimensions into planning
+  ---
+  duration_ms: 0.544105
+  type: 'test'
+  ...
+# Subtest: phase 37.1 fixes resolved alignment parity for narrow Balanced side columns
+ok 149 - phase 37.1 fixes resolved alignment parity for narrow Balanced side columns
+  ---
+  duration_ms: 0.295988
+  type: 'test'
+  ...
+# Subtest: phase 37.1 makes Markdown paragraph typography caller-controlled
+ok 150 - phase 37.1 makes Markdown paragraph typography caller-controlled
+  ---
+  duration_ms: 0.311995
+  type: 'test'
+  ...
+# Subtest: phase 37.1 binds renderer change to a new review and PDF identity without a schema migration
+ok 151 - phase 37.1 binds renderer change to a new review and PDF identity without a schema migration
+  ---
+  duration_ms: 0.294812
+  type: 'test'
+  ...
+# Subtest: phase 37.1 browser proof preserves server paragraph rhythm without local clipping heuristics
+ok 152 - phase 37.1 browser proof preserves server paragraph rhythm without local clipping heuristics
+  ---
+  duration_ms: 0.530978
+  type: 'test'
+  ...
+# Subtest: phase 37.2 separates physical fit from editorial validity
+ok 153 - phase 37.2 separates physical fit from editorial validity
+  ---
+  duration_ms: 1.051643
+  type: 'test'
+  ...
+# Subtest: phase 37.2 treats small Fill frames as invalid normal editorial candidates
+ok 154 - phase 37.2 treats small Fill frames as invalid normal editorial candidates
+  ---
+  duration_ms: 0.456976
+  type: 'test'
+  ...
+# Subtest: phase 37.2 measures both side-column overflow and underfill
+ok 155 - phase 37.2 measures both side-column overflow and underfill
+  ---
+  duration_ms: 0.146836
+  type: 'test'
+  ...
+# Subtest: phase 37.2 surfaces manual composition imbalance as a publication warning
+ok 156 - phase 37.2 surfaces manual composition imbalance as a publication warning
+  ---
+  duration_ms: 0.353593
+  type: 'test'
+  ...
+# Subtest: phase 37.2 hardens duplicate narrative preflight
+ok 157 - phase 37.2 hardens duplicate narrative preflight
+  ---
+  duration_ms: 0.134293
+  type: 'test'
+  ...
+# Subtest: phase 37.2 restores compact four-column publication composition on desktop
+ok 158 - phase 37.2 restores compact four-column publication composition on desktop
+  ---
+  duration_ms: 0.608284
+  type: 'test'
+  ...
+# Subtest: phase 37.2 invalidates old review/render identity without a schema migration
+ok 159 - phase 37.2 invalidates old review/render identity without a schema migration
+  ---
+  duration_ms: 0.201157
+  type: 'test'
+  ...
+# Subtest: phase 37.3 persists optional per-project Additional Note through schema v10 and an additive migration
+ok 160 - phase 37.3 persists optional per-project Additional Note through schema v10 and an additive migration
+  ---
+  duration_ms: 1.936503
+  type: 'test'
+  ...
+# Subtest: phase 37.3 keeps Additional Note publication-specific and survives authoring plus Structure handoff
+ok 161 - phase 37.3 keeps Additional Note publication-specific and survives authoring plus Structure handoff
+  ---
+  duration_ms: 0.508852
+  type: 'test'
+  ...
+# Subtest: phase 37.3 exposes a non-destructive Additional Note editor and live proof
+ok 162 - phase 37.3 exposes a non-destructive Additional Note editor and live proof
+  ---
+  duration_ms: 0.707045
+  type: 'test'
+  ...
+# Subtest: phase 37.3 appends Additional Note after particulars and technical reference and physically paginates it
+ok 163 - phase 37.3 appends Additional Note after particulars and technical reference and physically paginates it
+  ---
+  duration_ms: 0.514843
+  type: 'test'
+  ...
+# Subtest: phase 37.3 review identity binds note content and concrete media rendition identity
+ok 164 - phase 37.3 review identity binds note content and concrete media rendition identity
+  ---
+  duration_ms: 0.617119
+  type: 'test'
+  ...
+# Subtest: phase 37.3 enforces measured Flow Below Image balance before Automatic optimisation
+ok 165 - phase 37.3 enforces measured Flow Below Image balance before Automatic optimisation
+  ---
+  duration_ms: 0.442504
+  type: 'test'
+  ...
+# Subtest: phase 37.3 keeps authoritative continuation and specification pagination physically measured
+ok 166 - phase 37.3 keeps authoritative continuation and specification pagination physically measured
+  ---
+  duration_ms: 0.486831
+  type: 'test'
+  ...
+# Subtest: phase 37.3 warns rather than blocks when a complete Fit image becomes editorially too shallow
+ok 167 - phase 37.3 warns rather than blocks when a complete Fit image becomes editorially too shallow
+  ---
+  duration_ms: 0.359138
+  type: 'test'
+  ...
+# Subtest: phase 37.3 hardens paragraph duplicate preflight without modifying source content
+ok 168 - phase 37.3 hardens paragraph duplicate preflight without modifying source content
+  ---
+  duration_ms: 0.664807
+  type: 'test'
+  ...
+# Subtest: phase 37.3 makes DM Sans authoritative for physical page measurement
+ok 169 - phase 37.3 makes DM Sans authoritative for physical page measurement
+  ---
+  duration_ms: 0.566413
+  type: 'test'
+  ...
+# Subtest: phase 37.3 presents Project Brief as the publication default and advances final identities
+ok 170 - phase 37.3 presents Project Brief as the publication default and advances final identities
+  ---
+  duration_ms: 0.883446
+  type: 'test'
+  ...
+# Subtest: phase 37.4 persists one publication-level particulars style through schema v11
+ok 171 - phase 37.4 persists one publication-level particulars style through schema v11
+  ---
+  duration_ms: 1.846195
+  type: 'test'
+  ...
+# Subtest: phase 37.4 exposes exactly Panel and Minimal as one Compendium-level presentation choice
+ok 172 - phase 37.4 exposes exactly Panel and Minimal as one Compendium-level presentation choice
+  ---
+  duration_ms: 0.336555
+  type: 'test'
+  ...
+# Subtest: phase 37.4 uses one authoritative particulars layout policy for both skins and pagination
+ok 173 - phase 37.4 uses one authoritative particulars layout policy for both skins and pagination
+  ---
+  duration_ms: 0.18927
+  type: 'test'
+  ...
+# Subtest: phase 37.4 renders current Panel unchanged and adds a frameless Minimal PDF treatment
+ok 174 - phase 37.4 renders current Panel unchanged and adds a frameless Minimal PDF treatment
+  ---
+  duration_ms: 0.44049
+  type: 'test'
+  ...
+# Subtest: phase 37.4 invalidates all reviews when the publication particulars style changes
+ok 175 - phase 37.4 invalidates all reviews when the publication particulars style changes
+  ---
+  duration_ms: 0.324031
+  type: 'test'
+  ...
+# Subtest: phase 37.4 preserves the global style through Structure Editor handoff and save
+ok 176 - phase 37.4 preserves the global style through Structure Editor handoff and save
+  ---
+  duration_ms: 0.161358
+  type: 'test'
+  ...
+# Subtest: phase 37.5 uses one heading rule for technical specifications and additional note
+ok 177 - phase 37.5 uses one heading rule for technical specifications and additional note
+  ---
+  duration_ms: 1.441637
+  type: 'test'
+  ...
+# Subtest: phase 37.5 browser proof mirrors the same heading-rule grammar
+ok 178 - phase 37.5 browser proof mirrors the same heading-rule grammar
+  ---
+  duration_ms: 1.371544
+  type: 'test'
+  ...
+# Subtest: phase 37.5 retains recovered rule height as editorial breathing reserve
+ok 179 - phase 37.5 retains recovered rule height as editorial breathing reserve
+  ---
+  duration_ms: 0.467217
+  type: 'test'
+  ...
+# Subtest: phase 37.5 opens project and edit actions in a new tab without giving the new tab opener access
+ok 180 - phase 37.5 opens project and edit actions in a new tab without giving the new tab opener access
+  ---
+  duration_ms: 0.791405
+  type: 'test'
+  ...
+# Subtest: phase 37.5 changes renderer identity without changing persisted schema or structure state version
+ok 181 - phase 37.5 changes renderer identity without changing persisted schema or structure state version
+  ---
+  duration_ms: 0.601664
+  type: 'test'
+  ...
+# Subtest: phase 37.5 leaves Panel and Minimal particulars renderers intact
+ok 182 - phase 37.5 leaves Panel and Minimal particulars renderers intact
+  ---
+  duration_ms: 0.532098
+  type: 'test'
+  ...
+# Subtest: phase 37.6 fixes Additional Note save-load-save round-trip on the main workspace
+ok 183 - phase 37.6 fixes Additional Note save-load-save round-trip on the main workspace
+  ---
+  duration_ms: 1.585503
+  type: 'test'
+  ...
+# Subtest: phase 37.6 distinguishes absent Structure note state from an explicit clear
+ok 184 - phase 37.6 distinguishes absent Structure note state from an explicit clear
+  ---
+  duration_ms: 0.841287
+  type: 'test'
+  ...
+# Subtest: phase 37.6 introduces one controlled semantic narrative model for measurement and PDF rendering
+ok 185 - phase 37.6 introduces one controlled semantic narrative model for measurement and PDF rendering
+  ---
+  duration_ms: 0.365815
+  type: 'test'
+  ...
+# Subtest: phase 37.6 physically paginates semantic narrative and keeps Additional Note heading semantics disabled
+ok 186 - phase 37.6 physically paginates semantic narrative and keeps Additional Note heading semantics disabled
+  ---
+  duration_ms: 0.525063
+  type: 'test'
+  ...
+# Subtest: phase 37.6 browser proof consumes server narrative blocks rather than independently inventing page semantics
+ok 187 - phase 37.6 browser proof consumes server narrative blocks rather than independently inventing page semantics
+  ---
+  duration_ms: 0.525029
+  type: 'test'
+  ...
+# Subtest: phase 37.6 makes the controlled formatting vocabulary discoverable without adding a rich text editor
+ok 188 - phase 37.6 makes the controlled formatting vocabulary discoverable without adding a rich text editor
+  ---
+  duration_ms: 0.213298
+  type: 'test'
+  ...
+# Subtest: phase 37.6 retains duplicate-content protection and conservative placeholder warnings
+ok 189 - phase 37.6 retains duplicate-content protection and conservative placeholder warnings
+  ---
+  duration_ms: 0.488814
+  type: 'test'
+  ...
+# Subtest: phase 37.6 changes render identity while preserving persisted schema and structure contract
+ok 190 - phase 37.6 changes render identity while preserving persisted schema and structure contract
+  ---
+  duration_ms: 0.223874
+  type: 'test'
+  ...
+# Subtest: phase 37.7 defines six curated themes and six controlled background treatments
+ok 191 - phase 37.7 defines six curated themes and six controlled background treatments
+  ---
+  duration_ms: 2.77722
+  type: 'test'
+  ...
+# Subtest: phase 37.7 keeps camouflage curated rather than universally available
+ok 192 - phase 37.7 keeps camouflage curated rather than universally available
+  ---
+  duration_ms: 0.250196
+  type: 'test'
+  ...
+# Subtest: phase 37.7 persists cover identity through schema v12 with legacy Green and Solid defaults
+ok 193 - phase 37.7 persists cover identity through schema v12 with legacy Green and Solid defaults
+  ---
+  duration_ms: 0.468176
+  type: 'test'
+  ...
+# Subtest: phase 37.7 main workspace and Cover Editor both round-trip theme and treatment
+ok 194 - phase 37.7 main workspace and Cover Editor both round-trip theme and treatment
+  ---
+  duration_ms: 0.204142
+  type: 'test'
+  ...
+# Subtest: phase 37.7 Cover Editor exposes compact publication-wide theme and background controls
+ok 195 - phase 37.7 Cover Editor exposes compact publication-wide theme and background controls
+  ---
+  duration_ms: 0.45704
+  type: 'test'
+  ...
+# Subtest: phase 37.7 uses one deterministic server SVG policy in browser proof and QuestPDF
+ok 196 - phase 37.7 uses one deterministic server SVG policy in browser proof and QuestPDF
+  ---
+  duration_ms: 0.258278
+  type: 'test'
+  ...
+# Subtest: phase 37.7 Clean Back starts clean without continuously enforcing destructive defaults
+ok 197 - phase 37.7 Clean Back starts clean without continuously enforcing destructive defaults
+  ---
+  duration_ms: 0.41099
+  type: 'test'
+  ...
+# Subtest: phase 37.7 normalizes template names and advances cover render identity
+ok 198 - phase 37.7 normalizes template names and advances cover render identity
+  ---
+  duration_ms: 0.201076
+  type: 'test'
+  ...
+# Subtest: phase 37.8 makes the mature Compendium capability set discoverable from Publications
+ok 199 - phase 37.8 makes the mature Compendium capability set discoverable from Publications
+  ---
+  duration_ms: 1.389929
+  type: 'test'
+  ...
+# Subtest: phase 37.8 adds an on-demand capability guide instead of a permanent workspace feature panel
+ok 200 - phase 37.8 adds an on-demand capability guide instead of a permanent workspace feature panel
+  ---
+  duration_ms: 1.169315
+  type: 'test'
+  ...
+# Subtest: phase 37.8 opens the guide from landing deep-link and then cleans the one-shot query flag
+ok 201 - phase 37.8 opens the guide from landing deep-link and then cleans the one-shot query flag
+  ---
+  duration_ms: 0.420795
+  type: 'test'
+  ...
+# Subtest: phase 37.8 suppresses the browser beforeunload prompt for intentional Cover Editor navigation
+ok 202 - phase 37.8 suppresses the browser beforeunload prompt for intentional Cover Editor navigation
+  ---
+  duration_ms: 0.934604
+  type: 'test'
+  ...
+# Subtest: phase 37.8 gives Cover and Structure return actions accurate non-overlapping semantics
+ok 203 - phase 37.8 gives Cover and Structure return actions accurate non-overlapping semantics
+  ---
+  duration_ms: 0.360769
+  type: 'test'
+  ...
+# Subtest: phase 37.8 keeps guide controls compact and accessible on narrower screens
+ok 204 - phase 37.8 keeps guide controls compact and accessible on narrower screens
+  ---
+  duration_ms: 0.549525
+  type: 'test'
+  ...
+# Subtest: phase 37 introduces narrative alignment with schema-v9 legacy-safe persistence
+ok 205 - phase 37 introduces narrative alignment with schema-v9 legacy-safe persistence
+  ---
+  duration_ms: 1.828283
+  type: 'test'
+  ...
+# Subtest: phase 37 upgrades Balanced flow to paragraph-first plus sentence-fill with measurable side utilisation
+ok 206 - phase 37 upgrades Balanced flow to paragraph-first plus sentence-fill with measurable side utilisation
+  ---
+  duration_ms: 1.014762
+  type: 'test'
+  ...
+# Subtest: phase 37 jointly evaluates multiple image heights instead of freezing the Balanced frame first
+ok 207 - phase 37 jointly evaluates multiple image heights instead of freezing the Balanced frame first
+  ---
+  duration_ms: 1.185233
+  type: 'test'
+  ...
+# Subtest: phase 37 provides publication default and per-project narrative alignment without unsafe narrow-column justification
+ok 208 - phase 37 provides publication default and per-project narrative alignment without unsafe narrow-column justification
+  ---
+  duration_ms: 0.869246
+  type: 'test'
+  ...
+# Subtest: phase 37 hard-gates low-DPI automatic hero layouts while retaining publisher override architecture
+ok 209 - phase 37 hard-gates low-DPI automatic hero layouts while retaining publisher override architecture
+  ---
+  duration_ms: 0.651197
+  type: 'test'
+  ...
+# Subtest: phase 37 strengthens residual-space scoring and responsive Project Particulars
+ok 210 - phase 37 strengthens residual-space scoring and responsive Project Particulars
+  ---
+  duration_ms: 0.739265
+  type: 'test'
+  ...
+# Subtest: phase 37 corrects Portfolio Quartet proof geometry into upper identity plus lower 1+3 mosaic
+ok 211 - phase 37 corrects Portfolio Quartet proof geometry into upper identity plus lower 1+3 mosaic
+  ---
+  duration_ms: 3.583344
+  type: 'test'
+  ...
+# Subtest: phase 37 preserves alignment through Structure Editor handoff and persisted structure save
+ok 212 - phase 37 preserves alignment through Structure Editor handoff and persisted structure save
+  ---
+  duration_ms: 0.464836
+  type: 'test'
+  ...
+# Subtest: phase 37 binds typography changes into review and publication identities
+ok 213 - phase 37 binds typography changes into review and publication identities
+  ---
+  duration_ms: 0.618017
+  type: 'test'
+  ...
+# Subtest: phase 37 keeps browser proof driven by server flow/alignment decisions rather than local pagination heuristics
+ok 214 - phase 37 keeps browser proof driven by server flow/alignment decisions rather than local pagination heuristics
+  ---
+  duration_ms: 1.25897
+  type: 'test'
+  ...
+# Subtest: main Compendium round-trips publication theme and cover background
+ok 215 - main Compendium round-trips publication theme and cover background
+  ---
+  duration_ms: 1.938912
+  type: 'test'
+  ...
+# Subtest: cover editor dirty signature excludes preview-only image metadata
+ok 216 - cover editor dirty signature excludes preview-only image metadata
+  ---
+  duration_ms: 0.765633
+  type: 'test'
+  ...
+# Subtest: automatic cover resolution comes from the shared server candidate contract
+ok 217 - automatic cover resolution comes from the shared server candidate contract
+  ---
+  duration_ms: 0.538865
+  type: 'test'
+  ...
+# Subtest: required slot and proof parity safeguards are present
+ok 218 - required slot and proof parity safeguards are present
+  ---
+  duration_ms: 2.687764
+  type: 'test'
+  ...
+# Subtest: cover identity typography adapts without truncating formal wording
+ok 219 - cover identity typography adapts without truncating formal wording
+  ---
+  duration_ms: 1.394115
+  type: 'test'
+  ...
+# Subtest: dense cover identity receives a server preflight warning as well as adaptive typography
+ok 220 - dense cover identity receives a server preflight warning as well as adaptive typography
+  ---
+  duration_ms: 0.511048
+  type: 'test'
+  ...
+# Subtest: phase 39 removes the output dock page scope failure
+ok 221 - phase 39 removes the output dock page scope failure
+  ---
+  duration_ms: 2.380465
+  type: 'test'
+  ...
+# Subtest: phase 39 structure handoff round-trips unsaved publication cover and photo state
+ok 222 - phase 39 structure handoff round-trips unsaved publication cover and photo state
+  ---
+  duration_ms: 4.216434
+  type: 'test'
+  ...
+# Subtest: phase 39 main and structure workspaces preserve the complete handoff payload
+ok 223 - phase 39 main and structure workspaces preserve the complete handoff payload
+  ---
+  duration_ms: 2.561036
+  type: 'test'
+  ...
+# Subtest: phase 39 rejects stale explicit cover assignments before export and assesses automatic imagery
+ok 224 - phase 39 rejects stale explicit cover assignments before export and assesses automatic imagery
+  ---
+  duration_ms: 1.515173
+  type: 'test'
+  ...
+# Subtest: phase 39 composition verification follows effective cover identity
+ok 225 - phase 39 composition verification follows effective cover identity
+  ---
+  duration_ms: 0.373555
+  type: 'test'
+  ...
+# Subtest: phase 39 generation failures return actionable diagnostics without exposing unexpected internals
+ok 226 - phase 39 generation failures return actionable diagnostics without exposing unexpected internals
+  ---
+  duration_ms: 1.438372
+  type: 'test'
+  ...
+# Subtest: phase 39 debounces identity-field preflight while retaining immediate structural checks
+ok 227 - phase 39 debounces identity-field preflight while retaining immediate structural checks
+  ---
+  duration_ms: 1.881329
+  type: 'test'
+  ...
+1..227
+# tests 227
+# suites 0
+# pass 227
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 583.8361

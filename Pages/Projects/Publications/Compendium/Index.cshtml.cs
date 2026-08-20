@@ -109,7 +109,20 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostPreflightAsync(CancellationToken cancellationToken)
     {
-        NormalizeInput();
+        try
+        {
+            NormalizeInput();
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Compendium preflight rejected malformed publication state.");
+            return JsonError(
+                StatusCodes.Status400BadRequest,
+                exception.Message,
+                "invalidPublicationState",
+                HttpContext.TraceIdentifier);
+        }
+
         var request = ToPublicationRequest();
         var data = await _readService.GetPublicationAsync(
             request,
@@ -186,6 +199,7 @@ public sealed class IndexModel : PageModel
         }
 
         var findings = new List<CompendiumFindingDto>();
+        var selectedProjectIds = projects.Select(item => item.ProjectId).ToHashSet();
 
         var frontTitle = design.ShowFrontTitle ? design.FrontTitle ?? publicationTitle : null;
         var frontSubtitle = design.ShowFrontSubtitle ? design.FrontSubtitle ?? publicationSubtitle : null;
@@ -214,15 +228,27 @@ public sealed class IndexModel : PageModel
             .Where(item => item.ProjectId is > 0 && item.PhotoId is > 0)
             .ToArray();
 
-        if (explicitSlots.Length > 0)
+        foreach (var slot in explicitSlots.Where(item => !selectedProjectIds.Contains(item.ProjectId!.Value)))
         {
-            var references = explicitSlots
+            findings.Add(new CompendiumFindingDto(
+                CompendiumFindingSeverity.Blocker,
+                "coverImageProjectNotSelected",
+                $"The selected {slot.Surface.ToString().ToLowerInvariant()} cover image for {CoverSlotDisplay(slot.SlotKey)} belongs to a project that is no longer selected. Choose another image or restore the project to the Compendium.",
+                slot.ProjectId));
+        }
+
+        var selectedExplicitSlots = explicitSlots
+            .Where(item => selectedProjectIds.Contains(item.ProjectId!.Value))
+            .ToArray();
+
+        if (selectedExplicitSlots.Length > 0)
+        {
+            var references = selectedExplicitSlots
                 .Select(item => new BrochurePhotoReference(item.ProjectId!.Value, item.PhotoId!.Value))
                 .Distinct()
                 .ToArray();
             var probes = await _photoService.ProbeAsync(references, cancellationToken);
-
-            foreach (var slot in explicitSlots)
+            foreach (var slot in selectedExplicitSlots)
             {
                 var projectId = slot.ProjectId!.Value;
                 var photoId = slot.PhotoId!.Value;
@@ -249,10 +275,9 @@ public sealed class IndexModel : PageModel
             }
         }
 
-        var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(
+        var coverSlots = CompendiumCoverTemplatePolicy.ResolveSlots(
             design.FrontTemplate,
             design.BackTemplate)
-            .Where(slot => slot.Required)
             .ToArray();
         var configuredBySlot = design.Images
             .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
@@ -269,33 +294,92 @@ public sealed class IndexModel : PageModel
                         .Distinct()
                         .ToArray(),
                     cancellationToken);
-        var hasReadyAutomaticCandidate = automaticCandidates.Any(candidate =>
-            automaticCandidateProbes.TryGetValue(candidate.PhotoId, out var probe)
-            && probe.ProjectId == candidate.ProjectId
-            && probe.IsReady);
+        var readyAutomaticCandidates = automaticCandidates
+            .Where(candidate =>
+                automaticCandidateProbes.TryGetValue(candidate.PhotoId, out var probe)
+                && probe.ProjectId == candidate.ProjectId
+                && probe.IsReady)
+            .ToArray();
+        var strictQuartet = design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet;
+        var usedCoverPhotos = new HashSet<(int ProjectId, int PhotoId)>();
+        var usedCoverProjects = new HashSet<int>();
 
-        foreach (var requirement in requiredSlots)
+        foreach (var requirement in coverSlots)
         {
-            if (!configuredBySlot.TryGetValue(
-                    (requirement.Surface, requirement.SlotKey.ToUpperInvariant()),
-                    out var slot)
-                || slot.ImageMode == CompendiumCoverImageMode.None)
+            configuredBySlot.TryGetValue(
+                (requirement.Surface, requirement.SlotKey.ToUpperInvariant()),
+                out var slot);
+            slot ??= new CompendiumCoverImageSlot(
+                requirement.Surface,
+                requirement.SlotKey,
+                CompendiumCoverImageMode.Automatic,
+                null,
+                null,
+                .5d,
+                .5d,
+                CompendiumImageFitMode.Fill);
+
+            if (slot.ImageMode == CompendiumCoverImageMode.None)
             {
-                findings.Add(new CompendiumFindingDto(
-                    CompendiumFindingSeverity.Blocker,
-                    "coverRequiredImageMissing",
-                    $"{CoverSlotDisplay(requirement.SlotKey)} is required by the selected {requirement.Surface.ToString().ToLowerInvariant()} cover template."));
+                if (requirement.Required)
+                {
+                    findings.Add(new CompendiumFindingDto(
+                        CompendiumFindingSeverity.Blocker,
+                        "coverRequiredImageMissing",
+                        $"{CoverSlotDisplay(requirement.SlotKey)} is required by the selected {requirement.Surface.ToString().ToLowerInvariant()} cover template."));
+                }
                 continue;
             }
 
-            if (slot.ImageMode == CompendiumCoverImageMode.Automatic
-                && !hasReadyAutomaticCandidate)
+            if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
+            {
+                if (slot.ProjectId is int explicitProject
+                    && slot.PhotoId is int explicitPhoto
+                    && selectedProjectIds.Contains(explicitProject))
+                {
+                    usedCoverPhotos.Add((explicitProject, explicitPhoto));
+                    usedCoverProjects.Add(explicitProject);
+                }
+                continue;
+            }
+
+            var automaticSequence = readyAutomaticCandidates
+                .Where(candidate =>
+                    !usedCoverPhotos.Contains((candidate.ProjectId, candidate.PhotoId))
+                    && !usedCoverProjects.Contains(candidate.ProjectId))
+                .Concat(readyAutomaticCandidates.Where(candidate =>
+                    !usedCoverPhotos.Contains((candidate.ProjectId, candidate.PhotoId))))
+                .Concat(strictQuartet
+                    ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>()
+                    : readyAutomaticCandidates)
+                .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
+                .Select(group => group.First())
+                .ToArray();
+            var resolved = automaticSequence.FirstOrDefault();
+            if (resolved is null)
+            {
+                if (requirement.Required)
+                {
+                    findings.Add(new CompendiumFindingDto(
+                        CompendiumFindingSeverity.Blocker,
+                        "coverAutomaticImageUnavailable",
+                        $"{CoverSlotDisplay(requirement.SlotKey)} requires a photograph, but no automatic cover image can currently be resolved."));
+                }
+                continue;
+            }
+
+            if (automaticCandidateProbes.TryGetValue(resolved.PhotoId, out var resolvedProbe)
+                && !resolvedProbe.IsPrintReady)
             {
                 findings.Add(new CompendiumFindingDto(
-                    CompendiumFindingSeverity.Blocker,
-                    "coverAutomaticImageUnavailable",
-                    $"{CoverSlotDisplay(requirement.SlotKey)} requires a photograph, but no automatic cover image can currently be resolved."));
+                    CompendiumFindingSeverity.Warning,
+                    "coverAutomaticImageLowResolution",
+                    $"The automatic {requirement.Surface.ToString().ToLowerInvariant()} cover image resolved for {CoverSlotDisplay(requirement.SlotKey)} is {resolvedProbe.Width} × {resolvedProbe.Height} and may reproduce softly in print.",
+                    resolved.ProjectId));
             }
+
+            usedCoverPhotos.Add((resolved.ProjectId, resolved.PhotoId));
+            usedCoverProjects.Add(resolved.ProjectId);
         }
 
         var needsFrontImagery = design.FrontTemplate != CompendiumFrontCoverTemplate.Minimal;
@@ -334,7 +418,6 @@ public sealed class IndexModel : PageModel
             }
 
             var candidateReferences = new List<BrochurePhotoReference>();
-            var selectedProjectIds = projects.Select(item => item.ProjectId).ToHashSet();
             candidateReferences.AddRange(explicitQuartetRefs.Select(item => new BrochurePhotoReference(item.Item1, item.Item2)));
             candidateReferences.AddRange((preferences ?? Array.Empty<CompendiumPhotoPreference>())
                 .Where(item => selectedProjectIds.Contains(item.ProjectId))
@@ -373,13 +456,28 @@ public sealed class IndexModel : PageModel
                 ? "supporting image 1"
                 : string.Equals(slotKey, "Secondary2", StringComparison.OrdinalIgnoreCase)
                     ? "supporting image 2"
-                    : $"slot '{slotKey}'";
+                    : string.Equals(slotKey, "Secondary3", StringComparison.OrdinalIgnoreCase)
+                        ? "supporting image 3"
+                        : $"slot '{slotKey}'";
 
     public async Task<IActionResult> OnPostReviewAsync(
         int projectId,
         CancellationToken cancellationToken)
     {
-        NormalizeInput();
+        try
+        {
+            NormalizeInput();
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Compendium review rejected malformed publication state.");
+            return JsonError(
+                StatusCodes.Status400BadRequest,
+                exception.Message,
+                "invalidPublicationState",
+                HttpContext.TraceIdentifier);
+        }
+
         var selection = ParseSelections().FirstOrDefault(item => item.ProjectId == projectId);
         if (selection is null)
         {
@@ -698,7 +796,27 @@ public sealed class IndexModel : PageModel
         bool preview,
         CancellationToken cancellationToken)
     {
-        NormalizeInput();
+        try
+        {
+            NormalizeInput();
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Compendium PDF request rejected malformed publication state.");
+            if (IsAjaxRequest())
+            {
+                return JsonError(
+                    StatusCodes.Status400BadRequest,
+                    exception.Message,
+                    "invalidPublicationState",
+                    HttpContext.TraceIdentifier);
+            }
+
+            ModelState.AddModelError(string.Empty, exception.Message);
+            await LoadWorkspaceAsync(loadPreset: false, cancellationToken);
+            return Page();
+        }
+
         var selections = ParseSelections();
 
         if (!ModelState.IsValid || selections.Count == 0)
@@ -762,22 +880,18 @@ public sealed class IndexModel : PageModel
         {
             _logger.LogError(
                 exception,
-                "Compendium PDF {Operation} failed.",
-                preview ? "preview" : "generation");
-            var message = preview
-                ? "The Compendium preview could not be generated. Review publication readiness and try again."
-                : exception is InvalidOperationException && exception.Message.Contains("Review all selected projects", StringComparison.Ordinal)
-                    ? exception.Message
-                    : "The Compendium could not be generated. Review publication readiness and try again.";
+                "Compendium PDF {Operation} failed. TraceId={TraceId}",
+                preview ? "preview" : "generation",
+                HttpContext.TraceIdentifier);
 
+            var (message, code) = DescribeGenerationFailure(exception, preview);
             if (IsAjaxRequest())
             {
-                var code = exception is CompendiumPdfCompositionException
-                    ? "compositionVerificationFailed"
-                    : (!preview && exception.Message.Contains("Review all selected projects", StringComparison.Ordinal)
-                        ? "reviewRequired"
-                        : "generationFailed");
-                return JsonError(StatusCodes.Status400BadRequest, message, code);
+                return JsonError(
+                    StatusCodes.Status400BadRequest,
+                    message,
+                    code,
+                    HttpContext.TraceIdentifier);
             }
 
             ModelState.AddModelError(string.Empty, message);
@@ -1653,8 +1767,57 @@ public sealed class IndexModel : PageModel
             "XMLHttpRequest",
             StringComparison.OrdinalIgnoreCase);
 
-    private static JsonResult JsonError(int statusCode, string message, string? code = null)
-        => new(new { message, code }) { StatusCode = statusCode };
+    private static (string Message, string Code) DescribeGenerationFailure(
+        Exception exception,
+        bool preview)
+    {
+        if (exception is CompendiumPdfCompositionException composition)
+        {
+            return (
+                composition.Message,
+                "compositionVerificationFailed");
+        }
+
+        if (exception is InvalidOperationException validation
+            && validation.Message.Contains("Review all selected projects", StringComparison.Ordinal))
+        {
+            return (validation.Message, "reviewRequired");
+        }
+
+        if (exception is InvalidOperationException publicationValidation
+            && IsSafePublicationValidationMessage(publicationValidation.Message))
+        {
+            return (publicationValidation.Message, "publicationConfigurationInvalid");
+        }
+
+        return (
+            preview
+                ? "The Compendium preview could not be generated because the PDF composer encountered an unexpected error. No PDF was issued."
+                : "The Compendium could not be generated because the PDF composer encountered an unexpected error. No PDF was issued.",
+            "generationFailed");
+    }
+
+    private static bool IsSafePublicationValidationMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("cover image", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("cover template", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Portfolio Quartet", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("publication photography", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("publication blockers", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("photo-preference payload", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static JsonResult JsonError(
+        int statusCode,
+        string message,
+        string? code = null,
+        string? traceId = null)
+        => new(new { message, code, traceId }) { StatusCode = statusCode };
 
     public sealed class GenerateCompendiumInput
     {

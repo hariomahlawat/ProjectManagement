@@ -588,6 +588,9 @@
             persisted: persisted !== false,
             source: "structure-editor",
             returnUrl,
+            publication: incomingHandoff?.publication || null,
+            coverDesign: incomingHandoff?.coverDesign || null,
+            photoPreferences: incomingHandoff?.photoPreferences || [],
             editorialState: {
                 narrativeSource: incomingHandoff?.editorialState?.narrativeSource || "ProjectBrief",
                 narrativeAlignment: incomingHandoff?.editorialState?.narrativeAlignment || boot.narrativeAlignment || "Left",

@@ -64,7 +64,8 @@ public sealed class CompendiumPdfCompositionVerifier : ICompendiumPdfComposition
         }
 
         var canonicalPages = pages.Select(page => Canonical(page.Text)).ToArray();
-        VerifyTextOnPage(canonicalPages, context.Title, 1, expected, actual, "Compendium cover");
+        var frontTitle = ResolveEffectiveFrontTitle(context);
+        VerifyTextOnPage(canonicalPages, frontTitle, 1, expected, actual, "Compendium cover");
 
         foreach (var planned in plan.Pages)
         {
@@ -126,7 +127,8 @@ public sealed class CompendiumPdfCompositionVerifier : ICompendiumPdfComposition
         }
 
         var back = plan.Pages.Single(page => page.Kind == CompendiumPageKind.BackCover);
-        VerifyTextOnPage(canonicalPages, context.Edition, back.PhysicalPageNumber, expected, actual, "Compendium back cover");
+        var backEdition = ResolveEffectiveBackEdition(context);
+        VerifyTextOnPage(canonicalPages, backEdition, back.PhysicalPageNumber, expected, actual, "Compendium back cover");
 
         var expectedProjects = context.Categories.SelectMany(category => category.Projects).Select(project => project.ProjectId).ToArray();
         var plannedProjects = plan.ProjectStartPages.Keys.ToArray();
@@ -141,6 +143,43 @@ public sealed class CompendiumPdfCompositionVerifier : ICompendiumPdfComposition
         }
 
         return new CompendiumPdfVerificationResult(true, actual);
+    }
+
+
+    private static string? ResolveEffectiveFrontTitle(CompendiumPdfReportContext context)
+    {
+        var design = context.CoverDesign;
+        if (design is null)
+        {
+            return context.Title;
+        }
+
+        if (!design.ShowFrontTitle)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(design.FrontTitle)
+            ? context.Title
+            : design.FrontTitle;
+    }
+
+    private static string? ResolveEffectiveBackEdition(CompendiumPdfReportContext context)
+    {
+        var design = context.CoverDesign;
+        if (design is null)
+        {
+            return context.Edition;
+        }
+
+        if (!design.ShowBackEdition)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(design.BackEdition)
+            ? context.Edition
+            : design.BackEdition;
     }
 
     private static void VerifyTextOnPage(
