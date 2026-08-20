@@ -121,7 +121,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Ito,
                 "ITO",
-                "Information Technology Officer access for shared Brochure and Compendium publication management and authorised technical operations.",
+                "Information Technology Officer access for shared Brochure and Compendium publication management, FFC portfolio management and authorised technical operations. FFC Detailed Table inline overall-status and project-progress editing remains reserved for Admin, HoD and Comdt.",
                 "Technical & coordination",
                 "bi-pc-display-horizontal",
                 privileged: false,

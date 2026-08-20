@@ -79,7 +79,9 @@ public sealed class FfcDetailedTableContractTests
         Assert.Contains("?handler=UpdateOverallRemarks", script, StringComparison.Ordinal);
         Assert.Contains("?handler=UpdateProgress", script, StringComparison.Ordinal);
         Assert.Contains("data-ffc-project-id", ReadTestData("_DetailedTablePartial.cshtml"), StringComparison.Ordinal);
-        Assert.Contains("data-external-remark-id", ReadTestData("_DetailedTablePartial.cshtml"), StringComparison.Ordinal);
+        var partial = ReadTestData("_DetailedTablePartial.cshtml");
+        Assert.Contains("data-external-remark-id", partial, StringComparison.Ordinal);
+        Assert.Contains("ProjectOfficeReportsPolicies.CanInlineEditFfc(User)", partial, StringComparison.Ordinal);
         Assert.Contains("ffc:detailed-table-content-updated", script, StringComparison.Ordinal);
     }
 

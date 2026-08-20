@@ -1,0 +1,895 @@
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/Identity/Pages/Account/AccessDenied.cshtml /mnt/data/ffc_role_finalwork/Areas/Identity/Pages/Account/AccessDenied.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/Identity/Pages/Account/AccessDenied.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/Identity/Pages/Account/AccessDenied.cshtml	2026-08-20 17:04:59.210616581 +0000
+@@ -11,7 +11,7 @@
+     var isFfcCountriesManagePage = !string.IsNullOrWhiteSpace(returnUrl) &&
+         returnUrl.Contains("/ProjectOfficeReports/FFC/Countries/Manage", System.StringComparison.OrdinalIgnoreCase);
+     var message = (isFfcRecordsManagePage || isFfcCountriesManagePage)
+-        ? "Only administrators or heads of department can manage FFC records or countries. If you need access, please contact your administrator."
++        ? "Only authorised FFC managers can manage FFC records or countries. If you need access, please contact your administrator."
+         : "You don't have permission to view this resource. If you believe this is an error, please contact your administrator.";
+ }
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs	2026-08-20 17:10:58.023171053 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs	2026-08-20 17:16:00.927355405 +0000
+@@ -1,4 +1,6 @@
+ using System;
++using System.Linq;
++using System.Security.Claims;
+ using Microsoft.AspNetCore.Authorization;
+ using ProjectManagement.Configuration;
+ 
+@@ -81,12 +83,33 @@
+ 
+     public static readonly string[] TotTrackerApproverRoles = { RoleNames.Admin, RoleNames.HoD };
+ 
++    // SECTION: FFC portfolio governance
++    // Full FFC management is intentionally granted to Admin, HoD, Comdt and ITO.
++    // Detailed Table inline editing is deliberately narrower: Admin, HoD and
++    // Comdt retain it, while ITO is explicitly excluded by business rule.
++    public static readonly string[] FfcManagerRoles =
++    {
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.Comdt,
++        RoleNames.Ito
++    };
++
++    public static readonly string[] FfcInlineEditorRoles =
++    {
++        RoleNames.Admin,
++        RoleNames.HoD,
++        RoleNames.Comdt
++    };
++
+     public static readonly string[] TrainingTrackerApproverRoles =
+     {
+         RoleNames.Admin,
+         RoleNames.HoD
+     };
+ 
++    public const string ManageFfc = "ProjectOfficeReports.ManageFfc";
++    public const string InlineEditFfc = "ProjectOfficeReports.InlineEditFfc";
+     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
+     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
+     public const string ManageSocialMediaEvents = "ProjectOfficeReports.ManageSocialMediaEvents";
+@@ -106,6 +129,35 @@
+     public const string VerifyArpp = "ProjectOfficeReports.VerifyArpp";
+     public const string UnlockArpp = "ProjectOfficeReports.UnlockArpp";
+ 
++
++    public static AuthorizationPolicyBuilder RequireFfcManager(this AuthorizationPolicyBuilder builder)
++    {
++        if (builder is null)
++        {
++            throw new ArgumentNullException(nameof(builder));
++        }
++
++        return builder.RequireRole(FfcManagerRoles);
++    }
++
++    public static AuthorizationPolicyBuilder RequireFfcInlineEditor(this AuthorizationPolicyBuilder builder)
++    {
++        if (builder is null)
++        {
++            throw new ArgumentNullException(nameof(builder));
++        }
++
++        return builder.RequireRole(FfcInlineEditorRoles);
++    }
++
++    public static bool CanManageFfc(ClaimsPrincipal? principal) =>
++        principal?.Identity?.IsAuthenticated == true
++        && FfcManagerRoles.Any(principal.IsInRole);
++
++    public static bool CanInlineEditFfc(ClaimsPrincipal? principal) =>
++        principal?.Identity?.IsAuthenticated == true
++        && FfcInlineEditorRoles.Any(principal.IsInRole);
++
+     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
+     {
+         if (builder is null)
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Countries/Manage.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Countries/Manage.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Countries/Manage.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Countries/Manage.cshtml.cs	2026-08-20 17:03:00.176613840 +0000
+@@ -10,6 +10,7 @@
+ using Microsoft.AspNetCore.Routing;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Logging;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+ using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
+ using ProjectManagement.Data;
+@@ -17,7 +18,7 @@
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
+ 
+-[Authorize(Roles = "Admin,HoD")]
++[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
+ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<ManageModel> logger) : PageModel
+ {
+     private readonly ApplicationDbContext _db = db;
+@@ -47,7 +48,7 @@
+     public bool IsSortDescending => string.Equals(CurrentSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+     public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
+ 
+-    private bool CanManageCountries => User.IsInRole("Admin") || User.IsInRole("HoD");
++    private bool CanManageCountries => ProjectOfficeReportsPolicies.CanManageFfc(User);
+ 
+     public async Task<IActionResult> OnGetAsync()
+     {
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Countries/_CountryTable.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Countries/_CountryTable.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Countries/_CountryTable.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Countries/_CountryTable.cshtml	2026-08-20 17:03:43.960502555 +0000
+@@ -45,12 +45,13 @@
+                     <span class="badge @(country.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">@(country.IsActive ? "Active" : "Inactive")</span>
+                 </td>
+                 <td class="text-end">
+-                    <authorize roles="Admin,HoD">
++                    @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++                    {
+                         <form method="post" asp-page="./Manage" asp-page-handler="ToggleActive" asp-all-route-data="Model.BuildRoute()" class="d-inline">
+                             <input type="hidden" name="id" value="@country.Id" />
+                             <button type="submit" class="btn btn-link btn-sm">@(country.IsActive ? "Deactivate" : "Activate")</button>
+                         </form>
+-                    </authorize>
++                    }
+                 </td>
+             </tr>
+         }
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml.cs	2026-08-20 17:03:00.177060185 +0000
+@@ -9,6 +9,7 @@
+ using Microsoft.AspNetCore.Mvc.RazorPages;
+ using Microsoft.AspNetCore.Mvc.Rendering;
+ using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Data;
+ using ProjectManagement.Services.Ffc;
+ 
+@@ -112,7 +113,7 @@
+     public async Task OnGetAsync(CancellationToken cancellationToken)
+     {
+         NormalizeRequest();
+-        CanManageRecords = User.IsInRole("Admin") || User.IsInRole("HoD");
++        CanManageRecords = ProjectOfficeReportsPolicies.CanManageFfc(User);
+ 
+         await LoadFilterOptionsAsync(cancellationToken);
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/MapTableDetailed.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/MapTableDetailed.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/MapTableDetailed.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/MapTableDetailed.cshtml.cs	2026-08-20 17:04:27.002497984 +0000
+@@ -11,6 +11,8 @@
+ using Microsoft.AspNetCore.Mvc.RazorPages;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Logging;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Configuration;
+ using ProjectManagement.Data;
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.Remarks;
+@@ -140,7 +142,7 @@
+         [FromBody] UpdateOverallRemarksRequest request,
+         CancellationToken cancellationToken)
+     {
+-        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
++        if (!ProjectOfficeReportsPolicies.CanInlineEditFfc(User))
+         {
+             return Forbid();
+         }
+@@ -188,7 +190,7 @@
+         [FromBody] UpdateProgressRequest request,
+         CancellationToken cancellationToken)
+     {
+-        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
++        if (!ProjectOfficeReportsPolicies.CanInlineEditFfc(User))
+         {
+             return Forbid();
+         }
+@@ -438,16 +440,21 @@
+         }
+ 
+         var roles = new List<RemarkActorRole>();
+-        if (User.IsInRole("Admin"))
++        if (User.IsInRole(RoleNames.Admin))
+         {
+             roles.Add(RemarkActorRole.Administrator);
+         }
+ 
+-        if (User.IsInRole("HoD"))
++        if (User.IsInRole(RoleNames.HoD))
+         {
+             roles.Add(RemarkActorRole.HeadOfDepartment);
+         }
+ 
++        if (User.IsInRole(RoleNames.Comdt))
++        {
++            roles.Add(RemarkActorRole.Commandant);
++        }
++
+         if (roles.Count == 0)
+         {
+             return Task.FromResult<RemarkActorContext?>(null);
+@@ -455,7 +462,9 @@
+ 
+         var primary = roles.Contains(RemarkActorRole.Administrator)
+             ? RemarkActorRole.Administrator
+-            : RemarkActorRole.HeadOfDepartment;
++            : roles.Contains(RemarkActorRole.HeadOfDepartment)
++                ? RemarkActorRole.HeadOfDepartment
++                : RemarkActorRole.Commandant;
+ 
+         return Task.FromResult<RemarkActorContext?>(new RemarkActorContext(userId, primary, roles));
+     }
+@@ -464,14 +473,19 @@
+     {
+         var userId = _userManager.GetUserId(User);
+         var roles = new List<string>();
+-        if (User.IsInRole("Admin"))
++        if (User.IsInRole(RoleNames.Admin))
++        {
++            roles.Add(RoleNames.Admin);
++        }
++
++        if (User.IsInRole(RoleNames.HoD))
+         {
+-            roles.Add("Admin");
++            roles.Add(RoleNames.HoD);
+         }
+ 
+-        if (User.IsInRole("HoD"))
++        if (User.IsInRole(RoleNames.Comdt))
+         {
+-            roles.Add("HoD");
++            roles.Add(RoleNames.Comdt);
+         }
+ 
+         _logger.LogError(
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Partials/_PortfolioRow.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Partials/_PortfolioRow.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Partials/_PortfolioRow.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Partials/_PortfolioRow.cshtml	2026-08-20 17:03:43.959755212 +0000
+@@ -54,7 +54,7 @@
+     };
+ 
+     var detailsId = $"ffc-record-{Model.RecordId}";
+-    var canManage = User.IsInRole("Admin") || User.IsInRole("HoD");
++    var canManage = ProjectOfficeReportsPolicies.CanManageFfc(User);
+     var overallPosition = string.IsNullOrWhiteSpace(Model.OverallRemarks)
+         ? "No overall remarks recorded."
+         : Model.OverallRemarks.Trim();
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Archived.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Archived.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Archived.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Archived.cshtml.cs	2026-08-20 17:03:00.176555012 +0000
+@@ -5,11 +5,12 @@
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.AspNetCore.Mvc.RazorPages;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Services.Ffc;
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
+ 
+-[Authorize(Roles = "Admin,HoD")]
++[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
+ public sealed class ArchivedModel : PageModel
+ {
+     private readonly IFfcRecordWorkspaceService _workspaceService;
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml	2026-08-20 17:15:30.024865642 +0000
+@@ -59,11 +59,12 @@
+                                         <td>@a.ContentType</td>
+                                         <td>@FormatFileSize(a.SizeBytes)</td>
+                                         <td class="text-end">
+-                                            <authorize roles="Admin,HoD">
++                                            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++                                            {
+                                                 <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
+                                                     <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+                                                 </form>
+-                                            </authorize>
++                                            }
+                                         </td>
+                                     </tr>
+                                 }
+@@ -79,7 +80,8 @@
+         </div>
+ 
+         <div class="col-lg-6">
+-            <authorize roles="Admin,HoD">
++            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++                                            {
+                 <div class="pm-card pm-shadow h-100">
+                     <div class="pm-card-header">
+                         <div class="pm-card-heading">
+@@ -112,7 +114,7 @@
+                         </form>
+                     </div>
+                 </div>
+-            </authorize>
++            }
+         </div>
+     </div>
+ </div>
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Attachments/Upload.cshtml.cs	2026-08-20 17:03:00.176981377 +0000
+@@ -12,6 +12,7 @@
+ using Microsoft.Extensions.Logging;
+ using Microsoft.Extensions.Options;
+ using ProjectManagement.Application.Ffc;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+ using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
+ using ProjectManagement.Configuration;
+@@ -43,7 +44,7 @@
+     [FromQuery] public long RecordId { get; set; }
+     public FfcRecord Record { get; private set; } = default!;
+     public IList<FfcAttachment> Items { get; private set; } = [];
+-    private bool CanManageAttachments => User.IsInRole("Admin") || User.IsInRole("HoD");
++    private bool CanManageAttachments => ProjectOfficeReportsPolicies.CanManageFfc(User);
+ 
+     [BindProperty] public IFormFile? UploadFile { get; set; }
+     [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.Pdf;
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Create.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Create.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Create.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Create.cshtml.cs	2026-08-20 17:03:00.175914809 +0000
+@@ -6,11 +6,12 @@
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.AspNetCore.Mvc.RazorPages;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Services.Ffc;
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
+ 
+-[Authorize(Roles = "Admin,HoD")]
++[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
+ public sealed class CreateModel : PageModel
+ {
+     private readonly IFfcRecordWorkspaceService _workspaceService;
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Details.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Details.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Details.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Details.cshtml.cs	2026-08-20 17:08:58.274782728 +0000
+@@ -8,6 +8,7 @@
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.AspNetCore.Mvc.RazorPages;
+ using Microsoft.Extensions.Options;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.Remarks;
+@@ -64,7 +65,7 @@
+     [BindProperty(SupportsGet = true)]
+     public long? ProjectId { get; set; }
+ 
+-    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD");
++    public bool CanManage => ProjectOfficeReportsPolicies.CanManageFfc(User);
+     public long MaxFileSizeBytes => _attachmentOptions.MaxFileSizeBytes;
+     public string SafeReturnUrl { get; private set; } = string.Empty;
+ 
+@@ -431,16 +432,26 @@
+         }
+ 
+         var roles = new List<RemarkActorRole>();
+-        if (User.IsInRole("Admin"))
++        if (User.IsInRole(RoleNames.Admin))
+         {
+             roles.Add(RemarkActorRole.Administrator);
+         }
+ 
+-        if (User.IsInRole("HoD"))
++        if (User.IsInRole(RoleNames.HoD))
+         {
+             roles.Add(RemarkActorRole.HeadOfDepartment);
+         }
+ 
++        if (User.IsInRole(RoleNames.Comdt))
++        {
++            roles.Add(RemarkActorRole.Commandant);
++        }
++
++        if (User.IsInRole(RoleNames.Ito))
++        {
++            roles.Add(RemarkActorRole.Ito);
++        }
++
+         if (roles.Count == 0)
+         {
+             return null;
+@@ -448,7 +459,11 @@
+ 
+         var primary = roles.Contains(RemarkActorRole.Administrator)
+             ? RemarkActorRole.Administrator
+-            : RemarkActorRole.HeadOfDepartment;
++            : roles.Contains(RemarkActorRole.HeadOfDepartment)
++                ? RemarkActorRole.HeadOfDepartment
++                : roles.Contains(RemarkActorRole.Commandant)
++                    ? RemarkActorRole.Commandant
++                    : RemarkActorRole.Ito;
+ 
+         return new RemarkActorContext(userId, primary, roles);
+     }
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml	2026-08-20 17:04:02.278195422 +0000
+@@ -54,7 +54,8 @@
+         </div>
+ 
+         <div class="col-xl-5">
+-            <authorize roles="Admin,HoD">
++            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++            {
+                 <div class="pm-card pm-shadow h-100">
+                     <div class="pm-card-header">
+                         <div class="pm-card-heading">
+@@ -91,7 +92,7 @@
+                         </form>
+                     </div>
+                 </div>
+-            </authorize>
++            }
+         </div>
+     </div>
+ </div>
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Manage.cshtml.cs	2026-08-20 17:03:00.175946189 +0000
+@@ -10,6 +10,7 @@
+ using Microsoft.AspNetCore.Routing;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Logging;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+ using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
+ using ProjectManagement.Data;
+@@ -17,7 +18,7 @@
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
+ 
+-[Authorize(Roles = "Admin,HoD")]
++[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
+ public class ManageModel : FfcRecordListPageModel
+ {
+     private readonly IAuditService _audit;
+@@ -27,7 +28,7 @@
+     private const string ActiveCountryYearConstraint = "UX_FfcRecords_CountryId_Year_Active";
+     private readonly Dictionary<long, FfcProjectQuantitySummary> _projectSummaryCache = new();
+ 
+-    public bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
++    public bool CanManageRecords => ProjectOfficeReportsPolicies.CanManageFfc(User);
+     public SelectList CountrySelect { get; private set; } = default!;
+     public bool IsEditMode => EditId.HasValue;
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml	2026-08-20 17:15:30.024713626 +0000
+@@ -86,19 +86,21 @@
+                                                 @p.Remarks
+                                             </td>
+                                             <td class="text-end">
+-                                                <authorize roles="Admin,HoD">
++                                                @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++            {
+                                                     <a asp-page="./Manage"
+                                                        asp-route-recordId="@Model.Record.Id"
+                                                        asp-route-id="@p.Id"
+                                                        class="btn btn-outline-secondary btn-sm">
+                                                         Edit
+                                                     </a>
+-                                                </authorize>
+-                                                @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
++                                                }
++                                                @if (!ProjectOfficeReportsPolicies.CanManageFfc(User))
+                                                 {
+                                                     <span class="text-muted">Read only</span>
+                                                 }
+-                                                <authorize roles="Admin,HoD">
++                                                @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++            {
+                                                     <form method="post"
+                                                           asp-page-handler="Delete"
+                                                           asp-route-recordId="@Model.Record.Id"
+@@ -108,7 +110,7 @@
+                                                             Delete
+                                                         </button>
+                                                     </form>
+-                                                </authorize>
++                                                }
+                                             </td>
+                                         </tr>
+                                     }
+@@ -128,7 +130,8 @@
+         </div>
+ 
+         <div class="col-lg-5">
+-            <authorize roles="Admin,HoD">
++            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++            {
+                 <div class="pm-card pm-shadow h-100">
+                     <div class="pm-card-header">
+                         <div class="pm-card-heading">
+@@ -251,7 +254,7 @@
+                         </form>
+                     </div>
+                 </div>
+-            </authorize>
++            }
+         </div>
+     </div>
+ </div>
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml.cs /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml.cs
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/Projects/Manage.cshtml.cs	2026-08-20 17:03:00.176755471 +0000
+@@ -10,6 +10,7 @@
+ using Microsoft.AspNetCore.Mvc.Rendering;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Logging;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+ using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
+ using ProjectManagement.Data;
+@@ -29,7 +30,7 @@
+     public FfcRecord Record { get; private set; } = default!;
+     public IList<FfcProject> Items { get; private set; } = [];
+     public SelectList LinkedProjects { get; private set; } = default!;
+-    private bool CanManageProjects => User.IsInRole("Admin") || User.IsInRole("HoD");
++    private bool CanManageProjects => ProjectOfficeReportsPolicies.CanManageFfc(User);
+ 
+     [BindProperty] public InputModel Input { get; set; } = new();
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/_RecordTable.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/_RecordTable.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/Records/_RecordTable.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/Records/_RecordTable.cshtml	2026-08-20 17:03:43.959944264 +0000
+@@ -79,12 +79,13 @@
+                     <span class="d-inline-block text-truncate w-100 pm-util-maxw-220" data-bs-toggle="tooltip" data-bs-placement="top" title="@record.OverallRemarks">@record.OverallRemarks</span>
+                 </td>
+                 <td class="text-end">
+-                    <authorize roles="Admin,HoD">
++                    @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
++                    {
+                         <a asp-page="./Manage" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="btn btn-link btn-sm">Edit</a>
+-                    </authorize>
++                    }
+                     <a asp-page="./Projects/Manage" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Projects</a>
+                     <a asp-page="./Attachments/Upload" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Attachments</a>
+-                    @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
++                    @if (!ProjectOfficeReportsPolicies.CanManageFfc(User))
+                     {
+                         <span class="text-muted">Read only</span>
+                     }
+diff -ruN /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/_DetailedTablePartial.cshtml /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/_DetailedTablePartial.cshtml
+--- /mnt/data/ffc_role_currentbase/Areas/ProjectOfficeReports/Pages/FFC/_DetailedTablePartial.cshtml	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Areas/ProjectOfficeReports/Pages/FFC/_DetailedTablePartial.cshtml	2026-08-20 17:03:43.959527102 +0000
+@@ -2,7 +2,7 @@
+ @model IReadOnlyList<ProjectManagement.Services.Ffc.FfcDetailedGroupVm>
+ 
+ @{
+-    var canEdit = User.IsInRole("HoD") || User.IsInRole("Admin");
++    var canEdit = ProjectOfficeReportsPolicies.CanInlineEditFfc(User);
+     var returnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
+ }
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/Models/Remarks/Remark.cs /mnt/data/ffc_role_finalwork/Models/Remarks/Remark.cs
+--- /mnt/data/ffc_role_currentbase/Models/Remarks/Remark.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Models/Remarks/Remark.cs	2026-08-20 17:08:58.274400850 +0000
+@@ -22,7 +22,12 @@
+         Ta = 5,
+         Mco = 6,
+         ProjectOffice = 7,
+-        MainOffice = 8
++        MainOffice = 8,
++        // ITO is used explicitly by the FFC workspace when recording canonical
++        // linked-project progress. It is intentionally not added to the generic
++        // Identity-role parser, so this enum value does not grant ITO project-remark
++        // authoring rights outside the FFC workflow.
++        Ito = 9
+     }
+ 
+     public enum RemarkScope
+diff -ruN /mnt/data/ffc_role_currentbase/Program.cs /mnt/data/ffc_role_finalwork/Program.cs
+--- /mnt/data/ffc_role_currentbase/Program.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Program.cs	2026-08-20 17:02:41.973197455 +0000
+@@ -221,6 +221,10 @@
+         policy.RequireRole(Policies.Checklist.EditorRoles));
+     options.AddPolicy(Policies.Checklist.EditPurpose, policy =>
+         policy.RequireRole(Policies.Checklist.PurposeEditorRoles));
++    options.AddPolicy(ProjectOfficeReportsPolicies.ManageFfc, policy =>
++        policy.RequireFfcManager());
++    options.AddPolicy(ProjectOfficeReportsPolicies.InlineEditFfc, policy =>
++        policy.RequireFfcInlineEditor());
+     options.AddPolicy(ProjectOfficeReportsPolicies.ViewVisits, policy =>
+         policy.RequireAuthenticatedUser());
+     options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>
+diff -ruN /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcCountriesManagePageTests.cs /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcCountriesManagePageTests.cs
+--- /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcCountriesManagePageTests.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcCountriesManagePageTests.cs	2026-08-20 17:06:11.915790839 +0000
+@@ -123,7 +123,7 @@
+ 
+         Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
+         var content = await accessDenied.Content.ReadAsStringAsync();
+-        Assert.Contains("Only administrators or heads of department can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
++        Assert.Contains("Only authorised FFC managers can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
+     }
+ 
+     private static ManageModel CreatePage(ApplicationDbContext db)
+diff -ruN /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcDetailedTableContractTests.cs /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcDetailedTableContractTests.cs
+--- /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcDetailedTableContractTests.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcDetailedTableContractTests.cs	2026-08-20 17:06:11.915860843 +0000
+@@ -79,7 +79,9 @@
+         Assert.Contains("?handler=UpdateOverallRemarks", script, StringComparison.Ordinal);
+         Assert.Contains("?handler=UpdateProgress", script, StringComparison.Ordinal);
+         Assert.Contains("data-ffc-project-id", ReadTestData("_DetailedTablePartial.cshtml"), StringComparison.Ordinal);
+-        Assert.Contains("data-external-remark-id", ReadTestData("_DetailedTablePartial.cshtml"), StringComparison.Ordinal);
++        var partial = ReadTestData("_DetailedTablePartial.cshtml");
++        Assert.Contains("data-external-remark-id", partial, StringComparison.Ordinal);
++        Assert.Contains("ProjectOfficeReportsPolicies.CanInlineEditFfc(User)", partial, StringComparison.Ordinal);
+         Assert.Contains("ffc:detailed-table-content-updated", script, StringComparison.Ordinal);
+     }
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcIndexPageTests.cs /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcIndexPageTests.cs
+--- /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcIndexPageTests.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcIndexPageTests.cs	2026-08-20 17:06:36.512481170 +0000
+@@ -86,6 +86,25 @@
+         Assert.True(page.CanManageRecords);
+     }
+ 
++
++    [Theory]
++    [InlineData("Comdt")]
++    [InlineData("ITO")]
++    public async Task OnGetAsync_WithFfcManagerRole_AllowsManagement(string role)
++    {
++        await using var db = CreateDbContext();
++        var country = await SeedCountryAsync(db, "Delta", "DEL");
++        db.FfcRecords.Add(new FfcRecord { CountryId = country.Id, Year = 2026 });
++        await db.SaveChangesAsync();
++
++        var page = CreatePage(db);
++        ConfigurePageContext(page, CreatePrincipal(role: role));
++
++        await page.OnGetAsync(CancellationToken.None);
++
++        Assert.True(page.CanManageRecords);
++    }
++
+     [Fact]
+     public async Task OnGetAsync_ExcludesSoftDeletedRecords()
+     {
+@@ -263,7 +282,7 @@
+         return country;
+     }
+ 
+-    private static ClaimsPrincipal CreatePrincipal(bool isAdmin = false, bool isHod = false)
++    private static ClaimsPrincipal CreatePrincipal(bool isAdmin = false, bool isHod = false, string? role = null)
+     {
+         var claims = new List<Claim>
+         {
+@@ -281,6 +300,11 @@
+             claims.Add(new Claim(ClaimTypes.Role, "HoD"));
+         }
+ 
++        if (!string.IsNullOrWhiteSpace(role))
++        {
++            claims.Add(new Claim(ClaimTypes.Role, role));
++        }
++
+         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+     }
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcRecordsManagePageTests.cs /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcRecordsManagePageTests.cs
+--- /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcRecordsManagePageTests.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcRecordsManagePageTests.cs	2026-08-20 17:06:11.915642848 +0000
+@@ -214,7 +214,7 @@
+ 
+         Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
+         var content = await accessDenied.Content.ReadAsStringAsync();
+-        Assert.Contains("Only administrators or heads of department can manage FFC records", content, StringComparison.OrdinalIgnoreCase);
++        Assert.Contains("Only authorised FFC managers can manage FFC records", content, StringComparison.OrdinalIgnoreCase);
+     }
+ 
+     private static void SetIpaMismatch(ManageModel.InputModel input)
+diff -ruN /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcRoleAuthorizationTests.cs /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcRoleAuthorizationTests.cs
+--- /mnt/data/ffc_role_currentbase/ProjectManagement.Tests/ProjectOfficeReports/FfcRoleAuthorizationTests.cs	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/ProjectManagement.Tests/ProjectOfficeReports/FfcRoleAuthorizationTests.cs	2026-08-20 17:09:51.940262028 +0000
+@@ -0,0 +1,91 @@
++using System.Collections.Generic;
++using System.Linq;
++using System.Security.Claims;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Configuration;
++using ProjectManagement.Models.Remarks;
++using ProjectManagement.Services.Admin;
++using Xunit;
++
++namespace ProjectManagement.Tests.ProjectOfficeReports;
++
++public sealed class FfcRoleAuthorizationTests
++{
++    [Fact]
++    public void FfcManagerRoles_AreAdminHodComdtAndItoOnly()
++    {
++        Assert.Equal(
++            new[] { RoleNames.Admin, RoleNames.HoD, RoleNames.Comdt, RoleNames.Ito },
++            ProjectOfficeReportsPolicies.FfcManagerRoles);
++
++        Assert.DoesNotContain(RoleNames.ProjectOffice, ProjectOfficeReportsPolicies.FfcManagerRoles);
++        Assert.DoesNotContain(RoleNames.ProjectOfficer, ProjectOfficeReportsPolicies.FfcManagerRoles);
++    }
++
++    [Fact]
++    public void FfcInlineEditors_ExcludeItoButRetainCommandManagers()
++    {
++        Assert.Equal(
++            new[] { RoleNames.Admin, RoleNames.HoD, RoleNames.Comdt },
++            ProjectOfficeReportsPolicies.FfcInlineEditorRoles);
++
++        Assert.DoesNotContain(RoleNames.Ito, ProjectOfficeReportsPolicies.FfcInlineEditorRoles);
++    }
++
++    [Theory]
++    [InlineData(RoleNames.Admin, true, true)]
++    [InlineData(RoleNames.HoD, true, true)]
++    [InlineData(RoleNames.Comdt, true, true)]
++    [InlineData(RoleNames.Ito, true, false)]
++    [InlineData(RoleNames.ProjectOffice, false, false)]
++    [InlineData(RoleNames.ProjectOfficer, false, false)]
++    [InlineData(RoleNames.Mco, false, false)]
++    public void FfcAuthorizationHelpers_ApplyTheIntendedRoleMatrix(
++        string role,
++        bool canManage,
++        bool canInlineEdit)
++    {
++        var principal = Principal(role);
++
++        Assert.Equal(canManage, ProjectOfficeReportsPolicies.CanManageFfc(principal));
++        Assert.Equal(canInlineEdit, ProjectOfficeReportsPolicies.CanInlineEditFfc(principal));
++    }
++
++
++    [Fact]
++    public void ItoRemarkRole_IsFfcScopedAndNotParsedByGenericProjectRemarkAuthoring()
++    {
++        var parsed = RemarkActorRoleExtensions.TryParse(RoleNames.Ito, out var role);
++
++        Assert.False(parsed);
++        Assert.Equal(RemarkActorRole.Unknown, role);
++        Assert.Equal(9, (int)RemarkActorRole.Ito);
++    }
++
++    [Fact]
++    public void EffectivePermissions_DescribeItoManagementWithoutInlineEditAuthority()
++    {
++        var catalog = new AdminRoleAccessCatalog();
++        var availableRoles = RoleNames.AssignableRoles;
++        var itoItems = catalog.ForRoles(new[] { RoleNames.Ito }, availableRoles);
++
++        Assert.Contains(itoItems, item => item.Key == "reports-ffc-manage");
++        Assert.DoesNotContain(itoItems, item => item.Key == "reports-ffc-inline-edit");
++
++        var comdtItems = catalog.ForRoles(new[] { RoleNames.Comdt }, availableRoles);
++        Assert.Contains(comdtItems, item => item.Key == "reports-ffc-manage");
++        Assert.Contains(comdtItems, item => item.Key == "reports-ffc-inline-edit");
++    }
++
++    private static ClaimsPrincipal Principal(params string[] roles)
++    {
++        var claims = new List<Claim>
++        {
++            new(ClaimTypes.NameIdentifier, "ffc-test-user"),
++            new(ClaimTypes.Name, "ffc-test-user")
++        };
++
++        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
++        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
++    }
++}
+diff -ruN /mnt/data/ffc_role_currentbase/Services/Admin/AdminRoleAccessCatalog.cs /mnt/data/ffc_role_finalwork/Services/Admin/AdminRoleAccessCatalog.cs
+--- /mnt/data/ffc_role_currentbase/Services/Admin/AdminRoleAccessCatalog.cs	2026-08-20 17:10:58.040008356 +0000
++++ /mnt/data/ffc_role_finalwork/Services/Admin/AdminRoleAccessCatalog.cs	2026-08-20 17:04:59.210978010 +0000
+@@ -238,6 +238,20 @@
+                 Group.Reports,
+                 10),
+             Access(
++                "reports-ffc-manage",
++                "Manage the FFC portfolio",
++                "Create, edit, archive and restore FFC country-year records; maintain project rows, quantities, delivery/installation data, attachments and country master data.",
++                ProjectOfficeReportsPolicies.FfcManagerRoles,
++                Group.Reports,
++                12),
++            Access(
++                "reports-ffc-inline-edit",
++                "Inline-edit FFC status and progress",
++                "Use the Detailed Table inline editors for overall status and linked-project progress. ITO is deliberately excluded from these two inline-edit actions.",
++                ProjectOfficeReportsPolicies.FfcInlineEditorRoles,
++                Group.Reports,
++                14),
++            Access(
+                 "reports-visits-social",
+                 "Manage visits and social-media records",
+                 "Create and maintain visit tracker and social-media tracker records.",
+diff -ruN /mnt/data/ffc_role_currentbase/Services/Admin/AdminRoleDescriptorCatalog.cs /mnt/data/ffc_role_finalwork/Services/Admin/AdminRoleDescriptorCatalog.cs
+--- /mnt/data/ffc_role_currentbase/Services/Admin/AdminRoleDescriptorCatalog.cs	2026-08-20 17:10:58.042206264 +0000
++++ /mnt/data/ffc_role_finalwork/Services/Admin/AdminRoleDescriptorCatalog.cs	2026-08-20 17:15:30.025405376 +0000
+@@ -121,7 +121,7 @@
+             Descriptor(
+                 RoleNames.Ito,
+                 "ITO",
+-                "Information Technology Officer access for shared Brochure and Compendium publication management and authorised technical operations.",
++                "Information Technology Officer access for shared Brochure and Compendium publication management, FFC portfolio management and authorised technical operations. FFC Detailed Table inline overall-status and project-progress editing remains reserved for Admin, HoD and Comdt.",
+                 "Technical & coordination",
+                 "bi-pc-display-horizontal",
+                 privileged: false,
+diff -ruN /mnt/data/ffc_role_currentbase/Services/Ffc/FfcProjectCommandService.cs /mnt/data/ffc_role_finalwork/Services/Ffc/FfcProjectCommandService.cs
+--- /mnt/data/ffc_role_currentbase/Services/Ffc/FfcProjectCommandService.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Services/Ffc/FfcProjectCommandService.cs	2026-08-20 17:08:58.274876057 +0000
+@@ -163,7 +163,7 @@
+         if (shouldUpdateLinkedProgress && command.Actor is null)
+         {
+             return FfcCommandResult.Invalid(
+-                "A valid Admin or HoD user is required to update linked project progress.");
++                "A valid FFC manager is required to update linked project progress.");
+         }
+ 
+         var isDelivered = command.Position is FfcUnitPosition.DeliveredAwaitingInstallation or FfcUnitPosition.Installed;
+diff -ruN /mnt/data/ffc_role_currentbase/Services/Projects/ProjectRemarksPanelService.cs /mnt/data/ffc_role_finalwork/Services/Projects/ProjectRemarksPanelService.cs
+--- /mnt/data/ffc_role_currentbase/Services/Projects/ProjectRemarksPanelService.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Services/Projects/ProjectRemarksPanelService.cs	2026-08-20 17:15:30.024936157 +0000
+@@ -308,6 +308,7 @@
+             RemarkActorRole.ProjectOffice => "Project Office",
+             RemarkActorRole.MainOffice => "Main Office",
+             RemarkActorRole.Ta => "TA",
++            RemarkActorRole.Ito => "ITO",
+             _ => role.ToString()
+         };
+ 
+diff -ruN /mnt/data/ffc_role_currentbase/Services/Remarks/RemarkService.cs /mnt/data/ffc_role_finalwork/Services/Remarks/RemarkService.cs
+--- /mnt/data/ffc_role_currentbase/Services/Remarks/RemarkService.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Services/Remarks/RemarkService.cs	2026-08-20 17:15:30.025319308 +0000
+@@ -764,9 +764,15 @@
+            || roles.Contains(RemarkActorRole.Commandant);
+ 
+     private static bool HasOverride(IReadOnlyCollection<RemarkActorRole> roles)
++        // ITO is deliberately not recognised by the generic Identity-role parser.
++        // The only production path that supplies RemarkActorRole.Ito is the FFC
++        // full-record/project editor, where linked progress is persisted as the
++        // canonical External remark. This preserves FFC parity without granting
++        // ITO generic Project Remarks authoring rights.
+         => roles.Contains(RemarkActorRole.HeadOfDepartment)
+            || roles.Contains(RemarkActorRole.Commandant)
+-           || roles.Contains(RemarkActorRole.Administrator);
++           || roles.Contains(RemarkActorRole.Administrator)
++           || roles.Contains(RemarkActorRole.Ito);
+ 
+     private static bool ActorHasAdmin(IReadOnlyCollection<RemarkActorRole> roles)
+         => roles.Contains(RemarkActorRole.Administrator);
+@@ -852,10 +858,14 @@
+             throw new InvalidOperationException("Actor role is not recognised or not assigned.");
+         }
+ 
+-        if (type == RemarkType.External && !actor.Roles.Any(r => r is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator))
++        if (type == RemarkType.External
++            && !actor.Roles.Any(r => r is RemarkActorRole.HeadOfDepartment
++                or RemarkActorRole.Commandant
++                or RemarkActorRole.Administrator
++                or RemarkActorRole.Ito))
+         {
+             LogDecision("Create", false, "ExternalRequiresOverride", actor, null, projectId);
+-            throw new InvalidOperationException("External remarks require HoD, Comdt or Admin role.");
++            throw new InvalidOperationException("External remarks require an authorised command or FFC role.");
+         }
+ 
+         if (type == RemarkType.Conference
+diff -ruN /mnt/data/ffc_role_currentbase/Services/Workspace/OfficerConferenceReadService.cs /mnt/data/ffc_role_finalwork/Services/Workspace/OfficerConferenceReadService.cs
+--- /mnt/data/ffc_role_currentbase/Services/Workspace/OfficerConferenceReadService.cs	2026-08-20 07:40:09.000000000 +0000
++++ /mnt/data/ffc_role_finalwork/Services/Workspace/OfficerConferenceReadService.cs	2026-08-20 17:15:30.025193130 +0000
+@@ -2002,6 +2002,7 @@
+         RemarkActorRole.Mco => "MCO",
+         RemarkActorRole.ProjectOffice => "Project Office",
+         RemarkActorRole.MainOffice => "Main Office",
++        RemarkActorRole.Ito => "ITO",
+         _ => "User"
+     };
+ 

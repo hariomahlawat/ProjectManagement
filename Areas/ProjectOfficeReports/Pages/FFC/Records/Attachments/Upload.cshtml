@@ -59,11 +59,12 @@
                                         <td>@a.ContentType</td>
                                         <td>@FormatFileSize(a.SizeBytes)</td>
                                         <td class="text-end">
-                                            <authorize roles="Admin,HoD">
+                                            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+                                            {
                                                 <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
                                                     <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
                                                 </form>
-                                            </authorize>
+                                            }
                                         </td>
                                     </tr>
                                 }
@@ -79,7 +80,8 @@
         </div>
 
         <div class="col-lg-6">
-            <authorize roles="Admin,HoD">
+            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+                                            {
                 <div class="pm-card pm-shadow h-100">
                     <div class="pm-card-header">
                         <div class="pm-card-heading">
@@ -112,7 +114,7 @@
                         </form>
                     </div>
                 </div>
-            </authorize>
+            }
         </div>
     </div>
 </div>

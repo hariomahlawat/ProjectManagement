@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
@@ -64,7 +65,7 @@ public sealed class DetailsModel : PageModel
     [BindProperty(SupportsGet = true)]
     public long? ProjectId { get; set; }
 
-    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD");
+    public bool CanManage => ProjectOfficeReportsPolicies.CanManageFfc(User);
     public long MaxFileSizeBytes => _attachmentOptions.MaxFileSizeBytes;
     public string SafeReturnUrl { get; private set; } = string.Empty;
 
@@ -431,14 +432,24 @@ public sealed class DetailsModel : PageModel
         }
 
         var roles = new List<RemarkActorRole>();
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole(RoleNames.Admin))
         {
             roles.Add(RemarkActorRole.Administrator);
         }
 
-        if (User.IsInRole("HoD"))
+        if (User.IsInRole(RoleNames.HoD))
         {
             roles.Add(RemarkActorRole.HeadOfDepartment);
+        }
+
+        if (User.IsInRole(RoleNames.Comdt))
+        {
+            roles.Add(RemarkActorRole.Commandant);
+        }
+
+        if (User.IsInRole(RoleNames.Ito))
+        {
+            roles.Add(RemarkActorRole.Ito);
         }
 
         if (roles.Count == 0)
@@ -448,7 +459,11 @@ public sealed class DetailsModel : PageModel
 
         var primary = roles.Contains(RemarkActorRole.Administrator)
             ? RemarkActorRole.Administrator
-            : RemarkActorRole.HeadOfDepartment;
+            : roles.Contains(RemarkActorRole.HeadOfDepartment)
+                ? RemarkActorRole.HeadOfDepartment
+                : roles.Contains(RemarkActorRole.Commandant)
+                    ? RemarkActorRole.Commandant
+                    : RemarkActorRole.Ito;
 
         return new RemarkActorContext(userId, primary, roles);
     }

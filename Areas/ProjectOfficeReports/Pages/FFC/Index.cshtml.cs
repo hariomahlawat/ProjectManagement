@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Ffc;
 
@@ -112,7 +113,7 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeRequest();
-        CanManageRecords = User.IsInRole("Admin") || User.IsInRole("HoD");
+        CanManageRecords = ProjectOfficeReportsPolicies.CanManageFfc(User);
 
         await LoadFilterOptionsAsync(cancellationToken);
 

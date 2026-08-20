@@ -1,15 +1,30 @@
-PRISM Role Governance + ITO Publications — static validation
+PRISM FFC ITO Role Governance — static validation
 
-PASS: 23 expected source/test files present.
-PASS: no merge-conflict markers detected.
-PASS: RoleNames defines ITO and a canonical 11-role assignable catalogue.
-PASS: legacy ProjectOffice and Main Office aliases are compatibility-only.
-PASS: Publications manager contract contains Commandant + HoD + ITO, not Admin/Project Officer.
-PASS: Compendium project-master-data maintenance does not include ITO.
-PASS: ITO is provisioned in the new migration and migration manifest.
-PASS: Main_Office_Clerk is included in Training Tracker viewer roles.
-PASS: Training notification service uses TrainingTrackerApproverRoles.
-PASS: Admin effective-permission catalogue includes Manage shared publications.
-PASS: package preserves Phase 39 Compendium generation backend changes.
+RESULT: PASSED
 
-LIMITATION: dotnet SDK is unavailable in this environment, therefore C# compile/test execution was not possible here.
+Validated:
+  PASS  FFC managers are exactly Admin, HoD, Comdt and ITO.
+  PASS  FFC Detailed Table inline editors are Admin, HoD and Comdt only.
+  PASS  ITO is absent from FfcInlineEditorRoles.
+  PASS  ManageFfc and InlineEditFfc policies are registered in Program.cs.
+  PASS  Known FFC management surfaces consume centralized FFC authorization.
+  PASS  Both Detailed Table inline handlers enforce CanInlineEditFfc(User).
+  PASS  Detailed Table UI derives editability from CanInlineEditFfc(User).
+  PASS  No legacy Admin/HoD-only hard-coded FFC authorization patterns remain.
+  PASS  ITO linked-progress actor is available in the full FFC record/project editor.
+  PASS  Generic Project Remarks Identity-role parser does NOT map ITO.
+  PASS  Remark audit/read display surfaces render the FFC ITO actor as "ITO".
+  PASS  Admin Effective Permissions distinguishes FFC management from inline editing.
+  PASS  Prior canonical ITO role provisioning migration remains present.
+  PASS  Basic raw brace sanity passed for all edited C# and Razor files.
+
+Not executed in this environment:
+  dotnet build
+  dotnet test
+
+Reason:
+  .NET SDK/compiler is not installed in the execution environment.
+
+Run after pasting:
+  dotnet build .\ProjectManagement.csproj
+  dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj

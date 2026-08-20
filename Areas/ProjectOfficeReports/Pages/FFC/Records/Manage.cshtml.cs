@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Data;
@@ -17,7 +18,7 @@ using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
 public class ManageModel : FfcRecordListPageModel
 {
     private readonly IAuditService _audit;
@@ -27,7 +28,7 @@ public class ManageModel : FfcRecordListPageModel
     private const string ActiveCountryYearConstraint = "UX_FfcRecords_CountryId_Year_Active";
     private readonly Dictionary<long, FfcProjectQuantitySummary> _projectSummaryCache = new();
 
-    public bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
+    public bool CanManageRecords => ProjectOfficeReportsPolicies.CanManageFfc(User);
     public SelectList CountrySelect { get; private set; } = default!;
     public bool IsEditMode => EditId.HasValue;
 

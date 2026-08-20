@@ -86,19 +86,21 @@
                                                 @p.Remarks
                                             </td>
                                             <td class="text-end">
-                                                <authorize roles="Admin,HoD">
+                                                @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+            {
                                                     <a asp-page="./Manage"
                                                        asp-route-recordId="@Model.Record.Id"
                                                        asp-route-id="@p.Id"
                                                        class="btn btn-outline-secondary btn-sm">
                                                         Edit
                                                     </a>
-                                                </authorize>
-                                                @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
+                                                }
+                                                @if (!ProjectOfficeReportsPolicies.CanManageFfc(User))
                                                 {
                                                     <span class="text-muted">Read only</span>
                                                 }
-                                                <authorize roles="Admin,HoD">
+                                                @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+            {
                                                     <form method="post"
                                                           asp-page-handler="Delete"
                                                           asp-route-recordId="@Model.Record.Id"
@@ -108,7 +110,7 @@
                                                             Delete
                                                         </button>
                                                     </form>
-                                                </authorize>
+                                                }
                                             </td>
                                         </tr>
                                     }
@@ -128,7 +130,8 @@
         </div>
 
         <div class="col-lg-5">
-            <authorize roles="Admin,HoD">
+            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+            {
                 <div class="pm-card pm-shadow h-100">
                     <div class="pm-card-header">
                         <div class="pm-card-heading">
@@ -251,7 +254,7 @@
                         </form>
                     </div>
                 </div>
-            </authorize>
+            }
         </div>
     </div>
 </div>

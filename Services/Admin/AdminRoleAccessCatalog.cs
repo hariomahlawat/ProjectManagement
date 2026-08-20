@@ -238,6 +238,20 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 Group.Reports,
                 10),
             Access(
+                "reports-ffc-manage",
+                "Manage the FFC portfolio",
+                "Create, edit, archive and restore FFC country-year records; maintain project rows, quantities, delivery/installation data, attachments and country master data.",
+                ProjectOfficeReportsPolicies.FfcManagerRoles,
+                Group.Reports,
+                12),
+            Access(
+                "reports-ffc-inline-edit",
+                "Inline-edit FFC status and progress",
+                "Use the Detailed Table inline editors for overall status and linked-project progress. ITO is deliberately excluded from these two inline-edit actions.",
+                ProjectOfficeReportsPolicies.FfcInlineEditorRoles,
+                Group.Reports,
+                14),
+            Access(
                 "reports-visits-social",
                 "Manage visits and social-media records",
                 "Create and maintain visit tracker and social-media tracker records.",

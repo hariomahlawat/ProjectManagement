@@ -5,11 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Services.Ffc;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
 public sealed class ArchivedModel : PageModel
 {
     private readonly IFfcRecordWorkspaceService _workspaceService;

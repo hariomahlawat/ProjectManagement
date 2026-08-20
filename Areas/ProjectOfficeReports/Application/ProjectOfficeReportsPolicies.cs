@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using ProjectManagement.Configuration;
 
@@ -81,12 +83,33 @@ public static class ProjectOfficeReportsPolicies
 
     public static readonly string[] TotTrackerApproverRoles = { RoleNames.Admin, RoleNames.HoD };
 
+    // SECTION: FFC portfolio governance
+    // Full FFC management is intentionally granted to Admin, HoD, Comdt and ITO.
+    // Detailed Table inline editing is deliberately narrower: Admin, HoD and
+    // Comdt retain it, while ITO is explicitly excluded by business rule.
+    public static readonly string[] FfcManagerRoles =
+    {
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.Comdt,
+        RoleNames.Ito
+    };
+
+    public static readonly string[] FfcInlineEditorRoles =
+    {
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.Comdt
+    };
+
     public static readonly string[] TrainingTrackerApproverRoles =
     {
         RoleNames.Admin,
         RoleNames.HoD
     };
 
+    public const string ManageFfc = "ProjectOfficeReports.ManageFfc";
+    public const string InlineEditFfc = "ProjectOfficeReports.InlineEditFfc";
     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
     public const string ManageSocialMediaEvents = "ProjectOfficeReports.ManageSocialMediaEvents";
@@ -105,6 +128,35 @@ public static class ProjectOfficeReportsPolicies
     public const string ManageArpp = "ProjectOfficeReports.ManageArpp";
     public const string VerifyArpp = "ProjectOfficeReports.VerifyArpp";
     public const string UnlockArpp = "ProjectOfficeReports.UnlockArpp";
+
+
+    public static AuthorizationPolicyBuilder RequireFfcManager(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(FfcManagerRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireFfcInlineEditor(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(FfcInlineEditorRoles);
+    }
+
+    public static bool CanManageFfc(ClaimsPrincipal? principal) =>
+        principal?.Identity?.IsAuthenticated == true
+        && FfcManagerRoles.Any(principal.IsInRole);
+
+    public static bool CanInlineEditFfc(ClaimsPrincipal? principal) =>
+        principal?.Identity?.IsAuthenticated == true
+        && FfcInlineEditorRoles.Any(principal.IsInRole);
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
     {

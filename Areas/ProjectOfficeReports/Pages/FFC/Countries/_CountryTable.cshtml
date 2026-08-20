@@ -45,12 +45,13 @@
                     <span class="badge @(country.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">@(country.IsActive ? "Active" : "Inactive")</span>
                 </td>
                 <td class="text-end">
-                    <authorize roles="Admin,HoD">
+                    @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+                    {
                         <form method="post" asp-page="./Manage" asp-page-handler="ToggleActive" asp-all-route-data="Model.BuildRoute()" class="d-inline">
                             <input type="hidden" name="id" value="@country.Id" />
                             <button type="submit" class="btn btn-link btn-sm">@(country.IsActive ? "Deactivate" : "Activate")</button>
                         </form>
-                    </authorize>
+                    }
                 </td>
             </tr>
         }

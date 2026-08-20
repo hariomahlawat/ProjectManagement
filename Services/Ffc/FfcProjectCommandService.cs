@@ -163,7 +163,7 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
         if (shouldUpdateLinkedProgress && command.Actor is null)
         {
             return FfcCommandResult.Invalid(
-                "A valid Admin or HoD user is required to update linked project progress.");
+                "A valid FFC manager is required to update linked project progress.");
         }
 
         var isDelivered = command.Position is FfcUnitPosition.DeliveredAwaitingInstallation or FfcUnitPosition.Installed;

@@ -764,9 +764,15 @@ public sealed class RemarkService : IRemarkService
            || roles.Contains(RemarkActorRole.Commandant);
 
     private static bool HasOverride(IReadOnlyCollection<RemarkActorRole> roles)
+        // ITO is deliberately not recognised by the generic Identity-role parser.
+        // The only production path that supplies RemarkActorRole.Ito is the FFC
+        // full-record/project editor, where linked progress is persisted as the
+        // canonical External remark. This preserves FFC parity without granting
+        // ITO generic Project Remarks authoring rights.
         => roles.Contains(RemarkActorRole.HeadOfDepartment)
            || roles.Contains(RemarkActorRole.Commandant)
-           || roles.Contains(RemarkActorRole.Administrator);
+           || roles.Contains(RemarkActorRole.Administrator)
+           || roles.Contains(RemarkActorRole.Ito);
 
     private static bool ActorHasAdmin(IReadOnlyCollection<RemarkActorRole> roles)
         => roles.Contains(RemarkActorRole.Administrator);
@@ -852,10 +858,14 @@ public sealed class RemarkService : IRemarkService
             throw new InvalidOperationException("Actor role is not recognised or not assigned.");
         }
 
-        if (type == RemarkType.External && !actor.Roles.Any(r => r is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator))
+        if (type == RemarkType.External
+            && !actor.Roles.Any(r => r is RemarkActorRole.HeadOfDepartment
+                or RemarkActorRole.Commandant
+                or RemarkActorRole.Administrator
+                or RemarkActorRole.Ito))
         {
             LogDecision("Create", false, "ExternalRequiresOverride", actor, null, projectId);
-            throw new InvalidOperationException("External remarks require HoD, Comdt or Admin role.");
+            throw new InvalidOperationException("External remarks require an authorised command or FFC role.");
         }
 
         if (type == RemarkType.Conference

@@ -2,7 +2,7 @@
 @model IReadOnlyList<ProjectManagement.Services.Ffc.FfcDetailedGroupVm>
 
 @{
-    var canEdit = User.IsInRole("HoD") || User.IsInRole("Admin");
+    var canEdit = ProjectOfficeReportsPolicies.CanInlineEditFfc(User);
     var returnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
 }
 

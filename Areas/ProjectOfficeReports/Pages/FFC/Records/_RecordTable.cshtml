@@ -79,12 +79,13 @@
                     <span class="d-inline-block text-truncate w-100 pm-util-maxw-220" data-bs-toggle="tooltip" data-bs-placement="top" title="@record.OverallRemarks">@record.OverallRemarks</span>
                 </td>
                 <td class="text-end">
-                    <authorize roles="Admin,HoD">
+                    @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+                    {
                         <a asp-page="./Manage" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="btn btn-link btn-sm">Edit</a>
-                    </authorize>
+                    }
                     <a asp-page="./Projects/Manage" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Projects</a>
                     <a asp-page="./Attachments/Upload" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Attachments</a>
-                    @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
+                    @if (!ProjectOfficeReportsPolicies.CanManageFfc(User))
                     {
                         <span class="text-muted">Read only</span>
                     }

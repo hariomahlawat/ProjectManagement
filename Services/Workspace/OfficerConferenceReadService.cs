@@ -2002,6 +2002,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         RemarkActorRole.Mco => "MCO",
         RemarkActorRole.ProjectOffice => "Project Office",
         RemarkActorRole.MainOffice => "Main Office",
+        RemarkActorRole.Ito => "ITO",
         _ => "User"
     };
 

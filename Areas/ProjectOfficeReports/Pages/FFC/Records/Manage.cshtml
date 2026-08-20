@@ -54,7 +54,8 @@
         </div>
 
         <div class="col-xl-5">
-            <authorize roles="Admin,HoD">
+            @if (ProjectOfficeReportsPolicies.CanManageFfc(User))
+            {
                 <div class="pm-card pm-shadow h-100">
                     <div class="pm-card-header">
                         <div class="pm-card-heading">
@@ -91,7 +92,7 @@
                         </form>
                     </div>
                 </div>
-            </authorize>
+            }
         </div>
     </div>
 </div>

@@ -54,7 +54,7 @@
     };
 
     var detailsId = $"ffc-record-{Model.RecordId}";
-    var canManage = User.IsInRole("Admin") || User.IsInRole("HoD");
+    var canManage = ProjectOfficeReportsPolicies.CanManageFfc(User);
     var overallPosition = string.IsNullOrWhiteSpace(Model.OverallRemarks)
         ? "No overall remarks recorded."
         : Model.OverallRemarks.Trim();

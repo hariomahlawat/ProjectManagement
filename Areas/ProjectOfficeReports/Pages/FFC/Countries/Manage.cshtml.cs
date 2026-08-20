@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Data;
@@ -17,7 +18,7 @@ using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Policy = ProjectOfficeReportsPolicies.ManageFfc)]
 public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<ManageModel> logger) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
@@ -47,7 +48,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     public bool IsSortDescending => string.Equals(CurrentSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
     public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
 
-    private bool CanManageCountries => User.IsInRole("Admin") || User.IsInRole("HoD");
+    private bool CanManageCountries => ProjectOfficeReportsPolicies.CanManageFfc(User);
 
     public async Task<IActionResult> OnGetAsync()
     {

@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
@@ -140,7 +142,7 @@ public class MapTableDetailedModel : PageModel
         [FromBody] UpdateOverallRemarksRequest request,
         CancellationToken cancellationToken)
     {
-        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+        if (!ProjectOfficeReportsPolicies.CanInlineEditFfc(User))
         {
             return Forbid();
         }
@@ -188,7 +190,7 @@ public class MapTableDetailedModel : PageModel
         [FromBody] UpdateProgressRequest request,
         CancellationToken cancellationToken)
     {
-        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+        if (!ProjectOfficeReportsPolicies.CanInlineEditFfc(User))
         {
             return Forbid();
         }
@@ -438,14 +440,19 @@ public class MapTableDetailedModel : PageModel
         }
 
         var roles = new List<RemarkActorRole>();
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole(RoleNames.Admin))
         {
             roles.Add(RemarkActorRole.Administrator);
         }
 
-        if (User.IsInRole("HoD"))
+        if (User.IsInRole(RoleNames.HoD))
         {
             roles.Add(RemarkActorRole.HeadOfDepartment);
+        }
+
+        if (User.IsInRole(RoleNames.Comdt))
+        {
+            roles.Add(RemarkActorRole.Commandant);
         }
 
         if (roles.Count == 0)
@@ -455,7 +462,9 @@ public class MapTableDetailedModel : PageModel
 
         var primary = roles.Contains(RemarkActorRole.Administrator)
             ? RemarkActorRole.Administrator
-            : RemarkActorRole.HeadOfDepartment;
+            : roles.Contains(RemarkActorRole.HeadOfDepartment)
+                ? RemarkActorRole.HeadOfDepartment
+                : RemarkActorRole.Commandant;
 
         return Task.FromResult<RemarkActorContext?>(new RemarkActorContext(userId, primary, roles));
     }
@@ -464,14 +473,19 @@ public class MapTableDetailedModel : PageModel
     {
         var userId = _userManager.GetUserId(User);
         var roles = new List<string>();
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole(RoleNames.Admin))
         {
-            roles.Add("Admin");
+            roles.Add(RoleNames.Admin);
         }
 
-        if (User.IsInRole("HoD"))
+        if (User.IsInRole(RoleNames.HoD))
         {
-            roles.Add("HoD");
+            roles.Add(RoleNames.HoD);
+        }
+
+        if (User.IsInRole(RoleNames.Comdt))
+        {
+            roles.Add(RoleNames.Comdt);
         }
 
         _logger.LogError(

@@ -11,7 +11,7 @@
     var isFfcCountriesManagePage = !string.IsNullOrWhiteSpace(returnUrl) &&
         returnUrl.Contains("/ProjectOfficeReports/FFC/Countries/Manage", System.StringComparison.OrdinalIgnoreCase);
     var message = (isFfcRecordsManagePage || isFfcCountriesManagePage)
-        ? "Only administrators or heads of department can manage FFC records or countries. If you need access, please contact your administrator."
+        ? "Only authorised FFC managers can manage FFC records or countries. If you need access, please contact your administrator."
         : "You don't have permission to view this resource. If you believe this is an error, please contact your administrator.";
 }
 

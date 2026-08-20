@@ -221,6 +221,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.Checklist.EditorRoles));
     options.AddPolicy(Policies.Checklist.EditPurpose, policy =>
         policy.RequireRole(Policies.Checklist.PurposeEditorRoles));
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageFfc, policy =>
+        policy.RequireFfcManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.InlineEditFfc, policy =>
+        policy.RequireFfcInlineEditor());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewVisits, policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>

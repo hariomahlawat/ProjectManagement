@@ -308,6 +308,7 @@ public sealed class ProjectRemarksPanelService
             RemarkActorRole.ProjectOffice => "Project Office",
             RemarkActorRole.MainOffice => "Main Office",
             RemarkActorRole.Ta => "TA",
+            RemarkActorRole.Ito => "ITO",
             _ => role.ToString()
         };
 

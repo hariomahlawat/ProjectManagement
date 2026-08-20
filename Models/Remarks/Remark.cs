@@ -22,7 +22,12 @@ namespace ProjectManagement.Models.Remarks
         Ta = 5,
         Mco = 6,
         ProjectOffice = 7,
-        MainOffice = 8
+        MainOffice = 8,
+        // ITO is used explicitly by the FFC workspace when recording canonical
+        // linked-project progress. It is intentionally not added to the generic
+        // Identity-role parser, so this enum value does not grant ITO project-remark
+        // authoring rights outside the FFC workflow.
+        Ito = 9
     }
 
     public enum RemarkScope

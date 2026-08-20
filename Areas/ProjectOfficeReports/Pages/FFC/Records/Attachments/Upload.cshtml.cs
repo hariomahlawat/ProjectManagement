@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Ffc;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Configuration;
@@ -43,7 +44,7 @@ public class UploadModel(
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
     public IList<FfcAttachment> Items { get; private set; } = [];
-    private bool CanManageAttachments => User.IsInRole("Admin") || User.IsInRole("HoD");
+    private bool CanManageAttachments => ProjectOfficeReportsPolicies.CanManageFfc(User);
 
     [BindProperty] public IFormFile? UploadFile { get; set; }
     [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.Pdf;

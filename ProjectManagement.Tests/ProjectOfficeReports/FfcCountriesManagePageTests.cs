@@ -123,7 +123,7 @@ public sealed class FfcCountriesManagePageTests
 
         Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
         var content = await accessDenied.Content.ReadAsStringAsync();
-        Assert.Contains("Only administrators or heads of department can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Only authorised FFC managers can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
     }
 
     private static ManageModel CreatePage(ApplicationDbContext db)

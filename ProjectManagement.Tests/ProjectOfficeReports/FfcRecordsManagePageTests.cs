@@ -214,7 +214,7 @@ public sealed class FfcRecordsManagePageTests
 
         Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
         var content = await accessDenied.Content.ReadAsStringAsync();
-        Assert.Contains("Only administrators or heads of department can manage FFC records", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Only authorised FFC managers can manage FFC records", content, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void SetIpaMismatch(ManageModel.InputModel input)

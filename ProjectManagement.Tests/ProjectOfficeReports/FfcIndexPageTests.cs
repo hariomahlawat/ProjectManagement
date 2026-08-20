@@ -86,6 +86,25 @@ public sealed class FfcIndexPageTests
         Assert.True(page.CanManageRecords);
     }
 
+
+    [Theory]
+    [InlineData("Comdt")]
+    [InlineData("ITO")]
+    public async Task OnGetAsync_WithFfcManagerRole_AllowsManagement(string role)
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Delta", "DEL");
+        db.FfcRecords.Add(new FfcRecord { CountryId = country.Id, Year = 2026 });
+        await db.SaveChangesAsync();
+
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreatePrincipal(role: role));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.True(page.CanManageRecords);
+    }
+
     [Fact]
     public async Task OnGetAsync_ExcludesSoftDeletedRecords()
     {
@@ -263,7 +282,7 @@ public sealed class FfcIndexPageTests
         return country;
     }
 
-    private static ClaimsPrincipal CreatePrincipal(bool isAdmin = false, bool isHod = false)
+    private static ClaimsPrincipal CreatePrincipal(bool isAdmin = false, bool isHod = false, string? role = null)
     {
         var claims = new List<Claim>
         {
@@ -279,6 +298,11 @@ public sealed class FfcIndexPageTests
         if (isHod)
         {
             claims.Add(new Claim(ClaimTypes.Role, "HoD"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));

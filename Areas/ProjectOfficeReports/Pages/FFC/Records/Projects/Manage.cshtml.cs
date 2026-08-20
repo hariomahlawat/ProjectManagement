@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Data;
@@ -29,7 +30,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     public FfcRecord Record { get; private set; } = default!;
     public IList<FfcProject> Items { get; private set; } = [];
     public SelectList LinkedProjects { get; private set; } = default!;
-    private bool CanManageProjects => User.IsInRole("Admin") || User.IsInRole("HoD");
+    private bool CanManageProjects => ProjectOfficeReportsPolicies.CanManageFfc(User);
 
     [BindProperty] public InputModel Input { get; set; } = new();
 
