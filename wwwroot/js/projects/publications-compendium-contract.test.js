@@ -619,7 +619,8 @@ test('phase 28 makes Review proof-first with focus mode and explicit preview zoo
   assert.match(view, /data-live-page-zoom="100"/);
   assert.match(js, /applyReviewFocusMode/);
   assert.match(js, /applyLivePreviewZoom/);
-  assert.match(css, /is-review-focus[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*350px/);
+  assert.match(css, /\.compendium-builder-page\.is-review-focus \.compendium-builder-layout[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(css, /\.compendium-builder-page\.is-review-focus \.compendium-builder-rail\s*\{\s*display:\s*none/);
   assert.match(css, /data-preview-zoom="100"[\s\S]*595px/);
 });
 

@@ -1,0 +1,189 @@
+--- a/wwwroot/css/pages/projects-publications.css
++++ b/wwwroot/css/pages/projects-publications.css
+@@ -3478,7 +3478,8 @@
+     width: 100%;
+ }
+ 
+-/* Review mode can deliberately reclaim rail width without hiding structure. */
++/* Review-focus toggle state. The focus-layout contract itself is defined once,
++   with the other authoritative responsive rules in the Phase 39.1 section. */
+ .compendium-review-focus-toggle {
+     display:inline-flex;
+     align-items:center;
+@@ -3492,18 +3493,6 @@
+     border-color: #5f9783;
+     background: #edf7f2;
+     color: #245b47;
+-}
+-@media (min-width: 1600px) {
+-    .compendium-builder-page.is-review-focus .compendium-builder-layout,
+-    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
+-        grid-template-columns: minmax(0, 1fr) 350px;
+-    }
+-}
+-@media (min-width: 1900px) {
+-    .compendium-builder-page.is-review-focus .compendium-builder-layout,
+-    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
+-        grid-template-columns: minmax(0, 1fr) 370px;
+-    }
+ }
+ .compendium-builder-page.is-review-focus #compendium-review {
+     border-color: #c5dcd2;
+@@ -3692,12 +3681,6 @@
+ @media (min-width: 1800px) {
+     .compendium-builder-page .compendium-review-workspace--live {
+         grid-template-columns: minmax(650px, 1.58fr) minmax(350px, .72fr);
+-    }
+-    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+-        grid-template-columns: minmax(720px, 1.7fr) minmax(360px, .68fr);
+-    }
+-    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+-        width: min(100%, 720px);
+     }
+ }
+ @media (max-width: 1549.98px) {
+@@ -4296,9 +4279,14 @@
+ .compendium-output-dock__actions .btn:disabled i,
+ .compendium-output-dock__actions .btn[aria-disabled="true"] i { color: inherit; }
+ 
+-/* Focus Review is now genuinely proof-first.  Structure composition belongs in
+-   the dedicated Structure Editor and the fixed output dock retains issue access. */
+-@media (min-width: 1600px) {
++/* ==========================================================================
++   Simulators Compendium - Phase 39.1 focus-review reliability
++   Focus Review is exposed from the desktop workspace breakpoint (1200px), so
++   the layout transformation must become effective at that same breakpoint.
++   The structure/final-output rail is intentionally hidden while the fixed output
++   dock preserves issue access; proof and inspector then use the reclaimed width.
++   ========================================================================== */
++@media (min-width: 1200px) {
+     .compendium-builder-page.is-review-focus .compendium-builder-layout,
+     .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
+         grid-template-columns: minmax(0, 1fr);
+@@ -4306,16 +4294,49 @@
+     .compendium-builder-page.is-review-focus .compendium-builder-rail {
+         display: none;
+     }
++    .compendium-builder-page.is-review-focus .compendium-builder-main {
++        min-width: 0;
++        padding-bottom: 6rem;
++    }
+     .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+-        grid-template-columns: minmax(720px, 1.78fr) minmax(350px, .62fr);
++        grid-template-columns: minmax(0, 1.52fr) minmax(310px, .72fr);
++        gap: 1rem;
++        align-items: start;
++    }
++    .compendium-builder-page.is-review-focus .compendium-live-page__viewport {
++        min-height: 620px;
++        max-height: calc(100dvh - 230px);
++    }
++    .compendium-builder-page.is-review-focus .compendium-review-inspector {
++        max-height: calc(100dvh - 230px);
++        overflow: auto;
++        padding-right: .18rem;
++        overscroll-behavior: contain;
++        scrollbar-gutter: stable;
+     }
+     .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+-        width: min(100%, 780px);
++        width: min(100%, 690px);
++    }
++}
++@media (min-width: 1400px) {
++    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
++        grid-template-columns: minmax(0, 1.62fr) minmax(330px, .68fr);
++    }
++    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
++        width: min(100%, 750px);
++    }
++}
++@media (min-width: 1700px) {
++    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
++        grid-template-columns: minmax(0, 1.76fr) minmax(350px, .64fr);
++    }
++    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
++        width: min(100%, 810px);
+     }
+ }
+ @media (min-width: 1900px) {
+     .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+-        grid-template-columns: minmax(820px, 1.9fr) minmax(380px, .58fr);
++        grid-template-columns: minmax(0, 1.9fr) minmax(380px, .58fr);
+     }
+     .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+         width: min(100%, 860px);
+--- a/wwwroot/js/projects/publications-compendium-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-contract.test.js
+@@ -619,7 +619,8 @@
+   assert.match(view, /data-live-page-zoom="100"/);
+   assert.match(js, /applyReviewFocusMode/);
+   assert.match(js, /applyLivePreviewZoom/);
+-  assert.match(css, /is-review-focus[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*350px/);
++  assert.match(css, /\.compendium-builder-page\.is-review-focus \.compendium-builder-layout[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
++  assert.match(css, /\.compendium-builder-page\.is-review-focus \.compendium-builder-rail\s*\{\s*display:\s*none/);
+   assert.match(css, /data-preview-zoom="100"[\s\S]*595px/);
+ });
+ 
+--- a/wwwroot/js/projects/publications-compendium-phase39-1-focus-review.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase39-1-focus-review.test.js
+@@ -0,0 +1,59 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
++
++const css = read('wwwroot', 'css', 'pages', 'projects-publications.css');
++const js = read('wwwroot', 'js', 'pages', 'projects-compendium.js');
++
++const phase391Marker = 'Simulators Compendium - Phase 39.1 focus-review reliability';
++const phase391Index = css.indexOf(phase391Marker);
++const phase391Css = phase391Index >= 0 ? css.slice(phase391Index) : '';
++
++test('phase 39.1 aligns Focus Review with the desktop breakpoint used by the output dock', () => {
++  assert.ok(phase391Index >= 0, 'Phase 39.1 focus-review section must be present');
++  assert.match(js, /window\.innerWidth\s*>=\s*1200/);
++  assert.match(phase391Css, /@media \(min-width:\s*1200px\)/);
++  assert.match(css, /@media \(max-width:\s*1199\.98px\)[\s\S]*\.compendium-review-focus-toggle\s*\{\s*display:\s*none;/);
++});
++
++test('phase 39.1 makes Focus Review genuinely proof-first at every supported desktop width', () => {
++  assert.match(
++    phase391Css,
++    /\.compendium-builder-page\.is-review-focus \.compendium-builder-layout,[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\);/
++  );
++  assert.match(
++    phase391Css,
++    /\.compendium-builder-page\.is-review-focus \.compendium-builder-rail\s*\{\s*display:\s*none;/
++  );
++  assert.match(
++    phase391Css,
++    /\.compendium-builder-page\.is-review-focus \.compendium-review-workspace--live\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1\.52fr\)\s*minmax\(310px,\s*\.72fr\);/
++  );
++});
++
++test('phase 39.1 overrides the ordinary narrow-desktop stacked review only after it is declared', () => {
++  const stackedIndex = css.indexOf('@media (max-width: 1549.98px)');
++  assert.ok(stackedIndex >= 0, 'Ordinary narrow-desktop stacking rule must remain available');
++  assert.ok(phase391Index > stackedIndex, 'Focus Review overrides must follow the ordinary stacked layout');
++  assert.match(phase391Css, /\.compendium-review-inspector\s*\{[\s\S]*?max-height:\s*calc\(100dvh\s*-\s*230px\);[\s\S]*?overflow:\s*auto;/);
++  assert.match(phase391Css, /\.compendium-live-page__viewport\s*\{[\s\S]*?max-height:\s*calc\(100dvh\s*-\s*230px\);/);
++});
++
++test('phase 39.1 reserves space for the fixed output dock while the canonical rail is hidden', () => {
++  assert.match(
++    phase391Css,
++    /\.compendium-builder-page\.is-review-focus \.compendium-builder-main\s*\{[\s\S]*?padding-bottom:\s*6rem;/
++  );
++  assert.match(js, /if \(reviewFocusMode\) \{ setVisible\(true\); return; \}/);
++});
++
++test('phase 39.1 scales the proof progressively instead of requiring a 1600px viewport', () => {
++  assert.match(phase391Css, /@media \(min-width:\s*1400px\)[\s\S]*?width:\s*min\(100%,\s*750px\)/);
++  assert.match(phase391Css, /@media \(min-width:\s*1700px\)[\s\S]*?width:\s*min\(100%,\s*810px\)/);
++  assert.match(phase391Css, /@media \(min-width:\s*1900px\)[\s\S]*?width:\s*min\(100%,\s*860px\)/);
++  assert.doesNotMatch(css, /Review mode can deliberately reclaim rail width without hiding structure/);
++});

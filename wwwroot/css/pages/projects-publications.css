@@ -3478,7 +3478,8 @@ body.brochure-modal-open { overflow: hidden; }
     width: 100%;
 }
 
-/* Review mode can deliberately reclaim rail width without hiding structure. */
+/* Review-focus toggle state. The focus-layout contract itself is defined once,
+   with the other authoritative responsive rules in the Phase 39.1 section. */
 .compendium-review-focus-toggle {
     display:inline-flex;
     align-items:center;
@@ -3492,18 +3493,6 @@ body.brochure-modal-open { overflow: hidden; }
     border-color: #5f9783;
     background: #edf7f2;
     color: #245b47;
-}
-@media (min-width: 1600px) {
-    .compendium-builder-page.is-review-focus .compendium-builder-layout,
-    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
-        grid-template-columns: minmax(0, 1fr) 350px;
-    }
-}
-@media (min-width: 1900px) {
-    .compendium-builder-page.is-review-focus .compendium-builder-layout,
-    .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
-        grid-template-columns: minmax(0, 1fr) 370px;
-    }
 }
 .compendium-builder-page.is-review-focus #compendium-review {
     border-color: #c5dcd2;
@@ -3692,12 +3681,6 @@ body.brochure-modal-open { overflow: hidden; }
 @media (min-width: 1800px) {
     .compendium-builder-page .compendium-review-workspace--live {
         grid-template-columns: minmax(650px, 1.58fr) minmax(350px, .72fr);
-    }
-    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
-        grid-template-columns: minmax(720px, 1.7fr) minmax(360px, .68fr);
-    }
-    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
-        width: min(100%, 720px);
     }
 }
 @media (max-width: 1549.98px) {
@@ -4296,9 +4279,14 @@ body.brochure-modal-open { overflow: hidden; }
 .compendium-output-dock__actions .btn:disabled i,
 .compendium-output-dock__actions .btn[aria-disabled="true"] i { color: inherit; }
 
-/* Focus Review is now genuinely proof-first.  Structure composition belongs in
-   the dedicated Structure Editor and the fixed output dock retains issue access. */
-@media (min-width: 1600px) {
+/* ==========================================================================
+   Simulators Compendium - Phase 39.1 focus-review reliability
+   Focus Review is exposed from the desktop workspace breakpoint (1200px), so
+   the layout transformation must become effective at that same breakpoint.
+   The structure/final-output rail is intentionally hidden while the fixed output
+   dock preserves issue access; proof and inspector then use the reclaimed width.
+   ========================================================================== */
+@media (min-width: 1200px) {
     .compendium-builder-page.is-review-focus .compendium-builder-layout,
     .compendium-builder-page.is-review-focus.is-custom-structure .compendium-builder-layout {
         grid-template-columns: minmax(0, 1fr);
@@ -4306,16 +4294,49 @@ body.brochure-modal-open { overflow: hidden; }
     .compendium-builder-page.is-review-focus .compendium-builder-rail {
         display: none;
     }
+    .compendium-builder-page.is-review-focus .compendium-builder-main {
+        min-width: 0;
+        padding-bottom: 6rem;
+    }
     .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
-        grid-template-columns: minmax(720px, 1.78fr) minmax(350px, .62fr);
+        grid-template-columns: minmax(0, 1.52fr) minmax(310px, .72fr);
+        gap: 1rem;
+        align-items: start;
+    }
+    .compendium-builder-page.is-review-focus .compendium-live-page__viewport {
+        min-height: 620px;
+        max-height: calc(100dvh - 230px);
+    }
+    .compendium-builder-page.is-review-focus .compendium-review-inspector {
+        max-height: calc(100dvh - 230px);
+        overflow: auto;
+        padding-right: .18rem;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
     }
     .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
-        width: min(100%, 780px);
+        width: min(100%, 690px);
+    }
+}
+@media (min-width: 1400px) {
+    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+        grid-template-columns: minmax(0, 1.62fr) minmax(330px, .68fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+        width: min(100%, 750px);
+    }
+}
+@media (min-width: 1700px) {
+    .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
+        grid-template-columns: minmax(0, 1.76fr) minmax(350px, .64fr);
+    }
+    .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
+        width: min(100%, 810px);
     }
 }
 @media (min-width: 1900px) {
     .compendium-builder-page.is-review-focus .compendium-review-workspace--live {
-        grid-template-columns: minmax(820px, 1.9fr) minmax(380px, .58fr);
+        grid-template-columns: minmax(0, 1.9fr) minmax(380px, .58fr);
     }
     .compendium-builder-page.is-review-focus .compendium-live-page__viewport[data-preview-zoom="fit"] .compendium-live-page__sheet {
         width: min(100%, 860px);
