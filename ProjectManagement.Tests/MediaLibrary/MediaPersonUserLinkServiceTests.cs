@@ -106,6 +106,7 @@ public sealed class MediaPersonUserLinkServiceTests
         var service = new MediaPersonUserLinkService(media, app, NullLogger<MediaPersonUserLinkService>.Instance);
         await service.LinkAsync(first.Id, "user-1", "reviewer", CancellationToken.None);
         await service.UnlinkAsync(first.Id, "reviewer", "Wrong media identity", CancellationToken.None);
+        Assert.Null(await service.GetPhotoIdentityForUserAsync("user-1", CancellationToken.None));
         await service.LinkAsync(second.Id, "user-1", "reviewer", CancellationToken.None);
 
         var active = await service.GetPhotoIdentityForUserAsync("user-1", CancellationToken.None);
@@ -144,6 +145,9 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.True(enabled.UsePortraitAsAvatar);
         Assert.True(enabled.CanUsePortraitAsAvatar);
         Assert.True(enabled.ShouldUsePortraitAsAvatar);
+        var managerView = await service.GetForPersonAsync(person.Id, CancellationToken.None);
+        Assert.NotNull(managerView);
+        Assert.True(managerView!.ShouldUsePortraitAsAvatar);
 
         var secondFace = AddUsablePortrait(media, person, "faces/portrait-2.webp", makeRepresentative: false);
         person.RepresentativeFaceId = secondFace.Id;
@@ -153,10 +157,16 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.NotNull(afterRepresentativeChange);
         Assert.True(afterRepresentativeChange!.ShouldUsePortraitAsAvatar);
         Assert.NotEqual(firstFace.Id, person.RepresentativeFaceId);
+        managerView = await service.GetForPersonAsync(person.Id, CancellationToken.None);
+        Assert.NotNull(managerView);
+        Assert.True(managerView!.ShouldUsePortraitAsAvatar);
 
         var disabled = await service.SetAvatarPreferenceAsync("user-1", false, CancellationToken.None);
         Assert.False(disabled.UsePortraitAsAvatar);
         Assert.False(disabled.ShouldUsePortraitAsAvatar);
+        managerView = await service.GetForPersonAsync(person.Id, CancellationToken.None);
+        Assert.NotNull(managerView);
+        Assert.False(managerView!.ShouldUsePortraitAsAvatar);
         Assert.Equal(2, await media.IdentityAudits.CountAsync(audit => audit.Action == "PrismUserAvatarPreferenceChanged"));
     }
 
@@ -187,6 +197,10 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.NotNull(lightweight);
         Assert.True(lightweight!.HasOpenConcern);
         Assert.False(lightweight.ShouldUsePortraitAsAvatar);
+        var managerView = await service.GetForPersonAsync(person.Id, CancellationToken.None);
+        Assert.NotNull(managerView);
+        Assert.True(managerView!.HasOpenConcern);
+        Assert.False(managerView!.ShouldUsePortraitAsAvatar);
         Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinkConcernRaised");
 
         await service.ResolveLinkConcernAsync(person.Id, "reviewer", "Account holder and identity were re-verified", CancellationToken.None);
@@ -197,6 +211,10 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.NotNull(lightweight);
         Assert.False(lightweight!.HasOpenConcern);
         Assert.False(lightweight.ShouldUsePortraitAsAvatar);
+        managerView = await service.GetForPersonAsync(person.Id, CancellationToken.None);
+        Assert.NotNull(managerView);
+        Assert.False(managerView!.HasOpenConcern);
+        Assert.False(managerView!.ShouldUsePortraitAsAvatar);
         Assert.Contains(media.IdentityAudits, audit => audit.Action == "PrismUserLinkConcernResolved");
     }
 

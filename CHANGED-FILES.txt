@@ -1,11 +1,9 @@
-MODIFIED  Areas/Identity/Pages/Account/Manage/Index.cshtml
-MODIFIED  Areas/Identity/Pages/Account/Manage/Index.cshtml.cs
-MODIFIED  Features/MediaLibrary/Services/MediaPersonUserLinkService.cs
-MODIFIED  Pages/Shared/_LoginPartial.cshtml
-MODIFIED  ProjectManagement.Tests/AccountManagePageTests.cs
-ADDED     ProjectManagement.Tests/AccountPhotoAvatarContractTests.cs
-MODIFIED  ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs
-ADDED     tools/Test-PrismPhotosAvatarStabilisation.ps1
-MODIFIED  wwwroot/css/site.css
-
-DATABASE MIGRATION: none
+Areas/Identity/Pages/Account/Manage/Index.cshtml
+Areas/Identity/Pages/Account/Manage/Index.cshtml.cs
+Features/MediaLibrary/Services/MediaPersonUserLinkService.cs
+Pages/Photos/People/Details.cshtml
+wwwroot/css/site.css
+wwwroot/css/pages/photos-reference-readiness.css
+ProjectManagement.Tests/AccountPhotoAvatarContractTests.cs
+ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs
+tools/Test-PrismPhotosAvatarPhaseClosure.ps1

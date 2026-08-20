@@ -121,7 +121,7 @@
             @if (Model.PhotoIdentity.UsePortraitAsAvatar)
             {
               <form method="post" asp-page-handler="UseInitials">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                <button type="submit" class="btn btn-sm btn-outline-secondary account-photo-avatar-setting__use-initials">
                   <i class="bi bi-person-badge" aria-hidden="true"></i>
                   <span>Use initials instead</span>
                 </button>
@@ -157,7 +157,7 @@
           </summary>
           <form method="post" asp-page-handler="ReportPhotoIdentity" class="account-photo-identity__report-form">
             <p>
-              Reporting this link immediately disables the Photos portrait as your PRISM avatar and suspends My Photos/self-review while an identity manager checks the linkage. Existing confirmed photograph assignments are not changed automatically.
+              Reporting this link immediately stops the Photos portrait from being used as your PRISM profile image and suspends My Photos and self-review while an identity manager checks the linkage. Existing confirmed photograph assignments are not changed automatically.
             </p>
             <div>
               <label for="photoIdentityConcern" class="form-label">What is wrong with this link?</label>

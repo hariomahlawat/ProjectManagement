@@ -35,6 +35,38 @@ public sealed class AccountPhotoAvatarContractTests
         Assert.Contains("Photos avatar preference persistence verification failed", service, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void FinalPolish_UsesProfileImageTerminology_AndMakesCurrentStateScannable()
+    {
+        var root = FindProjectRoot();
+        var account = File.ReadAllText(Path.Combine(root, "Areas", "Identity", "Pages", "Account", "Manage", "Index.cshtml"));
+        var accountModel = File.ReadAllText(Path.Combine(root, "Areas", "Identity", "Pages", "Account", "Manage", "Index.cshtml.cs"));
+        var details = File.ReadAllText(Path.Combine(root, "Pages", "Photos", "People", "Details.cshtml"));
+        var service = File.ReadAllText(Path.Combine(root, "Features", "MediaLibrary", "Services", "MediaPersonUserLinkService.cs"));
+        var siteCss = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "site.css"));
+        var peopleCss = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "pages", "photos-reference-readiness.css"));
+
+        Assert.Contains("PRISM profile image", account, StringComparison.Ordinal);
+        Assert.Contains("PRISM profile image", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRISM avatar", account, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRISM avatar", accountModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRISM avatar", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRISM avatar", service, StringComparison.Ordinal);
+
+        Assert.Contains("Photos portrait in use", details, StringComparison.Ordinal);
+        Assert.Contains("Initials in use", details, StringComparison.Ordinal);
+        Assert.Contains("ShouldUsePortraitAsAvatar", details, StringComparison.Ordinal);
+        Assert.Contains("person-account-link__profile-state", details, StringComparison.Ordinal);
+        Assert.Contains(".person-account-link__current .person-account-link__profile-state.is-photo", peopleCss, StringComparison.Ordinal);
+        Assert.Contains("Choose or prepare a trusted matching reference below.", details, StringComparison.Ordinal);
+
+        Assert.Contains("account-photo-avatar-setting__use-initials", account, StringComparison.Ordinal);
+        Assert.Contains(".account-photo-avatar-setting__use-initials", siteCss, StringComparison.Ordinal);
+        Assert.Contains("height: 36px;", siteCss, StringComparison.Ordinal);
+        Assert.Contains("width: 36px;", siteCss, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

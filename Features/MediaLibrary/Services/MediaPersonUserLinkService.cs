@@ -352,7 +352,7 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
             if (link.ConcernRaisedAtUtc.HasValue && !link.ConcernResolvedAtUtc.HasValue)
             {
                 throw new InvalidOperationException(
-                    "The Photos identity link is under review. Resolve the identity-link report before using its portrait as your PRISM avatar.");
+                    "The Photos identity link is under review. Resolve the identity-link report before using its portrait as your PRISM profile image.");
             }
             if (link.MediaPerson.IsHidden || link.MediaPerson.Status != MediaPersonStatus.Confirmed)
             {
@@ -373,7 +373,7 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
             if (!hasUsablePortrait)
             {
                 throw new InvalidOperationException(
-                    "This Photos identity does not currently have an available representative portrait. Choose a cover appearance in Photos before enabling the PRISM avatar.");
+                    "This Photos identity does not currently have an available representative portrait. Choose a cover appearance in Photos before using it as the PRISM profile image.");
             }
         }
 
@@ -388,8 +388,8 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                 Action = "PrismUserAvatarPreferenceChanged",
                 PerformedByUserId = normalizedUserId,
                 Notes = usePortraitAsAvatar
-                    ? "The linked PRISM user chose to use the Photos representative portrait as their PRISM avatar."
-                    : "The linked PRISM user stopped using the Photos representative portrait as their PRISM avatar.",
+                    ? "The linked PRISM user chose to use the Photos representative portrait as their PRISM profile image."
+                    : "The linked PRISM user stopped using the Photos representative portrait as their PRISM profile image.",
                 MetadataJson = JsonSerializer.Serialize(new
                 {
                     link.UserId,
@@ -403,7 +403,7 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
 
         var persisted = await GetForUserAsync(normalizedUserId, cancellationToken)
                         ?? throw new InvalidOperationException(
-                            "The Photos avatar preference was saved but the account link could not be reloaded.");
+                            "The Photos profile-image preference was saved but the account link could not be reloaded.");
         if (persisted.UsePortraitAsAvatar != usePortraitAsAvatar)
         {
             _logger.LogError(

@@ -79,7 +79,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
                     user.Id,
                     reason ?? string.Empty,
                     HttpContext.RequestAborted);
-                StatusMessage = "Your Photos identity-link report has been sent for identity-manager review. The linked portrait has been removed from your PRISM avatar while the report is open.";
+                StatusMessage = "Your Photos identity-link report has been sent for identity-manager review. The linked portrait is no longer being used as your PRISM profile image while the report is open.";
             }
             catch (Exception exception) when (IsExpectedLinkException(exception))
             {

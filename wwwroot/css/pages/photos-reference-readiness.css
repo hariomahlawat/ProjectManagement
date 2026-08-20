@@ -140,7 +140,38 @@
     grid-template-columns: minmax(220px, .55fr) minmax(420px, 1.45fr);
 }
 .person-account-link--linked.has-concern { border-color: rgba(220, 53, 69, .32); }
-.person-account-link__avatar-state { color: #58719b !important; }
+.person-account-link__current .person-account-link__profile-state {
+    align-items: center;
+    border: 1px solid #d8e0ea;
+    border-radius: 999px;
+    color: #56657a;
+    display: inline-flex;
+    font-size: .66rem;
+    font-weight: 700;
+    gap: .3rem;
+    line-height: 1;
+    margin-top: .32rem;
+    padding: .28rem .48rem;
+    width: max-content;
+}
+.person-account-link__current .person-account-link__profile-state.is-photo {
+    background: rgba(25, 135, 84, .07);
+    border-color: rgba(25, 135, 84, .22);
+    color: #2f6f53;
+}
+.person-account-link__current .person-account-link__profile-state.is-initials {
+    background: #f7f9fc;
+}
+[data-bs-theme="dark"] .person-account-link__current .person-account-link__profile-state {
+    background: rgba(148, 163, 184, .08);
+    border-color: rgba(148, 163, 184, .25);
+    color: #cbd5e1;
+}
+[data-bs-theme="dark"] .person-account-link__current .person-account-link__profile-state.is-photo {
+    background: rgba(52, 211, 153, .08);
+    border-color: rgba(52, 211, 153, .25);
+    color: #a7f3d0;
+}
 .person-account-link__concern {
     align-items: start;
     background: #fff8e1;

@@ -76,7 +76,7 @@
     {
         <div class="alert alert-warning" role="alert">
             <strong>No usable trusted matching reference.</strong> This person remains fully confirmed, but Find More Photos needs one current, explicitly trusted face embedding.
-            <a href="#matching-reference-setup" class="alert-link">Choose or prepare a matching reference below.</a>
+            <a href="#matching-reference-setup" class="alert-link">Choose or prepare a trusted matching reference below.</a>
         </div>
     }
     else if (Model.Person.ConfirmedFaceCount > usableTrustedReferenceCount)
@@ -204,7 +204,7 @@
             <div class="person-account-link__intro">
                 <span class="people-eyebrow">PRISM account</span>
                 <h2 id="prismAccountTitle">Linked account</h2>
-                <p>This institutional link is independent of biometric matching and profile-avatar preference.</p>
+                <p>This institutional link is independent of biometric matching and the PRISM profile-image preference.</p>
             </div>
             <div class="person-account-link__current">
                 <div class="person-account-link__avatar">
@@ -221,10 +221,11 @@
                     <strong>@Model.PrismUserLink.UserDisplayName</strong>
                     <span>@(string.IsNullOrWhiteSpace(Model.PrismUserLink.UserRank) ? Model.PrismUserLink.UserName : $"{Model.PrismUserLink.UserRank} · {Model.PrismUserLink.UserName}")</span>
                     <small>Linked @Model.PrismUserLink.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>
-                    <small class="person-account-link__avatar-state">
-                        <i class="bi @(Model.PrismUserLink.UsePortraitAsAvatar ? "bi-person-circle" : "bi-circle")" aria-hidden="true"></i>
-                        @(Model.PrismUserLink.UsePortraitAsAvatar ? "Photos portrait enabled as PRISM avatar by the user" : "Photos portrait is not being used as the PRISM avatar")
-                    </small>
+                    <span class="person-account-link__profile-state @(Model.PrismUserLink.ShouldUsePortraitAsAvatar ? "is-photo" : "is-initials")"
+                          title="Current PRISM profile image">
+                        <i class="bi @(Model.PrismUserLink.ShouldUsePortraitAsAvatar ? "bi-person-circle" : "bi-person-badge")" aria-hidden="true"></i>
+                        @(Model.PrismUserLink.ShouldUsePortraitAsAvatar ? "Photos portrait in use" : "Initials in use")
+                    </span>
                     @if (!Model.PrismUserLink.UserIsActive)
                     {
                         <small class="text-danger">This PRISM account is inactive or unavailable. Unlink it before choosing another account.</small>
@@ -309,7 +310,7 @@
                                 </section>
                             </div>
                             <div class="alert alert-warning mb-3">
-                                <strong>Verify both identities visually.</strong> PRISM does not infer this relationship from the name or face. Linking gives the account a personal My Photos experience. It does <strong>not</strong> automatically change the user's PRISM avatar.
+                                <strong>Verify both identities visually.</strong> PRISM does not infer this relationship from the name or face. Linking gives the account a personal My Photos experience. It does <strong>not</strong> automatically change the user's PRISM profile image.
                             </div>
                             <label class="form-check prism-user-link-confirm__check">
                                 <input class="form-check-input" type="checkbox" name="identityVerified" value="true" data-prism-link-verified />

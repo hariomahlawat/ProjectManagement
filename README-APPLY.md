@@ -1,69 +1,56 @@
-# PRISM Photos — Avatar State Stabilisation
+# PRISM Photos — Avatar / Profile Image Phase Closure
 
-This package is based on the supplied `ProjectManagement-master (10)(20260820-054526).zip` source and is ready to paste over that codebase.
+This is the final ready-to-paste closure delta for the Photos identity ↔ PRISM profile-image work. It is designed to be applied **over the current Avatar Stabilisation implementation** already verified in the supplied screenshots.
 
-## What this phase fixes
+## What this closes
 
-- Removes the fragile client-supplied Boolean avatar toggle.
-- Adds explicit **Use Photos portrait** and **Use initials instead** server commands.
-- Verifies the persisted avatar preference after every change before reporting success.
-- Uses one resolved presentation state (`ShouldUsePortraitAsAvatar`) in both Account Settings and the PRISM header.
-- Keeps initials as the deterministic fallback whenever the portrait cannot be presented.
-- Keeps the user able to clear a previously enabled portrait preference even if the representative portrait later becomes unavailable.
-- Compacts Account Settings: Photos identity, avatar choice, roles and password actions now use substantially less vertical space.
-- Converts **This isn't my identity** into a deliberate correction workflow with clear consequences before submission.
-- Adds regression tests for ON → portrait, OFF → initials, failed-state verification, missing portrait, representative portrait change, concern handling and source-contract integrity.
+- Standardises user-facing terminology on **PRISM profile image**. Internal code may still use `Avatar` in type/member names, but the UI and user-visible errors no longer alternate between profile image and avatar.
+- Replaces the weak linked-account metadata line with an explicit, compact current-state badge:
+  - **Photos portrait in use**
+  - **Initials in use**
+- The linked-account badge uses `ShouldUsePortraitAsAvatar`, i.e. the resolved presentation state, not merely the stored preference bit.
+- Makes **Use initials instead** visibly active rather than disabled-looking, including dark-mode treatment.
+- Reduces the secondary current-profile preview from 40 px to 36 px so it reads as a state preview rather than a duplicate identity portrait.
+- Tightens the trusted-reference warning to **Choose or prepare a trusted matching reference below.**
+- Keeps incorrect-identity reporting authoritative: reporting forces portrait use off; resolving the report never silently restores it.
+- Extends regression coverage for manager-view state, representative-portrait changes, concern handling, and unlink fallback.
 
 ## Replace / add these files
 
 1. `Areas/Identity/Pages/Account/Manage/Index.cshtml`
 2. `Areas/Identity/Pages/Account/Manage/Index.cshtml.cs`
 3. `Features/MediaLibrary/Services/MediaPersonUserLinkService.cs`
-4. `Pages/Shared/_LoginPartial.cshtml`
+4. `Pages/Photos/People/Details.cshtml`
 5. `wwwroot/css/site.css`
-6. `ProjectManagement.Tests/AccountManagePageTests.cs`
-7. `ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs`
-8. `ProjectManagement.Tests/AccountPhotoAvatarContractTests.cs` — new
-9. `tools/Test-PrismPhotosAvatarStabilisation.ps1` — new validation helper
+6. `wwwroot/css/pages/photos-reference-readiness.css`
+7. `ProjectManagement.Tests/AccountPhotoAvatarContractTests.cs`
+8. `ProjectManagement.Tests/MediaLibrary/MediaPersonUserLinkServiceTests.cs`
+9. `tools/Test-PrismPhotosAvatarPhaseClosure.ps1` — new validation script
 
-## Database
+No database migration is required.
 
-**No database migration is required.** This phase uses the existing `UsePortraitAsAvatar` persistence and the existing linkage-governance fields.
+## Apply
 
-## Validation
+Copy the package contents into the project root and overwrite matching files.
 
-From the project root in PowerShell:
+Then run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPhotosAvatarStabilisation.ps1
+.\tools\Test-PrismPhotosAvatarPhaseClosure.ps1
 ```
 
-The script checks the source contracts, cleans the project, builds it and runs the focused tests.
+The script performs source-contract checks, JavaScript syntax/contract tests, a project build, and focused .NET regression tests.
 
-If you prefer the normal full verification:
+## Final manual acceptance
 
-```powershell
-dotnet clean .\ProjectManagement.csproj
-Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item .\ProjectManagement.Tests\bin, .\ProjectManagement.Tests\obj -Recurse -Force -ErrorAction SilentlyContinue
+1. With **Initials in use**, verify the header shows initials.
+2. Click **Use Photos portrait**; verify Account Settings and the header immediately show the portrait.
+3. Refresh, then sign out/in; verify the selected state persists.
+4. On **Photos → People → person details**, verify the linked-account badge reads **Photos portrait in use**.
+5. Click **Use initials instead**; verify the header and Account Settings immediately return to initials and Person Details reports **Initials in use**.
+6. Re-enable the portrait, then report **This isn't my identity** in test data; verify portrait use is forced off and My Photos/self-review are suspended.
+7. Resolve the concern as Admin/HoD; verify the link is restored but portrait use remains off until the user explicitly opts in again.
+8. With portrait use enabled, change the person's representative portrait; verify the header resolves the new representative portrait without storing a duplicate profile image.
 
-dotnet build .\ProjectManagement.csproj
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-```
-
-## Functional acceptance check
-
-1. Link a confirmed Photos person to the PRISM account. The header must remain on initials initially.
-2. Open **Profile → Account settings**. The current state must read **Initials in use**.
-3. Click **Use Photos portrait**.
-4. After redirect, the success message must say the portrait is now being used; the current-avatar preview and header must both show the portrait.
-5. Click **Use initials instead**. The preview and header must both return to initials.
-6. Refresh the page after each transition. The state must persist.
-7. Change the representative Photos portrait while portrait use is enabled. The header must automatically use the new representative portrait because the avatar references the person endpoint, not a duplicated image.
-8. Report **This isn't my identity**. Portrait use and My Photos/self-review must be disabled while the concern is open.
-9. Resolve the concern as an identity manager. The link may remain, but portrait use must remain OFF until the user explicitly enables it again.
-
-## Important implementation invariant
-
-The PRISM header must never infer avatar state independently. It renders the Photos portrait only when the linked identity reports `ShouldUsePortraitAsAvatar == true`; otherwise it uses initials.
+Once these pass, this phase can be treated as closed.

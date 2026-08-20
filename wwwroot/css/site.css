@@ -11398,15 +11398,27 @@ main[role="main"].analytics-main > .pm-page-shell {
   display: inline-flex;
   font-size: .73rem;
   font-weight: 800;
-  height: 40px;
+  height: 36px;
   justify-content: center;
   letter-spacing: .02em;
   overflow: hidden;
-  width: 40px;
+  width: 36px;
 }
 
 .account-photo-avatar-setting__preview.is-photo {
   padding: 0;
+}
+
+/* This is an active user action, not a disabled-state treatment. */
+.account-photo-avatar-setting__use-initials {
+  --bs-btn-color: #475569;
+  --bs-btn-border-color: #94a3b8;
+  --bs-btn-hover-color: #ffffff;
+  --bs-btn-hover-bg: #475569;
+  --bs-btn-hover-border-color: #475569;
+  --bs-btn-active-color: #ffffff;
+  --bs-btn-active-bg: #334155;
+  --bs-btn-active-border-color: #334155;
 }
 
 .account-photo-avatar-setting__label {
@@ -11703,6 +11715,14 @@ main[role="main"].analytics-main > .pm-page-shell {
   background: #253244;
   border-color: rgba(255,255,255,.08);
   color: #c7d2e0;
+}
+
+[data-bs-theme="dark"] .account-photo-avatar-setting__use-initials {
+  --bs-btn-color: #d5deea;
+  --bs-btn-border-color: #718096;
+  --bs-btn-hover-color: #111827;
+  --bs-btn-hover-bg: #d5deea;
+  --bs-btn-hover-border-color: #d5deea;
 }
 
 [data-bs-theme="dark"] .account-photo-identity__report > summary:hover {
