@@ -13,6 +13,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 using ProjectManagement.Utilities;
 
@@ -54,6 +55,7 @@ public sealed class SummaryModel : PageModel
     }
 
     public ProliferationSummaryViewModel Summary { get; private set; } = ProliferationSummaryViewModel.Empty;
+    public ProliferationOperationalSnapshot OperationalSnapshot { get; private set; } = ProliferationOperationalSnapshot.Empty;
     public int ProjectsTotal { get; private set; }
     public int YearsTotal { get; private set; }
     public int GrandTotal { get; private set; }
@@ -71,6 +73,10 @@ public sealed class SummaryModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Summary = await _summaryService.GetSummaryAsync(cancellationToken);
+        OperationalSnapshot = await _summaryService.GetOperationalSnapshotAsync(
+            recentProliferationLimit: 8,
+            recentActivityLimit: 5,
+            cancellationToken);
 
         var totals = CalculateTotals(Summary);
         ProjectsTotal = totals.ProjectsTotal;
@@ -241,6 +247,49 @@ public sealed class SummaryModel : PageModel
             .OrderByDescending(x => x.Total)
             .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+
+    public static string FormatActivityTimestamp(DateTime utc)
+    {
+        var ist = IstClock.ToIst(utc);
+        return ist.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture) + " IST";
+    }
+
+    public string FormatActivityAge(DateTime utc)
+    {
+        var nowUtc = _clock.UtcNow.UtcDateTime;
+        var elapsed = nowUtc - DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+
+        if (elapsed < TimeSpan.Zero)
+        {
+            return "just now";
+        }
+
+        if (elapsed < TimeSpan.FromMinutes(1))
+        {
+            return "just now";
+        }
+
+        if (elapsed < TimeSpan.FromHours(1))
+        {
+            var minutes = Math.Max(1, (int)Math.Floor(elapsed.TotalMinutes));
+            return $"{minutes} min ago";
+        }
+
+        if (elapsed < TimeSpan.FromDays(1))
+        {
+            var hours = Math.Max(1, (int)Math.Floor(elapsed.TotalHours));
+            return $"{hours} h ago";
+        }
+
+        if (elapsed < TimeSpan.FromDays(7))
+        {
+            var days = Math.Max(1, (int)Math.Floor(elapsed.TotalDays));
+            return days == 1 ? "yesterday" : $"{days} days ago";
+        }
+
+        return FormatActivityTimestamp(utc);
     }
 
     private static SummaryTotals CalculateTotals(ProliferationSummaryViewModel summary)

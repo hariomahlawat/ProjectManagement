@@ -15,6 +15,7 @@
     const state = {
         page: 1,
         pageSize: 25,
+        sort: "latest-proliferation",
         total: 0,
         projectId: null,
         requestController: null,
@@ -35,6 +36,7 @@
         reset: document.getElementById("pf-record-reset"),
         export: document.getElementById("pf-record-export"),
         summary: document.getElementById("pf-record-summary"),
+        sort: document.getElementById("pf-record-sort"),
         pageSize: document.getElementById("pf-record-page-size"),
         groups: document.getElementById("pf-record-groups"),
         loading: document.getElementById("pf-record-loading"),
@@ -117,6 +119,7 @@
         if (el.source.value) params.set("source", el.source.value);
         if (el.year.value) params.set("year", el.year.value);
         if (el.search.value.trim()) params.set("search", el.search.value.trim());
+        params.set("sort", state.sort);
         return params;
     }
 
@@ -435,6 +438,11 @@
         if (validateYear()) reload();
     });
     el.search.addEventListener("input", reload);
+    el.sort.addEventListener("change", () => {
+        state.sort = el.sort.value || "latest-proliferation";
+        state.page = 1;
+        load();
+    });
     el.pageSize.addEventListener("change", () => {
         state.pageSize = Number(el.pageSize.value || 25);
         state.page = 1;
@@ -459,6 +467,8 @@
         el.source.value = "";
         el.year.value = "";
         el.search.value = "";
+        state.sort = "latest-proliferation";
+        el.sort.value = state.sort;
         validateYear();
         load();
         el.project.focus();
@@ -490,6 +500,11 @@
     }
     if (initial.get("source")) el.source.value = initial.get("source");
     if (initial.get("year")) el.year.value = initial.get("year");
+    const initialSort = initial.get("sort");
+    if (["latest-proliferation", "latest-activity", "project", "year"].includes(initialSort)) {
+        state.sort = initialSort;
+        el.sort.value = initialSort;
+    }
 
     load();
 })();

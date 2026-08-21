@@ -1,33 +1,16 @@
-PRISM Photos — Person Discovery & PRISM User Linkage
-Validation summary
+Static / JavaScript validation completed in the implementation environment:
 
-Validated in this environment:
-- Reconstructed the current Photos baseline from the latest cumulative/hotfix packages used in this conversation.
-- Overlay delta contains 34 project files: 29 modified + 5 new.
-- `git diff --check`: PASS.
-- Merge-conflict marker scan across affected source areas: PASS.
-- Node syntax checks:
-  - photos-person-profile.js: PASS
-  - photos-library.js: PASS
-  - photos-curation.js: PASS
-  - photos-people-review.js: PASS
-- Node contract tests:
-  - photos-curation-contract.test.js
-  - photos-person-profile-contract.test.js
-  Result: 7/7 PASS.
-- Static integration assertions: PASS
-  - new immutable migration id is present;
-  - MediaPersonUserLink DI registration is present;
-  - schema readiness requires MediaPersonUserLinks;
-  - migration metadata test expects the new latest migration;
-  - SelfConfirmed provenance is wired through profile mutation and identity audit logic.
-- Ready-to-paste package overlay compared with implementation: 34/34 project files byte-for-byte identical.
-- Unified patch dry-run/application against clean baseline: PASS.
-- Unified patch result compared with implementation: 34/34 project files byte-for-byte identical.
-- Package SHA-256 manifest verification: PASS.
-- ZIP integrity: PASS.
+PASS: proliferation-dashboard.js syntax check
+PASS: proliferation operational-freshness Node contract tests (2/2)
+PASS: operational snapshot contract present
+PASS: Recent proliferation UI present
+PASS: Data freshness UI present
+PASS: future detailed-entry exclusion present
+PASS: audit-backed maintenance activity present
+PASS: 30-day maintenance count present
+PASS: Records sort selector present
+PASS: Latest proliferation is the default Records sort
+PASS: Latest activity sort implemented server-side
+PASS: changed C# files passed basic brace-balance structural checks
 
-Not available in this execution environment:
-- .NET SDK / MSBuild.
-
-Therefore `dotnet build` and xUnit execution are intentionally NOT claimed here. Run the build and test commands in README-APPLY.md on the PRISM development machine before deployment.
+The .NET SDK is not installed in this execution environment, so dotnet build/test could not be executed here. Run the commands in README-PROLIFERATION-OPERATIONAL-FRESHNESS.txt on the development machine after pasting.

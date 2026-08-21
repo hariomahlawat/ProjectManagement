@@ -7,4 +7,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 public interface IProliferationSummaryReadService
 {
     Task<ProliferationSummaryViewModel> GetSummaryAsync(CancellationToken cancellationToken);
+
+    Task<ProliferationOperationalSnapshot> GetOperationalSnapshotAsync(
+        int recentProliferationLimit,
+        int recentActivityLimit,
+        CancellationToken cancellationToken);
 }

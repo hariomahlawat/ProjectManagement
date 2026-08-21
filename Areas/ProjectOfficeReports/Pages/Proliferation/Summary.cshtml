@@ -23,6 +23,8 @@
         .ToList();
 
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    var recentProliferation = Model.OperationalSnapshot.RecentProliferation;
+    var staffActivity = Model.OperationalSnapshot.StaffActivity;
 }
 
 <div class="container-xxl py-3 pf-shell" data-page="proliferation-summary">
@@ -114,6 +116,169 @@
             <strong>@Model.GrandAbw.ToString("N0")</strong>
             <small>@(Model.GrandTotal > 0 ? ((decimal)Model.GrandAbw / Model.GrandTotal).ToString("P1") : "0%") of total</small>
         </article>
+    </section>
+
+
+    <section class="pf-operational-grid mt-3" aria-label="Recent proliferation and data freshness">
+        <article class="pf-card pf-recent-proliferation-card" aria-labelledby="recent-proliferation-heading">
+            <div class="pf-card__header">
+                <div>
+                    <h2 class="pf-card__title" id="recent-proliferation-heading">Recent proliferation</h2>
+                    <p class="pf-card__subtitle">Latest approved proliferation by business date. Detailed entries are shown by exact date; annual quantities by year.</p>
+                </div>
+                <a class="btn btn-sm btn-link p-0"
+                   asp-area="ProjectOfficeReports"
+                   asp-page="/Proliferation/Index"
+                   asp-route-sort="latest-proliferation">
+                    View all records
+                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            </div>
+
+            @if (recentProliferation.Count == 0)
+            {
+                <div class="pf-operational-empty">
+                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                    <div>
+                        <strong>No approved proliferation yet</strong>
+                        <span>Recent approved entries will appear here.</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="pf-recent-proliferation-list">
+                    @foreach (var item in recentProliferation)
+                    {
+                        <div class="pf-recent-proliferation-row">
+                            <div class="pf-recent-proliferation-row__date">
+                                <strong>@item.BusinessDateLabel</strong>
+                                <span>@item.RecordTypeLabel</span>
+                            </div>
+                            <div class="pf-recent-proliferation-row__identity">
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/Proliferation/Project"
+                                   asp-route-id="@item.ProjectId">
+                                    @item.ProjectName
+                                </a>
+                                <div class="pf-recent-proliferation-row__meta">
+                                    <span>@item.SourceLabel</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.UnitName))
+                                    {
+                                        <span>@item.UnitName</span>
+                                    }
+                                    @if (item.EntryDelayDays.HasValue)
+                                    {
+                                        <span class="pf-late-entry"
+                                              title="The record was entered in PRISM after the proliferation date.">
+                                            Entered @item.EntryDelayDays.Value.ToString("N0") days later
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="pf-recent-proliferation-row__quantity">
+                                <span>Qty</span>
+                                <strong>@item.Quantity.ToString("N0")</strong>
+                            </div>
+                            <div class="pf-recent-proliferation-row__action">
+                                @if (Model.CanManageRecords)
+                                {
+                                    <a asp-area="ProjectOfficeReports"
+                                       asp-page="/Proliferation/Manage"
+                                       asp-route-projectId="@item.ProjectId"
+                                       asp-route-source="@((int)item.Source)"
+                                       asp-route-year="@item.Year"
+                                       aria-label="Manage @item.ProjectName proliferation records">
+                                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a asp-area="ProjectOfficeReports"
+                                       asp-page="/Proliferation/Project"
+                                       asp-route-id="@item.ProjectId"
+                                       aria-label="Open @item.ProjectName proliferation details">
+                                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </article>
+
+        <aside class="pf-card pf-freshness-card" aria-labelledby="data-freshness-heading">
+            <div class="pf-card__header">
+                <div>
+                    <h2 class="pf-card__title" id="data-freshness-heading">Data freshness</h2>
+                    <p class="pf-card__subtitle">Recent staff maintenance of the proliferation register.</p>
+                </div>
+            </div>
+
+            <div class="pf-freshness-summary">
+                <div class="pf-freshness-summary__primary">
+                    <span>Latest staff update</span>
+                    @if (staffActivity.LatestActivityUtc.HasValue)
+                    {
+                        <strong>@Model.FormatActivityAge(staffActivity.LatestActivityUtc.Value)</strong>
+                        <small>@ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel.FormatActivityTimestamp(staffActivity.LatestActivityUtc.Value)</small>
+                    }
+                    else
+                    {
+                        <strong>No activity recorded</strong>
+                        <small>Audit-backed maintenance activity will appear here.</small>
+                    }
+                </div>
+                <div class="pf-freshness-summary__metric">
+                    <span>Last 30 days</span>
+                    <strong>@staffActivity.ActionsLast30Days.ToString("N0")</strong>
+                    <small>maintenance actions</small>
+                </div>
+                <div class="pf-freshness-summary__metric">
+                    <span>Active staff</span>
+                    <strong>@staffActivity.ActiveStaffLast30Days.ToString("N0")</strong>
+                    <small>in last 30 days</small>
+                </div>
+            </div>
+
+            @if (staffActivity.RecentActivity.Count > 0)
+            {
+                <div class="pf-staff-activity-list" aria-label="Latest proliferation maintenance activity">
+                    @foreach (var activity in staffActivity.RecentActivity)
+                    {
+                        <div class="pf-staff-activity-row">
+                            <span class="pf-staff-activity-row__icon" aria-hidden="true">
+                                <i class="bi bi-clock-history"></i>
+                            </span>
+                            <div class="pf-staff-activity-row__copy">
+                                <strong>@activity.ActionLabel</strong>
+                                <span>
+                                    @if (activity.ProjectId.HasValue && !string.IsNullOrWhiteSpace(activity.ProjectName))
+                                    {
+                                        <a asp-area="ProjectOfficeReports"
+                                           asp-page="/Proliferation/Project"
+                                           asp-route-id="@activity.ProjectId">@activity.ProjectName</a>
+                                    }
+                                    else
+                                    {
+                                        <text>Proliferation register</text>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(activity.RecordReference))
+                                    {
+                                        <text> · @activity.RecordReference</text>
+                                    }
+                                </span>
+                                <small>
+                                    @(string.IsNullOrWhiteSpace(activity.ActorDisplayName) ? "System user" : activity.ActorDisplayName)
+                                    · @Model.FormatActivityAge(activity.TimeUtc)
+                                </small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </aside>
     </section>
 
     <section class="pf-card mt-3" aria-labelledby="project-totals-heading">

@@ -456,11 +456,92 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     matchingKeys.Contains((x.ProjectId, x.Source, x.Year)));
             }
 
-            var ordered = filtered
-                .OrderBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
-                .ThenByDescending(x => x.Year)
-                .ThenBy(x => x.Source)
-                .ToList();
+            var filteredRows = filtered.ToList();
+            var sort = NormalizeGroupedSort(query.Sort);
+
+            IReadOnlyDictionary<(int ProjectId, ProliferationSource Source, int Year), DateOnly> latestDetailedDates =
+                new Dictionary<(int ProjectId, ProliferationSource Source, int Year), DateOnly>();
+
+            if (sort == "latest-proliferation" && filteredRows.Count > 0)
+            {
+                var filteredProjectIds = filteredRows
+                    .Select(x => x.ProjectId)
+                    .Distinct()
+                    .ToArray();
+
+                var filteredYears = filteredRows
+                    .Select(x => x.Year)
+                    .Distinct()
+                    .ToArray();
+                var filteredSources = filteredRows
+                    .Select(x => x.Source)
+                    .Distinct()
+                    .ToArray();
+
+                var detailedDates = await _db.ProliferationGranularEntries
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.ApprovalStatus == ApprovalStatus.Approved &&
+                        filteredProjectIds.Contains(x.ProjectId) &&
+                        filteredSources.Contains(x.Source) &&
+                        filteredYears.Contains(x.ProliferationDate.Year))
+                    .Select(x => new
+                    {
+                        x.ProjectId,
+                        x.Source,
+                        Year = x.ProliferationDate.Year,
+                        x.ProliferationDate
+                    })
+                    .ToListAsync(ct);
+
+                latestDetailedDates = detailedDates
+                    .GroupBy(x => (x.ProjectId, x.Source, x.Year))
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.Max(x => x.ProliferationDate));
+            }
+
+            long BusinessSortKey(ProliferationAggregateRow row)
+            {
+                if (latestDetailedDates.TryGetValue((row.ProjectId, row.Source, row.Year), out var date))
+                {
+                    return (date.Year * 10_000L) + (date.Month * 100L) + date.Day;
+                }
+
+                var maximumChronologicalYear = DateTime.UtcNow.Year + 1;
+                if (row.Year is < 2000 || row.Year > maximumChronologicalYear)
+                {
+                    return long.MinValue;
+                }
+
+                return (row.Year * 10_000L) + 101L;
+            }
+
+            var ordered = sort switch
+            {
+                "latest-activity" => filteredRows
+                    .OrderByDescending(x => x.LastUpdatedOnUtc ?? DateTime.MinValue)
+                    .ThenByDescending(x => x.Year)
+                    .ThenBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Source)
+                    .ToList(),
+                "project" => filteredRows
+                    .OrderBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
+                    .ThenByDescending(x => x.Year)
+                    .ThenBy(x => x.Source)
+                    .ToList(),
+                "year" => filteredRows
+                    .OrderByDescending(x => x.Year)
+                    .ThenBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Source)
+                    .ToList(),
+                _ => filteredRows
+                    .OrderByDescending(BusinessSortKey)
+                    .ThenByDescending(x => x.Year)
+                    .ThenBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Source)
+                    .ToList()
+            };
 
             var total = ordered.Count;
             var items = ordered
@@ -1383,6 +1464,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             return null;
         }
+
+        private static string NormalizeGroupedSort(string? value) =>
+            value?.Trim().ToLowerInvariant() switch
+            {
+                "latest-activity" => "latest-activity",
+                "project" => "project",
+                "year" => "year",
+                _ => "latest-proliferation"
+            };
 
         private static ProliferationRecordKind? ParseKind(string? value)
         {
