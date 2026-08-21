@@ -17,6 +17,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Models;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 {
@@ -458,6 +459,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var filteredRows = filtered.ToList();
             var sort = NormalizeGroupedSort(query.Sort);
+            var todayIst = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow));
 
             IReadOnlyDictionary<(int ProjectId, ProliferationSource Source, int Year), DateOnly> latestDetailedDates =
                 new Dictionary<(int ProjectId, ProliferationSource Source, int Year), DateOnly>();
@@ -482,6 +484,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     .AsNoTracking()
                     .Where(x =>
                         x.ApprovalStatus == ApprovalStatus.Approved &&
+                        x.ProliferationDate <= todayIst &&
                         filteredProjectIds.Contains(x.ProjectId) &&
                         filteredSources.Contains(x.Source) &&
                         filteredYears.Contains(x.ProliferationDate.Year))

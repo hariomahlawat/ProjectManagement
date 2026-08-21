@@ -17,16 +17,27 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 public sealed class ProliferationSummaryReadService : IProliferationSummaryReadService
 {
+    private const string YearlyRecordedAction = "ProjectOfficeReports.Proliferation.YearlyRecorded";
+    private const string GranularRecordedAction = "ProjectOfficeReports.Proliferation.GranularRecorded";
+
     private static readonly string[] MaintenanceAuditActions =
     {
-        "ProjectOfficeReports.Proliferation.YearlyRecorded",
-        "ProjectOfficeReports.Proliferation.GranularRecorded",
+        YearlyRecordedAction,
+        GranularRecordedAction,
         "ProjectOfficeReports.ProliferationYearlySubmitted",
         "ProjectOfficeReports.ProliferationYearlyDecided",
         "ProjectOfficeReports.ProliferationGranularDecided",
         "ProjectOfficeReports.Proliferation.DataQualityCorrected",
         "ProjectOfficeReports.Proliferation.PreferenceChanged"
     };
+
+    private static readonly string[] RecordEntryAuditActions =
+    {
+        YearlyRecordedAction,
+        GranularRecordedAction
+    };
+
+    private static readonly TimeSpan ActivityCollapseWindow = TimeSpan.FromMinutes(10);
 
     private readonly ProliferationAggregateReadService _aggregateReadService;
     private readonly ApplicationDbContext _db;
@@ -108,17 +119,46 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
         var activityLimit = Math.Clamp(recentActivityLimit, 1, 20);
         var todayIst = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
 
-        var recentGranular = await _db.ProliferationGranularEntries
+        // The overview presents business events, not raw detail rows. Multiple unit-level
+        // entries for the same project/source/date are therefore collapsed into one event.
+        var recentGranularGroups = await _db.ProliferationGranularEntries
             .AsNoTracking()
             .Where(x =>
                 x.ApprovalStatus == ApprovalStatus.Approved &&
                 x.Quantity > 0 &&
                 x.ProliferationDate <= todayIst)
+            .GroupBy(x => new
+            {
+                x.ProjectId,
+                x.Source,
+                x.ProliferationDate
+            })
+            .Select(group => new
+            {
+                group.Key.ProjectId,
+                group.Key.Source,
+                group.Key.ProliferationDate,
+                Quantity = group.Sum(x => x.Quantity),
+                RecordCount = group.Count(),
+                ReceivingUnitCount = group
+                    .Where(x => x.UnitName != null && x.UnitName != string.Empty)
+                    .Select(x => x.UnitName)
+                    .Distinct()
+                    .Count(),
+                UnitName = group
+                    .Where(x => x.UnitName != null && x.UnitName != string.Empty)
+                    .Select(x => x.UnitName)
+                    .Min(),
+                CreatedOnUtc = group.Min(x => x.CreatedOnUtc),
+                LastUpdatedOnUtc = group.Max(x => x.LastUpdatedOnUtc)
+            })
             .OrderByDescending(x => x.ProliferationDate)
             .ThenByDescending(x => x.LastUpdatedOnUtc)
             .Take(proliferationLimit * 2)
+            .ToListAsync(cancellationToken);
+
+        var recentGranular = recentGranularGroups
             .Select(x => new RecentRecordProjection(
-                x.Id,
                 ProliferationRecordKind.Granular,
                 x.ProjectId,
                 x.Source,
@@ -126,9 +166,11 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
                 x.ProliferationDate.Year,
                 x.UnitName,
                 x.Quantity,
+                x.RecordCount,
+                x.ReceivingUnitCount,
                 x.CreatedOnUtc,
                 x.LastUpdatedOnUtc))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var recentYearly = await _db.ProliferationYearlies
             .AsNoTracking()
@@ -141,7 +183,6 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             .ThenByDescending(x => x.LastUpdatedOnUtc)
             .Take(proliferationLimit * 2)
             .Select(x => new RecentRecordProjection(
-                x.Id,
                 ProliferationRecordKind.Yearly,
                 x.ProjectId,
                 x.Source,
@@ -149,6 +190,8 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
                 x.Year,
                 null,
                 x.TotalQuantity,
+                1,
+                0,
                 x.CreatedOnUtc,
                 x.LastUpdatedOnUtc))
             .ToListAsync(cancellationToken);
@@ -161,11 +204,13 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             .Take(proliferationLimit)
             .ToList();
 
+        // Fetch more than the display limit because maintenance bursts are condensed for
+        // presentation (for example, several deletions by one user in the same project).
         var recentAudits = await _db.AuditLogs
             .AsNoTracking()
             .Where(x => MaintenanceAuditActions.Contains(x.Action))
             .OrderByDescending(x => x.TimeUtc)
-            .Take(Math.Max(activityLimit * 4, 20))
+            .Take(Math.Max(activityLimit * 12, 60))
             .ToListAsync(cancellationToken);
 
         var thirtyDayCutoffUtc = _clock.UtcNow.UtcDateTime.AddDays(-30);
@@ -185,16 +230,31 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             .Distinct()
             .CountAsync(cancellationToken);
 
+        // This is deliberately narrower than "register activity": approvals, deletes,
+        // counting-rule changes and exports do not make the underlying proliferation data
+        // look freshly entered.
+        var latestDataEntryUtc = await _db.AuditLogs
+            .AsNoTracking()
+            .Where(x =>
+                RecordEntryAuditActions.Contains(x.Action) &&
+                x.DataJson != null &&
+                (x.DataJson.Contains("\"Action\":\"Create\"") ||
+                 x.DataJson.Contains("\"Action\":\"Update\"")))
+            .OrderByDescending(x => x.TimeUtc)
+            .Select(x => (DateTime?)x.TimeUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var activityDrafts = recentAudits
             .Select(ParseActivity)
             .Where(x => x is not null)
             .Cast<ActivityDraft>()
-            .Take(activityLimit)
             .ToList();
+
+        var groupedActivityDrafts = CollapseActivityDrafts(activityDrafts, activityLimit);
 
         var projectIds = recentRecords
             .Select(x => x.ProjectId)
-            .Concat(activityDrafts.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId!.Value))
+            .Concat(groupedActivityDrafts.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId!.Value))
             .Distinct()
             .ToArray();
 
@@ -233,7 +293,6 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             {
                 var project = projectLookup[x.ProjectId];
                 return new RecentProliferationRow(
-                    x.Id,
                     x.Kind,
                     x.ProjectId,
                     project.Name,
@@ -243,13 +302,16 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
                     x.Year,
                     x.UnitName,
                     x.Quantity,
+                    x.RecordCount,
+                    x.ReceivingUnitCount,
                     x.CreatedOnUtc,
                     x.LastUpdatedOnUtc,
                     CalculateEntryDelayDays(x));
             })
             .ToList();
 
-        var recentActivity = activityDrafts
+        var auditLookup = recentAudits.ToDictionary(x => x.Id);
+        var recentActivity = groupedActivityDrafts
             .Select(x =>
             {
                 ProjectIdentity? project = null;
@@ -258,19 +320,20 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
                     projectLookup.TryGetValue(x.ProjectId.Value, out project);
                 }
 
-                var audit = recentAudits.First(a => a.Id == x.AuditId);
-                var actor = ResolveActorDisplayName(audit, userLookup);
+                auditLookup.TryGetValue(x.AuditId, out var audit);
+                var actor = audit is null ? null : ResolveActorDisplayName(audit, userLookup);
 
                 return new ProliferationStaffActivityRow(
                     x.AuditId,
                     x.TimeUtc,
-                    x.ActionLabel,
+                    BuildCollapsedActionLabel(x.ActionLabel, x.ActionCount),
+                    x.ActionCount,
                     actor,
                     x.ProjectId,
                     project?.Name,
                     project?.Code,
                     x.SourceLabel,
-                    x.RecordReference);
+                    x.ActionCount > 1 ? x.SourceLabel : x.RecordReference);
             })
             .ToList();
 
@@ -278,9 +341,66 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             recentProliferation,
             new ProliferationStaffActivitySummary(
                 recentAudits.FirstOrDefault()?.TimeUtc,
+                latestDataEntryUtc,
                 actionsLast30Days,
                 activeStaffLast30Days,
                 recentActivity));
+    }
+
+    private static IReadOnlyList<GroupedActivityDraft> CollapseActivityDrafts(
+        IReadOnlyList<ActivityDraft> drafts,
+        int limit)
+    {
+        var groups = new List<ActivityAccumulator>();
+
+        foreach (var draft in drafts.OrderByDescending(x => x.TimeUtc))
+        {
+            var existing = groups.FirstOrDefault(group =>
+                group.Matches(draft) &&
+                group.LatestTimeUtc - draft.TimeUtc <= ActivityCollapseWindow);
+
+            if (existing is null)
+            {
+                groups.Add(new ActivityAccumulator(draft));
+                continue;
+            }
+
+            existing.Add(draft);
+        }
+
+        return groups
+            .OrderByDescending(x => x.LatestTimeUtc)
+            .Take(limit)
+            .Select(x => x.ToDraft())
+            .ToList();
+    }
+
+    private static string BuildCollapsedActionLabel(string actionLabel, int count)
+    {
+        if (count <= 1)
+        {
+            return actionLabel;
+        }
+
+        return actionLabel switch
+        {
+            "Added detailed entry" => $"Added {count:N0} detailed entries",
+            "Updated detailed entry" => $"Updated {count:N0} detailed entries",
+            "Deleted detailed entry" => $"Deleted {count:N0} detailed entries",
+            "Maintained detailed entry" => $"Maintained {count:N0} detailed entries",
+            "Added annual quantity" => $"Added {count:N0} annual quantities",
+            "Updated annual quantity" => $"Updated {count:N0} annual quantities",
+            "Deleted annual quantity" => $"Deleted {count:N0} annual quantities",
+            "Maintained annual quantity" => $"Maintained {count:N0} annual quantities",
+            "Submitted annual quantity" => $"Submitted {count:N0} annual quantities",
+            "Approved annual quantity" => $"Approved {count:N0} annual quantities",
+            "Rejected annual quantity" => $"Rejected {count:N0} annual quantities",
+            "Approved detailed entry" => $"Approved {count:N0} detailed entries",
+            "Rejected detailed entry" => $"Rejected {count:N0} detailed entries",
+            "Corrected proliferation data" => $"Corrected proliferation data ({count:N0} actions)",
+            "Changed counting rule" => $"Changed {count:N0} counting rules",
+            _ => $"{actionLabel} ({count:N0} actions)"
+        };
     }
 
     private static long BusinessSortKey(RecentRecordProjection row)
@@ -332,10 +452,15 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             return null;
         }
 
+        var actorKey = !string.IsNullOrWhiteSpace(audit.UserId)
+            ? $"id:{audit.UserId}"
+            : $"name:{audit.UserName ?? "system"}";
+
         return new ActivityDraft(
             audit.Id,
             audit.TimeUtc,
             actionLabel,
+            actorKey,
             projectId,
             source,
             reference);
@@ -345,7 +470,7 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
         string action,
         IReadOnlyDictionary<string, string?> data)
     {
-        if (action == "ProjectOfficeReports.Proliferation.YearlyRecorded")
+        if (action == YearlyRecordedAction)
         {
             return Get(data, "Action")?.ToLowerInvariant() switch
             {
@@ -356,7 +481,7 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             };
         }
 
-        if (action == "ProjectOfficeReports.Proliferation.GranularRecorded")
+        if (action == GranularRecordedAction)
         {
             return Get(data, "Action")?.ToLowerInvariant() switch
             {
@@ -510,7 +635,6 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             abw);
     }
     private sealed record RecentRecordProjection(
-        Guid Id,
         ProliferationRecordKind Kind,
         int ProjectId,
         ProliferationSource Source,
@@ -518,6 +642,8 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
         int Year,
         string? UnitName,
         int Quantity,
+        int RecordCount,
+        int ReceivingUnitCount,
         DateTime CreatedOnUtc,
         DateTime LastUpdatedOnUtc);
 
@@ -535,9 +661,68 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
         long AuditId,
         DateTime TimeUtc,
         string ActionLabel,
+        string ActorKey,
         int? ProjectId,
         string? SourceLabel,
         string? RecordReference);
+
+    private sealed record GroupedActivityDraft(
+        long AuditId,
+        DateTime TimeUtc,
+        string ActionLabel,
+        int ActionCount,
+        int? ProjectId,
+        string? SourceLabel,
+        string? RecordReference);
+
+    private sealed class ActivityAccumulator
+    {
+        private readonly string _actionLabel;
+        private readonly string _actorKey;
+        private readonly int? _projectId;
+        private readonly string? _sourceLabel;
+        private string? _recordReference;
+        private int _count;
+
+        public ActivityAccumulator(ActivityDraft first)
+        {
+            AuditId = first.AuditId;
+            LatestTimeUtc = first.TimeUtc;
+            _actionLabel = first.ActionLabel;
+            _actorKey = first.ActorKey;
+            _projectId = first.ProjectId;
+            _sourceLabel = first.SourceLabel;
+            _recordReference = first.RecordReference;
+            _count = 1;
+        }
+
+        public long AuditId { get; }
+        public DateTime LatestTimeUtc { get; }
+
+        public bool Matches(ActivityDraft draft) =>
+            string.Equals(_actionLabel, draft.ActionLabel, StringComparison.Ordinal) &&
+            string.Equals(_actorKey, draft.ActorKey, StringComparison.OrdinalIgnoreCase) &&
+            _projectId == draft.ProjectId &&
+            string.Equals(_sourceLabel, draft.SourceLabel, StringComparison.OrdinalIgnoreCase);
+
+        public void Add(ActivityDraft draft)
+        {
+            _count++;
+            if (!string.Equals(_recordReference, draft.RecordReference, StringComparison.OrdinalIgnoreCase))
+            {
+                _recordReference = _sourceLabel;
+            }
+        }
+
+        public GroupedActivityDraft ToDraft() => new(
+            AuditId,
+            LatestTimeUtc,
+            _actionLabel,
+            _count,
+            _projectId,
+            _sourceLabel,
+            _recordReference);
+    }
 
     private sealed class EmptyAuditData : Dictionary<string, string?>
     {

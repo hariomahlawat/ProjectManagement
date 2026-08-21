@@ -124,7 +124,7 @@
             <div class="pf-card__header">
                 <div>
                     <h2 class="pf-card__title" id="recent-proliferation-heading">Recent proliferation</h2>
-                    <p class="pf-card__subtitle">Latest approved proliferation by business date. Detailed entries are shown by exact date; annual quantities by year.</p>
+                    <p class="pf-card__subtitle">Latest approved proliferation by business date. Same-day detailed entries are consolidated by project and source; annual quantities remain year-based.</p>
                 </div>
                 <a class="btn btn-sm btn-link p-0"
                    asp-area="ProjectOfficeReports"
@@ -163,9 +163,9 @@
                                 </a>
                                 <div class="pf-recent-proliferation-row__meta">
                                     <span>@item.SourceLabel</span>
-                                    @if (!string.IsNullOrWhiteSpace(item.UnitName))
+                                    @if (!string.IsNullOrWhiteSpace(item.ReceivingUnitLabel))
                                     {
-                                        <span>@item.UnitName</span>
+                                        <span>@item.ReceivingUnitLabel</span>
                                     }
                                     @if (item.EntryDelayDays.HasValue)
                                     {
@@ -218,7 +218,7 @@
 
             <div class="pf-freshness-summary">
                 <div class="pf-freshness-summary__primary">
-                    <span>Latest staff update</span>
+                    <span>Latest register activity</span>
                     @if (staffActivity.LatestActivityUtc.HasValue)
                     {
                         <strong>@Model.FormatActivityAge(staffActivity.LatestActivityUtc.Value)</strong>
@@ -228,6 +228,19 @@
                     {
                         <strong>No activity recorded</strong>
                         <small>Audit-backed maintenance activity will appear here.</small>
+                    }
+                </div>
+                <div class="pf-freshness-summary__data-entry">
+                    <span>Latest data entry / update</span>
+                    @if (staffActivity.LatestDataEntryUtc.HasValue)
+                    {
+                        <strong>@Model.FormatActivityAge(staffActivity.LatestDataEntryUtc.Value)</strong>
+                        <small>@ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel.FormatActivityTimestamp(staffActivity.LatestDataEntryUtc.Value)</small>
+                    }
+                    else
+                    {
+                        <strong>No entry/update recorded</strong>
+                        <small>Creation and edit activity will appear here.</small>
                     }
                 </div>
                 <div class="pf-freshness-summary__metric">
@@ -253,7 +266,7 @@
                             </span>
                             <div class="pf-staff-activity-row__copy">
                                 <strong>@activity.ActionLabel</strong>
-                                <span>
+                                <span title="@activity.RecordReference">
                                     @if (activity.ProjectId.HasValue && !string.IsNullOrWhiteSpace(activity.ProjectName))
                                     {
                                         <a asp-area="ProjectOfficeReports"

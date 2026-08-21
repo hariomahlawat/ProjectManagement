@@ -12,12 +12,16 @@ test("proliferation overview separates recent business events from staff-mainten
 
     assert.match(view, /Recent proliferation/);
     assert.match(view, /Data freshness/);
-    assert.match(view, /Latest staff update/);
+    assert.match(view, /Latest register activity/);
+    assert.match(view, /Latest data entry \/ update/);
     assert.match(view, /maintenance actions/);
 
     assert.match(service, /GetOperationalSnapshotAsync/);
     assert.match(service, /ProliferationDate <= todayIst/);
     assert.match(service, /MaintenanceAuditActions/);
+    assert.match(service, /CollapseActivityDrafts/);
+    assert.match(service, /ReceivingUnitCount/);
+    assert.match(service, /LatestDataEntryUtc|latestDataEntryUtc/);
     assert.doesNotMatch(service, /Proliferation\.ExportGenerated"\s*,?\s*$/m);
 });
 
@@ -36,4 +40,14 @@ test("records page defaults to latest proliferation and offers latest-activity s
     assert.match(controller, /NormalizeGroupedSort/);
     assert.match(controller, /"latest-activity"/);
     assert.match(controller, /OrderByDescending\(BusinessSortKey\)/);
+    assert.match(controller, /x\.ProliferationDate <= todayIst/);
+});
+
+test("freshness activity references allow two-line context and old activity stays relative", () => {
+    const css = read("wwwroot/css/proliferation.css");
+    const pageModel = read("Areas/ProjectOfficeReports/Pages/Proliferation/Summary.cshtml.cs");
+
+    assert.match(css, /-webkit-line-clamp:\s*2/);
+    assert.match(pageModel, /months ago/);
+    assert.match(pageModel, /years ago/);
 });

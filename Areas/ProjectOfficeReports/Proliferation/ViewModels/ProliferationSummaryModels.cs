@@ -53,7 +53,6 @@ public sealed record ProliferationOperationalSnapshot(
 }
 
 public sealed record RecentProliferationRow(
-    Guid RecordId,
     ProliferationRecordKind Kind,
     int ProjectId,
     string ProjectName,
@@ -63,28 +62,44 @@ public sealed record RecentProliferationRow(
     int Year,
     string? UnitName,
     int Quantity,
+    int RecordCount,
+    int ReceivingUnitCount,
     DateTime CreatedOnUtc,
     DateTime LastUpdatedOnUtc,
     int? EntryDelayDays)
 {
     public string SourceLabel => Source.ToDisplayName();
 
-    public string RecordTypeLabel =>
-        Kind == ProliferationRecordKind.Granular ? "Detailed entry" : "Annual quantity";
+    public string RecordTypeLabel => Kind switch
+    {
+        ProliferationRecordKind.Granular when RecordCount > 1 => $"{RecordCount:N0} detailed entries",
+        ProliferationRecordKind.Granular => "Detailed entry",
+        _ => "Annual quantity"
+    };
 
     public string BusinessDateLabel =>
         ProliferationDate.HasValue
             ? ProliferationDate.Value.ToString("dd MMM yyyy")
             : $"Annual · {Year}";
+
+    public string? ReceivingUnitLabel => Kind switch
+    {
+        ProliferationRecordKind.Granular when ReceivingUnitCount > 1 => $"{ReceivingUnitCount:N0} receiving units",
+        ProliferationRecordKind.Granular when ReceivingUnitCount == 1 && !string.IsNullOrWhiteSpace(UnitName) => UnitName,
+        ProliferationRecordKind.Granular when ReceivingUnitCount == 1 => "1 receiving unit",
+        _ => null
+    };
 }
 
 public sealed record ProliferationStaffActivitySummary(
     DateTime? LatestActivityUtc,
+    DateTime? LatestDataEntryUtc,
     int ActionsLast30Days,
     int ActiveStaffLast30Days,
     IReadOnlyList<ProliferationStaffActivityRow> RecentActivity)
 {
     public static ProliferationStaffActivitySummary Empty { get; } = new(
+        null,
         null,
         0,
         0,
@@ -95,6 +110,7 @@ public sealed record ProliferationStaffActivityRow(
     long AuditId,
     DateTime TimeUtc,
     string ActionLabel,
+    int ActionCount,
     string? ActorDisplayName,
     int? ProjectId,
     string? ProjectName,

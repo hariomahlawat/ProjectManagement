@@ -73,6 +73,22 @@ public sealed class ProliferationOperationalFreshnessTests
             new ProliferationGranular
             {
                 Id = Guid.NewGuid(),
+                ProjectId = 1,
+                Source = ProliferationSource.Sdd,
+                UnitName = "HQ 135 Bde",
+                ProliferationDate = new DateOnly(2026, 8, 18),
+                Quantity = 3,
+                ApprovalStatus = ApprovalStatus.Approved,
+                SubmittedByUserId = "staff-1",
+                ApprovedByUserId = "staff-1",
+                ApprovedOnUtc = new DateTime(2026, 8, 19, 9, 5, 0, DateTimeKind.Utc),
+                CreatedOnUtc = new DateTime(2026, 8, 19, 8, 5, 0, DateTimeKind.Utc),
+                LastUpdatedOnUtc = new DateTime(2026, 8, 19, 9, 5, 0, DateTimeKind.Utc),
+                RowVersion = new byte[] { 1 }
+            },
+            new ProliferationGranular
+            {
+                Id = Guid.NewGuid(),
                 ProjectId = 2,
                 Source = ProliferationSource.Sdd,
                 UnitName = "Future Unit",
@@ -137,6 +153,38 @@ public sealed class ProliferationOperationalFreshnessTests
             },
             new AuditLog
             {
+                TimeUtc = new DateTime(2026, 8, 20, 10, 55, 0, DateTimeKind.Utc),
+                Level = "Info",
+                Action = "ProjectOfficeReports.Proliferation.GranularRecorded",
+                UserId = "staff-1",
+                UserName = "staff.one",
+                DataJson = JsonSerializer.Serialize(new
+                {
+                    ProjectId = "2",
+                    Source = "SDD",
+                    UnitName = "Old Unit A",
+                    ProliferationDate = "2024-03-07",
+                    Action = "Delete"
+                })
+            },
+            new AuditLog
+            {
+                TimeUtc = new DateTime(2026, 8, 20, 10, 53, 0, DateTimeKind.Utc),
+                Level = "Info",
+                Action = "ProjectOfficeReports.Proliferation.GranularRecorded",
+                UserId = "staff-1",
+                UserName = "staff.one",
+                DataJson = JsonSerializer.Serialize(new
+                {
+                    ProjectId = "2",
+                    Source = "SDD",
+                    UnitName = "Old Unit B",
+                    ProliferationDate = "2024-03-13",
+                    Action = "Delete"
+                })
+            },
+            new AuditLog
+            {
                 TimeUtc = new DateTime(2026, 8, 20, 11, 30, 0, DateTimeKind.Utc),
                 Level = "Info",
                 Action = "ProjectOfficeReports.Proliferation.ExportGenerated",
@@ -159,16 +207,28 @@ public sealed class ProliferationOperationalFreshnessTests
         Assert.Equal(2, snapshot.RecentProliferation.Count);
         Assert.Equal("Project Alpha", snapshot.RecentProliferation[0].ProjectName);
         Assert.Equal(new DateOnly(2026, 8, 18), snapshot.RecentProliferation[0].ProliferationDate);
+        Assert.Equal(5, snapshot.RecentProliferation[0].Quantity);
+        Assert.Equal(2, snapshot.RecentProliferation[0].RecordCount);
+        Assert.Equal(2, snapshot.RecentProliferation[0].ReceivingUnitCount);
+        Assert.Equal("2 detailed entries", snapshot.RecentProliferation[0].RecordTypeLabel);
+        Assert.Equal("2 receiving units", snapshot.RecentProliferation[0].ReceivingUnitLabel);
+
         Assert.Equal("Project Bravo", snapshot.RecentProliferation[1].ProjectName);
         Assert.Null(snapshot.RecentProliferation[1].ProliferationDate);
         Assert.DoesNotContain(snapshot.RecentProliferation, x => x.UnitName == "Future Unit");
 
-        Assert.Equal(2, snapshot.StaffActivity.ActionsLast30Days);
+        Assert.Equal(4, snapshot.StaffActivity.ActionsLast30Days);
         Assert.Equal(1, snapshot.StaffActivity.ActiveStaffLast30Days);
         Assert.Equal(new DateTime(2026, 8, 20, 11, 0, 0, DateTimeKind.Utc), snapshot.StaffActivity.LatestActivityUtc);
+        Assert.Equal(new DateTime(2026, 8, 20, 11, 0, 0, DateTimeKind.Utc), snapshot.StaffActivity.LatestDataEntryUtc);
+
         var latest = Assert.Single(snapshot.StaffActivity.RecentActivity, x => x.TimeUtc == snapshot.StaffActivity.LatestActivityUtc);
         Assert.Equal("Updated detailed entry", latest.ActionLabel);
         Assert.Equal("Staff One", latest.ActorDisplayName);
         Assert.Equal("Project Alpha", latest.ProjectName);
+
+        var collapsedDelete = Assert.Single(snapshot.StaffActivity.RecentActivity, x => x.ActionCount == 2);
+        Assert.Equal("Deleted 2 detailed entries", collapsedDelete.ActionLabel);
+        Assert.Equal("Project Bravo", collapsedDelete.ProjectName);
     }
 }

@@ -1,0 +1,771 @@
+--- a/Areas/ProjectOfficeReports/Api/ProliferationController.cs
++++ b/Areas/ProjectOfficeReports/Api/ProliferationController.cs
+@@ -17,6 +17,7 @@
+ using ProjectManagement.Areas.ProjectOfficeReports.Application;
+ using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+ using ProjectManagement.Models;
++using ProjectManagement.Infrastructure;
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
+ {
+@@ -458,6 +459,7 @@
+ 
+             var filteredRows = filtered.ToList();
+             var sort = NormalizeGroupedSort(query.Sort);
++            var todayIst = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow));
+ 
+             IReadOnlyDictionary<(int ProjectId, ProliferationSource Source, int Year), DateOnly> latestDetailedDates =
+                 new Dictionary<(int ProjectId, ProliferationSource Source, int Year), DateOnly>();
+@@ -482,6 +484,7 @@
+                     .AsNoTracking()
+                     .Where(x =>
+                         x.ApprovalStatus == ApprovalStatus.Approved &&
++                        x.ProliferationDate <= todayIst &&
+                         filteredProjectIds.Contains(x.ProjectId) &&
+                         filteredSources.Contains(x.Source) &&
+                         filteredYears.Contains(x.ProliferationDate.Year))
+--- a/Areas/ProjectOfficeReports/Application/ProliferationSummaryReadService.cs
++++ b/Areas/ProjectOfficeReports/Application/ProliferationSummaryReadService.cs
+@@ -17,16 +17,27 @@
+ 
+ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadService
+ {
++    private const string YearlyRecordedAction = "ProjectOfficeReports.Proliferation.YearlyRecorded";
++    private const string GranularRecordedAction = "ProjectOfficeReports.Proliferation.GranularRecorded";
++
+     private static readonly string[] MaintenanceAuditActions =
+     {
+-        "ProjectOfficeReports.Proliferation.YearlyRecorded",
+-        "ProjectOfficeReports.Proliferation.GranularRecorded",
++        YearlyRecordedAction,
++        GranularRecordedAction,
+         "ProjectOfficeReports.ProliferationYearlySubmitted",
+         "ProjectOfficeReports.ProliferationYearlyDecided",
+         "ProjectOfficeReports.ProliferationGranularDecided",
+         "ProjectOfficeReports.Proliferation.DataQualityCorrected",
+         "ProjectOfficeReports.Proliferation.PreferenceChanged"
+     };
++
++    private static readonly string[] RecordEntryAuditActions =
++    {
++        YearlyRecordedAction,
++        GranularRecordedAction
++    };
++
++    private static readonly TimeSpan ActivityCollapseWindow = TimeSpan.FromMinutes(10);
+ 
+     private readonly ProliferationAggregateReadService _aggregateReadService;
+     private readonly ApplicationDbContext _db;
+@@ -108,17 +119,46 @@
+         var activityLimit = Math.Clamp(recentActivityLimit, 1, 20);
+         var todayIst = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
+ 
+-        var recentGranular = await _db.ProliferationGranularEntries
++        // The overview presents business events, not raw detail rows. Multiple unit-level
++        // entries for the same project/source/date are therefore collapsed into one event.
++        var recentGranularGroups = await _db.ProliferationGranularEntries
+             .AsNoTracking()
+             .Where(x =>
+                 x.ApprovalStatus == ApprovalStatus.Approved &&
+                 x.Quantity > 0 &&
+                 x.ProliferationDate <= todayIst)
++            .GroupBy(x => new
++            {
++                x.ProjectId,
++                x.Source,
++                x.ProliferationDate
++            })
++            .Select(group => new
++            {
++                group.Key.ProjectId,
++                group.Key.Source,
++                group.Key.ProliferationDate,
++                Quantity = group.Sum(x => x.Quantity),
++                RecordCount = group.Count(),
++                ReceivingUnitCount = group
++                    .Where(x => x.UnitName != null && x.UnitName != string.Empty)
++                    .Select(x => x.UnitName)
++                    .Distinct()
++                    .Count(),
++                UnitName = group
++                    .Where(x => x.UnitName != null && x.UnitName != string.Empty)
++                    .Select(x => x.UnitName)
++                    .Min(),
++                CreatedOnUtc = group.Min(x => x.CreatedOnUtc),
++                LastUpdatedOnUtc = group.Max(x => x.LastUpdatedOnUtc)
++            })
+             .OrderByDescending(x => x.ProliferationDate)
+             .ThenByDescending(x => x.LastUpdatedOnUtc)
+             .Take(proliferationLimit * 2)
++            .ToListAsync(cancellationToken);
++
++        var recentGranular = recentGranularGroups
+             .Select(x => new RecentRecordProjection(
+-                x.Id,
+                 ProliferationRecordKind.Granular,
+                 x.ProjectId,
+                 x.Source,
+@@ -126,9 +166,11 @@
+                 x.ProliferationDate.Year,
+                 x.UnitName,
+                 x.Quantity,
++                x.RecordCount,
++                x.ReceivingUnitCount,
+                 x.CreatedOnUtc,
+                 x.LastUpdatedOnUtc))
+-            .ToListAsync(cancellationToken);
++            .ToList();
+ 
+         var recentYearly = await _db.ProliferationYearlies
+             .AsNoTracking()
+@@ -141,7 +183,6 @@
+             .ThenByDescending(x => x.LastUpdatedOnUtc)
+             .Take(proliferationLimit * 2)
+             .Select(x => new RecentRecordProjection(
+-                x.Id,
+                 ProliferationRecordKind.Yearly,
+                 x.ProjectId,
+                 x.Source,
+@@ -149,6 +190,8 @@
+                 x.Year,
+                 null,
+                 x.TotalQuantity,
++                1,
++                0,
+                 x.CreatedOnUtc,
+                 x.LastUpdatedOnUtc))
+             .ToListAsync(cancellationToken);
+@@ -161,11 +204,13 @@
+             .Take(proliferationLimit)
+             .ToList();
+ 
++        // Fetch more than the display limit because maintenance bursts are condensed for
++        // presentation (for example, several deletions by one user in the same project).
+         var recentAudits = await _db.AuditLogs
+             .AsNoTracking()
+             .Where(x => MaintenanceAuditActions.Contains(x.Action))
+             .OrderByDescending(x => x.TimeUtc)
+-            .Take(Math.Max(activityLimit * 4, 20))
++            .Take(Math.Max(activityLimit * 12, 60))
+             .ToListAsync(cancellationToken);
+ 
+         var thirtyDayCutoffUtc = _clock.UtcNow.UtcDateTime.AddDays(-30);
+@@ -185,16 +230,31 @@
+             .Distinct()
+             .CountAsync(cancellationToken);
+ 
++        // This is deliberately narrower than "register activity": approvals, deletes,
++        // counting-rule changes and exports do not make the underlying proliferation data
++        // look freshly entered.
++        var latestDataEntryUtc = await _db.AuditLogs
++            .AsNoTracking()
++            .Where(x =>
++                RecordEntryAuditActions.Contains(x.Action) &&
++                x.DataJson != null &&
++                (x.DataJson.Contains("\"Action\":\"Create\"") ||
++                 x.DataJson.Contains("\"Action\":\"Update\"")))
++            .OrderByDescending(x => x.TimeUtc)
++            .Select(x => (DateTime?)x.TimeUtc)
++            .FirstOrDefaultAsync(cancellationToken);
++
+         var activityDrafts = recentAudits
+             .Select(ParseActivity)
+             .Where(x => x is not null)
+             .Cast<ActivityDraft>()
+-            .Take(activityLimit)
+-            .ToList();
++            .ToList();
++
++        var groupedActivityDrafts = CollapseActivityDrafts(activityDrafts, activityLimit);
+ 
+         var projectIds = recentRecords
+             .Select(x => x.ProjectId)
+-            .Concat(activityDrafts.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId!.Value))
++            .Concat(groupedActivityDrafts.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId!.Value))
+             .Distinct()
+             .ToArray();
+ 
+@@ -202,7 +262,7 @@
+             ? new Dictionary<int, ProjectIdentity>()
+             : await _db.Projects
+                 .AsNoTracking()
+-                .Where(x => projectIds.Contains(x.Id))
++                .Where(x => projectIds.Contains(x.Id) && !x.IsDeleted && !x.IsArchived)
+                 .Select(x => new ProjectIdentity(x.Id, x.Name, x.CaseFileNumber))
+                 .ToDictionaryAsync(x => x.Id, cancellationToken);
+ 
+@@ -233,7 +293,6 @@
+             {
+                 var project = projectLookup[x.ProjectId];
+                 return new RecentProliferationRow(
+-                    x.Id,
+                     x.Kind,
+                     x.ProjectId,
+                     project.Name,
+@@ -243,13 +302,16 @@
+                     x.Year,
+                     x.UnitName,
+                     x.Quantity,
++                    x.RecordCount,
++                    x.ReceivingUnitCount,
+                     x.CreatedOnUtc,
+                     x.LastUpdatedOnUtc,
+                     CalculateEntryDelayDays(x));
+             })
+             .ToList();
+ 
+-        var recentActivity = activityDrafts
++        var auditLookup = recentAudits.ToDictionary(x => x.Id);
++        var recentActivity = groupedActivityDrafts
+             .Select(x =>
+             {
+                 ProjectIdentity? project = null;
+@@ -258,19 +320,20 @@
+                     projectLookup.TryGetValue(x.ProjectId.Value, out project);
+                 }
+ 
+-                var audit = recentAudits.First(a => a.Id == x.AuditId);
+-                var actor = ResolveActorDisplayName(audit, userLookup);
++                auditLookup.TryGetValue(x.AuditId, out var audit);
++                var actor = audit is null ? null : ResolveActorDisplayName(audit, userLookup);
+ 
+                 return new ProliferationStaffActivityRow(
+                     x.AuditId,
+                     x.TimeUtc,
+-                    x.ActionLabel,
++                    BuildCollapsedActionLabel(x.ActionLabel, x.ActionCount),
++                    x.ActionCount,
+                     actor,
+                     x.ProjectId,
+                     project?.Name,
+                     project?.Code,
+                     x.SourceLabel,
+-                    x.RecordReference);
++                    x.ActionCount > 1 ? x.SourceLabel : x.RecordReference);
+             })
+             .ToList();
+ 
+@@ -278,9 +341,66 @@
+             recentProliferation,
+             new ProliferationStaffActivitySummary(
+                 recentAudits.FirstOrDefault()?.TimeUtc,
++                latestDataEntryUtc,
+                 actionsLast30Days,
+                 activeStaffLast30Days,
+                 recentActivity));
++    }
++
++    private static IReadOnlyList<GroupedActivityDraft> CollapseActivityDrafts(
++        IReadOnlyList<ActivityDraft> drafts,
++        int limit)
++    {
++        var groups = new List<ActivityAccumulator>();
++
++        foreach (var draft in drafts.OrderByDescending(x => x.TimeUtc))
++        {
++            var existing = groups.FirstOrDefault(group =>
++                group.Matches(draft) &&
++                group.LatestTimeUtc - draft.TimeUtc <= ActivityCollapseWindow);
++
++            if (existing is null)
++            {
++                groups.Add(new ActivityAccumulator(draft));
++                continue;
++            }
++
++            existing.Add(draft);
++        }
++
++        return groups
++            .OrderByDescending(x => x.LatestTimeUtc)
++            .Take(limit)
++            .Select(x => x.ToDraft())
++            .ToList();
++    }
++
++    private static string BuildCollapsedActionLabel(string actionLabel, int count)
++    {
++        if (count <= 1)
++        {
++            return actionLabel;
++        }
++
++        return actionLabel switch
++        {
++            "Added detailed entry" => $"Added {count:N0} detailed entries",
++            "Updated detailed entry" => $"Updated {count:N0} detailed entries",
++            "Deleted detailed entry" => $"Deleted {count:N0} detailed entries",
++            "Maintained detailed entry" => $"Maintained {count:N0} detailed entries",
++            "Added annual quantity" => $"Added {count:N0} annual quantities",
++            "Updated annual quantity" => $"Updated {count:N0} annual quantities",
++            "Deleted annual quantity" => $"Deleted {count:N0} annual quantities",
++            "Maintained annual quantity" => $"Maintained {count:N0} annual quantities",
++            "Submitted annual quantity" => $"Submitted {count:N0} annual quantities",
++            "Approved annual quantity" => $"Approved {count:N0} annual quantities",
++            "Rejected annual quantity" => $"Rejected {count:N0} annual quantities",
++            "Approved detailed entry" => $"Approved {count:N0} detailed entries",
++            "Rejected detailed entry" => $"Rejected {count:N0} detailed entries",
++            "Corrected proliferation data" => $"Corrected proliferation data ({count:N0} actions)",
++            "Changed counting rule" => $"Changed {count:N0} counting rules",
++            _ => $"{actionLabel} ({count:N0} actions)"
++        };
+     }
+ 
+     private static long BusinessSortKey(RecentRecordProjection row)
+@@ -332,10 +452,15 @@
+             return null;
+         }
+ 
++        var actorKey = !string.IsNullOrWhiteSpace(audit.UserId)
++            ? $"id:{audit.UserId}"
++            : $"name:{audit.UserName ?? "system"}";
++
+         return new ActivityDraft(
+             audit.Id,
+             audit.TimeUtc,
+             actionLabel,
++            actorKey,
+             projectId,
+             source,
+             reference);
+@@ -345,7 +470,7 @@
+         string action,
+         IReadOnlyDictionary<string, string?> data)
+     {
+-        if (action == "ProjectOfficeReports.Proliferation.YearlyRecorded")
++        if (action == YearlyRecordedAction)
+         {
+             return Get(data, "Action")?.ToLowerInvariant() switch
+             {
+@@ -356,7 +481,7 @@
+             };
+         }
+ 
+-        if (action == "ProjectOfficeReports.Proliferation.GranularRecorded")
++        if (action == GranularRecordedAction)
+         {
+             return Get(data, "Action")?.ToLowerInvariant() switch
+             {
+@@ -510,7 +635,6 @@
+             abw);
+     }
+     private sealed record RecentRecordProjection(
+-        Guid Id,
+         ProliferationRecordKind Kind,
+         int ProjectId,
+         ProliferationSource Source,
+@@ -518,6 +642,8 @@
+         int Year,
+         string? UnitName,
+         int Quantity,
++        int RecordCount,
++        int ReceivingUnitCount,
+         DateTime CreatedOnUtc,
+         DateTime LastUpdatedOnUtc);
+ 
+@@ -535,10 +661,69 @@
+         long AuditId,
+         DateTime TimeUtc,
+         string ActionLabel,
++        string ActorKey,
+         int? ProjectId,
+         string? SourceLabel,
+         string? RecordReference);
+ 
++    private sealed record GroupedActivityDraft(
++        long AuditId,
++        DateTime TimeUtc,
++        string ActionLabel,
++        int ActionCount,
++        int? ProjectId,
++        string? SourceLabel,
++        string? RecordReference);
++
++    private sealed class ActivityAccumulator
++    {
++        private readonly string _actionLabel;
++        private readonly string _actorKey;
++        private readonly int? _projectId;
++        private readonly string? _sourceLabel;
++        private string? _recordReference;
++        private int _count;
++
++        public ActivityAccumulator(ActivityDraft first)
++        {
++            AuditId = first.AuditId;
++            LatestTimeUtc = first.TimeUtc;
++            _actionLabel = first.ActionLabel;
++            _actorKey = first.ActorKey;
++            _projectId = first.ProjectId;
++            _sourceLabel = first.SourceLabel;
++            _recordReference = first.RecordReference;
++            _count = 1;
++        }
++
++        public long AuditId { get; }
++        public DateTime LatestTimeUtc { get; }
++
++        public bool Matches(ActivityDraft draft) =>
++            string.Equals(_actionLabel, draft.ActionLabel, StringComparison.Ordinal) &&
++            string.Equals(_actorKey, draft.ActorKey, StringComparison.OrdinalIgnoreCase) &&
++            _projectId == draft.ProjectId &&
++            string.Equals(_sourceLabel, draft.SourceLabel, StringComparison.OrdinalIgnoreCase);
++
++        public void Add(ActivityDraft draft)
++        {
++            _count++;
++            if (!string.Equals(_recordReference, draft.RecordReference, StringComparison.OrdinalIgnoreCase))
++            {
++                _recordReference = _sourceLabel;
++            }
++        }
++
++        public GroupedActivityDraft ToDraft() => new(
++            AuditId,
++            LatestTimeUtc,
++            _actionLabel,
++            _count,
++            _projectId,
++            _sourceLabel,
++            _recordReference);
++    }
++
+     private sealed class EmptyAuditData : Dictionary<string, string?>
+     {
+         public static EmptyAuditData Instance { get; } = new();
+--- a/Areas/ProjectOfficeReports/Pages/Proliferation/Summary.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/Proliferation/Summary.cshtml
+@@ -124,7 +124,7 @@
+             <div class="pf-card__header">
+                 <div>
+                     <h2 class="pf-card__title" id="recent-proliferation-heading">Recent proliferation</h2>
+-                    <p class="pf-card__subtitle">Latest approved proliferation by business date. Detailed entries are shown by exact date; annual quantities by year.</p>
++                    <p class="pf-card__subtitle">Latest approved proliferation by business date. Same-day detailed entries are consolidated by project and source; annual quantities remain year-based.</p>
+                 </div>
+                 <a class="btn btn-sm btn-link p-0"
+                    asp-area="ProjectOfficeReports"
+@@ -163,9 +163,9 @@
+                                 </a>
+                                 <div class="pf-recent-proliferation-row__meta">
+                                     <span>@item.SourceLabel</span>
+-                                    @if (!string.IsNullOrWhiteSpace(item.UnitName))
++                                    @if (!string.IsNullOrWhiteSpace(item.ReceivingUnitLabel))
+                                     {
+-                                        <span>@item.UnitName</span>
++                                        <span>@item.ReceivingUnitLabel</span>
+                                     }
+                                     @if (item.EntryDelayDays.HasValue)
+                                     {
+@@ -218,7 +218,7 @@
+ 
+             <div class="pf-freshness-summary">
+                 <div class="pf-freshness-summary__primary">
+-                    <span>Latest staff update</span>
++                    <span>Latest register activity</span>
+                     @if (staffActivity.LatestActivityUtc.HasValue)
+                     {
+                         <strong>@Model.FormatActivityAge(staffActivity.LatestActivityUtc.Value)</strong>
+@@ -228,6 +228,19 @@
+                     {
+                         <strong>No activity recorded</strong>
+                         <small>Audit-backed maintenance activity will appear here.</small>
++                    }
++                </div>
++                <div class="pf-freshness-summary__data-entry">
++                    <span>Latest data entry / update</span>
++                    @if (staffActivity.LatestDataEntryUtc.HasValue)
++                    {
++                        <strong>@Model.FormatActivityAge(staffActivity.LatestDataEntryUtc.Value)</strong>
++                        <small>@ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel.FormatActivityTimestamp(staffActivity.LatestDataEntryUtc.Value)</small>
++                    }
++                    else
++                    {
++                        <strong>No entry/update recorded</strong>
++                        <small>Creation and edit activity will appear here.</small>
+                     }
+                 </div>
+                 <div class="pf-freshness-summary__metric">
+@@ -253,7 +266,7 @@
+                             </span>
+                             <div class="pf-staff-activity-row__copy">
+                                 <strong>@activity.ActionLabel</strong>
+-                                <span>
++                                <span title="@activity.RecordReference">
+                                     @if (activity.ProjectId.HasValue && !string.IsNullOrWhiteSpace(activity.ProjectName))
+                                     {
+                                         <a asp-area="ProjectOfficeReports"
+--- a/Areas/ProjectOfficeReports/Pages/Proliferation/Summary.cshtml.cs
++++ b/Areas/ProjectOfficeReports/Pages/Proliferation/Summary.cshtml.cs
+@@ -283,13 +283,20 @@
+             return $"{hours} h ago";
+         }
+ 
+-        if (elapsed < TimeSpan.FromDays(7))
++        if (elapsed < TimeSpan.FromDays(60))
+         {
+             var days = Math.Max(1, (int)Math.Floor(elapsed.TotalDays));
+             return days == 1 ? "yesterday" : $"{days} days ago";
+         }
+ 
+-        return FormatActivityTimestamp(utc);
++        if (elapsed < TimeSpan.FromDays(365))
++        {
++            var months = Math.Max(2, (int)Math.Floor(elapsed.TotalDays / 30d));
++            return $"{months} months ago";
++        }
++
++        var years = Math.Max(1, (int)Math.Floor(elapsed.TotalDays / 365d));
++        return years == 1 ? "1 year ago" : $"{years} years ago";
+     }
+ 
+     private static SummaryTotals CalculateTotals(ProliferationSummaryViewModel summary)
+--- a/Areas/ProjectOfficeReports/Proliferation/ViewModels/ProliferationSummaryModels.cs
++++ b/Areas/ProjectOfficeReports/Proliferation/ViewModels/ProliferationSummaryModels.cs
+@@ -53,7 +53,6 @@
+ }
+ 
+ public sealed record RecentProliferationRow(
+-    Guid RecordId,
+     ProliferationRecordKind Kind,
+     int ProjectId,
+     string ProjectName,
+@@ -63,28 +62,44 @@
+     int Year,
+     string? UnitName,
+     int Quantity,
++    int RecordCount,
++    int ReceivingUnitCount,
+     DateTime CreatedOnUtc,
+     DateTime LastUpdatedOnUtc,
+     int? EntryDelayDays)
+ {
+     public string SourceLabel => Source.ToDisplayName();
+ 
+-    public string RecordTypeLabel =>
+-        Kind == ProliferationRecordKind.Granular ? "Detailed entry" : "Annual quantity";
++    public string RecordTypeLabel => Kind switch
++    {
++        ProliferationRecordKind.Granular when RecordCount > 1 => $"{RecordCount:N0} detailed entries",
++        ProliferationRecordKind.Granular => "Detailed entry",
++        _ => "Annual quantity"
++    };
+ 
+     public string BusinessDateLabel =>
+         ProliferationDate.HasValue
+             ? ProliferationDate.Value.ToString("dd MMM yyyy")
+             : $"Annual · {Year}";
++
++    public string? ReceivingUnitLabel => Kind switch
++    {
++        ProliferationRecordKind.Granular when ReceivingUnitCount > 1 => $"{ReceivingUnitCount:N0} receiving units",
++        ProliferationRecordKind.Granular when ReceivingUnitCount == 1 && !string.IsNullOrWhiteSpace(UnitName) => UnitName,
++        ProliferationRecordKind.Granular when ReceivingUnitCount == 1 => "1 receiving unit",
++        _ => null
++    };
+ }
+ 
+ public sealed record ProliferationStaffActivitySummary(
+     DateTime? LatestActivityUtc,
++    DateTime? LatestDataEntryUtc,
+     int ActionsLast30Days,
+     int ActiveStaffLast30Days,
+     IReadOnlyList<ProliferationStaffActivityRow> RecentActivity)
+ {
+     public static ProliferationStaffActivitySummary Empty { get; } = new(
++        null,
+         null,
+         0,
+         0,
+@@ -95,6 +110,7 @@
+     long AuditId,
+     DateTime TimeUtc,
+     string ActionLabel,
++    int ActionCount,
+     string? ActorDisplayName,
+     int? ProjectId,
+     string? ProjectName,
+--- a/ProjectManagement.Tests/ProliferationOperationalFreshnessTests.cs
++++ b/ProjectManagement.Tests/ProliferationOperationalFreshnessTests.cs
+@@ -68,6 +68,22 @@
+                 ApprovedOnUtc = new DateTime(2026, 8, 19, 9, 0, 0, DateTimeKind.Utc),
+                 CreatedOnUtc = new DateTime(2026, 8, 19, 8, 0, 0, DateTimeKind.Utc),
+                 LastUpdatedOnUtc = new DateTime(2026, 8, 19, 9, 0, 0, DateTimeKind.Utc),
++                RowVersion = new byte[] { 1 }
++            },
++            new ProliferationGranular
++            {
++                Id = Guid.NewGuid(),
++                ProjectId = 1,
++                Source = ProliferationSource.Sdd,
++                UnitName = "HQ 135 Bde",
++                ProliferationDate = new DateOnly(2026, 8, 18),
++                Quantity = 3,
++                ApprovalStatus = ApprovalStatus.Approved,
++                SubmittedByUserId = "staff-1",
++                ApprovedByUserId = "staff-1",
++                ApprovedOnUtc = new DateTime(2026, 8, 19, 9, 5, 0, DateTimeKind.Utc),
++                CreatedOnUtc = new DateTime(2026, 8, 19, 8, 5, 0, DateTimeKind.Utc),
++                LastUpdatedOnUtc = new DateTime(2026, 8, 19, 9, 5, 0, DateTimeKind.Utc),
+                 RowVersion = new byte[] { 1 }
+             },
+             new ProliferationGranular
+@@ -137,6 +153,38 @@
+             },
+             new AuditLog
+             {
++                TimeUtc = new DateTime(2026, 8, 20, 10, 55, 0, DateTimeKind.Utc),
++                Level = "Info",
++                Action = "ProjectOfficeReports.Proliferation.GranularRecorded",
++                UserId = "staff-1",
++                UserName = "staff.one",
++                DataJson = JsonSerializer.Serialize(new
++                {
++                    ProjectId = "2",
++                    Source = "SDD",
++                    UnitName = "Old Unit A",
++                    ProliferationDate = "2024-03-07",
++                    Action = "Delete"
++                })
++            },
++            new AuditLog
++            {
++                TimeUtc = new DateTime(2026, 8, 20, 10, 53, 0, DateTimeKind.Utc),
++                Level = "Info",
++                Action = "ProjectOfficeReports.Proliferation.GranularRecorded",
++                UserId = "staff-1",
++                UserName = "staff.one",
++                DataJson = JsonSerializer.Serialize(new
++                {
++                    ProjectId = "2",
++                    Source = "SDD",
++                    UnitName = "Old Unit B",
++                    ProliferationDate = "2024-03-13",
++                    Action = "Delete"
++                })
++            },
++            new AuditLog
++            {
+                 TimeUtc = new DateTime(2026, 8, 20, 11, 30, 0, DateTimeKind.Utc),
+                 Level = "Info",
+                 Action = "ProjectOfficeReports.Proliferation.ExportGenerated",
+@@ -159,16 +207,28 @@
+         Assert.Equal(2, snapshot.RecentProliferation.Count);
+         Assert.Equal("Project Alpha", snapshot.RecentProliferation[0].ProjectName);
+         Assert.Equal(new DateOnly(2026, 8, 18), snapshot.RecentProliferation[0].ProliferationDate);
++        Assert.Equal(5, snapshot.RecentProliferation[0].Quantity);
++        Assert.Equal(2, snapshot.RecentProliferation[0].RecordCount);
++        Assert.Equal(2, snapshot.RecentProliferation[0].ReceivingUnitCount);
++        Assert.Equal("2 detailed entries", snapshot.RecentProliferation[0].RecordTypeLabel);
++        Assert.Equal("2 receiving units", snapshot.RecentProliferation[0].ReceivingUnitLabel);
++
+         Assert.Equal("Project Bravo", snapshot.RecentProliferation[1].ProjectName);
+         Assert.Null(snapshot.RecentProliferation[1].ProliferationDate);
+         Assert.DoesNotContain(snapshot.RecentProliferation, x => x.UnitName == "Future Unit");
+ 
+-        Assert.Equal(2, snapshot.StaffActivity.ActionsLast30Days);
++        Assert.Equal(4, snapshot.StaffActivity.ActionsLast30Days);
+         Assert.Equal(1, snapshot.StaffActivity.ActiveStaffLast30Days);
+         Assert.Equal(new DateTime(2026, 8, 20, 11, 0, 0, DateTimeKind.Utc), snapshot.StaffActivity.LatestActivityUtc);
++        Assert.Equal(new DateTime(2026, 8, 20, 11, 0, 0, DateTimeKind.Utc), snapshot.StaffActivity.LatestDataEntryUtc);
++
+         var latest = Assert.Single(snapshot.StaffActivity.RecentActivity, x => x.TimeUtc == snapshot.StaffActivity.LatestActivityUtc);
+         Assert.Equal("Updated detailed entry", latest.ActionLabel);
+         Assert.Equal("Staff One", latest.ActorDisplayName);
+         Assert.Equal("Project Alpha", latest.ProjectName);
++
++        var collapsedDelete = Assert.Single(snapshot.StaffActivity.RecentActivity, x => x.ActionCount == 2);
++        Assert.Equal("Deleted 2 detailed entries", collapsedDelete.ActionLabel);
++        Assert.Equal("Project Bravo", collapsedDelete.ProjectName);
+     }
+ }
+--- a/wwwroot/css/proliferation.css
++++ b/wwwroot/css/proliferation.css
+@@ -2954,12 +2954,14 @@
+ }
+ 
+ .pf-freshness-summary__primary,
++.pf-freshness-summary__data-entry,
+ .pf-freshness-summary__metric {
+     display: flex;
+     flex-direction: column;
+ }
+ 
+ .pf-freshness-summary__primary > span,
++.pf-freshness-summary__data-entry > span,
+ .pf-freshness-summary__metric > span {
+     color: var(--pf-muted);
+     font-size: 0.72rem;
+@@ -2973,7 +2975,20 @@
+     font-size: 1.15rem;
+ }
+ 
++.pf-freshness-summary__data-entry {
++    grid-column: 1 / -1;
++    padding: 0.8rem 1.15rem;
++    border-bottom: 1px solid var(--pf-border);
++}
++
++.pf-freshness-summary__data-entry > strong {
++    margin-top: 0.12rem;
++    font-size: 0.95rem;
++    font-weight: 650;
++}
++
+ .pf-freshness-summary__primary > small,
++.pf-freshness-summary__data-entry > small,
+ .pf-freshness-summary__metric > small {
+     margin-top: 0.1rem;
+     color: var(--pf-muted);
+@@ -3032,12 +3047,15 @@
+ }
+ 
+ .pf-staff-activity-row__copy > span {
++    display: -webkit-box;
+     overflow: hidden;
+     margin-top: 0.08rem;
+     color: var(--bs-body-color);
+     font-size: 0.78rem;
+-    text-overflow: ellipsis;
+-    white-space: nowrap;
++    line-height: 1.28;
++    white-space: normal;
++    -webkit-box-orient: vertical;
++    -webkit-line-clamp: 2;
+ }
+ 
+ .pf-staff-activity-row__copy > span a {
+--- a/wwwroot/js/projects/proliferation-operational-freshness.test.js
++++ b/wwwroot/js/projects/proliferation-operational-freshness.test.js
+@@ -12,12 +12,16 @@
+ 
+     assert.match(view, /Recent proliferation/);
+     assert.match(view, /Data freshness/);
+-    assert.match(view, /Latest staff update/);
++    assert.match(view, /Latest register activity/);
++    assert.match(view, /Latest data entry \/ update/);
+     assert.match(view, /maintenance actions/);
+ 
+     assert.match(service, /GetOperationalSnapshotAsync/);
+     assert.match(service, /ProliferationDate <= todayIst/);
+     assert.match(service, /MaintenanceAuditActions/);
++    assert.match(service, /CollapseActivityDrafts/);
++    assert.match(service, /ReceivingUnitCount/);
++    assert.match(service, /LatestDataEntryUtc|latestDataEntryUtc/);
+     assert.doesNotMatch(service, /Proliferation\.ExportGenerated"\s*,?\s*$/m);
+ });
+ 
+@@ -36,4 +40,14 @@
+     assert.match(controller, /NormalizeGroupedSort/);
+     assert.match(controller, /"latest-activity"/);
+     assert.match(controller, /OrderByDescending\(BusinessSortKey\)/);
++    assert.match(controller, /x\.ProliferationDate <= todayIst/);
+ });
++
++test("freshness activity references allow two-line context and old activity stays relative", () => {
++    const css = read("wwwroot/css/proliferation.css");
++    const pageModel = read("Areas/ProjectOfficeReports/Pages/Proliferation/Summary.cshtml.cs");
++
++    assert.match(css, /-webkit-line-clamp:\s*2/);
++    assert.match(pageModel, /months ago/);
++    assert.match(pageModel, /years ago/);
++});

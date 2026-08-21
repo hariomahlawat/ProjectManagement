@@ -74,7 +74,7 @@ public sealed class SummaryModel : PageModel
     {
         Summary = await _summaryService.GetSummaryAsync(cancellationToken);
         OperationalSnapshot = await _summaryService.GetOperationalSnapshotAsync(
-            recentProliferationLimit: 8,
+            recentProliferationLimit: 10,
             recentActivityLimit: 5,
             cancellationToken);
 
@@ -283,13 +283,20 @@ public sealed class SummaryModel : PageModel
             return $"{hours} h ago";
         }
 
-        if (elapsed < TimeSpan.FromDays(7))
+        if (elapsed < TimeSpan.FromDays(60))
         {
             var days = Math.Max(1, (int)Math.Floor(elapsed.TotalDays));
             return days == 1 ? "yesterday" : $"{days} days ago";
         }
 
-        return FormatActivityTimestamp(utc);
+        if (elapsed < TimeSpan.FromDays(365))
+        {
+            var months = Math.Max(2, (int)Math.Floor(elapsed.TotalDays / 30d));
+            return $"{months} months ago";
+        }
+
+        var years = Math.Max(1, (int)Math.Floor(elapsed.TotalDays / 365d));
+        return years == 1 ? "1 year ago" : $"{years} years ago";
     }
 
     private static SummaryTotals CalculateTotals(ProliferationSummaryViewModel summary)
