@@ -828,6 +828,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         container.Column(column =>
         {
             column.Spacing(10);
+            // Browser proof renders the institutional gold rule before the identity copy.
+            // Keep QuestPDF in the same order so the editor is a faithful publication proof.
+            column.Item().Width(128).Height(3).Background(Gold);
             if (!string.IsNullOrWhiteSpace(eyebrow))
             {
                 column.Item().Text(eyebrow!.ToUpperInvariant()).FontSize(8).SemiBold().LetterSpacing(.26f).FontColor(GoldSoft);
@@ -835,7 +838,6 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             if (!string.IsNullOrWhiteSpace(title))
             {
                 column.Item().Text(title!).FontSize(resolvedTitleSize).SemiBold().LineHeight(1.04f).FontColor(theme.Foreground);
-                column.Item().Width(128).Height(3).Background(Gold);
             }
             if (!string.IsNullOrWhiteSpace(subtitle))
             {

@@ -9,7 +9,7 @@ public sealed class CompendiumPhase41ProductionConvergenceTests
     public void PhysicalPaginationContract_ReservesAtLeastOneBodyLine()
     {
         Assert.True(CompendiumLayoutMetrics.PhysicalPaginationReservePoints >= 10f);
-        Assert.Equal("physical-a4-v42", CompendiumBuildIdentity.PdfContract);
+        Assert.Equal("physical-a4-v43", CompendiumBuildIdentity.PdfContract);
     }
 
     [Fact]

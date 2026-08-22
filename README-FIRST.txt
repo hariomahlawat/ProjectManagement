@@ -1,51 +1,39 @@
-PRISM PHASE 7 BUILD HOTFIX
-===========================
+PRISM ERP — Compendium Phase 43: Cover Proof/PDF Parity
+Date: 23 Aug 2026
 
-This hotfix addresses all three diagnostics reported after installing Phase 7.
+PURPOSE
+Correct the Institutional Hero cover regression and restore browser/PDF parity.
 
-1) CS0023 at BrochurePrintCompactComposer.cs line ~139
-2) CS0023 at BrochurePrintCompactComposer.cs line ~371
+READY-TO-PASTE FILES
+1. wwwroot/css/pages/projects-publications.css
+2. Utilities/Reporting/CompendiumPdfReportBuilder.cs
+3. Utilities/Reporting/CompendiumBuildIdentity.cs
+4. wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js
+5. wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js (new)
+6. ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs
 
-Cause:
-QuestPDF's IContainer.Text(Action<TextDescriptor>) overload returns void.
-Phase 7 incorrectly chained .FontSize(), .LineHeight() and .FontColor() after the rich-text
-callback in two places.
+WHAT IS FIXED
+- Institutional Hero is no longer forced to position:absolute by the Phase 37.7 pattern-stacking rule.
+- The Institutional Hero identity and hero frame remain in normal flex/document flow.
+- Browser geometry now explicitly owns 52px side margins, 12px column spacing, 22px hero top padding and a fixed 300px hero frame.
+- Stale contradictory absolute Institutional Hero geometry has been removed.
+- QuestPDF now renders the gold identity rule before eyebrow/title, matching the browser proof.
+- Build identity is advanced to Phase 43 / physical-a4-v43 so production diagnostics identify the corrected renderer.
+- A regression test prevents Institutional Hero from being accidentally reintroduced into absolute pattern stacking.
 
-Fix:
-The common rich-text style is now applied INSIDE each callback with
-text.DefaultTextStyle(...), which matches the QuestPDF API already used elsewhere in PRISM.
+NO DATABASE MIGRATION
+No schema or data migration is required.
 
-No print geometry, page dimensions, text, colours, or brochure logic are changed.
+RECOMMENDED VALIDATION ON THE DEVELOPMENT MACHINE
+node --test .\wwwroot\js\projects\publications-compendium-phase38-cover-reliability.test.js .\wwwroot\js\projects\publications-compendium-phase41-offline-runtime.test.js .\wwwroot\js\projects\publications-compendium-phase43-cover-proof-parity.test.js
+dotnet build .\ProjectManagement.csproj
+dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj --filter "FullyQualifiedName~CompendiumPhase38CoverReliabilityTests|FullyQualifiedName~CompendiumPhase41ProductionConvergenceTests|FullyQualifiedName~CompendiumPhase42SlotStabilityTests"
 
-3) CS8622 warning at Pages/ActionTasks/_TaskDetails.cshtml line ~206
-
-Cause:
-TaskUpdateTimelineViewModel expects Func<string?, string>, while
-Pages/ActionTasks/Index.cshtml.cs exposed ResolveActorName(string).
-
-Fix:
-ResolveActorName now accepts string? and handles a missing actor as "System".
-This warning is unrelated to Publications, but the hotfix removes it safely.
-
-INSTALL
--------
-1. Copy the replacement file:
-   Utilities\Reporting\BrochurePrintCompactComposer.cs
-
-2. Copy tools\Apply-PrismPhase7BuildHotfix.ps1 to your project (if not already copied).
-
-3. From the ProjectManagement root run:
-
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\tools\Apply-PrismPhase7BuildHotfix.ps1
-
-4. Build and test:
-
-   dotnet build .\ProjectManagement.csproj
-   dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-
-IMPORTANT
----------
-The package deliberately does NOT replace the whole Pages\ActionTasks\Index.cshtml.cs file.
-That file is unrelated and may contain newer local changes. The script patches only the exact
-ResolveActorName method.
+VISUAL ACCEPTANCE
+Open Cover Design -> Institutional Hero and confirm:
+- hero frame spans the full 491-design-unit content width;
+- hero remains a 300-design-unit landscape frame;
+- hero begins below the complete identity block with no overlap;
+- changing title/subtitle length pushes the hero down rather than drawing through it;
+- Full-Bleed Hero and Image Echo remain layered/absolute as before;
+- generated PDF uses the same gold-rule-before-title identity order as the browser proof.

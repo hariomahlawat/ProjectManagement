@@ -4857,11 +4857,8 @@ body.compendium-structure-editor-mode {
 .cover-proof-identity b { font-size: 10.5px; font-weight: 600; }
 .cover-proof-image { min-height: 0; border: 0; }
 
-/* Front cover geometry mirrors CompendiumPdfReportBuilder point-for-point at A4 design scale. */
-.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-identity { top: 150px; }
-.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-image--institutional {
-    position: absolute; left: 52px; right: 52px; top: 322px; height: 300px; margin: 0;
-}
+/* Front cover geometry mirrors CompendiumPdfReportBuilder point-for-point at A4 design scale.
+   Institutional Hero is intentionally flow-based and is defined in the dedicated block below. */
 .compendium-cover-proof-sheet[data-surface="front"][data-template="Minimal"] .cover-proof-identity { top: 228px; }
 .compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-logos { top: 40px; left: 44px; right: 44px; }
 .compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-content::before {
@@ -4944,17 +4941,27 @@ body.compendium-structure-editor-mode {
     .compendium-cover-proof-sheet { width: 595px; }
 }
 
-/* Institutional covers keep identity and hero in document flow, matching QuestPDF when title height changes. */
+/* Institutional Hero mirrors QuestPDF's flow layout: 52pt side margins, 12pt column spacing,
+   and a 22pt top pad before the fixed 300pt hero frame. Keeping the hero in flow is critical:
+   dense titles can grow without the image collapsing or overlapping the identity block. */
 .compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .compendium-cover-proof-content {
     padding: 150px 52px 48px;
     display: flex;
     flex-direction: column;
+    gap: 12px;
 }
 .compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-identity {
-    position: relative; inset: auto;
+    position: relative;
+    inset: auto;
+    width: 100%;
 }
 .compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-image--institutional {
-    position: relative; inset: auto; height: 300px; margin-top: 22px; flex: 0 0 300px;
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: 300px;
+    margin: 22px 0 0;
+    flex: 0 0 300px;
 }
 .compendium-cover-proof-sheet[data-surface="front"][data-template="Minimal"] .compendium-cover-proof-content {
     padding: 228px 52px 48px;
@@ -5595,7 +5602,8 @@ body.compendium-structure-editor-mode {
 /* Cover pattern stacking: patterns sit behind photography except on Full-Bleed's title panel. */
 .compendium-cover-proof-pattern{z-index:1}
 .compendium-cover-proof-sheet .cover-proof-image{position:relative;z-index:2}
-.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .cover-proof-image--institutional,
+/* Full-bleed and back-cover echo imagery are layered surfaces. Institutional Hero is deliberately
+   excluded: its frame must remain in normal flow so title height and image placement stay coupled. */
 .compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-image--full,
 .compendium-cover-proof-sheet[data-surface="back"][data-template="ImageEcho"] .cover-proof-image--echo{position:absolute}
 .compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .compendium-cover-proof-pattern{z-index:3}
@@ -5809,11 +5817,6 @@ body.compendium-structure-editor-mode {
 }
 .compendium-cover-proof-sheet[data-surface="front"][data-template="FullBleedHero"] .cover-proof-image--full {
     background: var(--cover-theme-primary, #102A23);
-}
-
-/* Institutional Hero uses QuestPDF Column.Spacing(12) plus a 22pt hero top pad. */
-.compendium-cover-proof-sheet[data-surface="front"][data-template="InstitutionalHero"] .compendium-cover-proof-content {
-    gap: 12px;
 }
 
 .compendium-cover-layout-advisory {
