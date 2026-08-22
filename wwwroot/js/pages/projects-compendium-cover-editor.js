@@ -40,6 +40,12 @@
         TypographyOnly: 'Typography Only',
         Clean: 'Clean Back'
     })[value] || titleCase(value);
+    const slotDisplayName = value => ({
+        Hero: 'Hero image',
+        Secondary1: 'Supporting image 1',
+        Secondary2: 'Supporting image 2',
+        Secondary3: 'Supporting image 3'
+    })[value] || titleCase(value);
 
     const coverPolicy = boot.coverPolicy || { front: [], back: [] };
     const identityPolicy = boot.coverIdentityPolicy || { themes: [], backgrounds: [], compatibility: {} };
@@ -111,7 +117,15 @@
             ...state.design,
             images: (state.design.images || []).map(item => {
                 const { previewUrl, sourceWidth, sourceHeight, ...persisted } = item;
-                return persisted;
+                if (item.imageMode !== 'Automatic') return persisted;
+                const resolved = state.autoResolved.get(automaticSlotKey(item.surface.toLowerCase(), item.slotKey));
+                return {
+                    ...persisted,
+                    projectId: Number(resolved?.projectId || persisted.projectId) || null,
+                    photoId: Number(resolved?.photoId || persisted.photoId) || null,
+                    focalX: clamp01(resolved?.focalX ?? persisted.focalX),
+                    focalY: clamp01(resolved?.focalY ?? persisted.focalY)
+                };
             })
         };
     }
@@ -228,11 +242,9 @@
             const slot = findSlot('front', key);
             if (!slot) return false;
             if (slot.imageMode === 'None' || !slot.previewUrl) return false;
-            const auto = state.autoResolved.get(automaticSlotKey('front', key));
-            const projectId = Number(slot.imageMode === 'Explicit' ? slot.projectId : auto?.projectId);
-            const photoId = Number(slot.imageMode === 'Explicit' ? slot.photoId : auto?.photoId);
-            if (!projectId || !photoId) return false;
-            const ref = `${projectId}:${photoId}`;
+            const reference = coverState.slotReference(slot);
+            if (!reference) return false;
+            const ref = `${reference.projectId}:${reference.photoId}`;
             if (refs.has(ref)) return false;
             refs.add(ref);
         }
@@ -257,7 +269,7 @@
             const slot = findSlot(surface, key);
             if (!slot || slot.imageMode === 'None') return false;
             if (slot.imageMode === 'Explicit') return !!Number(slot.projectId) && !!Number(slot.photoId);
-            return state.automaticCandidates.length > 0;
+            return !!coverState.slotReference(slot);
         });
     }
 
@@ -458,12 +470,22 @@
         pattern.hidden = false;
     }
 
-    function renderSlots() {
+    function renderSlots(hydrate = true) {
         const host = by('[data-cover-slot-list]');
         const section = by('[data-cover-image-section]');
         if (!host || !section) return;
         const slots = templateSlots();
         section.hidden = slots.length === 0;
+        const refresh = by('[data-cover-refresh-automatic]');
+        if (refresh) {
+            const automaticCount = slots
+                .map(slotKey => ensureSlot(state.activeSurface, slotKey))
+                .filter(slot => slot.imageMode === 'Automatic').length;
+            refresh.disabled = automaticCount === 0;
+            refresh.title = automaticCount === 0
+                ? 'The current layout has no automatic image slots.'
+                : 'Re-rank automatic images on this cover only. Manual selections are preserved.';
+        }
         host.innerHTML = '';
         slots.forEach((slotKey, index) => {
             const slot = ensureSlot(state.activeSurface, slotKey);
@@ -471,14 +493,17 @@
             const row = document.createElement('article');
             row.className = 'compendium-cover-slot-card';
             row.dataset.coverSlotKey = slotKey;
-            const label = slotKey === 'Hero' ? 'Hero image' : `Supporting image ${index}`;
-            const auto = state.autoResolved.get(`${state.activeSurface}:${slotKey}`);
+            const label = slotDisplayName(slotKey) || `Supporting image ${index}`;
+            const auto = state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey));
+            const automaticReference = slot.imageMode === 'Automatic'
+                ? (auto || coverState.slotReference(slot))
+                : null;
             const source = slot.imageMode === 'Explicit'
                 ? projectName(slot.projectId) || 'Selected photograph'
                 : slot.imageMode === 'None'
                     ? 'No image'
-                    : auto?.projectId
-                        ? `Automatic · ${projectName(auto.projectId) || 'ranked photograph'}`
+                    : automaticReference?.projectId
+                        ? `Automatic · ${projectName(automaticReference.projectId) || 'ranked photograph'}`
                         : 'Automatic selection';
             const resolvedFocal = slot.imageMode === 'Automatic'
                 ? state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey))
@@ -501,7 +526,7 @@
                 </div>`;
             host.appendChild(row);
         });
-        void hydrateVisibleSlotPreviews();
+        if (hydrate) void hydrateVisibleSlotPreviews();
     }
 
     function projectName(projectId) { return state.projects.find(item => Number(item.projectId) === Number(projectId))?.projectName || ''; }
@@ -578,7 +603,7 @@
             : '';
     }
 
-    function renderProof() {
+    function renderProof(hydrate = true) {
         const surface = state.proofSurface;
         const front = surface === 'front';
         const template = currentTemplate(surface);
@@ -648,7 +673,7 @@
             }
         }
         applyProofZoom(false);
-        void hydrateVisibleSlotPreviews(surface);
+        if (hydrate) void hydrateVisibleSlotPreviews(surface);
     }
 
     async function loadProjectPhotos(projectId, signal = null) {
@@ -676,19 +701,44 @@
         state.photoPickerAbortController = null;
     }
 
-    function clearAutomaticResolutions(surface = null) {
-        if (surface) state.hydrationVersions.set(surface, (state.hydrationVersions.get(surface) || 0) + 1);
-        else ['front', 'back'].forEach(key => state.hydrationVersions.set(key, (state.hydrationVersions.get(key) || 0) + 1));
+    function bumpHydrationVersion(surface) {
+        state.hydrationVersions.set(surface, (state.hydrationVersions.get(surface) || 0) + 1);
+    }
+
+    // Preview invalidation is intentionally separate from assignment reset.
+    // A save/reload may discard transient URLs, but it must retain the stable
+    // project/photo identity of every automatic slot.
+    function invalidateAutomaticPreviews(surface = null) {
+        if (surface) bumpHydrationVersion(surface);
+        else ['front', 'back'].forEach(bumpHydrationVersion);
         state.design.images.forEach(slot => {
             if (slot.imageMode !== 'Automatic') return;
             if (surface && slot.surface.toLowerCase() !== surface) return;
-            slot.previewUrl = null;
-            slot.sourceWidth = null;
-            slot.sourceHeight = null;
+            coverState.clearPreview(slot);
         });
         if (surface) {
             Array.from(state.autoResolved.keys()).forEach(key => { if (key.startsWith(`${surface}:`)) state.autoResolved.delete(key); });
         } else state.autoResolved.clear();
+    }
+
+    function resetAutomaticSlot(slot) {
+        if (!slot) return;
+        const surface = slot.surface.toLowerCase();
+        bumpHydrationVersion(surface);
+        state.autoResolved.delete(automaticSlotKey(surface, slot.slotKey));
+        coverState.resetAutomaticAssignment(slot);
+    }
+
+    function resetVisibleAutomaticAssignments(surface = state.activeSurface) {
+        bumpHydrationVersion(surface);
+        const visible = new Set(templateSlots(surface).map(key => key.toLowerCase()));
+        state.design.images.forEach(slot => {
+            if (slot.surface.toLowerCase() !== surface
+                || slot.imageMode !== 'Automatic'
+                || !visible.has(slot.slotKey.toLowerCase())) return;
+            state.autoResolved.delete(automaticSlotKey(surface, slot.slotKey));
+            coverState.resetAutomaticAssignment(slot);
+        });
     }
 
     async function ensureAutomaticCandidates() {
@@ -708,19 +758,28 @@
         state.automaticCandidatesDirty = false;
     }
 
-    function automaticCandidateSequence(surface, usedProjects = new Set(), usedPhotos = new Set()) {
+    function automaticCandidateSequence(
+        surface,
+        usedProjects = new Set(),
+        usedPhotos = new Set(),
+        reservedExplicitPhotos = new Set()) {
         const candidates = state.automaticCandidates || [];
         const unique = new Map();
-        const append = item => {
+        const append = (item, allowAutomaticReuse = false) => {
             const key = `${item.projectId}:${item.photoId}`;
-            if (!usedPhotos.has(key) && !unique.has(key)) unique.set(key, item);
+            if (reservedExplicitPhotos.has(key)) return;
+            if ((!usedPhotos.has(key) || allowAutomaticReuse) && !unique.has(key)) {
+                unique.set(key, item);
+            }
         };
         candidates.filter(item => !usedProjects.has(item.projectId)).forEach(append);
         candidates.forEach(append);
-        if (!isQuartet(surface)) candidates.forEach(item => {
-            const key = `${item.projectId}:${item.photoId}`;
-            if (!unique.has(key)) unique.set(key, item);
-        });
+        // Only non-Quartet layouts may repeat an automatic photograph, and
+        // only after every unused photograph has been tried. A photograph
+        // manually reserved by another slot is never eligible for fallback.
+        if (!isQuartet(surface)) {
+            candidates.forEach(item => append(item, true));
+        }
         return Array.from(unique.values());
     }
 
@@ -732,6 +791,7 @@
         let changed = false;
         const usedPhotos = new Set();
         const usedProjects = new Set();
+        const explicitPhotos = new Set();
 
         try {
             await ensureAutomaticCandidates();
@@ -740,49 +800,104 @@
         }
         if (!isCurrentHydration()) return;
 
-        state.design.images.forEach(slot => {
-            if (slot.surface.toLowerCase() !== surface) return;
-            if (slot.imageMode !== 'Explicit' || !slot.projectId || !slot.photoId) return;
-            usedPhotos.add(`${Number(slot.projectId)}:${Number(slot.photoId)}`);
-            usedProjects.add(Number(slot.projectId));
-        });
-        state.autoResolved.forEach((candidate, key) => {
-            if (!key.startsWith(`${surface}:`)) return;
-            if (!candidate?.projectId || !candidate?.photoId) return;
-            usedPhotos.add(`${Number(candidate.projectId)}:${Number(candidate.photoId)}`);
-            usedProjects.add(Number(candidate.projectId));
-        });
-
+        // Pass 1: explicit assignments are reserved before automatic slots so
+        // a manual choice wins regardless of template order.
         for (const slot of slots) {
-            const key = automaticSlotKey(surface, slot.slotKey);
-            if (slot.imageMode === 'None') continue;
-            if (slot.imageMode === 'Explicit' && slot.previewUrl) continue;
-            if (slot.imageMode === 'Automatic' && slot.previewUrl && state.autoResolved.has(key)) continue;
-
+            if (slot.imageMode !== 'Explicit') continue;
+            const reference = coverState.slotReference(slot);
+            if (!reference) continue;
+            const referenceKey = `${reference.projectId}:${reference.photoId}`;
+            explicitPhotos.add(referenceKey);
+            usedPhotos.add(referenceKey);
+            usedProjects.add(reference.projectId);
+            if (slot.previewUrl) continue;
             try {
-                if (slot.imageMode === 'Explicit') {
-                    if (!slot.projectId || !slot.photoId) continue;
-                    const photos = await loadProjectPhotos(slot.projectId);
-                    if (!isCurrentHydration()) return;
-                    const photo = photos.find(item => Number(item.photoId) === Number(slot.photoId));
-                    if (!photo) continue;
-                    slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
-                    slot.sourceWidth = photo.width;
-                    slot.sourceHeight = photo.height;
+                const photos = await loadProjectPhotos(reference.projectId);
+                if (!isCurrentHydration()) return;
+                const photo = photos.find(item => Number(item.photoId) === reference.photoId);
+                if (!photo) continue;
+                slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+                slot.sourceWidth = photo.width;
+                slot.sourceHeight = photo.height;
+                changed = true;
+            } catch {
+                // Explicit preview hydration is best-effort. Save/export will
+                // surface an unavailable manual selection as a blocker.
+            }
+        }
+
+        // Pass 2: hydrate valid sticky automatic assignments without changing
+        // their identity. A stale assignment releases only its own slot.
+        const selectedProjects = new Set(state.projects.map(project => Number(project.projectId)));
+        for (const slot of slots) {
+            if (slot.imageMode !== 'Automatic') continue;
+            const key = automaticSlotKey(surface, slot.slotKey);
+            const reference = coverState.slotReference(slot);
+            if (!reference) {
+                state.autoResolved.delete(key);
+                continue;
+            }
+
+            const referenceKey = `${reference.projectId}:${reference.photoId}`;
+            const conflictsWithExplicit = explicitPhotos.has(referenceKey);
+            const conflictsWithQuartet = isQuartet(surface) && usedPhotos.has(referenceKey);
+            if (!selectedProjects.has(reference.projectId)
+                || conflictsWithExplicit
+                || conflictsWithQuartet) {
+                coverState.resetAutomaticAssignment(slot);
+                state.autoResolved.delete(key);
+                changed = true;
+                continue;
+            }
+
+            const resolved = {
+                projectId: reference.projectId,
+                photoId: reference.photoId,
+                focalX: clamp01(slot.focalX),
+                focalY: clamp01(slot.focalY),
+                priority: 0
+            };
+            try {
+                const photos = await loadProjectPhotos(reference.projectId);
+                if (!isCurrentHydration()) return;
+                const photo = photos.find(item => Number(item.photoId) === reference.photoId);
+                if (!photo) {
+                    coverState.resetAutomaticAssignment(slot);
+                    state.autoResolved.delete(key);
                     changed = true;
                     continue;
                 }
+                coverState.applyAutomaticPhoto(slot, resolved, photo);
+                state.autoResolved.set(key, resolved);
+                usedProjects.add(reference.projectId);
+                usedPhotos.add(referenceKey);
+                changed = true;
+            } catch {
+                // Retain the persisted assignment when preview retrieval is
+                // temporarily unavailable; never reshuffle on a network error.
+                state.autoResolved.set(key, resolved);
+                usedProjects.add(reference.projectId);
+                usedPhotos.add(referenceKey);
+            }
+        }
 
-                const sequence = automaticCandidateSequence(surface, usedProjects, usedPhotos);
-                for (const candidate of sequence) {
+        // Pass 3: only slots that genuinely have no assignment are resolved
+        // from the current ranked candidates.
+        for (const slot of slots) {
+            if (slot.imageMode !== 'Automatic' || coverState.slotReference(slot)) continue;
+            const key = automaticSlotKey(surface, slot.slotKey);
+            const sequence = automaticCandidateSequence(
+                surface,
+                usedProjects,
+                usedPhotos,
+                explicitPhotos);
+            for (const candidate of sequence) {
+                try {
                     const photos = await loadProjectPhotos(candidate.projectId);
                     if (!isCurrentHydration()) return;
                     const photo = photos.find(item => Number(item.photoId) === Number(candidate.photoId));
                     if (!photo) continue;
 
-                    slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
-                    slot.sourceWidth = photo.width;
-                    slot.sourceHeight = photo.height;
                     const resolved = {
                         projectId: Number(candidate.projectId),
                         photoId: Number(candidate.photoId),
@@ -790,26 +905,24 @@
                         focalY: clamp01(candidate.focalY),
                         priority: Number(candidate.priority) || 0
                     };
+                    coverState.applyAutomaticPhoto(slot, resolved, photo);
                     state.autoResolved.set(key, resolved);
                     usedProjects.add(resolved.projectId);
                     usedPhotos.add(`${resolved.projectId}:${resolved.photoId}`);
                     changed = true;
                     break;
+                } catch {
+                    // Try the next ranked candidate. Final save/export applies
+                    // the same slot-stable fallback policy on the server.
                 }
-            } catch {
-                // Automatic preview hydration is best-effort; final export applies the same ranked fallback sequence.
             }
         }
 
         if (changed && isCurrentHydration()) {
-            renderProof();
-            if (surface === state.activeSurface) renderSlotsWithoutHydration();
+            renderProof(false);
+            if (surface === state.activeSurface) renderSlots(false);
             setDirty();
         }
-    }
-
-    function renderSlotsWithoutHydration() {
-        renderSlots();
     }
 
     async function openPhotoPicker(slotKey) {
@@ -819,7 +932,7 @@
         const resolved = state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey));
         const selectedProjectId = slot.projectId || resolved?.projectId || null;
         const slotLabel = portalBy('[data-cover-photo-modal-slot]');
-        if (slotLabel) slotLabel.textContent = `${state.activeSurface === 'front' ? 'Front' : 'Back'} · ${slotKey === 'Hero' ? 'Hero image' : slotKey}`;
+        if (slotLabel) slotLabel.textContent = `${state.activeSurface === 'front' ? 'Front' : 'Back'} · ${slotDisplayName(slotKey)}`;
         const select = portalBy('[data-cover-project-select]');
         if (!select) return;
         select.innerHTML = '<option value="">Select project…</option>' + state.projects.map(project => `<option value="${project.projectId}" ${Number(project.projectId) === Number(selectedProjectId) ? 'selected' : ''}>${escapeHtml(project.projectName)}</option>`).join('');
@@ -877,23 +990,37 @@
                 return;
             }
             stateNode.textContent = `${photos.length} photograph${photos.length === 1 ? '' : 's'} available`;
+            const pickerSurface = state.activeSlot?.surface?.toLowerCase() || state.activeSurface;
+            const visibleSlots = templateSlots(pickerSurface).map(slotKey => ensureSlot(pickerSurface, slotKey));
             photos.forEach(photo => {
                 const pref = preferenceFor(requestedProjectId, photo.photoId);
                 const card = document.createElement('article');
                 card.className = 'compendium-cover-photo-card';
-                const selected = state.activeSlot?.imageMode === 'Explicit' && Number(state.activeSlot?.projectId) === requestedProjectId && Number(state.activeSlot?.photoId) === Number(photo.photoId);
+                const selectedReference = coverState.slotReference(state.activeSlot);
+                const selected = selectedReference?.projectId === requestedProjectId
+                    && selectedReference?.photoId === Number(photo.photoId);
+                const reservedByQuartet = isQuartet(pickerSurface)
+                    && coverState.isPhotoUsedByOtherSlot(
+                        visibleSlots,
+                        pickerSurface,
+                        state.activeSlot,
+                        requestedProjectId,
+                        photo.photoId);
                 if (selected) card.classList.add('selected');
+                if (reservedByQuartet) card.classList.add('is-unavailable');
                 card.innerHTML = `
-                    <button type="button" class="compendium-cover-photo-select" data-cover-select-photo="${photo.photoId}">
+                    <button type="button" class="compendium-cover-photo-select" data-cover-select-photo="${photo.photoId}" ${reservedByQuartet ? 'disabled aria-disabled="true" title="Already used by another Portfolio Quartet slot"' : ''}>
                         <img src="${escapeHtml(photo.thumbnailUrl || photo.previewUrl || '')}" alt="" />
-                        <span><b>${escapeHtml(photo.caption || `Photo ${photo.photoId}`)}</b><small>${photo.width} × ${photo.height} · ${titleCase(photo.quality)}</small></span>
+                        <span><b>${escapeHtml(photo.caption || `Photo ${photo.photoId}`)}</b><small>${photo.width} × ${photo.height} · ${reservedByQuartet ? 'Already used on this cover' : titleCase(photo.quality)}</small></span>
                         ${selected ? '<i class="bi bi-check-circle-fill"></i>' : ''}
                     </button>
                     <div class="compendium-cover-photo-flags">
                         <label title="Prefer this image when PRISM fills automatic cover slots"><input type="checkbox" data-cover-pref="preferred" data-photo-id="${photo.photoId}" ${pref.preferredForPublication ? 'checked' : ''}/> Cover preferred</label>
                         <label title="Allow Automatic Hero to prioritise this image for the cover"><input type="checkbox" data-cover-pref="hero" data-photo-id="${photo.photoId}" ${pref.suitableForCoverHero ? 'checked' : ''}/> Cover suitable</label>
                     </div>`;
-                card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(requestedProjectId, photo));
+                if (!reservedByQuartet) {
+                    card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(requestedProjectId, photo));
+                }
                 card.querySelectorAll('[data-cover-pref]').forEach(input => input.addEventListener('change', () => updatePreference(requestedProjectId, photo.photoId, input.dataset.coverPref, input.checked)));
                 grid.appendChild(card);
             });
@@ -919,21 +1046,33 @@
         else item.preferredForPublication = checked;
         if (!item.preferredForPublication && !item.suitableForCoverHero) state.preferences = state.preferences.filter(pref => pref !== item);
         state.automaticCandidatesDirty = true;
-        clearAutomaticResolutions();
         setDirty();
         renderSlots();
         renderProof();
+    }
+
+    async function refreshAutomaticImages() {
+        const surface = state.activeSurface;
+        const visibleAutomaticSlots = templateSlots(surface)
+            .map(slotKey => ensureSlot(surface, slotKey))
+            .filter(slot => slot.imageMode === 'Automatic');
+        if (!visibleAutomaticSlots.length) return;
+
+        state.automaticCandidatesDirty = true;
+        resetVisibleAutomaticAssignments(surface);
+        setDirty();
+        renderSlots(false);
+        renderProof(false);
+        await hydrateVisibleSlotPreviews(surface);
     }
 
     function choosePhoto(projectId, photo) {
         const slot = state.activeSlot;
         if (!slot) return;
         const surface = slot.surface.toLowerCase();
+        bumpHydrationVersion(surface);
         state.autoResolved.delete(automaticSlotKey(surface, slot.slotKey));
         coverState.applyExplicitPhoto(slot, projectId, photo);
-        // Explicit-photo uniqueness and automatic ranking are defined within one cover surface.
-        // Do not erase the independently curated automatic preview on the opposite cover.
-        clearAutomaticResolutions(surface);
         cancelPhotoPickerRequest();
         setDirty();
         renderSlots();
@@ -943,15 +1082,17 @@
 
     function setSlotMode(mode) {
         if (!state.activeSlot) return;
-        const surface = state.activeSlot.surface.toLowerCase();
-        state.activeSlot.imageMode = mode;
-        state.autoResolved.delete(automaticSlotKey(surface, state.activeSlot.slotKey));
-        if (mode !== 'Explicit') {
-            state.activeSlot.projectId = null;
-            state.activeSlot.photoId = null;
-            state.activeSlot.previewUrl = null;
+        const slot = state.activeSlot;
+        const surface = slot.surface.toLowerCase();
+        if (mode === 'Automatic') resetAutomaticSlot(slot);
+        else {
+            bumpHydrationVersion(surface);
+            state.autoResolved.delete(automaticSlotKey(surface, slot.slotKey));
+            slot.imageMode = 'None';
+            slot.projectId = null;
+            slot.photoId = null;
+            coverState.clearPreview(slot);
         }
-        clearAutomaticResolutions(surface);
         cancelPhotoPickerRequest();
         setDirty();
         renderSlots();
@@ -994,6 +1135,7 @@
         slot.previewUrl = photo?.previewUrl || photo?.thumbnailUrl || slot.previewUrl;
         slot.sourceWidth = photo?.width || slot.sourceWidth;
         slot.sourceHeight = photo?.height || slot.sourceHeight;
+        bumpHydrationVersion(state.activeSurface);
         state.autoResolved.delete(key);
         setDirty();
         renderSlots();
@@ -1050,7 +1192,7 @@
                 state.design = normaliseDesign(result.coverDesign);
                 state.activeSlot = null;
                 state.overrideEditing.clear();
-                clearAutomaticResolutions();
+                invalidateAutomaticPreviews();
                 state.automaticCandidatesDirty = true;
             }
             if (Array.isArray(result?.photoPreferences)) state.preferences = normalisePreferences(result.photoPreferences);
@@ -1117,7 +1259,6 @@
             const slot = ensureSlot(state.activeSurface, key);
             if (isFillOnlyTemplate()) slot.fitMode = 'Fill';
         });
-        clearAutomaticResolutions(state.activeSurface);
         setDirty(); updateInspector(); resetProofViewport();
     }));
     all('[data-cover-theme]').forEach(button => button.addEventListener('click', () => {
@@ -1179,6 +1320,10 @@
     by('[data-cover-logo-placement]')?.addEventListener('change', event => {
         state.design[`${surfacePrefix()}LogoPlacement`] = event.target.value || 'TopCorners';
         setDirty(); renderProof();
+    });
+
+    by('[data-cover-refresh-automatic]')?.addEventListener('click', () => {
+        void refreshAutomaticImages();
     });
 
     by('[data-cover-slot-list]')?.addEventListener('click', event => {

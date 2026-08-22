@@ -4708,6 +4708,10 @@ body.compendium-structure-editor-mode {
 .compendium-cover-inspector-heading { margin-bottom: .65rem; }
 .compendium-cover-inspector-heading strong { display: block; font-size: .76rem; }
 .compendium-cover-inspector-heading span { display: block; margin-top: .08rem; color: var(--pub-muted); font-size: .61rem; line-height: 1.35; }
+.compendium-cover-imagery-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem; }
+.compendium-cover-imagery-heading > div { min-width:0; }
+.compendium-cover-imagery-heading [data-cover-refresh-automatic] { flex:none;padding:.1rem .2rem;font-size:.61rem;text-decoration:none;white-space:nowrap; }
+.compendium-cover-imagery-heading [data-cover-refresh-automatic] i { margin-right:.2rem; }
 .compendium-cover-editor-field { display: block; margin-bottom: .55rem; }
 .compendium-cover-editor-field > span { display: flex; align-items: center; gap: .35rem; margin-bottom: .25rem; color: #41534d; font-size: .66rem; font-weight: 700; }
 .compendium-cover-logo-toggles { display: flex; gap: .75rem; flex-wrap: wrap; }
@@ -4733,6 +4737,8 @@ body.compendium-structure-editor-mode {
 .compendium-cover-photo-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.7rem; }
 .compendium-cover-photo-card { border:1px solid var(--pub-border);border-radius:.65rem;overflow:hidden;background:#fff; }
 .compendium-cover-photo-card.selected { border-color:#6fa18f;box-shadow:0 0 0 2px rgba(38,108,89,.12); }
+.compendium-cover-photo-card.is-unavailable { background:#f5f7f6; }
+.compendium-cover-photo-card.is-unavailable .compendium-cover-photo-select { opacity:.58;cursor:not-allowed; }
 .compendium-cover-photo-select { width:100%;border:0;background:#fff;padding:0;text-align:left;position:relative; }
 .compendium-cover-photo-select > img { width:100%;height:135px;object-fit:cover;display:block;background:#edf2f0; }
 .compendium-cover-photo-select > span { display:flex;flex-direction:column;padding:.45rem .55rem; }

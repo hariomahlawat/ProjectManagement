@@ -64,16 +64,16 @@ test('stale or project-mismatched photo-list responses cannot update the picker'
   assert.equal(contract.shouldCommitPhotoRequest(8, 8, 20, ''), false);
 });
 
-test('cover editor uses abortable request sequencing and surface-scoped invalidation', () => {
+test('cover editor uses abortable request sequencing and slot-local invalidation', () => {
   assert.match(editorSource, /photoPickerRequestVersion/);
   assert.match(editorSource, /photoPickerAbortController\?\.abort\(\)/);
   assert.match(editorSource, /signal:\s*signal/);
   assert.match(editorSource, /shouldCommitPhotoRequest/);
   assert.match(editorSource, /applyExplicitPhoto\(slot, projectId, photo\)/);
-  assert.match(editorSource, /clearAutomaticResolutions\(surface\)/);
-  assert.doesNotMatch(editorSource, /function choosePhoto[\s\S]*?clearAutomaticResolutions\(\);[\s\S]*?function setSlotMode/);
-  assert.match(editorSource, /slot\.surface\.toLowerCase\(\) !== surface/);
-  assert.match(editorSource, /!key\.startsWith\(`\$\{surface\}:`\)/);
+  assert.match(editorSource, /bumpHydrationVersion\(surface\)/);
+  assert.doesNotMatch(editorSource, /function choosePhoto[\s\S]*?resetVisibleAutomaticAssignments[\s\S]*?function setSlotMode/);
+  assert.match(editorSource, /function invalidateAutomaticPreviews\(surface = null\)/);
+  assert.match(editorSource, /function resetAutomaticSlot\(slot\)/);
 });
 
 test('server automatic allocation uses the same independent front/back surface contract', () => {

@@ -302,10 +302,13 @@ public sealed class CoverModel : PageModel
                     loaded.Configuration,
                     candidateProjects,
                     preferences);
+                design = ResolveCoverAssignments(
+                    design,
+                    automaticCandidates,
+                    usable);
                 ValidateRequiredImageSlots(
                     design,
-                    usable,
-                    automaticCandidates.Any(candidate => usable.Contains((candidate.ProjectId, candidate.PhotoId))));
+                    usable);
                 if (design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet)
                 {
                     ValidatePortfolioQuartet(design, usable);
@@ -626,10 +629,44 @@ public sealed class CoverModel : PageModel
             candidate.Priority
         };
 
+    private static CompendiumCoverDesignConfiguration ResolveCoverAssignments(
+        CompendiumCoverDesignConfiguration design,
+        IReadOnlyList<CompendiumCoverAutomaticImagePolicy.Candidate> automaticCandidates,
+        IReadOnlySet<(int ProjectId, int PhotoId)> usable)
+    {
+        var resolved = CompendiumCoverSlotAssignmentPolicy.Resolve(
+            design.FrontTemplate,
+            design.BackTemplate,
+            design.Images.Select(item => new CompendiumCoverImageSlot(
+                item.Surface,
+                item.SlotKey,
+                item.ImageMode,
+                item.ProjectId,
+                item.PhotoId,
+                item.FocalX,
+                item.FocalY,
+                item.FitMode)),
+            automaticCandidates,
+            usable);
+
+        return design with
+        {
+            Images = resolved.Select((item, index) => new CompendiumPresetCoverImageConfiguration(
+                item.Surface,
+                item.SlotKey,
+                item.ImageMode,
+                item.ProjectId,
+                item.PhotoId,
+                item.FocalX,
+                item.FocalY,
+                item.FitMode,
+                index)).ToArray()
+        };
+    }
+
     private static void ValidateRequiredImageSlots(
         CompendiumCoverDesignConfiguration design,
-        IReadOnlySet<(int ProjectId, int PhotoId)> usable,
-        bool hasAutomaticCandidate)
+        IReadOnlySet<(int ProjectId, int PhotoId)> usable)
     {
         var required = CompendiumCoverTemplatePolicy.ResolveSlots(design.FrontTemplate, design.BackTemplate)
             .Where(slot => slot.Required)
@@ -654,18 +691,16 @@ public sealed class CoverModel : PageModel
                     $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} is required by the selected cover template.");
             }
 
-            if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
+            if (slot.ProjectId is not int projectId
+                || slot.PhotoId is not int photoId
+                || !usable.Contains((projectId, photoId)))
             {
-                if (slot.ProjectId is not int projectId
-                    || slot.PhotoId is not int photoId
-                    || !usable.Contains((projectId, photoId)))
+                if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
                 {
                     throw new InvalidOperationException(
                         $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} is no longer usable. Choose another photograph.");
                 }
-            }
-            else if (!hasAutomaticCandidate)
-            {
+
                 throw new InvalidOperationException(
                     $"{CoverSlotDisplay(requirement.Surface, requirement.SlotKey)} requires a usable photograph, but no publication image can currently be resolved.");
             }
@@ -695,15 +730,14 @@ public sealed class CoverModel : PageModel
             CompendiumCoverSurface.Front, design.FrontTemplate, design.BackTemplate);
         var slots = design.Images.Where(item => item.Surface == CompendiumCoverSurface.Front)
             .ToDictionary(item => item.SlotKey, StringComparer.OrdinalIgnoreCase);
-        var explicitPhotos = new HashSet<(int ProjectId, int PhotoId)>();
+        var resolvedPhotos = new HashSet<(int ProjectId, int PhotoId)>();
         foreach (var key in required)
         {
             if (!slots.TryGetValue(key, out var slot) || slot.ImageMode == CompendiumCoverImageMode.None)
                 throw new InvalidOperationException("Portfolio Quartet requires all four image slots to remain active.");
-            if (slot.ImageMode != CompendiumCoverImageMode.Explicit) continue;
             if (slot.ProjectId is not int projectId || slot.PhotoId is not int photoId || !usable.Contains((projectId, photoId)))
                 throw new InvalidOperationException($"Portfolio Quartet image '{key}' is no longer usable. Choose another photograph.");
-            if (!explicitPhotos.Add((projectId, photoId)))
+            if (!resolvedPhotos.Add((projectId, photoId)))
                 throw new InvalidOperationException("Portfolio Quartet cannot repeat the same photograph in more than one slot.");
         }
         if (usable.Count < 4)

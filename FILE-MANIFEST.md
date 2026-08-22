@@ -1,33 +1,53 @@
 # File manifest
 
-Copy the paths below into the project root. `Replace` means the path exists in the supplied
-baseline; `Add` means it is new.
+All paths are relative to the project root.
 
-| Action | Project-relative path | Purpose |
-|---|---|---|
-| Replace | `Program.cs` | Run the offline PDF self-test before host/database startup. |
-| Replace | `Pages/Projects/Publications/Compendium/Cover.cshtml` | Load the deterministic cover-state helper before the editor. |
-| Replace | `Pages/Projects/Publications/Compendium/Index.cshtml.cs` | Typed HTTP failures, build header and durable diagnostics. |
-| Add | `ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs` | Font, pagination and typed-failure tests. |
-| Replace | `Services/Compendiums/CompendiumDossierTextMeasurementService.cs` | Use the shared exact DM Sans resolver for Skia planning. |
-| Replace | `Services/Compendiums/CompendiumExportService.cs` | Bounded generation, stage isolation and independent cover-surface allocation. |
-| Add | `Utilities/Reporting/CompendiumBuildIdentity.cs` | One correlation identity for HTTP, PDF, diagnostics and self-test. |
-| Add | `Utilities/Reporting/CompendiumGenerationDiagnostics.cs` | Offline-safe JSONL failure diagnostics. |
-| Replace | `Utilities/Reporting/CompendiumLayoutMetrics.cs` | Increase the cross-engine shaping reserve from 1 to 12 points. |
-| Add | `Utilities/Reporting/CompendiumOfflineSelfTest.cs` | Exercise DM Sans, SkiaSharp, QuestPDF and PdfPig without web/database access. |
-| Add | `Utilities/Reporting/CompendiumPdfGenerationException.cs` | Typed generation stages and safe page/project context. |
-| Replace | `Utilities/Reporting/CompendiumPdfReportBuilder.cs` | Hard font parity, QuestPDF failure classification and failure-only page probing. |
-| Add | `Utilities/Reporting/PublicationFontContract.cs` | Authoritative local six-face DM Sans discovery contract. |
-| Replace | `Utilities/Reporting/PublicationFontRegistry.cs` | Register fonts through the shared contract and forbid silent Compendium fallback. |
-| Replace | `docs/deployment/offline-ws2022.md` | Offline IIS publish, self-test and diagnostics runbook. |
-| Replace | `ops/publish/create-publish-folder.ps1` | Self-contained win-x64 publish and release-gate validation. |
-| Add | `ops/publish/test-compendium-offline-payload.ps1` | Revalidate the exact staged/deployed payload. |
-| Replace | `wwwroot/js/pages/projects-compendium-cover-editor.js` | Race-safe image changes, crop ownership and canonical save rehydration. |
-| Add | `wwwroot/js/projects/compendium-cover-editor-state.js` | Pure/testable cover photo identity and request-version rules. |
-| Replace | `wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js` | Advance the legacy allocation contract to surface-scoped keys. |
-| Add | `wwwroot/js/projects/publications-compendium-phase41-cover-change.test.js` | Cover replacement and allocation regression coverage. |
-| Add | `wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js` | Offline runtime and publish-contract coverage. |
-| Add | `wwwroot/js/projects/publications-compendium-phase41-production-convergence.test.js` | Pagination/font/failure-stage regression coverage. |
+## Phase 42 cover-slot implementation
 
-The package intentionally does not duplicate the existing TTF binaries. The hardened publish script
-requires and validates all six files already present under `wwwroot/fonts/publications/dm-sans`.
+- `Pages/Projects/Publications/Compendium/Cover.cshtml`
+- `Pages/Projects/Publications/Compendium/Cover.cshtml.cs`
+- `Pages/Projects/Publications/Compendium/Index.cshtml.cs`
+- `Services/Compendiums/CompendiumCoverSlotAssignmentPolicy.cs` (new)
+- `Services/Compendiums/CompendiumExportService.cs`
+- `Services/Publications/CompendiumPresetService.cs`
+- `Utilities/Reporting/CompendiumBuildIdentity.cs`
+- `wwwroot/css/pages/projects-publications.css`
+- `wwwroot/js/pages/projects-compendium-cover-editor.js`
+- `wwwroot/js/projects/compendium-cover-editor-state.js`
+
+## Validation files
+
+- `ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs`
+- `ProjectManagement.Tests/Publications/CompendiumPhase42SlotStabilityTests.cs` (new)
+- `tools/Test-PrismPublicationsPhase30_1.ps1`
+- `tools/Test-PrismPublicationsPhase42.ps1` (new)
+- `wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js`
+- `wwwroot/js/projects/publications-compendium-phase41-cover-change.test.js`
+- `wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js`
+- `wwwroot/js/projects/publications-compendium-phase41-production-convergence.test.js`
+- `wwwroot/js/projects/publications-compendium-phase42-slot-stability.test.js` (new)
+
+## Cumulative Phase 41 air-gapped PDF production files
+
+- `Program.cs`
+- `Services/Compendiums/CompendiumDossierTextMeasurementService.cs`
+- `Utilities/Reporting/CompendiumGenerationDiagnostics.cs`
+- `Utilities/Reporting/CompendiumLayoutMetrics.cs`
+- `Utilities/Reporting/CompendiumOfflineSelfTest.cs`
+- `Utilities/Reporting/CompendiumPdfGenerationException.cs`
+- `Utilities/Reporting/CompendiumPdfReportBuilder.cs`
+- `Utilities/Reporting/PublicationFontContract.cs`
+- `Utilities/Reporting/PublicationFontRegistry.cs`
+- `docs/deployment/offline-ws2022.md`
+- `ops/publish/create-publish-folder.ps1`
+- `ops/publish/test-compendium-offline-payload.ps1`
+
+## Package documents
+
+- `README-FIRST.md`
+- `RELEASE-NOTES.md`
+- `VALIDATION.md`
+- `ACCEPTANCE-TESTS.md`
+- `FILE-MANIFEST.md`
+- `CHANGESET.patch`
+- `SHA256SUMS.txt`

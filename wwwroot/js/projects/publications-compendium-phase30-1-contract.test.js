@@ -36,7 +36,7 @@ test('phase 30.1 uses authoritative fixed A4 proof coordinates instead of respon
 test('phase 30.1 automatic multi-image composition prefers different photos and projects', () => {
   assert.match(coverJs, /usedProjects/);
   assert.match(coverJs, /usedPhotos/);
-  assert.match(coverJs, /automaticCandidateSequence\(surface, usedProjects, usedPhotos\)/);
+  assert.match(coverJs, /automaticCandidateSequence\(\s*surface,\s*usedProjects,\s*usedPhotos,/);
   assert.match(coverJs, /state\.automaticCandidates/);
   assert.match(exportService, /usedProjects = new HashSet<\(CompendiumCoverSurface Surface, int ProjectId\)>/);
   assert.match(exportService, /!usedProjects\.Contains\(\(required\.Surface, candidate\.ProjectId\)\)/);

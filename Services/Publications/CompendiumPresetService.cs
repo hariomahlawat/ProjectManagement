@@ -906,7 +906,7 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         var normalizedDesign = NormalizeCoverDesign(configuration.CoverDesign, configuration.Cover);
         var normalizedPreferences = NormalizePhotoPreferences(configuration.PhotoPreferences, projectIds);
         var referencedCoverPhotos = normalizedDesign.Images
-            .Where(image => image.ImageMode == CompendiumCoverImageMode.Explicit && image.PhotoId is > 0)
+            .Where(image => image.ImageMode != CompendiumCoverImageMode.None && image.PhotoId is > 0)
             .Select(image => image.PhotoId!.Value);
         var preferencePhotoIds = normalizedPreferences.Select(item => item.PhotoId);
         var referencedPhotoIds = explicitPhotoIds
@@ -934,6 +934,30 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     $"The selected {image.Surface.ToString().ToLowerInvariant()} cover image for slot '{image.SlotKey}' is no longer available. Choose another image or use automatic imagery.");
             }
         }
+
+        // Automatic project/photo ids are sticky resolution snapshots, not
+        // manual selections. A stale snapshot releases only that automatic
+        // slot; it must not reject an otherwise valid Compendium update.
+        normalizedDesign = normalizedDesign with
+        {
+            Images = normalizedDesign.Images.Select(image =>
+            {
+                if (image.ImageMode != CompendiumCoverImageMode.Automatic)
+                {
+                    return image;
+                }
+
+                var valid = image.ProjectId is int projectId
+                            && image.PhotoId is int photoId
+                            && projectIds.Contains(projectId)
+                            && referencedPhotos.TryGetValue(photoId, out var photo)
+                            && photo.ProjectId == projectId;
+                return valid
+                    ? image
+                    : image with { ProjectId = null, PhotoId = null, FocalX = .5d, FocalY = .5d };
+            }).ToArray()
+        };
+        configuration = configuration with { CoverDesign = normalizedDesign };
 
         foreach (var preference in normalizedPreferences)
         {
@@ -1038,8 +1062,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                 Surface = image.Surface.ToString(),
                 SlotKey = image.SlotKey,
                 ImageMode = image.ImageMode.ToString(),
-                ProjectId = image.ImageMode == CompendiumCoverImageMode.Explicit ? image.ProjectId : null,
-                PhotoId = image.ImageMode == CompendiumCoverImageMode.Explicit ? image.PhotoId : null,
+                ProjectId = image.ImageMode != CompendiumCoverImageMode.None ? image.ProjectId : null,
+                PhotoId = image.ImageMode != CompendiumCoverImageMode.None ? image.PhotoId : null,
                 FocalX = ClampFocal(image.FocalX),
                 FocalY = ClampFocal(image.FocalY),
                 FitMode = image.FitMode.ToString(),
@@ -1375,16 +1399,25 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         var images = (design.Images ?? Array.Empty<CompendiumPresetCoverImageConfiguration>())
             .Where(item => !string.IsNullOrWhiteSpace(item.SlotKey))
             .OrderBy(item => item.SortOrder)
-            .Select((item, index) => new CompendiumPresetCoverImageConfiguration(
-                Enum.IsDefined(item.Surface) ? item.Surface : CompendiumCoverSurface.Front,
-                CleanRequired(item.SlotKey, "Hero", 32),
-                Enum.IsDefined(item.ImageMode) ? item.ImageMode : CompendiumCoverImageMode.Automatic,
-                item.ImageMode == CompendiumCoverImageMode.Explicit && item.ProjectId is > 0 ? item.ProjectId : null,
-                item.ImageMode == CompendiumCoverImageMode.Explicit && item.PhotoId is > 0 ? item.PhotoId : null,
-                ClampFocal(item.FocalX),
-                ClampFocal(item.FocalY),
-                Enum.IsDefined(item.FitMode) ? item.FitMode : CompendiumImageFitMode.Fill,
-                index))
+            .Select((item, index) =>
+            {
+                var mode = Enum.IsDefined(item.ImageMode)
+                    ? item.ImageMode
+                    : CompendiumCoverImageMode.Automatic;
+                var hasCompleteReference = mode != CompendiumCoverImageMode.None
+                                           && item.ProjectId is > 0
+                                           && item.PhotoId is > 0;
+                return new CompendiumPresetCoverImageConfiguration(
+                    Enum.IsDefined(item.Surface) ? item.Surface : CompendiumCoverSurface.Front,
+                    CleanRequired(item.SlotKey, "Hero", 32),
+                    mode,
+                    hasCompleteReference ? item.ProjectId : null,
+                    hasCompleteReference ? item.PhotoId : null,
+                    ClampFocal(item.FocalX),
+                    ClampFocal(item.FocalY),
+                    Enum.IsDefined(item.FitMode) ? item.FitMode : CompendiumImageFitMode.Fill,
+                    index);
+            })
             .GroupBy(item => $"{item.Surface}:{item.SlotKey}", StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToArray();

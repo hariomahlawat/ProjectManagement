@@ -400,21 +400,70 @@ public sealed class CompendiumExportService : ICompendiumExportService
             .ToArray();
         var requiredSlots = CompendiumCoverTemplatePolicy.ResolveSlots(configured.FrontTemplate, configured.BackTemplate);
         var strictQuartet = configured.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet;
+        var candidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(projects, preferences);
+        var selectedProjectIds = projects.Select(project => project.ProjectId).ToHashSet();
+        var allocationReferences = candidates
+            .Select(candidate => new BrochurePhotoReference(candidate.ProjectId, candidate.PhotoId))
+            .Concat(configured.Images
+                .Where(slot => slot.ImageMode != CompendiumCoverImageMode.None
+                               && slot.ProjectId is > 0
+                               && slot.PhotoId is > 0
+                               && selectedProjectIds.Contains(slot.ProjectId.Value))
+                .Select(slot => new BrochurePhotoReference(slot.ProjectId!.Value, slot.PhotoId!.Value)))
+            .Distinct()
+            .ToArray();
+        HashSet<(int ProjectId, int PhotoId)> usableForAllocation;
+        if (strictQuartet && allocationReferences.Length > 0)
+        {
+            var probes = await _photoService.ProbeAsync(
+                allocationReferences,
+                cancellationToken);
+            usableForAllocation = allocationReferences
+                .Where(reference => probes.TryGetValue(reference.PhotoId, out var probe)
+                                    && probe.ProjectId == reference.ProjectId
+                                    && probe.IsReady)
+                .Select(reference => (reference.ProjectId, reference.PhotoId))
+                .ToHashSet();
+            candidates = candidates
+                .Where(item => usableForAllocation.Contains((item.ProjectId, item.PhotoId)))
+                .ToArray();
+        }
+        else
+        {
+            // Non-Quartet export keeps the saved automatic identity first and
+            // lets image rendering perform its normal per-slot fallback if a
+            // source becomes unavailable after the cover was saved.
+            usableForAllocation = allocationReferences
+                .Select(reference => (reference.ProjectId, reference.PhotoId))
+                .ToHashSet();
+        }
+
+        configured = configured with
+        {
+            Images = CompendiumCoverSlotAssignmentPolicy.Resolve(
+                configured.FrontTemplate,
+                configured.BackTemplate,
+                configured.Images,
+                candidates,
+                usableForAllocation)
+        };
         var configuredBySlot = configured.Images
             .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
             .ToDictionary(group => group.Key, group => group.First());
-        var candidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(projects, preferences);
-        if (strictQuartet && candidates.Count > 0)
-        {
-            var probes = await _photoService.ProbeAsync(
-                candidates.Select(item => new BrochurePhotoReference(item.ProjectId, item.PhotoId)).Distinct().ToArray(),
-                cancellationToken);
-            candidates = candidates
-                .Where(item => probes.TryGetValue(item.PhotoId, out var probe)
-                               && probe.ProjectId == item.ProjectId
-                               && probe.IsReady)
-                .ToArray();
-        }
+        var reservedExplicitPhotos = requiredSlots
+            .Select(requirement => configuredBySlot.GetValueOrDefault(
+                (requirement.Surface, requirement.SlotKey.ToUpperInvariant())))
+            .Where(slot => slot?.ImageMode == CompendiumCoverImageMode.Explicit
+                           && slot.ProjectId is > 0
+                           && slot.PhotoId is > 0)
+            .Select(slot => (
+                Surface: slot!.Surface,
+                ProjectId: slot.ProjectId!.Value,
+                PhotoId: slot.PhotoId!.Value))
+            .ToHashSet();
+        var reservedExplicitProjects = reservedExplicitPhotos
+            .Select(item => (item.Surface, item.ProjectId))
+            .ToHashSet();
         // Front and back covers are curated independently. Keeping the surface in the
         // allocation key prevents a front-cover edit from silently changing an automatic
         // back-cover selection (and vice versa). Portfolio Quartet uniqueness is therefore
@@ -425,6 +474,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
 
         foreach (var required in requiredSlots)
         {
+            var strictDistinctSurface = strictQuartet
+                                        && required.Surface == CompendiumCoverSurface.Front;
             configuredBySlot.TryGetValue((required.Surface, required.SlotKey.ToUpperInvariant()), out var slot);
             slot ??= new CompendiumCoverImageSlot(
                 required.Surface,
@@ -469,8 +520,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                         $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' is no longer available in this Compendium.");
                 }
 
-                if (strictQuartet
-                    && required.Surface == CompendiumCoverSurface.Front
+                if (strictDistinctSurface
                     && used.Contains((required.Surface, explicitProject, explicitPhoto)))
                 {
                     throw new InvalidOperationException(
@@ -532,13 +582,35 @@ public sealed class CompendiumExportService : ICompendiumExportService
                 continue;
             }
 
-            var automaticSequence = candidates
-                .Where(candidate =>
-                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))
-                    && !usedProjects.Contains((required.Surface, candidate.ProjectId)))
+            var sticky = slot.ProjectId is > 0 && slot.PhotoId is > 0
+                ? new CompendiumCoverAutomaticImagePolicy.Candidate(
+                    slot.ProjectId.Value,
+                    slot.PhotoId.Value,
+                    ClampFocal(slot.FocalX),
+                    ClampFocal(slot.FocalY),
+                    int.MaxValue)
+                : null;
+            var stickyConflicts = sticky is not null
+                                  && (reservedExplicitPhotos.Contains((required.Surface, sticky.ProjectId, sticky.PhotoId))
+                                      || (strictDistinctSurface
+                                          && used.Contains((required.Surface, sticky.ProjectId, sticky.PhotoId))));
+            IEnumerable<CompendiumCoverAutomaticImagePolicy.Candidate> stickySequence =
+                sticky is not null && !stickyConflicts
+                    ? new[] { sticky }
+                    : Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>();
+            var automaticSequence = stickySequence
                 .Concat(candidates.Where(candidate =>
-                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))))
-                .Concat(strictQuartet ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>() : candidates)
+                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))
+                    && !usedProjects.Contains((required.Surface, candidate.ProjectId))
+                    && !reservedExplicitPhotos.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))
+                    && !reservedExplicitProjects.Contains((required.Surface, candidate.ProjectId))))
+                .Concat(candidates.Where(candidate =>
+                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))
+                    && !reservedExplicitPhotos.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))))
+                .Concat(strictDistinctSurface
+                    ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>()
+                    : candidates.Where(candidate =>
+                        !reservedExplicitPhotos.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))))
                 .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
                 .Select(group => group.First())
                 .ToArray();

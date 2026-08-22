@@ -58,7 +58,7 @@ foreach ($contract in @(
     'usedProjects',
     'usedPhotos',
     'overrideEditing',
-    'clearAutomaticResolutions'
+    'invalidateAutomaticPreviews'
 )) {
     if ($coverJs -notmatch [regex]::Escape($contract)) {
         throw "Phase 30.1 cover editor behavior contract is missing: $contract"

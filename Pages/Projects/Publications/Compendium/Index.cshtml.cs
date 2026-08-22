@@ -279,30 +279,40 @@ public sealed class IndexModel : PageModel
             design.FrontTemplate,
             design.BackTemplate)
             .ToArray();
-        var configuredBySlot = design.Images
-            .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
-            .ToDictionary(group => group.Key, group => group.First());
         var automaticCandidates = CompendiumCoverAutomaticImagePolicy.BuildCandidates(
             projects,
             preferences ?? Array.Empty<CompendiumPhotoPreference>());
-        IReadOnlyDictionary<int, BrochurePhotoProbe> automaticCandidateProbes =
-            automaticCandidates.Count == 0
+        var allocationReferences = automaticCandidates
+            .Select(candidate => new BrochurePhotoReference(candidate.ProjectId, candidate.PhotoId))
+            .Concat(design.Images
+                .Where(slot => slot.ImageMode != CompendiumCoverImageMode.None
+                               && slot.ProjectId is > 0
+                               && slot.PhotoId is > 0
+                               && selectedProjectIds.Contains(slot.ProjectId.Value))
+                .Select(slot => new BrochurePhotoReference(slot.ProjectId!.Value, slot.PhotoId!.Value)))
+            .Distinct()
+            .ToArray();
+        IReadOnlyDictionary<int, BrochurePhotoProbe> allocationProbes =
+            allocationReferences.Length == 0
                 ? new Dictionary<int, BrochurePhotoProbe>()
                 : await _photoService.ProbeAsync(
-                    automaticCandidates
-                        .Select(candidate => new BrochurePhotoReference(candidate.ProjectId, candidate.PhotoId))
-                        .Distinct()
-                        .ToArray(),
+                    allocationReferences,
                     cancellationToken);
-        var readyAutomaticCandidates = automaticCandidates
-            .Where(candidate =>
-                automaticCandidateProbes.TryGetValue(candidate.PhotoId, out var probe)
-                && probe.ProjectId == candidate.ProjectId
-                && probe.IsReady)
-            .ToArray();
-        var strictQuartet = design.FrontTemplate == CompendiumFrontCoverTemplate.PortfolioQuartet;
-        var usedCoverPhotos = new HashSet<(int ProjectId, int PhotoId)>();
-        var usedCoverProjects = new HashSet<int>();
+        var usableForAllocation = allocationReferences
+            .Where(reference => allocationProbes.TryGetValue(reference.PhotoId, out var probe)
+                                && probe.ProjectId == reference.ProjectId
+                                && probe.IsReady)
+            .Select(reference => (reference.ProjectId, reference.PhotoId))
+            .ToHashSet();
+        var resolvedSlots = CompendiumCoverSlotAssignmentPolicy.Resolve(
+            design.FrontTemplate,
+            design.BackTemplate,
+            design.Images,
+            automaticCandidates,
+            usableForAllocation);
+        var configuredBySlot = resolvedSlots
+            .GroupBy(item => (item.Surface, Slot: item.SlotKey.ToUpperInvariant()))
+            .ToDictionary(group => group.Key, group => group.First());
 
         foreach (var requirement in coverSlots)
         {
@@ -333,30 +343,12 @@ public sealed class IndexModel : PageModel
 
             if (slot.ImageMode == CompendiumCoverImageMode.Explicit)
             {
-                if (slot.ProjectId is int explicitProject
-                    && slot.PhotoId is int explicitPhoto
-                    && selectedProjectIds.Contains(explicitProject))
-                {
-                    usedCoverPhotos.Add((explicitProject, explicitPhoto));
-                    usedCoverProjects.Add(explicitProject);
-                }
                 continue;
             }
 
-            var automaticSequence = readyAutomaticCandidates
-                .Where(candidate =>
-                    !usedCoverPhotos.Contains((candidate.ProjectId, candidate.PhotoId))
-                    && !usedCoverProjects.Contains(candidate.ProjectId))
-                .Concat(readyAutomaticCandidates.Where(candidate =>
-                    !usedCoverPhotos.Contains((candidate.ProjectId, candidate.PhotoId))))
-                .Concat(strictQuartet
-                    ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>()
-                    : readyAutomaticCandidates)
-                .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
-                .Select(group => group.First())
-                .ToArray();
-            var resolved = automaticSequence.FirstOrDefault();
-            if (resolved is null)
+            if (slot.ProjectId is not int projectId
+                || slot.PhotoId is not int photoId
+                || !usableForAllocation.Contains((projectId, photoId)))
             {
                 if (requirement.Required)
                 {
@@ -368,18 +360,15 @@ public sealed class IndexModel : PageModel
                 continue;
             }
 
-            if (automaticCandidateProbes.TryGetValue(resolved.PhotoId, out var resolvedProbe)
+            if (allocationProbes.TryGetValue(photoId, out var resolvedProbe)
                 && !resolvedProbe.IsPrintReady)
             {
                 findings.Add(new CompendiumFindingDto(
                     CompendiumFindingSeverity.Warning,
                     "coverAutomaticImageLowResolution",
                     $"The automatic {requirement.Surface.ToString().ToLowerInvariant()} cover image resolved for {CoverSlotDisplay(requirement.SlotKey)} is {resolvedProbe.Width} × {resolvedProbe.Height} and may reproduce softly in print.",
-                    resolved.ProjectId));
+                    projectId));
             }
-
-            usedCoverPhotos.Add((resolved.ProjectId, resolved.PhotoId));
-            usedCoverProjects.Add(resolved.ProjectId);
         }
 
         var needsFrontImagery = design.FrontTemplate != CompendiumFrontCoverTemplate.Minimal;
@@ -400,16 +389,16 @@ public sealed class IndexModel : PageModel
         {
             var requiredKeys = CompendiumCoverTemplatePolicy.RequiredSlotKeys(
                 CompendiumCoverSurface.Front, design.FrontTemplate, design.BackTemplate);
-            var frontSlots = design.Images
+            var frontSlots = resolvedSlots
                 .Where(item => item.Surface == CompendiumCoverSurface.Front)
                 .ToDictionary(item => item.SlotKey, StringComparer.OrdinalIgnoreCase);
 
-            var explicitQuartetRefs = frontSlots.Values
+            var resolvedQuartetRefs = frontSlots.Values
                 .Where(item => requiredKeys.Contains(item.SlotKey, StringComparer.OrdinalIgnoreCase))
-                .Where(item => item.ImageMode == CompendiumCoverImageMode.Explicit && item.ProjectId is > 0 && item.PhotoId is > 0)
+                .Where(item => item.ImageMode != CompendiumCoverImageMode.None && item.ProjectId is > 0 && item.PhotoId is > 0)
                 .Select(item => (item.ProjectId!.Value, item.PhotoId!.Value))
                 .ToArray();
-            if (explicitQuartetRefs.Distinct().Count() != explicitQuartetRefs.Length)
+            if (resolvedQuartetRefs.Distinct().Count() != resolvedQuartetRefs.Length)
             {
                 findings.Add(new CompendiumFindingDto(
                     CompendiumFindingSeverity.Blocker,
@@ -418,7 +407,7 @@ public sealed class IndexModel : PageModel
             }
 
             var candidateReferences = new List<BrochurePhotoReference>();
-            candidateReferences.AddRange(explicitQuartetRefs.Select(item => new BrochurePhotoReference(item.Item1, item.Item2)));
+            candidateReferences.AddRange(resolvedQuartetRefs.Select(item => new BrochurePhotoReference(item.Item1, item.Item2)));
             candidateReferences.AddRange((preferences ?? Array.Empty<CompendiumPhotoPreference>())
                 .Where(item => selectedProjectIds.Contains(item.ProjectId))
                 .Where(item => item.PreferredForPublication || item.SuitableForCoverHero)

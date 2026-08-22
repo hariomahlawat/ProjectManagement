@@ -284,8 +284,15 @@
             </section>
 
             <section class="compendium-cover-inspector-section" data-cover-image-section>
-                <div class="compendium-cover-inspector-heading">
+                <div class="compendium-cover-inspector-heading compendium-cover-imagery-heading">
                     <div><strong>Imagery</strong><span>Each layout slot is curated independently.</span></div>
+                    @if (Model.CanManagePresets)
+                    {
+                        <button type="button" class="btn btn-sm btn-link" data-cover-refresh-automatic>
+                            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                            Refresh automatic
+                        </button>
+                    }
                 </div>
                 <div data-cover-slot-list></div>
             </section>
