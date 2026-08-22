@@ -6,29 +6,62 @@
 
     const rail = workspace.querySelector('[data-workspace-rail]');
     const toggle = workspace.querySelector('[data-workspace-rail-toggle]');
-    const storageKey = 'prism.projectOfficerWorkspace.navExpanded';
+    const storageKey = 'prism.workspace.navigationExpanded';
+    const desktopRail = window.matchMedia('(min-width: 992px)');
 
-    const setRailExpanded = (expanded) => {
+    const readNavigationPreference = () => {
+        if (!desktopRail.matches) return false;
+        try {
+            const stored = window.localStorage.getItem(storageKey);
+            return stored === null ? true : stored === 'true';
+        } catch {
+            return true;
+        }
+    };
+
+    const saveNavigationPreference = (expanded) => {
+        try { window.localStorage.setItem(storageKey, String(expanded)); } catch { /* optional storage */ }
+    };
+
+    const setRailExpanded = (expanded, options = {}) => {
+        const { returnFocus = false, persist = false } = options;
         workspace.classList.toggle('is-nav-expanded', expanded);
         rail?.classList.toggle('is-expanded', expanded);
         toggle?.setAttribute('aria-expanded', String(expanded));
         toggle?.setAttribute('aria-label', expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation');
         toggle?.setAttribute('title', expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation');
+        if (persist) saveNavigationPreference(expanded);
+        if (returnFocus) toggle?.focus();
     };
 
-    const desktopRail = window.matchMedia('(min-width: 992px)');
-    const mobileRail = window.matchMedia('(max-width: 767.98px)');
-
-    if (desktopRail.matches) {
-        setRailExpanded(localStorage.getItem(storageKey) !== 'false');
-    } else {
-        setRailExpanded(mobileRail.matches);
-    }
+    setRailExpanded(readNavigationPreference());
 
     toggle?.addEventListener('click', () => {
         const expanded = toggle.getAttribute('aria-expanded') !== 'true';
-        setRailExpanded(expanded);
-        localStorage.setItem(storageKey, String(expanded));
+        setRailExpanded(expanded, { persist: desktopRail.matches });
+    });
+
+    document.addEventListener('pointerdown', (event) => {
+        if (desktopRail.matches || !rail?.classList.contains('is-expanded')) return;
+        if (rail.contains(event.target)) return;
+        setRailExpanded(false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || desktopRail.matches || !rail?.classList.contains('is-expanded')) return;
+        event.preventDefault();
+        setRailExpanded(false, { returnFocus: true });
+    });
+
+    rail?.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => {
+            if (!desktopRail.matches) setRailExpanded(false);
+        });
+    });
+
+    desktopRail.addEventListener?.('change', (event) => {
+        if (!event.matches) setRailExpanded(false);
+        else setRailExpanded(readNavigationPreference());
     });
 
     const normalize = (value) => (value || '').toLowerCase().trim();

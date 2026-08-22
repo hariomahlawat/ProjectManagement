@@ -16,6 +16,7 @@ public sealed class ConferenceModel : PageModel
 {
     private readonly IOfficerConferenceReadService _readService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
+    private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
     private readonly IConferenceRemarkCommandService _remarkCommandService;
     private readonly IConferenceTaskCommandService _taskCommandService;
     private readonly IConferenceIdeaCommandService _ideaCommandService;
@@ -26,6 +27,7 @@ public sealed class ConferenceModel : PageModel
     public ConferenceModel(
         IOfficerConferenceReadService readService,
         CommandWorkspaceService commandWorkspaceService,
+        ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
         IConferenceRemarkCommandService remarkCommandService,
         IConferenceTaskCommandService taskCommandService,
         IConferenceIdeaCommandService ideaCommandService,
@@ -35,6 +37,7 @@ public sealed class ConferenceModel : PageModel
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
+        _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
         _remarkCommandService = remarkCommandService ?? throw new ArgumentNullException(nameof(remarkCommandService));
         _taskCommandService = taskCommandService ?? throw new ArgumentNullException(nameof(taskCommandService));
         _ideaCommandService = ideaCommandService ?? throw new ArgumentNullException(nameof(ideaCommandService));
@@ -44,7 +47,7 @@ public sealed class ConferenceModel : PageModel
     }
 
     public OfficerConferenceVm Conference { get; private set; } = new();
-    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { ActiveView = "conference" };
+    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-conference" };
     public IReadOnlyList<OfficerConferenceOfficerOptionVm> OfficerOptions { get; private set; }
         = Array.Empty<OfficerConferenceOfficerOptionVm>();
     public bool HasSelectedOfficer => !string.IsNullOrWhiteSpace(Conference.OfficerUserId);
@@ -88,16 +91,33 @@ public sealed class ConferenceModel : PageModel
         var navigation = await _commandWorkspaceService.GetNavigationShellAsync(
             "conference",
             cancellationToken);
+        var hasProjectOfficerAccess = User.IsInRole(RoleNames.ProjectOfficer);
+        var personalNavigation = hasProjectOfficerAccess
+            ? await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                userId,
+                User,
+                ProjectOfficerWorkspaceView.Conference,
+                includeDocuments: false,
+                ct: cancellationToken)
+            : new ProjectOfficerWorkspaceVm();
+
         CommandRail = new CommandWorkspaceRailVm
         {
-            CanSwitchWorkspace =
-                (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD))
-                && User.IsInRole(RoleNames.ProjectOfficer),
-            ActiveView = "conference",
+            HasCommandAccess = true,
+            HasProjectOfficerAccess = hasProjectOfficerAccess,
+            CanViewDocuments = hasProjectOfficerAccess,
+            ActiveLens = "command",
+            ActiveItem = "command-conference",
             ProjectOfficerCount = OfficerOptions.Count > 0
                 ? OfficerOptions.Count
                 : navigation.ProjectOfficerCount,
-            TotalOngoingProjects = navigation.TotalOngoingProjects
+            TotalOngoingProjects = navigation.TotalOngoingProjects,
+            ActionQueueCount = personalNavigation.ActionQueueBadgeCount,
+            AssignedProjectCount = personalNavigation.AssignedProjectCount,
+            AssignedTaskCount = personalNavigation.OfficialTaskCount,
+            AssignedIdeaCount = personalNavigation.AssignedIdeaCount,
+            FollowUpCount = personalNavigation.FollowUpCount,
+            AotsUnreadCount = personalNavigation.AotsUnreadCount
         };
 
         return Page();

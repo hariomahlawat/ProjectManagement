@@ -3,7 +3,7 @@
     const workspaceRail = document.querySelector('[data-workspace-rail]');
     const workspaceRailToggle = workspaceRail?.querySelector('[data-workspace-rail-toggle]');
     const desktopNavigation = window.matchMedia('(min-width: 992px)');
-    const navigationPreferenceKey = 'prism.commandWorkspace.navigationExpanded';
+    const navigationPreferenceKey = 'prism.workspace.navigationExpanded';
 
     const readNavigationPreference = () => {
         if (!desktopNavigation.matches) return false;

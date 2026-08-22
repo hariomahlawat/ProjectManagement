@@ -2531,8 +2531,8 @@
 /* Project Officer multi-page workspace                                       */
 /* ========================================================================== */
 .project-officer-workspace {
-    --po-nav-width: 244px;
-    --po-nav-collapsed-width: 72px;
+    --po-nav-width: 252px;
+    --po-nav-collapsed-width: 64px;
     display: grid;
     grid-template-columns: var(--po-nav-collapsed-width) minmax(0, 1fr);
     gap: 16px;
@@ -2626,6 +2626,12 @@
     .po-two-column-pages, .po-personal-activity-page__strip { grid-template-columns: 1fr; }
     .po-filter-bar { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+@media (max-width: 991.98px) {
+    .project-officer-workspace .cw-local-rail.is-expanded {
+        position: fixed;
+        top: 72px;
+    }
+}
 @media (max-width: 991.98px) and (min-width: 768px) {
     .project-officer-workspace, .project-officer-workspace.is-nav-expanded {
         grid-template-columns: 54px minmax(0,1fr);
@@ -2634,8 +2640,11 @@
     }
 }
 @media (max-width: 767px) {
-    .project-officer-workspace, .project-officer-workspace.is-nav-expanded { display:block; padding: 10px; }
-    .project-officer-workspace .cw-local-rail { position: static; width: 100%; margin-bottom: 12px; }
+    .project-officer-workspace, .project-officer-workspace.is-nav-expanded {
+        grid-template-columns: 54px minmax(0,1fr);
+        gap: 7px;
+        padding: 8px;
+    }
     .po-dedicated-hero { align-items:flex-start; flex-direction:column; }
     .po-filter-bar, .po-personal-activity-kpis, .po-follow-summary-grid { grid-template-columns:1fr; }
     .po-task-row, .po-document-row { grid-template-columns:auto minmax(0,1fr); }

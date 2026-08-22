@@ -24,7 +24,7 @@ public class IndexModel : PageModel
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
     public OfficerConferenceVm Conference { get; private set; } = new();
     public bool IsCommandMode { get; private set; }
-    public bool CanSwitchWorkspace { get; private set; }
+    public CommandWorkspaceRailVm NavigationRail { get; private set; } = new();
     public bool CanViewDocuments { get; private set; }
 
     [BindProperty(SupportsGet = true)] public string? Mode { get; set; }
@@ -64,7 +64,6 @@ public class IndexModel : PageModel
         var hasProjectOfficerRole = User.IsInRole(RoleNames.ProjectOfficer);
         if (!hasCommandRole && !hasProjectOfficerRole) return RedirectToPage("/Dashboard/Index");
 
-        CanSwitchWorkspace = hasCommandRole && hasProjectOfficerRole;
         CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
         IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
 
@@ -108,6 +107,17 @@ public class IndexModel : PageModel
                     ct: ct,
                     activityPeriod: ActivityPeriod);
             }
+            else if (hasProjectOfficerRole)
+            {
+                // Keep the personal navigation shell available while command content is open.
+                // This avoids making dual-role users switch context just to discover their work.
+                Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                    userId,
+                    User,
+                    ProjectOfficerWorkspaceView.Conference,
+                    includeDocuments: false,
+                    ct: ct);
+            }
         }
         else
         {
@@ -141,9 +151,68 @@ public class IndexModel : PageModel
                         }
                     };
             }
+
+            if (hasCommandRole)
+            {
+                CommandWorkspace = await _commandWorkspaceService.GetNavigationShellAsync(
+                    activeView: "officers",
+                    cancellationToken: ct);
+            }
         }
 
+        NavigationRail = BuildNavigationRail(
+            hasCommandRole,
+            hasProjectOfficerRole,
+            CommandWorkspace,
+            Workspace);
+
         return Page();
+    }
+
+    private CommandWorkspaceRailVm BuildNavigationRail(
+        bool hasCommandAccess,
+        bool hasProjectOfficerAccess,
+        CommandWorkspaceVm command,
+        ProjectOfficerWorkspaceVm personal)
+    {
+        var activeItem = IsCommandMode
+            ? View switch
+            {
+                "portfolio" => "command-portfolio",
+                "adoption" => "command-adoption",
+                "usage-pattern" => "command-usage-pattern",
+                "my-activity" => "my-activity",
+                _ => "command-officers"
+            }
+            : View switch
+            {
+                "actions" => "personal-actions",
+                "conference" => "personal-conference",
+                "projects" => "personal-projects",
+                "tasks" => "personal-tasks",
+                "ideas" => "personal-ideas",
+                "follow-ups" => "personal-follow-ups",
+                "documents" => "personal-documents",
+                "activity" => "my-activity",
+                _ => "personal-overview"
+            };
+
+        return new CommandWorkspaceRailVm
+        {
+            HasCommandAccess = hasCommandAccess,
+            HasProjectOfficerAccess = hasProjectOfficerAccess,
+            CanViewDocuments = hasProjectOfficerAccess && CanViewDocuments,
+            ActiveLens = IsCommandMode ? "command" : "personal",
+            ActiveItem = activeItem,
+            ProjectOfficerCount = command.ProjectOfficerCount,
+            TotalOngoingProjects = command.TotalOngoingProjects,
+            ActionQueueCount = personal.ActionQueueBadgeCount,
+            AssignedProjectCount = personal.AssignedProjectCount,
+            AssignedTaskCount = personal.OfficialTaskCount,
+            AssignedIdeaCount = personal.AssignedIdeaCount,
+            FollowUpCount = personal.FollowUpCount,
+            AotsUnreadCount = personal.AotsUnreadCount
+        };
     }
 
     public async Task<IActionResult> OnGetDirectionHistoryAsync(

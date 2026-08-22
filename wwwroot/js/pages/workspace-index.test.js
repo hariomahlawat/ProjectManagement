@@ -23,7 +23,7 @@ function createDom(body, options = {}) {
     });
 
     if (options.navExpanded !== undefined) {
-        window.localStorage.setItem('prism.projectOfficerWorkspace.navExpanded', String(options.navExpanded));
+        window.localStorage.setItem('prism.workspace.navigationExpanded', String(options.navExpanded));
     }
 
     const script = window.document.createElement('script');
@@ -54,7 +54,7 @@ test('project officer rail restores the desktop preference and persists changes'
 
     assert.equal(workspace.classList.contains('is-nav-expanded'), true);
     assert.equal(rail.classList.contains('is-expanded'), true);
-    assert.equal(window.localStorage.getItem('prism.projectOfficerWorkspace.navExpanded'), 'true');
+    assert.equal(window.localStorage.getItem('prism.workspace.navigationExpanded'), 'true');
 });
 
 test('action queue filters individual actions inside a grouped work item and manages clear state', () => {

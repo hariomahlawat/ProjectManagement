@@ -1,0 +1,1141 @@
+--- a/ViewModels/Workspace/CommandWorkspaceViewModels.cs
++++ b/ViewModels/Workspace/CommandWorkspaceViewModels.cs
+@@ -2,10 +2,26 @@
+ 
+ public sealed class CommandWorkspaceRailVm
+ {
+-    public bool CanSwitchWorkspace { get; init; }
+-    public string ActiveView { get; init; } = "officers";
++    // Unified workspace navigation. The legacy type name is retained to avoid
++    // disrupting existing Razor partial contracts while the rail now serves
++    // both personal and command workspace contexts.
++    public bool HasCommandAccess { get; init; }
++    public bool HasProjectOfficerAccess { get; init; }
++    public bool CanViewDocuments { get; init; }
++    public bool CanSwitchWorkspace => HasCommandAccess && HasProjectOfficerAccess;
++
++    public string ActiveLens { get; init; } = "command";
++    public string ActiveItem { get; init; } = "command-officers";
++
+     public int ProjectOfficerCount { get; init; }
+     public int TotalOngoingProjects { get; init; }
++
++    public int? ActionQueueCount { get; init; }
++    public int AssignedProjectCount { get; init; }
++    public int AssignedTaskCount { get; init; }
++    public int AssignedIdeaCount { get; init; }
++    public int FollowUpCount { get; init; }
++    public int AotsUnreadCount { get; init; }
+ }
+ 
+ public sealed class CommandWorkspaceVm
+--- a/Pages/Workspace/Index.cshtml.cs
++++ b/Pages/Workspace/Index.cshtml.cs
+@@ -24,7 +24,7 @@
+     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
+     public OfficerConferenceVm Conference { get; private set; } = new();
+     public bool IsCommandMode { get; private set; }
+-    public bool CanSwitchWorkspace { get; private set; }
++    public CommandWorkspaceRailVm NavigationRail { get; private set; } = new();
+     public bool CanViewDocuments { get; private set; }
+ 
+     [BindProperty(SupportsGet = true)] public string? Mode { get; set; }
+@@ -64,7 +64,6 @@
+         var hasProjectOfficerRole = User.IsInRole(RoleNames.ProjectOfficer);
+         if (!hasCommandRole && !hasProjectOfficerRole) return RedirectToPage("/Dashboard/Index");
+ 
+-        CanSwitchWorkspace = hasCommandRole && hasProjectOfficerRole;
+         CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
+         IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
+ 
+@@ -107,6 +106,17 @@
+                     includeDocuments: false,
+                     ct: ct,
+                     activityPeriod: ActivityPeriod);
++            }
++            else if (hasProjectOfficerRole)
++            {
++                // Keep the personal navigation shell available while command content is open.
++                // This avoids making dual-role users switch context just to discover their work.
++                Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
++                    userId,
++                    User,
++                    ProjectOfficerWorkspaceView.Conference,
++                    includeDocuments: false,
++                    ct: ct);
+             }
+         }
+         else
+@@ -141,9 +151,68 @@
+                         }
+                     };
+             }
+-        }
++
++            if (hasCommandRole)
++            {
++                CommandWorkspace = await _commandWorkspaceService.GetNavigationShellAsync(
++                    activeView: "officers",
++                    cancellationToken: ct);
++            }
++        }
++
++        NavigationRail = BuildNavigationRail(
++            hasCommandRole,
++            hasProjectOfficerRole,
++            CommandWorkspace,
++            Workspace);
+ 
+         return Page();
++    }
++
++    private CommandWorkspaceRailVm BuildNavigationRail(
++        bool hasCommandAccess,
++        bool hasProjectOfficerAccess,
++        CommandWorkspaceVm command,
++        ProjectOfficerWorkspaceVm personal)
++    {
++        var activeItem = IsCommandMode
++            ? View switch
++            {
++                "portfolio" => "command-portfolio",
++                "adoption" => "command-adoption",
++                "usage-pattern" => "command-usage-pattern",
++                "my-activity" => "my-activity",
++                _ => "command-officers"
++            }
++            : View switch
++            {
++                "actions" => "personal-actions",
++                "conference" => "personal-conference",
++                "projects" => "personal-projects",
++                "tasks" => "personal-tasks",
++                "ideas" => "personal-ideas",
++                "follow-ups" => "personal-follow-ups",
++                "documents" => "personal-documents",
++                "activity" => "my-activity",
++                _ => "personal-overview"
++            };
++
++        return new CommandWorkspaceRailVm
++        {
++            HasCommandAccess = hasCommandAccess,
++            HasProjectOfficerAccess = hasProjectOfficerAccess,
++            CanViewDocuments = hasProjectOfficerAccess && CanViewDocuments,
++            ActiveLens = IsCommandMode ? "command" : "personal",
++            ActiveItem = activeItem,
++            ProjectOfficerCount = command.ProjectOfficerCount,
++            TotalOngoingProjects = command.TotalOngoingProjects,
++            ActionQueueCount = personal.ActionQueueBadgeCount,
++            AssignedProjectCount = personal.AssignedProjectCount,
++            AssignedTaskCount = personal.OfficialTaskCount,
++            AssignedIdeaCount = personal.AssignedIdeaCount,
++            FollowUpCount = personal.FollowUpCount,
++            AotsUnreadCount = personal.AotsUnreadCount
++        };
+     }
+ 
+     public async Task<IActionResult> OnGetDirectionHistoryAsync(
+--- a/Pages/Workspace/_CommandWorkspace.cshtml
++++ b/Pages/Workspace/_CommandWorkspace.cshtml
+@@ -33,17 +33,10 @@
+     var population = Math.Max(1, adoption.TotalUsers);
+     var usageReach = Math.Clamp((int)Math.Round(adoption.UsedErpUsers * 100d / population), 0, 100);
+     var contributionReach = Math.Clamp((int)Math.Round(adoption.OperationalContributors * 100d / population), 0, 100);
+-    var commandRail = new CommandWorkspaceRailVm
+-    {
+-        CanSwitchWorkspace = Model.CanSwitchWorkspace,
+-        ActiveView = vm.ActiveView,
+-        ProjectOfficerCount = vm.ProjectOfficerCount,
+-        TotalOngoingProjects = vm.TotalOngoingProjects
+-    };
+ }
+ 
+ <div class="command-workspace is-nav-expanded" data-command-workspace>
+-    @await Html.PartialAsync("_CommandWorkspaceRail", commandRail)
++    @await Html.PartialAsync("_CommandWorkspaceRail", Model.NavigationRail)
+ 
+     <main class="cw-workspace-content">
+ 
+--- a/Pages/Workspace/_ProjectOfficerWorkspace.cshtml
++++ b/Pages/Workspace/_ProjectOfficerWorkspace.cshtml
+@@ -3,52 +3,9 @@
+ @{
+     var vm = Model.Workspace;
+     var activeView = Model.View;
+-    string Active(string view) => activeView == view ? "is-active" : string.Empty;
+-    string? Current(string view) => activeView == view ? "page" : null;
+ }
+ <div class="command-workspace project-officer-workspace is-nav-expanded" data-project-officer-workspace>
+-    <aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Project Officer workspace navigation">
+-        <div class="cw-local-rail__identity">
+-            <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-person-workspace"></i></span>
+-            <div><small>PRISM ERP</small><strong>Project Officer</strong></div>
+-            <button type="button" class="cw-local-rail__toggle" data-workspace-rail-toggle aria-expanded="true" aria-controls="project-officer-local-navigation" aria-label="Collapse workspace navigation" title="Collapse workspace navigation"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
+-        </div>
+-        <nav id="project-officer-local-navigation">
+-            <div class="cw-local-rail__group">
+-                <span class="cw-local-rail__group-label">Workspace mode</span>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="overview" class="is-context-active" data-tooltip="Project Officer workspace"><i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span></a>
+-                @if (Model.CanSwitchWorkspace)
+-                {
+-                    <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" data-tooltip="Comdt / HoD workspace"><i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span></a>
+-                }
+-            </div>
+-            <div class="cw-local-rail__group">
+-                <span class="cw-local-rail__group-label">My work</span>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="overview" class="@(Active("overview"))" aria-current="@(Current("overview"))" data-tooltip="Overview"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span></a>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="actions" class="@(Active("actions"))" aria-current="@(Current("actions"))" data-tooltip="Action queue"><i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span>@if (vm.ActionQueueBadgeCount.HasValue) { <b>@vm.ActionQueueBadgeCount.Value</b> }</a>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="conference" class="@(Active("conference"))" aria-current="@(Current("conference"))" data-tooltip="My conference review"><i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>Conference review</span></a>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="projects" class="@(Active("projects"))" aria-current="@(Current("projects"))" data-tooltip="Assigned projects"><i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span>@if (vm.AssignedProjectCount > 0) { <b>@vm.AssignedProjectCount</b> }</a>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="tasks" class="@(Active("tasks"))" aria-current="@(Current("tasks"))" data-tooltip="Assigned tasks"><i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span>@if (vm.OfficialTaskCount > 0) { <b>@vm.OfficialTaskCount</b> }</a>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="ideas" class="@(Active("ideas"))" aria-current="@(Current("ideas"))" data-tooltip="My ideas"><i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span>@if (vm.AssignedIdeaCount > 0) { <b>@vm.AssignedIdeaCount</b> }</a>
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="follow-ups" class="@(Active("follow-ups"))" aria-current="@(Current("follow-ups"))" data-tooltip="Follow-ups"><i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span>@if (vm.FollowUpCount > 0) { <b>@vm.FollowUpCount</b> }</a>
+-            </div>
+-            <div class="cw-local-rail__group">
+-                <span class="cw-local-rail__group-label">My resources</span>
+-                @if (Model.CanViewDocuments)
+-                {
+-                    <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="documents" class="@(Active("documents"))" aria-current="@(Current("documents"))" data-tooltip="My documents">
+-                        <i class="bi bi-folder2-open" aria-hidden="true"></i>
+-                        <span>My documents</span>
+-                        @if (vm.AotsUnreadCount > 0)
+-                        {
+-                            <b>@vm.AotsUnreadCount</b>
+-                        }
+-                    </a>
+-                }
+-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="activity" class="@(Active("activity"))" aria-current="@(Current("activity"))" data-tooltip="My ERP activity"><i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span></a>
+-            </div>
+-        </nav>
+-    </aside>
++    @await Html.PartialAsync("_CommandWorkspaceRail", Model.NavigationRail)
+     <main class="cw-workspace-content po-workspace-content @(activeView == "conference" ? "cw-workspace-content--conference po-workspace-content--conference" : string.Empty)">
+         @switch (activeView)
+         {
+--- a/Pages/Workspace/_CommandWorkspaceRail.cshtml
++++ b/Pages/Workspace/_CommandWorkspaceRail.cshtml
+@@ -1,118 +1,256 @@
+ @using ProjectManagement.ViewModels.Workspace
+ @model CommandWorkspaceRailVm
+ @{
+-    var activeView = string.IsNullOrWhiteSpace(Model.ActiveView)
+-        ? "officers"
+-        : Model.ActiveView.Trim().ToLowerInvariant();
+-    var isOfficers = activeView == "officers";
+-    var isPortfolio = activeView == "portfolio";
+-    var isConference = activeView == "conference";
+-    var isBriefingDecks = activeView == "briefing-decks";
+-    var isAdoption = activeView == "adoption";
+-    var isUsagePattern = activeView == "usage-pattern";
+-    var isMyActivity = activeView == "my-activity";
++    var activeItem = string.IsNullOrWhiteSpace(Model.ActiveItem)
++        ? "command-officers"
++        : Model.ActiveItem.Trim().ToLowerInvariant();
++    var activeLens = string.Equals(Model.ActiveLens, "personal", StringComparison.OrdinalIgnoreCase)
++        ? "personal"
++        : "command";
++
++    string Active(string item) => string.Equals(activeItem, item, StringComparison.OrdinalIgnoreCase)
++        ? "is-active"
++        : string.Empty;
++    string? Current(string item) => string.Equals(activeItem, item, StringComparison.OrdinalIgnoreCase)
++        ? "page"
++        : null;
++
++    var accessLabel = Model.HasCommandAccess && Model.HasProjectOfficerAccess
++        ? "Project Officer · Command"
++        : Model.HasCommandAccess
++            ? "Command"
++            : "Project Officer";
+ }
+ 
+-<aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Comdt and HoD workspace navigation">
++<aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Workspace navigation">
+     <div class="cw-local-rail__identity">
+         <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-grid-1x2-fill"></i></span>
+-        <div>
++        <div class="cw-local-rail__identity-copy">
+             <small>PRISM ERP</small>
+-            <strong>Command workspace</strong>
++            <strong>My Workspace</strong>
++            <span class="cw-local-rail__access">@accessLabel</span>
+         </div>
+         <button type="button"
+                 class="cw-local-rail__toggle"
+                 data-workspace-rail-toggle
+                 aria-expanded="true"
+-                aria-controls="command-workspace-local-navigation"
++                aria-controls="workspace-local-navigation"
+                 aria-label="Collapse workspace navigation"
+                 title="Collapse workspace navigation">
+             <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+         </button>
+     </div>
+ 
+-    <nav id="command-workspace-local-navigation">
+-        @if (Model.CanSwitchWorkspace)
+-        {
+-            <div class="cw-local-rail__group">
+-                <span class="cw-local-rail__group-label">Workspace</span>
+-                <a asp-page="/Workspace/Index"
+-                   asp-route-mode="command"
+-                   asp-route-view="officers"
+-                   class="is-context-active"
+-                   data-tooltip="Comdt / HoD workspace">
+-                    <i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span>
+-                </a>
+-                <a asp-page="/Workspace/Index"
+-                   asp-route-mode="project-officer"
+-                   data-tooltip="Project Officer workspace">
+-                    <i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span>
+-                </a>
+-            </div>
+-        }
+-
+-        <div class="cw-local-rail__group">
+-            <span class="cw-local-rail__group-label">Project monitoring</span>
++    @if (Model.CanSwitchWorkspace)
++    {
++        <div class="cw-workspace-lens" role="group" aria-label="Workspace lens">
++            <a asp-page="/Workspace/Index"
++               asp-route-mode="project-officer"
++               asp-route-view="overview"
++               class="@(activeLens == "personal" ? "is-active" : null)"
++               aria-current="@(activeLens == "personal" ? "true" : null)"
++               title="Open personal workspace landing">
++                <i class="bi bi-person" aria-hidden="true"></i>
++                <span>Personal</span>
++            </a>
+             <a asp-page="/Workspace/Index"
+                asp-route-mode="command"
+                asp-route-view="officers"
+-               class="@(isOfficers ? "is-active" : null)"
+-               aria-current="@(isOfficers ? "page" : null)"
+-               data-tooltip="Officer workload">
+-                <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span><b>@Model.ProjectOfficerCount</b>
+-            </a>
+-            <a asp-page="/Workspace/Index"
+-               asp-route-mode="command"
+-               asp-route-view="portfolio"
+-               class="@(isPortfolio ? "is-active" : null)"
+-               aria-current="@(isPortfolio ? "page" : null)"
+-               data-tooltip="Project portfolio">
+-                <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project portfolio</span><b>@Model.TotalOngoingProjects</b>
+-            </a>
+-            <a asp-page="/Workspace/Conference"
+-               class="@(isConference ? "is-active" : null)"
+-               aria-current="@(isConference ? "page" : null)"
+-               data-tooltip="Conference review">
+-                <i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>Conference review</span>
+-            </a>
+-            <a asp-page="/Workspace/BriefingDecks/Index"
+-               class="@(isBriefingDecks ? "is-active" : null)"
+-               aria-current="@(isBriefingDecks ? "page" : null)"
+-               data-tooltip="Briefing decks">
+-                <i class="bi bi-file-earmark-slides" aria-hidden="true"></i><span>Briefing decks</span>
++               class="@(activeLens == "command" ? "is-active" : null)"
++               aria-current="@(activeLens == "command" ? "true" : null)"
++               title="Open command workspace landing">
++                <i class="bi bi-shield-check" aria-hidden="true"></i>
++                <span>Command</span>
+             </a>
+         </div>
+-
+-        <div class="cw-local-rail__group">
+-            <span class="cw-local-rail__group-label">System adoption</span>
+-            <a asp-page="/Workspace/Index"
+-               asp-route-mode="command"
+-               asp-route-view="adoption"
+-               class="@(isAdoption ? "is-active" : null)"
+-               aria-current="@(isAdoption ? "page" : null)"
+-               data-tooltip="ERP adoption">
+-                <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
+-            </a>
+-            <a asp-page="/Workspace/Index"
+-               asp-route-mode="command"
+-               asp-route-view="usage-pattern"
+-               class="@(isUsagePattern ? "is-active" : null)"
+-               aria-current="@(isUsagePattern ? "page" : null)"
+-               data-tooltip="ERP usage pattern">
+-                <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>ERP usage pattern</span>
+-            </a>
+-        </div>
+-
+-        <div class="cw-local-rail__group">
+-            <span class="cw-local-rail__group-label">My resources</span>
+-            <a asp-page="/Workspace/Index"
+-               asp-route-mode="command"
+-               asp-route-view="my-activity"
+-               class="@(isMyActivity ? "is-active" : null)"
+-               aria-current="@(isMyActivity ? "page" : null)"
+-               data-tooltip="My ERP activity">
+-                <i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span>
+-            </a>
++    }
++
++    <nav id="workspace-local-navigation">
++        @if (Model.HasProjectOfficerAccess)
++        {
++            <div class="cw-local-rail__group cw-local-rail__group--personal">
++                <span class="cw-local-rail__group-label"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>My work</span>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="overview"
++                   class="@(Active("personal-overview"))"
++                   aria-current="@(Current("personal-overview"))"
++                   data-tooltip="Overview">
++                    <i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span>
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="actions"
++                   class="@(Active("personal-actions"))"
++                   aria-current="@(Current("personal-actions"))"
++                   data-tooltip="Action queue">
++                    <i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span>
++                    @if (Model.ActionQueueCount.HasValue && Model.ActionQueueCount.Value > 0)
++                    {
++                        <b>@Model.ActionQueueCount.Value</b>
++                    }
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="conference"
++                   class="@(Active("personal-conference"))"
++                   aria-current="@(Current("personal-conference"))"
++                   data-tooltip="My conference review">
++                    <i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>My conference review</span>
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="projects"
++                   class="@(Active("personal-projects"))"
++                   aria-current="@(Current("personal-projects"))"
++                   data-tooltip="Assigned projects">
++                    <i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span>
++                    @if (Model.AssignedProjectCount > 0)
++                    {
++                        <b>@Model.AssignedProjectCount</b>
++                    }
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="tasks"
++                   class="@(Active("personal-tasks"))"
++                   aria-current="@(Current("personal-tasks"))"
++                   data-tooltip="Assigned tasks">
++                    <i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span>
++                    @if (Model.AssignedTaskCount > 0)
++                    {
++                        <b>@Model.AssignedTaskCount</b>
++                    }
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="ideas"
++                   class="@(Active("personal-ideas"))"
++                   aria-current="@(Current("personal-ideas"))"
++                   data-tooltip="My ideas">
++                    <i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span>
++                    @if (Model.AssignedIdeaCount > 0)
++                    {
++                        <b>@Model.AssignedIdeaCount</b>
++                    }
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="follow-ups"
++                   class="@(Active("personal-follow-ups"))"
++                   aria-current="@(Current("personal-follow-ups"))"
++                   data-tooltip="Follow-ups">
++                    <i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span>
++                    @if (Model.FollowUpCount > 0)
++                    {
++                        <b>@Model.FollowUpCount</b>
++                    }
++                </a>
++            </div>
++        }
++
++        @if (Model.HasCommandAccess)
++        {
++            <div class="cw-local-rail__group cw-local-rail__group--command">
++                <span class="cw-local-rail__group-label"><i class="bi bi-shield-check" aria-hidden="true"></i>Command oversight</span>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="command"
++                   asp-route-view="officers"
++                   class="@(Active("command-officers"))"
++                   aria-current="@(Current("command-officers"))"
++                   data-tooltip="Officer workload">
++                    <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span>
++                    @if (Model.ProjectOfficerCount > 0)
++                    {
++                        <b>@Model.ProjectOfficerCount</b>
++                    }
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="command"
++                   asp-route-view="portfolio"
++                   class="@(Active("command-portfolio"))"
++                   aria-current="@(Current("command-portfolio"))"
++                   data-tooltip="Project portfolio">
++                    <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project portfolio</span>
++                    @if (Model.TotalOngoingProjects > 0)
++                    {
++                        <b>@Model.TotalOngoingProjects</b>
++                    }
++                </a>
++                <a asp-page="/Workspace/Conference"
++                   class="@(Active("command-conference"))"
++                   aria-current="@(Current("command-conference"))"
++                   data-tooltip="Conference review">
++                    <i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>Conference review</span>
++                </a>
++                <a asp-page="/Workspace/BriefingDecks/Index"
++                   class="@(Active("command-briefing-decks"))"
++                   aria-current="@(Current("command-briefing-decks"))"
++                   data-tooltip="Briefing decks">
++                    <i class="bi bi-file-earmark-slides" aria-hidden="true"></i><span>Briefing decks</span>
++                </a>
++            </div>
++
++            <div class="cw-local-rail__group cw-local-rail__group--system">
++                <span class="cw-local-rail__group-label"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i>System adoption</span>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="command"
++                   asp-route-view="adoption"
++                   class="@(Active("command-adoption"))"
++                   aria-current="@(Current("command-adoption"))"
++                   data-tooltip="ERP adoption">
++                    <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
++                </a>
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="command"
++                   asp-route-view="usage-pattern"
++                   class="@(Active("command-usage-pattern"))"
++                   aria-current="@(Current("command-usage-pattern"))"
++                   data-tooltip="ERP usage pattern">
++                    <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>ERP usage pattern</span>
++                </a>
++            </div>
++        }
++
++        <div class="cw-local-rail__group cw-local-rail__group--resources">
++            <span class="cw-local-rail__group-label"><i class="bi bi-folder2" aria-hidden="true"></i>My resources</span>
++            @if (Model.HasProjectOfficerAccess && Model.CanViewDocuments)
++            {
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="documents"
++                   class="@(Active("personal-documents"))"
++                   aria-current="@(Current("personal-documents"))"
++                   data-tooltip="My documents">
++                    <i class="bi bi-folder2-open" aria-hidden="true"></i><span>My documents</span>
++                    @if (Model.AotsUnreadCount > 0)
++                    {
++                        <b>@Model.AotsUnreadCount</b>
++                    }
++                </a>
++            }
++            @if (activeLens == "command" && Model.HasCommandAccess)
++            {
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="command"
++                   asp-route-view="my-activity"
++                   class="@(Active("my-activity"))"
++                   aria-current="@(Current("my-activity"))"
++                   data-tooltip="My ERP activity">
++                    <i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span>
++                </a>
++            }
++            else if (Model.HasProjectOfficerAccess)
++            {
++                <a asp-page="/Workspace/Index"
++                   asp-route-mode="project-officer"
++                   asp-route-view="activity"
++                   class="@(Active("my-activity"))"
++                   aria-current="@(Current("my-activity"))"
++                   data-tooltip="My ERP activity">
++                    <i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span>
++                </a>
++            }
+         </div>
+     </nav>
+ </aside>
+--- a/Pages/Workspace/Conference.cshtml.cs
++++ b/Pages/Workspace/Conference.cshtml.cs
+@@ -16,6 +16,7 @@
+ {
+     private readonly IOfficerConferenceReadService _readService;
+     private readonly CommandWorkspaceService _commandWorkspaceService;
++    private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
+     private readonly IConferenceRemarkCommandService _remarkCommandService;
+     private readonly IConferenceTaskCommandService _taskCommandService;
+     private readonly IConferenceIdeaCommandService _ideaCommandService;
+@@ -26,6 +27,7 @@
+     public ConferenceModel(
+         IOfficerConferenceReadService readService,
+         CommandWorkspaceService commandWorkspaceService,
++        ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
+         IConferenceRemarkCommandService remarkCommandService,
+         IConferenceTaskCommandService taskCommandService,
+         IConferenceIdeaCommandService ideaCommandService,
+@@ -35,6 +37,7 @@
+     {
+         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
+         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
++        _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
+         _remarkCommandService = remarkCommandService ?? throw new ArgumentNullException(nameof(remarkCommandService));
+         _taskCommandService = taskCommandService ?? throw new ArgumentNullException(nameof(taskCommandService));
+         _ideaCommandService = ideaCommandService ?? throw new ArgumentNullException(nameof(ideaCommandService));
+@@ -44,7 +47,7 @@
+     }
+ 
+     public OfficerConferenceVm Conference { get; private set; } = new();
+-    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { ActiveView = "conference" };
++    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-conference" };
+     public IReadOnlyList<OfficerConferenceOfficerOptionVm> OfficerOptions { get; private set; }
+         = Array.Empty<OfficerConferenceOfficerOptionVm>();
+     public bool HasSelectedOfficer => !string.IsNullOrWhiteSpace(Conference.OfficerUserId);
+@@ -88,16 +91,33 @@
+         var navigation = await _commandWorkspaceService.GetNavigationShellAsync(
+             "conference",
+             cancellationToken);
++        var hasProjectOfficerAccess = User.IsInRole(RoleNames.ProjectOfficer);
++        var personalNavigation = hasProjectOfficerAccess
++            ? await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
++                userId,
++                User,
++                ProjectOfficerWorkspaceView.Conference,
++                includeDocuments: false,
++                ct: cancellationToken)
++            : new ProjectOfficerWorkspaceVm();
++
+         CommandRail = new CommandWorkspaceRailVm
+         {
+-            CanSwitchWorkspace =
+-                (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD))
+-                && User.IsInRole(RoleNames.ProjectOfficer),
+-            ActiveView = "conference",
++            HasCommandAccess = true,
++            HasProjectOfficerAccess = hasProjectOfficerAccess,
++            CanViewDocuments = hasProjectOfficerAccess,
++            ActiveLens = "command",
++            ActiveItem = "command-conference",
+             ProjectOfficerCount = OfficerOptions.Count > 0
+                 ? OfficerOptions.Count
+                 : navigation.ProjectOfficerCount,
+-            TotalOngoingProjects = navigation.TotalOngoingProjects
++            TotalOngoingProjects = navigation.TotalOngoingProjects,
++            ActionQueueCount = personalNavigation.ActionQueueBadgeCount,
++            AssignedProjectCount = personalNavigation.AssignedProjectCount,
++            AssignedTaskCount = personalNavigation.OfficialTaskCount,
++            AssignedIdeaCount = personalNavigation.AssignedIdeaCount,
++            FollowUpCount = personalNavigation.FollowUpCount,
++            AotsUnreadCount = personalNavigation.AotsUnreadCount
+         };
+ 
+         return Page();
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml.cs
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+@@ -24,6 +24,7 @@
+     private readonly IProjectBriefingDataService _dataService;
+     private readonly IProjectBriefingPowerPointExportService _exportService;
+     private readonly CommandWorkspaceService _commandWorkspaceService;
++    private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
+     private readonly UserManager<ApplicationUser> _users;
+     private readonly ILogger<IndexModel> _logger;
+ 
+@@ -33,6 +34,7 @@
+         IProjectBriefingDataService dataService,
+         IProjectBriefingPowerPointExportService exportService,
+         CommandWorkspaceService commandWorkspaceService,
++        ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
+         UserManager<ApplicationUser> users,
+         ILogger<IndexModel> logger)
+     {
+@@ -41,6 +43,7 @@
+         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
+         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
+         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
++        _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
+         _users = users ?? throw new ArgumentNullException(nameof(users));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+     }
+@@ -49,7 +52,7 @@
+         = Array.Empty<ProjectBriefingDeckSummaryVm>();
+     public ProjectBriefingDeckVm? SelectedDeck { get; private set; }
+     public ProjectBriefingSelectionOptionsVm SelectionOptions { get; private set; } = new();
+-    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { ActiveView = "briefing-decks" };
++    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-briefing-decks" };
+     public FfcFootprintSummary FfcFootprintPreviewSummary { get; private set; } = new(0, 0, 0, 0, 0, 0);
+ 
+     [TempData]
+@@ -893,14 +896,31 @@
+         }
+ 
+         var navigation = await _commandWorkspaceService.GetNavigationShellAsync("briefing-decks", cancellationToken);
++        var hasProjectOfficerAccess = User.IsInRole(RoleNames.ProjectOfficer);
++        var personalNavigation = hasProjectOfficerAccess
++            ? await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
++                userId,
++                User,
++                ProjectOfficerWorkspaceView.Conference,
++                includeDocuments: false,
++                ct: cancellationToken)
++            : new ProjectOfficerWorkspaceVm();
++
+         CommandRail = new CommandWorkspaceRailVm
+         {
+-            CanSwitchWorkspace =
+-                (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD))
+-                && User.IsInRole(RoleNames.ProjectOfficer),
+-            ActiveView = "briefing-decks",
++            HasCommandAccess = true,
++            HasProjectOfficerAccess = hasProjectOfficerAccess,
++            CanViewDocuments = hasProjectOfficerAccess,
++            ActiveLens = "command",
++            ActiveItem = "command-briefing-decks",
+             ProjectOfficerCount = navigation.ProjectOfficerCount,
+-            TotalOngoingProjects = navigation.TotalOngoingProjects
++            TotalOngoingProjects = navigation.TotalOngoingProjects,
++            ActionQueueCount = personalNavigation.ActionQueueBadgeCount,
++            AssignedProjectCount = personalNavigation.AssignedProjectCount,
++            AssignedTaskCount = personalNavigation.OfficialTaskCount,
++            AssignedIdeaCount = personalNavigation.AssignedIdeaCount,
++            FollowUpCount = personalNavigation.FollowUpCount,
++            AotsUnreadCount = personalNavigation.AotsUnreadCount
+         };
+     }
+ 
+--- a/wwwroot/css/command-workspace.css
++++ b/wwwroot/css/command-workspace.css
+@@ -11,22 +11,6 @@
+     --cw-card:#fff;
+     --cw-shadow:0 8px 22px rgba(25,45,85,.055);
+ }
+-
+-/* Project Officer mode retains a small standalone selector. */
+-.workspace-mode-switcher {
+-    width:100%;
+-    margin:10px auto 0;
+-    display:flex;
+-    align-items:center;
+-    gap:3px;
+-    padding:3px;
+-    background:#fff;
+-    border:1px solid var(--cw-line);
+-    border-radius:10px;
+-}
+-.workspace-mode-switcher__label { padding:0 9px; color:var(--cw-muted); font-size:.68rem; font-weight:850; text-transform:uppercase; letter-spacing:.08em; }
+-.workspace-mode-switcher a { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:7px; color:#53627a; text-decoration:none; font-weight:750; font-size:.8rem; }
+-.workspace-mode-switcher a.is-active { color:var(--cw-blue); background:var(--cw-blue-soft); }
+ 
+ .command-workspace { width:100%; margin:8px auto 28px; color:var(--cw-ink); }
+ 
+@@ -251,8 +235,8 @@
+ }
+ @media (max-width:720px) {
+     .cw-officer-grid { grid-template-columns:1fr; padding:6px; }
+-    .command-workspace,.workspace-mode-switcher { width:calc(100% - 12px); }
+-    .workspace-mode-switcher__label,.cw-workspace-segment__label { display:none; }
++    .command-workspace { width:calc(100% - 12px); }
++    .cw-workspace-segment__label { display:none; }
+     .cw-command-bar { gap:4px; }
+     .cw-workspace-segment { width:100%; border-right:0; padding-right:0; }
+     .cw-workspace-segment a { flex:1; justify-content:center; }
+@@ -268,16 +252,16 @@
+     .cw-filter-result,.cw-filter-status { justify-self:start; }
+ }
+ 
+-/* SECTION: Comdt/HoD workspace navigation */
++/* SECTION: Unified personal + command workspace navigation */
+ .command-workspace {
+-    --cw-nav-width:236px;
++    --cw-nav-width:252px;
+     display:grid;
+     grid-template-columns:var(--cw-nav-width) minmax(0,1fr);
+     align-items:start;
+     gap:12px;
+     transition:grid-template-columns .18s ease;
+ }
+-.command-workspace:not(.is-nav-expanded) { --cw-nav-width:62px; }
++.command-workspace:not(.is-nav-expanded) { --cw-nav-width:64px; }
+ .cw-workspace-content { min-width:0; }
+ .cw-workspace-content > :first-child { margin-top:0; }
+ .cw-local-rail {
+@@ -296,16 +280,16 @@
+ }
+ .cw-local-rail__identity {
+     display:grid;
+-    grid-template-columns:36px minmax(0,1fr) 30px;
+-    align-items:center;
+-    gap:8px;
+-    min-height:52px;
+-    padding:0 2px 9px;
++    grid-template-columns:38px minmax(0,1fr) 30px;
++    align-items:center;
++    gap:9px;
++    min-height:60px;
++    padding:1px 3px 10px;
+     border-bottom:1px solid #e7ecf3;
+ }
+ .cw-local-rail__mark {
+-    width:36px;
+-    height:36px;
++    width:38px;
++    height:38px;
+     display:grid;
+     place-items:center;
+     border-radius:10px;
+@@ -314,6 +298,7 @@
+     font-size:.92rem;
+ }
+ .cw-local-rail__identity > div { min-width:0; display:grid; }
++.cw-local-rail__identity-copy { gap:1px; }
+ .cw-local-rail__identity small {
+     color:#8290a4;
+     font-size:.58rem;
+@@ -324,7 +309,16 @@
+ .cw-local-rail__identity strong {
+     overflow:hidden;
+     color:#253652;
+-    font-size:.78rem;
++    font-size:.82rem;
++    text-overflow:ellipsis;
++    white-space:nowrap;
++}
++.cw-local-rail__access {
++    overflow:hidden;
++    color:#6d7b91;
++    font-size:.62rem;
++    font-weight:700;
++    line-height:1.25;
+     text-overflow:ellipsis;
+     white-space:nowrap;
+ }
+@@ -341,14 +335,54 @@
+ }
+ .cw-local-rail__toggle:hover,
+ .cw-local-rail__toggle:focus-visible { background:#f0f4fa; color:#304b73; outline:none; }
+-.cw-local-rail nav { display:grid; gap:8px; padding-top:8px; }
+-.cw-local-rail__group { display:grid; gap:3px; }
++
++.cw-workspace-lens {
++    display:grid;
++    grid-template-columns:repeat(2,minmax(0,1fr));
++    gap:3px;
++    margin:8px 1px 0;
++    padding:3px;
++    border:1px solid #e1e7f0;
++    border-radius:9px;
++    background:#f7f9fc;
++}
++.cw-workspace-lens a {
++    display:flex;
++    align-items:center;
++    justify-content:center;
++    gap:5px;
++    min-height:30px;
++    padding:5px 7px;
++    border-radius:6px;
++    color:#64748b;
++    text-decoration:none;
++    font-size:.68rem;
++    font-weight:800;
++    white-space:nowrap;
++}
++.cw-workspace-lens a:hover,
++.cw-workspace-lens a:focus-visible {
++    color:#304b73;
++    background:#eef3fa;
++    outline:none;
++}
++.cw-workspace-lens a.is-active {
++    color:var(--cw-blue);
++    background:#fff;
++    box-shadow:0 1px 4px rgba(35,55,90,.10);
++}
++.cw-workspace-lens i { font-size:.75rem; }
++
++.cw-local-rail nav { display:grid; gap:7px; padding-top:8px; }
++.cw-local-rail__group { display:grid; gap:2px; }
+ .cw-local-rail__group + .cw-local-rail__group {
+-    padding-top:8px;
++    padding-top:7px;
+     border-top:1px solid #e8edf4;
+ }
+ .cw-local-rail__group-label {
+-    display:block;
++    display:flex;
++    align-items:center;
++    gap:6px;
+     padding:2px 9px 3px;
+     color:#8794a6;
+     font-size:.58rem;
+@@ -357,12 +391,18 @@
+     text-transform:uppercase;
+     white-space:nowrap;
+ }
++.cw-local-rail__group-label > i {
++    width:14px;
++    color:#91a0b4;
++    font-size:.66rem;
++    text-align:center;
++}
+ .cw-local-rail nav a {
+     position:relative;
+     display:grid;
+     grid-template-columns:32px minmax(0,1fr) auto;
+     align-items:center;
+-    min-height:39px;
++    min-height:37px;
+     padding:3px 8px 3px 5px;
+     border-radius:8px;
+     color:#596980;
+@@ -403,6 +443,8 @@
+ }
+ .command-workspace:not(.is-nav-expanded) .cw-local-rail__mark,
+ .command-workspace:not(.is-nav-expanded) .cw-local-rail__identity > div,
++.command-workspace:not(.is-nav-expanded) .cw-local-rail__access,
++.command-workspace:not(.is-nav-expanded) .cw-workspace-lens,
+ .command-workspace:not(.is-nav-expanded) .cw-local-rail__group-label,
+ .command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > span,
+ .command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > b { display:none; }
+@@ -465,7 +507,7 @@
+         position:fixed;
+         left:12px;
+         top:72px;
+-        width:236px;
++        width:252px;
+         max-height:calc(100vh - 88px);
+         overflow-y:auto;
+         box-shadow:0 18px 44px rgba(25,45,85,.22);
+@@ -476,6 +518,8 @@
+     }
+     .cw-local-rail:not(.is-expanded) .cw-local-rail__mark,
+     .cw-local-rail:not(.is-expanded) .cw-local-rail__identity > div,
++    .cw-local-rail:not(.is-expanded) .cw-local-rail__access,
++    .cw-local-rail:not(.is-expanded) .cw-workspace-lens,
+     .cw-local-rail:not(.is-expanded) .cw-local-rail__group-label,
+     .cw-local-rail:not(.is-expanded) nav a > span,
+     .cw-local-rail:not(.is-expanded) nav a > b { display:none; }
+@@ -717,7 +761,7 @@
+     .cw-pattern-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ }
+ @media (max-width:720px) {
+-    .command-workspace,.workspace-mode-switcher { width:100%; }
++    .command-workspace { width:100%; }
+     .cw-officer-grid { grid-template-columns:1fr; padding:6px; }
+     .cw-adoption-kpis,.cw-pattern-kpis,.cw-pattern-filters { grid-template-columns:1fr; }
+     .cw-adoption-hero__actions { align-items:flex-start; flex-direction:column; }
+--- a/wwwroot/css/workspace.css
++++ b/wwwroot/css/workspace.css
+@@ -2531,8 +2531,8 @@
+ /* Project Officer multi-page workspace                                       */
+ /* ========================================================================== */
+ .project-officer-workspace {
+-    --po-nav-width: 244px;
+-    --po-nav-collapsed-width: 72px;
++    --po-nav-width: 252px;
++    --po-nav-collapsed-width: 64px;
+     display: grid;
+     grid-template-columns: var(--po-nav-collapsed-width) minmax(0, 1fr);
+     gap: 16px;
+@@ -2626,6 +2626,12 @@
+     .po-two-column-pages, .po-personal-activity-page__strip { grid-template-columns: 1fr; }
+     .po-filter-bar { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ }
++@media (max-width: 991.98px) {
++    .project-officer-workspace .cw-local-rail.is-expanded {
++        position: fixed;
++        top: 72px;
++    }
++}
+ @media (max-width: 991.98px) and (min-width: 768px) {
+     .project-officer-workspace, .project-officer-workspace.is-nav-expanded {
+         grid-template-columns: 54px minmax(0,1fr);
+@@ -2634,8 +2640,11 @@
+     }
+ }
+ @media (max-width: 767px) {
+-    .project-officer-workspace, .project-officer-workspace.is-nav-expanded { display:block; padding: 10px; }
+-    .project-officer-workspace .cw-local-rail { position: static; width: 100%; margin-bottom: 12px; }
++    .project-officer-workspace, .project-officer-workspace.is-nav-expanded {
++        grid-template-columns: 54px minmax(0,1fr);
++        gap: 7px;
++        padding: 8px;
++    }
+     .po-dedicated-hero { align-items:flex-start; flex-direction:column; }
+     .po-filter-bar, .po-personal-activity-kpis, .po-follow-summary-grid { grid-template-columns:1fr; }
+     .po-task-row, .po-document-row { grid-template-columns:auto minmax(0,1fr); }
+--- a/wwwroot/js/pages/workspace-index.js
++++ b/wwwroot/js/pages/workspace-index.js
+@@ -6,29 +6,62 @@
+ 
+     const rail = workspace.querySelector('[data-workspace-rail]');
+     const toggle = workspace.querySelector('[data-workspace-rail-toggle]');
+-    const storageKey = 'prism.projectOfficerWorkspace.navExpanded';
+-
+-    const setRailExpanded = (expanded) => {
++    const storageKey = 'prism.workspace.navigationExpanded';
++    const desktopRail = window.matchMedia('(min-width: 992px)');
++
++    const readNavigationPreference = () => {
++        if (!desktopRail.matches) return false;
++        try {
++            const stored = window.localStorage.getItem(storageKey);
++            return stored === null ? true : stored === 'true';
++        } catch {
++            return true;
++        }
++    };
++
++    const saveNavigationPreference = (expanded) => {
++        try { window.localStorage.setItem(storageKey, String(expanded)); } catch { /* optional storage */ }
++    };
++
++    const setRailExpanded = (expanded, options = {}) => {
++        const { returnFocus = false, persist = false } = options;
+         workspace.classList.toggle('is-nav-expanded', expanded);
+         rail?.classList.toggle('is-expanded', expanded);
+         toggle?.setAttribute('aria-expanded', String(expanded));
+         toggle?.setAttribute('aria-label', expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation');
+         toggle?.setAttribute('title', expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation');
+-    };
+-
+-    const desktopRail = window.matchMedia('(min-width: 992px)');
+-    const mobileRail = window.matchMedia('(max-width: 767.98px)');
+-
+-    if (desktopRail.matches) {
+-        setRailExpanded(localStorage.getItem(storageKey) !== 'false');
+-    } else {
+-        setRailExpanded(mobileRail.matches);
+-    }
++        if (persist) saveNavigationPreference(expanded);
++        if (returnFocus) toggle?.focus();
++    };
++
++    setRailExpanded(readNavigationPreference());
+ 
+     toggle?.addEventListener('click', () => {
+         const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+-        setRailExpanded(expanded);
+-        localStorage.setItem(storageKey, String(expanded));
++        setRailExpanded(expanded, { persist: desktopRail.matches });
++    });
++
++    document.addEventListener('pointerdown', (event) => {
++        if (desktopRail.matches || !rail?.classList.contains('is-expanded')) return;
++        if (rail.contains(event.target)) return;
++        setRailExpanded(false);
++    });
++
++    document.addEventListener('keydown', (event) => {
++        if (event.key !== 'Escape' || desktopRail.matches || !rail?.classList.contains('is-expanded')) return;
++        event.preventDefault();
++        setRailExpanded(false, { returnFocus: true });
++    });
++
++    rail?.querySelectorAll('a').forEach((link) => {
++        link.addEventListener('click', () => {
++            if (!desktopRail.matches) setRailExpanded(false);
++        });
++    });
++
++    desktopRail.addEventListener?.('change', (event) => {
++        if (!event.matches) setRailExpanded(false);
++        else setRailExpanded(readNavigationPreference());
+     });
+ 
+     const normalize = (value) => (value || '').toLowerCase().trim();
+--- a/wwwroot/js/pages/command-workspace.js
++++ b/wwwroot/js/pages/command-workspace.js
+@@ -3,7 +3,7 @@
+     const workspaceRail = document.querySelector('[data-workspace-rail]');
+     const workspaceRailToggle = workspaceRail?.querySelector('[data-workspace-rail-toggle]');
+     const desktopNavigation = window.matchMedia('(min-width: 992px)');
+-    const navigationPreferenceKey = 'prism.commandWorkspace.navigationExpanded';
++    const navigationPreferenceKey = 'prism.workspace.navigationExpanded';
+ 
+     const readNavigationPreference = () => {
+         if (!desktopNavigation.matches) return false;
+--- a/wwwroot/js/pages/workspace-index.test.js
++++ b/wwwroot/js/pages/workspace-index.test.js
+@@ -23,7 +23,7 @@
+     });
+ 
+     if (options.navExpanded !== undefined) {
+-        window.localStorage.setItem('prism.projectOfficerWorkspace.navExpanded', String(options.navExpanded));
++        window.localStorage.setItem('prism.workspace.navigationExpanded', String(options.navExpanded));
+     }
+ 
+     const script = window.document.createElement('script');
+@@ -54,7 +54,7 @@
+ 
+     assert.equal(workspace.classList.contains('is-nav-expanded'), true);
+     assert.equal(rail.classList.contains('is-expanded'), true);
+-    assert.equal(window.localStorage.getItem('prism.projectOfficerWorkspace.navExpanded'), 'true');
++    assert.equal(window.localStorage.getItem('prism.workspace.navigationExpanded'), 'true');
+ });
+ 
+ test('action queue filters individual actions inside a grouped work item and manages clear state', () => {
+--- a/wwwroot/js/pages/workspace-navigation-unification.test.js
++++ b/wwwroot/js/pages/workspace-navigation-unification.test.js
+@@ -0,0 +1,55 @@
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
++
++test('workspace rail exposes a stable authorised navigation model', () => {
++    const rail = read('Pages/Workspace/_CommandWorkspaceRail.cshtml');
++
++    assert.match(rail, /My Workspace/);
++    assert.match(rail, /cw-workspace-lens/);
++    assert.match(rail, />Personal</);
++    assert.match(rail, />Command</);
++    assert.match(rail, /Model\.HasProjectOfficerAccess/);
++    assert.match(rail, /Model\.HasCommandAccess/);
++    assert.match(rail, />My work</);
++    assert.match(rail, />Command oversight</);
++    assert.match(rail, />System adoption</);
++    assert.match(rail, />My resources</);
++    assert.match(rail, /My conference review/);
++    assert.match(rail, /Briefing decks/);
++    assert.doesNotMatch(rail, /Workspace mode/);
++    assert.doesNotMatch(rail, /is-context-active/);
++});
++
++test('personal and command workspace shells render the same navigation rail', () => {
++    const personal = read('Pages/Workspace/_ProjectOfficerWorkspace.cshtml');
++    const command = read('Pages/Workspace/_CommandWorkspace.cshtml');
++
++    assert.match(personal, /PartialAsync\("_CommandWorkspaceRail", Model\.NavigationRail\)/);
++    assert.match(command, /PartialAsync\("_CommandWorkspaceRail", Model\.NavigationRail\)/);
++});
++
++test('personal and command scripts persist one navigation expansion preference', () => {
++    const personalScript = read('wwwroot/js/pages/workspace-index.js');
++    const commandScript = read('wwwroot/js/pages/command-workspace.js');
++    const key = 'prism.workspace.navigationExpanded';
++
++    assert.match(personalScript, new RegExp(key.replaceAll('.', '\\.')));
++    assert.match(commandScript, new RegExp(key.replaceAll('.', '\\.')));
++    assert.doesNotMatch(personalScript, /projectOfficerWorkspace\.navExpanded/);
++    assert.doesNotMatch(commandScript, /commandWorkspace\.navigationExpanded/);
++});
++
++test('workspace page model loads the opposite navigation shell for dual-role users', () => {
++    const pageModel = read('Pages/Workspace/Index.cshtml.cs');
++
++    assert.match(pageModel, /else if \(hasProjectOfficerRole\)/);
++    assert.match(pageModel, /GetNavigationShellAsync\(/);
++    assert.match(pageModel, /NavigationRail = BuildNavigationRail/);
++    assert.match(pageModel, /HasCommandAccess = hasCommandAccess/);
++    assert.match(pageModel, /HasProjectOfficerAccess = hasProjectOfficerAccess/);
++});

@@ -33,17 +33,10 @@
     var population = Math.Max(1, adoption.TotalUsers);
     var usageReach = Math.Clamp((int)Math.Round(adoption.UsedErpUsers * 100d / population), 0, 100);
     var contributionReach = Math.Clamp((int)Math.Round(adoption.OperationalContributors * 100d / population), 0, 100);
-    var commandRail = new CommandWorkspaceRailVm
-    {
-        CanSwitchWorkspace = Model.CanSwitchWorkspace,
-        ActiveView = vm.ActiveView,
-        ProjectOfficerCount = vm.ProjectOfficerCount,
-        TotalOngoingProjects = vm.TotalOngoingProjects
-    };
 }
 
 <div class="command-workspace is-nav-expanded" data-command-workspace>
-    @await Html.PartialAsync("_CommandWorkspaceRail", commandRail)
+    @await Html.PartialAsync("_CommandWorkspaceRail", Model.NavigationRail)
 
     <main class="cw-workspace-content">
 

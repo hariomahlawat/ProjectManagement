@@ -2,10 +2,26 @@ namespace ProjectManagement.ViewModels.Workspace;
 
 public sealed class CommandWorkspaceRailVm
 {
-    public bool CanSwitchWorkspace { get; init; }
-    public string ActiveView { get; init; } = "officers";
+    // Unified workspace navigation. The legacy type name is retained to avoid
+    // disrupting existing Razor partial contracts while the rail now serves
+    // both personal and command workspace contexts.
+    public bool HasCommandAccess { get; init; }
+    public bool HasProjectOfficerAccess { get; init; }
+    public bool CanViewDocuments { get; init; }
+    public bool CanSwitchWorkspace => HasCommandAccess && HasProjectOfficerAccess;
+
+    public string ActiveLens { get; init; } = "command";
+    public string ActiveItem { get; init; } = "command-officers";
+
     public int ProjectOfficerCount { get; init; }
     public int TotalOngoingProjects { get; init; }
+
+    public int? ActionQueueCount { get; init; }
+    public int AssignedProjectCount { get; init; }
+    public int AssignedTaskCount { get; init; }
+    public int AssignedIdeaCount { get; init; }
+    public int FollowUpCount { get; init; }
+    public int AotsUnreadCount { get; init; }
 }
 
 public sealed class CommandWorkspaceVm

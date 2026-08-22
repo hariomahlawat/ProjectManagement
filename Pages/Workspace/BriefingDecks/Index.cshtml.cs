@@ -24,6 +24,7 @@ public sealed class IndexModel : PageModel
     private readonly IProjectBriefingDataService _dataService;
     private readonly IProjectBriefingPowerPointExportService _exportService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
+    private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<IndexModel> _logger;
 
@@ -33,6 +34,7 @@ public sealed class IndexModel : PageModel
         IProjectBriefingDataService dataService,
         IProjectBriefingPowerPointExportService exportService,
         CommandWorkspaceService commandWorkspaceService,
+        ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
         UserManager<ApplicationUser> users,
         ILogger<IndexModel> logger)
     {
@@ -41,6 +43,7 @@ public sealed class IndexModel : PageModel
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
+        _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -49,7 +52,7 @@ public sealed class IndexModel : PageModel
         = Array.Empty<ProjectBriefingDeckSummaryVm>();
     public ProjectBriefingDeckVm? SelectedDeck { get; private set; }
     public ProjectBriefingSelectionOptionsVm SelectionOptions { get; private set; } = new();
-    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { ActiveView = "briefing-decks" };
+    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-briefing-decks" };
     public FfcFootprintSummary FfcFootprintPreviewSummary { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
     [TempData]
@@ -893,14 +896,31 @@ public sealed class IndexModel : PageModel
         }
 
         var navigation = await _commandWorkspaceService.GetNavigationShellAsync("briefing-decks", cancellationToken);
+        var hasProjectOfficerAccess = User.IsInRole(RoleNames.ProjectOfficer);
+        var personalNavigation = hasProjectOfficerAccess
+            ? await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                userId,
+                User,
+                ProjectOfficerWorkspaceView.Conference,
+                includeDocuments: false,
+                ct: cancellationToken)
+            : new ProjectOfficerWorkspaceVm();
+
         CommandRail = new CommandWorkspaceRailVm
         {
-            CanSwitchWorkspace =
-                (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD))
-                && User.IsInRole(RoleNames.ProjectOfficer),
-            ActiveView = "briefing-decks",
+            HasCommandAccess = true,
+            HasProjectOfficerAccess = hasProjectOfficerAccess,
+            CanViewDocuments = hasProjectOfficerAccess,
+            ActiveLens = "command",
+            ActiveItem = "command-briefing-decks",
             ProjectOfficerCount = navigation.ProjectOfficerCount,
-            TotalOngoingProjects = navigation.TotalOngoingProjects
+            TotalOngoingProjects = navigation.TotalOngoingProjects,
+            ActionQueueCount = personalNavigation.ActionQueueBadgeCount,
+            AssignedProjectCount = personalNavigation.AssignedProjectCount,
+            AssignedTaskCount = personalNavigation.OfficialTaskCount,
+            AssignedIdeaCount = personalNavigation.AssignedIdeaCount,
+            FollowUpCount = personalNavigation.FollowUpCount,
+            AotsUnreadCount = personalNavigation.AotsUnreadCount
         };
     }
 
