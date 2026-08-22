@@ -139,11 +139,17 @@ public sealed class CompendiumExportService : ICompendiumExportService
             {
                 var renderedDossierImages = project.DossierImages
                     .Where(image => image.PhotoId.HasValue)
-                    .Select(image => new CompendiumPdfProjectImage(
-                        image.Role,
-                        renderedPhotos.TryGetValue(image.PhotoId!.Value, out var rendered) ? rendered.Content : null,
-                        image.FitMode,
-                        image.PhotoId))
+                    .Select(image =>
+                    {
+                        var rendered = renderedPhotos.GetValueOrDefault(image.PhotoId!.Value);
+                        return new CompendiumPdfProjectImage(
+                            image.Role,
+                            rendered?.Content,
+                            image.FitMode,
+                            image.PhotoId,
+                            rendered?.SourceWidth ?? image.SourceWidth,
+                            rendered?.SourceHeight ?? image.SourceHeight);
+                    })
                     .ToArray();
                 var primaryImage = renderedDossierImages.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary);
                 var photoBytes = primaryImage?.Content;

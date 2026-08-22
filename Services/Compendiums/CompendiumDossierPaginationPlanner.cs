@@ -1,22 +1,18 @@
 using System.Text.RegularExpressions;
+using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
-/// Shared A4 dossier composition planner used by browser review and PDF planning. Phase 37.3
-/// separates physical feasibility from editorial validity: one-page candidates are measured first,
-/// then rejected from Automatic selection when Fill imagery becomes token-sized or a Balanced Side
-/// Column produces a material image/text imbalance. Explicit publisher choices remain available,
-/// but unsafe editorial combinations surface a publication warning instead of being silently approved.
+/// Shared A4 dossier composition planner used by browser review and PDF planning. Phase 40 makes
+/// physical feasibility authoritative: semantic narrative, DM Sans title wrapping and fixed page
+/// chrome are all measured against the same geometry later used by QuestPDF. Editorial scoring is
+/// applied only after a candidate is physically valid.
 /// </summary>
 public static class CompendiumDossierPaginationPlanner
 {
-    // Physical project-column height after the A4 top margin, running header, content top padding
-    // and fixed footer are reserved. Keep a small shaping safety margin here; editorial breathing
-    // room is scored separately through ResolveIdealResidualSpace rather than being hidden in the
-    // available-height constant.
-    private const float PhysicalContentHeightPoints = 748f;
-    private const float FullNarrativeWidthPoints = 519f;
+    private const float PhysicalContentHeightPoints = CompendiumLayoutMetrics.ProjectContentHeightPoints;
+    private const float FullNarrativeWidthPoints = CompendiumLayoutMetrics.ContentWidthPoints;
 
     private static readonly Regex MarkdownNoiseRegex = new(
         @"[*_`#>]",
@@ -53,10 +49,12 @@ public static class CompendiumDossierPaginationPlanner
         CompendiumImageFitMode primaryImageFitMode = CompendiumImageFitMode.Fill,
         string? additionalNote = null,
         IReadOnlyList<CompendiumProgrammeModuleDto>? programmeModules = null,
-        CompendiumProjectParticularsStyle projectParticularsStyle = CompendiumProjectParticularsStyle.Panel)
+        CompendiumProjectParticularsStyle projectParticularsStyle = CompendiumProjectParticularsStyle.Panel,
+        string? projectKicker = null)
     {
         availablePhotoCount = Math.Clamp(availablePhotoCount, 0, 3);
-        var cleanNarrative = CleanText(narrative);
+        var narrativeMarkdown = CompendiumNarrativeParser.Normalize(narrative);
+        var cleanNarrative = CleanText(narrativeMarkdown);
         var cleanAdditionalNote = CompendiumPublicationNotePolicy.Normalize(additionalNote);
         var specifications = (technicalSpecifications ?? Array.Empty<string>())
             .Where(item => !string.IsNullOrWhiteSpace(item))
@@ -99,10 +97,11 @@ public static class CompendiumDossierPaginationPlanner
                         imageHeight,
                         narrativeScale,
                         availablePhotoCount,
-                        cleanNarrative,
+                        narrativeMarkdown,
                         specifications,
                         programmeModuleCount,
                         projectName,
+                        projectKicker,
                         specificationColumns,
                         programmeColumns,
                         programmeHeight,
@@ -222,10 +221,11 @@ public static class CompendiumDossierPaginationPlanner
                 candidateCompactHeight,
                 1f,
                 availablePhotoCount,
-                cleanNarrative,
+                narrativeMarkdown,
                 Array.Empty<string>(),
                 programmeModuleCount,
                 projectName,
+                projectKicker,
                 1,
                 programmeColumns,
                 programmeHeight,
@@ -265,10 +265,11 @@ public static class CompendiumDossierPaginationPlanner
             compactHeight,
             1f,
             availablePhotoCount,
-            cleanNarrative,
+            narrativeMarkdown,
             Array.Empty<string>(),
             programmeModuleCount,
             projectName,
+            projectKicker,
             1,
             programmeColumns,
             programmeHeight,
@@ -294,10 +295,11 @@ public static class CompendiumDossierPaginationPlanner
                     compactHeight,
                     1f,
                     availablePhotoCount,
-                    cleanNarrative,
+                    narrativeMarkdown,
                     specifications.Take(count).ToArray(),
                     programmeModuleCount,
                     projectName,
+                    projectKicker,
                     specificationColumns,
                     programmeColumns,
                     programmeHeight,
@@ -320,7 +322,7 @@ public static class CompendiumDossierPaginationPlanner
         var firstNarrativeHeight = Math.Max(36f, firstPageEvaluation.NarrativeHeightCapacityPoints);
 
         var firstPageFlow = CompendiumDossierNarrativeFlowPlanner.Resolve(
-            cleanNarrative,
+            narrativeMarkdown,
             balancedTextFlowMode,
             fallbackLayout,
             availablePhotoCount > 0,
@@ -332,11 +334,12 @@ public static class CompendiumDossierPaginationPlanner
             firstNarrativeHeight);
         var narrativeContinuationPages = firstPageFlow.ContinuationSegments.Count;
 
+        var continuationBodyHeight = ResolveContinuationBodyHeightPoints(projectName, measurementSession);
         var remainingSpecifications = specifications.Skip(firstSpecificationCount).ToArray();
         var specificationChunks = SplitTechnicalSpecificationsForPhysicalPages(
             remainingSpecifications,
             specificationColumns,
-            CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints);
+            continuationBodyHeight);
         var specificationContinuationPages = specificationChunks.Count;
 
         // A short final Project Brief continuation and a compact technical chunk may share the same
@@ -348,7 +351,8 @@ public static class CompendiumDossierPaginationPlanner
                 firstPageFlow.ContinuationSegments[^1],
                 specificationChunks[0],
                 specificationColumns,
-                1f);
+                1f,
+                availableHeightPoints: continuationBodyHeight);
         if (firstSpecificationChunkShared)
             specificationContinuationPages--;
 
@@ -372,7 +376,7 @@ public static class CompendiumDossierPaginationPlanner
             var noteChunks = CompendiumDossierNarrativeFlowPlanner.SplitForPhysicalPages(
                 cleanAdditionalNote,
                 FullNarrativeWidthPoints,
-                CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
+                continuationBodyHeight,
                 1f,
                 includeHeading: false,
                 allowMinorHeadings: false);
@@ -386,7 +390,8 @@ public static class CompendiumDossierPaginationPlanner
                     lastContinuationSpecifications,
                     specificationColumns,
                     1f,
-                    noteChunks[0]))
+                    noteChunks[0],
+                    continuationBodyHeight))
             {
                 noteContinuationPages--;
             }
@@ -513,7 +518,8 @@ public static class CompendiumDossierPaginationPlanner
         IReadOnlyList<string>? specifications,
         int specificationColumns,
         float narrativeFontScale,
-        string? additionalNote = null)
+        string? additionalNote = null,
+        float? availableHeightPoints = null)
     {
         var measurement = new CompendiumDossierTextMeasurementService.Session();
         var narrativeHeight = string.IsNullOrWhiteSpace(narrative)
@@ -531,10 +537,14 @@ public static class CompendiumDossierPaginationPlanner
             CompendiumPublicationNotePolicy.Normalize(additionalNote),
             narrativeFontScale,
             measurement);
-        var interBlockSpacing = (narrativeHeight > 0f && specificationHeight > 0f ? 10f : 0f)
-                                + ((narrativeHeight > 0f || specificationHeight > 0f) && noteHeight > 0f ? 10f : 0f);
-        return narrativeHeight + specificationHeight + noteHeight + interBlockSpacing
-               <= CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints;
+        var interBlockSpacing = (narrativeHeight > 0f && specificationHeight > 0f
+                ? CompendiumLayoutMetrics.ContinuationColumnSpacingPoints
+                : 0f)
+            + ((narrativeHeight > 0f || specificationHeight > 0f) && noteHeight > 0f
+                ? CompendiumLayoutMetrics.ContinuationColumnSpacingPoints
+                : 0f);
+        var capacity = Math.Max(80f, availableHeightPoints ?? CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints);
+        return narrativeHeight + specificationHeight + noteHeight + interBlockSpacing <= capacity;
     }
 
     public static int ResolveProgrammeColumns(int moduleCount)
@@ -603,6 +613,7 @@ public static class CompendiumDossierPaginationPlanner
         IReadOnlyList<string> specifications,
         int programmeModuleCount,
         string? projectName,
+        string? projectKicker,
         int specificationColumns,
         int programmeColumns,
         float programmeHeight,
@@ -614,12 +625,15 @@ public static class CompendiumDossierPaginationPlanner
         CompendiumDossierTextMeasurementService.Session measurementSession)
     {
         narrativeFontScale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
-        var titleHeight = EstimateTitleBlockHeight(projectName);
+        var titleHeight = EstimateTitleBlockHeight(projectName, projectKicker, measurementSession);
         programmeHeight = Math.Max(0f, programmeHeight);
         var specificationHeight = EstimateSpecificationHeight(specifications, specificationColumns, measurementSession);
         var additionalNoteHeight = EstimateAdditionalNoteHeight(additionalNote, narrativeFontScale, measurementSession);
         var hasPhoto = availablePhotoCount > 0 && imageHeight > 0f;
-        var fixedGaps = 31f;
+        var trailingBlockCount = (programmeHeight > 0f ? 1 : 0)
+                                 + (specificationHeight > 0f ? 1 : 0)
+                                 + (additionalNoteHeight > 0f ? 1 : 0);
+        var fixedGaps = trailingBlockCount * CompendiumLayoutMetrics.ProjectColumnSpacingPoints;
         float sideRemaining = 0f;
         float sideOverflow = 0f;
         float sideBalanceRatio = 1f;
@@ -887,11 +901,52 @@ public static class CompendiumDossierPaginationPlanner
             leadingReservePoints: noteHeadingGeometryPoints).HeightPoints;
     }
 
-    private static float EstimateTitleBlockHeight(string? projectName)
+    private static float EstimateTitleBlockHeight(
+        string? projectName,
+        string? projectKicker,
+        CompendiumDossierTextMeasurementService.Session measurementSession)
     {
-        var length = projectName?.Trim().Length ?? 0;
-        var extraLines = length switch { > 105 => 2, > 72 => 1, _ => 0 };
-        return 62f + extraLines * 17f;
+        var fontSize = CompendiumLayoutMetrics.ResolveProjectTitleFontSize(projectName);
+        var titleHeight = measurementSession.MeasureAtFontSize(
+            projectName,
+            FullNarrativeWidthPoints,
+            fontSize,
+            CompendiumLayoutMetrics.ProjectTitleLineHeightMultiplier,
+            semiBold: true).HeightPoints;
+        var kickerText = string.IsNullOrWhiteSpace(projectKicker) ? "Project dossier" : projectKicker.Trim();
+        var kickerHeight = measurementSession.MeasureAtFontSize(
+            kickerText.ToUpperInvariant(),
+            FullNarrativeWidthPoints,
+            CompendiumLayoutMetrics.ProjectKickerFontSize,
+            CompendiumLayoutMetrics.ProjectKickerLineHeightMultiplier,
+            semiBold: true,
+            letterSpacingPoints: CompendiumLayoutMetrics.ProjectKickerLetterSpacingPoints).HeightPoints;
+        return kickerHeight
+               + CompendiumLayoutMetrics.ProjectHeadingRuleHeightPoints
+               + (3f * CompendiumLayoutMetrics.ProjectColumnSpacingPoints)
+               + titleHeight;
+    }
+
+    public static float ResolveContinuationBodyHeightPoints(string? projectName)
+        => ResolveContinuationBodyHeightPoints(
+            projectName,
+            new CompendiumDossierTextMeasurementService.Session());
+
+    private static float ResolveContinuationBodyHeightPoints(
+        string? projectName,
+        CompendiumDossierTextMeasurementService.Session measurementSession)
+    {
+        var titleHeight = measurementSession.MeasureAtFontSize(
+            projectName,
+            FullNarrativeWidthPoints,
+            CompendiumLayoutMetrics.ContinuationTitleFontSize,
+            CompendiumLayoutMetrics.ContinuationTitleLineHeightMultiplier,
+            semiBold: true).HeightPoints;
+        var fixedGeometry = titleHeight
+                            + (3f * CompendiumLayoutMetrics.ContinuationColumnSpacingPoints)
+                            + CompendiumLayoutMetrics.ContinuationLabelLineHeightPoints
+                            + CompendiumLayoutMetrics.ContinuationHeadingRuleHeightPoints;
+        return Math.Max(120f, CompendiumLayoutMetrics.SecondaryContentHeightPoints - fixedGeometry);
     }
 
     private static CompendiumProjectParticularsLayoutPolicy.Layout ResolveLegacyParticularsLayout(

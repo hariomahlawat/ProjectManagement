@@ -77,7 +77,7 @@ test('phase 33 uses the same local DM Sans publication family in browser proofs 
 
 test('phase 33 normalises publication tracking and title leading', () => {
   assert.doesNotMatch(builder, /LetterSpacing\((?:1(?:\.\d+)?|\.75f|\.8f|\.7f|\.65f|\.6f)\)/);
-  assert.match(builder, /ResolveProjectTitleFontSize\(project\.ProjectName\)\)\.SemiBold\(\)\.LineHeight\(1\.08f\)/);
+  assert.match(builder, /CompendiumLayoutMetrics\.ResolveProjectTitleFontSize\(project\.ProjectName\)\)\.SemiBold\(\)\.LineHeight\(CompendiumLayoutMetrics\.ProjectTitleLineHeightMultiplier\)/);
   assert.match(builder, /HARDWARE \/ TECHNICAL SPECIFICATION/);
   assert.match(builder, /FontSize\(7\.7f\)\.SemiBold\(\)\.LetterSpacing\(\.14f\)/);
 });

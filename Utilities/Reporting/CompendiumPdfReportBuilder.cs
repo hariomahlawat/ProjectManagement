@@ -76,7 +76,9 @@ public sealed record CompendiumPdfProjectImage(
     CompendiumDossierImageRole Role,
     byte[]? Content,
     CompendiumImageFitMode FitMode,
-    int? PhotoId);
+    int? PhotoId,
+    int? SourceWidth = null,
+    int? SourceHeight = null);
 
 public sealed record CompendiumPdfProjectSection(
     int ProjectId,
@@ -125,8 +127,9 @@ public sealed record CompendiumPdfProjectSection(
 }
 
 /// <summary>
-/// Phase 24 A4 portrait compositor. Page membership is decided by CompendiumPagePlanner before
-/// drawing; this class renders that plan without changing project membership or pagination policy.
+/// A4 portrait compositor. Phase 40 treats each planned index/project/continuation body as one atomic
+/// physical-page fragment. QuestPDF is no longer allowed to silently split a planned page and shift
+/// every downstream index reference.
 /// </summary>
 public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 {
@@ -659,19 +662,23 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, "SDD SIMULATORS COMPENDIUM", edition, marking));
-            page.Content().PaddingTop(12).Column(content =>
+            page.Content()
+                .PaddingTop(CompendiumLayoutMetrics.SecondaryContentTopPaddingPoints)
+                .Element(body => body.ShowEntire().Column(content =>
             {
-                content.Spacing(12);
+                content.Spacing(CompendiumLayoutMetrics.IndexColumnSpacingPoints);
                 content.Item().Row(row =>
                 {
                     row.RelativeItem().Column(copy =>
                     {
                         copy.Item().Text("Compendium Index")
-                            .FontSize(22)
+                            .FontSize(CompendiumLayoutMetrics.IndexHeadingTitleFontSize)
                             .SemiBold()
+                            .LineHeight(CompendiumLayoutMetrics.IndexHeadingTitleLineHeightMultiplier)
                             .FontColor(Ink);
                         copy.Item().Text(title)
-                            .FontSize(9.5f)
+                            .FontSize(CompendiumLayoutMetrics.IndexPublicationTitleFontSize)
+                            .LineHeight(CompendiumLayoutMetrics.IndexPublicationTitleLineHeightMultiplier)
                             .FontColor(Slate500);
                     });
                     if (totalIndexPages > 1)
@@ -682,7 +689,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     }
                 });
 
-                content.Item().Height(2).Background(Gold);
+                content.Item().Height(CompendiumLayoutMetrics.IndexRuleHeightPoints).Background(Gold);
 
                 var showGroupHeadings = !(planned.IndexGroups.Count == 1
                     && string.Equals(planned.IndexGroups[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase));
@@ -690,7 +697,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings));
                 }
-            });
+            }));
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
     }
@@ -702,12 +709,13 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             column.Spacing(0);
             if (showHeading)
             {
-                column.Item().Background(Forest100).BorderLeft(4).BorderColor(Forest800).PaddingHorizontal(10).PaddingVertical(7)
+                column.Item().Background(Forest100).BorderLeft(CompendiumLayoutMetrics.IndexGroupLeftBorderPoints).BorderColor(Forest800).PaddingHorizontal(CompendiumLayoutMetrics.IndexGroupHorizontalPaddingPoints).PaddingVertical(CompendiumLayoutMetrics.IndexGroupVerticalPaddingPoints)
                     .Row(row =>
                     {
                         row.RelativeItem().Text(group.CategoryName)
-                            .FontSize(11.5f)
+                            .FontSize(CompendiumLayoutMetrics.IndexGroupTitleFontSize)
                             .SemiBold()
+                            .LineHeight(CompendiumLayoutMetrics.IndexGroupTitleLineHeightMultiplier)
                             .FontColor(Forest900);
                         row.AutoItem().Text($"{group.Projects.Count} project{(group.Projects.Count == 1 ? string.Empty : "s")}")
                             .FontSize(8)
@@ -717,20 +725,23 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
             foreach (var project in group.Projects)
             {
-                column.Item().BorderBottom(1).BorderColor(Slate200).PaddingHorizontal(10).PaddingVertical(6).Row(row =>
+                column.Item().BorderBottom(CompendiumLayoutMetrics.IndexRowBorderBottomPoints).BorderColor(Slate200).PaddingHorizontal(CompendiumLayoutMetrics.IndexRowHorizontalPaddingPoints).PaddingVertical(CompendiumLayoutMetrics.IndexRowVerticalPaddingPoints).Row(row =>
                 {
                     row.RelativeItem().SectionLink(ProjectAnchorId(project.ProjectId)).Text(project.ProjectName)
-                        .FontSize(9.3f)
+                        .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
+                        .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
                         .FontColor(Ink);
-                    row.ConstantItem(76).AlignRight().Text(
+                    row.ConstantItem(CompendiumLayoutMetrics.IndexLifecycleWidthPoints).AlignRight().Text(
                             string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
                                 ? project.CompletionDisplay
                                 : project.LifecycleDisplay)
                         .FontSize(8.5f)
+                        .LineHeight(1.2f)
                         .FontColor(Slate500);
-                    row.ConstantItem(34).AlignRight().Text(project.ProjectPageNumber.ToString(CultureInfo.InvariantCulture))
+                    row.ConstantItem(CompendiumLayoutMetrics.IndexPageNumberWidthPoints).AlignRight().Text(project.ProjectPageNumber.ToString(CultureInfo.InvariantCulture))
                         .FontSize(9)
                         .SemiBold()
+                        .LineHeight(1.2f)
                         .FontColor(Forest800);
                 });
             }
@@ -755,14 +766,16 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
-            page.Content().PaddingTop(8).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
+            page.Content()
+                .PaddingTop(CompendiumLayoutMetrics.ProjectContentTopPaddingPoints)
+                .Element(body => body.ShowEntire().Section(ProjectAnchorId(project.ProjectId)).Column(column =>
             {
-                column.Spacing(9);
+                column.Spacing(CompendiumLayoutMetrics.ProjectColumnSpacingPoints);
                 column.Item().Text(publicationKicker.ToUpperInvariant())
-                    .FontSize(7.3f).SemiBold().LetterSpacing(.5f).FontColor(Forest800);
-                column.Item().Height(2).Width(58).Background(Gold);
+                    .FontSize(CompendiumLayoutMetrics.ProjectKickerFontSize).SemiBold().LineHeight(CompendiumLayoutMetrics.ProjectKickerLineHeightMultiplier).LetterSpacing(CompendiumLayoutMetrics.ProjectKickerLetterSpacingPoints).FontColor(Forest800);
+                column.Item().Height(CompendiumLayoutMetrics.ProjectHeadingRuleHeightPoints).Width(58).Background(Gold);
                 column.Item().Text(project.ProjectName)
-                    .FontSize(ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(1.08f).FontColor(Ink);
+                    .FontSize(CompendiumLayoutMetrics.ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(CompendiumLayoutMetrics.ProjectTitleLineHeightMultiplier).FontColor(Ink);
 
 
                 column.Item().Element(main => ComposeAdaptiveDossierMain(main, project, planned.DescriptionMarkdown, narrativeLabel));
@@ -777,7 +790,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Item().Element(note => ComposeAdditionalNote(note, planned.AdditionalNoteMarkdown, project.NarrativeAlignment, project.DossierNarrativeFontScale));
                 }
-            });
+            }));
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
     }
@@ -797,21 +810,23 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             ConfigureStandardPage(page);
             page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
-            page.Content().PaddingTop(12).Column(column =>
+            page.Content()
+                .PaddingTop(CompendiumLayoutMetrics.SecondaryContentTopPaddingPoints)
+                .Element(body => body.ShowEntire().Column(column =>
             {
-                column.Spacing(10);
+                column.Spacing(CompendiumLayoutMetrics.ContinuationColumnSpacingPoints);
                 column.Item().Text(project.ProjectName)
-                    .FontSize(17).SemiBold().LineHeight(1.06f).FontColor(Ink);
+                    .FontSize(CompendiumLayoutMetrics.ContinuationTitleFontSize).SemiBold().LineHeight(CompendiumLayoutMetrics.ContinuationTitleLineHeightMultiplier).FontColor(Ink);
                 column.Item().Row(row =>
                 {
                     row.RelativeItem().Text(planned.IsAdditionalNoteContinuation
                             ? "ADDITIONAL NOTE"
                             : planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : narrativeLabel.ToUpperInvariant())
-                        .FontSize(8.4f).SemiBold().LetterSpacing(.28f).FontColor(Forest800);
+                        .FontSize(8.4f).SemiBold().LineHeight(1.2f).LetterSpacing(.28f).FontColor(Forest800);
                     row.AutoItem().Text($"CONTINUED · PART {planned.ContinuationPart + 1}")
-                        .FontSize(7.2f).SemiBold().LetterSpacing(.26f).FontColor(Slate500);
+                        .FontSize(7.2f).SemiBold().LineHeight(1.2f).LetterSpacing(.26f).FontColor(Slate500);
                 });
-                column.Item().Height(2).Background(Gold);
+                column.Item().Height(CompendiumLayoutMetrics.ContinuationHeadingRuleHeightPoints).Background(Gold);
 
                 if (!string.IsNullOrWhiteSpace(planned.DescriptionMarkdown))
                 {
@@ -832,22 +847,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Item().Element(note => ComposeAdditionalNote(note, planned.AdditionalNoteMarkdown, project.NarrativeAlignment, project.DossierNarrativeFontScale, showHeading: !planned.IsAdditionalNoteContinuation));
                 }
-            });
+            }));
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
     }
 
-    private static float ResolveProjectTitleFontSize(string? title)
-    {
-        var length = title?.Trim().Length ?? 0;
-        return length switch
-        {
-            > 105 => 17.5f,
-            > 76 => 19f,
-            > 54 => 20.5f,
-            _ => 22f
-        };
-    }
 
     private static void ComposeAdaptiveDossierMain(
         IContainer container,
@@ -868,7 +872,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Spacing(9);
                     if (primaryBytes is { Length: > 0 })
-                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
                 });
                 return;
@@ -887,7 +891,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     column.Spacing(8);
                     if (primaryBytes is { Length: > 0 })
-                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
                 });
                 return;
@@ -907,7 +911,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 column.Spacing(8);
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+                    row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
                     row.ConstantItem(13);
                     row.RelativeItem(.88f).Element(text => ComposeDescription(
                         text, flow.SideSegment, narrativeLabel, false, project.DossierNarrativeFontScale,
@@ -923,7 +927,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
         container.Row(row =>
         {
-            row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
+            row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
             row.ConstantItem(13);
             row.RelativeItem(.88f).Element(text => ComposeDescription(
                 text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale,
@@ -931,20 +935,48 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         });
     }
 
-    private static void ComposeDossierImage(IContainer container, byte[] image, float height, CompendiumImageFitMode fitMode)
+    private static void ComposeDossierImage(
+        IContainer container,
+        byte[] image,
+        float maximumHeight,
+        CompendiumImageFitMode fitMode,
+        float frameWidth,
+        int? sourceWidth = null,
+        int? sourceHeight = null)
     {
         if (fitMode == CompendiumImageFitMode.Fit)
         {
-            container.Height(height).AlignCenter().AlignMiddle().Image(image).FitArea();
+            // Fit is intentionally an intrinsic-height publication element. The planner already
+            // resolves the same source-aware geometry; occupying only that physical height prevents
+            // an invisible maximum-height frame from invalidating the first-page narrative budget.
+            var geometry = CompendiumDossierImageGeometryPolicy.Resolve(
+                frameWidth,
+                maximumHeight,
+                sourceWidth,
+                sourceHeight,
+                CompendiumImageFitMode.Fit);
+            container
+                .Height(geometry.RenderedHeightPoints)
+                .AlignCenter()
+                .AlignMiddle()
+                .Image(image)
+                .FitArea();
             return;
         }
 
-        container.Height(height).Layers(layers =>
+        container.Height(maximumHeight).Layers(layers =>
         {
             layers.PrimaryLayer().Image(image).FitArea();
             layers.Layer().AlignBottom().Height(2).Background(Gold);
         });
     }
+
+    private static float ResolveDossierPrimaryFrameWidth(CompendiumPdfProjectSection project)
+        => CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
+            project.DossierLayout,
+            project.Images.Count(image => image.Content is { Length: > 0 }) > 0
+                ? project.Images.Count(image => image.Content is { Length: > 0 })
+                : project.CoverPhoto is { Length: > 0 } ? 1 : 0);
 
     private static void ComposeDossierMosaic(
         IContainer container,
@@ -956,21 +988,34 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         height = Math.Max(120f, height);
         if (available.Length == 1)
         {
-            ComposeDossierImage(container, available[0].Content!, height, available[0].FitMode);
+            ComposeDossierImage(
+                container,
+                available[0].Content!,
+                height,
+                available[0].FitMode,
+                CompendiumLayoutMetrics.ContentWidthPoints,
+                available[0].SourceWidth,
+                available[0].SourceHeight);
             return;
         }
 
         container.Height(height).Row(row =>
         {
-            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, height, available[0].FitMode));
+            var usableWidth = CompendiumLayoutMetrics.ContentWidthPoints - 7f;
+            var primaryWidth = usableWidth * 1.55f / 2.55f;
+            var secondaryWidth = usableWidth - primaryWidth;
+            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(
+                frame, available[0].Content!, height, available[0].FitMode, primaryWidth, available[0].SourceWidth, available[0].SourceHeight));
             row.ConstantItem(7);
             row.RelativeItem(1f).Column(column =>
             {
                 column.Spacing(7);
                 var secondaryHeight = available.Length >= 3 ? Math.Max(52f, (height - 7f) / 2f) : height;
-                column.Item().Element(frame => ComposeDossierImage(frame, available[1].Content!, secondaryHeight, available[1].FitMode));
+                column.Item().Element(frame => ComposeDossierImage(
+                    frame, available[1].Content!, secondaryHeight, available[1].FitMode, secondaryWidth, available[1].SourceWidth, available[1].SourceHeight));
                 if (available.Length >= 3)
-                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, secondaryHeight, available[2].FitMode));
+                    column.Item().Element(frame => ComposeDossierImage(
+                        frame, available[2].Content!, secondaryHeight, available[2].FitMode, secondaryWidth, available[2].SourceWidth, available[2].SourceHeight));
             });
         });
     }
@@ -1036,7 +1081,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             {
                 content.Spacing(panelSpacing);
                 content.Item().Text("PROJECT PARTICULARS")
-                    .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
+                    .FontSize(7.2f).SemiBold().LineHeight(1.08f).LetterSpacing(.32f).FontColor(Forest800);
 
                 foreach (var rowModules in modules.Chunk(programmeColumns))
                 {
@@ -1055,6 +1100,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                                     text.Item().Text(module.Label.ToUpperInvariant())
                                         .FontSize(labelFontSize)
                                         .SemiBold()
+                                        .LineHeight(1.08f)
                                         .LetterSpacing(labelLetterSpacing)
                                         .FontColor(Slate500);
                                     text.Item().PaddingTop(2).Text(module.Value)
@@ -1098,7 +1144,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             column.Item().Row(header =>
             {
                 header.AutoItem().Text("PROJECT PARTICULARS")
-                    .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
+                    .FontSize(7.2f).SemiBold().LineHeight(1.08f).LetterSpacing(.32f).FontColor(Forest800);
                 header.ConstantItem(9f);
                 header.RelativeItem().PaddingTop(4.4f).Height(1f).Background(GoldSoft);
             });
@@ -1119,6 +1165,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                                 text.Item().Text(module.Label.ToUpperInvariant())
                                     .FontSize(labelFontSize)
                                     .SemiBold()
+                                    .LineHeight(1.08f)
                                     .LetterSpacing(programmeColumns >= 4 ? .04f : .1f)
                                     .FontColor(Slate500);
                                 text.Item().PaddingTop(1.6f).Text(module.Value)
@@ -1706,7 +1753,12 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
     private static void ComposeRunningHeader(IContainer container, string left, string right, string? marking)
     {
-        container.PaddingBottom(7).BorderBottom(1).BorderColor(Slate200).Row(row =>
+        container
+            .Height(CompendiumLayoutMetrics.RunningHeaderHeightPoints)
+            .PaddingBottom(7)
+            .BorderBottom(1)
+            .BorderColor(Slate200)
+            .Row(row =>
         {
             row.RelativeItem().Text(left)
                 .FontSize(7.6f)

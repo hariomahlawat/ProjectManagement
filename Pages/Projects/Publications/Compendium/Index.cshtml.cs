@@ -66,7 +66,7 @@ public sealed class IndexModel : PageModel
         = Array.Empty<CompendiumPresetDiagnostic>();
 
     public bool CanManagePresets
-        => Policies.Publications.CanManageSharedPublications(User);
+        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
 
     public bool CanMaintainProjectData
         => User.IsInRole(RoleNames.Admin)
@@ -641,7 +641,7 @@ public sealed class IndexModel : PageModel
         {
             return JsonError(
                 StatusCodes.Status403Forbidden,
-                "Only Commandant, HoD or ITO may maintain shared Compendium configurations.");
+                "Only HoD or Comdt may maintain shared Compendium configurations.");
         }
 
         try
@@ -885,10 +885,13 @@ public sealed class IndexModel : PageModel
                 HttpContext.TraceIdentifier);
 
             var (message, code) = DescribeGenerationFailure(exception, preview);
+            var statusCode = exception is CompendiumPdfCompositionException
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status400BadRequest;
             if (IsAjaxRequest())
             {
                 return JsonError(
-                    StatusCodes.Status400BadRequest,
+                    statusCode,
                     message,
                     code,
                     HttpContext.TraceIdentifier);

@@ -306,6 +306,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                     probe.Width, probe.Height, preferredFrameWidth, preferredFrameHeight, resolved.Selection.ImageFitMode)
                 : null;
+            var sectionAssignment = ResolveSectionAssignment(selection, sections);
+            var planningKicker = NormalizeGroupingMode(request.GroupingMode) switch
+            {
+                CompendiumGroupingMode.CustomSections => NormalizeDisplay(sectionAssignment.SectionName, "Other Projects"),
+                _ => NormalizeDisplay(project.TechnicalCategory, "Project dossier")
+            };
             var paginationDecision = CompendiumDossierPaginationPlanner.Resolve(
                 selection.DossierLayout,
                 dossierDecision.Layout,
@@ -321,12 +327,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 resolved.Selection.ImageFitMode,
                 selection.AdditionalNote,
                 programmeModules,
-                projectParticularsStyle);
+                projectParticularsStyle,
+                planningKicker);
             var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
                 paginationDecision.Layout,
                 dossierPhotoCount);
             var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
-            var sectionAssignment = ResolveSectionAssignment(selection, sections);
             var effectiveDpi = probe is { IsReady: true }
                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                     probe.Width,
@@ -653,7 +659,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             resolved.Selection.ImageFitMode,
             selection.AdditionalNote,
             programmeModules,
-            projectParticularsStyle);
+            projectParticularsStyle,
+            NormalizeDisplay(project.TechnicalCategory, "Project dossier"));
         var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
             paginationDecision.Layout,
             dossierPhotoCount);

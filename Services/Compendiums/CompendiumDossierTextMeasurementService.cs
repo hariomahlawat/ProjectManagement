@@ -81,8 +81,18 @@ public static class CompendiumDossierTextMeasurementService
             float fontSizePoints,
             float lineHeightMultiplier,
             float paragraphSpacingPoints = 0f,
-            float leadingReservePoints = 0f)
-            => MeasurePlainAtFontSize(text, widthPoints, fontSizePoints, lineHeightMultiplier, paragraphSpacingPoints, leadingReservePoints);
+            float leadingReservePoints = 0f,
+            bool semiBold = false,
+            float letterSpacingPoints = 0f)
+            => MeasurePlainAtFontSize(
+                text,
+                widthPoints,
+                fontSizePoints,
+                lineHeightMultiplier,
+                paragraphSpacingPoints,
+                leadingReservePoints,
+                semiBold,
+                letterSpacingPoints);
 
         public Measurement MeasureSemanticAtFontSize(
             string? markdown,
@@ -102,7 +112,9 @@ public static class CompendiumDossierTextMeasurementService
                 Quantize(paragraphSpacingPoints),
                 Quantize(leadingReservePoints),
                 Semantic: true,
-                AllowMinorHeadings: allowMinorHeadings);
+                AllowMinorHeadings: allowMinorHeadings,
+                SemiBold: false,
+                LetterSpacingHundredths: 0);
             if (_cache.TryGetValue(key, out var cached)) return cached;
 
             var measured = MeasureSemanticAtFontSizeCore(
@@ -123,7 +135,9 @@ public static class CompendiumDossierTextMeasurementService
             float fontSizePoints,
             float lineHeightMultiplier,
             float paragraphSpacingPoints,
-            float leadingReservePoints)
+            float leadingReservePoints,
+            bool semiBold,
+            float letterSpacingPoints)
         {
             var normalized = NormalizePlain(text);
             var key = new MeasurementKey(
@@ -134,7 +148,9 @@ public static class CompendiumDossierTextMeasurementService
                 Quantize(paragraphSpacingPoints),
                 Quantize(leadingReservePoints),
                 Semantic: false,
-                AllowMinorHeadings: false);
+                AllowMinorHeadings: false,
+                SemiBold: semiBold,
+                LetterSpacingHundredths: Quantize(letterSpacingPoints));
             if (_cache.TryGetValue(key, out var cached)) return cached;
 
             var measured = MeasurePlainAtFontSizeCore(
@@ -143,7 +159,9 @@ public static class CompendiumDossierTextMeasurementService
                 fontSizePoints,
                 lineHeightMultiplier,
                 paragraphSpacingPoints,
-                leadingReservePoints);
+                leadingReservePoints,
+                semiBold,
+                letterSpacingPoints);
             _cache[key] = measured;
             return measured;
         }
@@ -191,7 +209,9 @@ public static class CompendiumDossierTextMeasurementService
         int ParagraphSpacingHundredths,
         int LeadingReserveHundredths,
         bool Semantic,
-        bool AllowMinorHeadings);
+        bool AllowMinorHeadings,
+        bool SemiBold,
+        int LetterSpacingHundredths);
 
     public static Measurement Measure(
         string? markdown,
@@ -213,14 +233,18 @@ public static class CompendiumDossierTextMeasurementService
         float fontSizePoints,
         float lineHeightMultiplier,
         float paragraphSpacingPoints = 0f,
-        float leadingReservePoints = 0f)
+        float leadingReservePoints = 0f,
+        bool semiBold = false,
+        float letterSpacingPoints = 0f)
         => new Session().MeasureAtFontSize(
             text,
             widthPoints,
             fontSizePoints,
             lineHeightMultiplier,
             paragraphSpacingPoints,
-            leadingReservePoints);
+            leadingReservePoints,
+            semiBold,
+            letterSpacingPoints);
 
     public static bool Fits(
         string? markdown,
@@ -326,7 +350,9 @@ public static class CompendiumDossierTextMeasurementService
         float fontSizePoints,
         float lineHeightMultiplier,
         float paragraphSpacingPoints,
-        float leadingReservePoints)
+        float leadingReservePoints,
+        bool semiBold,
+        float letterSpacingPoints)
     {
         if (normalized.Length == 0)
         {
@@ -340,6 +366,7 @@ public static class CompendiumDossierTextMeasurementService
         lineHeightMultiplier = Math.Max(1f, lineHeightMultiplier);
         paragraphSpacingPoints = Math.Max(0f, paragraphSpacingPoints);
         leadingReservePoints = Math.Max(0f, leadingReservePoints);
+        letterSpacingPoints = Math.Max(0f, letterSpacingPoints);
 
         var paragraphs = normalized
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -348,8 +375,8 @@ public static class CompendiumDossierTextMeasurementService
             .ToArray();
         if (paragraphs.Length == 0) return Measurement.Empty;
 
-        using var paint = CreatePaint(RegularTypeface.Value, fontSizePoints);
-        var lines = paragraphs.Sum(paragraph => MeasureWrappedLineCount(paragraph, widthPoints, paint));
+        using var paint = CreatePaint(semiBold ? SemiBoldTypeface.Value : RegularTypeface.Value, fontSizePoints);
+        var lines = paragraphs.Sum(paragraph => MeasureWrappedLineCount(paragraph, widthPoints, paint, letterSpacingPoints));
         var height = lines * fontSizePoints * lineHeightMultiplier
                      + Math.Max(0, paragraphs.Length - 1) * paragraphSpacingPoints
                      + leadingReservePoints;
@@ -364,7 +391,11 @@ public static class CompendiumDossierTextMeasurementService
             IsAntialias = true
         };
 
-    private static int MeasureWrappedLineCount(string paragraph, float widthPoints, SKPaint paint)
+    private static int MeasureWrappedLineCount(
+        string paragraph,
+        float widthPoints,
+        SKPaint paint,
+        float letterSpacingPoints = 0f)
     {
         if (string.IsNullOrWhiteSpace(paragraph)) return 0;
 
@@ -379,7 +410,7 @@ public static class CompendiumDossierTextMeasurementService
         {
             var word = words[index];
             var candidate = $"{line} {word}";
-            if (paint.MeasureText(candidate) <= widthPoints)
+            if (MeasureTextWidth(candidate, paint, letterSpacingPoints) <= widthPoints)
             {
                 line = candidate;
                 continue;
@@ -390,7 +421,7 @@ public static class CompendiumDossierTextMeasurementService
 
             // QuestPDF still shapes an unusually long token. Count the physical pressure of that
             // token conservatively without ever altering/splitting the publication source.
-            var wordWidth = paint.MeasureText(word);
+            var wordWidth = MeasureTextWidth(word, paint, letterSpacingPoints);
             if (wordWidth > widthPoints)
             {
                 lineCount += Math.Max(0, (int)Math.Ceiling(wordWidth / widthPoints) - 1);
@@ -398,6 +429,14 @@ public static class CompendiumDossierTextMeasurementService
         }
 
         return lineCount;
+    }
+
+
+    private static float MeasureTextWidth(string value, SKPaint paint, float letterSpacingPoints)
+    {
+        var width = paint.MeasureText(value);
+        if (letterSpacingPoints <= 0f || value.Length <= 1) return width;
+        return width + (value.Length - 1) * letterSpacingPoints;
     }
 
     private static string NormalizePlain(string? value)

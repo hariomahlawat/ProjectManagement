@@ -1,17 +1,42 @@
-PRISM Workspace Navigation Unification — Validation
-===================================================
+PRISM Compendium Phase 40 - Validation Results
+==============================================
 
-Completed in build environment:
-- node --check wwwroot/js/pages/workspace-index.js : PASS
-- node --check wwwroot/js/pages/command-workspace.js : PASS
-- node --test wwwroot/js/pages/workspace-navigation-unification.test.js : PASS (4/4)
-- CSS brace balance command-workspace.css : PASS (326/326 at validation point)
-- CSS brace balance workspace.css : PASS
-- git diff --no-index --check against supplied baseline : PASS (no whitespace errors)
-- Static scan for obsolete CommandWorkspaceRailVm ActiveView/CanSwitchWorkspace assignments : PASS
+Baseline:
+  ProjectManagement-master (11)(20260820-074448).zip
+  + Compendium Phase 39 generation reliability files
 
-Not executable in this environment:
-- dotnet build / dotnet test (the .NET SDK is not installed)
-- existing workspace-index.test.js requires jsdom, which is not installed in this extracted runtime
+Runtime/tool availability:
+  Node.js: v22.16.0
+  .NET SDK: NOT INSTALLED in delivery environment
 
-Run the .NET validation commands on the development machine after paste.
+Completed checks:
+  PASS  node --test wwwroot/js/projects/*compendium*.test.js
+        235 tests passed; 0 failed; 0 skipped
+
+  PASS  publications-compendium-phase40-pagination-closure.test.js
+        8 tests passed; 0 failed
+
+  PASS  C# delimiter/brace structural sanity on all 10 modified C# files
+
+  PASS  no trailing whitespace in all 13 replacement source/test files
+
+  PASS  exact unified patch applied cleanly to Phase 39 baseline
+        and byte-for-byte reproduced every packaged source/test file
+
+Physical geometry contract verified statically:
+  A4 height                 = 841.89 pt
+  Top margin                = 28.00 pt
+  Running header            = 28.00 pt
+  Footer                    = 35.00 pt
+  Project top padding       = 8.00 pt
+  Floating-point reserve    = 1.00 pt
+  Correct project body      = 741.89 pt
+
+  Previous hard-coded body  = 748.00 pt
+  Previous overbooking      = 6.11 pt
+
+Not executed here because .NET SDK is unavailable:
+  dotnet build .\ProjectManagement.csproj
+  dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+
+These two commands remain mandatory on the development machine before production deployment.

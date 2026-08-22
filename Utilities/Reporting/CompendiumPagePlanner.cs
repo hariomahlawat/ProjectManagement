@@ -82,6 +82,7 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                 var projectSeedStartIndex = projectSeeds.Count;
                 var hasPhoto = project.Images.Any(image => image.Content is { Length: > 0 }) || project.CoverPhoto is { Length: > 0 };
                 var layout = ResolveLayout(project.DescriptionMarkdown, hasPhoto);
+                var continuationBodyHeight = CompendiumDossierPaginationPlanner.ResolveContinuationBodyHeightPoints(project.ProjectName);
                 var cleanSpecifications = (project.TechnicalSpecifications ?? Array.Empty<string>())
                     .Where(item => !string.IsNullOrWhiteSpace(item))
                     .Take(6)
@@ -117,7 +118,7 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                     .SplitTechnicalSpecificationsForPhysicalPages(
                         cleanSpecifications.Skip(firstSpecificationCount).ToArray(),
                         project.DossierSpecificationColumns,
-                        CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints)
+                        continuationBodyHeight)
                     .ToList();
                 IReadOnlyList<string> attachedContinuationSpecifications = Array.Empty<string>();
                 if (chunks.Length > 1
@@ -126,7 +127,8 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                         chunks[^1],
                         remainingSpecChunks[0],
                         project.DossierSpecificationColumns,
-                        project.DossierNarrativeFontScale))
+                        project.DossierNarrativeFontScale,
+                        availableHeightPoints: continuationBodyHeight))
                 {
                     attachedContinuationSpecifications = remainingSpecChunks[0];
                     remainingSpecChunks.RemoveAt(0);
@@ -180,8 +182,8 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                 {
                     var noteChunks = CompendiumDossierNarrativeFlowPlanner.SplitForPhysicalPages(
                             additionalNote,
-                            519f,
-                            CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
+                            CompendiumLayoutMetrics.ContentWidthPoints,
+                            continuationBodyHeight,
                             project.DossierNarrativeFontScale,
                             includeHeading: false,
                             allowMinorHeadings: false)
@@ -201,7 +203,8 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
                                 last.TechnicalSpecifications,
                                 project.DossierSpecificationColumns,
                                 project.DossierNarrativeFontScale,
-                                noteChunks[0]))
+                                noteChunks[0],
+                                continuationBodyHeight))
                         {
                             projectSeeds[^1] = last with { AdditionalNoteMarkdown = noteChunks[0] };
                             noteChunks.RemoveAt(0);
@@ -229,7 +232,7 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
             }
         }
 
-        var indexSeeds = BuildIndexSeeds(context.Categories);
+        var indexSeeds = BuildIndexSeeds(context.Title, context.Categories);
         var projectStartPhysicalPage = 1 + indexSeeds.Count + 1; // Cover + all index pages + first project.
         var projectStartPages = new Dictionary<int, int>();
         var cursor = projectStartPhysicalPage;
@@ -299,22 +302,25 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
     }
 
     private static IReadOnlyList<IndexPageSeed> BuildIndexSeeds(
+        string? publicationTitle,
         IReadOnlyList<CompendiumPdfCategorySection> categories)
     {
         var pages = new List<IndexPageSeed>();
         var current = new List<IndexGroupSeed>();
-        var unitsUsed = 0;
+        var measurement = new CompendiumDossierTextMeasurementService.Session();
+        var baseHeight = MeasureIndexHeadingHeight(publicationTitle, measurement)
+                         + CompendiumLayoutMetrics.IndexColumnSpacingPoints
+                         + CompendiumLayoutMetrics.IndexRuleHeightPoints;
+        var usedHeight = baseHeight;
+        var hideProjectHeading = categories.Count == 1
+                                 && string.Equals(categories[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase);
 
         void Flush()
         {
-            if (current.Count == 0)
-            {
-                return;
-            }
-
+            if (current.Count == 0) return;
             pages.Add(new IndexPageSeed(current.ToArray()));
             current = new List<IndexGroupSeed>();
-            unitsUsed = 0;
+            usedHeight = baseHeight;
         }
 
         foreach (var category in categories)
@@ -322,72 +328,116 @@ public sealed class CompendiumPagePlanner : ICompendiumPagePlanner
             var projectIndex = 0;
             while (projectIndex < category.Projects.Count)
             {
-                var headerCost = CompendiumLayoutMetrics.IndexCategoryHeaderUnits;
-                if (CompendiumLayoutMetrics.IndexPageRowUnits - unitsUsed
-                    < headerCost + CompendiumLayoutMetrics.IndexProjectRowUnits)
-                {
-                    Flush();
-                }
-
                 var groupProjects = new List<CompendiumPdfProjectSection>();
-                var groupUnits = headerCost;
+                var groupHeight = hideProjectHeading
+                    ? 0f
+                    : MeasureIndexGroupHeadingHeight(category.CategoryName, measurement);
 
                 while (projectIndex < category.Projects.Count)
                 {
                     var project = category.Projects[projectIndex];
-                    var rowUnits = EstimateIndexProjectRowUnits(project);
-                    if (groupProjects.Count > 0
-                        && unitsUsed + groupUnits + rowUnits > CompendiumLayoutMetrics.IndexPageRowUnits)
+                    var rowHeight = MeasureIndexProjectRowHeight(project.ProjectName, measurement);
+                    var projectedGroupHeight = groupHeight + rowHeight;
+                    var projectedPageHeight = usedHeight
+                                              + CompendiumLayoutMetrics.IndexColumnSpacingPoints
+                                              + projectedGroupHeight;
+
+                    if (projectedPageHeight > CompendiumLayoutMetrics.SecondaryContentHeightPoints
+                        && groupProjects.Count > 0)
                     {
                         break;
                     }
 
-                    if (groupProjects.Count == 0
-                        && unitsUsed + groupUnits + rowUnits > CompendiumLayoutMetrics.IndexPageRowUnits
-                        && unitsUsed > 0)
+                    if (projectedPageHeight > CompendiumLayoutMetrics.SecondaryContentHeightPoints
+                        && groupProjects.Count == 0
+                        && current.Count > 0)
                     {
                         Flush();
                         continue;
                     }
 
+                    // A single exceptionally tall project row is still kept intact on an otherwise
+                    // empty index page. ShowEntire() in the compositor turns any impossible geometry
+                    // into a controlled generation failure instead of a silent extra PDF page.
                     groupProjects.Add(project);
-                    groupUnits += rowUnits;
+                    groupHeight = projectedGroupHeight;
                     projectIndex++;
                 }
 
                 if (groupProjects.Count == 0)
                 {
-                    // A pathological title is still allowed to occupy one row group. The row-unit
-                    // estimate is capped, so this is a defensive guard rather than a normal path.
                     groupProjects.Add(category.Projects[projectIndex++]);
-                    groupUnits += CompendiumLayoutMetrics.IndexProjectRowUnits;
+                    groupHeight += MeasureIndexProjectRowHeight(groupProjects[0].ProjectName, measurement);
                 }
 
                 current.Add(new IndexGroupSeed(category.CategoryName, groupProjects.ToArray()));
-                unitsUsed += groupUnits;
+                usedHeight += CompendiumLayoutMetrics.IndexColumnSpacingPoints + groupHeight;
 
-                if (projectIndex < category.Projects.Count)
-                {
-                    Flush();
-                }
+                if (projectIndex < category.Projects.Count) Flush();
             }
         }
 
         Flush();
-        if (pages.Count == 0)
-        {
-            pages.Add(new IndexPageSeed(Array.Empty<IndexGroupSeed>()));
-        }
-
+        if (pages.Count == 0) pages.Add(new IndexPageSeed(Array.Empty<IndexGroupSeed>()));
         return pages;
     }
 
-    private static int EstimateIndexProjectRowUnits(CompendiumPdfProjectSection project)
+    private static float MeasureIndexHeadingHeight(
+        string? publicationTitle,
+        CompendiumDossierTextMeasurementService.Session measurement)
     {
-        var length = string.IsNullOrWhiteSpace(project.ProjectName)
-            ? 1
-            : project.ProjectName.Trim().Length;
-        return Math.Clamp((length + 69) / 70, 1, 3);
+        var leftWidth = Math.Max(120f,
+            CompendiumLayoutMetrics.ContentWidthPoints - CompendiumLayoutMetrics.IndexGroupCountReserveWidthPoints);
+        var heading = measurement.MeasureAtFontSize(
+            "Compendium Index",
+            leftWidth,
+            CompendiumLayoutMetrics.IndexHeadingTitleFontSize,
+            CompendiumLayoutMetrics.IndexHeadingTitleLineHeightMultiplier,
+            semiBold: true).HeightPoints;
+        var title = measurement.MeasureAtFontSize(
+            publicationTitle,
+            leftWidth,
+            CompendiumLayoutMetrics.IndexPublicationTitleFontSize,
+            CompendiumLayoutMetrics.IndexPublicationTitleLineHeightMultiplier).HeightPoints;
+        return Math.Max(12f, heading + title);
+    }
+
+    private static float MeasureIndexGroupHeadingHeight(
+        string? categoryName,
+        CompendiumDossierTextMeasurementService.Session measurement)
+    {
+        var width = Math.Max(100f,
+            CompendiumLayoutMetrics.ContentWidthPoints
+            - CompendiumLayoutMetrics.IndexGroupLeftBorderPoints
+            - (2f * CompendiumLayoutMetrics.IndexGroupHorizontalPaddingPoints)
+            - CompendiumLayoutMetrics.IndexGroupCountReserveWidthPoints);
+        var textHeight = measurement.MeasureAtFontSize(
+            categoryName,
+            width,
+            CompendiumLayoutMetrics.IndexGroupTitleFontSize,
+            CompendiumLayoutMetrics.IndexGroupTitleLineHeightMultiplier,
+            semiBold: true).HeightPoints;
+        return Math.Max(13.8f, textHeight)
+               + (2f * CompendiumLayoutMetrics.IndexGroupVerticalPaddingPoints);
+    }
+
+    private static float MeasureIndexProjectRowHeight(
+        string? projectName,
+        CompendiumDossierTextMeasurementService.Session measurement)
+    {
+        var width = Math.Max(100f,
+            CompendiumLayoutMetrics.ContentWidthPoints
+            - (2f * CompendiumLayoutMetrics.IndexRowHorizontalPaddingPoints)
+            - CompendiumLayoutMetrics.IndexLifecycleWidthPoints
+            - CompendiumLayoutMetrics.IndexPageNumberWidthPoints);
+        var nameHeight = measurement.MeasureAtFontSize(
+            projectName,
+            width,
+            CompendiumLayoutMetrics.IndexProjectNameFontSize,
+            CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier).HeightPoints;
+        return Math.Max(CompendiumLayoutMetrics.IndexMinimumTextLineHeightPoints, nameHeight)
+               + (2f * CompendiumLayoutMetrics.IndexRowVerticalPaddingPoints)
+               + CompendiumLayoutMetrics.IndexRowBorderBottomPoints;
     }
 
     private sealed record ProjectPageSeed(

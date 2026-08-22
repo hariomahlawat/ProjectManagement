@@ -1,8 +1,4 @@
-FILE-MANIFEST.txt
 Pages/Projects/Publications/Compendium/Index.cshtml.cs
-README-PHASE40-PHYSICAL-PAGINATION-CLOSURE.txt
-SHA256SUMS.txt
-SOURCE-FILES.txt
 Services/Compendiums/CompendiumDossierPaginationPlanner.cs
 Services/Compendiums/CompendiumDossierTextMeasurementService.cs
 Services/Compendiums/CompendiumExportService.cs
@@ -12,8 +8,6 @@ Utilities/Reporting/CompendiumLayoutMetrics.cs
 Utilities/Reporting/CompendiumPagePlanner.cs
 Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
 Utilities/Reporting/CompendiumPdfReportBuilder.cs
-VALIDATION.txt
-prism_compendium_phase40_physical_pagination_closure.patch
 wwwroot/js/projects/publications-compendium-phase33-contract.test.js
 wwwroot/js/projects/publications-compendium-phase37-1-contract.test.js
 wwwroot/js/projects/publications-compendium-phase40-pagination-closure.test.js

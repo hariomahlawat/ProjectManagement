@@ -1,0 +1,1725 @@
+--- a/Pages/Projects/Publications/Compendium/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Index.cshtml.cs
+@@ -885,10 +885,13 @@
+                 HttpContext.TraceIdentifier);
+ 
+             var (message, code) = DescribeGenerationFailure(exception, preview);
++            var statusCode = exception is CompendiumPdfCompositionException
++                ? StatusCodes.Status409Conflict
++                : StatusCodes.Status400BadRequest;
+             if (IsAjaxRequest())
+             {
+                 return JsonError(
+-                    StatusCodes.Status400BadRequest,
++                    statusCode,
+                     message,
+                     code,
+                     HttpContext.TraceIdentifier);
+--- a/Services/Compendiums/CompendiumDossierPaginationPlanner.cs
++++ b/Services/Compendiums/CompendiumDossierPaginationPlanner.cs
+@@ -1,22 +1,18 @@
+ using System.Text.RegularExpressions;
++using ProjectManagement.Utilities.Reporting;
+ 
+ namespace ProjectManagement.Services.Compendiums;
+ 
+ /// <summary>
+-/// Shared A4 dossier composition planner used by browser review and PDF planning. Phase 37.3
+-/// separates physical feasibility from editorial validity: one-page candidates are measured first,
+-/// then rejected from Automatic selection when Fill imagery becomes token-sized or a Balanced Side
+-/// Column produces a material image/text imbalance. Explicit publisher choices remain available,
+-/// but unsafe editorial combinations surface a publication warning instead of being silently approved.
++/// Shared A4 dossier composition planner used by browser review and PDF planning. Phase 40 makes
++/// physical feasibility authoritative: semantic narrative, DM Sans title wrapping and fixed page
++/// chrome are all measured against the same geometry later used by QuestPDF. Editorial scoring is
++/// applied only after a candidate is physically valid.
+ /// </summary>
+ public static class CompendiumDossierPaginationPlanner
+ {
+-    // Physical project-column height after the A4 top margin, running header, content top padding
+-    // and fixed footer are reserved. Keep a small shaping safety margin here; editorial breathing
+-    // room is scored separately through ResolveIdealResidualSpace rather than being hidden in the
+-    // available-height constant.
+-    private const float PhysicalContentHeightPoints = 748f;
+-    private const float FullNarrativeWidthPoints = 519f;
++    private const float PhysicalContentHeightPoints = CompendiumLayoutMetrics.ProjectContentHeightPoints;
++    private const float FullNarrativeWidthPoints = CompendiumLayoutMetrics.ContentWidthPoints;
+ 
+     private static readonly Regex MarkdownNoiseRegex = new(
+         @"[*_`#>]",
+@@ -53,10 +49,12 @@
+         CompendiumImageFitMode primaryImageFitMode = CompendiumImageFitMode.Fill,
+         string? additionalNote = null,
+         IReadOnlyList<CompendiumProgrammeModuleDto>? programmeModules = null,
+-        CompendiumProjectParticularsStyle projectParticularsStyle = CompendiumProjectParticularsStyle.Panel)
++        CompendiumProjectParticularsStyle projectParticularsStyle = CompendiumProjectParticularsStyle.Panel,
++        string? projectKicker = null)
+     {
+         availablePhotoCount = Math.Clamp(availablePhotoCount, 0, 3);
+-        var cleanNarrative = CleanText(narrative);
++        var narrativeMarkdown = CompendiumNarrativeParser.Normalize(narrative);
++        var cleanNarrative = CleanText(narrativeMarkdown);
+         var cleanAdditionalNote = CompendiumPublicationNotePolicy.Normalize(additionalNote);
+         var specifications = (technicalSpecifications ?? Array.Empty<string>())
+             .Where(item => !string.IsNullOrWhiteSpace(item))
+@@ -99,10 +97,11 @@
+                         imageHeight,
+                         narrativeScale,
+                         availablePhotoCount,
+-                        cleanNarrative,
++                        narrativeMarkdown,
+                         specifications,
+                         programmeModuleCount,
+                         projectName,
++                        projectKicker,
+                         specificationColumns,
+                         programmeColumns,
+                         programmeHeight,
+@@ -222,10 +221,11 @@
+                 candidateCompactHeight,
+                 1f,
+                 availablePhotoCount,
+-                cleanNarrative,
++                narrativeMarkdown,
+                 Array.Empty<string>(),
+                 programmeModuleCount,
+                 projectName,
++                projectKicker,
+                 1,
+                 programmeColumns,
+                 programmeHeight,
+@@ -265,10 +265,11 @@
+             compactHeight,
+             1f,
+             availablePhotoCount,
+-            cleanNarrative,
++            narrativeMarkdown,
+             Array.Empty<string>(),
+             programmeModuleCount,
+             projectName,
++            projectKicker,
+             1,
+             programmeColumns,
+             programmeHeight,
+@@ -294,10 +295,11 @@
+                     compactHeight,
+                     1f,
+                     availablePhotoCount,
+-                    cleanNarrative,
++                    narrativeMarkdown,
+                     specifications.Take(count).ToArray(),
+                     programmeModuleCount,
+                     projectName,
++                    projectKicker,
+                     specificationColumns,
+                     programmeColumns,
+                     programmeHeight,
+@@ -320,7 +322,7 @@
+         var firstNarrativeHeight = Math.Max(36f, firstPageEvaluation.NarrativeHeightCapacityPoints);
+ 
+         var firstPageFlow = CompendiumDossierNarrativeFlowPlanner.Resolve(
+-            cleanNarrative,
++            narrativeMarkdown,
+             balancedTextFlowMode,
+             fallbackLayout,
+             availablePhotoCount > 0,
+@@ -332,11 +334,12 @@
+             firstNarrativeHeight);
+         var narrativeContinuationPages = firstPageFlow.ContinuationSegments.Count;
+ 
++        var continuationBodyHeight = ResolveContinuationBodyHeightPoints(projectName, measurementSession);
+         var remainingSpecifications = specifications.Skip(firstSpecificationCount).ToArray();
+         var specificationChunks = SplitTechnicalSpecificationsForPhysicalPages(
+             remainingSpecifications,
+             specificationColumns,
+-            CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints);
++            continuationBodyHeight);
+         var specificationContinuationPages = specificationChunks.Count;
+ 
+         // A short final Project Brief continuation and a compact technical chunk may share the same
+@@ -348,7 +351,8 @@
+                 firstPageFlow.ContinuationSegments[^1],
+                 specificationChunks[0],
+                 specificationColumns,
+-                1f);
++                1f,
++                availableHeightPoints: continuationBodyHeight);
+         if (firstSpecificationChunkShared)
+             specificationContinuationPages--;
+ 
+@@ -372,7 +376,7 @@
+             var noteChunks = CompendiumDossierNarrativeFlowPlanner.SplitForPhysicalPages(
+                 cleanAdditionalNote,
+                 FullNarrativeWidthPoints,
+-                CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
++                continuationBodyHeight,
+                 1f,
+                 includeHeading: false,
+                 allowMinorHeadings: false);
+@@ -386,7 +390,8 @@
+                     lastContinuationSpecifications,
+                     specificationColumns,
+                     1f,
+-                    noteChunks[0]))
++                    noteChunks[0],
++                    continuationBodyHeight))
+             {
+                 noteContinuationPages--;
+             }
+@@ -513,7 +518,8 @@
+         IReadOnlyList<string>? specifications,
+         int specificationColumns,
+         float narrativeFontScale,
+-        string? additionalNote = null)
++        string? additionalNote = null,
++        float? availableHeightPoints = null)
+     {
+         var measurement = new CompendiumDossierTextMeasurementService.Session();
+         var narrativeHeight = string.IsNullOrWhiteSpace(narrative)
+@@ -531,10 +537,14 @@
+             CompendiumPublicationNotePolicy.Normalize(additionalNote),
+             narrativeFontScale,
+             measurement);
+-        var interBlockSpacing = (narrativeHeight > 0f && specificationHeight > 0f ? 10f : 0f)
+-                                + ((narrativeHeight > 0f || specificationHeight > 0f) && noteHeight > 0f ? 10f : 0f);
+-        return narrativeHeight + specificationHeight + noteHeight + interBlockSpacing
+-               <= CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints;
++        var interBlockSpacing = (narrativeHeight > 0f && specificationHeight > 0f
++                ? CompendiumLayoutMetrics.ContinuationColumnSpacingPoints
++                : 0f)
++            + ((narrativeHeight > 0f || specificationHeight > 0f) && noteHeight > 0f
++                ? CompendiumLayoutMetrics.ContinuationColumnSpacingPoints
++                : 0f);
++        var capacity = Math.Max(80f, availableHeightPoints ?? CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints);
++        return narrativeHeight + specificationHeight + noteHeight + interBlockSpacing <= capacity;
+     }
+ 
+     public static int ResolveProgrammeColumns(int moduleCount)
+@@ -603,6 +613,7 @@
+         IReadOnlyList<string> specifications,
+         int programmeModuleCount,
+         string? projectName,
++        string? projectKicker,
+         int specificationColumns,
+         int programmeColumns,
+         float programmeHeight,
+@@ -614,12 +625,15 @@
+         CompendiumDossierTextMeasurementService.Session measurementSession)
+     {
+         narrativeFontScale = CompendiumNarrativeTypographyPolicy.NormalizeScale(narrativeFontScale);
+-        var titleHeight = EstimateTitleBlockHeight(projectName);
++        var titleHeight = EstimateTitleBlockHeight(projectName, projectKicker, measurementSession);
+         programmeHeight = Math.Max(0f, programmeHeight);
+         var specificationHeight = EstimateSpecificationHeight(specifications, specificationColumns, measurementSession);
+         var additionalNoteHeight = EstimateAdditionalNoteHeight(additionalNote, narrativeFontScale, measurementSession);
+         var hasPhoto = availablePhotoCount > 0 && imageHeight > 0f;
+-        var fixedGaps = 31f;
++        var trailingBlockCount = (programmeHeight > 0f ? 1 : 0)
++                                 + (specificationHeight > 0f ? 1 : 0)
++                                 + (additionalNoteHeight > 0f ? 1 : 0);
++        var fixedGaps = trailingBlockCount * CompendiumLayoutMetrics.ProjectColumnSpacingPoints;
+         float sideRemaining = 0f;
+         float sideOverflow = 0f;
+         float sideBalanceRatio = 1f;
+@@ -887,11 +901,52 @@
+             leadingReservePoints: noteHeadingGeometryPoints).HeightPoints;
+     }
+ 
+-    private static float EstimateTitleBlockHeight(string? projectName)
+-    {
+-        var length = projectName?.Trim().Length ?? 0;
+-        var extraLines = length switch { > 105 => 2, > 72 => 1, _ => 0 };
+-        return 62f + extraLines * 17f;
++    private static float EstimateTitleBlockHeight(
++        string? projectName,
++        string? projectKicker,
++        CompendiumDossierTextMeasurementService.Session measurementSession)
++    {
++        var fontSize = CompendiumLayoutMetrics.ResolveProjectTitleFontSize(projectName);
++        var titleHeight = measurementSession.MeasureAtFontSize(
++            projectName,
++            FullNarrativeWidthPoints,
++            fontSize,
++            CompendiumLayoutMetrics.ProjectTitleLineHeightMultiplier,
++            semiBold: true).HeightPoints;
++        var kickerText = string.IsNullOrWhiteSpace(projectKicker) ? "Project dossier" : projectKicker.Trim();
++        var kickerHeight = measurementSession.MeasureAtFontSize(
++            kickerText.ToUpperInvariant(),
++            FullNarrativeWidthPoints,
++            CompendiumLayoutMetrics.ProjectKickerFontSize,
++            CompendiumLayoutMetrics.ProjectKickerLineHeightMultiplier,
++            semiBold: true,
++            letterSpacingPoints: CompendiumLayoutMetrics.ProjectKickerLetterSpacingPoints).HeightPoints;
++        return kickerHeight
++               + CompendiumLayoutMetrics.ProjectHeadingRuleHeightPoints
++               + (3f * CompendiumLayoutMetrics.ProjectColumnSpacingPoints)
++               + titleHeight;
++    }
++
++    public static float ResolveContinuationBodyHeightPoints(string? projectName)
++        => ResolveContinuationBodyHeightPoints(
++            projectName,
++            new CompendiumDossierTextMeasurementService.Session());
++
++    private static float ResolveContinuationBodyHeightPoints(
++        string? projectName,
++        CompendiumDossierTextMeasurementService.Session measurementSession)
++    {
++        var titleHeight = measurementSession.MeasureAtFontSize(
++            projectName,
++            FullNarrativeWidthPoints,
++            CompendiumLayoutMetrics.ContinuationTitleFontSize,
++            CompendiumLayoutMetrics.ContinuationTitleLineHeightMultiplier,
++            semiBold: true).HeightPoints;
++        var fixedGeometry = titleHeight
++                            + (3f * CompendiumLayoutMetrics.ContinuationColumnSpacingPoints)
++                            + CompendiumLayoutMetrics.ContinuationLabelLineHeightPoints
++                            + CompendiumLayoutMetrics.ContinuationHeadingRuleHeightPoints;
++        return Math.Max(120f, CompendiumLayoutMetrics.SecondaryContentHeightPoints - fixedGeometry);
+     }
+ 
+     private static CompendiumProjectParticularsLayoutPolicy.Layout ResolveLegacyParticularsLayout(
+--- a/Services/Compendiums/CompendiumDossierTextMeasurementService.cs
++++ b/Services/Compendiums/CompendiumDossierTextMeasurementService.cs
+@@ -81,8 +81,18 @@
+             float fontSizePoints,
+             float lineHeightMultiplier,
+             float paragraphSpacingPoints = 0f,
+-            float leadingReservePoints = 0f)
+-            => MeasurePlainAtFontSize(text, widthPoints, fontSizePoints, lineHeightMultiplier, paragraphSpacingPoints, leadingReservePoints);
++            float leadingReservePoints = 0f,
++            bool semiBold = false,
++            float letterSpacingPoints = 0f)
++            => MeasurePlainAtFontSize(
++                text,
++                widthPoints,
++                fontSizePoints,
++                lineHeightMultiplier,
++                paragraphSpacingPoints,
++                leadingReservePoints,
++                semiBold,
++                letterSpacingPoints);
+ 
+         public Measurement MeasureSemanticAtFontSize(
+             string? markdown,
+@@ -102,7 +112,9 @@
+                 Quantize(paragraphSpacingPoints),
+                 Quantize(leadingReservePoints),
+                 Semantic: true,
+-                AllowMinorHeadings: allowMinorHeadings);
++                AllowMinorHeadings: allowMinorHeadings,
++                SemiBold: false,
++                LetterSpacingHundredths: 0);
+             if (_cache.TryGetValue(key, out var cached)) return cached;
+ 
+             var measured = MeasureSemanticAtFontSizeCore(
+@@ -123,7 +135,9 @@
+             float fontSizePoints,
+             float lineHeightMultiplier,
+             float paragraphSpacingPoints,
+-            float leadingReservePoints)
++            float leadingReservePoints,
++            bool semiBold,
++            float letterSpacingPoints)
+         {
+             var normalized = NormalizePlain(text);
+             var key = new MeasurementKey(
+@@ -134,7 +148,9 @@
+                 Quantize(paragraphSpacingPoints),
+                 Quantize(leadingReservePoints),
+                 Semantic: false,
+-                AllowMinorHeadings: false);
++                AllowMinorHeadings: false,
++                SemiBold: semiBold,
++                LetterSpacingHundredths: Quantize(letterSpacingPoints));
+             if (_cache.TryGetValue(key, out var cached)) return cached;
+ 
+             var measured = MeasurePlainAtFontSizeCore(
+@@ -143,7 +159,9 @@
+                 fontSizePoints,
+                 lineHeightMultiplier,
+                 paragraphSpacingPoints,
+-                leadingReservePoints);
++                leadingReservePoints,
++                semiBold,
++                letterSpacingPoints);
+             _cache[key] = measured;
+             return measured;
+         }
+@@ -191,7 +209,9 @@
+         int ParagraphSpacingHundredths,
+         int LeadingReserveHundredths,
+         bool Semantic,
+-        bool AllowMinorHeadings);
++        bool AllowMinorHeadings,
++        bool SemiBold,
++        int LetterSpacingHundredths);
+ 
+     public static Measurement Measure(
+         string? markdown,
+@@ -213,14 +233,18 @@
+         float fontSizePoints,
+         float lineHeightMultiplier,
+         float paragraphSpacingPoints = 0f,
+-        float leadingReservePoints = 0f)
++        float leadingReservePoints = 0f,
++        bool semiBold = false,
++        float letterSpacingPoints = 0f)
+         => new Session().MeasureAtFontSize(
+             text,
+             widthPoints,
+             fontSizePoints,
+             lineHeightMultiplier,
+             paragraphSpacingPoints,
+-            leadingReservePoints);
++            leadingReservePoints,
++            semiBold,
++            letterSpacingPoints);
+ 
+     public static bool Fits(
+         string? markdown,
+@@ -326,7 +350,9 @@
+         float fontSizePoints,
+         float lineHeightMultiplier,
+         float paragraphSpacingPoints,
+-        float leadingReservePoints)
++        float leadingReservePoints,
++        bool semiBold,
++        float letterSpacingPoints)
+     {
+         if (normalized.Length == 0)
+         {
+@@ -340,6 +366,7 @@
+         lineHeightMultiplier = Math.Max(1f, lineHeightMultiplier);
+         paragraphSpacingPoints = Math.Max(0f, paragraphSpacingPoints);
+         leadingReservePoints = Math.Max(0f, leadingReservePoints);
++        letterSpacingPoints = Math.Max(0f, letterSpacingPoints);
+ 
+         var paragraphs = normalized
+             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+@@ -348,8 +375,8 @@
+             .ToArray();
+         if (paragraphs.Length == 0) return Measurement.Empty;
+ 
+-        using var paint = CreatePaint(RegularTypeface.Value, fontSizePoints);
+-        var lines = paragraphs.Sum(paragraph => MeasureWrappedLineCount(paragraph, widthPoints, paint));
++        using var paint = CreatePaint(semiBold ? SemiBoldTypeface.Value : RegularTypeface.Value, fontSizePoints);
++        var lines = paragraphs.Sum(paragraph => MeasureWrappedLineCount(paragraph, widthPoints, paint, letterSpacingPoints));
+         var height = lines * fontSizePoints * lineHeightMultiplier
+                      + Math.Max(0, paragraphs.Length - 1) * paragraphSpacingPoints
+                      + leadingReservePoints;
+@@ -364,7 +391,11 @@
+             IsAntialias = true
+         };
+ 
+-    private static int MeasureWrappedLineCount(string paragraph, float widthPoints, SKPaint paint)
++    private static int MeasureWrappedLineCount(
++        string paragraph,
++        float widthPoints,
++        SKPaint paint,
++        float letterSpacingPoints = 0f)
+     {
+         if (string.IsNullOrWhiteSpace(paragraph)) return 0;
+ 
+@@ -379,7 +410,7 @@
+         {
+             var word = words[index];
+             var candidate = $"{line} {word}";
+-            if (paint.MeasureText(candidate) <= widthPoints)
++            if (MeasureTextWidth(candidate, paint, letterSpacingPoints) <= widthPoints)
+             {
+                 line = candidate;
+                 continue;
+@@ -390,7 +421,7 @@
+ 
+             // QuestPDF still shapes an unusually long token. Count the physical pressure of that
+             // token conservatively without ever altering/splitting the publication source.
+-            var wordWidth = paint.MeasureText(word);
++            var wordWidth = MeasureTextWidth(word, paint, letterSpacingPoints);
+             if (wordWidth > widthPoints)
+             {
+                 lineCount += Math.Max(0, (int)Math.Ceiling(wordWidth / widthPoints) - 1);
+@@ -398,6 +429,14 @@
+         }
+ 
+         return lineCount;
++    }
++
++
++    private static float MeasureTextWidth(string value, SKPaint paint, float letterSpacingPoints)
++    {
++        var width = paint.MeasureText(value);
++        if (letterSpacingPoints <= 0f || value.Length <= 1) return width;
++        return width + (value.Length - 1) * letterSpacingPoints;
+     }
+ 
+     private static string NormalizePlain(string? value)
+--- a/Services/Compendiums/CompendiumExportService.cs
++++ b/Services/Compendiums/CompendiumExportService.cs
+@@ -139,11 +139,17 @@
+             {
+                 var renderedDossierImages = project.DossierImages
+                     .Where(image => image.PhotoId.HasValue)
+-                    .Select(image => new CompendiumPdfProjectImage(
+-                        image.Role,
+-                        renderedPhotos.TryGetValue(image.PhotoId!.Value, out var rendered) ? rendered.Content : null,
+-                        image.FitMode,
+-                        image.PhotoId))
++                    .Select(image =>
++                    {
++                        var rendered = renderedPhotos.GetValueOrDefault(image.PhotoId!.Value);
++                        return new CompendiumPdfProjectImage(
++                            image.Role,
++                            rendered?.Content,
++                            image.FitMode,
++                            image.PhotoId,
++                            rendered?.SourceWidth ?? image.SourceWidth,
++                            rendered?.SourceHeight ?? image.SourceHeight);
++                    })
+                     .ToArray();
+                 var primaryImage = renderedDossierImages.FirstOrDefault(image => image.Role == CompendiumDossierImageRole.Primary);
+                 var photoBytes = primaryImage?.Content;
+--- a/Services/Compendiums/CompendiumProjectParticularsLayoutPolicy.cs
++++ b/Services/Compendiums/CompendiumProjectParticularsLayoutPolicy.cs
+@@ -1,3 +1,5 @@
++using ProjectManagement.Utilities.Reporting;
++
+ namespace ProjectManagement.Services.Compendiums;
+ 
+ /// <summary>
+@@ -8,7 +10,7 @@
+ /// </summary>
+ public static class CompendiumProjectParticularsLayoutPolicy
+ {
+-    public const float FullWidthPoints = 519f;
++    public const float FullWidthPoints = CompendiumLayoutMetrics.ContentWidthPoints;
+ 
+     public sealed record Layout(
+         CompendiumProjectParticularsStyle Style,
+@@ -83,12 +85,15 @@
+                 module.Label.ToUpperInvariant(),
+                 textWidth,
+                 fontSizePoints: columns >= 4 ? 5.55f : 5.8f,
+-                lineHeightMultiplier: 1.08f);
++                lineHeightMultiplier: 1.08f,
++                semiBold: true,
++                letterSpacingPoints: columns >= 4 ? .04f : .1f);
+             var value = measurementSession.MeasureAtFontSize(
+                 module.Value,
+                 textWidth,
+                 fontSizePoints: columns >= 4 ? 8.4f : 8.7f,
+-                lineHeightMultiplier: 1.08f);
++                lineHeightMultiplier: 1.08f,
++                semiBold: true);
+             if (label.LineCount > 2 || value.LineCount > 2) return false;
+         }
+         return true;
+@@ -101,27 +106,44 @@
+     {
+         var paddingVertical = modules.Count switch { 1 => 5f, 2 or 3 => 6f, _ => 7f };
+         var spacing = modules.Count == 1 ? 4f : 6f;
+-        var itemWidth = Math.Max(70f, (FullWidthPoints - 20f) / columns);
+-        var textWidth = Math.Max(42f, itemWidth - 37f);
++        var compactSingle = modules.Count == 1 && IsCompactSingle(modules[0]);
++        const float borderPoints = 1f;
++        var innerWidth = Math.Max(80f, FullWidthPoints - (2f * borderPoints) - 20f); // border + 10pt horizontal padding
++        var itemWidth = innerWidth / Math.Max(1, columns);
++        if (compactSingle) itemWidth /= 2f;
++        var textWidth = Math.Max(42f, itemWidth - 37f); // right padding + icon + gutter
+         var labelSize = columns switch { >= 3 => 6.05f, 2 => 6.3f, _ => 6.5f };
+-        var valueSize = 9.1f;
++        const float valueSize = 9.1f;
+         var rowHeights = new List<float>();
+         foreach (var row in modules.Chunk(columns))
+         {
+             var rowHeight = row.Max(module =>
+             {
+                 var label = measurementSession.MeasureAtFontSize(
+-                    module.Label.ToUpperInvariant(), textWidth, labelSize, 1.08f).HeightPoints;
++                    module.Label.ToUpperInvariant(),
++                    textWidth,
++                    labelSize,
++                    1.08f,
++                    semiBold: true,
++                    letterSpacingPoints: columns switch { >= 3 => .08f, 2 => .12f, _ => .16f }).HeightPoints;
+                 var value = measurementSession.MeasureAtFontSize(
+-                    module.Value, textWidth, valueSize, 1.08f).HeightPoints;
++                    module.Value, textWidth, valueSize, 1.08f, semiBold: true).HeightPoints;
+                 return Math.Max(22f, label + 2f + value);
+             });
+             rowHeights.Add(rowHeight);
+         }
+ 
++        var heading = measurementSession.MeasureAtFontSize(
++            "PROJECT PARTICULARS",
++            innerWidth,
++            fontSizePoints: 7.2f,
++            lineHeightMultiplier: 1.08f,
++            semiBold: true,
++            letterSpacingPoints: .32f).HeightPoints;
++
+         const float topRule = 2.25f;
+-        const float heading = 8.5f;
+-        return topRule
++        return (2f * borderPoints)
++               + topRule
+                + paddingVertical * 2f
+                + heading
+                + spacing * rowHeights.Count
+@@ -133,8 +155,11 @@
+         int columns,
+         CompendiumDossierTextMeasurementService.Session measurementSession)
+     {
+-        var itemWidth = FullWidthPoints / columns;
+-        var textWidth = Math.Max(44f, itemWidth - 30f);
++        var compactSingle = modules.Count == 1 && IsCompactSingle(modules[0]);
++        var itemWidth = FullWidthPoints / Math.Max(1, columns);
++        if (compactSingle) itemWidth /= 2f;
++        var rightPadding = columns >= 4 ? 5f : 10f;
++        var textWidth = Math.Max(44f, itemWidth - rightPadding - 19f - 6f);
+         var labelSize = columns >= 4 ? 5.55f : columns >= 3 ? 5.75f : 6f;
+         var valueSize = columns >= 4 ? 8.4f : 8.8f;
+         var rowHeights = new List<float>();
+@@ -143,23 +168,31 @@
+             var rowHeight = row.Max(module =>
+             {
+                 var label = measurementSession.MeasureAtFontSize(
+-                    module.Label.ToUpperInvariant(), textWidth, labelSize, 1.08f).HeightPoints;
++                    module.Label.ToUpperInvariant(),
++                    textWidth,
++                    labelSize,
++                    1.08f,
++                    semiBold: true,
++                    letterSpacingPoints: columns >= 4 ? .04f : .1f).HeightPoints;
+                 var value = measurementSession.MeasureAtFontSize(
+-                    module.Value, textWidth, valueSize, 1.08f).HeightPoints;
+-                return Math.Max(18f, label + 1.6f + value);
++                    module.Value, textWidth, valueSize, 1.08f, semiBold: true).HeightPoints;
++                return Math.Max(19f, label + 1.6f + value);
+             });
+             rowHeights.Add(rowHeight);
+         }
+ 
+-        const float headingAndRule = 9f;
+-        const float headingGap = 7f;
+-        const float rowGap = 8f;
+-        const float bottomBreathingRoom = 3f;
+-        return headingAndRule
+-               + headingGap
++        var header = measurementSession.MeasureAtFontSize(
++            "PROJECT PARTICULARS",
++            Math.Max(80f, FullWidthPoints - 9f),
++            fontSizePoints: 7.2f,
++            lineHeightMultiplier: 1.08f,
++            semiBold: true,
++            letterSpacingPoints: .32f).HeightPoints;
++
++        // QuestPDF uses one 7pt Column.Spacing gap between the header and every rendered row.
++        return Math.Max(header, 5.4f)
+                + rowHeights.Sum()
+-               + Math.Max(0, rowHeights.Count - 1) * rowGap
+-               + bottomBreathingRoom;
++               + rowHeights.Count * 7f;
+     }
+ 
+     private static bool IsCompactSingle(CompendiumProgrammeModuleDto module)
+--- a/Services/Compendiums/CompendiumReadService.cs
++++ b/Services/Compendiums/CompendiumReadService.cs
+@@ -306,6 +306,12 @@
+                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                     probe.Width, probe.Height, preferredFrameWidth, preferredFrameHeight, resolved.Selection.ImageFitMode)
+                 : null;
++            var sectionAssignment = ResolveSectionAssignment(selection, sections);
++            var planningKicker = NormalizeGroupingMode(request.GroupingMode) switch
++            {
++                CompendiumGroupingMode.CustomSections => NormalizeDisplay(sectionAssignment.SectionName, "Other Projects"),
++                _ => NormalizeDisplay(project.TechnicalCategory, "Project dossier")
++            };
+             var paginationDecision = CompendiumDossierPaginationPlanner.Resolve(
+                 selection.DossierLayout,
+                 dossierDecision.Layout,
+@@ -321,12 +327,12 @@
+                 resolved.Selection.ImageFitMode,
+                 selection.AdditionalNote,
+                 programmeModules,
+-                projectParticularsStyle);
++                projectParticularsStyle,
++                planningKicker);
+             var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
+                 paginationDecision.Layout,
+                 dossierPhotoCount);
+             var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
+-            var sectionAssignment = ResolveSectionAssignment(selection, sections);
+             var effectiveDpi = probe is { IsReady: true }
+                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                     probe.Width,
+@@ -653,7 +659,8 @@
+             resolved.Selection.ImageFitMode,
+             selection.AdditionalNote,
+             programmeModules,
+-            projectParticularsStyle);
++            projectParticularsStyle,
++            NormalizeDisplay(project.TechnicalCategory, "Project dossier"));
+         var dossierFrameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
+             paginationDecision.Layout,
+             dossierPhotoCount);
+--- a/Utilities/Reporting/CompendiumLayoutMetrics.cs
++++ b/Utilities/Reporting/CompendiumLayoutMetrics.cs
+@@ -1,8 +1,9 @@
+ namespace ProjectManagement.Utilities.Reporting;
+ 
+ /// <summary>
+-/// Single physical-geometry contract for the A4 portrait Compendium. Phase 24.1 adds
+-/// content-aware project-image geometry while retaining deterministic planning.
++/// Authoritative physical-geometry contract for the A4 portrait Compendium. Phase 40 closes the
++/// pagination loop by sharing the same header/content/footer geometry between planning and QuestPDF
++/// composition instead of allowing each layer to maintain independent height assumptions.
+ /// </summary>
+ public static class CompendiumLayoutMetrics
+ {
+@@ -12,7 +13,35 @@
+     public const float HorizontalMarginPoints = 38f;
+     public const float TopMarginPoints = 28f;
+     public const float FooterHeightPoints = 35f;
++    public const float RunningHeaderHeightPoints = 28f;
++    public const float ProjectContentTopPaddingPoints = 8f;
++    public const float SecondaryContentTopPaddingPoints = 12f;
++    public const float PhysicalPaginationReservePoints = 1f;
+     public const float ContentWidthPoints = PageWidthPoints - (2f * HorizontalMarginPoints);
++
++    /// <summary>
++    /// Maximum height available to the inner project-page column after all fixed A4 chrome is
++    /// removed. The one-point reserve absorbs PDF floating-point rounding only; it is not an
++    /// editorial safety margin.
++    /// </summary>
++    public const float ProjectContentHeightPoints =
++        PageHeightPoints
++        - TopMarginPoints
++        - RunningHeaderHeightPoints
++        - FooterHeightPoints
++        - ProjectContentTopPaddingPoints
++        - PhysicalPaginationReservePoints;
++
++    /// <summary>
++    /// Maximum height available to index and continuation inner columns.
++    /// </summary>
++    public const float SecondaryContentHeightPoints =
++        PageHeightPoints
++        - TopMarginPoints
++        - RunningHeaderHeightPoints
++        - FooterHeightPoints
++        - SecondaryContentTopPaddingPoints
++        - PhysicalPaginationReservePoints;
+ 
+     public const float ProjectImageWidthPoints = ContentWidthPoints;
+     public const float ProjectImageLongHeightPoints = 190f;
+@@ -20,9 +49,50 @@
+     public const float ProjectImageShortHeightPoints = 300f;
+ 
+     public const float ProjectTitleFontSize = 20f;
++    public const float ProjectTitleLineHeightMultiplier = 1.08f;
++    public const float ProjectKickerFontSize = 7.3f;
++    public const float ProjectKickerLineHeightMultiplier = 1.20f;
++    public const float ProjectKickerLetterSpacingPoints = .5f;
++    public const float ProjectColumnSpacingPoints = 9f;
++    public const float ProjectHeadingRuleHeightPoints = 2f;
++
++    public const float ContinuationTitleFontSize = 17f;
++    public const float ContinuationTitleLineHeightMultiplier = 1.06f;
++    public const float ContinuationColumnSpacingPoints = 10f;
++    public const float ContinuationLabelLineHeightPoints = 10.1f;
++    public const float ContinuationHeadingRuleHeightPoints = 2f;
++
+     public const float ProjectBodyFontSize = 10f;
+     public const float ProjectBodyMinimumFontSize = 9.5f;
+     public const float ContinuationBodyFontSize = 10f;
++
++    // Index geometry mirrors ComposeIndexPage / ComposeIndexGroup exactly.
++    public const float IndexColumnSpacingPoints = 12f;
++    public const float IndexHeadingTitleFontSize = 22f;
++    public const float IndexHeadingTitleLineHeightMultiplier = 1.20f;
++    public const float IndexPublicationTitleFontSize = 9.5f;
++    public const float IndexPublicationTitleLineHeightMultiplier = 1.20f;
++    public const float IndexRuleHeightPoints = 2f;
++    public const float IndexGroupHorizontalPaddingPoints = 10f;
++    public const float IndexGroupLeftBorderPoints = 4f;
++    public const float IndexGroupVerticalPaddingPoints = 7f;
++    public const float IndexGroupTitleFontSize = 11.5f;
++    public const float IndexGroupTitleLineHeightMultiplier = 1.20f;
++    public const float IndexGroupCountReserveWidthPoints = 92f;
++    public const float IndexRowHorizontalPaddingPoints = 10f;
++    public const float IndexRowVerticalPaddingPoints = 6f;
++    public const float IndexRowBorderBottomPoints = 1f;
++    public const float IndexProjectNameFontSize = 9.3f;
++    public const float IndexProjectNameLineHeightMultiplier = 1.20f;
++    public const float IndexLifecycleWidthPoints = 76f;
++    public const float IndexPageNumberWidthPoints = 34f;
++    public const float IndexMinimumTextLineHeightPoints = 10.8f;
++
++    // Legacy row-unit constants are retained for backward source compatibility. Phase 40 planning
++    // no longer uses them; index membership is measured in physical points.
++    public const int IndexPageRowUnits = 22;
++    public const int IndexCategoryHeaderUnits = 2;
++    public const int IndexProjectRowUnits = 1;
+ 
+     public const int FirstPageDescriptionBudgetPhotoLong = 2250;
+     public const int FirstPageDescriptionBudgetPhotoMedium = 1500;
+@@ -30,9 +100,17 @@
+     public const int FirstPageDescriptionBudgetWithoutPhoto = 2850;
+     public const int ContinuationDescriptionBudget = 3300;
+ 
+-    public const int IndexPageRowUnits = 22;
+-    public const int IndexCategoryHeaderUnits = 2;
+-    public const int IndexProjectRowUnits = 1;
++    public static float ResolveProjectTitleFontSize(string? title)
++    {
++        var length = title?.Trim().Length ?? 0;
++        return length switch
++        {
++            > 105 => 17.5f,
++            > 76 => 19f,
++            > 54 => 20.5f,
++            _ => 22f
++        };
++    }
+ 
+     public static float ProjectImageHeightPoints(CompendiumProjectLayoutVariant variant)
+         => variant switch
+--- a/Utilities/Reporting/CompendiumPagePlanner.cs
++++ b/Utilities/Reporting/CompendiumPagePlanner.cs
+@@ -82,6 +82,7 @@
+                 var projectSeedStartIndex = projectSeeds.Count;
+                 var hasPhoto = project.Images.Any(image => image.Content is { Length: > 0 }) || project.CoverPhoto is { Length: > 0 };
+                 var layout = ResolveLayout(project.DescriptionMarkdown, hasPhoto);
++                var continuationBodyHeight = CompendiumDossierPaginationPlanner.ResolveContinuationBodyHeightPoints(project.ProjectName);
+                 var cleanSpecifications = (project.TechnicalSpecifications ?? Array.Empty<string>())
+                     .Where(item => !string.IsNullOrWhiteSpace(item))
+                     .Take(6)
+@@ -117,7 +118,7 @@
+                     .SplitTechnicalSpecificationsForPhysicalPages(
+                         cleanSpecifications.Skip(firstSpecificationCount).ToArray(),
+                         project.DossierSpecificationColumns,
+-                        CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints)
++                        continuationBodyHeight)
+                     .ToList();
+                 IReadOnlyList<string> attachedContinuationSpecifications = Array.Empty<string>();
+                 if (chunks.Length > 1
+@@ -126,7 +127,8 @@
+                         chunks[^1],
+                         remainingSpecChunks[0],
+                         project.DossierSpecificationColumns,
+-                        project.DossierNarrativeFontScale))
++                        project.DossierNarrativeFontScale,
++                        availableHeightPoints: continuationBodyHeight))
+                 {
+                     attachedContinuationSpecifications = remainingSpecChunks[0];
+                     remainingSpecChunks.RemoveAt(0);
+@@ -180,8 +182,8 @@
+                 {
+                     var noteChunks = CompendiumDossierNarrativeFlowPlanner.SplitForPhysicalPages(
+                             additionalNote,
+-                            519f,
+-                            CompendiumPublicationNotePolicy.ContinuationBodyHeightPoints,
++                            CompendiumLayoutMetrics.ContentWidthPoints,
++                            continuationBodyHeight,
+                             project.DossierNarrativeFontScale,
+                             includeHeading: false,
+                             allowMinorHeadings: false)
+@@ -201,7 +203,8 @@
+                                 last.TechnicalSpecifications,
+                                 project.DossierSpecificationColumns,
+                                 project.DossierNarrativeFontScale,
+-                                noteChunks[0]))
++                                noteChunks[0],
++                                continuationBodyHeight))
+                         {
+                             projectSeeds[^1] = last with { AdditionalNoteMarkdown = noteChunks[0] };
+                             noteChunks.RemoveAt(0);
+@@ -229,7 +232,7 @@
+             }
+         }
+ 
+-        var indexSeeds = BuildIndexSeeds(context.Categories);
++        var indexSeeds = BuildIndexSeeds(context.Title, context.Categories);
+         var projectStartPhysicalPage = 1 + indexSeeds.Count + 1; // Cover + all index pages + first project.
+         var projectStartPages = new Dictionary<int, int>();
+         var cursor = projectStartPhysicalPage;
+@@ -299,22 +302,25 @@
+     }
+ 
+     private static IReadOnlyList<IndexPageSeed> BuildIndexSeeds(
++        string? publicationTitle,
+         IReadOnlyList<CompendiumPdfCategorySection> categories)
+     {
+         var pages = new List<IndexPageSeed>();
+         var current = new List<IndexGroupSeed>();
+-        var unitsUsed = 0;
++        var measurement = new CompendiumDossierTextMeasurementService.Session();
++        var baseHeight = MeasureIndexHeadingHeight(publicationTitle, measurement)
++                         + CompendiumLayoutMetrics.IndexColumnSpacingPoints
++                         + CompendiumLayoutMetrics.IndexRuleHeightPoints;
++        var usedHeight = baseHeight;
++        var hideProjectHeading = categories.Count == 1
++                                 && string.Equals(categories[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase);
+ 
+         void Flush()
+         {
+-            if (current.Count == 0)
+-            {
+-                return;
+-            }
+-
++            if (current.Count == 0) return;
+             pages.Add(new IndexPageSeed(current.ToArray()));
+             current = new List<IndexGroupSeed>();
+-            unitsUsed = 0;
++            usedHeight = baseHeight;
+         }
+ 
+         foreach (var category in categories)
+@@ -322,72 +328,116 @@
+             var projectIndex = 0;
+             while (projectIndex < category.Projects.Count)
+             {
+-                var headerCost = CompendiumLayoutMetrics.IndexCategoryHeaderUnits;
+-                if (CompendiumLayoutMetrics.IndexPageRowUnits - unitsUsed
+-                    < headerCost + CompendiumLayoutMetrics.IndexProjectRowUnits)
+-                {
+-                    Flush();
+-                }
+-
+                 var groupProjects = new List<CompendiumPdfProjectSection>();
+-                var groupUnits = headerCost;
++                var groupHeight = hideProjectHeading
++                    ? 0f
++                    : MeasureIndexGroupHeadingHeight(category.CategoryName, measurement);
+ 
+                 while (projectIndex < category.Projects.Count)
+                 {
+                     var project = category.Projects[projectIndex];
+-                    var rowUnits = EstimateIndexProjectRowUnits(project);
+-                    if (groupProjects.Count > 0
+-                        && unitsUsed + groupUnits + rowUnits > CompendiumLayoutMetrics.IndexPageRowUnits)
++                    var rowHeight = MeasureIndexProjectRowHeight(project.ProjectName, measurement);
++                    var projectedGroupHeight = groupHeight + rowHeight;
++                    var projectedPageHeight = usedHeight
++                                              + CompendiumLayoutMetrics.IndexColumnSpacingPoints
++                                              + projectedGroupHeight;
++
++                    if (projectedPageHeight > CompendiumLayoutMetrics.SecondaryContentHeightPoints
++                        && groupProjects.Count > 0)
+                     {
+                         break;
+                     }
+ 
+-                    if (groupProjects.Count == 0
+-                        && unitsUsed + groupUnits + rowUnits > CompendiumLayoutMetrics.IndexPageRowUnits
+-                        && unitsUsed > 0)
++                    if (projectedPageHeight > CompendiumLayoutMetrics.SecondaryContentHeightPoints
++                        && groupProjects.Count == 0
++                        && current.Count > 0)
+                     {
+                         Flush();
+                         continue;
+                     }
+ 
++                    // A single exceptionally tall project row is still kept intact on an otherwise
++                    // empty index page. ShowEntire() in the compositor turns any impossible geometry
++                    // into a controlled generation failure instead of a silent extra PDF page.
+                     groupProjects.Add(project);
+-                    groupUnits += rowUnits;
++                    groupHeight = projectedGroupHeight;
+                     projectIndex++;
+                 }
+ 
+                 if (groupProjects.Count == 0)
+                 {
+-                    // A pathological title is still allowed to occupy one row group. The row-unit
+-                    // estimate is capped, so this is a defensive guard rather than a normal path.
+                     groupProjects.Add(category.Projects[projectIndex++]);
+-                    groupUnits += CompendiumLayoutMetrics.IndexProjectRowUnits;
++                    groupHeight += MeasureIndexProjectRowHeight(groupProjects[0].ProjectName, measurement);
+                 }
+ 
+                 current.Add(new IndexGroupSeed(category.CategoryName, groupProjects.ToArray()));
+-                unitsUsed += groupUnits;
+-
+-                if (projectIndex < category.Projects.Count)
+-                {
+-                    Flush();
+-                }
++                usedHeight += CompendiumLayoutMetrics.IndexColumnSpacingPoints + groupHeight;
++
++                if (projectIndex < category.Projects.Count) Flush();
+             }
+         }
+ 
+         Flush();
+-        if (pages.Count == 0)
+-        {
+-            pages.Add(new IndexPageSeed(Array.Empty<IndexGroupSeed>()));
+-        }
+-
++        if (pages.Count == 0) pages.Add(new IndexPageSeed(Array.Empty<IndexGroupSeed>()));
+         return pages;
+     }
+ 
+-    private static int EstimateIndexProjectRowUnits(CompendiumPdfProjectSection project)
+-    {
+-        var length = string.IsNullOrWhiteSpace(project.ProjectName)
+-            ? 1
+-            : project.ProjectName.Trim().Length;
+-        return Math.Clamp((length + 69) / 70, 1, 3);
++    private static float MeasureIndexHeadingHeight(
++        string? publicationTitle,
++        CompendiumDossierTextMeasurementService.Session measurement)
++    {
++        var leftWidth = Math.Max(120f,
++            CompendiumLayoutMetrics.ContentWidthPoints - CompendiumLayoutMetrics.IndexGroupCountReserveWidthPoints);
++        var heading = measurement.MeasureAtFontSize(
++            "Compendium Index",
++            leftWidth,
++            CompendiumLayoutMetrics.IndexHeadingTitleFontSize,
++            CompendiumLayoutMetrics.IndexHeadingTitleLineHeightMultiplier,
++            semiBold: true).HeightPoints;
++        var title = measurement.MeasureAtFontSize(
++            publicationTitle,
++            leftWidth,
++            CompendiumLayoutMetrics.IndexPublicationTitleFontSize,
++            CompendiumLayoutMetrics.IndexPublicationTitleLineHeightMultiplier).HeightPoints;
++        return Math.Max(12f, heading + title);
++    }
++
++    private static float MeasureIndexGroupHeadingHeight(
++        string? categoryName,
++        CompendiumDossierTextMeasurementService.Session measurement)
++    {
++        var width = Math.Max(100f,
++            CompendiumLayoutMetrics.ContentWidthPoints
++            - CompendiumLayoutMetrics.IndexGroupLeftBorderPoints
++            - (2f * CompendiumLayoutMetrics.IndexGroupHorizontalPaddingPoints)
++            - CompendiumLayoutMetrics.IndexGroupCountReserveWidthPoints);
++        var textHeight = measurement.MeasureAtFontSize(
++            categoryName,
++            width,
++            CompendiumLayoutMetrics.IndexGroupTitleFontSize,
++            CompendiumLayoutMetrics.IndexGroupTitleLineHeightMultiplier,
++            semiBold: true).HeightPoints;
++        return Math.Max(13.8f, textHeight)
++               + (2f * CompendiumLayoutMetrics.IndexGroupVerticalPaddingPoints);
++    }
++
++    private static float MeasureIndexProjectRowHeight(
++        string? projectName,
++        CompendiumDossierTextMeasurementService.Session measurement)
++    {
++        var width = Math.Max(100f,
++            CompendiumLayoutMetrics.ContentWidthPoints
++            - (2f * CompendiumLayoutMetrics.IndexRowHorizontalPaddingPoints)
++            - CompendiumLayoutMetrics.IndexLifecycleWidthPoints
++            - CompendiumLayoutMetrics.IndexPageNumberWidthPoints);
++        var nameHeight = measurement.MeasureAtFontSize(
++            projectName,
++            width,
++            CompendiumLayoutMetrics.IndexProjectNameFontSize,
++            CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier).HeightPoints;
++        return Math.Max(CompendiumLayoutMetrics.IndexMinimumTextLineHeightPoints, nameHeight)
++               + (2f * CompendiumLayoutMetrics.IndexRowVerticalPaddingPoints)
++               + CompendiumLayoutMetrics.IndexRowBorderBottomPoints;
+     }
+ 
+     private sealed record ProjectPageSeed(
+--- a/Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
++++ b/Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
+@@ -10,19 +10,22 @@
+         int expectedPageCount,
+         int actualPageCount,
+         int? expectedPhysicalPage = null,
+-        string? projectName = null)
++        string? projectName = null,
++        int? actualPhysicalPage = null)
+         : base(message)
+     {
+         ExpectedPageCount = expectedPageCount;
+         ActualPageCount = actualPageCount;
+         ExpectedPhysicalPage = expectedPhysicalPage;
+         ProjectName = projectName;
++        ActualPhysicalPage = actualPhysicalPage;
+     }
+ 
+     public int ExpectedPageCount { get; }
+     public int ActualPageCount { get; }
+     public int? ExpectedPhysicalPage { get; }
+     public string? ProjectName { get; }
++    public int? ActualPhysicalPage { get; }
+ }
+ 
+ public sealed record CompendiumPdfVerificationResult(bool IsVerified, int PageCount);
+@@ -55,15 +58,21 @@
+         var pages = document.GetPages().ToArray();
+         var actual = pages.Length;
+         var expected = plan.ExpectedPageCount;
++        var canonicalPages = pages.Select(page => Canonical(page.Text)).ToArray();
+         if (actual != expected)
+         {
++            var drift = FindFirstObservableDrift(canonicalPages, plan);
++            var diagnostic = drift is null
++                ? string.Empty
++                : $" First observable drift: {drift.Description} was planned on physical page {drift.ExpectedPage}, but rendered on page {drift.ActualPage}.";
+             throw new CompendiumPdfCompositionException(
+-                $"Compendium composition drifted after rendering: the page planner expected {expected} physical page{Plural(expected)}, but the generated PDF contains {actual}. The PDF was not issued.",
++                $"Compendium composition drifted after rendering: the page planner expected {expected} physical page{Plural(expected)}, but the generated PDF contains {actual}.{diagnostic} The PDF was not issued.",
+                 expected,
+-                actual);
+-        }
+-
+-        var canonicalPages = pages.Select(page => Canonical(page.Text)).ToArray();
++                actual,
++                drift?.ExpectedPage,
++                drift?.ProjectName,
++                drift?.ActualPage);
++        }
+         var frontTitle = ResolveEffectiveFrontTitle(context);
+         VerifyTextOnPage(canonicalPages, frontTitle, 1, expected, actual, "Compendium cover");
+ 
+@@ -205,7 +214,7 @@
+             return;
+         }
+ 
+-        var actualPage = FindPage(canonicalPages, needle);
++        var actualPage = FindNearestPage(canonicalPages, needle, physicalPage);
+         var location = actualPage.HasValue
+             ? $" It rendered on physical page {actualPage.Value}."
+             : " The expected text could not be located in the generated PDF.";
+@@ -214,20 +223,126 @@
+             expectedPageCount,
+             actualPageCount,
+             physicalPage,
+-            projectName);
+-    }
+-
+-    private static int? FindPage(IReadOnlyList<string> pages, string needle)
+-    {
+-        for (var index = 0; index < pages.Count; index++)
+-        {
+-            if (pages[index].Contains(needle, StringComparison.Ordinal))
+-            {
+-                return index + 1;
+-            }
+-        }
++            projectName,
++            actualPage);
++    }
++
++    private static DriftDiagnostic? FindFirstObservableDrift(
++        IReadOnlyList<string> pages,
++        CompendiumPagePlan plan)
++    {
++        // Index pages are checked first because an index overflow shifts every downstream dossier.
++        // Use a concrete project entry rather than the repeated "Compendium Index" heading so the
++        // diagnostic can localise the first page whose planned membership changed.
++        foreach (var planned in plan.Pages.Where(page => page.Kind == CompendiumPageKind.Index))
++        {
++            foreach (var entry in planned.IndexGroups.SelectMany(group => group.Projects))
++            {
++                var needle = Canonical(entry.ProjectName);
++                if (needle.Length < 3) continue;
++
++                var expectedIndex = planned.PhysicalPageNumber - 1;
++                if (expectedIndex >= 0
++                    && expectedIndex < pages.Count
++                    && pages[expectedIndex].Contains(needle, StringComparison.Ordinal))
++                {
++                    continue;
++                }
++
++                var actualPage = FindNearestPage(pages, needle, planned.PhysicalPageNumber);
++                if (actualPage.HasValue)
++                {
++                    return new DriftDiagnostic(
++                        planned.PhysicalPageNumber,
++                        actualPage.Value,
++                        $"Compendium index entry '{entry.ProjectName}'",
++                        entry.ProjectName);
++                }
++            }
++        }
++
++        foreach (var planned in plan.Pages)
++        {
++            if (planned.Kind is not (CompendiumPageKind.Project or CompendiumPageKind.ProjectContinuation)
++                || planned.Project is null)
++            {
++                continue;
++            }
++
++            var projectNeedle = Canonical(planned.Project.ProjectName);
++            if (projectNeedle.Length < 3) continue;
++
++            var expectedIndex = planned.PhysicalPageNumber - 1;
++            var expectedMatches = expectedIndex >= 0
++                                  && expectedIndex < pages.Count
++                                  && pages[expectedIndex].Contains(projectNeedle, StringComparison.Ordinal);
++            if (planned.Kind == CompendiumPageKind.ProjectContinuation)
++            {
++                expectedMatches = expectedMatches
++                                  && pages[expectedIndex].Contains(Canonical("continued"), StringComparison.Ordinal);
++            }
++            if (expectedMatches) continue;
++
++            int? actualPage;
++            if (planned.Kind == CompendiumPageKind.ProjectContinuation)
++            {
++                actualPage = FindNearestPage(
++                    pages,
++                    planned.PhysicalPageNumber,
++                    page => page.Contains(projectNeedle, StringComparison.Ordinal)
++                            && page.Contains(Canonical("continued"), StringComparison.Ordinal));
++            }
++            else
++            {
++                actualPage = FindNearestPage(pages, projectNeedle, planned.PhysicalPageNumber);
++            }
++
++            if (actualPage.HasValue)
++            {
++                return new DriftDiagnostic(
++                    planned.PhysicalPageNumber,
++                    actualPage.Value,
++                    planned.Kind == CompendiumPageKind.Project ? "project section" : "project continuation",
++                    planned.Project.ProjectName);
++            }
++        }
++
+         return null;
+     }
++
++    private static int? FindNearestPage(
++        IReadOnlyList<string> pages,
++        string needle,
++        int expectedPhysicalPage)
++        => FindNearestPage(
++            pages,
++            expectedPhysicalPage,
++            page => page.Contains(needle, StringComparison.Ordinal));
++
++    private static int? FindNearestPage(
++        IReadOnlyList<string> pages,
++        int expectedPhysicalPage,
++        Func<string, bool> predicate)
++    {
++        if (pages.Count == 0) return null;
++        var expectedIndex = Math.Clamp(expectedPhysicalPage - 1, 0, pages.Count - 1);
++        for (var distance = 0; distance < pages.Count; distance++)
++        {
++            var forward = expectedIndex + distance;
++            if (forward < pages.Count && predicate(pages[forward])) return forward + 1;
++
++            if (distance == 0) continue;
++            var backward = expectedIndex - distance;
++            if (backward >= 0 && predicate(pages[backward])) return backward + 1;
++        }
++        return null;
++    }
++
++    private sealed record DriftDiagnostic(
++        int ExpectedPage,
++        int ActualPage,
++        string Description,
++        string? ProjectName);
+ 
+     private static string Canonical(string? value)
+     {
+--- a/Utilities/Reporting/CompendiumPdfReportBuilder.cs
++++ b/Utilities/Reporting/CompendiumPdfReportBuilder.cs
+@@ -76,7 +76,9 @@
+     CompendiumDossierImageRole Role,
+     byte[]? Content,
+     CompendiumImageFitMode FitMode,
+-    int? PhotoId);
++    int? PhotoId,
++    int? SourceWidth = null,
++    int? SourceHeight = null);
+ 
+ public sealed record CompendiumPdfProjectSection(
+     int ProjectId,
+@@ -125,8 +127,9 @@
+ }
+ 
+ /// <summary>
+-/// Phase 24 A4 portrait compositor. Page membership is decided by CompendiumPagePlanner before
+-/// drawing; this class renders that plan without changing project membership or pagination policy.
++/// A4 portrait compositor. Phase 40 treats each planned index/project/continuation body as one atomic
++/// physical-page fragment. QuestPDF is no longer allowed to silently split a planned page and shift
++/// every downstream index reference.
+ /// </summary>
+ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+ {
+@@ -659,19 +662,23 @@
+         {
+             ConfigureStandardPage(page);
+             page.Header().Element(header => ComposeRunningHeader(header, "SDD SIMULATORS COMPENDIUM", edition, marking));
+-            page.Content().PaddingTop(12).Column(content =>
+-            {
+-                content.Spacing(12);
++            page.Content()
++                .PaddingTop(CompendiumLayoutMetrics.SecondaryContentTopPaddingPoints)
++                .Element(body => body.ShowEntire().Column(content =>
++            {
++                content.Spacing(CompendiumLayoutMetrics.IndexColumnSpacingPoints);
+                 content.Item().Row(row =>
+                 {
+                     row.RelativeItem().Column(copy =>
+                     {
+                         copy.Item().Text("Compendium Index")
+-                            .FontSize(22)
++                            .FontSize(CompendiumLayoutMetrics.IndexHeadingTitleFontSize)
+                             .SemiBold()
++                            .LineHeight(CompendiumLayoutMetrics.IndexHeadingTitleLineHeightMultiplier)
+                             .FontColor(Ink);
+                         copy.Item().Text(title)
+-                            .FontSize(9.5f)
++                            .FontSize(CompendiumLayoutMetrics.IndexPublicationTitleFontSize)
++                            .LineHeight(CompendiumLayoutMetrics.IndexPublicationTitleLineHeightMultiplier)
+                             .FontColor(Slate500);
+                     });
+                     if (totalIndexPages > 1)
+@@ -682,7 +689,7 @@
+                     }
+                 });
+ 
+-                content.Item().Height(2).Background(Gold);
++                content.Item().Height(CompendiumLayoutMetrics.IndexRuleHeightPoints).Background(Gold);
+ 
+                 var showGroupHeadings = !(planned.IndexGroups.Count == 1
+                     && string.Equals(planned.IndexGroups[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase));
+@@ -690,7 +697,7 @@
+                 {
+                     content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings));
+                 }
+-            });
++            }));
+             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
+         });
+     }
+@@ -702,12 +709,13 @@
+             column.Spacing(0);
+             if (showHeading)
+             {
+-                column.Item().Background(Forest100).BorderLeft(4).BorderColor(Forest800).PaddingHorizontal(10).PaddingVertical(7)
++                column.Item().Background(Forest100).BorderLeft(CompendiumLayoutMetrics.IndexGroupLeftBorderPoints).BorderColor(Forest800).PaddingHorizontal(CompendiumLayoutMetrics.IndexGroupHorizontalPaddingPoints).PaddingVertical(CompendiumLayoutMetrics.IndexGroupVerticalPaddingPoints)
+                     .Row(row =>
+                     {
+                         row.RelativeItem().Text(group.CategoryName)
+-                            .FontSize(11.5f)
++                            .FontSize(CompendiumLayoutMetrics.IndexGroupTitleFontSize)
+                             .SemiBold()
++                            .LineHeight(CompendiumLayoutMetrics.IndexGroupTitleLineHeightMultiplier)
+                             .FontColor(Forest900);
+                         row.AutoItem().Text($"{group.Projects.Count} project{(group.Projects.Count == 1 ? string.Empty : "s")}")
+                             .FontSize(8)
+@@ -717,20 +725,23 @@
+ 
+             foreach (var project in group.Projects)
+             {
+-                column.Item().BorderBottom(1).BorderColor(Slate200).PaddingHorizontal(10).PaddingVertical(6).Row(row =>
++                column.Item().BorderBottom(CompendiumLayoutMetrics.IndexRowBorderBottomPoints).BorderColor(Slate200).PaddingHorizontal(CompendiumLayoutMetrics.IndexRowHorizontalPaddingPoints).PaddingVertical(CompendiumLayoutMetrics.IndexRowVerticalPaddingPoints).Row(row =>
+                 {
+                     row.RelativeItem().SectionLink(ProjectAnchorId(project.ProjectId)).Text(project.ProjectName)
+-                        .FontSize(9.3f)
++                        .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
++                        .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
+                         .FontColor(Ink);
+-                    row.ConstantItem(76).AlignRight().Text(
++                    row.ConstantItem(CompendiumLayoutMetrics.IndexLifecycleWidthPoints).AlignRight().Text(
+                             string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
+                                 ? project.CompletionDisplay
+                                 : project.LifecycleDisplay)
+                         .FontSize(8.5f)
++                        .LineHeight(1.2f)
+                         .FontColor(Slate500);
+-                    row.ConstantItem(34).AlignRight().Text(project.ProjectPageNumber.ToString(CultureInfo.InvariantCulture))
++                    row.ConstantItem(CompendiumLayoutMetrics.IndexPageNumberWidthPoints).AlignRight().Text(project.ProjectPageNumber.ToString(CultureInfo.InvariantCulture))
+                         .FontSize(9)
+                         .SemiBold()
++                        .LineHeight(1.2f)
+                         .FontColor(Forest800);
+                 });
+             }
+@@ -755,14 +766,16 @@
+         {
+             ConfigureStandardPage(page);
+             page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
+-            page.Content().PaddingTop(8).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
+-            {
+-                column.Spacing(9);
++            page.Content()
++                .PaddingTop(CompendiumLayoutMetrics.ProjectContentTopPaddingPoints)
++                .Element(body => body.ShowEntire().Section(ProjectAnchorId(project.ProjectId)).Column(column =>
++            {
++                column.Spacing(CompendiumLayoutMetrics.ProjectColumnSpacingPoints);
+                 column.Item().Text(publicationKicker.ToUpperInvariant())
+-                    .FontSize(7.3f).SemiBold().LetterSpacing(.5f).FontColor(Forest800);
+-                column.Item().Height(2).Width(58).Background(Gold);
++                    .FontSize(CompendiumLayoutMetrics.ProjectKickerFontSize).SemiBold().LineHeight(CompendiumLayoutMetrics.ProjectKickerLineHeightMultiplier).LetterSpacing(CompendiumLayoutMetrics.ProjectKickerLetterSpacingPoints).FontColor(Forest800);
++                column.Item().Height(CompendiumLayoutMetrics.ProjectHeadingRuleHeightPoints).Width(58).Background(Gold);
+                 column.Item().Text(project.ProjectName)
+-                    .FontSize(ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(1.08f).FontColor(Ink);
++                    .FontSize(CompendiumLayoutMetrics.ResolveProjectTitleFontSize(project.ProjectName)).SemiBold().LineHeight(CompendiumLayoutMetrics.ProjectTitleLineHeightMultiplier).FontColor(Ink);
+ 
+ 
+                 column.Item().Element(main => ComposeAdaptiveDossierMain(main, project, planned.DescriptionMarkdown, narrativeLabel));
+@@ -777,7 +790,7 @@
+                 {
+                     column.Item().Element(note => ComposeAdditionalNote(note, planned.AdditionalNoteMarkdown, project.NarrativeAlignment, project.DossierNarrativeFontScale));
+                 }
+-            });
++            }));
+             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
+         });
+     }
+@@ -797,21 +810,23 @@
+         {
+             ConfigureStandardPage(page);
+             page.Header().Element(header => ComposeRunningHeader(header, publicationTitle.ToUpperInvariant(), edition, marking));
+-            page.Content().PaddingTop(12).Column(column =>
+-            {
+-                column.Spacing(10);
++            page.Content()
++                .PaddingTop(CompendiumLayoutMetrics.SecondaryContentTopPaddingPoints)
++                .Element(body => body.ShowEntire().Column(column =>
++            {
++                column.Spacing(CompendiumLayoutMetrics.ContinuationColumnSpacingPoints);
+                 column.Item().Text(project.ProjectName)
+-                    .FontSize(17).SemiBold().LineHeight(1.06f).FontColor(Ink);
++                    .FontSize(CompendiumLayoutMetrics.ContinuationTitleFontSize).SemiBold().LineHeight(CompendiumLayoutMetrics.ContinuationTitleLineHeightMultiplier).FontColor(Ink);
+                 column.Item().Row(row =>
+                 {
+                     row.RelativeItem().Text(planned.IsAdditionalNoteContinuation
+                             ? "ADDITIONAL NOTE"
+                             : planned.IsTechnicalContinuation ? "TECHNICAL REFERENCE" : narrativeLabel.ToUpperInvariant())
+-                        .FontSize(8.4f).SemiBold().LetterSpacing(.28f).FontColor(Forest800);
++                        .FontSize(8.4f).SemiBold().LineHeight(1.2f).LetterSpacing(.28f).FontColor(Forest800);
+                     row.AutoItem().Text($"CONTINUED · PART {planned.ContinuationPart + 1}")
+-                        .FontSize(7.2f).SemiBold().LetterSpacing(.26f).FontColor(Slate500);
++                        .FontSize(7.2f).SemiBold().LineHeight(1.2f).LetterSpacing(.26f).FontColor(Slate500);
+                 });
+-                column.Item().Height(2).Background(Gold);
++                column.Item().Height(CompendiumLayoutMetrics.ContinuationHeadingRuleHeightPoints).Background(Gold);
+ 
+                 if (!string.IsNullOrWhiteSpace(planned.DescriptionMarkdown))
+                 {
+@@ -832,22 +847,11 @@
+                 {
+                     column.Item().Element(note => ComposeAdditionalNote(note, planned.AdditionalNoteMarkdown, project.NarrativeAlignment, project.DossierNarrativeFontScale, showHeading: !planned.IsAdditionalNoteContinuation));
+                 }
+-            });
++            }));
+             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
+         });
+     }
+ 
+-    private static float ResolveProjectTitleFontSize(string? title)
+-    {
+-        var length = title?.Trim().Length ?? 0;
+-        return length switch
+-        {
+-            > 105 => 17.5f,
+-            > 76 => 19f,
+-            > 54 => 20.5f,
+-            _ => 22f
+-        };
+-    }
+ 
+     private static void ComposeAdaptiveDossierMain(
+         IContainer container,
+@@ -868,7 +872,7 @@
+                 {
+                     column.Spacing(9);
+                     if (primaryBytes is { Length: > 0 })
+-                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
++                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
+                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
+                 });
+                 return;
+@@ -887,7 +891,7 @@
+                 {
+                     column.Spacing(8);
+                     if (primaryBytes is { Length: > 0 })
+-                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
++                        column.Item().Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
+                     column.Item().Element(text => ComposeDescription(text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale, narrativeAlignment: project.NarrativeAlignment));
+                 });
+                 return;
+@@ -907,7 +911,7 @@
+                 column.Spacing(8);
+                 column.Item().Row(row =>
+                 {
+-                    row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
++                    row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
+                     row.ConstantItem(13);
+                     row.RelativeItem(.88f).Element(text => ComposeDescription(
+                         text, flow.SideSegment, narrativeLabel, false, project.DossierNarrativeFontScale,
+@@ -923,7 +927,7 @@
+ 
+         container.Row(row =>
+         {
+-            row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit));
++            row.RelativeItem(1.12f).Element(frame => ComposeDossierImage(frame, primaryBytes, imageHeight, primaryFit, ResolveDossierPrimaryFrameWidth(project), primaryImage?.SourceWidth, primaryImage?.SourceHeight));
+             row.ConstantItem(13);
+             row.RelativeItem(.88f).Element(text => ComposeDescription(
+                 text, narrative, narrativeLabel, false, project.DossierNarrativeFontScale,
+@@ -931,20 +935,48 @@
+         });
+     }
+ 
+-    private static void ComposeDossierImage(IContainer container, byte[] image, float height, CompendiumImageFitMode fitMode)
++    private static void ComposeDossierImage(
++        IContainer container,
++        byte[] image,
++        float maximumHeight,
++        CompendiumImageFitMode fitMode,
++        float frameWidth,
++        int? sourceWidth = null,
++        int? sourceHeight = null)
+     {
+         if (fitMode == CompendiumImageFitMode.Fit)
+         {
+-            container.Height(height).AlignCenter().AlignMiddle().Image(image).FitArea();
++            // Fit is intentionally an intrinsic-height publication element. The planner already
++            // resolves the same source-aware geometry; occupying only that physical height prevents
++            // an invisible maximum-height frame from invalidating the first-page narrative budget.
++            var geometry = CompendiumDossierImageGeometryPolicy.Resolve(
++                frameWidth,
++                maximumHeight,
++                sourceWidth,
++                sourceHeight,
++                CompendiumImageFitMode.Fit);
++            container
++                .Height(geometry.RenderedHeightPoints)
++                .AlignCenter()
++                .AlignMiddle()
++                .Image(image)
++                .FitArea();
+             return;
+         }
+ 
+-        container.Height(height).Layers(layers =>
++        container.Height(maximumHeight).Layers(layers =>
+         {
+             layers.PrimaryLayer().Image(image).FitArea();
+             layers.Layer().AlignBottom().Height(2).Background(Gold);
+         });
+     }
++
++    private static float ResolveDossierPrimaryFrameWidth(CompendiumPdfProjectSection project)
++        => CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(
++            project.DossierLayout,
++            project.Images.Count(image => image.Content is { Length: > 0 }) > 0
++                ? project.Images.Count(image => image.Content is { Length: > 0 })
++                : project.CoverPhoto is { Length: > 0 } ? 1 : 0);
+ 
+     private static void ComposeDossierMosaic(
+         IContainer container,
+@@ -956,21 +988,34 @@
+         height = Math.Max(120f, height);
+         if (available.Length == 1)
+         {
+-            ComposeDossierImage(container, available[0].Content!, height, available[0].FitMode);
++            ComposeDossierImage(
++                container,
++                available[0].Content!,
++                height,
++                available[0].FitMode,
++                CompendiumLayoutMetrics.ContentWidthPoints,
++                available[0].SourceWidth,
++                available[0].SourceHeight);
+             return;
+         }
+ 
+         container.Height(height).Row(row =>
+         {
+-            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(frame, available[0].Content!, height, available[0].FitMode));
++            var usableWidth = CompendiumLayoutMetrics.ContentWidthPoints - 7f;
++            var primaryWidth = usableWidth * 1.55f / 2.55f;
++            var secondaryWidth = usableWidth - primaryWidth;
++            row.RelativeItem(1.55f).Element(frame => ComposeDossierImage(
++                frame, available[0].Content!, height, available[0].FitMode, primaryWidth, available[0].SourceWidth, available[0].SourceHeight));
+             row.ConstantItem(7);
+             row.RelativeItem(1f).Column(column =>
+             {
+                 column.Spacing(7);
+                 var secondaryHeight = available.Length >= 3 ? Math.Max(52f, (height - 7f) / 2f) : height;
+-                column.Item().Element(frame => ComposeDossierImage(frame, available[1].Content!, secondaryHeight, available[1].FitMode));
++                column.Item().Element(frame => ComposeDossierImage(
++                    frame, available[1].Content!, secondaryHeight, available[1].FitMode, secondaryWidth, available[1].SourceWidth, available[1].SourceHeight));
+                 if (available.Length >= 3)
+-                    column.Item().Element(frame => ComposeDossierImage(frame, available[2].Content!, secondaryHeight, available[2].FitMode));
++                    column.Item().Element(frame => ComposeDossierImage(
++                        frame, available[2].Content!, secondaryHeight, available[2].FitMode, secondaryWidth, available[2].SourceWidth, available[2].SourceHeight));
+             });
+         });
+     }
+@@ -1036,7 +1081,7 @@
+             {
+                 content.Spacing(panelSpacing);
+                 content.Item().Text("PROJECT PARTICULARS")
+-                    .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
++                    .FontSize(7.2f).SemiBold().LineHeight(1.08f).LetterSpacing(.32f).FontColor(Forest800);
+ 
+                 foreach (var rowModules in modules.Chunk(programmeColumns))
+                 {
+@@ -1055,6 +1100,7 @@
+                                     text.Item().Text(module.Label.ToUpperInvariant())
+                                         .FontSize(labelFontSize)
+                                         .SemiBold()
++                                        .LineHeight(1.08f)
+                                         .LetterSpacing(labelLetterSpacing)
+                                         .FontColor(Slate500);
+                                     text.Item().PaddingTop(2).Text(module.Value)
+@@ -1098,7 +1144,7 @@
+             column.Item().Row(header =>
+             {
+                 header.AutoItem().Text("PROJECT PARTICULARS")
+-                    .FontSize(7.2f).SemiBold().LetterSpacing(.32f).FontColor(Forest800);
++                    .FontSize(7.2f).SemiBold().LineHeight(1.08f).LetterSpacing(.32f).FontColor(Forest800);
+                 header.ConstantItem(9f);
+                 header.RelativeItem().PaddingTop(4.4f).Height(1f).Background(GoldSoft);
+             });
+@@ -1119,6 +1165,7 @@
+                                 text.Item().Text(module.Label.ToUpperInvariant())
+                                     .FontSize(labelFontSize)
+                                     .SemiBold()
++                                    .LineHeight(1.08f)
+                                     .LetterSpacing(programmeColumns >= 4 ? .04f : .1f)
+                                     .FontColor(Slate500);
+                                 text.Item().PaddingTop(1.6f).Text(module.Value)
+@@ -1706,7 +1753,12 @@
+ 
+     private static void ComposeRunningHeader(IContainer container, string left, string right, string? marking)
+     {
+-        container.PaddingBottom(7).BorderBottom(1).BorderColor(Slate200).Row(row =>
++        container
++            .Height(CompendiumLayoutMetrics.RunningHeaderHeightPoints)
++            .PaddingBottom(7)
++            .BorderBottom(1)
++            .BorderColor(Slate200)
++            .Row(row =>
+         {
+             row.RelativeItem().Text(left)
+                 .FontSize(7.6f)
+--- a/wwwroot/js/projects/publications-compendium-phase33-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase33-contract.test.js
+@@ -77,7 +77,7 @@
+ 
+ test('phase 33 normalises publication tracking and title leading', () => {
+   assert.doesNotMatch(builder, /LetterSpacing\((?:1(?:\.\d+)?|\.75f|\.8f|\.7f|\.65f|\.6f)\)/);
+-  assert.match(builder, /ResolveProjectTitleFontSize\(project\.ProjectName\)\)\.SemiBold\(\)\.LineHeight\(1\.08f\)/);
++  assert.match(builder, /CompendiumLayoutMetrics\.ResolveProjectTitleFontSize\(project\.ProjectName\)\)\.SemiBold\(\)\.LineHeight\(CompendiumLayoutMetrics\.ProjectTitleLineHeightMultiplier\)/);
+   assert.match(builder, /HARDWARE \/ TECHNICAL SPECIFICATION/);
+   assert.match(builder, /FontSize\(7\.7f\)\.SemiBold\(\)\.LetterSpacing\(\.14f\)/);
+ });
+--- a/wwwroot/js/projects/publications-compendium-phase37-1-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase37-1-contract.test.js
+@@ -45,7 +45,7 @@
+   assert.match(readService, /probe\?\.Height/);
+   assert.match(readService, /selectedProbe\?\.Width/);
+   assert.match(pagination, /CompendiumDossierImageGeometryPolicy\.Resolve/);
+-  assert.match(pagination, /PhysicalContentHeightPoints\s*=\s*748f/);
++  assert.match(pagination, /PhysicalContentHeightPoints\s*=\s*CompendiumLayoutMetrics\.ProjectContentHeightPoints/);
+   assert.match(exportService, /primaryImageHeightPoints = Math\.Max\(1f/);
+ });
+ 
+--- a/wwwroot/js/projects/publications-compendium-phase40-pagination-closure.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase40-pagination-closure.test.js
+@@ -0,0 +1,90 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
++
++const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
++const pagination = read('Services/Compendiums/CompendiumDossierPaginationPlanner.cs');
++const measurement = read('Services/Compendiums/CompendiumDossierTextMeasurementService.cs');
++const particulars = read('Services/Compendiums/CompendiumProjectParticularsLayoutPolicy.cs');
++const pagePlanner = read('Utilities/Reporting/CompendiumPagePlanner.cs');
++const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
++const verifier = read('Utilities/Reporting/CompendiumPdfCompositionVerifier.cs');
++const exportService = read('Services/Compendiums/CompendiumExportService.cs');
++const readService = read('Services/Compendiums/CompendiumReadService.cs');
++const pageModel = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs');
++
++test('phase 40 derives physical body heights from the exact shared A4 chrome contract', () => {
++  assert.match(metrics, /RunningHeaderHeightPoints\s*=\s*28f/);
++  assert.match(metrics, /ProjectContentHeightPoints\s*=\s*[\s\S]*PageHeightPoints[\s\S]*TopMarginPoints[\s\S]*RunningHeaderHeightPoints[\s\S]*FooterHeightPoints[\s\S]*ProjectContentTopPaddingPoints/);
++  assert.match(metrics, /SecondaryContentHeightPoints\s*=\s*[\s\S]*SecondaryContentTopPaddingPoints/);
++  assert.match(pagination, /PhysicalContentHeightPoints\s*=\s*CompendiumLayoutMetrics\.ProjectContentHeightPoints/);
++  assert.match(builder, /Height\(CompendiumLayoutMetrics\.RunningHeaderHeightPoints\)/);
++  assert.match(builder, /Height\(CompendiumLayoutMetrics\.FooterHeightPoints\)/);
++});
++
++test('phase 40 measures project title and kicker with the publication semibold face', () => {
++  assert.match(measurement, /bool semiBold = false/);
++  assert.match(measurement, /semiBold \? SemiBoldTypeface\.Value : RegularTypeface\.Value/);
++  assert.match(pagination, /ResolveProjectTitleFontSize\(projectName\)/);
++  assert.match(pagination, /MeasureAtFontSize\([\s\S]*projectName[\s\S]*semiBold:\s*true/);
++  assert.match(pagination, /kickerText\.ToUpperInvariant\(\)[\s\S]*ProjectKickerFontSize[\s\S]*semiBold:\s*true/);
++  assert.match(readService, /planningKicker/);
++  assert.match(readService, /CompendiumGroupingMode\.CustomSections/);
++});
++
++test('phase 40 replaces index row-unit heuristics with measured DM Sans physical heights', () => {
++  assert.match(pagePlanner, /BuildIndexSeeds\(context\.Title, context\.Categories\)/);
++  assert.match(pagePlanner, /MeasureIndexHeadingHeight/);
++  assert.match(pagePlanner, /MeasureIndexGroupHeadingHeight/);
++  assert.match(pagePlanner, /MeasureIndexProjectRowHeight/);
++  assert.match(pagePlanner, /measurement\.MeasureAtFontSize/);
++  assert.doesNotMatch(pagePlanner, /EstimateIndexProjectRowUnits/);
++  assert.doesNotMatch(pagePlanner, /unitsUsed/);
++});
++
++test('phase 40 makes index project and continuation bodies atomic QuestPDF fragments', () => {
++  const showEntireCalls = builder.match(/ShowEntire\(\)/g) || [];
++  assert.ok(showEntireCalls.length >= 3, 'expected atomic index, project and continuation page bodies');
++  assert.match(builder, /SecondaryContentTopPaddingPoints[\s\S]*ShowEntire\(\)\.Column\(content/);
++  assert.match(builder, /ProjectContentTopPaddingPoints[\s\S]*ShowEntire\(\)\.Section\(ProjectAnchorId/);
++  assert.match(builder, /SecondaryContentTopPaddingPoints[\s\S]*ShowEntire\(\)\.Column\(column/);
++});
++
++test('phase 40 computes continuation capacity from the actual title and page chrome', () => {
++  assert.match(pagination, /ResolveContinuationBodyHeightPoints/);
++  assert.match(pagination, /ContinuationTitleFontSize/);
++  assert.match(pagination, /SecondaryContentHeightPoints\s*-\s*fixedGeometry/);
++  assert.match(pagePlanner, /continuationBodyHeight\s*=\s*CompendiumDossierPaginationPlanner\.ResolveContinuationBodyHeightPoints/);
++  assert.match(pagePlanner, /SplitTechnicalSpecificationsForPhysicalPages\([\s\S]*continuationBodyHeight/);
++  assert.match(pagePlanner, /SplitForPhysicalPages\([\s\S]*continuationBodyHeight/);
++});
++
++test('phase 40 keeps planner and renderer aligned for Fit image intrinsic height', () => {
++  assert.match(exportService, /rendered\?\.SourceWidth \?\? image\.SourceWidth/);
++  assert.match(exportService, /rendered\?\.SourceHeight \?\? image\.SourceHeight/);
++  assert.match(builder, /SourceWidth = null/);
++  assert.match(builder, /CompendiumDossierImageGeometryPolicy\.Resolve/);
++  assert.match(builder, /Height\(geometry\.RenderedHeightPoints\)/);
++  assert.match(pagination, /CompendiumDossierImageGeometryPolicy\.Resolve/);
++});
++
++test('phase 40 measures Project Particulars with the same semibold and border geometry as QuestPDF', () => {
++  assert.match(particulars, /CompendiumLayoutMetrics\.ContentWidthPoints/);
++  assert.match(particulars, /semiBold:\s*true/);
++  assert.match(particulars, /borderPoints\s*=\s*1f/);
++  assert.match(particulars, /PROJECT PARTICULARS/);
++  assert.match(builder, /Text\("PROJECT PARTICULARS"\)[\s\S]*LineHeight\(1\.08f\)/);
++});
++
++test('phase 40 localises page-count drift before rejection and returns a conflict response', () => {
++  assert.match(verifier, /canonicalPages\s*=\s*pages\.Select/);
++  assert.match(verifier, /FindFirstObservableDrift/);
++  assert.match(verifier, /Index pages are checked first/);
++  assert.match(verifier, /First observable drift:/);
++  assert.match(verifier, /ActualPhysicalPage/);
++  assert.match(pageModel, /exception is CompendiumPdfCompositionException[\s\S]*StatusCodes\.Status409Conflict/);
++});

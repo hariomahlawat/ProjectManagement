@@ -45,7 +45,7 @@ test('phase 37.1 makes Fit aspect-ratio-aware and passes source dimensions into 
   assert.match(readService, /probe\?\.Height/);
   assert.match(readService, /selectedProbe\?\.Width/);
   assert.match(pagination, /CompendiumDossierImageGeometryPolicy\.Resolve/);
-  assert.match(pagination, /PhysicalContentHeightPoints\s*=\s*748f/);
+  assert.match(pagination, /PhysicalContentHeightPoints\s*=\s*CompendiumLayoutMetrics\.ProjectContentHeightPoints/);
   assert.match(exportService, /primaryImageHeightPoints = Math\.Max\(1f/);
 });
 

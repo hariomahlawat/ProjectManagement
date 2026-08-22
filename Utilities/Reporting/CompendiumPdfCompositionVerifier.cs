@@ -10,19 +10,22 @@ public sealed class CompendiumPdfCompositionException : InvalidOperationExceptio
         int expectedPageCount,
         int actualPageCount,
         int? expectedPhysicalPage = null,
-        string? projectName = null)
+        string? projectName = null,
+        int? actualPhysicalPage = null)
         : base(message)
     {
         ExpectedPageCount = expectedPageCount;
         ActualPageCount = actualPageCount;
         ExpectedPhysicalPage = expectedPhysicalPage;
         ProjectName = projectName;
+        ActualPhysicalPage = actualPhysicalPage;
     }
 
     public int ExpectedPageCount { get; }
     public int ActualPageCount { get; }
     public int? ExpectedPhysicalPage { get; }
     public string? ProjectName { get; }
+    public int? ActualPhysicalPage { get; }
 }
 
 public sealed record CompendiumPdfVerificationResult(bool IsVerified, int PageCount);
@@ -55,15 +58,21 @@ public sealed class CompendiumPdfCompositionVerifier : ICompendiumPdfComposition
         var pages = document.GetPages().ToArray();
         var actual = pages.Length;
         var expected = plan.ExpectedPageCount;
+        var canonicalPages = pages.Select(page => Canonical(page.Text)).ToArray();
         if (actual != expected)
         {
+            var drift = FindFirstObservableDrift(canonicalPages, plan);
+            var diagnostic = drift is null
+                ? string.Empty
+                : $" First observable drift: {drift.Description} was planned on physical page {drift.ExpectedPage}, but rendered on page {drift.ActualPage}.";
             throw new CompendiumPdfCompositionException(
-                $"Compendium composition drifted after rendering: the page planner expected {expected} physical page{Plural(expected)}, but the generated PDF contains {actual}. The PDF was not issued.",
+                $"Compendium composition drifted after rendering: the page planner expected {expected} physical page{Plural(expected)}, but the generated PDF contains {actual}.{diagnostic} The PDF was not issued.",
                 expected,
-                actual);
+                actual,
+                drift?.ExpectedPage,
+                drift?.ProjectName,
+                drift?.ActualPage);
         }
-
-        var canonicalPages = pages.Select(page => Canonical(page.Text)).ToArray();
         var frontTitle = ResolveEffectiveFrontTitle(context);
         VerifyTextOnPage(canonicalPages, frontTitle, 1, expected, actual, "Compendium cover");
 
@@ -205,7 +214,7 @@ public sealed class CompendiumPdfCompositionVerifier : ICompendiumPdfComposition
             return;
         }
 
-        var actualPage = FindPage(canonicalPages, needle);
+        var actualPage = FindNearestPage(canonicalPages, needle, physicalPage);
         var location = actualPage.HasValue
             ? $" It rendered on physical page {actualPage.Value}."
             : " The expected text could not be located in the generated PDF.";
@@ -214,20 +223,126 @@ public sealed class CompendiumPdfCompositionVerifier : ICompendiumPdfComposition
             expectedPageCount,
             actualPageCount,
             physicalPage,
-            projectName);
+            projectName,
+            actualPage);
     }
 
-    private static int? FindPage(IReadOnlyList<string> pages, string needle)
+    private static DriftDiagnostic? FindFirstObservableDrift(
+        IReadOnlyList<string> pages,
+        CompendiumPagePlan plan)
     {
-        for (var index = 0; index < pages.Count; index++)
+        // Index pages are checked first because an index overflow shifts every downstream dossier.
+        // Use a concrete project entry rather than the repeated "Compendium Index" heading so the
+        // diagnostic can localise the first page whose planned membership changed.
+        foreach (var planned in plan.Pages.Where(page => page.Kind == CompendiumPageKind.Index))
         {
-            if (pages[index].Contains(needle, StringComparison.Ordinal))
+            foreach (var entry in planned.IndexGroups.SelectMany(group => group.Projects))
             {
-                return index + 1;
+                var needle = Canonical(entry.ProjectName);
+                if (needle.Length < 3) continue;
+
+                var expectedIndex = planned.PhysicalPageNumber - 1;
+                if (expectedIndex >= 0
+                    && expectedIndex < pages.Count
+                    && pages[expectedIndex].Contains(needle, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var actualPage = FindNearestPage(pages, needle, planned.PhysicalPageNumber);
+                if (actualPage.HasValue)
+                {
+                    return new DriftDiagnostic(
+                        planned.PhysicalPageNumber,
+                        actualPage.Value,
+                        $"Compendium index entry '{entry.ProjectName}'",
+                        entry.ProjectName);
+                }
             }
+        }
+
+        foreach (var planned in plan.Pages)
+        {
+            if (planned.Kind is not (CompendiumPageKind.Project or CompendiumPageKind.ProjectContinuation)
+                || planned.Project is null)
+            {
+                continue;
+            }
+
+            var projectNeedle = Canonical(planned.Project.ProjectName);
+            if (projectNeedle.Length < 3) continue;
+
+            var expectedIndex = planned.PhysicalPageNumber - 1;
+            var expectedMatches = expectedIndex >= 0
+                                  && expectedIndex < pages.Count
+                                  && pages[expectedIndex].Contains(projectNeedle, StringComparison.Ordinal);
+            if (planned.Kind == CompendiumPageKind.ProjectContinuation)
+            {
+                expectedMatches = expectedMatches
+                                  && pages[expectedIndex].Contains(Canonical("continued"), StringComparison.Ordinal);
+            }
+            if (expectedMatches) continue;
+
+            int? actualPage;
+            if (planned.Kind == CompendiumPageKind.ProjectContinuation)
+            {
+                actualPage = FindNearestPage(
+                    pages,
+                    planned.PhysicalPageNumber,
+                    page => page.Contains(projectNeedle, StringComparison.Ordinal)
+                            && page.Contains(Canonical("continued"), StringComparison.Ordinal));
+            }
+            else
+            {
+                actualPage = FindNearestPage(pages, projectNeedle, planned.PhysicalPageNumber);
+            }
+
+            if (actualPage.HasValue)
+            {
+                return new DriftDiagnostic(
+                    planned.PhysicalPageNumber,
+                    actualPage.Value,
+                    planned.Kind == CompendiumPageKind.Project ? "project section" : "project continuation",
+                    planned.Project.ProjectName);
+            }
+        }
+
+        return null;
+    }
+
+    private static int? FindNearestPage(
+        IReadOnlyList<string> pages,
+        string needle,
+        int expectedPhysicalPage)
+        => FindNearestPage(
+            pages,
+            expectedPhysicalPage,
+            page => page.Contains(needle, StringComparison.Ordinal));
+
+    private static int? FindNearestPage(
+        IReadOnlyList<string> pages,
+        int expectedPhysicalPage,
+        Func<string, bool> predicate)
+    {
+        if (pages.Count == 0) return null;
+        var expectedIndex = Math.Clamp(expectedPhysicalPage - 1, 0, pages.Count - 1);
+        for (var distance = 0; distance < pages.Count; distance++)
+        {
+            var forward = expectedIndex + distance;
+            if (forward < pages.Count && predicate(pages[forward])) return forward + 1;
+
+            if (distance == 0) continue;
+            var backward = expectedIndex - distance;
+            if (backward >= 0 && predicate(pages[backward])) return backward + 1;
         }
         return null;
     }
+
+    private sealed record DriftDiagnostic(
+        int ExpectedPage,
+        int ActualPage,
+        string Description,
+        string? ProjectName);
 
     private static string Canonical(string? value)
     {
