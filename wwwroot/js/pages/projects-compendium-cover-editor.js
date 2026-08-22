@@ -21,6 +21,11 @@
     const modal = id => window.bootstrap?.Modal.getOrCreateInstance(document.getElementById(id));
     const clean = value => (value ?? '').toString().trim();
     const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : .5));
+    const coverState = globalThis.PrismCompendiumCoverState;
+    if (!coverState) {
+        console.error('PRISM Compendium cover state contract is unavailable. Reload the page before editing the cover.');
+        return;
+    }
     const titleCase = value => (value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
     const templateDisplayName = value => ({
         InstitutionalHero: 'Institutional Hero',
@@ -75,6 +80,8 @@
         automaticCandidates: normaliseAutomaticCandidates(boot.automaticCandidates || []),
         automaticCandidatesDirty: false,
         hydrationVersions: new Map(),
+        photoPickerRequestVersion: 0,
+        photoPickerAbortController: null,
         overrideEditing: new Set(),
         dirty: false,
         leaveAfterSave: false,
@@ -644,13 +651,16 @@
         void hydrateVisibleSlotPreviews(surface);
     }
 
-    async function loadProjectPhotos(projectId) {
+    async function loadProjectPhotos(projectId, signal = null) {
         const key = Number(projectId);
         if (!key) return [];
         if (state.photoCache.has(key)) return state.photoCache.get(key);
         const url = new URL(boot.photosUrl, window.location.origin);
         url.searchParams.set('projectId', String(key));
-        const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            signal: signal
+        });
         if (!response.ok) throw new Error((await safeJson(response))?.message || 'Project photography could not be loaded.');
         const data = await response.json();
         const photos = Array.isArray(data.photos) ? data.photos : [];
@@ -659,6 +669,12 @@
     }
 
     function automaticSlotKey(surface, slotKey) { return `${surface}:${slotKey}`; }
+
+    function cancelPhotoPickerRequest() {
+        state.photoPickerRequestVersion += 1;
+        state.photoPickerAbortController?.abort();
+        state.photoPickerAbortController = null;
+    }
 
     function clearAutomaticResolutions(surface = null) {
         if (surface) state.hydrationVersions.set(surface, (state.hydrationVersions.get(surface) || 0) + 1);
@@ -725,11 +741,13 @@
         if (!isCurrentHydration()) return;
 
         state.design.images.forEach(slot => {
+            if (slot.surface.toLowerCase() !== surface) return;
             if (slot.imageMode !== 'Explicit' || !slot.projectId || !slot.photoId) return;
             usedPhotos.add(`${Number(slot.projectId)}:${Number(slot.photoId)}`);
             usedProjects.add(Number(slot.projectId));
         });
-        state.autoResolved.forEach(candidate => {
+        state.autoResolved.forEach((candidate, key) => {
+            if (!key.startsWith(`${surface}:`)) return;
             if (!candidate?.projectId || !candidate?.photoId) return;
             usedPhotos.add(`${Number(candidate.projectId)}:${Number(candidate.photoId)}`);
             usedProjects.add(Number(candidate.projectId));
@@ -795,6 +813,7 @@
     }
 
     async function openPhotoPicker(slotKey) {
+        cancelPhotoPickerRequest();
         const slot = ensureSlot(state.activeSurface, slotKey);
         state.activeSlot = slot;
         const resolved = state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey));
@@ -819,27 +838,50 @@
             noneButton.title = required ? 'This image slot is required by the selected cover template.' : '';
         }
         modal('compendiumCoverPhotoModal')?.show();
-        if (selectedProjectId) await renderProjectPhotos(selectedProjectId);
+        const selectedProjectExists = selectedProjectId
+            && Array.from(select.options).some(option => Number(option.value) === Number(selectedProjectId));
+        if (selectedProjectExists) await renderProjectPhotos(selectedProjectId);
+        else if (selectedProjectId && photoState) {
+            photoState.textContent = 'The project used by this saved cover image is no longer selected. Choose a current project photograph.';
+        }
     }
 
     async function renderProjectPhotos(projectId) {
         const grid = portalBy('[data-cover-photo-grid]');
         const stateNode = portalBy('[data-cover-photo-state]');
         if (!grid || !stateNode) return;
+
+        const requestedProjectId = coverState.positiveId(projectId);
+        state.photoPickerAbortController?.abort();
+        const requestVersion = ++state.photoPickerRequestVersion;
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        state.photoPickerAbortController = controller;
+        const isCurrentRequest = () => coverState.shouldCommitPhotoRequest(
+            requestVersion,
+            state.photoPickerRequestVersion,
+            requestedProjectId,
+            portalBy('[data-cover-project-select]')?.value);
+
         grid.innerHTML = '';
+        if (!requestedProjectId) {
+            state.photoPickerAbortController = null;
+            stateNode.textContent = 'Select a project to view its publication photographs.';
+            return;
+        }
         stateNode.textContent = 'Loading project photography…';
         try {
-            const photos = await loadProjectPhotos(projectId);
+            const photos = await loadProjectPhotos(requestedProjectId, controller?.signal);
+            if (!isCurrentRequest()) return;
             if (!photos.length) {
                 stateNode.textContent = 'No usable publication photographs are recorded for this project.';
                 return;
             }
             stateNode.textContent = `${photos.length} photograph${photos.length === 1 ? '' : 's'} available`;
             photos.forEach(photo => {
-                const pref = preferenceFor(projectId, photo.photoId);
+                const pref = preferenceFor(requestedProjectId, photo.photoId);
                 const card = document.createElement('article');
                 card.className = 'compendium-cover-photo-card';
-                const selected = state.activeSlot?.imageMode === 'Explicit' && Number(state.activeSlot?.projectId) === Number(projectId) && Number(state.activeSlot?.photoId) === Number(photo.photoId);
+                const selected = state.activeSlot?.imageMode === 'Explicit' && Number(state.activeSlot?.projectId) === requestedProjectId && Number(state.activeSlot?.photoId) === Number(photo.photoId);
                 if (selected) card.classList.add('selected');
                 card.innerHTML = `
                     <button type="button" class="compendium-cover-photo-select" data-cover-select-photo="${photo.photoId}">
@@ -851,12 +893,15 @@
                         <label title="Prefer this image when PRISM fills automatic cover slots"><input type="checkbox" data-cover-pref="preferred" data-photo-id="${photo.photoId}" ${pref.preferredForPublication ? 'checked' : ''}/> Cover preferred</label>
                         <label title="Allow Automatic Hero to prioritise this image for the cover"><input type="checkbox" data-cover-pref="hero" data-photo-id="${photo.photoId}" ${pref.suitableForCoverHero ? 'checked' : ''}/> Cover suitable</label>
                     </div>`;
-                card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(projectId, photo));
-                card.querySelectorAll('[data-cover-pref]').forEach(input => input.addEventListener('change', () => updatePreference(projectId, photo.photoId, input.dataset.coverPref, input.checked)));
+                card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(requestedProjectId, photo));
+                card.querySelectorAll('[data-cover-pref]').forEach(input => input.addEventListener('change', () => updatePreference(requestedProjectId, photo.photoId, input.dataset.coverPref, input.checked)));
                 grid.appendChild(card);
             });
         } catch (error) {
+            if (error?.name === 'AbortError' || !isCurrentRequest()) return;
             stateNode.textContent = error?.message || 'Project photography could not be loaded.';
+        } finally {
+            if (requestVersion === state.photoPickerRequestVersion) state.photoPickerAbortController = null;
         }
     }
 
@@ -883,14 +928,13 @@
     function choosePhoto(projectId, photo) {
         const slot = state.activeSlot;
         if (!slot) return;
-        slot.imageMode = 'Explicit';
-        state.autoResolved.delete(automaticSlotKey(state.activeSurface, slot.slotKey));
-        slot.projectId = Number(projectId);
-        slot.photoId = Number(photo.photoId);
-        slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
-        slot.sourceWidth = photo.width;
-        slot.sourceHeight = photo.height;
-        clearAutomaticResolutions();
+        const surface = slot.surface.toLowerCase();
+        state.autoResolved.delete(automaticSlotKey(surface, slot.slotKey));
+        coverState.applyExplicitPhoto(slot, projectId, photo);
+        // Explicit-photo uniqueness and automatic ranking are defined within one cover surface.
+        // Do not erase the independently curated automatic preview on the opposite cover.
+        clearAutomaticResolutions(surface);
+        cancelPhotoPickerRequest();
         setDirty();
         renderSlots();
         renderProof();
@@ -899,14 +943,16 @@
 
     function setSlotMode(mode) {
         if (!state.activeSlot) return;
+        const surface = state.activeSlot.surface.toLowerCase();
         state.activeSlot.imageMode = mode;
-        state.autoResolved.delete(automaticSlotKey(state.activeSurface, state.activeSlot.slotKey));
+        state.autoResolved.delete(automaticSlotKey(surface, state.activeSlot.slotKey));
         if (mode !== 'Explicit') {
             state.activeSlot.projectId = null;
             state.activeSlot.photoId = null;
             state.activeSlot.previewUrl = null;
         }
-        if (mode === 'Automatic') clearAutomaticResolutions();
+        clearAutomaticResolutions(surface);
+        cancelPhotoPickerRequest();
         setDirty();
         renderSlots();
         renderProof();
@@ -1002,12 +1048,20 @@
             state.rowVersion = result?.preset?.rowVersion || state.rowVersion;
             if (result?.coverDesign) {
                 state.design = normaliseDesign(result.coverDesign);
-                state.autoResolved.clear();
+                state.activeSlot = null;
+                state.overrideEditing.clear();
+                clearAutomaticResolutions();
                 state.automaticCandidatesDirty = true;
             }
             if (Array.isArray(result?.photoPreferences)) state.preferences = normalisePreferences(result.photoPreferences);
             savedSignature = persistedSignature();
             state.dirty = false;
+            // Rehydrate from the server-returned canonical state. The save response intentionally
+            // excludes transient preview URLs, so retaining the pre-save DOM would display stale
+            // images/crops even though the persisted slot identities are already correct.
+            await hydrateVisibleSlotPreviews('front');
+            await hydrateVisibleSlotPreviews('back');
+            updateInspector();
             setDirty();
             return true;
         } catch (error) {
@@ -1141,10 +1195,13 @@
         if (crop) void openCrop(crop.dataset.coverCropSlot);
     });
 
-    portalBy('[data-cover-project-select]')?.addEventListener('change', event => { if (event.target.value) void renderProjectPhotos(Number(event.target.value)); });
+    portalBy('[data-cover-project-select]')?.addEventListener('change', event => {
+        void renderProjectPhotos(Number(event.target.value) || null);
+    });
     portalBy('[data-cover-project-search]')?.addEventListener('input', applyProjectSearch);
     portalBy('[data-cover-slot-auto]')?.addEventListener('click', () => setSlotMode('Automatic'));
     portalBy('[data-cover-slot-none]')?.addEventListener('click', event => { if (!event.currentTarget.disabled) setSlotMode('None'); });
+    document.getElementById('compendiumCoverPhotoModal')?.addEventListener('hidden.bs.modal', cancelPhotoPickerRequest);
 
     portalBy('[data-cover-crop-stage]')?.addEventListener('click', event => {
         if (!state.activeSlot) return;

@@ -1,44 +1,121 @@
-# PRISM Briefing Deck — FFC Global Footprint Design Polish
+# PRISM Compendium Phase 41 — production convergence
 
-## Purpose
-Cumulative ready-to-replace package for the Additional Slides framework, Role & Charter slide, and FFC Global Footprint slide, including the final FFC design and workflow refinements.
+Ready-to-paste overlay for the supplied `ProjectManagement-master` source tree.
 
-## Refinements in this phase
-- Additional Slides workspace is divided into **Opening slides** and **Before closing** placement zones.
-- FFC Global Footprint no longer displays a misleading opening-slide sequence number or drag control.
-- FFC remains fixed immediately before the closing/Jai Hind slide.
-- Slide Library wording now states that each **approved slide type** can be added once.
-- FFC editor preview displays current live Countries, Projects and Total Quantity values.
-- FFC preview failure is isolated and logged without preventing the deck page from loading.
-- FFC footer uses the PowerPoint generation date: `Data as on dd MMM yyyy · Source: PRISM ERP`.
-- Map rendering uses a dedicated tighter active-country viewport and larger map labels for briefing slides.
-- Main slide geometry gives the map an aspect-correct panel and the country-position list more width.
-- Country-position heading now reads `TOTAL QTY`.
-- 9–10 country lists use a controlled compact row mode without shrinking the text.
-- Overflow text has additional lower clearance.
+## Outcome
 
-## Data and placement
-All FFC figures remain authoritative and read-only, sourced from the existing PRISM FFC module whenever PowerPoint is generated. The slide remains the final substantive slide immediately before the closing slide.
+This package fixes both reported failure classes:
 
-## Application
-Stop the running application and copy the project-relative files in this package over the corresponding project files.
+1. **Changing cover imagery could leave the wrong crop/image in the editor or PDF.**
+   A new source photograph now receives a centred focal point, reselecting the same photograph
+   preserves its crop, stale photo-picker responses cannot overwrite a newer choice, and the
+   server-returned canonical cover state is rehydrated after save. Front and back automatic image
+   allocation is now genuinely independent on both the browser and server; Portfolio Quartet still
+   requires four distinct front-cover photographs.
+2. **Compendium PDF preview/download was environment-dependent on the offline IIS server.**
+   The original code permitted three deployment-dependent states: a framework-dependent publish,
+   different DM Sans discovery rules for SkiaSharp and QuestPDF (including a silent renderer
+   fallback to Lato), and only a 1-point planning reserve between the two shaping engines. With a
+   large publication, an IIS/native shaping difference could therefore cross QuestPDF's physical
+   page boundary. The generic catch converted the real font/layout/drawing exception into the
+   unhelpful `unexpected error` alert seen in the photograph.
 
-Then perform:
-1. Clean Solution
-2. Rebuild Solution
-3. Run the ProjectBriefings and FFC presentation tests
-4. Start the application
-5. Refresh the browser with Ctrl+F5
+The LAN being offline is not itself a required PDF dependency. The fault was that the deployed
+payload and font/layout contracts were not deterministic or validated. Phase 41 makes the publish
+self-contained, uses one exact local six-face DM Sans contract, reserves one normal body line
+(12 points), verifies the PDF after composition, and records the precise failing stage/page/project
+if a data-specific error remains.
 
-## Database
-No database migration is required.
+## Scope
 
-## Validation performed
-- Briefing-deck JavaScript tests: 32/32 passed.
-- JavaScript module syntax validation passed.
-- C# changed-file lexical brace validation passed.
-- Project and test-project XML validation passed.
-- Patch dry-run and clean-application comparison passed.
-- ZIP integrity and SHA-256 validation passed.
+- 23 project-relative source/test/deployment files
+- no database migration
+- no preset schema change
+- no permission-model change
+- no external CDN, web font, telemetry or runtime Internet dependency
+- no redesign of the existing Compendium PDF
 
-The .NET SDK is unavailable in the packaging environment, so Visual Studio compilation is the final build verification.
+## Apply to source
+
+1. Back up or commit the current source tree.
+2. Copy every folder and file beside this README into the root containing
+   `ProjectManagement.csproj`.
+3. Allow replacement of files with the same path. New files are added automatically by the SDK
+   project globs.
+4. Do **not** copy `README-FIRST.md`, `VALIDATION.md`, `FILE-MANIFEST.md`, `SHA256SUMS.txt` or
+   `CHANGESET.patch` into the application unless you want to retain the handoff material.
+
+Alternatively, from the original supplied source baseline:
+
+```bash
+patch -p1 < CHANGESET.patch
+```
+
+## Validate on the build machine
+
+Run from the project root:
+
+```powershell
+npm ci --ignore-scripts
+npm test
+dotnet restore .\ProjectManagement.sln
+dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj -c Release --no-restore
+.\ops\publish\create-publish-folder.ps1
+```
+
+The publish script now creates a **self-contained win-x64** payload and refuses to complete unless
+all of the following are present and usable:
+
+- .NET host/runtime files
+- the SkiaSharp win-x64 native library
+- all six local DM Sans publication faces
+- QuestPDF PDF generation
+- PdfPig PDF reopening and page-count verification
+
+## Deploy to the offline IIS server
+
+1. Stage the newly generated `artifacts\publish\ProjectManagement` directory as a complete release;
+   do not merge individual DLLs into the old live folder.
+2. From that exact staged/deployed directory, run:
+
+   ```powershell
+   .\ProjectManagement.exe --compendium-offline-self-test
+   ```
+
+   Continue only when it returns a JSON line containing `"status":"ok"` and exit code `0`.
+3. Create a durable diagnostics folder and grant Modify permission to the application-pool identity:
+
+   ```powershell
+   New-Item D:\PMData\Logs\Compendium -ItemType Directory -Force
+   icacls D:\PMData\Logs\Compendium /grant "IIS AppPool\ProjectManagementPool:(OI)(CI)M"
+   ```
+
+4. Configure the IIS worker environment variable
+   `PRISM_COMPENDIUM_DIAGNOSTICS_DIR=D:\PMData\Logs\Compendium`.
+5. Swap the staged folder into service using the site's normal `app_offline.htm`/release rollback
+   procedure, recycle the application pool, and confirm the response header
+   `X-PRISM-Compendium-Build` contains
+   `CompendiumPdf_2026-08-22_phase41-production-convergence`.
+6. Test a one-project preview, the production 78-project selection, final download, and front/back
+   cover-image replacement.
+
+`PRISM_PUBLICATION_FONTS_DIR` is optional. Use it only if the six fonts are intentionally stored
+outside the site; point it at an absolute publication-font directory containing `dm-sans`.
+
+## Failure diagnosis after deployment
+
+The publisher still receives a safe message and reference. The matching JSONL record is written to:
+
+```text
+D:\PMData\Logs\Compendium\compendium-generation-YYYYMMDD.jsonl
+```
+
+It identifies the build, operation, trace reference, generation stage, planned physical page,
+project ID/name and inner exception chain. Failure codes now distinguish publication read, cover
+resolution, font initialization, page planning, QuestPDF layout, drawing, composition and final PDF
+verification.
+
+## Rollback
+
+No database rollback is required. Restore the previous complete publish directory and recycle the
+application pool. Any Phase 41 JSONL diagnostic files may be retained safely.

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Publications;
@@ -14,6 +15,10 @@ namespace ProjectManagement.Services.Compendiums;
 /// </summary>
 public sealed class CompendiumExportService : ICompendiumExportService
 {
+    private static readonly SemaphoreSlim GenerationGate = new(
+        CompendiumBuildIdentity.MaximumConcurrentGenerations,
+        CompendiumBuildIdentity.MaximumConcurrentGenerations);
+
     private readonly ICompendiumReadService _readService;
     private readonly IBrochurePhotoService _photoService;
     private readonly ICompendiumPdfReportBuilder _pdfBuilder;
@@ -48,27 +53,76 @@ public sealed class CompendiumExportService : ICompendiumExportService
         CancellationToken cancellationToken = default)
     {
         request ??= new CompendiumExportRequest();
+        var queuedAt = Stopwatch.GetTimestamp();
+        await GenerationGate.WaitAsync(cancellationToken);
+        var startedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            _logger.LogInformation(
+                "Compendium generation admitted. Build={Build}, QueueMilliseconds={QueueMilliseconds}, SelectedProjects={SelectedProjects}",
+                CompendiumBuildIdentity.BuildStamp,
+                Stopwatch.GetElapsedTime(queuedAt, startedAt).TotalMilliseconds,
+                request.ProjectSelections?.Count ?? request.SelectedProjectIds?.Count ?? 0);
+
+            var result = await GenerateCoreAsync(request, cancellationToken);
+            _logger.LogInformation(
+                "Compendium generation completed. Build={Build}, DurationMilliseconds={DurationMilliseconds}, PdfBytes={PdfBytes}, PhysicalPages={PhysicalPages}",
+                CompendiumBuildIdentity.BuildStamp,
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                result.Bytes.Length,
+                result.PhysicalPageCount);
+            return result;
+        }
+        finally
+        {
+            GenerationGate.Release();
+        }
+    }
+
+    private async Task<CompendiumExportResult> GenerateCoreAsync(
+        CompendiumExportRequest request,
+        CancellationToken cancellationToken)
+    {
 
         var authoredSelections = ResolveSelections(request);
-        var data = authoredSelections.Count > 0
-            ? await _readService.GetPublicationAsync(
-                new CompendiumPublicationRequest(
-                    authoredSelections,
-                    request.Title,
-                    request.Subtitle,
-                    request.Edition)
-                {
-                    NarrativeSource = request.NarrativeSource,
-                    DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
-                    ProjectParticularsStyle = request.ProjectParticularsStyle,
-                    GroupingMode = request.GroupingMode,
-                    SortMode = request.SortMode,
-                    Sections = request.Sections,
-                    CoverDesign = request.CoverDesign,
-                    PhotoPreferences = request.PhotoPreferences
-                },
-                cancellationToken)
-            : await _readService.GetProliferationCompendiumAsync(cancellationToken);
+        CompendiumPdfDataDto data;
+        try
+        {
+            data = authoredSelections.Count > 0
+                ? await _readService.GetPublicationAsync(
+                    new CompendiumPublicationRequest(
+                        authoredSelections,
+                        request.Title,
+                        request.Subtitle,
+                        request.Edition)
+                    {
+                        NarrativeSource = request.NarrativeSource,
+                        DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
+                        ProjectParticularsStyle = request.ProjectParticularsStyle,
+                        GroupingMode = request.GroupingMode,
+                        SortMode = request.SortMode,
+                        Sections = request.Sections,
+                        CoverDesign = request.CoverDesign,
+                        PhotoPreferences = request.PhotoPreferences
+                    },
+                    cancellationToken)
+                : await _readService.GetProliferationCompendiumAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (CompendiumPdfGenerationException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.PublicationRead,
+                "The Compendium publication snapshot could not be read from PRISM. No PDF was issued.",
+                exception);
+        }
 
         if (!data.Preflight.CanGenerate)
         {
@@ -127,7 +181,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
         {
             _logger.LogWarning(
                 exception,
-                "Compendium publication image preparation failed. Text-led project layouts will be used where necessary.");
+                "Compendium publication image preparation failed. Stage={Stage}. Text-led project layouts will be used where necessary.",
+                CompendiumPdfGenerationStage.ImagePreparation);
             renderedPhotos = new Dictionary<int, BrochurePublicationImage>();
         }
 
@@ -209,7 +264,33 @@ public sealed class CompendiumExportService : ICompendiumExportService
             categories.Add(new CompendiumPdfCategorySection(group.TechnicalCategoryName, projects));
         }
 
-        var coverDesign = await ResolveCoverDesignAsync(request, publicationProjects, cancellationToken);
+        CompendiumPdfCoverDesign? coverDesign;
+        try
+        {
+            coverDesign = await ResolveCoverDesignAsync(request, publicationProjects, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (CompendiumPdfGenerationException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.CoverResolution,
+                exception.Message,
+                exception);
+        }
+        catch (Exception exception)
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.CoverResolution,
+                "The selected Compendium cover imagery could not be prepared on this server. Re-select the image or use Automatic cover imagery.",
+                exception);
+        }
         var coverHero = coverDesign?.Images.FirstOrDefault(image => image.Surface == CompendiumCoverSurface.Front
                                                                     && string.Equals(image.SlotKey, "Hero", StringComparison.OrdinalIgnoreCase))?.Content;
 
@@ -228,10 +309,66 @@ public sealed class CompendiumExportService : ICompendiumExportService
             CoverDesign = coverDesign
         };
 
-        var plan = _pagePlanner.Plan(context);
+        CompendiumPagePlan plan;
+        try
+        {
+            plan = _pagePlanner.Plan(context);
+        }
+        catch (CompendiumPdfGenerationException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("DM Sans", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("publication font", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.FontInitialization,
+                "The Compendium cannot be generated because the required DM Sans publication fonts could not be loaded on this server. Ensure the published publication-font package is present and restart PRISM.",
+                exception);
+        }
+        catch (Exception exception)
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.PagePlanning,
+                "The Compendium physical page plan could not be calculated from the selected publication content. No PDF was issued.",
+                exception);
+        }
+
         context = context with { Plan = plan };
-        var pdfBytes = _pdfBuilder.Build(context);
-        var verification = _compositionVerifier.Verify(pdfBytes, context, plan);
+        byte[] pdfBytes;
+        try
+        {
+            pdfBytes = _pdfBuilder.Build(context);
+        }
+        catch (CompendiumPdfGenerationException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.PdfComposition,
+                "The Compendium PDF renderer could not complete the publication on this server. No PDF was issued.",
+                exception);
+        }
+
+        CompendiumPdfVerificationResult verification;
+        try
+        {
+            verification = _compositionVerifier.Verify(pdfBytes, context, plan);
+        }
+        catch (CompendiumPdfCompositionException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.PdfVerification,
+                "The generated Compendium could not be reopened and physically verified on this server. No PDF was issued.",
+                exception);
+        }
 
         var dateStamp = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst())
             .ToString("yyyyMMdd", CultureInfo.InvariantCulture);
@@ -278,8 +415,12 @@ public sealed class CompendiumExportService : ICompendiumExportService
                                && probe.IsReady)
                 .ToArray();
         }
-        var used = new HashSet<(int ProjectId, int PhotoId)>();
-        var usedProjects = new HashSet<int>();
+        // Front and back covers are curated independently. Keeping the surface in the
+        // allocation key prevents a front-cover edit from silently changing an automatic
+        // back-cover selection (and vice versa). Portfolio Quartet uniqueness is therefore
+        // enforced across its four front slots, not across an unrelated back-cover slot.
+        var used = new HashSet<(CompendiumCoverSurface Surface, int ProjectId, int PhotoId)>();
+        var usedProjects = new HashSet<(CompendiumCoverSurface Surface, int ProjectId)>();
         var rendered = new List<CompendiumPdfCoverImage>();
 
         foreach (var required in requiredSlots)
@@ -328,27 +469,50 @@ public sealed class CompendiumExportService : ICompendiumExportService
                         $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' is no longer available in this Compendium.");
                 }
 
-                if (strictQuartet && used.Contains((explicitProject, explicitPhoto)))
+                if (strictQuartet
+                    && required.Surface == CompendiumCoverSurface.Front
+                    && used.Contains((required.Surface, explicitProject, explicitPhoto)))
                 {
                     throw new InvalidOperationException(
                         "Portfolio Quartet requires four different photographs; the same photograph is assigned to more than one slot.");
                 }
 
-                var image = await _photoService.RenderAsync(
-                    new BrochurePhotoRenderRequest(
+                BrochurePublicationImage? image;
+                try
+                {
+                    image = await _photoService.RenderAsync(
+                        new BrochurePhotoRenderRequest(
+                            explicitProject,
+                            explicitPhoto,
+                            ClampFocal(slot.FocalX),
+                            ClampFocal(slot.FocalY),
+                            geometry.Width,
+                            geometry.Height)
+                        {
+                            FitMode = effectiveFitMode == CompendiumImageFitMode.Fit
+                                ? BrochurePhotoFitMode.Fit
+                                : BrochurePhotoFitMode.Fill,
+                            PadFitToTarget = false
+                        },
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(
+                        exception,
+                        "Explicit Compendium cover image failed to render. Surface={Surface}, Slot={Slot}, ProjectId={ProjectId}, PhotoId={PhotoId}.",
+                        required.Surface,
+                        required.SlotKey,
                         explicitProject,
-                        explicitPhoto,
-                        ClampFocal(slot.FocalX),
-                        ClampFocal(slot.FocalY),
-                        geometry.Width,
-                        geometry.Height)
-                    {
-                        FitMode = effectiveFitMode == CompendiumImageFitMode.Fit
-                            ? BrochurePhotoFitMode.Fit
-                            : BrochurePhotoFitMode.Fill,
-                        PadFitToTarget = false
-                    },
-                    cancellationToken);
+                        explicitPhoto);
+                    throw new InvalidOperationException(
+                        $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' could not be rendered on this server. Re-select the image or use Automatic cover imagery.",
+                        exception);
+                }
 
                 if (image?.Content is not { Length: > 0 })
                 {
@@ -363,17 +527,17 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     effectiveFitMode,
                     explicitProject,
                     explicitPhoto));
-                used.Add((explicitProject, explicitPhoto));
-                usedProjects.Add(explicitProject);
+                used.Add((required.Surface, explicitProject, explicitPhoto));
+                usedProjects.Add((required.Surface, explicitProject));
                 continue;
             }
 
             var automaticSequence = candidates
                 .Where(candidate =>
-                    !used.Contains((candidate.ProjectId, candidate.PhotoId))
-                    && !usedProjects.Contains(candidate.ProjectId))
+                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))
+                    && !usedProjects.Contains((required.Surface, candidate.ProjectId)))
                 .Concat(candidates.Where(candidate =>
-                    !used.Contains((candidate.ProjectId, candidate.PhotoId))))
+                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))))
                 .Concat(strictQuartet ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>() : candidates)
                 .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
                 .Select(group => group.First())
@@ -412,8 +576,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
                         effectiveFitMode,
                         candidate.ProjectId,
                         candidate.PhotoId);
-                    used.Add((candidate.ProjectId, candidate.PhotoId));
-                    usedProjects.Add(candidate.ProjectId);
+                    used.Add((required.Surface, candidate.ProjectId, candidate.PhotoId));
+                    usedProjects.Add((required.Surface, candidate.ProjectId));
                     break;
                 }
                 catch (OperationCanceledException)

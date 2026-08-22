@@ -22,16 +22,6 @@ public sealed class PublicationFontService : IPublicationFontService
     public const string DisplayFamilyName = "PRISM Alatsi";
     public const string FallbackFamilyName = "Lato";
 
-    private static readonly string[] DmSansFiles =
-    [
-        "DMSans-Regular.ttf",
-        "DMSans-Medium.ttf",
-        "DMSans-SemiBold.ttf",
-        "DMSans-Bold.ttf",
-        "DMSans-Italic.ttf",
-        "DMSans-BoldItalic.ttf"
-    ];
-
     private readonly object _gate = new();
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<PublicationFontService> _logger;
@@ -61,20 +51,21 @@ public sealed class PublicationFontService : IPublicationFontService
                 return _status;
             }
 
-            var roots = CandidateRoots().ToArray();
-            var dmDirectory = roots
-                .Select(root => Path.Combine(root, "dm-sans"))
-                .FirstOrDefault(directory => DmSansFiles.All(file => File.Exists(Path.Combine(directory, file))));
-            var missingDmSans = dmDirectory is null
-                ? DmSansFiles
-                : DmSansFiles.Where(file => !File.Exists(Path.Combine(dmDirectory, file))).ToArray();
-            var dmSansAvailable = dmDirectory is not null && missingDmSans.Length == 0;
+            var roots = PublicationFontContract.CandidatePublicationRoots(
+                _environment.ContentRootPath,
+                _environment.WebRootPath);
+            var dmResolution = PublicationFontContract.InspectDmSans(
+                _environment.ContentRootPath,
+                _environment.WebRootPath);
+            var dmDirectory = dmResolution.DirectoryPath;
+            var missingDmSans = dmResolution.MissingFiles.ToArray();
+            var dmSansAvailable = dmResolution.IsAvailable;
 
             if (dmSansAvailable)
             {
                 try
                 {
-                    foreach (var file in DmSansFiles)
+                    foreach (var file in PublicationFontContract.RequiredDmSansFiles)
                     {
                         using var stream = File.OpenRead(Path.Combine(dmDirectory!, file));
                         FontManager.RegisterFontWithCustomName(PrimaryFamilyName, stream);
@@ -82,9 +73,12 @@ public sealed class PublicationFontService : IPublicationFontService
                 }
                 catch (Exception exception)
                 {
-                    _logger.LogError(exception, "Unable to register DM Sans publication fonts. Falling back to Lato.");
+                    _logger.LogError(
+                        exception,
+                        "Unable to register the bundled DM Sans publication fonts from {FontDirectory}. Compendium generation will be unavailable; non-Compendium reports may use Lato.",
+                        dmDirectory);
                     dmSansAvailable = false;
-                    missingDmSans = DmSansFiles;
+                    missingDmSans = PublicationFontContract.RequiredDmSansFiles.ToArray();
                 }
             }
 
@@ -106,9 +100,9 @@ public sealed class PublicationFontService : IPublicationFontService
                 }
             }
 
-            var source = dmDirectory is not null
+            var source = dmSansAvailable && dmDirectory is not null
                 ? DescribeRoot(Path.GetDirectoryName(dmDirectory)!)
-                : "QuestPDF bundled fallback";
+                : "DM Sans unavailable; non-Compendium fallback only";
 
             _status = new PublicationFontStatus(
                 dmSansAvailable ? PrimaryFamilyName : FallbackFamilyName,
@@ -119,36 +113,32 @@ public sealed class PublicationFontService : IPublicationFontService
                 source);
 
             _logger.LogInformation(
-                "Publication fonts initialised. Primary={PrimaryFamily}, Display={DisplayFamily}, Source={Source}",
+                "Publication fonts initialised. Primary={PrimaryFamily}, Display={DisplayFamily}, DmSansAvailable={DmSansAvailable}, Source={Source}",
                 _status.PrimaryFamily,
                 _status.DisplayFamily,
+                _status.DmSansAvailable,
                 _status.SourceDescription);
             return _status;
         }
     }
 
-    private IEnumerable<string> CandidateRoots()
-    {
-        if (!string.IsNullOrWhiteSpace(_environment.ContentRootPath))
-        {
-            yield return Path.Combine(
-                _environment.ContentRootPath,
-                "Resources",
-                "Publications",
-                "Fonts");
-        }
-
-        if (!string.IsNullOrWhiteSpace(_environment.WebRootPath))
-        {
-            yield return Path.Combine(
-                _environment.WebRootPath,
-                "fonts",
-                "publications");
-        }
-    }
-
     private string DescribeRoot(string root)
     {
+        var externalRoot = Environment.GetEnvironmentVariable(
+            PublicationFontContract.ExternalFontRootEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(externalRoot))
+        {
+            var configured = Path.GetFullPath(Environment.ExpandEnvironmentVariables(externalRoot.Trim()));
+            var publicationRoot = string.Equals(Path.GetFileName(configured), "dm-sans", StringComparison.OrdinalIgnoreCase)
+                ? Directory.GetParent(configured)?.FullName
+                : configured;
+            if (!string.IsNullOrWhiteSpace(publicationRoot)
+                && string.Equals(Path.GetFullPath(root), Path.GetFullPath(publicationRoot), StringComparison.OrdinalIgnoreCase))
+            {
+                return PublicationFontContract.ExternalFontRootEnvironmentVariable;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(_environment.ContentRootPath))
         {
             var resourceRoot = Path.GetFullPath(Path.Combine(

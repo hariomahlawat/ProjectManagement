@@ -796,6 +796,7 @@ public sealed class IndexModel : PageModel
         bool preview,
         CancellationToken cancellationToken)
     {
+        Response.Headers[CompendiumBuildIdentity.HeaderName] = CompendiumBuildIdentity.BuildStamp;
         try
         {
             NormalizeInput();
@@ -884,10 +885,30 @@ public sealed class IndexModel : PageModel
                 preview ? "preview" : "generation",
                 HttpContext.TraceIdentifier);
 
+            if (!CompendiumGenerationDiagnostics.TryWrite(
+                    exception,
+                    preview ? "preview" : "download",
+                    HttpContext.TraceIdentifier,
+                    out var diagnosticPath,
+                    out var diagnosticFailure))
+            {
+                _logger.LogWarning(
+                    diagnosticFailure,
+                    "Compendium durable diagnostic could not be written. TraceId={TraceId}, DiagnosticDirectorySetting={DiagnosticDirectorySetting}",
+                    HttpContext.TraceIdentifier,
+                    Environment.GetEnvironmentVariable(CompendiumGenerationDiagnostics.DirectoryEnvironmentVariable)
+                    ?? "<application>/logs/compendium");
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Compendium durable diagnostic recorded. TraceId={TraceId}, DiagnosticPath={DiagnosticPath}",
+                    HttpContext.TraceIdentifier,
+                    diagnosticPath);
+            }
+
             var (message, code) = DescribeGenerationFailure(exception, preview);
-            var statusCode = exception is CompendiumPdfCompositionException
-                ? StatusCodes.Status409Conflict
-                : StatusCodes.Status400BadRequest;
+            var statusCode = ResolveGenerationFailureStatusCode(exception);
             if (IsAjaxRequest())
             {
                 return JsonError(
@@ -1781,6 +1802,24 @@ public sealed class IndexModel : PageModel
                 "compositionVerificationFailed");
         }
 
+        if (exception is CompendiumPdfGenerationException generation)
+        {
+            return (
+                generation.Message,
+                generation.Stage switch
+                {
+                    CompendiumPdfGenerationStage.FontInitialization => "publicationFontUnavailable",
+                    CompendiumPdfGenerationStage.PublicationRead => "publicationReadFailed",
+                    CompendiumPdfGenerationStage.ImagePreparation => "imagePreparationFailed",
+                    CompendiumPdfGenerationStage.CoverResolution => "coverResolutionFailed",
+                    CompendiumPdfGenerationStage.PagePlanning => "paginationPlanningFailed",
+                    CompendiumPdfGenerationStage.PdfLayout => "pdfLayoutFailed",
+                    CompendiumPdfGenerationStage.PdfDrawing => "pdfDrawingFailed",
+                    CompendiumPdfGenerationStage.PdfVerification => "pdfVerificationFailed",
+                    _ => "pdfCompositionFailed"
+                });
+        }
+
         if (exception is InvalidOperationException validation
             && validation.Message.Contains("Review all selected projects", StringComparison.Ordinal))
         {
@@ -1799,6 +1838,17 @@ public sealed class IndexModel : PageModel
                 : "The Compendium could not be generated because the PDF composer encountered an unexpected error. No PDF was issued.",
             "generationFailed");
     }
+
+    private static int ResolveGenerationFailureStatusCode(Exception exception)
+        => exception switch
+        {
+            CompendiumPdfCompositionException => StatusCodes.Status409Conflict,
+            CompendiumPdfGenerationException { Stage: CompendiumPdfGenerationStage.PdfLayout } => StatusCodes.Status409Conflict,
+            CompendiumPdfGenerationException { Stage: CompendiumPdfGenerationStage.CoverResolution } => StatusCodes.Status422UnprocessableEntity,
+            CompendiumPdfGenerationException { Stage: CompendiumPdfGenerationStage.FontInitialization } => StatusCodes.Status503ServiceUnavailable,
+            CompendiumPdfGenerationException => StatusCodes.Status500InternalServerError,
+            _ => StatusCodes.Status400BadRequest
+        };
 
     private static bool IsSafePublicationValidationMessage(string? message)
     {

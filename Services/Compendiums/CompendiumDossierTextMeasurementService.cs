@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using ProjectManagement.Utilities.Reporting;
 using SkiaSharp;
 
 namespace ProjectManagement.Services.Compendiums;
@@ -448,39 +449,31 @@ public static class CompendiumDossierTextMeasurementService
 
     private static SKTypeface LoadTypeface(string fileName, string faceName)
     {
-        var attempted = new List<string>();
-        foreach (var path in CandidateFontPaths(fileName).Distinct(StringComparer.OrdinalIgnoreCase))
+        string path;
+        try
         {
-            attempted.Add(path);
-            try
-            {
-                if (!File.Exists(path)) continue;
-                var typeface = SKTypeface.FromFile(path);
-                if (typeface is not null) return typeface;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    $"The Compendium publication font face '{faceName}' could not be loaded from '{path}'. "
-                    + "Physical page measurement cannot safely fall back to a different host font.",
-                    ex);
-            }
+            path = PublicationFontContract.ResolveRequiredDmSansFile(fileName);
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException(
+                $"The bundled DM Sans {faceName} font required for authoritative Compendium measurement could not be resolved. "
+                + "Physical page measurement cannot safely fall back to a different host font.",
+                exception);
         }
 
-        throw new InvalidOperationException(
-            $"The bundled DM Sans {faceName} font required for authoritative Compendium measurement was not found. "
-            + $"Checked: {string.Join("; ", attempted)}");
-    }
-
-    private static IEnumerable<string> CandidateFontPaths(string fileName)
-    {
-        var relative = Path.Combine("wwwroot", "fonts", "publications", "dm-sans", fileName);
-        yield return Path.Combine(Directory.GetCurrentDirectory(), relative);
-        yield return Path.Combine(AppContext.BaseDirectory, relative);
-        yield return Path.Combine(AppContext.BaseDirectory, "fonts", "publications", "dm-sans", fileName);
-
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        for (var depth = 0; directory is not null && depth < 7; depth++, directory = directory.Parent)
-            yield return Path.Combine(directory.FullName, relative);
+        try
+        {
+            var typeface = SKTypeface.FromFile(path);
+            return typeface ?? throw new InvalidOperationException(
+                $"SkiaSharp returned no typeface for the Compendium publication font '{path}'.");
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException(
+                $"The Compendium publication font face '{faceName}' could not be loaded from '{path}'. "
+                + "Verify the font file, IIS application-pool read permission and SkiaSharp win-x64 native assets.",
+                exception);
+        }
     }
 }

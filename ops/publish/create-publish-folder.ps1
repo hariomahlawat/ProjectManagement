@@ -34,6 +34,21 @@ try {
         }
     }
 
+    $requiredPublicationFonts = @(
+        "DMSans-Regular.ttf",
+        "DMSans-Medium.ttf",
+        "DMSans-SemiBold.ttf",
+        "DMSans-Bold.ttf",
+        "DMSans-Italic.ttf",
+        "DMSans-BoldItalic.ttf"
+    )
+    $sourceFontRoot = Join-Path $repoRoot "wwwroot/fonts/publications/dm-sans"
+    foreach ($fontFile in $requiredPublicationFonts) {
+        if (-not (Test-Path (Join-Path $sourceFontRoot $fontFile) -PathType Leaf)) {
+            throw "Compendium publication source is incomplete. Missing DM Sans face '$fontFile'."
+        }
+    }
+
     Write-Host "Validating application JSON configuration..."
     Get-ChildItem -Path $repoRoot -Filter "appsettings*.json" -File | ForEach-Object {
         try {
@@ -70,7 +85,7 @@ try {
     dotnet publish (Join-Path $repoRoot "ProjectManagement.csproj") `
         --configuration Release `
         --runtime win-x64 `
-        --self-contained false `
+        --self-contained true `
         --output $publishRoot `
         /p:UseAppHost=true
     Assert-ExitCode "dotnet publish"
@@ -92,6 +107,36 @@ try {
         }
     }
 
+    $requiredSelfContainedRuntimeFiles = @(
+        "coreclr.dll",
+        "hostfxr.dll",
+        "hostpolicy.dll",
+        "System.Private.CoreLib.dll"
+    )
+    foreach ($runtimeFile in $requiredSelfContainedRuntimeFiles) {
+        if (-not (Test-Path (Join-Path $publishRoot $runtimeFile) -PathType Leaf)) {
+            throw "Publish validation failed: self-contained win-x64 runtime file '$runtimeFile' is missing."
+        }
+    }
+
+    $publishedFontRoot = Join-Path $publishRoot "wwwroot/fonts/publications/dm-sans"
+    foreach ($fontFile in $requiredPublicationFonts) {
+        $fontPath = Join-Path $publishedFontRoot $fontFile
+        if (-not (Test-Path $fontPath -PathType Leaf)) {
+            throw "Publish validation failed: Compendium font '$fontFile' is missing from the offline payload."
+        }
+        if ((Get-Item $fontPath).Length -le 0) {
+            throw "Publish validation failed: Compendium font '$fontFile' is empty."
+        }
+    }
+
+    if (-not (Get-ChildItem -Path $publishRoot -Filter "libSkiaSharp.dll" -File -Recurse | Select-Object -First 1)) {
+        throw "Publish validation failed: the win-x64 SkiaSharp native library is missing."
+    }
+
+    $diagnosticRoot = Join-Path $publishRoot "logs/compendium"
+    New-Item -Path $diagnosticRoot -ItemType Directory -Force | Out-Null
+
     Get-Content (Join-Path $publishRoot "appsettings.Production.json") -Raw |
         ConvertFrom-Json -ErrorAction Stop |
         Out-Null
@@ -108,6 +153,13 @@ try {
     if ($publishedManifest.Count -ne 62 -or $publishedManifest[-1] -ne "20261201160000_FinalizeProjectStageCompletionConstraint") {
         throw "Published migration manifest is incomplete."
     }
+
+    Write-Host "Running Compendium offline PDF dependency self-test..."
+    $selfTestOutput = & (Join-Path $publishRoot "ProjectManagement.exe") --compendium-offline-self-test 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Compendium offline self-test failed with exit code $LASTEXITCODE.`n$($selfTestOutput -join [Environment]::NewLine)"
+    }
+    Write-Host "  $($selfTestOutput -join [Environment]::NewLine)"
 
     Write-Host "Publish folder created and validated at $publishRoot" -ForegroundColor Green
 }

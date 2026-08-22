@@ -82,6 +82,25 @@ These notes capture the production hardening and offline deployment standard for
   - NuGet packages with outbound calls
 - Produce a dependency map with version, installer location, and a test command.
 
+#### Compendium PDF runtime contract
+
+- The Compendium is fully offline. Its pagination and final compositor both use the six DM Sans
+  faces under `wwwroot\fonts\publications\dm-sans`; no web-font or CDN fallback is permitted.
+- The release must include the self-contained win-x64 runtime, SkiaSharp native library, QuestPDF,
+  PdfPig and the publication fonts. Validate the exact deployed folder before attaching it to IIS:
+
+  ```powershell
+  .\ProjectManagement.exe --compendium-offline-self-test
+  ```
+
+- A successful command returns one JSON line with `"status":"ok"`. It does not start the web
+  host, connect to PostgreSQL, or use the network.
+- Set `PRISM_PUBLICATION_FONTS_DIR` only when publication fonts are deliberately stored outside the
+  site. The value points to the offline publication-font root containing `dm-sans`.
+- Set `PRISM_COMPENDIUM_DIAGNOSTICS_DIR` to a durable writable folder such as
+  `D:\PMData\Logs\Compendium`. Grant Modify permission to the application-pool identity. Failed PDF
+  requests append a JSONL record correlated by the same reference shown to the publisher.
+
 ### A7. Security and LAN-only posture
 
 - Remove or guard any code path that reaches public URLs, update feeds, telemetry, analytics, or CDN assets.
@@ -112,6 +131,13 @@ Include a versioned folder containing:
 dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:PublishTrimmed=false -o .\publish
 ```
 
+The repository publish script performs the same self-contained publish plus font, native-runtime
+and Compendium PDF self-test validation:
+
+```powershell
+.\ops\publish\create-publish-folder.ps1
+```
+
 ### C3. IIS site setup
 
 1. Copy publish folder to `D:\Sites\ProjectManagement\current`.
@@ -122,11 +148,13 @@ dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained
 
 ### C4. First deployment flow
 
-1. Verify database connectivity.
-2. Apply `migration.sql` if present using `psql -h <db-ip> -U pm_user -d ProjectManagement -f migration.sql`.
-3. Browse locally: `http://localhost:8080/`.
-4. Browse from LAN: `http://<server-ip>:8080/`.
-5. Hit `/health` and confirm green.
+1. Run `ProjectManagement.exe --compendium-offline-self-test` from the final deployed directory.
+2. Verify database connectivity.
+3. Apply `migration.sql` if present using `psql -h <db-ip> -U pm_user -d ProjectManagement -f migration.sql`.
+4. Browse locally: `http://localhost:8080/`.
+5. Browse from LAN: `http://<server-ip>:8080/`.
+6. Hit `/health` and confirm green.
+7. Generate a Compendium Preview PDF, verify its page count, then test the reviewed final download.
 
 ## D. Offline update and rollback SOP
 
@@ -154,4 +182,3 @@ dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained
 4. Migration discipline: enforce scripted migrations and impact notes.
 5. Health endpoint: implement and document.
 6. Deployment docs: keep this SOP under `/docs/deployment/offline-ws2022.md`.
-

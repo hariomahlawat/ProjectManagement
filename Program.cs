@@ -113,6 +113,17 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
+if (args.Any(a => string.Equals(
+        a,
+        CompendiumOfflineSelfTest.CommandLineSwitch,
+        StringComparison.OrdinalIgnoreCase)))
+{
+    // Run before host/configuration/database construction so an air-gapped IIS payload can
+    // validate its local PDF native dependencies and bundled fonts in complete isolation.
+    Environment.ExitCode = CompendiumOfflineSelfTest.Run();
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.AddConsole();

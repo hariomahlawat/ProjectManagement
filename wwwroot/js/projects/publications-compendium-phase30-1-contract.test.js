@@ -38,8 +38,8 @@ test('phase 30.1 automatic multi-image composition prefers different photos and 
   assert.match(coverJs, /usedPhotos/);
   assert.match(coverJs, /automaticCandidateSequence\(surface, usedProjects, usedPhotos\)/);
   assert.match(coverJs, /state\.automaticCandidates/);
-  assert.match(exportService, /usedProjects = new HashSet<int>/);
-  assert.match(exportService, /!usedProjects\.Contains\(candidate\.ProjectId\)/);
+  assert.match(exportService, /usedProjects = new HashSet<\(CompendiumCoverSurface Surface, int ProjectId\)>/);
+  assert.match(exportService, /!usedProjects\.Contains\(\(required\.Surface, candidate\.ProjectId\)\)/);
 });
 
 test('phase 30.1 makes compact cover actions template-aware', () => {

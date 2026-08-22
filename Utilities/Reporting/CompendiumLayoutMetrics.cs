@@ -16,13 +16,17 @@ public static class CompendiumLayoutMetrics
     public const float RunningHeaderHeightPoints = 28f;
     public const float ProjectContentTopPaddingPoints = 8f;
     public const float SecondaryContentTopPaddingPoints = 12f;
-    public const float PhysicalPaginationReservePoints = 1f;
+    // SkiaSharp is used for deterministic planning while QuestPDF performs the final shaping pass.
+    // Even with the same bundled DM Sans faces, native text-shaping and floating-point rounding can
+    // differ slightly between deployment machines. Reserve one normal body-text line so a page that
+    // is physically valid in the planner cannot sit on a sub-point production boundary.
+    public const float PhysicalPaginationReservePoints = 12f;
     public const float ContentWidthPoints = PageWidthPoints - (2f * HorizontalMarginPoints);
 
     /// <summary>
     /// Maximum height available to the inner project-page column after all fixed A4 chrome is
-    /// removed. The one-point reserve absorbs PDF floating-point rounding only; it is not an
-    /// editorial safety margin.
+    /// removed. The production shaping reserve is part of the physical pagination contract and absorbs
+    /// cross-engine/native shaping variance; it is deliberately not available for editorial content.
     /// </summary>
     public const float ProjectContentHeightPoints =
         PageHeightPoints

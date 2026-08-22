@@ -1,0 +1,2404 @@
+diff --git a/Pages/Projects/Publications/Compendium/Cover.cshtml b/Pages/Projects/Publications/Compendium/Cover.cshtml
+index 9084f69..cd00da9 100644
+--- a/Pages/Projects/Publications/Compendium/Cover.cshtml
++++ b/Pages/Projects/Publications/Compendium/Cover.cshtml
+@@ -368,5 +368,6 @@
+ </div>
+ 
+ @section Scripts {
++    <script src="~/js/projects/compendium-cover-editor-state.js" asp-append-version="true"></script>
+     <script src="~/js/pages/projects-compendium-cover-editor.js" asp-append-version="true"></script>
+ }
+diff --git a/Pages/Projects/Publications/Compendium/Index.cshtml.cs b/Pages/Projects/Publications/Compendium/Index.cshtml.cs
+index 164065d..ba4e984 100644
+--- a/Pages/Projects/Publications/Compendium/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Compendium/Index.cshtml.cs
+@@ -796,6 +796,7 @@ public sealed class IndexModel : PageModel
+         bool preview,
+         CancellationToken cancellationToken)
+     {
++        Response.Headers[CompendiumBuildIdentity.HeaderName] = CompendiumBuildIdentity.BuildStamp;
+         try
+         {
+             NormalizeInput();
+@@ -884,10 +885,30 @@ public sealed class IndexModel : PageModel
+                 preview ? "preview" : "generation",
+                 HttpContext.TraceIdentifier);
+ 
++            if (!CompendiumGenerationDiagnostics.TryWrite(
++                    exception,
++                    preview ? "preview" : "download",
++                    HttpContext.TraceIdentifier,
++                    out var diagnosticPath,
++                    out var diagnosticFailure))
++            {
++                _logger.LogWarning(
++                    diagnosticFailure,
++                    "Compendium durable diagnostic could not be written. TraceId={TraceId}, DiagnosticDirectorySetting={DiagnosticDirectorySetting}",
++                    HttpContext.TraceIdentifier,
++                    Environment.GetEnvironmentVariable(CompendiumGenerationDiagnostics.DirectoryEnvironmentVariable)
++                    ?? "<application>/logs/compendium");
++            }
++            else
++            {
++                _logger.LogInformation(
++                    "Compendium durable diagnostic recorded. TraceId={TraceId}, DiagnosticPath={DiagnosticPath}",
++                    HttpContext.TraceIdentifier,
++                    diagnosticPath);
++            }
++
+             var (message, code) = DescribeGenerationFailure(exception, preview);
+-            var statusCode = exception is CompendiumPdfCompositionException
+-                ? StatusCodes.Status409Conflict
+-                : StatusCodes.Status400BadRequest;
++            var statusCode = ResolveGenerationFailureStatusCode(exception);
+             if (IsAjaxRequest())
+             {
+                 return JsonError(
+@@ -1781,6 +1802,24 @@ public sealed class IndexModel : PageModel
+                 "compositionVerificationFailed");
+         }
+ 
++        if (exception is CompendiumPdfGenerationException generation)
++        {
++            return (
++                generation.Message,
++                generation.Stage switch
++                {
++                    CompendiumPdfGenerationStage.FontInitialization => "publicationFontUnavailable",
++                    CompendiumPdfGenerationStage.PublicationRead => "publicationReadFailed",
++                    CompendiumPdfGenerationStage.ImagePreparation => "imagePreparationFailed",
++                    CompendiumPdfGenerationStage.CoverResolution => "coverResolutionFailed",
++                    CompendiumPdfGenerationStage.PagePlanning => "paginationPlanningFailed",
++                    CompendiumPdfGenerationStage.PdfLayout => "pdfLayoutFailed",
++                    CompendiumPdfGenerationStage.PdfDrawing => "pdfDrawingFailed",
++                    CompendiumPdfGenerationStage.PdfVerification => "pdfVerificationFailed",
++                    _ => "pdfCompositionFailed"
++                });
++        }
++
+         if (exception is InvalidOperationException validation
+             && validation.Message.Contains("Review all selected projects", StringComparison.Ordinal))
+         {
+@@ -1800,6 +1839,17 @@ public sealed class IndexModel : PageModel
+             "generationFailed");
+     }
+ 
++    private static int ResolveGenerationFailureStatusCode(Exception exception)
++        => exception switch
++        {
++            CompendiumPdfCompositionException => StatusCodes.Status409Conflict,
++            CompendiumPdfGenerationException { Stage: CompendiumPdfGenerationStage.PdfLayout } => StatusCodes.Status409Conflict,
++            CompendiumPdfGenerationException { Stage: CompendiumPdfGenerationStage.CoverResolution } => StatusCodes.Status422UnprocessableEntity,
++            CompendiumPdfGenerationException { Stage: CompendiumPdfGenerationStage.FontInitialization } => StatusCodes.Status503ServiceUnavailable,
++            CompendiumPdfGenerationException => StatusCodes.Status500InternalServerError,
++            _ => StatusCodes.Status400BadRequest
++        };
++
+     private static bool IsSafePublicationValidationMessage(string? message)
+     {
+         if (string.IsNullOrWhiteSpace(message))
+diff --git a/Program.cs b/Program.cs
+index 1fda88a..7f7da07 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -113,6 +113,17 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+ 
+ var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
+ 
++if (args.Any(a => string.Equals(
++        a,
++        CompendiumOfflineSelfTest.CommandLineSwitch,
++        StringComparison.OrdinalIgnoreCase)))
++{
++    // Run before host/configuration/database construction so an air-gapped IIS payload can
++    // validate its local PDF native dependencies and bundled fonts in complete isolation.
++    Environment.ExitCode = CompendiumOfflineSelfTest.Run();
++    return;
++}
++
+ var builder = WebApplication.CreateBuilder(args);
+ 
+ builder.Logging.AddConsole();
+diff --git a/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs b/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs
+new file mode 100644
+index 0000000..c48bf69
+--- /dev/null
++++ b/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs
+@@ -0,0 +1,84 @@
++using ProjectManagement.Utilities.Reporting;
++using Xunit;
++
++namespace ProjectManagement.Tests.Publications;
++
++public sealed class CompendiumPhase41ProductionConvergenceTests
++{
++    [Fact]
++    public void PhysicalPaginationContract_ReservesAtLeastOneBodyLine()
++    {
++        Assert.True(CompendiumLayoutMetrics.PhysicalPaginationReservePoints >= 10f);
++        Assert.Equal("physical-a4-v41", CompendiumBuildIdentity.PdfContract);
++    }
++
++    [Fact]
++    public void FontContract_RequiresEveryDmSansFaceFromOneOfflineDirectory()
++    {
++        using var root = new TemporaryDirectory();
++        var fontDirectory = Path.Combine(root.Path, "wwwroot", "fonts", "publications", "dm-sans");
++        Directory.CreateDirectory(fontDirectory);
++
++        foreach (var file in PublicationFontContract.RequiredDmSansFiles)
++        {
++            File.WriteAllBytes(Path.Combine(fontDirectory, file), new byte[] { 1 });
++        }
++
++        var resolution = PublicationFontContract.InspectDmSans(root.Path, null);
++
++        Assert.True(resolution.IsAvailable);
++        Assert.Equal(Path.GetFullPath(fontDirectory), resolution.DirectoryPath);
++        Assert.Empty(resolution.MissingFiles);
++    }
++
++    [Fact]
++    public void FontContract_DoesNotAcceptAPartialDmSansDeployment()
++    {
++        using var root = new TemporaryDirectory();
++        var fontDirectory = Path.Combine(root.Path, "wwwroot", "fonts", "publications", "dm-sans");
++        Directory.CreateDirectory(fontDirectory);
++        File.WriteAllBytes(Path.Combine(fontDirectory, "DMSans-Regular.ttf"), new byte[] { 1 });
++
++        var resolution = PublicationFontContract.InspectDmSans(root.Path, null);
++
++        Assert.False(resolution.IsAvailable);
++        var exception = PublicationFontContract.CreateMissingFontException(resolution);
++        Assert.Contains("complete bundled DM Sans", exception.Message);
++        Assert.Contains(PublicationFontContract.ExternalFontRootEnvironmentVariable, exception.Message);
++    }
++
++    [Theory]
++    [InlineData(CompendiumPdfGenerationStage.PublicationRead)]
++    [InlineData(CompendiumPdfGenerationStage.CoverResolution)]
++    [InlineData(CompendiumPdfGenerationStage.FontInitialization)]
++    [InlineData(CompendiumPdfGenerationStage.PagePlanning)]
++    [InlineData(CompendiumPdfGenerationStage.PdfLayout)]
++    [InlineData(CompendiumPdfGenerationStage.PdfDrawing)]
++    [InlineData(CompendiumPdfGenerationStage.PdfVerification)]
++    public void TypedFailure_PreservesItsGenerationStage(CompendiumPdfGenerationStage stage)
++    {
++        var exception = new CompendiumPdfGenerationException(stage, "safe message");
++
++        Assert.Equal(stage, exception.Stage);
++        Assert.Equal("safe message", exception.Message);
++    }
++
++    private sealed class TemporaryDirectory : IDisposable
++    {
++        public TemporaryDirectory()
++        {
++            Path = System.IO.Path.Combine(
++                System.IO.Path.GetTempPath(),
++                "prism-compendium-phase41-tests",
++                Guid.NewGuid().ToString("N"));
++            Directory.CreateDirectory(Path);
++        }
++
++        public string Path { get; }
++
++        public void Dispose()
++        {
++            if (Directory.Exists(Path)) Directory.Delete(Path, recursive: true);
++        }
++    }
++}
+diff --git a/Services/Compendiums/CompendiumDossierTextMeasurementService.cs b/Services/Compendiums/CompendiumDossierTextMeasurementService.cs
+index cd44d2f..d784c56 100644
+--- a/Services/Compendiums/CompendiumDossierTextMeasurementService.cs
++++ b/Services/Compendiums/CompendiumDossierTextMeasurementService.cs
+@@ -1,4 +1,5 @@
+ using System.Text.RegularExpressions;
++using ProjectManagement.Utilities.Reporting;
+ using SkiaSharp;
+ 
+ namespace ProjectManagement.Services.Compendiums;
+@@ -448,39 +449,31 @@ public static class CompendiumDossierTextMeasurementService
+ 
+     private static SKTypeface LoadTypeface(string fileName, string faceName)
+     {
+-        var attempted = new List<string>();
+-        foreach (var path in CandidateFontPaths(fileName).Distinct(StringComparer.OrdinalIgnoreCase))
++        string path;
++        try
+         {
+-            attempted.Add(path);
+-            try
+-            {
+-                if (!File.Exists(path)) continue;
+-                var typeface = SKTypeface.FromFile(path);
+-                if (typeface is not null) return typeface;
+-            }
+-            catch (Exception ex)
+-            {
+-                throw new InvalidOperationException(
+-                    $"The Compendium publication font face '{faceName}' could not be loaded from '{path}'. "
+-                    + "Physical page measurement cannot safely fall back to a different host font.",
+-                    ex);
+-            }
++            path = PublicationFontContract.ResolveRequiredDmSansFile(fileName);
++        }
++        catch (Exception exception)
++        {
++            throw new InvalidOperationException(
++                $"The bundled DM Sans {faceName} font required for authoritative Compendium measurement could not be resolved. "
++                + "Physical page measurement cannot safely fall back to a different host font.",
++                exception);
+         }
+ 
+-        throw new InvalidOperationException(
+-            $"The bundled DM Sans {faceName} font required for authoritative Compendium measurement was not found. "
+-            + $"Checked: {string.Join("; ", attempted)}");
+-    }
+-
+-    private static IEnumerable<string> CandidateFontPaths(string fileName)
+-    {
+-        var relative = Path.Combine("wwwroot", "fonts", "publications", "dm-sans", fileName);
+-        yield return Path.Combine(Directory.GetCurrentDirectory(), relative);
+-        yield return Path.Combine(AppContext.BaseDirectory, relative);
+-        yield return Path.Combine(AppContext.BaseDirectory, "fonts", "publications", "dm-sans", fileName);
+-
+-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+-        for (var depth = 0; directory is not null && depth < 7; depth++, directory = directory.Parent)
+-            yield return Path.Combine(directory.FullName, relative);
++        try
++        {
++            var typeface = SKTypeface.FromFile(path);
++            return typeface ?? throw new InvalidOperationException(
++                $"SkiaSharp returned no typeface for the Compendium publication font '{path}'.");
++        }
++        catch (Exception exception)
++        {
++            throw new InvalidOperationException(
++                $"The Compendium publication font face '{faceName}' could not be loaded from '{path}'. "
++                + "Verify the font file, IIS application-pool read permission and SkiaSharp win-x64 native assets.",
++                exception);
++        }
+     }
+ }
+diff --git a/Services/Compendiums/CompendiumExportService.cs b/Services/Compendiums/CompendiumExportService.cs
+index c6f52e2..6de56b1 100644
+--- a/Services/Compendiums/CompendiumExportService.cs
++++ b/Services/Compendiums/CompendiumExportService.cs
+@@ -1,4 +1,5 @@
+ using System.Globalization;
++using System.Diagnostics;
+ using Microsoft.Extensions.Options;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Services.Publications;
+@@ -14,6 +15,10 @@ namespace ProjectManagement.Services.Compendiums;
+ /// </summary>
+ public sealed class CompendiumExportService : ICompendiumExportService
+ {
++    private static readonly SemaphoreSlim GenerationGate = new(
++        CompendiumBuildIdentity.MaximumConcurrentGenerations,
++        CompendiumBuildIdentity.MaximumConcurrentGenerations);
++
+     private readonly ICompendiumReadService _readService;
+     private readonly IBrochurePhotoService _photoService;
+     private readonly ICompendiumPdfReportBuilder _pdfBuilder;
+@@ -48,27 +53,76 @@ public sealed class CompendiumExportService : ICompendiumExportService
+         CancellationToken cancellationToken = default)
+     {
+         request ??= new CompendiumExportRequest();
++        var queuedAt = Stopwatch.GetTimestamp();
++        await GenerationGate.WaitAsync(cancellationToken);
++        var startedAt = Stopwatch.GetTimestamp();
++        try
++        {
++            _logger.LogInformation(
++                "Compendium generation admitted. Build={Build}, QueueMilliseconds={QueueMilliseconds}, SelectedProjects={SelectedProjects}",
++                CompendiumBuildIdentity.BuildStamp,
++                Stopwatch.GetElapsedTime(queuedAt, startedAt).TotalMilliseconds,
++                request.ProjectSelections?.Count ?? request.SelectedProjectIds?.Count ?? 0);
++
++            var result = await GenerateCoreAsync(request, cancellationToken);
++            _logger.LogInformation(
++                "Compendium generation completed. Build={Build}, DurationMilliseconds={DurationMilliseconds}, PdfBytes={PdfBytes}, PhysicalPages={PhysicalPages}",
++                CompendiumBuildIdentity.BuildStamp,
++                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
++                result.Bytes.Length,
++                result.PhysicalPageCount);
++            return result;
++        }
++        finally
++        {
++            GenerationGate.Release();
++        }
++    }
++
++    private async Task<CompendiumExportResult> GenerateCoreAsync(
++        CompendiumExportRequest request,
++        CancellationToken cancellationToken)
++    {
+ 
+         var authoredSelections = ResolveSelections(request);
+-        var data = authoredSelections.Count > 0
+-            ? await _readService.GetPublicationAsync(
+-                new CompendiumPublicationRequest(
+-                    authoredSelections,
+-                    request.Title,
+-                    request.Subtitle,
+-                    request.Edition)
+-                {
+-                    NarrativeSource = request.NarrativeSource,
+-                    DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
+-                    ProjectParticularsStyle = request.ProjectParticularsStyle,
+-                    GroupingMode = request.GroupingMode,
+-                    SortMode = request.SortMode,
+-                    Sections = request.Sections,
+-                    CoverDesign = request.CoverDesign,
+-                    PhotoPreferences = request.PhotoPreferences
+-                },
+-                cancellationToken)
+-            : await _readService.GetProliferationCompendiumAsync(cancellationToken);
++        CompendiumPdfDataDto data;
++        try
++        {
++            data = authoredSelections.Count > 0
++                ? await _readService.GetPublicationAsync(
++                    new CompendiumPublicationRequest(
++                        authoredSelections,
++                        request.Title,
++                        request.Subtitle,
++                        request.Edition)
++                    {
++                        NarrativeSource = request.NarrativeSource,
++                        DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
++                        ProjectParticularsStyle = request.ProjectParticularsStyle,
++                        GroupingMode = request.GroupingMode,
++                        SortMode = request.SortMode,
++                        Sections = request.Sections,
++                        CoverDesign = request.CoverDesign,
++                        PhotoPreferences = request.PhotoPreferences
++                    },
++                    cancellationToken)
++                : await _readService.GetProliferationCompendiumAsync(cancellationToken);
++        }
++        catch (OperationCanceledException)
++        {
++            throw;
++        }
++        catch (CompendiumPdfGenerationException)
++        {
++            throw;
++        }
++        catch (Exception exception)
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.PublicationRead,
++                "The Compendium publication snapshot could not be read from PRISM. No PDF was issued.",
++                exception);
++        }
+ 
+         if (!data.Preflight.CanGenerate)
+         {
+@@ -127,7 +181,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
+         {
+             _logger.LogWarning(
+                 exception,
+-                "Compendium publication image preparation failed. Text-led project layouts will be used where necessary.");
++                "Compendium publication image preparation failed. Stage={Stage}. Text-led project layouts will be used where necessary.",
++                CompendiumPdfGenerationStage.ImagePreparation);
+             renderedPhotos = new Dictionary<int, BrochurePublicationImage>();
+         }
+ 
+@@ -209,7 +264,33 @@ public sealed class CompendiumExportService : ICompendiumExportService
+             categories.Add(new CompendiumPdfCategorySection(group.TechnicalCategoryName, projects));
+         }
+ 
+-        var coverDesign = await ResolveCoverDesignAsync(request, publicationProjects, cancellationToken);
++        CompendiumPdfCoverDesign? coverDesign;
++        try
++        {
++            coverDesign = await ResolveCoverDesignAsync(request, publicationProjects, cancellationToken);
++        }
++        catch (OperationCanceledException)
++        {
++            throw;
++        }
++        catch (CompendiumPdfGenerationException)
++        {
++            throw;
++        }
++        catch (InvalidOperationException exception)
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.CoverResolution,
++                exception.Message,
++                exception);
++        }
++        catch (Exception exception)
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.CoverResolution,
++                "The selected Compendium cover imagery could not be prepared on this server. Re-select the image or use Automatic cover imagery.",
++                exception);
++        }
+         var coverHero = coverDesign?.Images.FirstOrDefault(image => image.Surface == CompendiumCoverSurface.Front
+                                                                     && string.Equals(image.SlotKey, "Hero", StringComparison.OrdinalIgnoreCase))?.Content;
+ 
+@@ -228,10 +309,66 @@ public sealed class CompendiumExportService : ICompendiumExportService
+             CoverDesign = coverDesign
+         };
+ 
+-        var plan = _pagePlanner.Plan(context);
++        CompendiumPagePlan plan;
++        try
++        {
++            plan = _pagePlanner.Plan(context);
++        }
++        catch (CompendiumPdfGenerationException)
++        {
++            throw;
++        }
++        catch (InvalidOperationException exception) when (
++            exception.Message.Contains("DM Sans", StringComparison.OrdinalIgnoreCase)
++            || exception.Message.Contains("publication font", StringComparison.OrdinalIgnoreCase))
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.FontInitialization,
++                "The Compendium cannot be generated because the required DM Sans publication fonts could not be loaded on this server. Ensure the published publication-font package is present and restart PRISM.",
++                exception);
++        }
++        catch (Exception exception)
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.PagePlanning,
++                "The Compendium physical page plan could not be calculated from the selected publication content. No PDF was issued.",
++                exception);
++        }
++
+         context = context with { Plan = plan };
+-        var pdfBytes = _pdfBuilder.Build(context);
+-        var verification = _compositionVerifier.Verify(pdfBytes, context, plan);
++        byte[] pdfBytes;
++        try
++        {
++            pdfBytes = _pdfBuilder.Build(context);
++        }
++        catch (CompendiumPdfGenerationException)
++        {
++            throw;
++        }
++        catch (Exception exception)
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.PdfComposition,
++                "The Compendium PDF renderer could not complete the publication on this server. No PDF was issued.",
++                exception);
++        }
++
++        CompendiumPdfVerificationResult verification;
++        try
++        {
++            verification = _compositionVerifier.Verify(pdfBytes, context, plan);
++        }
++        catch (CompendiumPdfCompositionException)
++        {
++            throw;
++        }
++        catch (Exception exception)
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.PdfVerification,
++                "The generated Compendium could not be reopened and physically verified on this server. No PDF was issued.",
++                exception);
++        }
+ 
+         var dateStamp = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst())
+             .ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+@@ -278,8 +415,12 @@ public sealed class CompendiumExportService : ICompendiumExportService
+                                && probe.IsReady)
+                 .ToArray();
+         }
+-        var used = new HashSet<(int ProjectId, int PhotoId)>();
+-        var usedProjects = new HashSet<int>();
++        // Front and back covers are curated independently. Keeping the surface in the
++        // allocation key prevents a front-cover edit from silently changing an automatic
++        // back-cover selection (and vice versa). Portfolio Quartet uniqueness is therefore
++        // enforced across its four front slots, not across an unrelated back-cover slot.
++        var used = new HashSet<(CompendiumCoverSurface Surface, int ProjectId, int PhotoId)>();
++        var usedProjects = new HashSet<(CompendiumCoverSurface Surface, int ProjectId)>();
+         var rendered = new List<CompendiumPdfCoverImage>();
+ 
+         foreach (var required in requiredSlots)
+@@ -328,27 +469,50 @@ public sealed class CompendiumExportService : ICompendiumExportService
+                         $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' is no longer available in this Compendium.");
+                 }
+ 
+-                if (strictQuartet && used.Contains((explicitProject, explicitPhoto)))
++                if (strictQuartet
++                    && required.Surface == CompendiumCoverSurface.Front
++                    && used.Contains((required.Surface, explicitProject, explicitPhoto)))
+                 {
+                     throw new InvalidOperationException(
+                         "Portfolio Quartet requires four different photographs; the same photograph is assigned to more than one slot.");
+                 }
+ 
+-                var image = await _photoService.RenderAsync(
+-                    new BrochurePhotoRenderRequest(
++                BrochurePublicationImage? image;
++                try
++                {
++                    image = await _photoService.RenderAsync(
++                        new BrochurePhotoRenderRequest(
++                            explicitProject,
++                            explicitPhoto,
++                            ClampFocal(slot.FocalX),
++                            ClampFocal(slot.FocalY),
++                            geometry.Width,
++                            geometry.Height)
++                        {
++                            FitMode = effectiveFitMode == CompendiumImageFitMode.Fit
++                                ? BrochurePhotoFitMode.Fit
++                                : BrochurePhotoFitMode.Fill,
++                            PadFitToTarget = false
++                        },
++                        cancellationToken);
++                }
++                catch (OperationCanceledException)
++                {
++                    throw;
++                }
++                catch (Exception exception)
++                {
++                    _logger.LogWarning(
++                        exception,
++                        "Explicit Compendium cover image failed to render. Surface={Surface}, Slot={Slot}, ProjectId={ProjectId}, PhotoId={PhotoId}.",
++                        required.Surface,
++                        required.SlotKey,
+                         explicitProject,
+-                        explicitPhoto,
+-                        ClampFocal(slot.FocalX),
+-                        ClampFocal(slot.FocalY),
+-                        geometry.Width,
+-                        geometry.Height)
+-                    {
+-                        FitMode = effectiveFitMode == CompendiumImageFitMode.Fit
+-                            ? BrochurePhotoFitMode.Fit
+-                            : BrochurePhotoFitMode.Fill,
+-                        PadFitToTarget = false
+-                    },
+-                    cancellationToken);
++                        explicitPhoto);
++                    throw new InvalidOperationException(
++                        $"The selected {required.Surface.ToString().ToLowerInvariant()} cover image for slot '{required.SlotKey}' could not be rendered on this server. Re-select the image or use Automatic cover imagery.",
++                        exception);
++                }
+ 
+                 if (image?.Content is not { Length: > 0 })
+                 {
+@@ -363,17 +527,17 @@ public sealed class CompendiumExportService : ICompendiumExportService
+                     effectiveFitMode,
+                     explicitProject,
+                     explicitPhoto));
+-                used.Add((explicitProject, explicitPhoto));
+-                usedProjects.Add(explicitProject);
++                used.Add((required.Surface, explicitProject, explicitPhoto));
++                usedProjects.Add((required.Surface, explicitProject));
+                 continue;
+             }
+ 
+             var automaticSequence = candidates
+                 .Where(candidate =>
+-                    !used.Contains((candidate.ProjectId, candidate.PhotoId))
+-                    && !usedProjects.Contains(candidate.ProjectId))
++                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))
++                    && !usedProjects.Contains((required.Surface, candidate.ProjectId)))
+                 .Concat(candidates.Where(candidate =>
+-                    !used.Contains((candidate.ProjectId, candidate.PhotoId))))
++                    !used.Contains((required.Surface, candidate.ProjectId, candidate.PhotoId))))
+                 .Concat(strictQuartet ? Array.Empty<CompendiumCoverAutomaticImagePolicy.Candidate>() : candidates)
+                 .GroupBy(candidate => (candidate.ProjectId, candidate.PhotoId))
+                 .Select(group => group.First())
+@@ -412,8 +576,8 @@ public sealed class CompendiumExportService : ICompendiumExportService
+                         effectiveFitMode,
+                         candidate.ProjectId,
+                         candidate.PhotoId);
+-                    used.Add((candidate.ProjectId, candidate.PhotoId));
+-                    usedProjects.Add(candidate.ProjectId);
++                    used.Add((required.Surface, candidate.ProjectId, candidate.PhotoId));
++                    usedProjects.Add((required.Surface, candidate.ProjectId));
+                     break;
+                 }
+                 catch (OperationCanceledException)
+diff --git a/Utilities/Reporting/CompendiumBuildIdentity.cs b/Utilities/Reporting/CompendiumBuildIdentity.cs
+new file mode 100644
+index 0000000..a75a74d
+--- /dev/null
++++ b/Utilities/Reporting/CompendiumBuildIdentity.cs
+@@ -0,0 +1,21 @@
++namespace ProjectManagement.Utilities.Reporting;
++
++/// <summary>
++/// Single production identity for the Compendium authoring, planning and PDF pipeline.
++/// Keep this value stable inside a deployed build so response headers, PDF metadata,
++/// self-test output and diagnostic records can be correlated without source access.
++/// </summary>
++public static class CompendiumBuildIdentity
++{
++    public const string Phase = "41";
++    public const string BuildStamp = "CompendiumPdf_2026-08-22_phase41-production-convergence";
++    public const string ReviewContract = "compendium-review-v19-cover-identity";
++    public const string PdfContract = "physical-a4-v41";
++    public const string HeaderName = "X-PRISM-Compendium-Build";
++    public const string PdfProducer = "PRISM ERP / QuestPDF / Phase 41";
++
++    // Compendium generation is deliberately serialized per worker process. A production
++    // publication can contain 78+ image-rich dossiers and must not compete with a second
++    // full renderer for the same native Skia/QuestPDF memory budget.
++    public const int MaximumConcurrentGenerations = 1;
++}
+diff --git a/Utilities/Reporting/CompendiumGenerationDiagnostics.cs b/Utilities/Reporting/CompendiumGenerationDiagnostics.cs
+new file mode 100644
+index 0000000..ee2ea2c
+--- /dev/null
++++ b/Utilities/Reporting/CompendiumGenerationDiagnostics.cs
+@@ -0,0 +1,104 @@
++using System.Text;
++using System.Text.Json;
++
++namespace ProjectManagement.Utilities.Reporting;
++
++/// <summary>
++/// Best-effort durable diagnostics for an air-gapped IIS deployment. This writer is
++/// intentionally independent of the configured logging provider so a PDF failure still
++/// leaves a correlation record when only console logging was configured.
++/// </summary>
++public static class CompendiumGenerationDiagnostics
++{
++    public const string DirectoryEnvironmentVariable = "PRISM_COMPENDIUM_DIAGNOSTICS_DIR";
++
++    private static readonly object WriteGate = new();
++    private static readonly UTF8Encoding Utf8WithoutBom = new(false);
++    private static readonly JsonSerializerOptions JsonOptions = new()
++    {
++        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
++    };
++
++    public static bool TryWrite(
++        Exception exception,
++        string operation,
++        string traceIdentifier,
++        out string? diagnosticPath,
++        out Exception? writeFailure)
++    {
++        ArgumentNullException.ThrowIfNull(exception);
++        diagnosticPath = null;
++        writeFailure = null;
++
++        try
++        {
++            var directory = ResolveDirectory();
++            Directory.CreateDirectory(directory);
++            diagnosticPath = Path.Combine(
++                directory,
++                $"compendium-generation-{DateTime.UtcNow:yyyyMMdd}.jsonl");
++
++            var generation = exception as CompendiumPdfGenerationException;
++            var payload = new
++            {
++                occurredAtUtc = DateTimeOffset.UtcNow,
++                build = CompendiumBuildIdentity.BuildStamp,
++                reviewContract = CompendiumBuildIdentity.ReviewContract,
++                pdfContract = CompendiumBuildIdentity.PdfContract,
++                operation,
++                traceIdentifier,
++                stage = generation?.Stage.ToString() ?? "Unhandled",
++                plannedPhysicalPage = generation?.PlannedPhysicalPage,
++                pageKind = generation?.PageKind?.ToString(),
++                projectId = generation?.ProjectId,
++                projectName = generation?.ProjectName,
++                exceptionType = exception.GetType().FullName,
++                message = Limit(exception.Message, 4000),
++                exceptionChain = ExceptionChain(exception)
++            };
++
++            var line = JsonSerializer.Serialize(payload, JsonOptions) + Environment.NewLine;
++            lock (WriteGate)
++            {
++                File.AppendAllText(diagnosticPath, line, Utf8WithoutBom);
++            }
++
++            return true;
++        }
++        catch (Exception failure)
++        {
++            diagnosticPath = null;
++            writeFailure = failure;
++            return false;
++        }
++    }
++
++    public static string ResolveDirectory()
++    {
++        var configured = Environment.GetEnvironmentVariable(DirectoryEnvironmentVariable);
++        return string.IsNullOrWhiteSpace(configured)
++            ? Path.Combine(AppContext.BaseDirectory, "logs", "compendium")
++            : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured.Trim()));
++    }
++
++    private static IReadOnlyList<object> ExceptionChain(Exception exception)
++    {
++        var chain = new List<object>(4);
++        for (Exception? current = exception; current is not null && chain.Count < 4; current = current.InnerException)
++        {
++            chain.Add(new
++            {
++                type = current.GetType().FullName,
++                message = Limit(current.Message, 4000),
++                stackTrace = Limit(current.StackTrace, 12000)
++            });
++        }
++
++        return chain;
++    }
++
++    private static string? Limit(string? value, int maximumLength)
++        => string.IsNullOrEmpty(value) || value.Length <= maximumLength
++            ? value
++            : value[..maximumLength];
++}
+diff --git a/Utilities/Reporting/CompendiumLayoutMetrics.cs b/Utilities/Reporting/CompendiumLayoutMetrics.cs
+index 0abfc2d..706c7f4 100644
+--- a/Utilities/Reporting/CompendiumLayoutMetrics.cs
++++ b/Utilities/Reporting/CompendiumLayoutMetrics.cs
+@@ -16,13 +16,17 @@ public static class CompendiumLayoutMetrics
+     public const float RunningHeaderHeightPoints = 28f;
+     public const float ProjectContentTopPaddingPoints = 8f;
+     public const float SecondaryContentTopPaddingPoints = 12f;
+-    public const float PhysicalPaginationReservePoints = 1f;
++    // SkiaSharp is used for deterministic planning while QuestPDF performs the final shaping pass.
++    // Even with the same bundled DM Sans faces, native text-shaping and floating-point rounding can
++    // differ slightly between deployment machines. Reserve one normal body-text line so a page that
++    // is physically valid in the planner cannot sit on a sub-point production boundary.
++    public const float PhysicalPaginationReservePoints = 12f;
+     public const float ContentWidthPoints = PageWidthPoints - (2f * HorizontalMarginPoints);
+ 
+     /// <summary>
+     /// Maximum height available to the inner project-page column after all fixed A4 chrome is
+-    /// removed. The one-point reserve absorbs PDF floating-point rounding only; it is not an
+-    /// editorial safety margin.
++    /// removed. The production shaping reserve is part of the physical pagination contract and absorbs
++    /// cross-engine/native shaping variance; it is deliberately not available for editorial content.
+     /// </summary>
+     public const float ProjectContentHeightPoints =
+         PageHeightPoints
+diff --git a/Utilities/Reporting/CompendiumOfflineSelfTest.cs b/Utilities/Reporting/CompendiumOfflineSelfTest.cs
+new file mode 100644
+index 0000000..398e57e
+--- /dev/null
++++ b/Utilities/Reporting/CompendiumOfflineSelfTest.cs
+@@ -0,0 +1,103 @@
++using System.Text.Json;
++using QuestPDF.Drawing;
++using QuestPDF.Fluent;
++using QuestPDF.Helpers;
++using QuestPDF.Infrastructure;
++using SkiaSharp;
++using UglyToad.PdfPig;
++
++namespace ProjectManagement.Utilities.Reporting;
++
++/// <summary>
++/// Runs before web-host construction when --compendium-offline-self-test is supplied.
++/// It exercises the exact local font, SkiaSharp, QuestPDF and PdfPig chain without a
++/// database, HTTP listener or internet connection.
++/// </summary>
++public static class CompendiumOfflineSelfTest
++{
++    public const string CommandLineSwitch = "--compendium-offline-self-test";
++
++    public static int Run()
++    {
++        try
++        {
++            var resolution = PublicationFontContract.InspectDmSans();
++            if (!resolution.IsAvailable)
++            {
++                throw PublicationFontContract.CreateMissingFontException(resolution);
++            }
++
++            foreach (var file in PublicationFontContract.RequiredDmSansFiles)
++            {
++                using var stream = File.OpenRead(Path.Combine(resolution.DirectoryPath!, file));
++                FontManager.RegisterFontWithCustomName(PublicationFontService.PrimaryFamilyName, stream);
++            }
++
++            var regularPath = Path.Combine(resolution.DirectoryPath!, "DMSans-Regular.ttf");
++            using var typeface = SKTypeface.FromFile(regularPath)
++                                 ?? throw new InvalidOperationException("SkiaSharp could not create the DM Sans test typeface.");
++            using var paint = new SKPaint
++            {
++                Typeface = typeface,
++                TextSize = 10f,
++                IsAntialias = true
++            };
++            var measuredWidth = paint.MeasureText("PRISM Compendium offline composition self-test");
++            if (!float.IsFinite(measuredWidth) || measuredWidth <= 0f)
++            {
++                throw new InvalidOperationException("SkiaSharp returned an invalid publication text measurement.");
++            }
++
++            QuestPDF.Settings.License = LicenseType.Community;
++            var pdfBytes = Document.Create(container =>
++            {
++                container.Page(page =>
++                {
++                    page.Size(PageSizes.A4);
++                    page.Margin(36);
++                    page.DefaultTextStyle(style => style
++                        .FontFamily(PublicationFontService.PrimaryFamilyName)
++                        .FontSize(10));
++                    page.Content().Column(column =>
++                    {
++                        column.Spacing(8);
++                        column.Item().Text("PRISM Compendium offline self-test").SemiBold().FontSize(16);
++                        column.Item().Text(CompendiumBuildIdentity.BuildStamp);
++                        column.Item().Text("Local DM Sans, SkiaSharp, QuestPDF and PdfPig are operational.");
++                    });
++                });
++            }).GeneratePdf();
++
++            using var pdfStream = new MemoryStream(pdfBytes, writable: false);
++            using var pdf = PdfDocument.Open(pdfStream);
++            var pageCount = pdf.GetPages().Count();
++            if (pageCount != 1)
++            {
++                throw new InvalidOperationException($"The offline test PDF contains {pageCount} pages; exactly one was expected.");
++            }
++
++            Console.WriteLine(JsonSerializer.Serialize(new
++            {
++                status = "ok",
++                build = CompendiumBuildIdentity.BuildStamp,
++                pdfContract = CompendiumBuildIdentity.PdfContract,
++                fontDirectory = resolution.DirectoryPath,
++                measuredWidth,
++                pdfBytes = pdfBytes.Length,
++                pageCount
++            }));
++            return 0;
++        }
++        catch (Exception exception)
++        {
++            Console.Error.WriteLine(JsonSerializer.Serialize(new
++            {
++                status = "failed",
++                build = CompendiumBuildIdentity.BuildStamp,
++                error = exception.Message,
++                detail = exception.ToString()
++            }));
++            return 41;
++        }
++    }
++}
+diff --git a/Utilities/Reporting/CompendiumPdfGenerationException.cs b/Utilities/Reporting/CompendiumPdfGenerationException.cs
+new file mode 100644
+index 0000000..7601925
+--- /dev/null
++++ b/Utilities/Reporting/CompendiumPdfGenerationException.cs
+@@ -0,0 +1,45 @@
++namespace ProjectManagement.Utilities.Reporting;
++
++/// <summary>
++/// Identifies the production stage at which Compendium PDF generation failed. The exception carries
++/// only publication-safe diagnostics; the original exception remains available as InnerException
++/// and is written to the application log with the request TraceIdentifier.
++/// </summary>
++public enum CompendiumPdfGenerationStage
++{
++    FontInitialization = 0,
++    PagePlanning = 1,
++    PdfComposition = 2,
++    PdfLayout = 3,
++    PdfDrawing = 4,
++    PdfVerification = 5,
++    PublicationRead = 6,
++    ImagePreparation = 7,
++    CoverResolution = 8
++}
++
++public sealed class CompendiumPdfGenerationException : InvalidOperationException
++{
++    public CompendiumPdfGenerationException(
++        CompendiumPdfGenerationStage stage,
++        string message,
++        Exception? innerException = null,
++        int? plannedPhysicalPage = null,
++        CompendiumPageKind? pageKind = null,
++        int? projectId = null,
++        string? projectName = null)
++        : base(message, innerException)
++    {
++        Stage = stage;
++        PlannedPhysicalPage = plannedPhysicalPage;
++        PageKind = pageKind;
++        ProjectId = projectId;
++        ProjectName = projectName;
++    }
++
++    public CompendiumPdfGenerationStage Stage { get; }
++    public int? PlannedPhysicalPage { get; }
++    public CompendiumPageKind? PageKind { get; }
++    public int? ProjectId { get; }
++    public string? ProjectName { get; }
++}
+diff --git a/Utilities/Reporting/CompendiumPdfReportBuilder.cs b/Utilities/Reporting/CompendiumPdfReportBuilder.cs
+index 62c4e0a..95830d0 100644
+--- a/Utilities/Reporting/CompendiumPdfReportBuilder.cs
++++ b/Utilities/Reporting/CompendiumPdfReportBuilder.cs
+@@ -7,6 +7,7 @@ using ProjectManagement.Utilities;
+ using QuestPDF.Fluent;
+ using QuestPDF.Helpers;
+ using QuestPDF.Infrastructure;
++using QuestPDF.Drawing.Exceptions;
+ 
+ namespace ProjectManagement.Utilities.Reporting;
+ 
+@@ -176,9 +177,18 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+         ArgumentNullException.ThrowIfNull(context);
+ 
+         var fontStatus = _fontService.EnsureRegistered();
+-        // The compositor is otherwise stateless/static. The publication font result is process-wide
+-        // and deterministic, so every page - cover, index, dossier and back cover - shares it.
+-        Volatile.Write(ref s_primaryFontFamily, fontStatus.PrimaryFamily);
++        if (!fontStatus.DmSansAvailable
++            || !string.Equals(fontStatus.PrimaryFamily, PublicationFontService.PrimaryFamilyName, StringComparison.Ordinal))
++        {
++            throw new CompendiumPdfGenerationException(
++                CompendiumPdfGenerationStage.FontInitialization,
++                "The Compendium cannot be generated because the required DM Sans publication fonts are not registered on this server. Ensure the published publication-font package is present and restart PRISM before generating the PDF.");
++        }
++
++        // The compositor is otherwise stateless/static. Compendium pagination is measured with the
++        // bundled DM Sans faces, therefore the renderer must use that exact family as well. A silent
++        // Lato/environment-font fallback would invalidate every physical page measurement.
++        Volatile.Write(ref s_primaryFontFamily, PublicationFontService.PrimaryFamilyName);
+ 
+         var title = NormalizeOptional(context.Title)
+                     ?? throw new InvalidOperationException("A Compendium publication title is required before PDF generation.");
+@@ -195,28 +205,22 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+         var document = Document
+             .Create(container =>
+             {
++                var state = new RenderState(
++                    title,
++                    subtitle,
++                    edition,
++                    issuer,
++                    marking,
++                    context.CoverDesign,
++                    context.CoverHero,
++                    crest,
++                    sddMark,
++                    footerLogo,
++                    programmeIcons,
++                    plan.IndexPageCount);
+                 foreach (var planned in plan.Pages)
+                 {
+-                    switch (planned.Kind)
+-                    {
+-                        case CompendiumPageKind.Cover:
+-                            ComposeCover(container, title, subtitle, edition, marking, context.CoverDesign, context.CoverHero, crest, sddMark);
+-                            break;
+-                        case CompendiumPageKind.Index:
+-                            ComposeIndexPage(container, planned, title, edition, issuer, marking, footerLogo, plan.IndexPageCount);
+-                            break;
+-                        case CompendiumPageKind.Project:
+-                            ComposeProjectPage(container, planned, title, edition, issuer, marking, footerLogo, programmeIcons);
+-                            break;
+-                        case CompendiumPageKind.ProjectContinuation:
+-                            ComposeProjectContinuationPage(container, planned, title, edition, issuer, marking, footerLogo);
+-                            break;
+-                        case CompendiumPageKind.BackCover:
+-                            ComposeBackCover(container, title, subtitle, edition, marking, context.CoverDesign, crest, sddMark);
+-                            break;
+-                        default:
+-                            throw new InvalidOperationException($"Unsupported Compendium page kind: {planned.Kind}.");
+-                    }
++                    ComposePlannedPage(container, planned, state, enableIndexLinks: true);
+                 }
+             })
+             .WithMetadata(new DocumentMetadata
+@@ -225,15 +229,241 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+                 Author = issuer,
+                 Subject = "Detailed project reference generated from selected PRISM project records.",
+                 Keywords = "projects, simulators, capabilities, SDD, PRISM ERP",
+-                Creator = "PRISM ERP",
+-                Producer = "PRISM ERP / QuestPDF",
++                Creator = $"PRISM ERP / {CompendiumBuildIdentity.BuildStamp}",
++                Producer = CompendiumBuildIdentity.PdfProducer,
+                 CreationDate = context.GeneratedAtUtc,
+                 ModifiedDate = context.GeneratedAtUtc
+             });
+ 
+-        return document.GeneratePdf();
++        try
++        {
++            return document.GeneratePdf();
++        }
++        catch (DocumentLayoutException exception)
++        {
++            throw CreateQuestPdfGenerationException(
++                CompendiumPdfGenerationStage.PdfLayout,
++                exception,
++                context,
++                plan,
++                title,
++                subtitle,
++                edition,
++                issuer,
++                marking,
++                crest,
++                sddMark,
++                footerLogo,
++                programmeIcons);
++        }
++        catch (DocumentComposeException exception)
++        {
++            throw CreateQuestPdfGenerationException(
++                CompendiumPdfGenerationStage.PdfComposition,
++                exception,
++                context,
++                plan,
++                title,
++                subtitle,
++                edition,
++                issuer,
++                marking,
++                crest,
++                sddMark,
++                footerLogo,
++                programmeIcons);
++        }
++        catch (DocumentDrawingException exception)
++        {
++            throw CreateQuestPdfGenerationException(
++                CompendiumPdfGenerationStage.PdfDrawing,
++                exception,
++                context,
++                plan,
++                title,
++                subtitle,
++                edition,
++                issuer,
++                marking,
++                crest,
++                sddMark,
++                footerLogo,
++                programmeIcons);
++        }
++        catch (Exception exception)
++        {
++            throw CreateQuestPdfGenerationException(
++                CompendiumPdfGenerationStage.PdfComposition,
++                exception,
++                context,
++                plan,
++                title,
++                subtitle,
++                edition,
++                issuer,
++                marking,
++                crest,
++                sddMark,
++                footerLogo,
++                programmeIcons);
++        }
++    }
++
++    private CompendiumPdfGenerationException CreateQuestPdfGenerationException(
++        CompendiumPdfGenerationStage stage,
++        Exception exception,
++        CompendiumPdfReportContext context,
++        CompendiumPagePlan plan,
++        string title,
++        string subtitle,
++        string edition,
++        string issuer,
++        string? marking,
++        byte[]? crest,
++        byte[]? sddMark,
++        byte[]? footerLogo,
++        IReadOnlyDictionary<string, string> programmeIcons)
++    {
++        var state = new RenderState(
++            title,
++            subtitle,
++            edition,
++            issuer,
++            marking,
++            context.CoverDesign,
++            context.CoverHero,
++            crest,
++            sddMark,
++            footerLogo,
++            programmeIcons,
++            plan.IndexPageCount);
++        var failingPage = TryLocateFailingPlannedPage(plan, state, stage);
++        var descriptor = failingPage is null
++            ? "the publication"
++            : DescribePlannedPage(failingPage);
++        var pageSuffix = failingPage is null
++            ? string.Empty
++            : $" Planned physical page {failingPage.PhysicalPageNumber}.";
++
++        var message = stage switch
++        {
++            CompendiumPdfGenerationStage.PdfLayout =>
++                $"The Compendium could not be issued because {descriptor} exceeded the safe physical A4 layout envelope on this server.{pageSuffix} PRISM stopped before allowing QuestPDF to create an unplanned extra page.",
++            CompendiumPdfGenerationStage.PdfDrawing =>
++                $"The Compendium could not be issued because the PDF renderer failed while drawing {descriptor}.{pageSuffix} No PDF was issued.",
++            _ =>
++                $"The Compendium could not be issued because the PDF renderer failed while composing {descriptor}.{pageSuffix} No PDF was issued."
++        };
++
++        _logger.LogError(
++            exception,
++            "Compendium QuestPDF failure. Stage={Stage}, PlannedPage={PlannedPage}, Kind={PageKind}, ProjectId={ProjectId}, ProjectName={ProjectName}",
++            stage,
++            failingPage?.PhysicalPageNumber,
++            failingPage?.Kind,
++            failingPage?.Project?.ProjectId,
++            failingPage?.Project?.ProjectName);
++
++        return new CompendiumPdfGenerationException(
++            stage,
++            message,
++            exception,
++            failingPage?.PhysicalPageNumber,
++            failingPage?.Kind,
++            failingPage?.Project?.ProjectId,
++            failingPage?.Project?.ProjectName);
++    }
++
++    private static CompendiumPagePlanItem? TryLocateFailingPlannedPage(
++        CompendiumPagePlan plan,
++        RenderState state,
++        CompendiumPdfGenerationStage failureStage)
++    {
++        foreach (var planned in plan.Pages)
++        {
++            try
++            {
++                var probe = Document.Create(container =>
++                    ComposePlannedPage(container, planned, state, enableIndexLinks: false));
++                _ = probe.GeneratePdf();
++            }
++            catch (Exception probeException) when (MatchesFailureStage(probeException, failureStage))
++            {
++                return planned;
++            }
++            catch
++            {
++                // A diagnostic probe is never allowed to replace the original exception with a
++                // different failure class. Continue until a page reproduces the same QuestPDF stage.
++            }
++        }
++
++        return null;
+     }
+ 
++    private static bool MatchesFailureStage(Exception exception, CompendiumPdfGenerationStage stage)
++        => stage switch
++        {
++            CompendiumPdfGenerationStage.PdfLayout => exception is DocumentLayoutException,
++            CompendiumPdfGenerationStage.PdfDrawing => exception is DocumentDrawingException,
++            CompendiumPdfGenerationStage.PdfComposition => exception is DocumentComposeException,
++            _ => false
++        };
++
++    private static string DescribePlannedPage(CompendiumPagePlanItem planned)
++        => planned.Kind switch
++        {
++            CompendiumPageKind.Cover => "the front cover",
++            CompendiumPageKind.Index => $"Compendium index page {planned.PhysicalPageNumber - 1}",
++            CompendiumPageKind.Project when planned.Project is not null => $"the project dossier '{planned.Project.ProjectName}'",
++            CompendiumPageKind.ProjectContinuation when planned.Project is not null =>
++                $"the continuation for '{planned.Project.ProjectName}' (part {planned.ContinuationPart + 1})",
++            CompendiumPageKind.BackCover => "the back cover",
++            _ => "the planned publication page"
++        };
++
++    private static void ComposePlannedPage(
++        IDocumentContainer container,
++        CompendiumPagePlanItem planned,
++        RenderState state,
++        bool enableIndexLinks)
++    {
++        switch (planned.Kind)
++        {
++            case CompendiumPageKind.Cover:
++                ComposeCover(container, state.Title, state.Subtitle, state.Edition, state.Marking, state.CoverDesign, state.CoverHero, state.Crest, state.SddMark);
++                break;
++            case CompendiumPageKind.Index:
++                ComposeIndexPage(container, planned, state.Title, state.Edition, state.Issuer, state.Marking, state.FooterLogo, state.TotalIndexPages, enableIndexLinks);
++                break;
++            case CompendiumPageKind.Project:
++                ComposeProjectPage(container, planned, state.Title, state.Edition, state.Issuer, state.Marking, state.FooterLogo, state.ProgrammeIcons);
++                break;
++            case CompendiumPageKind.ProjectContinuation:
++                ComposeProjectContinuationPage(container, planned, state.Title, state.Edition, state.Issuer, state.Marking, state.FooterLogo);
++                break;
++            case CompendiumPageKind.BackCover:
++                ComposeBackCover(container, state.Title, state.Subtitle, state.Edition, state.Marking, state.CoverDesign, state.Crest, state.SddMark);
++                break;
++            default:
++                throw new InvalidOperationException($"Unsupported Compendium page kind: {planned.Kind}.");
++        }
++    }
++
++    private sealed record RenderState(
++        string Title,
++        string Subtitle,
++        string Edition,
++        string Issuer,
++        string? Marking,
++        CompendiumPdfCoverDesign? CoverDesign,
++        byte[]? CoverHero,
++        byte[]? Crest,
++        byte[]? SddMark,
++        byte[]? FooterLogo,
++        IReadOnlyDictionary<string, string> ProgrammeIcons,
++        int TotalIndexPages);
++
+     private static void ComposeCover(
+         IDocumentContainer container,
+         string title,
+@@ -656,7 +886,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+         string issuer,
+         string? marking,
+         byte[]? footerLogo,
+-        int totalIndexPages)
++        int totalIndexPages,
++        bool enableNavigationLinks = true)
+     {
+         container.Page(page =>
+         {
+@@ -695,14 +926,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+                     && string.Equals(planned.IndexGroups[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase));
+                 foreach (var group in planned.IndexGroups)
+                 {
+-                    content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings));
++                    content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings, enableNavigationLinks));
+                 }
+             }));
+             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
+         });
+     }
+ 
+-    private static void ComposeIndexGroup(IContainer container, CompendiumIndexGroupPlan group, bool showHeading = true)
++    private static void ComposeIndexGroup(IContainer container, CompendiumIndexGroupPlan group, bool showHeading = true, bool enableNavigationLinks = true)
+     {
+         container.Column(column =>
+         {
+@@ -727,10 +958,21 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
+             {
+                 column.Item().BorderBottom(CompendiumLayoutMetrics.IndexRowBorderBottomPoints).BorderColor(Slate200).PaddingHorizontal(CompendiumLayoutMetrics.IndexRowHorizontalPaddingPoints).PaddingVertical(CompendiumLayoutMetrics.IndexRowVerticalPaddingPoints).Row(row =>
+                 {
+-                    row.RelativeItem().SectionLink(ProjectAnchorId(project.ProjectId)).Text(project.ProjectName)
+-                        .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
+-                        .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
+-                        .FontColor(Ink);
++                    var projectNameCell = row.RelativeItem();
++                    if (enableNavigationLinks)
++                    {
++                        projectNameCell.SectionLink(ProjectAnchorId(project.ProjectId)).Text(project.ProjectName)
++                            .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
++                            .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
++                            .FontColor(Ink);
++                    }
++                    else
++                    {
++                        projectNameCell.Text(project.ProjectName)
++                            .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
++                            .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
++                            .FontColor(Ink);
++                    }
+                     row.ConstantItem(CompendiumLayoutMetrics.IndexLifecycleWidthPoints).AlignRight().Text(
+                             string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
+                                 ? project.CompletionDisplay
+diff --git a/Utilities/Reporting/PublicationFontContract.cs b/Utilities/Reporting/PublicationFontContract.cs
+new file mode 100644
+index 0000000..37dc17d
+--- /dev/null
++++ b/Utilities/Reporting/PublicationFontContract.cs
+@@ -0,0 +1,160 @@
++namespace ProjectManagement.Utilities.Reporting;
++
++/// <summary>
++/// Resolves the bundled publication fonts identically for QuestPDF composition and
++/// SkiaSharp pagination. The resolver never contacts the network and does not depend
++/// on the IIS worker process current directory.
++/// </summary>
++public static class PublicationFontContract
++{
++    public const string ExternalFontRootEnvironmentVariable = "PRISM_PUBLICATION_FONTS_DIR";
++
++    public static IReadOnlyList<string> RequiredDmSansFiles { get; } = Array.AsReadOnly(new[]
++    {
++        "DMSans-Regular.ttf",
++        "DMSans-Medium.ttf",
++        "DMSans-SemiBold.ttf",
++        "DMSans-Bold.ttf",
++        "DMSans-Italic.ttf",
++        "DMSans-BoldItalic.ttf"
++    });
++
++    public static PublicationDmSansResolution InspectDmSans(
++        string? contentRootPath = null,
++        string? webRootPath = null)
++    {
++        var attempted = CandidatePublicationRoots(contentRootPath, webRootPath)
++            .Select(root => Path.Combine(root, "dm-sans"))
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++
++        foreach (var directory in attempted)
++        {
++            var missing = RequiredDmSansFiles
++                .Where(file => !File.Exists(Path.Combine(directory, file)))
++                .ToArray();
++            if (missing.Length == 0)
++            {
++                return new PublicationDmSansResolution(directory, attempted, Array.Empty<string>());
++            }
++        }
++
++        return new PublicationDmSansResolution(
++            null,
++            attempted,
++            RequiredDmSansFiles.ToArray());
++    }
++
++    public static string ResolveRequiredDmSansFile(
++        string fileName,
++        string? contentRootPath = null,
++        string? webRootPath = null)
++    {
++        if (!RequiredDmSansFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase))
++        {
++            throw new ArgumentOutOfRangeException(nameof(fileName), fileName, "The requested file is not part of the DM Sans publication contract.");
++        }
++
++        var resolution = InspectDmSans(contentRootPath, webRootPath);
++        if (!resolution.IsAvailable)
++        {
++            throw CreateMissingFontException(resolution);
++        }
++
++        var path = Path.Combine(resolution.DirectoryPath!, fileName);
++        if (!File.Exists(path))
++        {
++            // The directory may have changed after inspection (for example during an unsafe
++            // in-place deployment). Fail deterministically rather than selecting a host font.
++            throw CreateMissingFontException(resolution);
++        }
++
++        return path;
++    }
++
++    public static InvalidOperationException CreateMissingFontException(PublicationDmSansResolution resolution)
++    {
++        ArgumentNullException.ThrowIfNull(resolution);
++        var checkedLocations = resolution.AttemptedDirectories.Count == 0
++            ? "no publication font directories were configured"
++            : string.Join("; ", resolution.AttemptedDirectories);
++        return new InvalidOperationException(
++            "The complete bundled DM Sans publication font set was not found. "
++            + $"Expected: {string.Join(", ", RequiredDmSansFiles)}. Checked: {checkedLocations}. "
++            + $"Publish wwwroot/fonts/publications/dm-sans or set {ExternalFontRootEnvironmentVariable} to the offline publication-font root.");
++    }
++
++    public static IReadOnlyList<string> CandidatePublicationRoots(
++        string? contentRootPath = null,
++        string? webRootPath = null)
++    {
++        var roots = new List<string>();
++
++        AddExternalRoot(roots, Environment.GetEnvironmentVariable(ExternalFontRootEnvironmentVariable));
++        AddContentRootCandidates(roots, contentRootPath);
++
++        if (!string.IsNullOrWhiteSpace(webRootPath))
++        {
++            Add(roots, Path.Combine(webRootPath, "fonts", "publications"));
++        }
++
++        // An explicitly supplied host root is authoritative. Do not let an incomplete IIS
++        // deployment pass validation by finding a developer checkout, test output directory or
++        // machine-local font copy elsewhere in the worker process search path.
++        if (!string.IsNullOrWhiteSpace(contentRootPath) || !string.IsNullOrWhiteSpace(webRootPath))
++        {
++            return roots
++                .Distinct(StringComparer.OrdinalIgnoreCase)
++                .ToArray();
++        }
++
++        AddContentRootCandidates(roots, AppContext.BaseDirectory);
++        Add(roots, Path.Combine(AppContext.BaseDirectory, "fonts", "publications"));
++        AddContentRootCandidates(roots, Directory.GetCurrentDirectory());
++
++        var directory = new DirectoryInfo(AppContext.BaseDirectory);
++        for (var depth = 0; directory is not null && depth < 7; depth++, directory = directory.Parent)
++        {
++            AddContentRootCandidates(roots, directory.FullName);
++        }
++
++        return roots
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++    }
++
++    private static void AddExternalRoot(ICollection<string> roots, string? configuredPath)
++    {
++        if (string.IsNullOrWhiteSpace(configuredPath)) return;
++
++        var fullPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredPath.Trim()));
++        if (string.Equals(Path.GetFileName(fullPath), "dm-sans", StringComparison.OrdinalIgnoreCase))
++        {
++            Add(roots, Directory.GetParent(fullPath)?.FullName);
++            return;
++        }
++
++        Add(roots, fullPath);
++    }
++
++    private static void AddContentRootCandidates(ICollection<string> roots, string? basePath)
++    {
++        if (string.IsNullOrWhiteSpace(basePath)) return;
++        Add(roots, Path.Combine(basePath, "Resources", "Publications", "Fonts"));
++        Add(roots, Path.Combine(basePath, "wwwroot", "fonts", "publications"));
++    }
++
++    private static void Add(ICollection<string> roots, string? path)
++    {
++        if (string.IsNullOrWhiteSpace(path)) return;
++        roots.Add(Path.GetFullPath(path));
++    }
++}
++
++public sealed record PublicationDmSansResolution(
++    string? DirectoryPath,
++    IReadOnlyList<string> AttemptedDirectories,
++    IReadOnlyList<string> MissingFiles)
++{
++    public bool IsAvailable => !string.IsNullOrWhiteSpace(DirectoryPath) && MissingFiles.Count == 0;
++}
+diff --git a/Utilities/Reporting/PublicationFontRegistry.cs b/Utilities/Reporting/PublicationFontRegistry.cs
+index c49f683..581640b 100644
+--- a/Utilities/Reporting/PublicationFontRegistry.cs
++++ b/Utilities/Reporting/PublicationFontRegistry.cs
+@@ -22,16 +22,6 @@ public sealed class PublicationFontService : IPublicationFontService
+     public const string DisplayFamilyName = "PRISM Alatsi";
+     public const string FallbackFamilyName = "Lato";
+ 
+-    private static readonly string[] DmSansFiles =
+-    [
+-        "DMSans-Regular.ttf",
+-        "DMSans-Medium.ttf",
+-        "DMSans-SemiBold.ttf",
+-        "DMSans-Bold.ttf",
+-        "DMSans-Italic.ttf",
+-        "DMSans-BoldItalic.ttf"
+-    ];
+-
+     private readonly object _gate = new();
+     private readonly IWebHostEnvironment _environment;
+     private readonly ILogger<PublicationFontService> _logger;
+@@ -61,20 +51,21 @@ public sealed class PublicationFontService : IPublicationFontService
+                 return _status;
+             }
+ 
+-            var roots = CandidateRoots().ToArray();
+-            var dmDirectory = roots
+-                .Select(root => Path.Combine(root, "dm-sans"))
+-                .FirstOrDefault(directory => DmSansFiles.All(file => File.Exists(Path.Combine(directory, file))));
+-            var missingDmSans = dmDirectory is null
+-                ? DmSansFiles
+-                : DmSansFiles.Where(file => !File.Exists(Path.Combine(dmDirectory, file))).ToArray();
+-            var dmSansAvailable = dmDirectory is not null && missingDmSans.Length == 0;
++            var roots = PublicationFontContract.CandidatePublicationRoots(
++                _environment.ContentRootPath,
++                _environment.WebRootPath);
++            var dmResolution = PublicationFontContract.InspectDmSans(
++                _environment.ContentRootPath,
++                _environment.WebRootPath);
++            var dmDirectory = dmResolution.DirectoryPath;
++            var missingDmSans = dmResolution.MissingFiles.ToArray();
++            var dmSansAvailable = dmResolution.IsAvailable;
+ 
+             if (dmSansAvailable)
+             {
+                 try
+                 {
+-                    foreach (var file in DmSansFiles)
++                    foreach (var file in PublicationFontContract.RequiredDmSansFiles)
+                     {
+                         using var stream = File.OpenRead(Path.Combine(dmDirectory!, file));
+                         FontManager.RegisterFontWithCustomName(PrimaryFamilyName, stream);
+@@ -82,9 +73,12 @@ public sealed class PublicationFontService : IPublicationFontService
+                 }
+                 catch (Exception exception)
+                 {
+-                    _logger.LogError(exception, "Unable to register DM Sans publication fonts. Falling back to Lato.");
++                    _logger.LogError(
++                        exception,
++                        "Unable to register the bundled DM Sans publication fonts from {FontDirectory}. Compendium generation will be unavailable; non-Compendium reports may use Lato.",
++                        dmDirectory);
+                     dmSansAvailable = false;
+-                    missingDmSans = DmSansFiles;
++                    missingDmSans = PublicationFontContract.RequiredDmSansFiles.ToArray();
+                 }
+             }
+ 
+@@ -106,9 +100,9 @@ public sealed class PublicationFontService : IPublicationFontService
+                 }
+             }
+ 
+-            var source = dmDirectory is not null
++            var source = dmSansAvailable && dmDirectory is not null
+                 ? DescribeRoot(Path.GetDirectoryName(dmDirectory)!)
+-                : "QuestPDF bundled fallback";
++                : "DM Sans unavailable; non-Compendium fallback only";
+ 
+             _status = new PublicationFontStatus(
+                 dmSansAvailable ? PrimaryFamilyName : FallbackFamilyName,
+@@ -119,36 +113,32 @@ public sealed class PublicationFontService : IPublicationFontService
+                 source);
+ 
+             _logger.LogInformation(
+-                "Publication fonts initialised. Primary={PrimaryFamily}, Display={DisplayFamily}, Source={Source}",
++                "Publication fonts initialised. Primary={PrimaryFamily}, Display={DisplayFamily}, DmSansAvailable={DmSansAvailable}, Source={Source}",
+                 _status.PrimaryFamily,
+                 _status.DisplayFamily,
++                _status.DmSansAvailable,
+                 _status.SourceDescription);
+             return _status;
+         }
+     }
+ 
+-    private IEnumerable<string> CandidateRoots()
++    private string DescribeRoot(string root)
+     {
+-        if (!string.IsNullOrWhiteSpace(_environment.ContentRootPath))
+-        {
+-            yield return Path.Combine(
+-                _environment.ContentRootPath,
+-                "Resources",
+-                "Publications",
+-                "Fonts");
+-        }
+-
+-        if (!string.IsNullOrWhiteSpace(_environment.WebRootPath))
++        var externalRoot = Environment.GetEnvironmentVariable(
++            PublicationFontContract.ExternalFontRootEnvironmentVariable);
++        if (!string.IsNullOrWhiteSpace(externalRoot))
+         {
+-            yield return Path.Combine(
+-                _environment.WebRootPath,
+-                "fonts",
+-                "publications");
++            var configured = Path.GetFullPath(Environment.ExpandEnvironmentVariables(externalRoot.Trim()));
++            var publicationRoot = string.Equals(Path.GetFileName(configured), "dm-sans", StringComparison.OrdinalIgnoreCase)
++                ? Directory.GetParent(configured)?.FullName
++                : configured;
++            if (!string.IsNullOrWhiteSpace(publicationRoot)
++                && string.Equals(Path.GetFullPath(root), Path.GetFullPath(publicationRoot), StringComparison.OrdinalIgnoreCase))
++            {
++                return PublicationFontContract.ExternalFontRootEnvironmentVariable;
++            }
+         }
+-    }
+ 
+-    private string DescribeRoot(string root)
+-    {
+         if (!string.IsNullOrWhiteSpace(_environment.ContentRootPath))
+         {
+             var resourceRoot = Path.GetFullPath(Path.Combine(
+diff --git a/docs/deployment/offline-ws2022.md b/docs/deployment/offline-ws2022.md
+index ac04191..a1b2f0f 100644
+--- a/docs/deployment/offline-ws2022.md
++++ b/docs/deployment/offline-ws2022.md
+@@ -82,6 +82,25 @@ These notes capture the production hardening and offline deployment standard for
+   - NuGet packages with outbound calls
+ - Produce a dependency map with version, installer location, and a test command.
+ 
++#### Compendium PDF runtime contract
++
++- The Compendium is fully offline. Its pagination and final compositor both use the six DM Sans
++  faces under `wwwroot\fonts\publications\dm-sans`; no web-font or CDN fallback is permitted.
++- The release must include the self-contained win-x64 runtime, SkiaSharp native library, QuestPDF,
++  PdfPig and the publication fonts. Validate the exact deployed folder before attaching it to IIS:
++
++  ```powershell
++  .\ProjectManagement.exe --compendium-offline-self-test
++  ```
++
++- A successful command returns one JSON line with `"status":"ok"`. It does not start the web
++  host, connect to PostgreSQL, or use the network.
++- Set `PRISM_PUBLICATION_FONTS_DIR` only when publication fonts are deliberately stored outside the
++  site. The value points to the offline publication-font root containing `dm-sans`.
++- Set `PRISM_COMPENDIUM_DIAGNOSTICS_DIR` to a durable writable folder such as
++  `D:\PMData\Logs\Compendium`. Grant Modify permission to the application-pool identity. Failed PDF
++  requests append a JSONL record correlated by the same reference shown to the publisher.
++
+ ### A7. Security and LAN-only posture
+ 
+ - Remove or guard any code path that reaches public URLs, update feeds, telemetry, analytics, or CDN assets.
+@@ -112,6 +131,13 @@ Include a versioned folder containing:
+ dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:PublishTrimmed=false -o .\publish
+ ```
+ 
++The repository publish script performs the same self-contained publish plus font, native-runtime
++and Compendium PDF self-test validation:
++
++```powershell
++.\ops\publish\create-publish-folder.ps1
++```
++
+ ### C3. IIS site setup
+ 
+ 1. Copy publish folder to `D:\Sites\ProjectManagement\current`.
+@@ -122,11 +148,13 @@ dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained
+ 
+ ### C4. First deployment flow
+ 
+-1. Verify database connectivity.
+-2. Apply `migration.sql` if present using `psql -h <db-ip> -U pm_user -d ProjectManagement -f migration.sql`.
+-3. Browse locally: `http://localhost:8080/`.
+-4. Browse from LAN: `http://<server-ip>:8080/`.
+-5. Hit `/health` and confirm green.
++1. Run `ProjectManagement.exe --compendium-offline-self-test` from the final deployed directory.
++2. Verify database connectivity.
++3. Apply `migration.sql` if present using `psql -h <db-ip> -U pm_user -d ProjectManagement -f migration.sql`.
++4. Browse locally: `http://localhost:8080/`.
++5. Browse from LAN: `http://<server-ip>:8080/`.
++6. Hit `/health` and confirm green.
++7. Generate a Compendium Preview PDF, verify its page count, then test the reviewed final download.
+ 
+ ## D. Offline update and rollback SOP
+ 
+@@ -154,4 +182,3 @@ dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained
+ 4. Migration discipline: enforce scripted migrations and impact notes.
+ 5. Health endpoint: implement and document.
+ 6. Deployment docs: keep this SOP under `/docs/deployment/offline-ws2022.md`.
+-
+diff --git a/ops/publish/create-publish-folder.ps1 b/ops/publish/create-publish-folder.ps1
+index bd4176b..9ea3160 100644
+--- a/ops/publish/create-publish-folder.ps1
++++ b/ops/publish/create-publish-folder.ps1
+@@ -34,6 +34,21 @@ try {
+         }
+     }
+ 
++    $requiredPublicationFonts = @(
++        "DMSans-Regular.ttf",
++        "DMSans-Medium.ttf",
++        "DMSans-SemiBold.ttf",
++        "DMSans-Bold.ttf",
++        "DMSans-Italic.ttf",
++        "DMSans-BoldItalic.ttf"
++    )
++    $sourceFontRoot = Join-Path $repoRoot "wwwroot/fonts/publications/dm-sans"
++    foreach ($fontFile in $requiredPublicationFonts) {
++        if (-not (Test-Path (Join-Path $sourceFontRoot $fontFile) -PathType Leaf)) {
++            throw "Compendium publication source is incomplete. Missing DM Sans face '$fontFile'."
++        }
++    }
++
+     Write-Host "Validating application JSON configuration..."
+     Get-ChildItem -Path $repoRoot -Filter "appsettings*.json" -File | ForEach-Object {
+         try {
+@@ -70,7 +85,7 @@ try {
+     dotnet publish (Join-Path $repoRoot "ProjectManagement.csproj") `
+         --configuration Release `
+         --runtime win-x64 `
+-        --self-contained false `
++        --self-contained true `
+         --output $publishRoot `
+         /p:UseAppHost=true
+     Assert-ExitCode "dotnet publish"
+@@ -92,6 +107,36 @@ try {
+         }
+     }
+ 
++    $requiredSelfContainedRuntimeFiles = @(
++        "coreclr.dll",
++        "hostfxr.dll",
++        "hostpolicy.dll",
++        "System.Private.CoreLib.dll"
++    )
++    foreach ($runtimeFile in $requiredSelfContainedRuntimeFiles) {
++        if (-not (Test-Path (Join-Path $publishRoot $runtimeFile) -PathType Leaf)) {
++            throw "Publish validation failed: self-contained win-x64 runtime file '$runtimeFile' is missing."
++        }
++    }
++
++    $publishedFontRoot = Join-Path $publishRoot "wwwroot/fonts/publications/dm-sans"
++    foreach ($fontFile in $requiredPublicationFonts) {
++        $fontPath = Join-Path $publishedFontRoot $fontFile
++        if (-not (Test-Path $fontPath -PathType Leaf)) {
++            throw "Publish validation failed: Compendium font '$fontFile' is missing from the offline payload."
++        }
++        if ((Get-Item $fontPath).Length -le 0) {
++            throw "Publish validation failed: Compendium font '$fontFile' is empty."
++        }
++    }
++
++    if (-not (Get-ChildItem -Path $publishRoot -Filter "libSkiaSharp.dll" -File -Recurse | Select-Object -First 1)) {
++        throw "Publish validation failed: the win-x64 SkiaSharp native library is missing."
++    }
++
++    $diagnosticRoot = Join-Path $publishRoot "logs/compendium"
++    New-Item -Path $diagnosticRoot -ItemType Directory -Force | Out-Null
++
+     Get-Content (Join-Path $publishRoot "appsettings.Production.json") -Raw |
+         ConvertFrom-Json -ErrorAction Stop |
+         Out-Null
+@@ -109,6 +154,13 @@ try {
+         throw "Published migration manifest is incomplete."
+     }
+ 
++    Write-Host "Running Compendium offline PDF dependency self-test..."
++    $selfTestOutput = & (Join-Path $publishRoot "ProjectManagement.exe") --compendium-offline-self-test 2>&1
++    if ($LASTEXITCODE -ne 0) {
++        throw "Compendium offline self-test failed with exit code $LASTEXITCODE.`n$($selfTestOutput -join [Environment]::NewLine)"
++    }
++    Write-Host "  $($selfTestOutput -join [Environment]::NewLine)"
++
+     Write-Host "Publish folder created and validated at $publishRoot" -ForegroundColor Green
+ }
+ finally {
+diff --git a/ops/publish/test-compendium-offline-payload.ps1 b/ops/publish/test-compendium-offline-payload.ps1
+new file mode 100644
+index 0000000..06a69ac
+--- /dev/null
++++ b/ops/publish/test-compendium-offline-payload.ps1
+@@ -0,0 +1,39 @@
++#!/usr/bin/env pwsh
++
++[CmdletBinding()]
++param(
++    [Parameter(Mandatory = $true)]
++    [string] $PublishRoot
++)
++
++$ErrorActionPreference = "Stop"
++$resolvedRoot = (Resolve-Path $PublishRoot).Path
++$application = Join-Path $resolvedRoot "ProjectManagement.exe"
++
++if (-not (Test-Path $application -PathType Leaf)) {
++    throw "ProjectManagement.exe was not found in '$resolvedRoot'."
++}
++
++$requiredFonts = @(
++    "DMSans-Regular.ttf",
++    "DMSans-Medium.ttf",
++    "DMSans-SemiBold.ttf",
++    "DMSans-Bold.ttf",
++    "DMSans-Italic.ttf",
++    "DMSans-BoldItalic.ttf"
++)
++$fontRoot = Join-Path $resolvedRoot "wwwroot/fonts/publications/dm-sans"
++foreach ($font in $requiredFonts) {
++    $path = Join-Path $fontRoot $font
++    if (-not (Test-Path $path -PathType Leaf) -or (Get-Item $path).Length -le 0) {
++        throw "Offline Compendium font validation failed for '$path'."
++    }
++}
++
++$result = & $application --compendium-offline-self-test 2>&1
++if ($LASTEXITCODE -ne 0) {
++    throw "Compendium offline self-test failed with exit code $LASTEXITCODE.`n$($result -join [Environment]::NewLine)"
++}
++
++Write-Host ($result -join [Environment]::NewLine)
++Write-Host "Compendium offline payload validation passed for '$resolvedRoot'." -ForegroundColor Green
+diff --git a/wwwroot/js/pages/projects-compendium-cover-editor.js b/wwwroot/js/pages/projects-compendium-cover-editor.js
+index 2cd52dc..602fa4f 100644
+--- a/wwwroot/js/pages/projects-compendium-cover-editor.js
++++ b/wwwroot/js/pages/projects-compendium-cover-editor.js
+@@ -21,6 +21,11 @@
+     const modal = id => window.bootstrap?.Modal.getOrCreateInstance(document.getElementById(id));
+     const clean = value => (value ?? '').toString().trim();
+     const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : .5));
++    const coverState = globalThis.PrismCompendiumCoverState;
++    if (!coverState) {
++        console.error('PRISM Compendium cover state contract is unavailable. Reload the page before editing the cover.');
++        return;
++    }
+     const titleCase = value => (value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+     const templateDisplayName = value => ({
+         InstitutionalHero: 'Institutional Hero',
+@@ -75,6 +80,8 @@
+         automaticCandidates: normaliseAutomaticCandidates(boot.automaticCandidates || []),
+         automaticCandidatesDirty: false,
+         hydrationVersions: new Map(),
++        photoPickerRequestVersion: 0,
++        photoPickerAbortController: null,
+         overrideEditing: new Set(),
+         dirty: false,
+         leaveAfterSave: false,
+@@ -644,13 +651,16 @@
+         void hydrateVisibleSlotPreviews(surface);
+     }
+ 
+-    async function loadProjectPhotos(projectId) {
++    async function loadProjectPhotos(projectId, signal = null) {
+         const key = Number(projectId);
+         if (!key) return [];
+         if (state.photoCache.has(key)) return state.photoCache.get(key);
+         const url = new URL(boot.photosUrl, window.location.origin);
+         url.searchParams.set('projectId', String(key));
+-        const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
++        const response = await fetch(url, {
++            headers: { 'X-Requested-With': 'XMLHttpRequest' },
++            signal: signal
++        });
+         if (!response.ok) throw new Error((await safeJson(response))?.message || 'Project photography could not be loaded.');
+         const data = await response.json();
+         const photos = Array.isArray(data.photos) ? data.photos : [];
+@@ -660,6 +670,12 @@
+ 
+     function automaticSlotKey(surface, slotKey) { return `${surface}:${slotKey}`; }
+ 
++    function cancelPhotoPickerRequest() {
++        state.photoPickerRequestVersion += 1;
++        state.photoPickerAbortController?.abort();
++        state.photoPickerAbortController = null;
++    }
++
+     function clearAutomaticResolutions(surface = null) {
+         if (surface) state.hydrationVersions.set(surface, (state.hydrationVersions.get(surface) || 0) + 1);
+         else ['front', 'back'].forEach(key => state.hydrationVersions.set(key, (state.hydrationVersions.get(key) || 0) + 1));
+@@ -725,11 +741,13 @@
+         if (!isCurrentHydration()) return;
+ 
+         state.design.images.forEach(slot => {
++            if (slot.surface.toLowerCase() !== surface) return;
+             if (slot.imageMode !== 'Explicit' || !slot.projectId || !slot.photoId) return;
+             usedPhotos.add(`${Number(slot.projectId)}:${Number(slot.photoId)}`);
+             usedProjects.add(Number(slot.projectId));
+         });
+-        state.autoResolved.forEach(candidate => {
++        state.autoResolved.forEach((candidate, key) => {
++            if (!key.startsWith(`${surface}:`)) return;
+             if (!candidate?.projectId || !candidate?.photoId) return;
+             usedPhotos.add(`${Number(candidate.projectId)}:${Number(candidate.photoId)}`);
+             usedProjects.add(Number(candidate.projectId));
+@@ -795,6 +813,7 @@
+     }
+ 
+     async function openPhotoPicker(slotKey) {
++        cancelPhotoPickerRequest();
+         const slot = ensureSlot(state.activeSurface, slotKey);
+         state.activeSlot = slot;
+         const resolved = state.autoResolved.get(automaticSlotKey(state.activeSurface, slotKey));
+@@ -819,27 +838,50 @@
+             noneButton.title = required ? 'This image slot is required by the selected cover template.' : '';
+         }
+         modal('compendiumCoverPhotoModal')?.show();
+-        if (selectedProjectId) await renderProjectPhotos(selectedProjectId);
++        const selectedProjectExists = selectedProjectId
++            && Array.from(select.options).some(option => Number(option.value) === Number(selectedProjectId));
++        if (selectedProjectExists) await renderProjectPhotos(selectedProjectId);
++        else if (selectedProjectId && photoState) {
++            photoState.textContent = 'The project used by this saved cover image is no longer selected. Choose a current project photograph.';
++        }
+     }
+ 
+     async function renderProjectPhotos(projectId) {
+         const grid = portalBy('[data-cover-photo-grid]');
+         const stateNode = portalBy('[data-cover-photo-state]');
+         if (!grid || !stateNode) return;
++
++        const requestedProjectId = coverState.positiveId(projectId);
++        state.photoPickerAbortController?.abort();
++        const requestVersion = ++state.photoPickerRequestVersion;
++        const controller = typeof AbortController === 'function' ? new AbortController() : null;
++        state.photoPickerAbortController = controller;
++        const isCurrentRequest = () => coverState.shouldCommitPhotoRequest(
++            requestVersion,
++            state.photoPickerRequestVersion,
++            requestedProjectId,
++            portalBy('[data-cover-project-select]')?.value);
++
+         grid.innerHTML = '';
++        if (!requestedProjectId) {
++            state.photoPickerAbortController = null;
++            stateNode.textContent = 'Select a project to view its publication photographs.';
++            return;
++        }
+         stateNode.textContent = 'Loading project photography…';
+         try {
+-            const photos = await loadProjectPhotos(projectId);
++            const photos = await loadProjectPhotos(requestedProjectId, controller?.signal);
++            if (!isCurrentRequest()) return;
+             if (!photos.length) {
+                 stateNode.textContent = 'No usable publication photographs are recorded for this project.';
+                 return;
+             }
+             stateNode.textContent = `${photos.length} photograph${photos.length === 1 ? '' : 's'} available`;
+             photos.forEach(photo => {
+-                const pref = preferenceFor(projectId, photo.photoId);
++                const pref = preferenceFor(requestedProjectId, photo.photoId);
+                 const card = document.createElement('article');
+                 card.className = 'compendium-cover-photo-card';
+-                const selected = state.activeSlot?.imageMode === 'Explicit' && Number(state.activeSlot?.projectId) === Number(projectId) && Number(state.activeSlot?.photoId) === Number(photo.photoId);
++                const selected = state.activeSlot?.imageMode === 'Explicit' && Number(state.activeSlot?.projectId) === requestedProjectId && Number(state.activeSlot?.photoId) === Number(photo.photoId);
+                 if (selected) card.classList.add('selected');
+                 card.innerHTML = `
+                     <button type="button" class="compendium-cover-photo-select" data-cover-select-photo="${photo.photoId}">
+@@ -851,12 +893,15 @@
+                         <label title="Prefer this image when PRISM fills automatic cover slots"><input type="checkbox" data-cover-pref="preferred" data-photo-id="${photo.photoId}" ${pref.preferredForPublication ? 'checked' : ''}/> Cover preferred</label>
+                         <label title="Allow Automatic Hero to prioritise this image for the cover"><input type="checkbox" data-cover-pref="hero" data-photo-id="${photo.photoId}" ${pref.suitableForCoverHero ? 'checked' : ''}/> Cover suitable</label>
+                     </div>`;
+-                card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(projectId, photo));
+-                card.querySelectorAll('[data-cover-pref]').forEach(input => input.addEventListener('change', () => updatePreference(projectId, photo.photoId, input.dataset.coverPref, input.checked)));
++                card.querySelector('[data-cover-select-photo]').addEventListener('click', () => choosePhoto(requestedProjectId, photo));
++                card.querySelectorAll('[data-cover-pref]').forEach(input => input.addEventListener('change', () => updatePreference(requestedProjectId, photo.photoId, input.dataset.coverPref, input.checked)));
+                 grid.appendChild(card);
+             });
+         } catch (error) {
++            if (error?.name === 'AbortError' || !isCurrentRequest()) return;
+             stateNode.textContent = error?.message || 'Project photography could not be loaded.';
++        } finally {
++            if (requestVersion === state.photoPickerRequestVersion) state.photoPickerAbortController = null;
+         }
+     }
+ 
+@@ -883,14 +928,13 @@
+     function choosePhoto(projectId, photo) {
+         const slot = state.activeSlot;
+         if (!slot) return;
+-        slot.imageMode = 'Explicit';
+-        state.autoResolved.delete(automaticSlotKey(state.activeSurface, slot.slotKey));
+-        slot.projectId = Number(projectId);
+-        slot.photoId = Number(photo.photoId);
+-        slot.previewUrl = photo.previewUrl || photo.thumbnailUrl;
+-        slot.sourceWidth = photo.width;
+-        slot.sourceHeight = photo.height;
+-        clearAutomaticResolutions();
++        const surface = slot.surface.toLowerCase();
++        state.autoResolved.delete(automaticSlotKey(surface, slot.slotKey));
++        coverState.applyExplicitPhoto(slot, projectId, photo);
++        // Explicit-photo uniqueness and automatic ranking are defined within one cover surface.
++        // Do not erase the independently curated automatic preview on the opposite cover.
++        clearAutomaticResolutions(surface);
++        cancelPhotoPickerRequest();
+         setDirty();
+         renderSlots();
+         renderProof();
+@@ -899,14 +943,16 @@
+ 
+     function setSlotMode(mode) {
+         if (!state.activeSlot) return;
++        const surface = state.activeSlot.surface.toLowerCase();
+         state.activeSlot.imageMode = mode;
+-        state.autoResolved.delete(automaticSlotKey(state.activeSurface, state.activeSlot.slotKey));
++        state.autoResolved.delete(automaticSlotKey(surface, state.activeSlot.slotKey));
+         if (mode !== 'Explicit') {
+             state.activeSlot.projectId = null;
+             state.activeSlot.photoId = null;
+             state.activeSlot.previewUrl = null;
+         }
+-        if (mode === 'Automatic') clearAutomaticResolutions();
++        clearAutomaticResolutions(surface);
++        cancelPhotoPickerRequest();
+         setDirty();
+         renderSlots();
+         renderProof();
+@@ -1002,12 +1048,20 @@
+             state.rowVersion = result?.preset?.rowVersion || state.rowVersion;
+             if (result?.coverDesign) {
+                 state.design = normaliseDesign(result.coverDesign);
+-                state.autoResolved.clear();
++                state.activeSlot = null;
++                state.overrideEditing.clear();
++                clearAutomaticResolutions();
+                 state.automaticCandidatesDirty = true;
+             }
+             if (Array.isArray(result?.photoPreferences)) state.preferences = normalisePreferences(result.photoPreferences);
+             savedSignature = persistedSignature();
+             state.dirty = false;
++            // Rehydrate from the server-returned canonical state. The save response intentionally
++            // excludes transient preview URLs, so retaining the pre-save DOM would display stale
++            // images/crops even though the persisted slot identities are already correct.
++            await hydrateVisibleSlotPreviews('front');
++            await hydrateVisibleSlotPreviews('back');
++            updateInspector();
+             setDirty();
+             return true;
+         } catch (error) {
+@@ -1141,10 +1195,13 @@
+         if (crop) void openCrop(crop.dataset.coverCropSlot);
+     });
+ 
+-    portalBy('[data-cover-project-select]')?.addEventListener('change', event => { if (event.target.value) void renderProjectPhotos(Number(event.target.value)); });
++    portalBy('[data-cover-project-select]')?.addEventListener('change', event => {
++        void renderProjectPhotos(Number(event.target.value) || null);
++    });
+     portalBy('[data-cover-project-search]')?.addEventListener('input', applyProjectSearch);
+     portalBy('[data-cover-slot-auto]')?.addEventListener('click', () => setSlotMode('Automatic'));
+     portalBy('[data-cover-slot-none]')?.addEventListener('click', event => { if (!event.currentTarget.disabled) setSlotMode('None'); });
++    document.getElementById('compendiumCoverPhotoModal')?.addEventListener('hidden.bs.modal', cancelPhotoPickerRequest);
+ 
+     portalBy('[data-cover-crop-stage]')?.addEventListener('click', event => {
+         if (!state.activeSlot) return;
+diff --git a/wwwroot/js/projects/compendium-cover-editor-state.js b/wwwroot/js/projects/compendium-cover-editor-state.js
+new file mode 100644
+index 0000000..98cd51b
+--- /dev/null
++++ b/wwwroot/js/projects/compendium-cover-editor-state.js
+@@ -0,0 +1,56 @@
++(() => {
++    "use strict";
++
++    const positiveId = value => {
++        const parsed = Number(value);
++        return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
++    };
++
++    const finiteDimension = value => {
++        const parsed = Number(value);
++        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
++    };
++
++    const samePhoto = (slot, projectId, photoId) =>
++        positiveId(slot?.projectId) === positiveId(projectId)
++        && positiveId(slot?.photoId) === positiveId(photoId);
++
++    const applyExplicitPhoto = (slot, projectId, photo) => {
++        if (!slot || typeof slot !== "object") throw new TypeError("A cover image slot is required.");
++        const cleanProjectId = positiveId(projectId);
++        const cleanPhotoId = positiveId(photo?.photoId);
++        if (!cleanProjectId || !cleanPhotoId) throw new TypeError("A valid project photograph is required.");
++
++        const changed = !samePhoto(slot, cleanProjectId, cleanPhotoId);
++        slot.imageMode = "Explicit";
++        slot.projectId = cleanProjectId;
++        slot.photoId = cleanPhotoId;
++        slot.previewUrl = photo?.previewUrl || photo?.thumbnailUrl || null;
++        slot.sourceWidth = finiteDimension(photo?.width);
++        slot.sourceHeight = finiteDimension(photo?.height);
++
++        // A focal point belongs to the source photograph, not merely to the visual slot.
++        // Preserve the crop when the same photo is reselected; centre a genuinely new image.
++        if (changed) {
++            slot.focalX = .5;
++            slot.focalY = .5;
++        }
++
++        return changed;
++    };
++
++    const shouldCommitPhotoRequest = (
++        requestVersion,
++        currentVersion,
++        requestedProjectId,
++        selectedProjectId) =>
++        Number(requestVersion) === Number(currentVersion)
++        && positiveId(requestedProjectId) === positiveId(selectedProjectId);
++
++    globalThis.PrismCompendiumCoverState = Object.freeze({
++        positiveId,
++        samePhoto,
++        applyExplicitPhoto,
++        shouldCommitPhotoRequest
++    });
++})();
+diff --git a/wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js b/wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
+index 7855e3d..219108c 100644
+--- a/wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
++++ b/wwwroot/js/projects/publications-compendium-phase30-1-contract.test.js
+@@ -38,8 +38,8 @@ test('phase 30.1 automatic multi-image composition prefers different photos and
+   assert.match(coverJs, /usedPhotos/);
+   assert.match(coverJs, /automaticCandidateSequence\(surface, usedProjects, usedPhotos\)/);
+   assert.match(coverJs, /state\.automaticCandidates/);
+-  assert.match(exportService, /usedProjects = new HashSet<int>/);
+-  assert.match(exportService, /!usedProjects\.Contains\(candidate\.ProjectId\)/);
++  assert.match(exportService, /usedProjects = new HashSet<\(CompendiumCoverSurface Surface, int ProjectId\)>/);
++  assert.match(exportService, /!usedProjects\.Contains\(\(required\.Surface, candidate\.ProjectId\)\)/);
+ });
+ 
+ test('phase 30.1 makes compact cover actions template-aware', () => {
+diff --git a/wwwroot/js/projects/publications-compendium-phase41-cover-change.test.js b/wwwroot/js/projects/publications-compendium-phase41-cover-change.test.js
+new file mode 100644
+index 0000000..61e8936
+--- /dev/null
++++ b/wwwroot/js/projects/publications-compendium-phase41-cover-change.test.js
+@@ -0,0 +1,98 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++
++const root = path.resolve(__dirname, '../../..');
++const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
++const helperSource = read('wwwroot/js/projects/compendium-cover-editor-state.js');
++const editorSource = read('wwwroot/js/pages/projects-compendium-cover-editor.js');
++const coverPage = read('Pages/Projects/Publications/Compendium/Cover.cshtml');
++const exportService = read('Services/Compendiums/CompendiumExportService.cs');
++
++const sandbox = {};
++sandbox.globalThis = sandbox;
++vm.runInNewContext(helperSource, sandbox, { filename: 'compendium-cover-editor-state.js' });
++const contract = sandbox.PrismCompendiumCoverState;
++
++test('replacing a slot photograph resets the focal point owned by the old source', () => {
++  const slot = {
++    imageMode: 'Explicit',
++    projectId: 10,
++    photoId: 100,
++    focalX: .12,
++    focalY: .91,
++    fitMode: 'Fill'
++  };
++
++  const changed = contract.applyExplicitPhoto(slot, 20, {
++    photoId: 200,
++    previewUrl: '/photos/200',
++    width: 1600,
++    height: 900
++  });
++
++  assert.equal(changed, true);
++  assert.equal(slot.projectId, 20);
++  assert.equal(slot.photoId, 200);
++  assert.equal(slot.focalX, .5);
++  assert.equal(slot.focalY, .5);
++  assert.equal(slot.fitMode, 'Fill');
++});
++
++test('reselecting the same photograph preserves its intentional crop', () => {
++  const slot = { projectId: 20, photoId: 200, focalX: .23, focalY: .68 };
++
++  const changed = contract.applyExplicitPhoto(slot, 20, {
++    photoId: 200,
++    thumbnailUrl: '/thumbs/200',
++    width: 1200,
++    height: 900
++  });
++
++  assert.equal(changed, false);
++  assert.equal(slot.focalX, .23);
++  assert.equal(slot.focalY, .68);
++  assert.equal(slot.previewUrl, '/thumbs/200');
++});
++
++test('stale or project-mismatched photo-list responses cannot update the picker', () => {
++  assert.equal(contract.shouldCommitPhotoRequest(8, 8, 20, '20'), true);
++  assert.equal(contract.shouldCommitPhotoRequest(7, 8, 20, '20'), false);
++  assert.equal(contract.shouldCommitPhotoRequest(8, 8, 20, '21'), false);
++  assert.equal(contract.shouldCommitPhotoRequest(8, 8, 20, ''), false);
++});
++
++test('cover editor uses abortable request sequencing and surface-scoped invalidation', () => {
++  assert.match(editorSource, /photoPickerRequestVersion/);
++  assert.match(editorSource, /photoPickerAbortController\?\.abort\(\)/);
++  assert.match(editorSource, /signal:\s*signal/);
++  assert.match(editorSource, /shouldCommitPhotoRequest/);
++  assert.match(editorSource, /applyExplicitPhoto\(slot, projectId, photo\)/);
++  assert.match(editorSource, /clearAutomaticResolutions\(surface\)/);
++  assert.doesNotMatch(editorSource, /function choosePhoto[\s\S]*?clearAutomaticResolutions\(\);[\s\S]*?function setSlotMode/);
++  assert.match(editorSource, /slot\.surface\.toLowerCase\(\) !== surface/);
++  assert.match(editorSource, /!key\.startsWith\(`\$\{surface\}:`\)/);
++});
++
++test('server automatic allocation uses the same independent front/back surface contract', () => {
++  assert.match(exportService, /HashSet<\(CompendiumCoverSurface Surface, int ProjectId, int PhotoId\)>/);
++  assert.match(exportService, /used\.Contains\(\(required\.Surface, candidate\.ProjectId, candidate\.PhotoId\)\)/);
++  assert.match(exportService, /usedProjects\.Contains\(\(required\.Surface, candidate\.ProjectId\)\)/);
++  assert.match(exportService, /required\.Surface == CompendiumCoverSurface\.Front/);
++});
++
++test('server-canonical save state is rehydrated before the editor reports completion', () => {
++  assert.match(editorSource, /state\.design = normaliseDesign\(result\.coverDesign\)/);
++  assert.match(editorSource, /await hydrateVisibleSlotPreviews\('front'\)/);
++  assert.match(editorSource, /await hydrateVisibleSlotPreviews\('back'\)/);
++  assert.match(editorSource, /updateInspector\(\);\s*setDirty\(\);\s*return true/);
++});
++
++test('the pure state contract loads before the DOM editor', () => {
++  const stateIndex = coverPage.indexOf('compendium-cover-editor-state.js');
++  const editorIndex = coverPage.indexOf('projects-compendium-cover-editor.js');
++  assert.ok(stateIndex >= 0);
++  assert.ok(editorIndex > stateIndex);
++});
+diff --git a/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js b/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js
+new file mode 100644
+index 0000000..b9fb825
+--- /dev/null
++++ b/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js
+@@ -0,0 +1,82 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
++
++const identity = read('Utilities/Reporting/CompendiumBuildIdentity.cs');
++const fontContract = read('Utilities/Reporting/PublicationFontContract.cs');
++const fontRegistry = read('Utilities/Reporting/PublicationFontRegistry.cs');
++const measurement = read('Services/Compendiums/CompendiumDossierTextMeasurementService.cs');
++const selfTest = read('Utilities/Reporting/CompendiumOfflineSelfTest.cs');
++const diagnostics = read('Utilities/Reporting/CompendiumGenerationDiagnostics.cs');
++const exportService = read('Services/Compendiums/CompendiumExportService.cs');
++const pageModel = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs');
++const program = read('Program.cs');
++const publishScript = read('ops/publish/create-publish-folder.ps1');
++
++test('phase 41 exposes one build identity across HTTP PDF self-test and diagnostics', () => {
++  assert.match(identity, /CompendiumPdf_2026-08-22_phase41-production-convergence/);
++  assert.match(identity, /physical-a4-v41/);
++  assert.match(pageModel, /CompendiumBuildIdentity\.HeaderName/);
++  assert.match(pageModel, /Response\.Headers\[CompendiumBuildIdentity\.HeaderName\]/);
++  assert.match(diagnostics, /build = CompendiumBuildIdentity\.BuildStamp/);
++  assert.match(selfTest, /build = CompendiumBuildIdentity\.BuildStamp/);
++});
++
++test('QuestPDF and Skia planning resolve the same complete local DM Sans contract', () => {
++  for (const face of ['Regular', 'Medium', 'SemiBold', 'Bold', 'Italic', 'BoldItalic']) {
++    assert.match(fontContract, new RegExp(`DMSans-${face}\\.ttf`));
++  }
++  assert.match(fontContract, /AppContext\.BaseDirectory/);
++  assert.match(fontContract, /PRISM_PUBLICATION_FONTS_DIR/);
++  assert.match(fontRegistry, /PublicationFontContract\.InspectDmSans/);
++  assert.match(measurement, /PublicationFontContract\.ResolveRequiredDmSansFile/);
++  assert.doesNotMatch(measurement, /CandidateFontPaths/);
++});
++
++test('air-gapped payload self-test runs before web host and database construction', () => {
++  const switchIndex = program.indexOf('CompendiumOfflineSelfTest.CommandLineSwitch');
++  const builderIndex = program.indexOf('WebApplication.CreateBuilder');
++  assert.ok(switchIndex >= 0 && switchIndex < builderIndex);
++  assert.match(selfTest, /SKTypeface\.FromFile/);
++  assert.match(selfTest, /GeneratePdf\(\)/);
++  assert.match(selfTest, /PdfDocument\.Open/);
++});
++
++test('publish output is self-contained win-x64 and validates fonts native runtime and PDF chain', () => {
++  assert.match(publishScript, /--runtime win-x64/);
++  assert.match(publishScript, /--self-contained true/);
++  assert.match(publishScript, /coreclr\.dll/);
++  assert.match(publishScript, /libSkiaSharp\.dll/);
++  assert.match(publishScript, /DMSans-BoldItalic\.ttf/);
++  assert.match(publishScript, /--compendium-offline-self-test/);
++});
++
++test('large Compendium renders are bounded and failures have durable offline diagnostics', () => {
++  assert.match(exportService, /SemaphoreSlim GenerationGate/);
++  assert.match(exportService, /GenerationGate\.WaitAsync\(cancellationToken\)/);
++  assert.match(exportService, /GenerationGate\.Release\(\)/);
++  assert.match(diagnostics, /compendium-generation-\{DateTime\.UtcNow:yyyyMMdd\}\.jsonl/);
++  assert.match(diagnostics, /PRISM_COMPENDIUM_DIAGNOSTICS_DIR/);
++  assert.match(pageModel, /CompendiumGenerationDiagnostics\.TryWrite/);
++});
++
++test('publication read cover planning composition and verification remain distinguishable', () => {
++  for (const stage of [
++    'PublicationRead',
++    'CoverResolution',
++    'FontInitialization',
++    'PagePlanning',
++    'PdfComposition',
++    'PdfLayout',
++    'PdfDrawing',
++    'PdfVerification'
++  ]) {
++    assert.match(read('Utilities/Reporting/CompendiumPdfGenerationException.cs'), new RegExp(stage));
++  }
++  assert.match(pageModel, /coverResolutionFailed/);
++  assert.match(pageModel, /publicationReadFailed/);
++});
+diff --git a/wwwroot/js/projects/publications-compendium-phase41-production-convergence.test.js b/wwwroot/js/projects/publications-compendium-phase41-production-convergence.test.js
+new file mode 100644
+index 0000000..05c02b3
+--- /dev/null
++++ b/wwwroot/js/projects/publications-compendium-phase41-production-convergence.test.js
+@@ -0,0 +1,73 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
++
++const metrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
++const generationException = read('Utilities/Reporting/CompendiumPdfGenerationException.cs');
++const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
++const exportService = read('Services/Compendiums/CompendiumExportService.cs');
++const pageModel = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs');
++const fonts = read('Utilities/Reporting/PublicationFontRegistry.cs');
++
++test('phase 41 reserves one real shaping line between Skia planning and QuestPDF composition', () => {
++  const match = metrics.match(/PhysicalPaginationReservePoints\s*=\s*([0-9.]+)f/);
++  assert.ok(match, 'physical reserve must remain explicit');
++  assert.ok(Number(match[1]) >= 10, 'production shaping reserve must be at least one normal text line');
++  assert.match(metrics, /cross-engine\/native shaping variance/);
++});
++
++test('phase 41 makes DM Sans a hard Compendium pagination contract rather than silently using Lato', () => {
++  assert.match(fonts, /FallbackFamilyName\s*=\s*"Lato"/);
++  assert.match(builder, /!fontStatus\.DmSansAvailable/);
++  assert.match(builder, /fontStatus\.PrimaryFamily[\s\S]*PublicationFontService\.PrimaryFamilyName/);
++  assert.match(builder, /CompendiumPdfGenerationStage\.FontInitialization/);
++  assert.match(builder, /Volatile\.Write\(ref s_primaryFontFamily, PublicationFontService\.PrimaryFamilyName\)/);
++});
++
++test('phase 41 classifies QuestPDF layout compose and drawing failures explicitly', () => {
++  assert.match(builder, /using QuestPDF\.Drawing\.Exceptions/);
++  assert.match(builder, /catch \(DocumentLayoutException exception\)/);
++  assert.match(builder, /catch \(DocumentComposeException exception\)/);
++  assert.match(builder, /catch \(DocumentDrawingException exception\)/);
++  assert.match(generationException, /enum CompendiumPdfGenerationStage/);
++  assert.match(generationException, /PdfLayout/);
++  assert.match(generationException, /PdfDrawing/);
++  assert.match(generationException, /PdfVerification/);
++});
++
++test('phase 41 automatically probes planned pages after a QuestPDF failure to localise production-only data', () => {
++  assert.match(builder, /TryLocateFailingPlannedPage/);
++  assert.match(builder, /foreach \(var planned in plan\.Pages\)/);
++  assert.match(builder, /ComposePlannedPage\(container, planned, state, enableIndexLinks: false\)/);
++  assert.match(builder, /MatchesFailureStage/);
++  assert.match(builder, /Planned physical page/);
++  assert.match(builder, /ProjectName=\{ProjectName\}/);
++  assert.match(builder, /enableNavigationLinks/);
++});
++
++test('phase 41 turns explicit cover render faults into controlled publication validation', () => {
++  assert.match(exportService, /Explicit Compendium cover image failed to render/);
++  assert.match(exportService, /Re-select the image or use Automatic cover imagery/);
++  assert.match(exportService, /catch \(OperationCanceledException\)[\s\S]*throw;/);
++});
++
++test('phase 41 separates page planning and physical verification failures from generic composer errors', () => {
++  assert.match(exportService, /CompendiumPdfGenerationStage\.PagePlanning/);
++  assert.match(exportService, /CompendiumPdfGenerationStage\.PdfVerification/);
++  assert.match(exportService, /required DM Sans publication fonts could not be loaded/);
++  assert.match(pageModel, /publicationFontUnavailable/);
++  assert.match(pageModel, /paginationPlanningFailed/);
++  assert.match(pageModel, /pdfLayoutFailed/);
++  assert.match(pageModel, /pdfDrawingFailed/);
++  assert.match(pageModel, /pdfVerificationFailed/);
++});
++
++test('phase 41 returns transport status that matches the failure class', () => {
++  assert.match(pageModel, /PdfLayout[^\n]*=>\s*StatusCodes\.Status409Conflict/);
++  assert.match(pageModel, /FontInitialization[^\n]*=>\s*StatusCodes\.Status503ServiceUnavailable/);
++  assert.match(pageModel, /CompendiumPdfGenerationException\s*=>\s*StatusCodes\.Status500InternalServerError/);
++});

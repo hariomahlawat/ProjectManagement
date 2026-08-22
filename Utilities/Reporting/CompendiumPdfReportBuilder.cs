@@ -7,6 +7,7 @@ using ProjectManagement.Utilities;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using QuestPDF.Drawing.Exceptions;
 
 namespace ProjectManagement.Utilities.Reporting;
 
@@ -176,9 +177,18 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         ArgumentNullException.ThrowIfNull(context);
 
         var fontStatus = _fontService.EnsureRegistered();
-        // The compositor is otherwise stateless/static. The publication font result is process-wide
-        // and deterministic, so every page - cover, index, dossier and back cover - shares it.
-        Volatile.Write(ref s_primaryFontFamily, fontStatus.PrimaryFamily);
+        if (!fontStatus.DmSansAvailable
+            || !string.Equals(fontStatus.PrimaryFamily, PublicationFontService.PrimaryFamilyName, StringComparison.Ordinal))
+        {
+            throw new CompendiumPdfGenerationException(
+                CompendiumPdfGenerationStage.FontInitialization,
+                "The Compendium cannot be generated because the required DM Sans publication fonts are not registered on this server. Ensure the published publication-font package is present and restart PRISM before generating the PDF.");
+        }
+
+        // The compositor is otherwise stateless/static. Compendium pagination is measured with the
+        // bundled DM Sans faces, therefore the renderer must use that exact family as well. A silent
+        // Lato/environment-font fallback would invalidate every physical page measurement.
+        Volatile.Write(ref s_primaryFontFamily, PublicationFontService.PrimaryFamilyName);
 
         var title = NormalizeOptional(context.Title)
                     ?? throw new InvalidOperationException("A Compendium publication title is required before PDF generation.");
@@ -195,28 +205,22 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var document = Document
             .Create(container =>
             {
+                var state = new RenderState(
+                    title,
+                    subtitle,
+                    edition,
+                    issuer,
+                    marking,
+                    context.CoverDesign,
+                    context.CoverHero,
+                    crest,
+                    sddMark,
+                    footerLogo,
+                    programmeIcons,
+                    plan.IndexPageCount);
                 foreach (var planned in plan.Pages)
                 {
-                    switch (planned.Kind)
-                    {
-                        case CompendiumPageKind.Cover:
-                            ComposeCover(container, title, subtitle, edition, marking, context.CoverDesign, context.CoverHero, crest, sddMark);
-                            break;
-                        case CompendiumPageKind.Index:
-                            ComposeIndexPage(container, planned, title, edition, issuer, marking, footerLogo, plan.IndexPageCount);
-                            break;
-                        case CompendiumPageKind.Project:
-                            ComposeProjectPage(container, planned, title, edition, issuer, marking, footerLogo, programmeIcons);
-                            break;
-                        case CompendiumPageKind.ProjectContinuation:
-                            ComposeProjectContinuationPage(container, planned, title, edition, issuer, marking, footerLogo);
-                            break;
-                        case CompendiumPageKind.BackCover:
-                            ComposeBackCover(container, title, subtitle, edition, marking, context.CoverDesign, crest, sddMark);
-                            break;
-                        default:
-                            throw new InvalidOperationException($"Unsupported Compendium page kind: {planned.Kind}.");
-                    }
+                    ComposePlannedPage(container, planned, state, enableIndexLinks: true);
                 }
             })
             .WithMetadata(new DocumentMetadata
@@ -225,14 +229,240 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 Author = issuer,
                 Subject = "Detailed project reference generated from selected PRISM project records.",
                 Keywords = "projects, simulators, capabilities, SDD, PRISM ERP",
-                Creator = "PRISM ERP",
-                Producer = "PRISM ERP / QuestPDF",
+                Creator = $"PRISM ERP / {CompendiumBuildIdentity.BuildStamp}",
+                Producer = CompendiumBuildIdentity.PdfProducer,
                 CreationDate = context.GeneratedAtUtc,
                 ModifiedDate = context.GeneratedAtUtc
             });
 
-        return document.GeneratePdf();
+        try
+        {
+            return document.GeneratePdf();
+        }
+        catch (DocumentLayoutException exception)
+        {
+            throw CreateQuestPdfGenerationException(
+                CompendiumPdfGenerationStage.PdfLayout,
+                exception,
+                context,
+                plan,
+                title,
+                subtitle,
+                edition,
+                issuer,
+                marking,
+                crest,
+                sddMark,
+                footerLogo,
+                programmeIcons);
+        }
+        catch (DocumentComposeException exception)
+        {
+            throw CreateQuestPdfGenerationException(
+                CompendiumPdfGenerationStage.PdfComposition,
+                exception,
+                context,
+                plan,
+                title,
+                subtitle,
+                edition,
+                issuer,
+                marking,
+                crest,
+                sddMark,
+                footerLogo,
+                programmeIcons);
+        }
+        catch (DocumentDrawingException exception)
+        {
+            throw CreateQuestPdfGenerationException(
+                CompendiumPdfGenerationStage.PdfDrawing,
+                exception,
+                context,
+                plan,
+                title,
+                subtitle,
+                edition,
+                issuer,
+                marking,
+                crest,
+                sddMark,
+                footerLogo,
+                programmeIcons);
+        }
+        catch (Exception exception)
+        {
+            throw CreateQuestPdfGenerationException(
+                CompendiumPdfGenerationStage.PdfComposition,
+                exception,
+                context,
+                plan,
+                title,
+                subtitle,
+                edition,
+                issuer,
+                marking,
+                crest,
+                sddMark,
+                footerLogo,
+                programmeIcons);
+        }
     }
+
+    private CompendiumPdfGenerationException CreateQuestPdfGenerationException(
+        CompendiumPdfGenerationStage stage,
+        Exception exception,
+        CompendiumPdfReportContext context,
+        CompendiumPagePlan plan,
+        string title,
+        string subtitle,
+        string edition,
+        string issuer,
+        string? marking,
+        byte[]? crest,
+        byte[]? sddMark,
+        byte[]? footerLogo,
+        IReadOnlyDictionary<string, string> programmeIcons)
+    {
+        var state = new RenderState(
+            title,
+            subtitle,
+            edition,
+            issuer,
+            marking,
+            context.CoverDesign,
+            context.CoverHero,
+            crest,
+            sddMark,
+            footerLogo,
+            programmeIcons,
+            plan.IndexPageCount);
+        var failingPage = TryLocateFailingPlannedPage(plan, state, stage);
+        var descriptor = failingPage is null
+            ? "the publication"
+            : DescribePlannedPage(failingPage);
+        var pageSuffix = failingPage is null
+            ? string.Empty
+            : $" Planned physical page {failingPage.PhysicalPageNumber}.";
+
+        var message = stage switch
+        {
+            CompendiumPdfGenerationStage.PdfLayout =>
+                $"The Compendium could not be issued because {descriptor} exceeded the safe physical A4 layout envelope on this server.{pageSuffix} PRISM stopped before allowing QuestPDF to create an unplanned extra page.",
+            CompendiumPdfGenerationStage.PdfDrawing =>
+                $"The Compendium could not be issued because the PDF renderer failed while drawing {descriptor}.{pageSuffix} No PDF was issued.",
+            _ =>
+                $"The Compendium could not be issued because the PDF renderer failed while composing {descriptor}.{pageSuffix} No PDF was issued."
+        };
+
+        _logger.LogError(
+            exception,
+            "Compendium QuestPDF failure. Stage={Stage}, PlannedPage={PlannedPage}, Kind={PageKind}, ProjectId={ProjectId}, ProjectName={ProjectName}",
+            stage,
+            failingPage?.PhysicalPageNumber,
+            failingPage?.Kind,
+            failingPage?.Project?.ProjectId,
+            failingPage?.Project?.ProjectName);
+
+        return new CompendiumPdfGenerationException(
+            stage,
+            message,
+            exception,
+            failingPage?.PhysicalPageNumber,
+            failingPage?.Kind,
+            failingPage?.Project?.ProjectId,
+            failingPage?.Project?.ProjectName);
+    }
+
+    private static CompendiumPagePlanItem? TryLocateFailingPlannedPage(
+        CompendiumPagePlan plan,
+        RenderState state,
+        CompendiumPdfGenerationStage failureStage)
+    {
+        foreach (var planned in plan.Pages)
+        {
+            try
+            {
+                var probe = Document.Create(container =>
+                    ComposePlannedPage(container, planned, state, enableIndexLinks: false));
+                _ = probe.GeneratePdf();
+            }
+            catch (Exception probeException) when (MatchesFailureStage(probeException, failureStage))
+            {
+                return planned;
+            }
+            catch
+            {
+                // A diagnostic probe is never allowed to replace the original exception with a
+                // different failure class. Continue until a page reproduces the same QuestPDF stage.
+            }
+        }
+
+        return null;
+    }
+
+    private static bool MatchesFailureStage(Exception exception, CompendiumPdfGenerationStage stage)
+        => stage switch
+        {
+            CompendiumPdfGenerationStage.PdfLayout => exception is DocumentLayoutException,
+            CompendiumPdfGenerationStage.PdfDrawing => exception is DocumentDrawingException,
+            CompendiumPdfGenerationStage.PdfComposition => exception is DocumentComposeException,
+            _ => false
+        };
+
+    private static string DescribePlannedPage(CompendiumPagePlanItem planned)
+        => planned.Kind switch
+        {
+            CompendiumPageKind.Cover => "the front cover",
+            CompendiumPageKind.Index => $"Compendium index page {planned.PhysicalPageNumber - 1}",
+            CompendiumPageKind.Project when planned.Project is not null => $"the project dossier '{planned.Project.ProjectName}'",
+            CompendiumPageKind.ProjectContinuation when planned.Project is not null =>
+                $"the continuation for '{planned.Project.ProjectName}' (part {planned.ContinuationPart + 1})",
+            CompendiumPageKind.BackCover => "the back cover",
+            _ => "the planned publication page"
+        };
+
+    private static void ComposePlannedPage(
+        IDocumentContainer container,
+        CompendiumPagePlanItem planned,
+        RenderState state,
+        bool enableIndexLinks)
+    {
+        switch (planned.Kind)
+        {
+            case CompendiumPageKind.Cover:
+                ComposeCover(container, state.Title, state.Subtitle, state.Edition, state.Marking, state.CoverDesign, state.CoverHero, state.Crest, state.SddMark);
+                break;
+            case CompendiumPageKind.Index:
+                ComposeIndexPage(container, planned, state.Title, state.Edition, state.Issuer, state.Marking, state.FooterLogo, state.TotalIndexPages, enableIndexLinks);
+                break;
+            case CompendiumPageKind.Project:
+                ComposeProjectPage(container, planned, state.Title, state.Edition, state.Issuer, state.Marking, state.FooterLogo, state.ProgrammeIcons);
+                break;
+            case CompendiumPageKind.ProjectContinuation:
+                ComposeProjectContinuationPage(container, planned, state.Title, state.Edition, state.Issuer, state.Marking, state.FooterLogo);
+                break;
+            case CompendiumPageKind.BackCover:
+                ComposeBackCover(container, state.Title, state.Subtitle, state.Edition, state.Marking, state.CoverDesign, state.Crest, state.SddMark);
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported Compendium page kind: {planned.Kind}.");
+        }
+    }
+
+    private sealed record RenderState(
+        string Title,
+        string Subtitle,
+        string Edition,
+        string Issuer,
+        string? Marking,
+        CompendiumPdfCoverDesign? CoverDesign,
+        byte[]? CoverHero,
+        byte[]? Crest,
+        byte[]? SddMark,
+        byte[]? FooterLogo,
+        IReadOnlyDictionary<string, string> ProgrammeIcons,
+        int TotalIndexPages);
 
     private static void ComposeCover(
         IDocumentContainer container,
@@ -656,7 +886,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         string issuer,
         string? marking,
         byte[]? footerLogo,
-        int totalIndexPages)
+        int totalIndexPages,
+        bool enableNavigationLinks = true)
     {
         container.Page(page =>
         {
@@ -695,14 +926,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     && string.Equals(planned.IndexGroups[0].CategoryName, "Projects", StringComparison.OrdinalIgnoreCase));
                 foreach (var group in planned.IndexGroups)
                 {
-                    content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings));
+                    content.Item().Element(element => ComposeIndexGroup(element, group, showGroupHeadings, enableNavigationLinks));
                 }
             }));
             page.Footer().Element(footer => ComposeFooter(footer, issuer, marking, footerLogo));
         });
     }
 
-    private static void ComposeIndexGroup(IContainer container, CompendiumIndexGroupPlan group, bool showHeading = true)
+    private static void ComposeIndexGroup(IContainer container, CompendiumIndexGroupPlan group, bool showHeading = true, bool enableNavigationLinks = true)
     {
         container.Column(column =>
         {
@@ -727,10 +958,21 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             {
                 column.Item().BorderBottom(CompendiumLayoutMetrics.IndexRowBorderBottomPoints).BorderColor(Slate200).PaddingHorizontal(CompendiumLayoutMetrics.IndexRowHorizontalPaddingPoints).PaddingVertical(CompendiumLayoutMetrics.IndexRowVerticalPaddingPoints).Row(row =>
                 {
-                    row.RelativeItem().SectionLink(ProjectAnchorId(project.ProjectId)).Text(project.ProjectName)
-                        .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
-                        .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
-                        .FontColor(Ink);
+                    var projectNameCell = row.RelativeItem();
+                    if (enableNavigationLinks)
+                    {
+                        projectNameCell.SectionLink(ProjectAnchorId(project.ProjectId)).Text(project.ProjectName)
+                            .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
+                            .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
+                            .FontColor(Ink);
+                    }
+                    else
+                    {
+                        projectNameCell.Text(project.ProjectName)
+                            .FontSize(CompendiumLayoutMetrics.IndexProjectNameFontSize)
+                            .LineHeight(CompendiumLayoutMetrics.IndexProjectNameLineHeightMultiplier)
+                            .FontColor(Ink);
+                    }
                     row.ConstantItem(CompendiumLayoutMetrics.IndexLifecycleWidthPoints).AlignRight().Text(
                             string.Equals(project.LifecycleDisplay, "Completed", StringComparison.OrdinalIgnoreCase)
                                 ? project.CompletionDisplay
