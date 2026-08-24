@@ -5168,6 +5168,13 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("NarrativeAlignment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("Left");
+
                     b.Property<string>("NormalizedName")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -5242,7 +5249,7 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("SettingsSchemaVersion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasDefaultValue(4);
+                        .HasDefaultValue(5);
 
                     b.Property<bool>("ShowBackCoverEdition")
                         .ValueGeneratedOnAdd()

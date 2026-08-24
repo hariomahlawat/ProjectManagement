@@ -52,12 +52,95 @@ public sealed class BrochurePresetServiceTests
         Assert.Equal("Manufacturing Agency / 515 ABW", loaded.Configuration.PrintManufacturingAgencyHeading);
         Assert.Equal("Strategic Outlook", loaded.Configuration.PrintVisionaryHeading);
         Assert.Equal("New Simulator Requirements.", loaded.Configuration.PrintNewSimulatorsHeading);
+        Assert.Equal(BrochureNarrativeAlignment.Left, loaded.Configuration.NarrativeAlignment);
         Assert.Empty(loaded.Diagnostics);
 
         // Durable preset contracts intentionally carry no editorial approval authority.
         Assert.Null(typeof(BrochurePresetConfiguration).GetProperty("CoverReviewed"));
         Assert.Null(typeof(BrochurePresetProjectConfiguration).GetProperty("IsReviewed"));
         Assert.Null(typeof(BrochurePresetProjectConfiguration).GetProperty("ReviewFingerprint"));
+    }
+
+    [Fact]
+    public async Task CreateAndLoad_JustifiedAlignment_RoundTripsAsSchemaFive()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db, "hod-1", RoleNames.HoD);
+        var configuration = Configuration(projectOrder: [1]) with
+        {
+            NarrativeAlignment = BrochureNarrativeAlignment.Justified
+        };
+
+        var created = await service.CreateAsync(
+            "hod-1",
+            "Justified Capability",
+            null,
+            configuration,
+            CancellationToken.None);
+
+        var loaded = await service.LoadAsync(created.Preset.Id, CancellationToken.None);
+        var stored = await db.BrochurePresets.AsNoTracking().SingleAsync(item => item.Id == created.Preset.Id);
+
+        Assert.Equal(BrochureNarrativeAlignment.Justified, loaded.Configuration.NarrativeAlignment);
+        Assert.Equal("Justified", stored.NarrativeAlignment);
+        Assert.Equal(5, stored.SettingsSchemaVersion);
+    }
+
+    [Fact]
+    public async Task Load_LegacySchemaFourPreset_ForcesLeftAlignmentForBackwardCompatibility()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db, "hod-1", RoleNames.HoD);
+        var configuration = Configuration(projectOrder: [1]) with
+        {
+            NarrativeAlignment = BrochureNarrativeAlignment.Justified
+        };
+        var created = await service.CreateAsync(
+            "hod-1",
+            "Legacy Alignment",
+            null,
+            configuration,
+            CancellationToken.None);
+
+        var stored = await db.BrochurePresets.SingleAsync(item => item.Id == created.Preset.Id);
+        stored.SettingsSchemaVersion = 4;
+        stored.NarrativeAlignment = "Justified";
+        await db.SaveChangesAsync();
+
+        var loaded = await service.LoadAsync(created.Preset.Id, CancellationToken.None);
+
+        Assert.Equal(BrochureNarrativeAlignment.Left, loaded.Configuration.NarrativeAlignment);
+    }
+
+    [Fact]
+    public async Task Duplicate_RetainsNarrativeAlignment()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db, "hod-1", RoleNames.HoD);
+        var configuration = Configuration(projectOrder: [1]) with
+        {
+            NarrativeAlignment = BrochureNarrativeAlignment.Justified
+        };
+        var created = await service.CreateAsync(
+            "hod-1",
+            "Alignment Source",
+            null,
+            configuration,
+            CancellationToken.None);
+
+        var duplicate = await service.DuplicateAsync(
+            created.Preset.Id,
+            "hod-1",
+            created.Preset.RowVersion,
+            "Alignment Copy",
+            null,
+            CancellationToken.None);
+        var loaded = await service.LoadAsync(duplicate.Preset.Id, CancellationToken.None);
+
+        Assert.Equal(BrochureNarrativeAlignment.Justified, loaded.Configuration.NarrativeAlignment);
     }
 
     [Fact]

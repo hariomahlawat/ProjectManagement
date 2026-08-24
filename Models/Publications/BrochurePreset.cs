@@ -20,7 +20,7 @@ public sealed class BrochurePreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 4;
+    public int SettingsSchemaVersion { get; set; } = 5;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -75,6 +75,9 @@ public sealed class BrochurePreset
 
     [Required, MaxLength(32)]
     public string NarrativeSource { get; set; } = string.Empty;
+
+    [Required, MaxLength(24)]
+    public string NarrativeAlignment { get; set; } = "Left";
 
     [Required, MaxLength(32)]
     public string PublicationProfile { get; set; } = string.Empty;

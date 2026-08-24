@@ -45,6 +45,7 @@
     const selectedOnly = form.querySelector("[data-brochure-selected-only]");
     const emptyFilterState = form.querySelector("[data-brochure-empty-filter]");
     const narrativeSource = form.querySelector("[data-brochure-narrative-source]");
+    const narrativeAlignmentInputs = [...form.querySelectorAll("[data-brochure-narrative-alignment]")];
     const publicationProfileInputs = [...form.querySelectorAll("[data-brochure-profile]")];
     const profileOptions = [...form.querySelectorAll("[data-profile-option]")];
     const printOnlySections = [...form.querySelectorAll("[data-brochure-print-only]")];
@@ -432,6 +433,7 @@
         "Input.ShowBackCoverStrapline",
         "Input.ShowBackCoverEdition",
         "Input.NarrativeSource",
+        "Input.NarrativeAlignment",
         "Input.PublicationProfile",
         "Input.CoverStyle",
         "Input.InstitutionalCoverArtwork",
@@ -781,6 +783,11 @@
         if (value === "2" || value === "CapabilityOverview") return "capability";
         if (value === "3" || value === "FullDescription") return "description";
         return "brief";
+    };
+
+    const isNarrativeJustified = () => {
+        const selected = narrativeAlignmentInputs.find(input => input.checked);
+        return selected?.value === "2" || selected?.value === "Justified";
     };
 
     const narrativeInfo = project => {
@@ -1935,6 +1942,7 @@
         if (reviewNarrative) {
             reviewNarrative.textContent = project.reviewNarrative ?? "Loading current publication copy…";
             reviewNarrative.classList.toggle("is-missing", project.reviewHasNarrative === false || !info.ready);
+            reviewNarrative.classList.toggle("is-justified", isNarrativeJustified());
         }
         if (reviewOpenBrief) {
             reviewOpenBrief.href = project.overviewUrl ?? "#";
@@ -2795,6 +2803,12 @@
         renderReview();
         scheduleProjectStateRefresh();
         schedulePreflight();
+    });
+
+    narrativeAlignmentInputs.forEach(input => {
+        input.addEventListener("change", () => {
+            renderReview();
+        });
     });
 
     form.querySelectorAll("[data-brochure-preflight-trigger]").forEach(element => {

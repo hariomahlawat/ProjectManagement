@@ -351,24 +351,29 @@ public sealed class IndexModel : PageModel
         NormalizeInput();
 
         if (!Enum.IsDefined(Input.NarrativeSource)
+            || !Enum.IsDefined(Input.NarrativeAlignment)
             || !Enum.IsDefined(Input.CoverStyle)
             || !Enum.IsDefined(Input.PublicationProfile)
             || !Enum.IsDefined(Input.InstitutionalCoverArtwork))
         {
             var message = !Enum.IsDefined(Input.NarrativeSource)
                 ? "Select a valid project narrative source."
-                : !Enum.IsDefined(Input.CoverStyle)
-                    ? "Select a valid brochure cover style."
-                    : !Enum.IsDefined(Input.PublicationProfile)
-                        ? "Select a valid brochure publication profile."
-                        : "Select a valid institutional cover artwork.";
+                : !Enum.IsDefined(Input.NarrativeAlignment)
+                    ? "Select a valid project body alignment."
+                    : !Enum.IsDefined(Input.CoverStyle)
+                        ? "Select a valid brochure cover style."
+                        : !Enum.IsDefined(Input.PublicationProfile)
+                            ? "Select a valid brochure publication profile."
+                            : "Select a valid institutional cover artwork.";
             var code = !Enum.IsDefined(Input.NarrativeSource)
                 ? "invalidNarrativeSource"
-                : !Enum.IsDefined(Input.CoverStyle)
-                    ? "invalidCoverStyle"
-                    : !Enum.IsDefined(Input.PublicationProfile)
-                        ? "invalidPublicationProfile"
-                        : "invalidInstitutionalCoverArtwork";
+                : !Enum.IsDefined(Input.NarrativeAlignment)
+                    ? "invalidNarrativeAlignment"
+                    : !Enum.IsDefined(Input.CoverStyle)
+                        ? "invalidCoverStyle"
+                        : !Enum.IsDefined(Input.PublicationProfile)
+                            ? "invalidPublicationProfile"
+                            : "invalidInstitutionalCoverArtwork";
 
             return new JsonResult(new
             {
@@ -512,7 +517,8 @@ public sealed class IndexModel : PageModel
                 PrintDevelopingAgencyHeading: NullIfWhiteSpace(Input.PrintDevelopingAgencyHeading),
                 PrintManufacturingAgencyHeading: NullIfWhiteSpace(Input.PrintManufacturingAgencyHeading),
                 PrintVisionaryHeading: NullIfWhiteSpace(Input.PrintVisionaryHeading),
-                PrintNewSimulatorsHeading: NullIfWhiteSpace(Input.PrintNewSimulatorsHeading));
+                PrintNewSimulatorsHeading: NullIfWhiteSpace(Input.PrintNewSimulatorsHeading),
+                NarrativeAlignment: Input.NarrativeAlignment);
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -751,6 +757,7 @@ public sealed class IndexModel : PageModel
             CoverStyle = configuration.CoverStyle,
             InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork,
             NarrativeSource = configuration.NarrativeSource,
+            NarrativeAlignment = configuration.NarrativeAlignment,
             PublicationProfile = configuration.PublicationProfile,
             IntroductionTitle = configuration.IntroductionTitle,
             IntroductionText = configuration.IntroductionText,
@@ -805,6 +812,7 @@ public sealed class IndexModel : PageModel
             CoverStyle: Input.CoverStyle,
             InstitutionalCoverArtwork: Input.InstitutionalCoverArtwork,
             NarrativeSource: Input.NarrativeSource,
+            NarrativeAlignment: Input.NarrativeAlignment,
             PublicationProfile: Input.PublicationProfile,
             IntroductionTitle: Input.IntroductionTitle,
             IntroductionText: Input.IntroductionText,
@@ -962,6 +970,10 @@ public sealed class IndexModel : PageModel
         if (!Enum.IsDefined(Input.NarrativeSource))
         {
             ModelState.AddModelError(nameof(Input.NarrativeSource), "Select a valid project narrative source.");
+        }
+        if (!Enum.IsDefined(Input.NarrativeAlignment))
+        {
+            ModelState.AddModelError(nameof(Input.NarrativeAlignment), "Select a valid project body alignment.");
         }
         if (!Enum.IsDefined(Input.PublicationProfile))
         {
@@ -1307,6 +1319,9 @@ public sealed class IndexModel : PageModel
 
         [Required]
         public BrochureNarrativeSource NarrativeSource { get; set; } = BrochureNarrativeSource.ProjectBrief;
+
+        [Required]
+        public BrochureNarrativeAlignment NarrativeAlignment { get; set; } = BrochureNarrativeAlignment.Justified;
 
         [Required]
         public BrochurePublicationProfile PublicationProfile { get; set; } = BrochurePublicationProfile.PrintCompact;

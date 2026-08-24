@@ -59,7 +59,7 @@ public interface IBrochurePresetService
 /// </summary>
 public sealed class BrochurePresetService : IBrochurePresetService
 {
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
     private const int MaximumProjects = 100;
 
     private readonly ApplicationDbContext _db;
@@ -247,6 +247,9 @@ public sealed class BrochurePresetService : IBrochurePresetService
             CoverStyle: ParseEnum(preset.CoverStyle, BrochureCoverStyle.Institutional),
             InstitutionalCoverArtwork: ParseEnum(preset.InstitutionalCoverArtwork, BrochureInstitutionalCoverArtwork.ReferenceOriginal),
             NarrativeSource: ParseEnum(preset.NarrativeSource, BrochureNarrativeSource.ProjectBrief),
+            NarrativeAlignment: preset.SettingsSchemaVersion < 5
+                ? BrochureNarrativeAlignment.Left
+                : ParseEnum(preset.NarrativeAlignment, BrochureNarrativeAlignment.Left),
             PublicationProfile: ParseEnum(preset.PublicationProfile, BrochurePublicationProfile.PrintCompact),
             IntroductionTitle: preset.IntroductionTitle,
             IntroductionText: preset.IntroductionText,
@@ -746,6 +749,7 @@ public sealed class BrochurePresetService : IBrochurePresetService
         if (!Enum.IsDefined(configuration.CoverStyle)
             || !Enum.IsDefined(configuration.InstitutionalCoverArtwork)
             || !Enum.IsDefined(configuration.NarrativeSource)
+            || !Enum.IsDefined(configuration.NarrativeAlignment)
             || !Enum.IsDefined(configuration.PublicationProfile))
         {
             throw new InvalidOperationException("The brochure contains an unsupported publication setting.");
@@ -781,6 +785,7 @@ public sealed class BrochurePresetService : IBrochurePresetService
         preset.CoverStyle = configuration.CoverStyle.ToString();
         preset.InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork.ToString();
         preset.NarrativeSource = configuration.NarrativeSource.ToString();
+        preset.NarrativeAlignment = configuration.NarrativeAlignment.ToString();
         preset.PublicationProfile = configuration.PublicationProfile.ToString();
         preset.IntroductionTitle = configuration.IntroductionTitle;
         preset.IntroductionText = configuration.IntroductionText;
@@ -849,6 +854,7 @@ public sealed class BrochurePresetService : IBrochurePresetService
             CoverStyle = source.CoverStyle,
             InstitutionalCoverArtwork = source.InstitutionalCoverArtwork,
             NarrativeSource = source.NarrativeSource,
+            NarrativeAlignment = source.NarrativeAlignment,
             PublicationProfile = source.PublicationProfile,
             IntroductionTitle = source.IntroductionTitle,
             IntroductionText = source.IntroductionText,

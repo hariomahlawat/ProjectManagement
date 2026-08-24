@@ -812,7 +812,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
                         var fragment = plan.Items[index];
                         column.Item().Height(moduleHeight).Element(block =>
-                            ComposeTwoFeatureBlock(block, fragment, imageOnRight: index % 2 == 0));
+                            ComposeTwoFeatureBlock(block, fragment, data.Options.NarrativeAlignment, imageOnRight: index % 2 == 0));
                     }
 
                     return;
@@ -821,7 +821,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 if (plan.Layout == BrochurePageLayoutKind.SingleFeature)
                 {
                     var fragment = plan.Items[0];
-                    column.Item().Element(block => ComposeSingleFeaturePage(block, fragment));
+                    column.Item().Element(block => ComposeSingleFeaturePage(block, fragment, data.Options.NarrativeAlignment));
                     return;
                 }
 
@@ -839,7 +839,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
                     var fragment = plan.Items[index];
                     column.Item().Height(cardHeight).Element(card =>
-                        ComposeProjectCard(card, fragment, plan.Layout));
+                        ComposeProjectCard(card, fragment, plan.Layout, data.Options.NarrativeAlignment));
                 }
             });
 
@@ -907,6 +907,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
     private static void ComposeTwoFeatureBlock(
         IContainer container,
         BrochureProjectFragment fragment,
+        BrochureNarrativeAlignment narrativeAlignment,
         bool imageOnRight)
     {
         var titleLength = fragment.Project.ProjectName.Length;
@@ -954,7 +955,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
                     void AddText()
                         => row.RelativeItem().Element(text =>
-                            ComposeNarrative(text, fragment.Narrative, bodySize));
+                            ComposeNarrative(text, fragment.Narrative, bodySize, narrativeAlignment));
 
                     void AddImages()
                     {
@@ -1021,7 +1022,8 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
     private static void ComposeSingleFeaturePage(
         IContainer container,
-        BrochureProjectFragment fragment)
+        BrochureProjectFragment fragment,
+        BrochureNarrativeAlignment narrativeAlignment)
     {
         var titleLength = fragment.Project.ProjectName.Length;
         var titleHeight = titleLength switch
@@ -1097,7 +1099,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             column.Item()
                 .PaddingTop(fragment.IsContinuation || fragment.Project.PrimaryPhoto is null ? 18 : 20)
                 .PaddingHorizontal(10)
-                .Element(text => ComposeNarrative(text, fragment.Narrative, bodySize));
+                .Element(text => ComposeNarrative(text, fragment.Narrative, bodySize, narrativeAlignment));
 
             column.Item().PaddingTop(18).Width(92).Height(2).Background(Gold);
         });
@@ -1106,7 +1108,8 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
     private static void ComposeProjectCard(
         IContainer container,
         BrochureProjectFragment fragment,
-        BrochurePageLayoutKind layout)
+        BrochurePageLayoutKind layout,
+        BrochureNarrativeAlignment narrativeAlignment)
     {
         var titleLength = fragment.Project.ProjectName.Length;
         var titleHeight = titleLength switch
@@ -1155,11 +1158,11 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
                 if (layout == BrochurePageLayoutKind.SingleFeature)
                 {
-                    column.Item().Element(body => ComposeSingleFeatureBody(body, fragment, bodySize));
+                    column.Item().Element(body => ComposeSingleFeatureBody(body, fragment, bodySize, narrativeAlignment));
                 }
                 else
                 {
-                    column.Item().Element(body => ComposeMultiCardBody(body, fragment, bodySize, layout));
+                    column.Item().Element(body => ComposeMultiCardBody(body, fragment, bodySize, layout, narrativeAlignment));
                 }
             });
     }
@@ -1168,14 +1171,15 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         IContainer container,
         BrochureProjectFragment fragment,
         float fontSize,
-        BrochurePageLayoutKind layout)
+        BrochurePageLayoutKind layout,
+        BrochureNarrativeAlignment narrativeAlignment)
     {
         container.Padding(9).Row(row =>
         {
             var hasPrimary = fragment.Project.PrimaryPhoto is not null;
             var useSecond = ShouldUseSecondImage(fragment.Project, layout);
             var textWeight = hasPrimary ? 1.55f : 1f;
-            row.RelativeItem(textWeight).Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize));
+            row.RelativeItem(textWeight).Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize, narrativeAlignment));
 
             if (!hasPrimary)
             {
@@ -1207,7 +1211,8 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
     private static void ComposeSingleFeatureBody(
         IContainer container,
         BrochureProjectFragment fragment,
-        float fontSize)
+        float fontSize,
+        BrochureNarrativeAlignment narrativeAlignment)
     {
         container.Padding(11).Column(column =>
         {
@@ -1233,7 +1238,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 }
             }
 
-            column.Item().Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize));
+            column.Item().Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize, narrativeAlignment));
         });
     }
 
@@ -1265,8 +1270,23 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             .FitArea();
     }
 
-    private static void ComposeNarrative(IContainer container, string narrative, float fontSize)
+    private static void ComposeNarrative(
+        IContainer container,
+        string narrative,
+        float fontSize,
+        BrochureNarrativeAlignment narrativeAlignment)
     {
+        if (BrochureNarrativeTypographyPolicy.ShouldJustify(
+                narrativeAlignment, BrochureNarrativeSegment.FullWidth))
+        {
+            container.Text(narrative)
+                .FontSize(fontSize)
+                .LineHeight(1.18f)
+                .Justify()
+                .FontColor(Ink);
+            return;
+        }
+
         container.Text(narrative)
             .FontSize(fontSize)
             .LineHeight(1.18f)

@@ -44,8 +44,9 @@ Require-Text "Services\Publications\BrochurePrintMeasurementService.cs" "Closing
 Require-Text "Services\Publications\BrochurePrintMeasurementService.cs" "ClosingVisionVerticalPaddingPoints" "shared closing vertical geometry"
 Require-Text "Services\Publications\BrochurePrintMeasurementService.cs" "ClosingSectionSpacingPoints" "shared closing section rhythm"
 
-# Compact project pages use readable ragged-right copy; closing matter uses the publication's institutional language.
-Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "justify:\s*false" "ragged-right project copy"
+# Compact project pages retain the Phase 16 semantic float safeguard while current brochure typography is configurable.
+Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "BrochureNarrativeTypographyPolicy\.ShouldJustify" "alignment-aware project typography"
+Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "BrochureNarrativeSegment\.Continuation" "ragged-right forced continuation safeguard"
 Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "ClosingPaper\s*=\s*\"#F3F1E8\"" "neutral closing panel"
 Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "Background\(Forest900\)" "institutional closing heading"
 Reject-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "VisionBlue|VisionPaper" "legacy blue/yellow closing treatment"

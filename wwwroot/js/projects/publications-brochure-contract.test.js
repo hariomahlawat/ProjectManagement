@@ -299,11 +299,12 @@ test('phase 9 print plan UI exposes measured per-sheet mapping and fill diagnost
   assert.match(css, /\.brochure-print-sheet-chip/);
 });
 
-test('phase 9 registers and validates measured print services through the publication DI graph', () => {
+test('phase 9 registers and validates measured print services through the scoped publication DI graph', () => {
   const registration = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationServiceCollectionExtensions.cs'), 'utf8');
   const runtime = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationRuntimeValidationHostedService.cs'), 'utf8');
-  assert.match(registration, /AddSingleton<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>/);
-  assert.match(registration, /AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>/);
+  assert.match(registration, /AddScoped<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>/);
+  assert.match(registration, /AddScoped<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>/);
+  assert.match(runtime, /CreateScope\(\)/);
   assert.match(runtime, /GetRequiredService<IBrochurePrintMeasurementService>/);
   assert.match(runtime, /GetRequiredService<IBrochurePrintPagePlanner>/);
 });
@@ -565,12 +566,15 @@ test('phase 16 gives compact planning a physical compositor reserve and keeps cl
   assert.match(measurement, /ClosingSectionSpacingPoints/);
 });
 
-test('phase 16 makes project copy ragged-right while retaining measured semantic float composition', () => {
+test('phase 16 semantic float composition remains intact under alignment-aware project typography', () => {
   const projectModule = printRenderer.slice(
     printRenderer.indexOf('private static void ComposeProjectModule'),
     printRenderer.indexOf('private static void ComposeClosingMatter'));
-  assert.match(projectModule, /justify: false/);
-  assert.doesNotMatch(projectModule, /justify: true/);
+  assert.match(projectModule, /layout\.LeadingNarrative/);
+  assert.match(projectModule, /layout\.ContinuationNarrative/);
+  assert.match(projectModule, /layout\.TrailingNarrative/);
+  assert.match(projectModule, /BrochureNarrativeSegment\.Continuation/);
+  assert.match(projectModule, /BrochureNarrativeTypographyPolicy\.ShouldJustify/);
 });
 
 test('phase 16 explains Cover A identity ownership and hides non-rendered identity controls without dropping their values', () => {
@@ -676,15 +680,22 @@ test('phase 18 replaces the brochure hero chrome with a compact shared-publicati
   assert.match(css, /\.brochure-preset-control/);
 });
 
-test('phase 18 exposes shared saved brochures to all authorised users while reserving mutations for HoD and Comdt', () => {
+test('phase 18 exposes shared saved brochures to authorised users and centralises publication-manager mutations', () => {
   const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
   const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+  const policies = fs.readFileSync(path.join(root, 'Configuration', 'Policies.cs'), 'utf8');
   assert.match(view, /data-preset-select/);
   assert.match(view, /@foreach \(var preset in Model\.SavedBrochures\)/);
   assert.match(view, /@if \(Model\.CanManageSavedBrochures\)/);
-  assert.match(page, /User\.IsInRole\(RoleNames\.HoD\) \|\| User\.IsInRole\(RoleNames\.Comdt\)/);
-  assert.match(service, /!user\.IsInRole\(RoleNames\.HoD\) && !user\.IsInRole\(RoleNames\.Comdt\)/);
-  assert.doesNotMatch(service.slice(service.indexOf('private void EnsureCanManage'), service.indexOf('private static void EnsureVersion')), /RoleNames\.Admin/);
+  assert.match(page, /Policies\.Publications\.CanManageSharedPublications\(User\)/);
+  assert.match(service, /Policies\.Publications\.CanManageSharedPublications\(user\)/);
+  const managerPolicy = policies.slice(
+    policies.indexOf('SharedPublicationManagerRoles'),
+    policies.indexOf('public static bool CanManageSharedPublications'));
+  assert.match(managerPolicy, /RoleNames\.Comdt/);
+  assert.match(managerPolicy, /RoleNames\.HoD/);
+  assert.match(managerPolicy, /RoleNames\.Ito/);
+  assert.doesNotMatch(managerPolicy, /RoleNames\.Admin/);
 });
 
 test('phase 18 persists builder configuration but deliberately excludes approvals, preflight and PDF verification', () => {
@@ -1079,7 +1090,7 @@ test('phase 21.1 cover editor uses full-width line controls with non-destructive
   assert.match(css, /Hidden from cover/);
   assert.match(js, /renderCoverTextUi/);
   assert.match(js, /Front \$\{frontVisible\} visible · Back \$\{backVisible\} visible/);
-  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 4/);
+  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 5/);
   assert.match(visibilityMigration, /ShowFrontCoverKicker/);
   assert.match(visibilityMigration, /ShowBackCoverEdition/);
   assert.match(visibilityMigration, /defaultValue: 3/);
@@ -1139,8 +1150,8 @@ test('phase 21.2 Print Compact section labels are editable, suppressible and dur
   }
 
   assert.match(view, /Leave a field blank to suppress that label/);
-  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 4/);
-  assert.match(presetService, /CurrentSchemaVersion = 4/);
+  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 5/);
+  assert.match(presetService, /CurrentSchemaVersion = 5/);
 });
 
 test('phase 21.2 Print Compact renderer contains no fixed institutional section-label literals', () => {
@@ -1163,4 +1174,37 @@ test('phase 21.2 Print Cover B hero frame matches the canonical 1800 by 1055 pub
   assert.match(printMetrics, /FrontContemporaryHeroRasterWidth = 1800f/);
   assert.match(printMetrics, /FrontContemporaryHeroRasterHeight = 1055f/);
   assert.match(printMetrics, /FrontContemporaryHeroHeightPoints\s*=\s*ReferenceWidthPoints \* FrontContemporaryHeroRasterHeight \/ FrontContemporaryHeroRasterWidth/);
+});
+
+test('brochure editorial alignment exposes durable justified typography without revoking semantic float safeguards', () => {
+  const contracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureContracts.cs'), 'utf8');
+  const presetContracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetContracts.cs'), 'utf8');
+  const presetModel = fs.readFileSync(path.join(root, 'Models', 'Publications', 'BrochurePreset.cs'), 'utf8');
+  const presetService = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+
+  assert.match(contracts, /enum BrochureNarrativeAlignment[\s\S]{0,160}Left\s*=\s*1[\s\S]{0,80}Justified\s*=\s*2/);
+  assert.match(contracts, /BrochureNarrativeAlignment NarrativeAlignment/);
+  assert.match(presetContracts, /BrochureNarrativeAlignment NarrativeAlignment/);
+  assert.match(presetModel, /string NarrativeAlignment \{ get; set; \} = "Left"/);
+  assert.match(presetService, /CurrentSchemaVersion = 5/);
+  assert.match(page, /Input\.NarrativeAlignment/);
+  assert.match(view, /Project body alignment/);
+  assert.match(view, /data-brochure-narrative-alignment/);
+  assert.match(view, /Justified/);
+  assert.match(js, /"Input\.NarrativeAlignment"/);
+  assert.match(js, /is-justified/);
+  assert.match(css, /\.brochure-alignment-options/);
+  assert.match(css, /\.brochure-review-narrative\.is-justified[\s\S]{0,120}text-align:\s*justify/);
+
+  const projectModule = printRenderer.slice(
+    printRenderer.indexOf('private static void ComposeProjectModule'),
+    printRenderer.indexOf('private static void ComposeClosingMatter'));
+  assert.match(projectModule, /BrochureNarrativeTypographyPolicy\.ShouldJustify/);
+  assert.match(projectModule, /BrochureNarrativeSegment\.Leading/);
+  assert.match(projectModule, /BrochureNarrativeSegment\.Continuation/);
+  assert.match(projectModule, /BrochureNarrativeSegment\.Trailing/);
+  assert.doesNotMatch(projectModule, /ContinuationNarrative[\s\S]{0,380}justify:\s*true/);
+
+  assert.match(renderer, /ComposeNarrative\([^\)]*NarrativeAlignment/);
 });

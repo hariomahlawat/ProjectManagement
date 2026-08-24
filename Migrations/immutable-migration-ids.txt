@@ -109,3 +109,5 @@
 20261216123000_AddCompendiumProjectParticularsStyle
 20261216160000_AddCompendiumCoverIdentity
 20261216170000_EnsureCanonicalIdentityRoles
+
+20261216180000_AddBrochureNarrativeAlignment

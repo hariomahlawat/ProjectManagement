@@ -580,6 +580,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.CoverStyle).HasMaxLength(32).IsRequired();
                 entity.Property(preset => preset.InstitutionalCoverArtwork).HasMaxLength(48).IsRequired();
                 entity.Property(preset => preset.NarrativeSource).HasMaxLength(32).IsRequired();
+                entity.Property(preset => preset.NarrativeAlignment).HasMaxLength(24).HasDefaultValue("Left").IsRequired();
                 entity.Property(preset => preset.PublicationProfile).HasMaxLength(32).IsRequired();
                 entity.Property(preset => preset.IntroductionTitle).HasMaxLength(120);
                 entity.Property(preset => preset.IntroductionText).HasMaxLength(3000);
@@ -600,7 +601,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.HandlingMarking).HasMaxLength(80);
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(4).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(5).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
 

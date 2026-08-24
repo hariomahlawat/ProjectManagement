@@ -1,0 +1,10 @@
+Verification performed in the ChatGPT working environment on 24 Aug 2026:
+
+PASS  node --check wwwroot/js/pages/projects-brochure.js
+PASS  targeted brochure alignment / semantic-float / DI / publication-manager contracts: 4/4
+PASS  full publications-brochure-contract.test.js: 106/106
+PASS  migration-id uniqueness check
+PASS  raw brace-balance structural check across 13 changed C# files
+
+.NET verification was not executed here because this runtime does not contain dotnet, csc, msbuild or pwsh.
+Run the dotnet build/test commands in README-PASTE.md on the PRISM development machine before deployment.

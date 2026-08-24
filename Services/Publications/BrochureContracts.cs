@@ -9,6 +9,20 @@ public enum BrochureNarrativeSource
     FullDescription = 3
 }
 
+public enum BrochureNarrativeAlignment
+{
+    Left = 1,
+    Justified = 2
+}
+
+public enum BrochureNarrativeSegment
+{
+    FullWidth = 1,
+    Leading = 2,
+    Continuation = 3,
+    Trailing = 4
+}
+
 public enum BrochureCoverStyle
 {
     Institutional = 1,
@@ -493,7 +507,8 @@ public sealed record BrochureBuildOptions(
     string? PrintDevelopingAgencyHeading = "Developing Agency",
     string? PrintManufacturingAgencyHeading = "Manufacturing Agency",
     string? PrintVisionaryHeading = "Visionary Horizons & Strategic Objectives",
-    string? PrintNewSimulatorsHeading = "New Simulators.");
+    string? PrintNewSimulatorsHeading = "New Simulators.",
+    BrochureNarrativeAlignment NarrativeAlignment = BrochureNarrativeAlignment.Left);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,

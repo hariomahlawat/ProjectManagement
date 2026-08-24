@@ -490,7 +490,8 @@ internal static class BrochurePrintCompactComposer
                             module,
                             project,
                             plannedProject.Measurement,
-                            sheet.ExtraModuleVerticalPaddingPoints));
+                            sheet.ExtraModuleVerticalPaddingPoints,
+                            data.Options.NarrativeAlignment));
                 }
 
                 if (sheet.IncludesClosingMatter && sheet.ClosingHeightPoints > .5f)
@@ -513,7 +514,8 @@ internal static class BrochurePrintCompactComposer
         IContainer container,
         BrochurePublicationProject project,
         BrochurePrintProjectMeasurement layout,
-        float extraVerticalPaddingPoints)
+        float extraVerticalPaddingPoints,
+        BrochureNarrativeAlignment narrativeAlignment)
     {
         container.Border(BrochurePrintLayoutMetrics.ModuleBorderPoints)
             .BorderColor(Forest700)
@@ -548,7 +550,8 @@ internal static class BrochurePrintCompactComposer
                             layout.BodyFontSize,
                             layout.BodyLineHeight,
                             layout.ParagraphSpacingPoints,
-                            justify: false));
+                            justify: BrochureNarrativeTypographyPolicy.ShouldJustify(
+                                narrativeAlignment, BrochureNarrativeSegment.FullWidth)));
                         return;
                     }
 
@@ -562,7 +565,8 @@ internal static class BrochurePrintCompactComposer
                             layout.BodyFontSize,
                             layout.BodyLineHeight,
                             layout.ParagraphSpacingPoints,
-                            justify: false));
+                            justify: BrochureNarrativeTypographyPolicy.ShouldJustify(
+                                narrativeAlignment, BrochureNarrativeSegment.Leading)));
 
                         row.ConstantItem(BrochurePrintLayoutMetrics.TextImageGapPoints);
                         row.ConstantItem(layout.ImageWidthPoints).AlignTop().Column(images =>
@@ -589,7 +593,8 @@ internal static class BrochurePrintCompactComposer
                                 layout.BodyFontSize,
                                 layout.BodyLineHeight,
                                 layout.ParagraphSpacingPoints,
-                                justify: false));
+                                justify: BrochureNarrativeTypographyPolicy.ShouldJustify(
+                                    narrativeAlignment, BrochureNarrativeSegment.Continuation)));
                     }
 
                     if (!string.IsNullOrWhiteSpace(layout.TrailingNarrative))
@@ -605,7 +610,8 @@ internal static class BrochurePrintCompactComposer
                             layout.BodyFontSize,
                             layout.BodyLineHeight,
                             layout.ParagraphSpacingPoints,
-                            justify: false));
+                            justify: BrochureNarrativeTypographyPolicy.ShouldJustify(
+                                narrativeAlignment, BrochureNarrativeSegment.Trailing)));
                     }
                 });
             });

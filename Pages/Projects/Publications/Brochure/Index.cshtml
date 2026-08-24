@@ -247,6 +247,38 @@
                                 <small>Sources are never merged automatically.</small>
                             </label>
                         </div>
+
+                        <fieldset class="brochure-alignment-fieldset">
+                            <legend>Project body alignment</legend>
+                            <div class="brochure-alignment-options" role="radiogroup" aria-label="Project body alignment">
+                                <label class="brochure-alignment-option">
+                                    <input type="radio"
+                                           asp-for="Input.NarrativeAlignment"
+                                           value="@BrochureNarrativeAlignment.Left"
+                                           data-brochure-narrative-alignment
+                                           data-brochure-preflight-trigger />
+                                    <span class="brochure-alignment-option__icon"><i class="bi bi-text-left" aria-hidden="true"></i></span>
+                                    <span>
+                                        <strong>Left aligned</strong>
+                                        <small>Natural ragged-right copy for maximum spacing consistency.</small>
+                                    </span>
+                                </label>
+                                <label class="brochure-alignment-option">
+                                    <input type="radio"
+                                           asp-for="Input.NarrativeAlignment"
+                                           value="@BrochureNarrativeAlignment.Justified"
+                                           data-brochure-narrative-alignment
+                                           data-brochure-preflight-trigger />
+                                    <span class="brochure-alignment-option__icon"><i class="bi bi-justify" aria-hidden="true"></i></span>
+                                    <span>
+                                        <strong>Justified <em>recommended</em></strong>
+                                        <small>Publication-style aligned margins; forced mid-sentence float continuations stay natural.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <small class="brochure-alignment-note">Applies consistently to project narrative copy in both publication profiles. It does not alter headings or approval state.</small>
+                        </fieldset>
+
                         <div class="brochure-cover-a-identity-note" hidden data-cover-a-identity-note>
                             <i class="bi bi-shield-check" aria-hidden="true"></i>
                             <span>

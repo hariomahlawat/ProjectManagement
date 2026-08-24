@@ -83,7 +83,8 @@ public sealed record BrochurePresetConfiguration(
     string? PrintDevelopingAgencyHeading = "Developing Agency",
     string? PrintManufacturingAgencyHeading = "Manufacturing Agency",
     string? PrintVisionaryHeading = "Visionary Horizons & Strategic Objectives",
-    string? PrintNewSimulatorsHeading = "New Simulators.");
+    string? PrintNewSimulatorsHeading = "New Simulators.",
+    BrochureNarrativeAlignment NarrativeAlignment = BrochureNarrativeAlignment.Left);
 
 public sealed record BrochurePresetLoadResult(
     BrochurePresetSummaryVm Preset,
