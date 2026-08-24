@@ -38,15 +38,23 @@ public sealed record CompendiumReviewFingerprintInput(
 
 public static class CompendiumReviewFingerprint
 {
-    private const string ContractVersion = "compendium-review-v19-cover-identity";
+    private const string LeftAlignedContractVersion = "compendium-review-v19-cover-identity";
+    private const string JustifiedContractVersion = "compendium-review-v20-semantic-justification";
 
     public static string Create(CompendiumReviewFingerprintInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
 
+        // Phase 44 changes only the physical treatment of Justified prose. Keep the exact v19
+        // contract for existing Left-aligned dossiers so they are not needlessly sent back for
+        // review; existing Justified reviews are intentionally invalidated once.
+        var contractVersion = input.NarrativeAlignment == CompendiumNarrativeAlignment.Justified
+            ? JustifiedContractVersion
+            : LeftAlignedContractVersion;
+
         var canonical = string.Join("\u001f", new[]
         {
-            ContractVersion,
+            contractVersion,
             input.ProjectId.ToString(CultureInfo.InvariantCulture),
             Clean(input.ProjectName),
             input.LifecycleStatus.ToString(),

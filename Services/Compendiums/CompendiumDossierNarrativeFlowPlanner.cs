@@ -78,13 +78,21 @@ public static class CompendiumDossierNarrativeFlowPlanner
             {
                 Mode = mode,
                 EffectiveAlignment = narrativeAlignment,
-                SideAlignment = CompendiumNarrativeTypographyPolicy.ResolveSideAlignment(narrativeAlignment, sideColumnWidthPoints),
-                BelowAlignment = CompendiumNarrativeTypographyPolicy.ResolveFullWidthAlignment(narrativeAlignment)
+                SideAlignment = CompendiumNarrativeTypographyPolicy.ResolveAlignment(
+                    narrativeAlignment,
+                    CompendiumNarrativeSegment.BalancedSide),
+                BelowAlignment = CompendiumNarrativeTypographyPolicy.ResolveAlignment(
+                    narrativeAlignment,
+                    CompendiumNarrativeSegment.BelowImage)
             };
         }
 
-        var fullWidthAlignment = CompendiumNarrativeTypographyPolicy.ResolveFullWidthAlignment(narrativeAlignment);
-        var sideAlignment = CompendiumNarrativeTypographyPolicy.ResolveSideAlignment(narrativeAlignment, sideColumnWidthPoints);
+        var fullWidthAlignment = CompendiumNarrativeTypographyPolicy.ResolveAlignment(
+            narrativeAlignment,
+            CompendiumNarrativeSegment.FullWidth);
+        var sideAlignment = CompendiumNarrativeTypographyPolicy.ResolveAlignment(
+            narrativeAlignment,
+            CompendiumNarrativeSegment.BalancedSide);
         var physicalFirstPage = firstPageNarrativeHeightPoints > .5f;
         var measurementSession = physicalFirstPage ? new CompendiumDossierTextMeasurementService.Session() : null;
 

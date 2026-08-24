@@ -26,10 +26,10 @@ public sealed class CompendiumPhase37CompositionTests
     }
 
     [Fact]
-    public void NarrativeTypography_JustifiesWideRegions_ButProtectsNarrowBalancedColumn()
+    public void NarrativeTypography_HonoursJustifiedPublisherChoiceAcrossBalancedAndFullWidthRegions()
     {
         Assert.Equal(
-            CompendiumNarrativeAlignment.Left,
+            CompendiumNarrativeAlignment.Justified,
             CompendiumNarrativeTypographyPolicy.ResolveSideAlignment(
                 CompendiumNarrativeAlignment.Justified,
                 223f));

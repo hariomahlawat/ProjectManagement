@@ -66,10 +66,8 @@ test('phase 37 jointly evaluates multiple image heights instead of freezing the 
   assert.match(pagination, /ThenBy\(candidate => candidate\.Side(?:OverflowHeightPoints \+ candidate\.SideRemainingHeightPoints|RemainingHeightPoints)\)/);
 });
 
-test('phase 37 provides publication default and per-project narrative alignment without unsafe narrow-column justification', () => {
-  assert.match(typography, /MinimumSafeJustifiedColumnWidthPoints\s*=\s*245f/);
+test('phase 37 provides publication default and per-project narrative alignment through the shared typography policy', () => {
   assert.match(typography, /ResolveSideAlignment/);
-  assert.match(typography, /sideColumnWidthPoints\s*>=\s*MinimumSafeJustifiedColumnWidthPoints/);
   assert.match(typography, /ResolveFullWidthAlignment/);
   assert.match(markdownRenderer, /justifyParagraphs/);
   assert.match(markdownRenderer, /text\.Justify\(\)/);

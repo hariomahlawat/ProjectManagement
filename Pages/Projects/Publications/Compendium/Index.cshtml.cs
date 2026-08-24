@@ -1034,7 +1034,7 @@ public sealed class IndexModel : PageModel
         }
         if (string.IsNullOrWhiteSpace(Input.NarrativeAlignment))
         {
-            Input.NarrativeAlignment = nameof(CompendiumNarrativeAlignment.Left);
+            Input.NarrativeAlignment = nameof(CompendiumNarrativeAlignment.Justified);
         }
         if (string.IsNullOrWhiteSpace(Input.ProjectParticularsStyle))
         {
@@ -1669,7 +1669,7 @@ public sealed class IndexModel : PageModel
     private static CompendiumNarrativeAlignment ParseNarrativeAlignment(string? value)
         => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
-            : CompendiumNarrativeAlignment.Left;
+            : CompendiumNarrativeAlignment.Justified;
 
     private static CompendiumNarrativeAlignment? ParseNullableNarrativeAlignment(string? value)
         => Enum.TryParse<CompendiumNarrativeAlignment>(value, true, out var parsed) && Enum.IsDefined(parsed)
@@ -1879,7 +1879,7 @@ public sealed class IndexModel : PageModel
         public string NarrativeSource { get; set; } = nameof(CompendiumNarrativeSource.ProjectBrief);
 
         [StringLength(24)]
-        public string NarrativeAlignment { get; set; } = nameof(CompendiumNarrativeAlignment.Left);
+        public string NarrativeAlignment { get; set; } = nameof(CompendiumNarrativeAlignment.Justified);
 
         [StringLength(24)]
         public string ProjectParticularsStyle { get; set; } = nameof(CompendiumProjectParticularsStyle.Panel);
