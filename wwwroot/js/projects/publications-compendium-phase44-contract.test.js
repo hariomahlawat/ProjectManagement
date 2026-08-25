@@ -59,7 +59,7 @@ test('phase 44 invalidates only existing justified review fingerprints and advan
   assert.match(fingerprint, /compendium-review-v19-cover-identity/);
   assert.match(fingerprint, /compendium-review-v20-semantic-justification/);
   assert.match(fingerprint, /NarrativeAlignment\s*==\s*CompendiumNarrativeAlignment\.Justified/);
-  assert.match(buildIdentity, /Phase\s*=\s*"(?:44|45)"/);
-  assert.match(buildIdentity, /physical-a4-v45/);
+  assert.match(buildIdentity, /Phase\s*=\s*"(?:44|45|46)"/);
+  assert.match(buildIdentity, /physical-a4-v(?:45|46)/);
   assert.match(buildIdentity, /semantic-justification/i);
 });

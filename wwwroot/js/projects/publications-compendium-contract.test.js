@@ -223,7 +223,7 @@ test('phase 23 avoids stale async preflight and review responses', () => {
 });
 
 test('publication workspace persists first-class sections and project narrative overrides through schema v5', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[5-9]|10|11|12)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[5-9]|10|11|12|13)/);
   assert.match(migration, /Migration\("20261208140000_AddCompendiumPublicationImagery"\)/);
   assert.match(migration, /PrimaryPhotoId/);
   assert.match(migration, /PrimaryFocalX/);

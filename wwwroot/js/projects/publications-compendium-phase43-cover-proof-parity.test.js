@@ -75,7 +75,7 @@ test('QuestPDF identity rule is emitted before cover wording like the browser pr
 
 test('build identity identifies the parity-corrected PDF contract', () => {
   const identity = read('Utilities', 'Reporting', 'CompendiumBuildIdentity.cs');
-  assert.match(identity, /Phase = "45"/);
-  assert.match(identity, /CompendiumPdf_2026-08-24_phase45-flow-proof-parity/);
-  assert.match(identity, /physical-a4-v45/);
+  assert.match(identity, /Phase = "(?:45|46)"/);
+  assert.match(identity, /CompendiumPdf_2026-08-(?:24_phase45-flow-proof-parity|25_phase46-dossier-defaults)/);
+  assert.match(identity, /physical-a4-v(?:45|46)/);
 });

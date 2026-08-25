@@ -37,8 +37,8 @@ const compact = value => value.replace(/\s+/g, ' ');
 test('phase 36 introduces the quartet and balanced text-flow contracts with schema-safe identity bumps', () => {
   assert.match(dtos, /PortfolioQuartet\s*=\s*5/);
   assert.match(dtos, /enum CompendiumBalancedTextFlowMode[\s\S]*SideColumn\s*=\s*0[\s\S]*FlowBelowImage\s*=\s*1/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:[89]|10|11|12)/);
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[89]|10|11|12)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:[89]|10|11|12|13)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[89]|10|11|12|13)/);
   assert.match(migration, /BalancedTextFlowMode/);
   assert.match(migration, /defaultValue:\s*"SideColumn"/);
   assert.match(fingerprint, /compendium-review-v(?:11-balanced-text-flow|12-professional-typesetting|13-physical-measurement|14-editorial-constraints|15-additional-note-final-hardening|16-particulars-style|17-editorial-rules|18-semantic-narrative|19-cover-identity)/);
@@ -109,7 +109,7 @@ test('phase 36 makes Compendium Fit frameless without changing Brochure defaults
 });
 
 test('phase 36 preserves flow and phase-35 dossier image state through Structure Editor handoff', () => {
-  assert.match(structureState, /const VERSION = [234]/);
+  assert.match(structureState, /const VERSION = [2345]/);
   for (const field of [
     'balancedTextFlowMode', 'dossierImageCount', 'supportingPhoto1Id', 'supportingPhoto1FocalX',
     'supportingPhoto1FocalY', 'supportingPhoto1FitMode', 'supportingPhoto2Id',

@@ -282,6 +282,15 @@ public sealed record CompendiumCandidateProjectVm(
     public bool HasTechnologyTransfer { get; init; }
 }
 
+
+public sealed record CompendiumDossierPresentationDefaults
+{
+    public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Justified;
+    public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+}
+
 public sealed record CompendiumProjectSelection(
     int ProjectId,
     int? PrimaryPhotoId = null,
@@ -297,9 +306,13 @@ public sealed record CompendiumProjectSelection(
     public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
+    // Effective compatibility snapshots. Phase 46 authoring persists the nullable override fields below.
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumImageFitMode? ImageFitModeOverride { get; init; }
+    public CompendiumDossierLayout? DossierLayoutOverride { get; init; }
+    public CompendiumBalancedTextFlowMode? BalancedTextFlowModeOverride { get; init; }
     /// <summary>Null inherits the publication-level narrative alignment.</summary>
     public CompendiumNarrativeAlignment? NarrativeAlignmentOverride { get; init; }
     public string? AdditionalNote { get; init; }
@@ -365,12 +378,15 @@ public sealed record CompendiumReviewProjectDto(
     public string? CustomSectionName { get; init; }
     public bool UsesNarrativeOverride { get; init; }
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public CompendiumImageFitMode? ImageFitModeOverride { get; init; }
+    public bool UsesImageFitOverride { get; init; }
     public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
     public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
-    public CompendiumDossierLayout DossierLayoutOverride { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumDossierLayout? DossierLayoutOverride { get; init; }
+    public bool UsesDossierLayoutOverride { get; init; }
     public CompendiumDossierLayout EffectiveDossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
     public string DossierLayoutReason { get; init; } = string.Empty;
     public int DossierPressureScore { get; init; }
@@ -383,6 +399,8 @@ public sealed record CompendiumReviewProjectDto(
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumBalancedTextFlowMode? BalancedTextFlowModeOverride { get; init; }
+    public bool UsesBalancedTextFlowOverride { get; init; }
     public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public bool UsesNarrativeAlignmentOverride { get; init; }
     public string? AdditionalNote { get; init; }
@@ -435,12 +453,15 @@ public sealed record CompendiumProjectDto(
     public int PublicationYear { get; init; }
     public int TechnicalCategorySortOrder { get; init; } = int.MaxValue;
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
+    public CompendiumImageFitMode? ImageFitModeOverride { get; init; }
+    public bool UsesImageFitOverride { get; init; }
     public IReadOnlyList<CompendiumProgrammeModuleDto> ProgrammeModules { get; init; } = Array.Empty<CompendiumProgrammeModuleDto>();
     public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public IReadOnlyList<CompendiumIprCredentialDto> IprCredentials { get; init; } = Array.Empty<CompendiumIprCredentialDto>();
     public CompendiumTechnologyTransferDto? TechnologyTransfer { get; init; }
     public IReadOnlyList<string> TechnicalSpecifications { get; init; } = Array.Empty<string>();
-    public CompendiumDossierLayout DossierLayoutOverride { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumDossierLayout? DossierLayoutOverride { get; init; }
+    public bool UsesDossierLayoutOverride { get; init; }
     public CompendiumDossierLayout EffectiveDossierLayout { get; init; } = CompendiumDossierLayout.Balanced;
     public string DossierLayoutReason { get; init; } = string.Empty;
     public int DossierPressureScore { get; init; }
@@ -453,6 +474,8 @@ public sealed record CompendiumProjectDto(
     public int DossierSpecificationColumns { get; init; } = 1;
     public int DossierProgrammeColumns { get; init; } = 1;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumBalancedTextFlowMode? BalancedTextFlowModeOverride { get; init; }
+    public bool UsesBalancedTextFlowOverride { get; init; }
     public CompendiumNarrativeAlignment NarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Left;
     public bool UsesNarrativeAlignmentOverride { get; init; }
     public string? AdditionalNote { get; init; }
@@ -555,6 +578,7 @@ public sealed record CompendiumPublicationRequest(
     public IReadOnlyList<int> ProjectIds => Projects.Select(project => project.ProjectId).ToArray();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Justified;
+    public CompendiumDossierPresentationDefaults DossierPresentationDefaults { get; init; } = new();
     public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;
@@ -575,6 +599,7 @@ public sealed record CompendiumPdfDataDto(
     public string Edition { get; init; } = string.Empty;
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Justified;
+    public CompendiumDossierPresentationDefaults DossierPresentationDefaults { get; init; } = new();
     public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;

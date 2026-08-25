@@ -5852,3 +5852,35 @@ body.compendium-structure-editor-mode {
         overflow: visible;
     }
 }
+
+/* Compendium Phase 46: publication-level dossier presentation defaults */
+.compendium-dossier-defaults {
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+    padding: .8rem .75rem .7rem;
+    background: rgba(24, 94, 72, .025);
+}
+.compendium-dossier-defaults__heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .55rem;
+}
+.compendium-dossier-defaults__heading > span { font-weight: 700; }
+.compendium-dossier-defaults__heading > small,
+.compendium-dossier-defaults__policy { color: var(--bs-secondary-color); font-size: .72rem; }
+.compendium-dossier-defaults__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.15fr) minmax(0, .9fr);
+    gap: .7rem;
+}
+.compendium-dossier-defaults__grid > div { min-width: 0; }
+.compendium-dossier-defaults__grid strong { display: block; margin-bottom: .35rem; font-size: .78rem; }
+.compendium-segmented--compact { flex-wrap: wrap; }
+.compendium-segmented--compact button { min-height: 2rem; padding: .35rem .55rem; font-size: .72rem; }
+.compendium-dossier-reset-row { display: flex; justify-content: flex-end; margin: .1rem 0 .35rem; }
+.compendium-dossier-reset-row .btn { padding-inline: 0; font-size: .72rem; text-decoration: none; }
+@media (max-width: 1199.98px) {
+    .compendium-dossier-defaults__grid { grid-template-columns: 1fr; }
+    .compendium-dossier-defaults__heading { align-items: flex-start; flex-direction: column; gap: .15rem; }
+}

@@ -175,14 +175,26 @@ public sealed class CoverModel : PageModel
                 CustomSectionName = project.CustomSectionName,
                 NarrativeSourceOverride = project.NarrativeSourceOverride,
                 ImageFitMode = project.ImageFitMode,
+                ImageFitModeOverride = project.ImageFitModeOverride,
                 DossierLayout = project.DossierLayout,
+                DossierLayoutOverride = project.DossierLayoutOverride,
                 BalancedTextFlowMode = project.BalancedTextFlowMode,
+                BalancedTextFlowModeOverride = project.BalancedTextFlowModeOverride,
+                NarrativeAlignmentOverride = project.NarrativeAlignmentOverride,
                 DossierImageCount = project.DossierImageCount
             };
 
             var review = await _readService.GetReviewProjectAsync(
                 selection,
                 project.NarrativeSourceOverride ?? loaded.Configuration.NarrativeSource,
+                new CompendiumDossierPresentationDefaults
+                {
+                    DossierLayout = loaded.Configuration.DefaultDossierLayout,
+                    BalancedTextFlowMode = loaded.Configuration.DefaultBalancedTextFlowMode,
+                    NarrativeAlignment = loaded.Configuration.DefaultNarrativeAlignment,
+                    ImageFitMode = loaded.Configuration.DefaultImageFitMode
+                },
+                loaded.Configuration.ProjectParticularsStyle,
                 cancellationToken);
             if (review is null)
             {
@@ -573,12 +585,26 @@ public sealed class CoverModel : PageModel
             {
                 NarrativeSourceOverride = project.NarrativeSourceOverride,
                 ImageFitMode = project.ImageFitMode,
+                ImageFitModeOverride = project.ImageFitModeOverride,
                 DossierLayout = project.DossierLayout,
+                DossierLayoutOverride = project.DossierLayoutOverride,
                 BalancedTextFlowMode = project.BalancedTextFlowMode,
+                BalancedTextFlowModeOverride = project.BalancedTextFlowModeOverride,
+                NarrativeAlignmentOverride = project.NarrativeAlignmentOverride,
                 DossierImageCount = project.DossierImageCount
             };
             var review = await _readService.GetReviewProjectAsync(
-                selection, project.NarrativeSourceOverride ?? configuration.NarrativeSource, cancellationToken);
+                selection,
+                project.NarrativeSourceOverride ?? configuration.NarrativeSource,
+                new CompendiumDossierPresentationDefaults
+                {
+                    DossierLayout = configuration.DefaultDossierLayout,
+                    BalancedTextFlowMode = configuration.DefaultBalancedTextFlowMode,
+                    NarrativeAlignment = configuration.DefaultNarrativeAlignment,
+                    ImageFitMode = configuration.DefaultImageFitMode
+                },
+                configuration.ProjectParticularsStyle,
+                cancellationToken);
             if (review is null) continue;
             foreach (var photo in review.Photos.Where(photo => photo.IsUsable))
             {

@@ -111,3 +111,4 @@
 20261216170000_EnsureCanonicalIdentityRoles
 
 20261216180000_AddBrochureNarrativeAlignment
+20261216190000_AddCompendiumDossierPresentationDefaults

@@ -67,7 +67,7 @@ public interface ICompendiumPresetService
 /// </summary>
 public sealed class CompendiumPresetService : ICompendiumPresetService
 {
-    private const int CurrentSchemaVersion = 12;
+    private const int CurrentSchemaVersion = 13;
     private const int MaximumProjects = 500;
 
     private readonly ApplicationDbContext _db;
@@ -197,6 +197,15 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             .ToDictionary(group => group.Key, group => group.Select(photo => photo.PhotoId).ToHashSet());
 
         var diagnostics = new List<CompendiumPresetDiagnostic>();
+        var defaultDossierLayout = preset.SettingsSchemaVersion < 13
+            ? CompendiumDossierLayout.Automatic
+            : ParseDossierLayout(preset.DefaultDossierLayout);
+        var defaultBalancedTextFlowMode = preset.SettingsSchemaVersion < 13
+            ? CompendiumBalancedTextFlowMode.FlowBelowImage
+            : ParseBalancedTextFlowMode(preset.DefaultBalancedTextFlowMode, CompendiumBalancedTextFlowMode.FlowBelowImage);
+        var defaultImageFitMode = preset.SettingsSchemaVersion < 13
+            ? CompendiumImageFitMode.Fill
+            : ParseImageFitMode(preset.DefaultImageFitMode);
         var projectConfigurations = new List<CompendiumPresetProjectConfiguration>(orderedItems.Length);
 
         foreach (var item in orderedItems)
@@ -257,11 +266,32 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     ? CleanOptional(item.CustomSectionName, 120)
                     : CleanOptional(assignedSection.Name, 120),
                 NarrativeSourceOverride = ParseNullableNarrativeSource(item.NarrativeSourceOverride),
-                ImageFitMode = ParseImageFitMode(item.ImageFitMode),
-                DossierLayout = ParseDossierLayout(item.DossierLayout),
-                BalancedTextFlowMode = preset.SettingsSchemaVersion < 8
-                    ? CompendiumBalancedTextFlowMode.SideColumn
-                    : ParseBalancedTextFlowMode(item.BalancedTextFlowMode, CompendiumBalancedTextFlowMode.SideColumn),
+                ImageFitModeOverride = preset.SettingsSchemaVersion < 13
+                    ? ResolveLegacyOverride(ParseImageFitMode(item.ImageFitMode), defaultImageFitMode)
+                    : ParseNullableImageFitMode(item.ImageFitModeOverride),
+                ImageFitMode = (preset.SettingsSchemaVersion < 13
+                    ? ResolveLegacyOverride(ParseImageFitMode(item.ImageFitMode), defaultImageFitMode)
+                    : ParseNullableImageFitMode(item.ImageFitModeOverride)) ?? defaultImageFitMode,
+                DossierLayoutOverride = preset.SettingsSchemaVersion < 13
+                    ? ResolveLegacyOverride(ParseDossierLayout(item.DossierLayout), defaultDossierLayout)
+                    : ParseNullableDossierLayout(item.DossierLayoutOverride),
+                DossierLayout = (preset.SettingsSchemaVersion < 13
+                    ? ResolveLegacyOverride(ParseDossierLayout(item.DossierLayout), defaultDossierLayout)
+                    : ParseNullableDossierLayout(item.DossierLayoutOverride)) ?? defaultDossierLayout,
+                BalancedTextFlowModeOverride = preset.SettingsSchemaVersion < 13
+                    ? ResolveLegacyOverride(
+                        preset.SettingsSchemaVersion < 8
+                            ? CompendiumBalancedTextFlowMode.SideColumn
+                            : ParseBalancedTextFlowMode(item.BalancedTextFlowMode, CompendiumBalancedTextFlowMode.SideColumn),
+                        defaultBalancedTextFlowMode)
+                    : ParseNullableBalancedTextFlowMode(item.BalancedTextFlowModeOverride),
+                BalancedTextFlowMode = (preset.SettingsSchemaVersion < 13
+                    ? ResolveLegacyOverride(
+                        preset.SettingsSchemaVersion < 8
+                            ? CompendiumBalancedTextFlowMode.SideColumn
+                            : ParseBalancedTextFlowMode(item.BalancedTextFlowMode, CompendiumBalancedTextFlowMode.SideColumn),
+                        defaultBalancedTextFlowMode)
+                    : ParseNullableBalancedTextFlowMode(item.BalancedTextFlowModeOverride)) ?? defaultBalancedTextFlowMode,
                 NarrativeAlignmentOverride = preset.SettingsSchemaVersion < 9
                     ? null
                     : ParseNullableNarrativeAlignment(item.NarrativeAlignmentOverride),
@@ -401,6 +431,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             DefaultNarrativeAlignment = preset.SettingsSchemaVersion < 9
                 ? CompendiumNarrativeAlignment.Left
                 : ParseNarrativeAlignment(preset.DefaultNarrativeAlignment, CompendiumNarrativeAlignment.Left),
+            DefaultDossierLayout = defaultDossierLayout,
+            DefaultBalancedTextFlowMode = defaultBalancedTextFlowMode,
+            DefaultImageFitMode = defaultImageFitMode,
             ProjectParticularsStyle = preset.SettingsSchemaVersion < 11
                 ? CompendiumProjectParticularsStyle.Panel
                 : ParseProjectParticularsStyle(preset.ProjectParticularsStyle),
@@ -671,8 +704,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryFocalY = item.PrimaryFocalY,
                     ImageSelectionMode = item.ImageSelectionMode,
                     ImageFitMode = item.ImageFitMode,
+                    ImageFitModeOverride = item.ImageFitModeOverride,
                     DossierLayout = item.DossierLayout,
+                    DossierLayoutOverride = item.DossierLayoutOverride,
                     BalancedTextFlowMode = item.BalancedTextFlowMode,
+                    BalancedTextFlowModeOverride = item.BalancedTextFlowModeOverride,
                     NarrativeAlignmentOverride = item.NarrativeAlignmentOverride,
                     AdditionalNote = item.AdditionalNote,
                     DossierImageCount = item.DossierImageCount,
@@ -703,6 +739,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             HandlingMarking = source.HandlingMarking,
             NarrativeSource = source.NarrativeSource,
             DefaultNarrativeAlignment = source.DefaultNarrativeAlignment,
+            DefaultDossierLayout = source.DefaultDossierLayout,
+            DefaultBalancedTextFlowMode = source.DefaultBalancedTextFlowMode,
+            DefaultImageFitMode = source.DefaultImageFitMode,
             ProjectParticularsStyle = source.ProjectParticularsStyle,
             GroupingMode = source.GroupingMode,
             SortMode = source.SortMode,
@@ -823,12 +862,19 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
         var normalizedSections = NormalizeSections(configuration.Sections);
         var sectionByKey = normalizedSections.ToDictionary(section => section.SectionKey, StringComparer.OrdinalIgnoreCase);
+        var presentationDefaults = CompendiumDossierPresentationPolicy.Normalize(new CompendiumDossierPresentationDefaults
+        {
+            DossierLayout = configuration.DefaultDossierLayout,
+            BalancedTextFlowMode = configuration.DefaultBalancedTextFlowMode,
+            NarrativeAlignment = configuration.DefaultNarrativeAlignment,
+            ImageFitMode = configuration.DefaultImageFitMode
+        });
 
         var seen = new HashSet<int>();
         var requestedProjects = (configuration.Projects ?? Array.Empty<CompendiumPresetProjectConfiguration>())
             .Where(project => project.ProjectId > 0 && seen.Add(project.ProjectId))
             .Take(MaximumProjects + 1)
-            .Select(project => NormalizeProjectConfiguration(project, sectionByKey))
+            .Select(project => NormalizeProjectConfiguration(project, sectionByKey, presentationDefaults))
             .ToArray();
 
         if (requestedProjects.Length == 0)
@@ -1035,8 +1081,11 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
                     PrimaryFocalY = project.PrimaryFocalY,
                     ImageSelectionMode = project.ImageSelectionMode.ToString(),
                     ImageFitMode = project.ImageFitMode.ToString(),
+                    ImageFitModeOverride = project.ImageFitModeOverride?.ToString(),
                     DossierLayout = project.DossierLayout.ToString(),
+                    DossierLayoutOverride = project.DossierLayoutOverride?.ToString(),
                     BalancedTextFlowMode = project.BalancedTextFlowMode.ToString(),
+                    BalancedTextFlowModeOverride = project.BalancedTextFlowModeOverride?.ToString(),
                     NarrativeAlignmentOverride = project.NarrativeAlignmentOverride?.ToString(),
                     AdditionalNote = NormalizeAdditionalNote(project.AdditionalNote),
                     DossierImageCount = project.DossierImageCount,
@@ -1102,6 +1151,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PhotoPreferences = NormalizePhotoPreferences(configuration.PhotoPreferences, projects.Select(project => project.ProjectId).ToArray()),
             NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource),
             DefaultNarrativeAlignment = NormalizeNarrativeAlignment(configuration.DefaultNarrativeAlignment),
+            DefaultDossierLayout = NormalizeEnum(configuration.DefaultDossierLayout, CompendiumDossierLayout.Automatic),
+            DefaultBalancedTextFlowMode = NormalizeEnum(configuration.DefaultBalancedTextFlowMode, CompendiumBalancedTextFlowMode.FlowBelowImage),
+            DefaultImageFitMode = NormalizeEnum(configuration.DefaultImageFitMode, CompendiumImageFitMode.Fill),
             ProjectParticularsStyle = NormalizeProjectParticularsStyle(configuration.ProjectParticularsStyle),
             GroupingMode = NormalizeGroupingMode(configuration.GroupingMode),
             SortMode = NormalizeSortMode(configuration.SortMode),
@@ -1110,7 +1162,8 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
     private static CompendiumPresetProjectConfiguration NormalizeProjectConfiguration(
         CompendiumPresetProjectConfiguration project,
-        IReadOnlyDictionary<string, CompendiumPresetSectionConfiguration> sectionByKey)
+        IReadOnlyDictionary<string, CompendiumPresetSectionConfiguration> sectionByKey,
+        CompendiumDossierPresentationDefaults defaults)
     {
         var mode = Enum.IsDefined(project.ImageSelectionMode)
             ? project.ImageSelectionMode
@@ -1129,11 +1182,12 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             PrimaryFocalX = ClampFocal(project.PrimaryFocalX),
             PrimaryFocalY = ClampFocal(project.PrimaryFocalY),
             ImageSelectionMode = mode,
-            ImageFitMode = Enum.IsDefined(project.ImageFitMode) ? project.ImageFitMode : CompendiumImageFitMode.Fill,
-            DossierLayout = Enum.IsDefined(project.DossierLayout) ? project.DossierLayout : CompendiumDossierLayout.Automatic,
-            BalancedTextFlowMode = Enum.IsDefined(project.BalancedTextFlowMode)
-                ? project.BalancedTextFlowMode
-                : CompendiumBalancedTextFlowMode.FlowBelowImage,
+            ImageFitModeOverride = NormalizeNullableEnum(project.ImageFitModeOverride),
+            ImageFitMode = NormalizeNullableEnum(project.ImageFitModeOverride) ?? defaults.ImageFitMode,
+            DossierLayoutOverride = NormalizeNullableEnum(project.DossierLayoutOverride),
+            DossierLayout = NormalizeNullableEnum(project.DossierLayoutOverride) ?? defaults.DossierLayout,
+            BalancedTextFlowModeOverride = NormalizeNullableEnum(project.BalancedTextFlowModeOverride),
+            BalancedTextFlowMode = NormalizeNullableEnum(project.BalancedTextFlowModeOverride) ?? defaults.BalancedTextFlowMode,
             NarrativeAlignmentOverride = NormalizeNullableNarrativeAlignment(project.NarrativeAlignmentOverride),
             AdditionalNote = NormalizeAdditionalNote(project.AdditionalNote),
             DossierImageCount = Math.Clamp(project.DossierImageCount, 1, 3),
@@ -1208,6 +1262,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         preset.HandlingMarking = configuration.HandlingMarking;
         preset.NarrativeSource = NormalizeNarrativeSource(configuration.NarrativeSource).ToString();
         preset.DefaultNarrativeAlignment = NormalizeNarrativeAlignment(configuration.DefaultNarrativeAlignment).ToString();
+        preset.DefaultDossierLayout = NormalizeEnum(configuration.DefaultDossierLayout, CompendiumDossierLayout.Automatic).ToString();
+        preset.DefaultBalancedTextFlowMode = NormalizeEnum(configuration.DefaultBalancedTextFlowMode, CompendiumBalancedTextFlowMode.FlowBelowImage).ToString();
+        preset.DefaultImageFitMode = NormalizeEnum(configuration.DefaultImageFitMode, CompendiumImageFitMode.Fill).ToString();
         preset.ProjectParticularsStyle = NormalizeProjectParticularsStyle(configuration.ProjectParticularsStyle).ToString();
         preset.GroupingMode = NormalizeGroupingMode(configuration.GroupingMode).ToString();
         preset.SortMode = NormalizeSortMode(configuration.SortMode).ToString();
@@ -1555,10 +1612,16 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
             ? parsed
             : CompendiumImageFitMode.Fill;
 
+    private static CompendiumImageFitMode? ParseNullableImageFitMode(string? value)
+        => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+
     private static CompendiumDossierLayout ParseDossierLayout(string? value)
         => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumDossierLayout.Automatic;
+
+    private static CompendiumDossierLayout? ParseNullableDossierLayout(string? value)
+        => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 
     private static CompendiumBalancedTextFlowMode ParseBalancedTextFlowMode(
         string? value,
@@ -1566,6 +1629,9 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
         => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : fallback;
+
+    private static CompendiumBalancedTextFlowMode? ParseNullableBalancedTextFlowMode(string? value)
+        => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 
     private static CompendiumNarrativeAlignment ParseNarrativeAlignment(
         string? value,
@@ -1581,6 +1647,15 @@ public sealed class CompendiumPresetService : ICompendiumPresetService
 
     private static CompendiumNarrativeAlignment NormalizeNarrativeAlignment(CompendiumNarrativeAlignment value)
         => Enum.IsDefined(value) ? value : CompendiumNarrativeAlignment.Left;
+
+    private static T NormalizeEnum<T>(T value, T fallback) where T : struct, Enum
+        => Enum.IsDefined(value) ? value : fallback;
+
+    private static T? NormalizeNullableEnum<T>(T? value) where T : struct, Enum
+        => value.HasValue && Enum.IsDefined(value.Value) ? value.Value : null;
+
+    private static T? ResolveLegacyOverride<T>(T effective, T defaultValue) where T : struct, Enum
+        => EqualityComparer<T>.Default.Equals(effective, defaultValue) ? null : effective;
 
     private static CompendiumNarrativeAlignment? NormalizeNullableNarrativeAlignment(CompendiumNarrativeAlignment? value)
         => value.HasValue && Enum.IsDefined(value.Value) ? value.Value : null;

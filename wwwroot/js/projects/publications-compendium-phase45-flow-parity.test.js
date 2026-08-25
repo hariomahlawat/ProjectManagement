@@ -46,7 +46,7 @@ test('phase 45 optimises Flow Below around a preferred semantic gap before exces
 });
 
 test('phase 45 advances build identity for flow-proof parity', () => {
-  assert.match(buildIdentity, /Phase\s*=\s*"45"/);
-  assert.match(buildIdentity, /physical-a4-v45/);
-  assert.match(compact(buildIdentity), /flow-proof-parity/i);
+  assert.match(buildIdentity, /Phase\s*=\s*"(?:45|46)"/);
+  assert.match(buildIdentity, /physical-a4-v(?:45|46)/);
+  assert.match(compact(buildIdentity), /(?:flow-proof-parity|dossier-defaults)/i);
 });

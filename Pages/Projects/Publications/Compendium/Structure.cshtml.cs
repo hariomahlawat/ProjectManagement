@@ -13,6 +13,7 @@ namespace ProjectManagement.Pages.Projects.Publications.Compendium;
 [Authorize]
 public sealed class StructureModel : PageModel
 {
+    private const int StructureStateVersion = 5;
     private const int MaximumProjects = 500;
     private const int MaximumSections = 100;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -88,9 +89,12 @@ public sealed class StructureModel : PageModel
                         primaryFocalX = item?.PrimaryFocalX ?? .5d,
                         primaryFocalY = item?.PrimaryFocalY ?? .5d,
                         imageSelectionMode = item?.ImageSelectionMode.ToString() ?? "Automatic",
-                        imageFitMode = item?.ImageFitMode.ToString() ?? "Fill",
-                        dossierLayout = item?.DossierLayout.ToString() ?? "Automatic",
-                        balancedTextFlowMode = item?.BalancedTextFlowMode.ToString() ?? "FlowBelowImage",
+                        imageFitMode = item?.ImageFitMode.ToString() ?? loaded.Configuration.DefaultImageFitMode.ToString(),
+                        imageFitModeOverride = item?.ImageFitModeOverride?.ToString(),
+                        dossierLayout = item?.DossierLayout.ToString() ?? loaded.Configuration.DefaultDossierLayout.ToString(),
+                        dossierLayoutOverride = item?.DossierLayoutOverride?.ToString(),
+                        balancedTextFlowMode = item?.BalancedTextFlowMode.ToString() ?? loaded.Configuration.DefaultBalancedTextFlowMode.ToString(),
+                        balancedTextFlowModeOverride = item?.BalancedTextFlowModeOverride?.ToString(),
                         dossierImageCount = item?.DossierImageCount ?? 1,
                         supportingPhoto1Id = item?.SupportingPhoto1Id, supportingPhoto1FocalX = item?.SupportingPhoto1FocalX ?? .5d, supportingPhoto1FocalY = item?.SupportingPhoto1FocalY ?? .5d, supportingPhoto1FitMode = item?.SupportingPhoto1FitMode.ToString() ?? "Fill",
                         supportingPhoto2Id = item?.SupportingPhoto2Id, supportingPhoto2FocalX = item?.SupportingPhoto2FocalX ?? .5d, supportingPhoto2FocalY = item?.SupportingPhoto2FocalY ?? .5d, supportingPhoto2FitMode = item?.SupportingPhoto2FitMode.ToString() ?? "Fill",
@@ -226,10 +230,30 @@ public sealed class StructureModel : PageModel
                     PrimaryFocalX = ClampFocal(item.FocalX ?? baseConfiguration.PrimaryFocalX),
                     PrimaryFocalY = ClampFocal(item.FocalY ?? baseConfiguration.PrimaryFocalY),
                     ImageSelectionMode = mode,
-                    ImageFitMode = ParseImageFitMode(item.ImageFitMode, baseConfiguration.ImageFitMode),
-                    DossierLayout = ParseDossierLayout(item.DossierLayout, baseConfiguration.DossierLayout),
-                    BalancedTextFlowMode = ParseBalancedTextFlowMode(item.BalancedTextFlowMode, baseConfiguration.BalancedTextFlowMode),
-                    NarrativeAlignmentOverride = ParseNarrativeAlignmentOverride(item.NarrativeAlignmentOverride) ?? baseConfiguration.NarrativeAlignmentOverride,
+                    ImageFitModeOverride = payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNullableImageFitMode(item.ImageFitModeOverride)
+                        : ParseNullableImageFitMode(item.ImageFitMode) ?? baseConfiguration.ImageFitModeOverride,
+                    ImageFitMode = (payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNullableImageFitMode(item.ImageFitModeOverride)
+                        : ParseNullableImageFitMode(item.ImageFitMode) ?? baseConfiguration.ImageFitModeOverride)
+                        ?? loaded.Configuration.DefaultImageFitMode,
+                    DossierLayoutOverride = payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNullableDossierLayout(item.DossierLayoutOverride)
+                        : ParseNullableDossierLayout(item.DossierLayout) ?? baseConfiguration.DossierLayoutOverride,
+                    DossierLayout = (payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNullableDossierLayout(item.DossierLayoutOverride)
+                        : ParseNullableDossierLayout(item.DossierLayout) ?? baseConfiguration.DossierLayoutOverride)
+                        ?? loaded.Configuration.DefaultDossierLayout,
+                    BalancedTextFlowModeOverride = payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNullableBalancedTextFlowMode(item.BalancedTextFlowModeOverride)
+                        : ParseNullableBalancedTextFlowMode(item.BalancedTextFlowMode) ?? baseConfiguration.BalancedTextFlowModeOverride,
+                    BalancedTextFlowMode = (payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNullableBalancedTextFlowMode(item.BalancedTextFlowModeOverride)
+                        : ParseNullableBalancedTextFlowMode(item.BalancedTextFlowMode) ?? baseConfiguration.BalancedTextFlowModeOverride)
+                        ?? loaded.Configuration.DefaultBalancedTextFlowMode,
+                    NarrativeAlignmentOverride = payload.StructureStateVersion is >= StructureStateVersion
+                        ? ParseNarrativeAlignmentOverride(item.NarrativeAlignmentOverride)
+                        : ParseNarrativeAlignmentOverride(item.NarrativeAlignmentOverride) ?? baseConfiguration.NarrativeAlignmentOverride,
                     AdditionalNote = item.AdditionalNoteSpecified
                         ? NormalizeAdditionalNote(item.AdditionalNote)
                         : baseConfiguration.AdditionalNote,
@@ -360,11 +384,20 @@ public sealed class StructureModel : PageModel
             ? parsed
             : fallback;
 
+    private static CompendiumImageFitMode? ParseNullableImageFitMode(string? value)
+        => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+
     private static CompendiumDossierLayout ParseDossierLayout(string? value, CompendiumDossierLayout fallback)
         => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
 
+    private static CompendiumDossierLayout? ParseNullableDossierLayout(string? value)
+        => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+
     private static CompendiumBalancedTextFlowMode ParseBalancedTextFlowMode(string? value, CompendiumBalancedTextFlowMode fallback)
         => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
+
+    private static CompendiumBalancedTextFlowMode? ParseNullableBalancedTextFlowMode(string? value)
+        => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 
     private static CompendiumNarrativeSource? ParseNarrativeOverride(string? value)
         => Enum.TryParse<CompendiumNarrativeSource>(value, true, out var parsed)
@@ -399,6 +432,7 @@ public sealed class StructureModel : PageModel
 
     public sealed class StructureSavePayload
     {
+        public int? StructureStateVersion { get; set; }
         public string? ProjectParticularsStyle { get; set; }
         public IReadOnlyList<StructureSectionPayload>? Sections { get; set; }
         public IReadOnlyList<StructureProjectPayload>? Projects { get; set; }
@@ -420,8 +454,11 @@ public sealed class StructureModel : PageModel
         public double? FocalY { get; set; }
         public string? ImageSelectionMode { get; set; }
         public string? ImageFitMode { get; set; }
+        public string? ImageFitModeOverride { get; set; }
         public string? DossierLayout { get; set; }
+        public string? DossierLayoutOverride { get; set; }
         public string? BalancedTextFlowMode { get; set; }
+        public string? BalancedTextFlowModeOverride { get; set; }
         public int? DossierImageCount { get; set; }
         public int? SupportingPhoto1Id { get; set; } public double? SupportingPhoto1FocalX { get; set; } public double? SupportingPhoto1FocalY { get; set; } public string? SupportingPhoto1FitMode { get; set; }
         public int? SupportingPhoto2Id { get; set; } public double? SupportingPhoto2FocalX { get; set; } public double? SupportingPhoto2FocalY { get; set; } public string? SupportingPhoto2FitMode { get; set; }

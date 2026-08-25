@@ -85,6 +85,11 @@ public sealed class CompendiumExportService : ICompendiumExportService
     {
 
         var authoredSelections = ResolveSelections(request);
+        var exportPresentationDefaults = CompendiumDossierPresentationPolicy.Normalize(
+            request.DossierPresentationDefaults with
+            {
+                NarrativeAlignment = request.DefaultNarrativeAlignment
+            });
         CompendiumPdfDataDto data;
         try
         {
@@ -98,6 +103,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     {
                         NarrativeSource = request.NarrativeSource,
                         DefaultNarrativeAlignment = request.DefaultNarrativeAlignment,
+                        DossierPresentationDefaults = exportPresentationDefaults,
                         ProjectParticularsStyle = request.ProjectParticularsStyle,
                         GroupingMode = request.GroupingMode,
                         SortMode = request.SortMode,
@@ -229,7 +235,7 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     TechnicalCategoryDisplay = CompendiumPublicationTextSanitizer.Sanitize(project.TechnicalCategoryName),
                     NarrativeLabel = CompendiumPublicationTextSanitizer.Sanitize(project.NarrativeLabel),
                     ImageFitMode = project.ImageFitMode,
-                    DossierLayoutRequested = project.DossierLayoutOverride,
+                    DossierLayoutRequested = project.DossierLayoutOverride ?? exportPresentationDefaults.DossierLayout,
                     DossierLayout = project.EffectiveDossierLayout,
                     DossierLayoutReason = project.DossierLayoutReason,
                     DossierPrimaryImageHeightPoints = project.DossierPrimaryImageHeightPoints,

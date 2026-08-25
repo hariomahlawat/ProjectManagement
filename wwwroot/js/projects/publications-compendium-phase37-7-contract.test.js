@@ -44,10 +44,10 @@ test('phase 37.7 keeps camouflage curated rather than universally available', ()
 });
 
 test('phase 37.7 persists cover identity through schema v12 with legacy Green and Solid defaults', () => {
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*12/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:12|13)/);
   assert.match(model, /PublicationTheme[\s\S]*InstitutionalGreen/);
   assert.match(model, /CoverBackgroundTreatment[\s\S]*Solid/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*12/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:12|13)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*12[\s\S]*InstitutionalGreen/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*12[\s\S]*Solid/);
   assert.match(contracts, /CompendiumPublicationTheme PublicationTheme/);
@@ -118,5 +118,5 @@ test('phase 37.7 normalizes template names and advances cover render identity', 
   }
   assert.match(fingerprint, /compendium-review-v19-cover-identity/);
   assert.match(readService, /CompendiumPdf_2026-08-16_cover-identity-v26/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*12/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:12|13)/);
 });

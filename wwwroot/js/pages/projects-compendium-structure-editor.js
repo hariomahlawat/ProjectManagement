@@ -72,7 +72,10 @@
             focalY: clamp(project.primaryFocalY),
             imageSelectionMode: normalize(project.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
             imageFitMode: normalize(project.imageFitMode) === "fit" ? "fit" : "fill",
-            dossierLayout: normalizeDossierLayout(project.dossierLayout), balancedTextFlowMode:normalizeBalancedTextFlowMode(project.balancedTextFlowMode), dossierImageCount: Math.max(1,Math.min(3,Number(project.dossierImageCount||1))),
+            imageFitModeOverride: project.imageFitModeOverride ? (normalize(project.imageFitModeOverride) === "fit" ? "fit" : "fill") : null,
+            dossierLayout: normalizeDossierLayout(project.dossierLayout), dossierLayoutOverride: project.dossierLayoutOverride ? normalizeDossierLayout(project.dossierLayoutOverride) : null,
+            balancedTextFlowMode:normalizeBalancedTextFlowMode(project.balancedTextFlowMode), balancedTextFlowModeOverride: project.balancedTextFlowModeOverride ? normalizeBalancedTextFlowMode(project.balancedTextFlowModeOverride) : null,
+            dossierImageCount: Math.max(1,Math.min(3,Number(project.dossierImageCount||1))),
             supportingPhoto1Id:Number(project.supportingPhoto1Id||0)||null, supportingPhoto1FocalX:clamp(project.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(project.supportingPhoto1FocalY), supportingPhoto1FitMode:normalize(project.supportingPhoto1FitMode)==="fit"?"fit":"fill",
             supportingPhoto2Id:Number(project.supportingPhoto2Id||0)||null, supportingPhoto2FocalX:clamp(project.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(project.supportingPhoto2FocalY), supportingPhoto2FitMode:normalize(project.supportingPhoto2FitMode)==="fit"?"fit":"fill",
             reviewFingerprint: null,
@@ -118,7 +121,10 @@
                 focalY: clamp(incoming.focalY),
                 imageSelectionMode: normalize(incoming.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
                 imageFitMode: normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill",
-                dossierLayout: normalizeDossierLayout(incoming.dossierLayout), balancedTextFlowMode:normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode), dossierImageCount:Math.max(1,Math.min(3,Number(incoming.dossierImageCount||1))),
+                imageFitModeOverride: incoming.imageFitModeOverride ? (normalize(incoming.imageFitModeOverride) === "fit" ? "fit" : "fill") : null,
+                dossierLayout: normalizeDossierLayout(incoming.dossierLayout), dossierLayoutOverride: incoming.dossierLayoutOverride ? normalizeDossierLayout(incoming.dossierLayoutOverride) : null,
+                balancedTextFlowMode:normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode), balancedTextFlowModeOverride: incoming.balancedTextFlowModeOverride ? normalizeBalancedTextFlowMode(incoming.balancedTextFlowModeOverride) : null,
+                dossierImageCount:Math.max(1,Math.min(3,Number(incoming.dossierImageCount||1))),
                 supportingPhoto1Id:Number(incoming.supportingPhoto1Id||0)||null, supportingPhoto1FocalX:clamp(incoming.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(incoming.supportingPhoto1FocalY), supportingPhoto1FitMode:normalize(incoming.supportingPhoto1FitMode)==="fit"?"fit":"fill",
                 supportingPhoto2Id:Number(incoming.supportingPhoto2Id||0)||null, supportingPhoto2FocalX:clamp(incoming.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(incoming.supportingPhoto2FocalY), supportingPhoto2FitMode:normalize(incoming.supportingPhoto2FitMode)==="fit"?"fit":"fill",
                 reviewFingerprint: String(incoming.reviewFingerprint || "").trim() || null,
@@ -594,6 +600,9 @@
             editorialState: {
                 narrativeSource: incomingHandoff?.editorialState?.narrativeSource || "ProjectBrief",
                 narrativeAlignment: incomingHandoff?.editorialState?.narrativeAlignment || boot.narrativeAlignment || "Left",
+                defaultDossierLayout: incomingHandoff?.editorialState?.defaultDossierLayout || "Automatic",
+                defaultBalancedTextFlowMode: incomingHandoff?.editorialState?.defaultBalancedTextFlowMode || "FlowBelowImage",
+                defaultImageFitMode: incomingHandoff?.editorialState?.defaultImageFitMode || "fill",
                 projectParticularsStyle,
                 groupingMode,
                 sortMode
@@ -946,6 +955,7 @@
     });
 
     const structurePayload = () => ({
+        structureStateVersion: 5,
         projectParticularsStyle,
         sections: customSections.map((section, index) => ({ sectionKey: section.sectionKey, name: section.name, sortOrder: index })),
         projects: orderedIds.map(id => {
@@ -959,7 +969,10 @@
                 focalY: clamp(config.focalY),
                 imageSelectionMode: config.imageSelectionMode === "explicit" ? "Explicit" : "Automatic",
                 imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
-                dossierLayout:config.dossierLayout||"Automatic", balancedTextFlowMode:normalizeBalancedTextFlowMode(config.balancedTextFlowMode), dossierImageCount:config.dossierImageCount||1,
+                imageFitModeOverride: config.imageFitModeOverride ? (config.imageFitModeOverride === "fit" ? "Fit" : "Fill") : null,
+                dossierLayout:config.dossierLayout||"Automatic", dossierLayoutOverride: config.dossierLayoutOverride || null,
+                balancedTextFlowMode:normalizeBalancedTextFlowMode(config.balancedTextFlowMode), balancedTextFlowModeOverride: config.balancedTextFlowModeOverride || null,
+                dossierImageCount:config.dossierImageCount||1,
                 supportingPhoto1Id:config.supportingPhoto1Id||null, supportingPhoto1FocalX:clamp(config.supportingPhoto1FocalX), supportingPhoto1FocalY:clamp(config.supportingPhoto1FocalY), supportingPhoto1FitMode:config.supportingPhoto1FitMode==="fit"?"Fit":"Fill",
                 supportingPhoto2Id:config.supportingPhoto2Id||null, supportingPhoto2FocalX:clamp(config.supportingPhoto2FocalX), supportingPhoto2FocalY:clamp(config.supportingPhoto2FocalY), supportingPhoto2FitMode:config.supportingPhoto2FitMode==="fit"?"Fit":"Fill",
                 narrativeSourceOverride: config.narrativeSourceOverride || null,

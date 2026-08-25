@@ -33,10 +33,10 @@ const compact = value => value.replace(/\s+/g, ' ');
 
 test('phase 37 introduces narrative alignment with schema-v9 legacy-safe persistence', () => {
   assert.match(dtos, /enum CompendiumNarrativeAlignment[\s\S]*Left\s*=\s*0[\s\S]*Justified\s*=\s*1/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:9|10|11|12)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:9|10|11|12|13)/);
   assert.match(model, /DefaultNarrativeAlignment[\s\S]*=\s*"Left"/);
   assert.match(model, /NarrativeAlignmentOverride/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:9|10|11|12)/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:9|10|11|12|13)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*9[\s\S]*CompendiumNarrativeAlignment\.Left/);
   assert.match(presetContracts, /DefaultNarrativeAlignment/);
   assert.match(presetContracts, /NarrativeAlignmentOverride/);
@@ -115,12 +115,12 @@ test('phase 37 corrects Portfolio Quartet proof geometry into upper identity plu
 });
 
 test('phase 37 preserves alignment through Structure Editor handoff and persisted structure save', () => {
-  assert.match(structureState, /const VERSION = (?:3|4)/);
+  assert.match(structureState, /const VERSION = (?:3|4|5)/);
   assert.match(structureState, /narrativeAlignmentOverride/);
   assert.match(structureState, /narrativeAlignment/);
   assert.match(structureJs, /narrativeAlignmentOverride/);
   assert.match(structureJs, /narrativeAlignment:\s*incomingHandoff/);
-  assert.match(structurePage, /NarrativeAlignmentOverride\s*=\s*ParseNarrativeAlignmentOverride/);
+  assert.match(structurePage, /NarrativeAlignmentOverride\s*=[\s\S]*ParseNarrativeAlignmentOverride/);
   assert.match(structurePage, /public string\? NarrativeAlignmentOverride/);
 });
 

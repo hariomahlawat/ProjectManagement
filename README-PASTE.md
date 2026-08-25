@@ -1,79 +1,75 @@
-# PRISM Compendium Phase 45 — Flow / Proof Parity
+# PRISM Compendium Phase 46.1 — Live-State Synchronisation Hotfix
 
-## Purpose
+## Scope
 
-This package fixes the large *apparent* blank area in **Balanced → Flow below image** while preserving the semantic sentence-boundary flow introduced in the Compendium planner.
+This is a focused hotfix for the Compendium **Dossier presentation defaults** controls introduced in Phase 46.
 
-The phase addresses three related causes rather than masking the symptom:
+The server state/persistence and PDF output were already correct. The browser defect was caused by three default-change handlers calling `renderComposer()`, a function that does not exist in `projects-compendium.js`. The state was therefore saved to the in-memory/hidden form model, but JavaScript execution stopped before the selected button and related review/preflight UI could repaint. A page refresh then reconstructed the correct visual state from the already-updated values.
 
-1. **Live Page proof typography parity** — the browser proof now scales narrative typography and Balanced geometry from the physical A4 point model used by the planner/PDF instead of using a fixed small `rem` body size.
-2. **Measured Flow-below optimisation** — Balanced Flow-below evaluates a denser, bounded set of image heights and scores the semantic remainder beside the image around an editorial target, strongly penalising excessive voids while never splitting a sentence merely to fill space.
-3. **Fit-image parity** — narrative flow and the browser proof now use the image's *actual rendered Fit height*, not merely its maximum frame height.
+## Production file to replace
 
-Justification itself is unchanged. Normal prose remains controlled by the Phase 44 semantic alignment policy; headings and bullets remain natural/left aligned.
+Paste this file over the file at the same project-relative path:
 
-## Prerequisite
+- `wwwroot/js/pages/projects-compendium.js`
 
-Apply this package over the current PRISM tree that already contains **Compendium Phase 44 — Semantic Justification**.
+Optional regression test file (recommended for source control):
 
-## Paste method
+- `wwwroot/js/projects/publications-compendium-phase46-1-live-state.test.js`
 
-The folders in this package mirror the project structure. Copy the contents into the root of `ProjectManagement-master` and replace the matching files.
+No C# file, database schema, EF migration, Razor markup, CSS, QuestPDF code, or Compendium review fingerprint changes are required for this hotfix.
 
-There is **no EF Core migration and no database schema change** in Phase 45.
+## Behaviour after the fix
 
-`CHANGED-FILES.txt` contains the complete replacement-file manifest.
+Changing any of these Compendium-level controls now repaints immediately without refresh:
 
-## Verification commands
+- Page layout
+- Text flow
+- Publication image Fill/Fit
+- Narrative alignment remains on the same working render path
 
-From the solution/project root, run:
+The hotfix also keeps `aria-pressed` synchronized with the visible active state for Narrative alignment, Page layout, Text flow, and Fill/Fit buttons.
+
+Each Phase 46 default change now completes the same authoritative UI pipeline used by Narrative alignment:
+
+1. update editorial state;
+2. propagate the new effective value only to inheriting dossiers;
+3. invalidate only affected project reviews;
+4. synchronize hidden form state;
+5. render dirty state;
+6. repaint editorial controls and publication structure via `renderOrder()`;
+7. refresh review progress and navigation;
+8. schedule preflight;
+9. reload the active Focus Review dossier when applicable.
+
+## Paste / deployment
+
+1. Back up your current `wwwroot/js/pages/projects-compendium.js`.
+2. Replace it with the file from this package.
+3. Add the regression test file if you keep the repository test suite under source control.
+4. Rebuild/republish the application normally. The Razor page already loads `projects-compendium.js` with `asp-append-version="true"`, so a new static-asset version is generated on publish.
+5. In development, hard-refresh the browser once if the old asset remains cached.
+
+## Verification on your development machine
+
+From the project root:
 
 ```powershell
-dotnet build
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj --filter "FullyQualifiedName~Compendium"
-node --check .\wwwroot\js\pages\projects-compendium.js
-node --test .\wwwroot\js\projects\publications-compendium*.test.js
+node --check wwwroot/js/pages/projects-compendium.js
+node --test wwwroot/js/projects/publications-compendium-phase46-1-live-state.test.js
+node --test wwwroot/js/projects/publications-compendium*.test.js
 ```
 
-The supplied source was verified in the packaging environment with:
+Then manually verify:
 
-- JavaScript syntax check: PASS
-- Full Compendium JavaScript contract suite: **280/280 PASS**
-- Structural delimiter/lexical scan of all changed C# files: PASS
+1. Open a saved Compendium.
+2. Click **Automatic → Balanced** under Dossier presentation defaults. `Balanced` must become visibly active immediately.
+3. Toggle **Flow below image ↔ Side column**. The selected button must update immediately.
+4. Toggle **Fill ↔ Fit**. The selected button must update immediately.
+5. Confirm the review count/status and right-side structure state refresh without reloading the browser.
+6. Open Focus Review and confirm an inheriting dossier resolves to the newly selected publication default.
+7. Refresh the page and confirm the same selections persist.
 
-The packaging environment does not contain the .NET SDK, so `dotnet build` and xUnit could not be executed here. Run the two .NET commands above on the development machine before deployment.
+## Database / PDF impact
 
-## Manual QA — priority cases
-
-### 1. Balanced + Flow below image + Fill
-
-Use a project with a medium/long narrative. Confirm that:
-
-- side narrative is visually at the same physical density as the generated PDF;
-- the server-chosen semantic split no longer appears to leave a large artificial hole in Live Page;
-- the continuation begins full width below the image;
-- a small residual gap can remain when the next complete sentence genuinely cannot fit — this is intentional.
-
-### 2. Live Page zoom/focus parity
-
-Check **Fit**, **75%**, **100%**, and Review Focus. Narrative line wrapping should remain proportionally stable because body typography now scales with the displayed A4 sheet.
-
-### 3. Balanced + Flow below image + Fit
-
-Use a wide/landscape source image. Confirm that the side-flow budget and Live Page use the image's actual occupied Fit height. The below-flow text should no longer wait for empty frame height that the fitted image does not occupy.
-
-### 4. Side column
-
-Confirm that Side column behaviour is unchanged by the Flow-below optimiser.
-
-### 5. Alignment
-
-Toggle **Publication default / Left aligned / Justified**. Phase 44 alignment behaviour should remain intact.
-
-## Approval/review semantics
-
-Phase 45 does **not** perform a blanket review-fingerprint reset. The review contract remains the Phase 44 semantic-justification contract. This phase corrects proof geometry and candidate selection; it does not change authoritative project content.
-
-## Design constraint retained intentionally
-
-PRISM still does **not** break a sentence or word simply to remove every last point of whitespace beside an image. The planner prefers paragraph/sentence boundaries. The new scoring searches for a better measured image height first, and accepts a small editorial residual when a semantic boundary requires it.
+- **No migration required.**
+- **No PDF renderer change.** The physical PDF reviewed for Phase 46 was already honoring the persisted defaults; this hotfix only repairs immediate browser feedback and related live-state refresh.

@@ -54,8 +54,8 @@ test('phase 37.5 opens project and edit actions in a new tab without giving the 
 test('phase 37.5 changes renderer identity without changing persisted schema or structure state version', () => {
   assert.match(fingerprint, /(?:compendium-review-v17-editorial-rules|compendium-review-v18-semantic-narrative|19-cover-identity)/);
   assert.match(readService, /CompendiumPdf_2026-08-16_(?:editorial-rules-v24|semantic-narrative-v25|cover-identity-v26)/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12)/);
-  assert.match(structureState, /const VERSION = 4/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12|13)/);
+  assert.match(structureState, /const VERSION = (?:4|5)/);
 });
 
 test('phase 37.5 leaves Panel and Minimal particulars renderers intact', () => {

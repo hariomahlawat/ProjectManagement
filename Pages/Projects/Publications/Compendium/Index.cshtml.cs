@@ -478,7 +478,7 @@ public sealed class IndexModel : PageModel
         var review = await _readService.GetReviewProjectAsync(
             selection,
             selection.NarrativeSourceOverride ?? ParseNarrativeSource(Input.NarrativeSource),
-            ParseNarrativeAlignment(Input.NarrativeAlignment),
+            ParseDossierPresentationDefaults(),
             ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
             cancellationToken);
         if (review is null)
@@ -529,6 +529,8 @@ public sealed class IndexModel : PageModel
             photoSelectionSource = review.PhotoSelectionSource.ToString().ToLowerInvariant(),
             imageSelectionMode = review.ImageSelectionMode.ToString().ToLowerInvariant(),
             imageFitMode = review.ImageFitMode.ToString().ToLowerInvariant(),
+            imageFitModeOverride = review.ImageFitModeOverride?.ToString().ToLowerInvariant(),
+            review.UsesImageFitOverride,
             review.FocalX,
             review.FocalY,
             review.EffectiveDpi,
@@ -546,6 +548,8 @@ public sealed class IndexModel : PageModel
             review.DossierSpecificationColumns,
             review.DossierProgrammeColumns,
             balancedTextFlowMode = review.BalancedTextFlowMode.ToString(),
+            balancedTextFlowModeOverride = review.BalancedTextFlowModeOverride?.ToString(),
+            review.UsesBalancedTextFlowOverride,
             narrativeFlow = new
             {
                 mode = review.NarrativeFlow.Mode.ToString(),
@@ -567,7 +571,8 @@ public sealed class IndexModel : PageModel
                 review.NarrativeFlow.SideBalanceRatio,
                 review.NarrativeFlow.SideUtilizationRatio
             },
-            dossierLayoutOverride = review.DossierLayoutOverride.ToString(),
+            dossierLayoutOverride = review.DossierLayoutOverride?.ToString(),
+            review.UsesDossierLayoutOverride,
             effectiveDossierLayout = review.EffectiveDossierLayout.ToString(),
             review.DossierLayoutReason,
             review.DossierPressureScore,
@@ -842,6 +847,7 @@ public sealed class IndexModel : PageModel
                 {
                     NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
                     DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+                    DossierPresentationDefaults = ParseDossierPresentationDefaults(),
                     ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
                     GroupingMode = ParseGroupingMode(Input.GroupingMode),
                     SortMode = ParseSortMode(Input.SortMode),
@@ -944,6 +950,9 @@ public sealed class IndexModel : PageModel
                 Input.PhotoPreferencesJson = SerializePhotoPreferences(loaded.Configuration.PhotoPreferences);
                 Input.NarrativeSource = loaded.Configuration.NarrativeSource.ToString();
                 Input.NarrativeAlignment = loaded.Configuration.DefaultNarrativeAlignment.ToString();
+                Input.DefaultDossierLayout = loaded.Configuration.DefaultDossierLayout.ToString();
+                Input.DefaultBalancedTextFlowMode = loaded.Configuration.DefaultBalancedTextFlowMode.ToString();
+                Input.DefaultImageFitMode = loaded.Configuration.DefaultImageFitMode.ToString();
                 Input.ProjectParticularsStyle = loaded.Configuration.ProjectParticularsStyle.ToString();
                 Input.GroupingMode = loaded.Configuration.GroupingMode.ToString();
                 Input.SortMode = loaded.Configuration.SortMode.ToString();
@@ -965,8 +974,11 @@ public sealed class IndexModel : PageModel
                         NarrativeAlignmentOverride = project.NarrativeAlignmentOverride,
                         AdditionalNote = project.AdditionalNote,
                         ImageFitMode = project.ImageFitMode,
+                        ImageFitModeOverride = project.ImageFitModeOverride,
                         DossierLayout = project.DossierLayout,
+                        DossierLayoutOverride = project.DossierLayoutOverride,
                         BalancedTextFlowMode = project.BalancedTextFlowMode,
+                        BalancedTextFlowModeOverride = project.BalancedTextFlowModeOverride,
                         DossierImageCount = project.DossierImageCount,
                         SupportingPhoto1Id = project.SupportingPhoto1Id,
                         SupportingPhoto1FocalX = project.SupportingPhoto1FocalX,
@@ -1037,6 +1049,18 @@ public sealed class IndexModel : PageModel
         {
             Input.NarrativeAlignment = nameof(CompendiumNarrativeAlignment.Justified);
         }
+        if (string.IsNullOrWhiteSpace(Input.DefaultDossierLayout))
+        {
+            Input.DefaultDossierLayout = nameof(CompendiumDossierLayout.Automatic);
+        }
+        if (string.IsNullOrWhiteSpace(Input.DefaultBalancedTextFlowMode))
+        {
+            Input.DefaultBalancedTextFlowMode = nameof(CompendiumBalancedTextFlowMode.FlowBelowImage);
+        }
+        if (string.IsNullOrWhiteSpace(Input.DefaultImageFitMode))
+        {
+            Input.DefaultImageFitMode = nameof(CompendiumImageFitMode.Fill);
+        }
         if (string.IsNullOrWhiteSpace(Input.ProjectParticularsStyle))
         {
             Input.ProjectParticularsStyle = nameof(CompendiumProjectParticularsStyle.Panel);
@@ -1060,6 +1084,9 @@ public sealed class IndexModel : PageModel
         Input.HandlingMarking = Clean(Input.HandlingMarking, 80);
         Input.NarrativeSource = ParseNarrativeSource(Input.NarrativeSource).ToString();
         Input.NarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment).ToString();
+        Input.DefaultDossierLayout = ParseDossierLayout(Input.DefaultDossierLayout).ToString();
+        Input.DefaultBalancedTextFlowMode = ParseBalancedTextFlowMode(Input.DefaultBalancedTextFlowMode).ToString();
+        Input.DefaultImageFitMode = ParseImageFitMode(Input.DefaultImageFitMode).ToString();
         Input.ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle).ToString();
         Input.GroupingMode = ParseGroupingMode(Input.GroupingMode).ToString();
         Input.SortMode = ParseSortMode(Input.SortMode).ToString();
@@ -1142,6 +1169,18 @@ public sealed class IndexModel : PageModel
                     ? parsedMode
                     : CompendiumImageSelectionMode.Automatic;
 
+                var phase46Payload = payload.DossierPresentationVersion is >= 1;
+                var imageFitOverride = phase46Payload
+                    ? ParseNullableImageFitMode(payload.ImageFitModeOverride)
+                    : ParseNullableImageFitMode(payload.ImageFitMode);
+                var layoutOverride = phase46Payload
+                    ? ParseNullableDossierLayout(payload.DossierLayoutOverride)
+                    : ParseNullableDossierLayout(payload.DossierLayout);
+                var textFlowOverride = phase46Payload
+                    ? ParseNullableBalancedTextFlowMode(payload.BalancedTextFlowModeOverride)
+                    : ParseNullableBalancedTextFlowMode(payload.BalancedTextFlowMode);
+                var defaults = ParseDossierPresentationDefaults();
+
                 return new CompendiumProjectSelection(
                     projectId,
                     mode == CompendiumImageSelectionMode.Explicit && payload.PrimaryPhotoId is > 0
@@ -1157,9 +1196,12 @@ public sealed class IndexModel : PageModel
                     NarrativeSourceOverride = ParseNullableNarrativeSource(payload.NarrativeSourceOverride),
                     NarrativeAlignmentOverride = ParseNullableNarrativeAlignment(payload.NarrativeAlignmentOverride),
                     AdditionalNote = NormalizeAdditionalNote(payload.AdditionalNote),
-                    ImageFitMode = ParseImageFitMode(payload.ImageFitMode),
-                    DossierLayout = ParseDossierLayout(payload.DossierLayout),
-                    BalancedTextFlowMode = ParseBalancedTextFlowMode(payload.BalancedTextFlowMode),
+                    ImageFitModeOverride = imageFitOverride,
+                    ImageFitMode = imageFitOverride ?? defaults.ImageFitMode,
+                    DossierLayoutOverride = layoutOverride,
+                    DossierLayout = layoutOverride ?? defaults.DossierLayout,
+                    BalancedTextFlowModeOverride = textFlowOverride,
+                    BalancedTextFlowMode = textFlowOverride ?? defaults.BalancedTextFlowMode,
                     DossierImageCount = Math.Clamp(payload.DossierImageCount, 1, 3),
                     SupportingPhoto1Id = payload.SupportingPhoto1Id is > 0 ? payload.SupportingPhoto1Id : null,
                     SupportingPhoto1FocalX = ClampFocal(payload.SupportingPhoto1FocalX),
@@ -1179,6 +1221,7 @@ public sealed class IndexModel : PageModel
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+            DossierPresentationDefaults = ParseDossierPresentationDefaults(),
             ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
@@ -1207,8 +1250,11 @@ public sealed class IndexModel : PageModel
                     NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride,
                     AdditionalNote = selection.AdditionalNote,
                     ImageFitMode = selection.ImageFitMode,
+                    ImageFitModeOverride = selection.ImageFitModeOverride,
                     DossierLayout = selection.DossierLayout,
+                    DossierLayoutOverride = selection.DossierLayoutOverride,
                     BalancedTextFlowMode = selection.BalancedTextFlowMode,
+                    BalancedTextFlowModeOverride = selection.BalancedTextFlowModeOverride,
                     DossierImageCount = selection.DossierImageCount,
                     SupportingPhoto1Id = selection.SupportingPhoto1Id,
                     SupportingPhoto1FocalX = selection.SupportingPhoto1FocalX,
@@ -1223,6 +1269,9 @@ public sealed class IndexModel : PageModel
         {
             NarrativeSource = ParseNarrativeSource(Input.NarrativeSource),
             DefaultNarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+            DefaultDossierLayout = ParseDossierLayout(Input.DefaultDossierLayout),
+            DefaultBalancedTextFlowMode = ParseBalancedTextFlowMode(Input.DefaultBalancedTextFlowMode),
+            DefaultImageFitMode = ParseImageFitMode(Input.DefaultImageFitMode),
             ProjectParticularsStyle = ParseProjectParticularsStyle(Input.ProjectParticularsStyle),
             GroupingMode = ParseGroupingMode(Input.GroupingMode),
             SortMode = ParseSortMode(Input.SortMode),
@@ -1272,9 +1321,13 @@ public sealed class IndexModel : PageModel
                 NarrativeSourceOverride = selection.NarrativeSourceOverride?.ToString(),
                 NarrativeAlignmentOverride = selection.NarrativeAlignmentOverride?.ToString(),
                 AdditionalNote = selection.AdditionalNote,
+                DossierPresentationVersion = 1,
                 ImageFitMode = selection.ImageFitMode.ToString(),
+                ImageFitModeOverride = selection.ImageFitModeOverride?.ToString(),
                 DossierLayout = selection.DossierLayout.ToString(),
+                DossierLayoutOverride = selection.DossierLayoutOverride?.ToString(),
                 BalancedTextFlowMode = selection.BalancedTextFlowMode.ToString(),
+                BalancedTextFlowModeOverride = selection.BalancedTextFlowModeOverride?.ToString(),
                 DossierImageCount = selection.DossierImageCount,
                 SupportingPhoto1Id = selection.SupportingPhoto1Id,
                 SupportingPhoto1FocalX = selection.SupportingPhoto1FocalX,
@@ -1652,15 +1705,33 @@ public sealed class IndexModel : PageModel
             ? parsed
             : CompendiumImageFitMode.Fill;
 
+    private static CompendiumImageFitMode? ParseNullableImageFitMode(string? value)
+        => Enum.TryParse<CompendiumImageFitMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+
     private static CompendiumDossierLayout ParseDossierLayout(string? value)
         => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumDossierLayout.Automatic;
 
+    private static CompendiumDossierLayout? ParseNullableDossierLayout(string? value)
+        => Enum.TryParse<CompendiumDossierLayout>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+
     private static CompendiumBalancedTextFlowMode ParseBalancedTextFlowMode(string? value)
         => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : CompendiumBalancedTextFlowMode.FlowBelowImage;
+
+    private static CompendiumBalancedTextFlowMode? ParseNullableBalancedTextFlowMode(string? value)
+        => Enum.TryParse<CompendiumBalancedTextFlowMode>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+
+    private CompendiumDossierPresentationDefaults ParseDossierPresentationDefaults()
+        => CompendiumDossierPresentationPolicy.Normalize(new CompendiumDossierPresentationDefaults
+        {
+            DossierLayout = ParseDossierLayout(Input.DefaultDossierLayout),
+            BalancedTextFlowMode = ParseBalancedTextFlowMode(Input.DefaultBalancedTextFlowMode),
+            NarrativeAlignment = ParseNarrativeAlignment(Input.NarrativeAlignment),
+            ImageFitMode = ParseImageFitMode(Input.DefaultImageFitMode)
+        });
 
     private static CompendiumProjectParticularsStyle ParseProjectParticularsStyle(string? value)
         => Enum.TryParse<CompendiumProjectParticularsStyle>(value, true, out var parsed) && Enum.IsDefined(parsed)
@@ -1882,6 +1953,15 @@ public sealed class IndexModel : PageModel
         [StringLength(24)]
         public string NarrativeAlignment { get; set; } = nameof(CompendiumNarrativeAlignment.Justified);
 
+        [StringLength(32)]
+        public string DefaultDossierLayout { get; set; } = nameof(CompendiumDossierLayout.Automatic);
+
+        [StringLength(32)]
+        public string DefaultBalancedTextFlowMode { get; set; } = nameof(CompendiumBalancedTextFlowMode.FlowBelowImage);
+
+        [StringLength(16)]
+        public string DefaultImageFitMode { get; set; } = nameof(CompendiumImageFitMode.Fill);
+
         [StringLength(24)]
         public string ProjectParticularsStyle { get; set; } = nameof(CompendiumProjectParticularsStyle.Panel);
 
@@ -1918,9 +1998,13 @@ public sealed class IndexModel : PageModel
         public string? NarrativeSourceOverride { get; set; }
         public string? NarrativeAlignmentOverride { get; set; }
         public string? AdditionalNote { get; set; }
+        public int? DossierPresentationVersion { get; set; }
         public string? ImageFitMode { get; set; }
+        public string? ImageFitModeOverride { get; set; }
         public string? DossierLayout { get; set; }
+        public string? DossierLayoutOverride { get; set; }
         public string? BalancedTextFlowMode { get; set; }
+        public string? BalancedTextFlowModeOverride { get; set; }
         public int DossierImageCount { get; set; } = 1;
         public int? SupportingPhoto1Id { get; set; }
         public double SupportingPhoto1FocalX { get; set; } = .5d;

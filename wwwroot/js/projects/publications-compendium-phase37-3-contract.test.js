@@ -34,19 +34,19 @@ const css = read('wwwroot/css/pages/projects-publications.css');
 
 
 test('phase 37.3 persists optional per-project Additional Note through schema v10 and an additive migration', () => {
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:10|11|12)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:10|11|12|13)/);
   assert.match(model, /string\?\s+AdditionalNote/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:10|11|12)/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:10|11|12|13)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*10\s*\?\s*null\s*:\s*NormalizeAdditionalNote/);
   assert.match(presetContracts, /string\?\s+AdditionalNote/);
   assert.match(db, /AdditionalNote\)\.HasColumnType\("text"\)/);
-  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:10|11|12)\)/);
+  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:10|11|12|13)\)/);
   assert.match(migration, /Migration\("20261216110000_AddCompendiumProjectAdditionalNote"\)/);
   assert.match(migration, /AddColumn<string>[\s\S]*AdditionalNote[\s\S]*type:\s*"text"/);
   assert.match(migration, /SET "SettingsSchemaVersion" = 10/);
   assert.match(migration, /defaultValue:\s*10/);
   assert.match(snapshot, /Property<string>\("AdditionalNote"\)/);
-  assert.match(snapshot, /SettingsSchemaVersion"\)\.ValueGeneratedOnAdd\(\).*HasDefaultValue\((?:10|11|12)\)/);
+  assert.match(snapshot, /SettingsSchemaVersion"\)\.ValueGeneratedOnAdd\(\).*HasDefaultValue\((?:10|11|12|13)\)/);
   assert.match(manifest, /20261216110000_AddCompendiumProjectAdditionalNote/);
 });
 
@@ -54,7 +54,7 @@ test('phase 37.3 keeps Additional Note publication-specific and survives authori
   assert.match(indexModel, /AdditionalNote\s*=\s*NormalizeAdditionalNote\(payload\.AdditionalNote\)/);
   assert.match(indexModel, /public string\? AdditionalNote/);
   assert.match(structurePage, /AdditionalNote/);
-  assert.match(structureState, /const VERSION = 4/);
+  assert.match(structureState, /const VERSION = (?:4|5)/);
   assert.match(structureState, /additionalNote/);
   assert.match(structureJs, /additionalNote/);
   assert.doesNotMatch(read('Models/Project.cs'), /AdditionalNote/);

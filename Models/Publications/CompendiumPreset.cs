@@ -20,7 +20,7 @@ public sealed class CompendiumPreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 12;
+    public int SettingsSchemaVersion { get; set; } = 13;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -39,6 +39,15 @@ public sealed class CompendiumPreset
 
     [Required, MaxLength(24)]
     public string DefaultNarrativeAlignment { get; set; } = "Left";
+
+    [Required, MaxLength(32)]
+    public string DefaultDossierLayout { get; set; } = "Automatic";
+
+    [Required, MaxLength(32)]
+    public string DefaultBalancedTextFlowMode { get; set; } = "FlowBelowImage";
+
+    [Required, MaxLength(16)]
+    public string DefaultImageFitMode { get; set; } = "Fill";
 
     [Required, MaxLength(24)]
     public string ProjectParticularsStyle { get; set; } = "Panel";
@@ -165,14 +174,29 @@ public sealed class CompendiumPresetProject
     [Required, MaxLength(32)]
     public string ImageSelectionMode { get; set; } = "Automatic";
 
+    /// <summary>
+    /// Legacy effective image treatment snapshot retained for rolling compatibility with pre-v13 builds.
+    /// New composition code uses ImageFitModeOverride + CompendiumPreset.DefaultImageFitMode.
+    /// </summary>
     [Required, MaxLength(16)]
     public string ImageFitMode { get; set; } = "Fill";
 
+    [MaxLength(16)]
+    public string? ImageFitModeOverride { get; set; }
+
+    /// <summary>Legacy effective layout snapshot retained for rolling compatibility.</summary>
     [Required, MaxLength(32)]
     public string DossierLayout { get; set; } = "Automatic";
 
+    [MaxLength(32)]
+    public string? DossierLayoutOverride { get; set; }
+
+    /// <summary>Legacy effective Balanced text-flow snapshot retained for rolling compatibility.</summary>
     [Required, MaxLength(32)]
     public string BalancedTextFlowMode { get; set; } = "FlowBelowImage";
+
+    [MaxLength(32)]
+    public string? BalancedTextFlowModeOverride { get; set; }
 
     [MaxLength(24)]
     public string? NarrativeAlignmentOverride { get; set; }

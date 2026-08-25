@@ -129,6 +129,9 @@
         <input asp-for="Input.CustomSectionsJson" type="hidden" data-custom-sections />
         <input asp-for="Input.NarrativeSource" type="hidden" data-narrative-source />
         <input asp-for="Input.NarrativeAlignment" type="hidden" data-narrative-alignment />
+        <input asp-for="Input.DefaultDossierLayout" type="hidden" data-default-dossier-layout />
+        <input asp-for="Input.DefaultBalancedTextFlowMode" type="hidden" data-default-text-flow />
+        <input asp-for="Input.DefaultImageFitMode" type="hidden" data-default-image-fit />
         <input asp-for="Input.ProjectParticularsStyle" type="hidden" data-project-particulars-style />
         <input asp-for="Input.GroupingMode" type="hidden" data-grouping-mode />
         <input asp-for="Input.SortMode" type="hidden" data-sort-mode />
@@ -239,6 +242,39 @@
                                     </div>
                                 </div>
                             </div>
+                            <section class="compendium-dossier-defaults" aria-label="Dossier presentation defaults">
+                                <div class="compendium-dossier-defaults__heading">
+                                    <span>Dossier presentation defaults</span>
+                                    <small>Applied to every project unless a dossier override is set in Focus Review.</small>
+                                </div>
+                                <div class="compendium-dossier-defaults__grid">
+                                    <div>
+                                        <strong>Page layout</strong>
+                                        <div class="compendium-segmented compendium-segmented--compact" role="group" aria-label="Default dossier page layout">
+                                            <button type="button" data-default-dossier-layout-value="Automatic">Automatic</button>
+                                            <button type="button" data-default-dossier-layout-value="VisualHero">Visual</button>
+                                            <button type="button" data-default-dossier-layout-value="Balanced">Balanced</button>
+                                            <button type="button" data-default-dossier-layout-value="MultiImageEditorial">Multi-image</button>
+                                            <button type="button" data-default-dossier-layout-value="Technical">Technical</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <strong>Text flow</strong>
+                                        <div class="compendium-segmented compendium-segmented--compact" role="group" aria-label="Default Balanced text flow">
+                                            <button type="button" data-default-text-flow-value="FlowBelowImage">Flow below image</button>
+                                            <button type="button" data-default-text-flow-value="SideColumn">Side column</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <strong>Publication image</strong>
+                                        <small class="compendium-dossier-defaults__policy">Selection: Automatic · treatment</small>
+                                        <div class="compendium-segmented compendium-segmented--compact" role="group" aria-label="Default publication image treatment">
+                                            <button type="button" data-default-image-fit-value="Fill">Fill</button>
+                                            <button type="button" data-default-image-fit-value="Fit">Fit</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
                             <div class="compendium-composer__presentation" aria-label="Publication presentation">
                                 <div class="compendium-composer__presentation-copy">
                                     <span>Presentation</span>
@@ -563,6 +599,7 @@
                                         <div class="compendium-review-image-actions">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image><i class="bi bi-images"></i> Change image</button>
                                             <div class="btn-group btn-group-sm compendium-review-fit-toggle" role="group" aria-label="Publication image fit">
+                                                <button type="button" class="btn btn-outline-secondary" data-review-image-fit="default">Publication default</button>
                                                 <button type="button" class="btn btn-outline-secondary" data-review-image-fit="Fill" title="Fill the image frame; cropping may occur">Fill</button>
                                                 <button type="button" class="btn btn-outline-secondary" data-review-image-fit="Fit" title="Show the complete image inside the frame">Fit</button>
                                             </div>
@@ -576,6 +613,7 @@
                                         <section class="compendium-dossier-controls" aria-label="Project dossier layout">
                                             <div class="compendium-review-section-heading"><strong>Page layout</strong><span data-review-layout-reason>Automatic</span></div>
                                             <div class="compendium-dossier-layout-options" data-review-layout-options>
+                                                <button type="button" data-review-layout="default">Publication default</button>
                                                 <button type="button" data-review-layout="Automatic">Automatic</button>
                                                 <button type="button" data-review-layout="VisualHero">Visual</button>
                                                 <button type="button" data-review-layout="Balanced">Balanced</button>
@@ -585,6 +623,7 @@
                                             <div class="compendium-text-flow-control" data-review-text-flow hidden>
                                                 <span>Text flow</span>
                                                 <div class="btn-group btn-group-sm" role="group" aria-label="Balanced layout text flow">
+                                                    <button type="button" class="btn btn-outline-secondary" data-review-text-flow-mode="default">Publication default</button>
                                                     <button type="button" class="btn btn-outline-secondary" data-review-text-flow-mode="FlowBelowImage">Flow below image</button>
                                                     <button type="button" class="btn btn-outline-secondary" data-review-text-flow-mode="SideColumn">Side column</button>
                                                 </div>
@@ -598,6 +637,11 @@
                                                     <button type="button" class="btn btn-outline-secondary" data-review-narrative-alignment="Justified">Justified</button>
                                                 </div>
                                                 <small>Justified aligns normal narrative prose to both margins. Headings, lists and final paragraph lines retain natural alignment.</small>
+                                            </div>
+                                            <div class="compendium-dossier-reset-row">
+                                                <button type="button" class="btn btn-sm btn-link" data-review-reset-dossier-overrides>
+                                                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset dossier overrides
+                                                </button>
                                             </div>
                                             <div class="compendium-additional-note-control">
                                                 <label for="compendium-project-additional-note">

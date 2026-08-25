@@ -39,7 +39,7 @@ test('phase 37.6 distinguishes absent Structure note state from an explicit clea
   assert.match(structureJs, /additionalNoteSpecified:\s*false/);
   assert.match(structureJs, /incoming\.additionalNoteSpecified\s*===\s*false/);
   assert.match(structureState, /Object\.prototype\.hasOwnProperty\.call\(source,\s*"additionalNote"\)/);
-  assert.match(structureState, /const VERSION = 4/);
+  assert.match(structureState, /const VERSION = (?:4|5)/);
 });
 
 test('phase 37.6 introduces one controlled semantic narrative model for measurement and PDF rendering', () => {
@@ -94,6 +94,6 @@ test('phase 37.6 retains duplicate-content protection and conservative placehold
 test('phase 37.6 changes render identity while preserving persisted schema and structure contract', () => {
   assert.match(fingerprint, /compendium-review-v(?:18-semantic-narrative|19-cover-identity)/);
   assert.match(readService, /CompendiumPdf_2026-08-16_(?:semantic-narrative-v25|cover-identity-v26)/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12)/);
-  assert.match(structureState, /const VERSION = 4/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12|13)/);
+  assert.match(structureState, /const VERSION = (?:4|5)/);
 });

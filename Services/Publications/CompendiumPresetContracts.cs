@@ -44,9 +44,15 @@ public sealed record CompendiumPresetProjectConfiguration(
     public string? CustomSectionKey { get; init; }
     public string? CustomSectionName { get; init; }
     public CompendiumNarrativeSource? NarrativeSourceOverride { get; init; }
+
+    // Effective values are retained for source/rolling compatibility. New authoring persists
+    // nullable overrides and resolves them against the publication defaults server-side.
     public CompendiumImageFitMode ImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumDossierLayout DossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
     public CompendiumBalancedTextFlowMode BalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumImageFitMode? ImageFitModeOverride { get; init; }
+    public CompendiumDossierLayout? DossierLayoutOverride { get; init; }
+    public CompendiumBalancedTextFlowMode? BalancedTextFlowModeOverride { get; init; }
     public CompendiumNarrativeAlignment? NarrativeAlignmentOverride { get; init; }
     public string? AdditionalNote { get; init; }
     public int DossierImageCount { get; init; } = 1;
@@ -127,6 +133,9 @@ public sealed record CompendiumPresetConfiguration(
         = Array.Empty<CompendiumPresetPhotoPreferenceConfiguration>();
     public CompendiumNarrativeSource NarrativeSource { get; init; } = CompendiumNarrativeSource.ProjectBrief;
     public CompendiumNarrativeAlignment DefaultNarrativeAlignment { get; init; } = CompendiumNarrativeAlignment.Justified;
+    public CompendiumDossierLayout DefaultDossierLayout { get; init; } = CompendiumDossierLayout.Automatic;
+    public CompendiumBalancedTextFlowMode DefaultBalancedTextFlowMode { get; init; } = CompendiumBalancedTextFlowMode.FlowBelowImage;
+    public CompendiumImageFitMode DefaultImageFitMode { get; init; } = CompendiumImageFitMode.Fill;
     public CompendiumProjectParticularsStyle ProjectParticularsStyle { get; init; } = CompendiumProjectParticularsStyle.Panel;
     public CompendiumGroupingMode GroupingMode { get; init; } = CompendiumGroupingMode.TechnicalCategory;
     public CompendiumSortMode SortMode { get; init; } = CompendiumSortMode.Manual;

@@ -47,6 +47,9 @@
     const sectionsInput = form.querySelector("[data-custom-sections]");
     const narrativeInput = form.querySelector("[data-narrative-source]");
     const narrativeAlignmentInput = form.querySelector("[data-narrative-alignment]");
+    const defaultDossierLayoutInput = form.querySelector("[data-default-dossier-layout]");
+    const defaultTextFlowInput = form.querySelector("[data-default-text-flow]");
+    const defaultImageFitInput = form.querySelector("[data-default-image-fit]");
     const particularsStyleInput = form.querySelector("[data-project-particulars-style]");
     const groupingInput = form.querySelector("[data-grouping-mode]");
     const sortInput = form.querySelector("[data-sort-mode]");
@@ -60,6 +63,9 @@
     const editorialState = {
         narrativeSource: normalizeNarrative(narrativeInput?.value),
         narrativeAlignment: normalizeNarrativeAlignment(narrativeAlignmentInput?.value),
+        defaultDossierLayout: normalizeDossierLayout(defaultDossierLayoutInput?.value),
+        defaultBalancedTextFlowMode: normalizeBalancedTextFlowMode(defaultTextFlowInput?.value),
+        defaultImageFitMode: normalize(defaultImageFitInput?.value) === "fit" ? "fit" : "fill",
         projectParticularsStyle: normalizeProjectParticularsStyle(particularsStyleInput?.value),
         groupingMode: normalizeGrouping(groupingInput?.value),
         sortMode: normalizeSort(sortInput?.value)
@@ -245,8 +251,11 @@
                 narrativeSourceOverride: item.narrativeSourceOverride ? normalizeNarrative(item.narrativeSourceOverride) : null,
                 narrativeAlignmentOverride: item.narrativeAlignmentOverride ? normalizeNarrativeAlignment(item.narrativeAlignmentOverride) : null,
                 additionalNote: String(item.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
+                imageFitModeOverride: item.dossierPresentationVersion >= 1 ? (item.imageFitModeOverride ? (normalize(item.imageFitModeOverride) === "fit" ? "fit" : "fill") : null) : (normalize(item.imageFitMode) === editorialState.defaultImageFitMode ? null : (normalize(item.imageFitMode) === "fit" ? "fit" : "fill")),
                 imageFitMode: normalize(item.imageFitMode) === "fit" ? "fit" : "fill",
+                dossierLayoutOverride: item.dossierPresentationVersion >= 1 ? (item.dossierLayoutOverride ? normalizeDossierLayout(item.dossierLayoutOverride) : null) : (normalizeDossierLayout(item.dossierLayout) === editorialState.defaultDossierLayout ? null : normalizeDossierLayout(item.dossierLayout)),
                 dossierLayout: normalizeDossierLayout(item.dossierLayout),
+                balancedTextFlowModeOverride: item.dossierPresentationVersion >= 1 ? (item.balancedTextFlowModeOverride ? normalizeBalancedTextFlowMode(item.balancedTextFlowModeOverride) : null) : (normalizeBalancedTextFlowMode(item.balancedTextFlowMode) === editorialState.defaultBalancedTextFlowMode ? null : normalizeBalancedTextFlowMode(item.balancedTextFlowMode)),
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(item.balancedTextFlowMode),
                 dossierImageCount: Math.max(1, Math.min(3, Number(item.dossierImageCount || 1))),
                 supportingPhoto1Id: Number(item.supportingPhoto1Id || 0) || null,
@@ -275,9 +284,12 @@
                 narrativeSourceOverride: null,
                 narrativeAlignmentOverride: null,
                 additionalNote: null,
-                imageFitMode: "fill",
-                dossierLayout: "Automatic",
-                balancedTextFlowMode: "FlowBelowImage",
+                imageFitModeOverride: null,
+                imageFitMode: editorialState.defaultImageFitMode,
+                dossierLayoutOverride: null,
+                dossierLayout: editorialState.defaultDossierLayout,
+                balancedTextFlowModeOverride: null,
+                balancedTextFlowMode: editorialState.defaultBalancedTextFlowMode,
                 dossierImageCount: 1,
                 supportingPhoto1Id: null, supportingPhoto1FocalX: .5, supportingPhoto1FocalY: .5, supportingPhoto1FitMode: "fill",
                 supportingPhoto2Id: null, supportingPhoto2FocalX: .5, supportingPhoto2FocalY: .5, supportingPhoto2FitMode: "fill"
@@ -363,6 +375,9 @@
     const composerNote = $("[data-composer-note]");
     const narrativeButtons = [...form.querySelectorAll("[data-narrative-value]")];
     const narrativeAlignmentButtons = [...form.querySelectorAll("[data-narrative-alignment-value]")];
+    const defaultDossierLayoutButtons = [...form.querySelectorAll("[data-default-dossier-layout-value]")];
+    const defaultTextFlowButtons = [...form.querySelectorAll("[data-default-text-flow-value]")];
+    const defaultImageFitButtons = [...form.querySelectorAll("[data-default-image-fit-value]")];
     const particularsStyleButtons = [...form.querySelectorAll("[data-particulars-style-value]")];
     const groupingButtons = [...form.querySelectorAll("[data-grouping-value]")];
     const sortButtons = [...form.querySelectorAll("[data-sort-value]")];
@@ -405,6 +420,7 @@
     const reviewLayoutButtons = [...form.querySelectorAll("[data-review-layout]")];
     const reviewTextFlowControl = $("[data-review-text-flow]");
     const reviewTextFlowButtons = [...form.querySelectorAll("[data-review-text-flow-mode]")];
+    const reviewResetDossierOverrides = form.querySelector("[data-review-reset-dossier-overrides]");
     const reviewNarrativeAlignmentButtons = [...form.querySelectorAll("[data-review-narrative-alignment]")];
     const reviewAdditionalNote = $("[data-review-additional-note]");
     const reviewAdditionalNoteCount = $("[data-review-additional-note-count]");
@@ -578,9 +594,13 @@
             narrativeSourceOverride: config.narrativeSourceOverride || null,
             narrativeAlignmentOverride: config.narrativeAlignmentOverride || null,
             additionalNote: String(config.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
+            dossierPresentationVersion: 1,
             imageFitMode: config.imageFitMode === "fit" ? "Fit" : "Fill",
+            imageFitModeOverride: config.imageFitModeOverride ? (config.imageFitModeOverride === "fit" ? "Fit" : "Fill") : null,
             dossierLayout: normalizeDossierLayout(config.dossierLayout),
+            dossierLayoutOverride: config.dossierLayoutOverride || null,
             balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
+            balancedTextFlowModeOverride: config.balancedTextFlowModeOverride || null,
             dossierImageCount: Math.max(1, Math.min(3, Number(config.dossierImageCount || 1))),
             supportingPhoto1Id: config.supportingPhoto1Id || null,
             supportingPhoto1FocalX: roundFocal(config.supportingPhoto1FocalX),
@@ -600,6 +620,9 @@
         if (sectionsInput) sectionsInput.value = JSON.stringify(serializeSections());
         if (narrativeInput) narrativeInput.value = editorialState.narrativeSource;
         if (narrativeAlignmentInput) narrativeAlignmentInput.value = editorialState.narrativeAlignment;
+        if (defaultDossierLayoutInput) defaultDossierLayoutInput.value = editorialState.defaultDossierLayout;
+        if (defaultTextFlowInput) defaultTextFlowInput.value = editorialState.defaultBalancedTextFlowMode;
+        if (defaultImageFitInput) defaultImageFitInput.value = editorialState.defaultImageFitMode === "fit" ? "Fit" : "Fill";
         if (particularsStyleInput) particularsStyleInput.value = editorialState.projectParticularsStyle;
         if (groupingInput) groupingInput.value = editorialState.groupingMode;
         if (sortInput) sortInput.value = editorialState.sortMode;
@@ -680,8 +703,11 @@
                 additionalNote: String(config.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null,
                 additionalNoteSpecified: true,
                 imageFitMode: config.imageFitMode || "fill",
+                imageFitModeOverride: config.imageFitModeOverride || null,
                 dossierLayout: config.dossierLayout || "Automatic",
+                dossierLayoutOverride: config.dossierLayoutOverride || null,
                 balancedTextFlowMode: normalizeBalancedTextFlowMode(config.balancedTextFlowMode),
+                balancedTextFlowModeOverride: config.balancedTextFlowModeOverride || null,
                 dossierImageCount: config.dossierImageCount || 1,
                 supportingPhoto1Id: config.supportingPhoto1Id || null,
                 supportingPhoto1FocalX: roundFocal(config.supportingPhoto1FocalX), supportingPhoto1FocalY: roundFocal(config.supportingPhoto1FocalY), supportingPhoto1FitMode: config.supportingPhoto1FitMode || "fill",
@@ -767,9 +793,12 @@
             if (incoming.additionalNoteSpecified !== false) {
                 config.additionalNote = String(incoming.additionalNote || "").replace(/\r\n?/g, "\n").trim() || null;
             }
-            config.imageFitMode = normalize(incoming.imageFitMode) === "fit" ? "fit" : "fill";
-            config.dossierLayout = normalizeDossierLayout(incoming.dossierLayout);
-            config.balancedTextFlowMode = normalizeBalancedTextFlowMode(incoming.balancedTextFlowMode);
+            config.imageFitModeOverride = incoming.imageFitModeOverride ? (normalize(incoming.imageFitModeOverride) === "fit" ? "fit" : "fill") : null;
+            config.imageFitMode = config.imageFitModeOverride || editorialState.defaultImageFitMode;
+            config.dossierLayoutOverride = incoming.dossierLayoutOverride ? normalizeDossierLayout(incoming.dossierLayoutOverride) : null;
+            config.dossierLayout = config.dossierLayoutOverride || editorialState.defaultDossierLayout;
+            config.balancedTextFlowModeOverride = incoming.balancedTextFlowModeOverride ? normalizeBalancedTextFlowMode(incoming.balancedTextFlowModeOverride) : null;
+            config.balancedTextFlowMode = config.balancedTextFlowModeOverride || editorialState.defaultBalancedTextFlowMode;
             config.dossierImageCount = Math.max(1, Math.min(3, Number(incoming.dossierImageCount || 1)));
             config.supportingPhoto1Id = Number(incoming.supportingPhoto1Id || 0) || null;
             config.supportingPhoto1FocalX = roundFocal(incoming.supportingPhoto1FocalX); config.supportingPhoto1FocalY = roundFocal(incoming.supportingPhoto1FocalY); config.supportingPhoto1FitMode = normalize(incoming.supportingPhoto1FitMode) === "fit" ? "fit" : "fill";
@@ -780,6 +809,9 @@
         if (snapshot.editorialState) {
             editorialState.narrativeSource = normalizeNarrative(snapshot.editorialState.narrativeSource);
             editorialState.narrativeAlignment = normalizeNarrativeAlignment(snapshot.editorialState.narrativeAlignment);
+            editorialState.defaultDossierLayout = normalizeDossierLayout(snapshot.editorialState.defaultDossierLayout || editorialState.defaultDossierLayout);
+            editorialState.defaultBalancedTextFlowMode = normalizeBalancedTextFlowMode(snapshot.editorialState.defaultBalancedTextFlowMode || editorialState.defaultBalancedTextFlowMode);
+            editorialState.defaultImageFitMode = normalize(snapshot.editorialState.defaultImageFitMode) === "fit" ? "fit" : "fill";
             editorialState.projectParticularsStyle = normalizeProjectParticularsStyle(snapshot.editorialState.projectParticularsStyle);
             editorialState.groupingMode = normalizeGrouping(snapshot.editorialState.groupingMode);
             editorialState.sortMode = normalizeSort(snapshot.editorialState.sortMode);
@@ -995,7 +1027,26 @@
 
     const renderEditorialControls = () => {
         narrativeButtons.forEach(button => button.classList.toggle("active", normalizeNarrative(button.dataset.narrativeValue) === editorialState.narrativeSource));
-        narrativeAlignmentButtons.forEach(button => button.classList.toggle("active", normalizeNarrativeAlignment(button.dataset.narrativeAlignmentValue) === editorialState.narrativeAlignment));
+        narrativeAlignmentButtons.forEach(button => {
+            const active = normalizeNarrativeAlignment(button.dataset.narrativeAlignmentValue) === editorialState.narrativeAlignment;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        defaultDossierLayoutButtons.forEach(button => {
+            const active = normalizeDossierLayout(button.dataset.defaultDossierLayoutValue) === editorialState.defaultDossierLayout;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        defaultTextFlowButtons.forEach(button => {
+            const active = normalizeBalancedTextFlowMode(button.dataset.defaultTextFlowValue) === editorialState.defaultBalancedTextFlowMode;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        defaultImageFitButtons.forEach(button => {
+            const active = (normalize(button.dataset.defaultImageFitValue) === "fit" ? "fit" : "fill") === editorialState.defaultImageFitMode;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
         particularsStyleButtons.forEach(button => {
             const active = normalizeProjectParticularsStyle(button.dataset.particularsStyleValue) === editorialState.projectParticularsStyle;
             button.classList.toggle("active", active);
@@ -1431,7 +1482,7 @@
             if (review.completedEditUrl) reviewEdit.href = review.completedEditUrl;
         }
 
-        const currentLayout = normalizeDossierLayout(config.dossierLayout || review.dossierLayoutOverride);
+        const currentLayout = normalizeDossierLayout(config.dossierLayoutOverride || editorialState.defaultDossierLayout);
         const effectiveLayout = normalizeDossierLayout(review.effectiveDossierLayout || currentLayout);
         const availableDossierPhotos = Math.max(0, (review.photos || []).filter(item => item.isUsable !== false).length);
         const configuredImageCount = Math.max(1, Math.min(3, Number(config.dossierImageCount || 1)));
@@ -1446,22 +1497,42 @@
         const supportingImageCount = Math.max(0, resolvedImageCount - displayedImageCount);
 
         reviewLayoutButtons.forEach(button => {
-            const layout = normalizeDossierLayout(button.dataset.reviewLayout);
-            button.classList.toggle("active", layout === currentLayout);
-            button.disabled = layout === "MultiImageEditorial" && availableDossierPhotos < 2;
+            const raw = String(button.dataset.reviewLayout || "default");
+            const isDefault = normalize(raw) === "default";
+            const layout = isDefault ? editorialState.defaultDossierLayout : normalizeDossierLayout(raw);
+            button.classList.toggle("active", isDefault ? !config.dossierLayoutOverride : config.dossierLayoutOverride === layout);
+            if (isDefault) button.textContent = `Publication default · ${editorialState.defaultDossierLayout === "VisualHero" ? "Visual" : editorialState.defaultDossierLayout === "MultiImageEditorial" ? "Multi-image" : editorialState.defaultDossierLayout}`;
+            button.disabled = !isDefault && layout === "MultiImageEditorial" && availableDossierPhotos < 2;
         });
         if (reviewTextFlowControl) reviewTextFlowControl.hidden = effectiveLayout !== "Balanced";
         reviewTextFlowButtons.forEach(button => {
-            const mode = normalizeBalancedTextFlowMode(button.dataset.reviewTextFlowMode);
-            button.classList.toggle("active", mode === normalizeBalancedTextFlowMode(config.balancedTextFlowMode));
+            const raw = String(button.dataset.reviewTextFlowMode || "default");
+            const isDefault = normalize(raw) === "default";
+            const mode = isDefault ? editorialState.defaultBalancedTextFlowMode : normalizeBalancedTextFlowMode(raw);
+            button.classList.toggle("active", isDefault ? !config.balancedTextFlowModeOverride : config.balancedTextFlowModeOverride === mode);
+            if (isDefault) button.textContent = `Publication default · ${editorialState.defaultBalancedTextFlowMode === "SideColumn" ? "Side column" : "Flow below image"}`;
         });
         reviewNarrativeAlignmentButtons.forEach(button => {
             const value = String(button.dataset.reviewNarrativeAlignment || "default");
-            const active = value === "default"
+            const isDefault = normalize(value) === "default";
+            const active = isDefault
                 ? !config.narrativeAlignmentOverride
                 : normalizeNarrativeAlignment(value) === normalizeNarrativeAlignment(config.narrativeAlignmentOverride || "");
             button.classList.toggle("active", active);
+            if (isDefault) button.textContent = `Publication default · ${editorialState.narrativeAlignment === "Justified" ? "Justified" : "Left aligned"}`;
         });
+        if (reviewResetDossierOverrides) {
+            const hasPublicationCropOverride = Math.abs(Number(config.focalX ?? .5) - .5) > .0001
+                || Math.abs(Number(config.focalY ?? .5) - .5) > .0001;
+            const hasDossierOverrides = Boolean(
+                config.dossierLayoutOverride
+                || config.balancedTextFlowModeOverride
+                || config.narrativeAlignmentOverride
+                || config.imageFitModeOverride
+                || config.imageSelectionMode === "explicit"
+                || hasPublicationCropOverride);
+            reviewResetDossierOverrides.hidden = !hasDossierOverrides;
+        }
         const additionalNote = normalizeAdditionalNote(config.additionalNote !== undefined ? config.additionalNote : review.additionalNote);
         if (reviewAdditionalNote && document.activeElement !== reviewAdditionalNote) reviewAdditionalNote.value = additionalNote;
         renderAdditionalNoteMeta(additionalNote);
@@ -1551,7 +1622,13 @@
             else if (review.explicitPhotoUnavailable) reviewImageDetail.textContent = "The saved image is unavailable; PRISM is temporarily showing the current automatic choice.";
             else reviewImageDetail.textContent = `${photo.width}×${photo.height} source · ${review.photoSelectionSource === "explicitpublication" ? "publication selection" : "current project selection"}`;
         }
-        reviewImageFitButtons.forEach(button => button.classList.toggle("active", normalize(button.dataset.reviewImageFit) === config.imageFitMode));
+        reviewImageFitButtons.forEach(button => {
+            const raw = normalize(button.dataset.reviewImageFit);
+            const isDefault = raw === "default";
+            const mode = isDefault ? editorialState.defaultImageFitMode : (raw === "fit" ? "fit" : "fill");
+            button.classList.toggle("active", isDefault ? !config.imageFitModeOverride : config.imageFitModeOverride === mode);
+            if (isDefault) button.textContent = `Publication default · ${editorialState.defaultImageFitMode === "fit" ? "Fit" : "Fill"}`;
+        });
         renderLivePagePreview(review, photo);
         setControlDisabled(reviewChangeImage, false);
         setControlDisabled(reviewAdjustCrop, !photo || config.imageFitMode === "fit");
@@ -1733,6 +1810,55 @@
         if (activeReviewId) loadReview(activeReviewId);
     };
 
+    const changeDefaultDossierLayout = value => {
+        const next = normalizeDossierLayout(value);
+        if (next === editorialState.defaultDossierLayout) return;
+        editorialState.defaultDossierLayout = next;
+        orderedIds.filter(id => !ensureConfig(id).dossierLayoutOverride).forEach(id => {
+            const config = ensureConfig(id); config.dossierLayout = next; invalidateProjectReview(id);
+        });
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const changeDefaultTextFlow = value => {
+        const next = normalizeBalancedTextFlowMode(value);
+        if (next === editorialState.defaultBalancedTextFlowMode) return;
+        editorialState.defaultBalancedTextFlowMode = next;
+        orderedIds.filter(id => !ensureConfig(id).balancedTextFlowModeOverride).forEach(id => {
+            const config = ensureConfig(id); config.balancedTextFlowMode = next; invalidateProjectReview(id);
+        });
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const changeDefaultImageFit = value => {
+        const next = normalize(value) === "fit" ? "fit" : "fill";
+        if (next === editorialState.defaultImageFitMode) return;
+        editorialState.defaultImageFitMode = next;
+        orderedIds.filter(id => !ensureConfig(id).imageFitModeOverride).forEach(id => {
+            const config = ensureConfig(id); config.imageFitMode = next; invalidateProjectReview(id);
+        });
+        activeReviewData = null;
+        syncHidden(); renderDirty(); renderOrder(); refreshReviewProgress(); updateReviewNavigation(); schedulePreflight();
+        if (activeReviewId) loadReview(activeReviewId);
+    };
+
+    const resetDossierOverrides = projectId => {
+        const id = Number(projectId); if (!id || !isSelected(id)) return;
+        const config = ensureConfig(id);
+        config.dossierLayoutOverride = null; config.dossierLayout = editorialState.defaultDossierLayout;
+        config.balancedTextFlowModeOverride = null; config.balancedTextFlowMode = editorialState.defaultBalancedTextFlowMode;
+        config.narrativeAlignmentOverride = null;
+        config.imageFitModeOverride = null; config.imageFitMode = editorialState.defaultImageFitMode;
+        config.imageSelectionMode = "automatic"; config.primaryPhotoId = null; config.focalX = .5; config.focalY = .5;
+        invalidateProjectReview(id); activeReviewData = null;
+        syncHidden(); renderDirty(); refreshReviewProgress(); schedulePreflight();
+        if (Number(activeReviewId) === id) loadReview(id);
+    };
+
     const changeProjectParticularsStyle = value => {
         const next = normalizeProjectParticularsStyle(value);
         if (next === editorialState.projectParticularsStyle) return;
@@ -1847,7 +1973,7 @@
         const key = normalize(role);
         if (key === "supporting1") config.supportingPhoto1FitMode = next;
         else if (key === "supporting2") config.supportingPhoto2FitMode = next;
-        else config.imageFitMode = next;
+        else { config.imageFitModeOverride = next; config.imageFitMode = next; }
     };
     const resolvedDossierSlot = (review, role) => (review?.dossierImages || []).find(item => normalize(item.role) === normalize(role)) || null;
     const resolvedPhotoIdForRole = (review, config, role) => {
@@ -2539,6 +2665,9 @@
 
     narrativeButtons.forEach(button => button.addEventListener("click", () => changeNarrativeSource(button.dataset.narrativeValue)));
     narrativeAlignmentButtons.forEach(button => button.addEventListener("click", () => changeNarrativeAlignment(button.dataset.narrativeAlignmentValue)));
+    defaultDossierLayoutButtons.forEach(button => button.addEventListener("click", () => changeDefaultDossierLayout(button.dataset.defaultDossierLayoutValue)));
+    defaultTextFlowButtons.forEach(button => button.addEventListener("click", () => changeDefaultTextFlow(button.dataset.defaultTextFlowValue)));
+    defaultImageFitButtons.forEach(button => button.addEventListener("click", () => changeDefaultImageFit(button.dataset.defaultImageFitValue)));
     particularsStyleButtons.forEach(button => button.addEventListener("click", () => changeProjectParticularsStyle(button.dataset.particularsStyleValue)));
     groupingButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeGrouping(button.dataset.groupingValue); if (next === editorialState.groupingMode) return; editorialState.groupingMode = next; publicationStructureChanged(); }));
     sortButtons.forEach(button => button.addEventListener("click", () => { const next = normalizeSort(button.dataset.sortValue); if (next === editorialState.sortMode) return; editorialState.sortMode = next; publicationStructureChanged(); if (activeReviewId) loadReview(activeReviewId); }));
@@ -2565,28 +2694,33 @@
     reviewLayoutButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
-        const next = normalizeDossierLayout(button.dataset.reviewLayout);
+        const raw = String(button.dataset.reviewLayout || "default");
+        const nextOverride = normalize(raw) === "default" ? null : normalizeDossierLayout(raw);
+        const next = nextOverride || editorialState.defaultDossierLayout;
         if (next === "MultiImageEditorial" && Number(config.dossierImageCount || 1) < 2) {
             // Multi-image is a layout choice, not a trap door: when enough usable photography exists,
             // promote the curated slot count to two and let PRISM resolve the supporting image.
             config.dossierImageCount = 2;
         }
-        if (config.dossierLayout === next) return;
-        config.dossierLayout = next;
+        if (config.dossierLayoutOverride === nextOverride) return;
+        config.dossierLayoutOverride = nextOverride; config.dossierLayout = next;
         publicationConfigChanged(activeReviewId);
     }));
     reviewTextFlowButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
-        const next = normalizeBalancedTextFlowMode(button.dataset.reviewTextFlowMode);
-        if (normalizeBalancedTextFlowMode(config.balancedTextFlowMode) === next) return;
-        config.balancedTextFlowMode = next;
+        const raw = String(button.dataset.reviewTextFlowMode || "default");
+        const nextOverride = normalize(raw) === "default" ? null : normalizeBalancedTextFlowMode(raw);
+        const next = nextOverride || editorialState.defaultBalancedTextFlowMode;
+        if (config.balancedTextFlowModeOverride === nextOverride) return;
+        config.balancedTextFlowModeOverride = nextOverride; config.balancedTextFlowMode = next;
         publicationConfigChanged(activeReviewId);
     }));
     reviewNarrativeAlignmentButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         setProjectNarrativeAlignment(activeReviewId, button.dataset.reviewNarrativeAlignment);
     }));
+    reviewResetDossierOverrides?.addEventListener("click", () => { if (activeReviewId) resetDossierOverrides(activeReviewId); });
     reviewAdditionalNote?.addEventListener("input", () => {
         if (!activeReviewId) return;
         const projectId = Number(activeReviewId);
@@ -2648,9 +2782,11 @@
     reviewImageFitButtons.forEach(button => button.addEventListener("click", () => {
         if (!activeReviewId) return;
         const config = ensureConfig(activeReviewId);
-        const next = normalize(button.dataset.reviewImageFit) === "fit" ? "fit" : "fill";
-        if (config.imageFitMode === next) return;
-        config.imageFitMode = next;
+        const raw = normalize(button.dataset.reviewImageFit);
+        const nextOverride = raw === "default" ? null : (raw === "fit" ? "fit" : "fill");
+        const next = nextOverride || editorialState.defaultImageFitMode;
+        if (config.imageFitModeOverride === nextOverride) return;
+        config.imageFitModeOverride = nextOverride; config.imageFitMode = next;
         publicationConfigChanged(activeReviewId);
     }));
     reviewUseAutomatic?.addEventListener("click", () => {

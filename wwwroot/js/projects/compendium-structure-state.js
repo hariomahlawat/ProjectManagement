@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const VERSION = 4;
+    const VERSION = 5;
     const PREFIX = "prism:compendium:structure:";
     const MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
@@ -11,6 +11,18 @@
     const cleanName = value => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
     const cleanText = (value, maximumLength) => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, maximumLength);
     const normalize = value => String(value ?? "").trim().toLowerCase();
+    const normalizeLayout = value => ({
+        automatic: "Automatic",
+        visualhero: "VisualHero",
+        balanced: "Balanced",
+        multiimageeditorial: "MultiImageEditorial",
+        technical: "Technical"
+    }[normalize(value)] || "Automatic");
+    const normalizeFlow = value => normalize(value) === "sidecolumn" ? "SideColumn" : "FlowBelowImage";
+    const normalizeFit = value => normalize(value) === "fit" ? "fit" : "fill";
+    const normalizeNullableLayout = value => value == null || normalize(value) === "" ? null : normalizeLayout(value);
+    const normalizeNullableFlow = value => value == null || normalize(value) === "" ? null : normalizeFlow(value);
+    const normalizeNullableFit = value => value == null || normalize(value) === "" ? null : normalizeFit(value);
 
     const storageKey = presetId => `${PREFIX}${asNumber(presetId)}`;
 
@@ -138,9 +150,12 @@
                     focalX: clamp(source.focalX),
                     focalY: clamp(source.focalY),
                     imageSelectionMode: normalize(source.imageSelectionMode) === "explicit" ? "explicit" : "automatic",
-                    imageFitMode: normalize(source.imageFitMode) === "fit" ? "fit" : "fill",
-                    dossierLayout: ({ automatic:"Automatic", visualhero:"VisualHero", balanced:"Balanced", multiimageeditorial:"MultiImageEditorial", technical:"Technical" }[normalize(source.dossierLayout)] || "Automatic"),
-                    balancedTextFlowMode: normalize(source.balancedTextFlowMode) === "sidecolumn" ? "SideColumn" : "FlowBelowImage",
+                    imageFitMode: normalizeFit(source.imageFitMode),
+                    imageFitModeOverride: normalizeNullableFit(source.imageFitModeOverride),
+                    dossierLayout: normalizeLayout(source.dossierLayout),
+                    dossierLayoutOverride: normalizeNullableLayout(source.dossierLayoutOverride),
+                    balancedTextFlowMode: normalizeFlow(source.balancedTextFlowMode),
+                    balancedTextFlowModeOverride: normalizeNullableFlow(source.balancedTextFlowModeOverride),
                     dossierImageCount: Math.max(1, Math.min(3, asNumber(source.dossierImageCount) || 1)),
                     supportingPhoto1Id: asNumber(source.supportingPhoto1Id) > 0 ? asNumber(source.supportingPhoto1Id) : null,
                     supportingPhoto1FocalX: clamp(source.supportingPhoto1FocalX),
@@ -192,6 +207,9 @@
                 ? {
                     narrativeSource: String(snapshot.editorialState.narrativeSource || "ProjectBrief"),
                     narrativeAlignment: normalize(snapshot.editorialState.narrativeAlignment) === "justified" ? "Justified" : "Left",
+                    defaultDossierLayout: normalizeLayout(snapshot.editorialState.defaultDossierLayout),
+                    defaultBalancedTextFlowMode: normalizeFlow(snapshot.editorialState.defaultBalancedTextFlowMode),
+                    defaultImageFitMode: normalizeFit(snapshot.editorialState.defaultImageFitMode),
                     projectParticularsStyle: normalize(snapshot.editorialState.projectParticularsStyle) === "minimal" ? "Minimal" : "Panel",
                     groupingMode: String(snapshot.editorialState.groupingMode || "TechnicalCategory"),
                     sortMode: String(snapshot.editorialState.sortMode || "Manual")

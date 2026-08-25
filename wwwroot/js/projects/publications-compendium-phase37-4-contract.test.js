@@ -30,12 +30,12 @@ const css = read('wwwroot/css/pages/projects-publications.css');
 test('phase 37.4 persists one publication-level particulars style through schema v11', () => {
   assert.match(dto, /enum CompendiumProjectParticularsStyle[\s\S]*Panel[\s\S]*Minimal/);
   assert.match(model, /ProjectParticularsStyle[\s\S]*=\s*"Panel"/);
-  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:11|12)/);
+  assert.match(model, /SettingsSchemaVersion\s*\{\s*get;\s*set;\s*\}\s*=\s*(?:11|12|13)/);
   assert.match(presetContracts, /CompendiumProjectParticularsStyle\s+ProjectParticularsStyle/);
-  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12)/);
+  assert.match(presetService, /CurrentSchemaVersion\s*=\s*(?:11|12|13)/);
   assert.match(presetService, /SettingsSchemaVersion\s*<\s*11[\s\S]*Panel/);
   assert.match(db, /ProjectParticularsStyle\)\.HasMaxLength\(24\)\.HasDefaultValue\("Panel"\)/);
-  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:11|12)\)/);
+  assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\((?:11|12|13)\)/);
   assert.match(migration, /Migration\("20261216123000_AddCompendiumProjectParticularsStyle"\)/);
   assert.match(migration, /AddColumn<string>[\s\S]*ProjectParticularsStyle[\s\S]*defaultValue:\s*"Panel"/);
   assert.match(snapshot, /Property<string>\("ProjectParticularsStyle"\)[\s\S]*HasDefaultValue\("Panel"\)/);
@@ -88,5 +88,5 @@ test('phase 37.4 preserves the global style through Structure Editor handoff and
   assert.match(structureJs, /projectParticularsStyle/);
   assert.match(structurePage, /projectParticularsStyle\s*=\s*loaded\.Configuration\.ProjectParticularsStyle/);
   assert.match(structurePage, /ProjectParticularsStyle\s*=\s*ParseProjectParticularsStyle/);
-  assert.match(structureState, /const VERSION = 4/);
+  assert.match(structureState, /const VERSION = (?:4|5)/);
 });

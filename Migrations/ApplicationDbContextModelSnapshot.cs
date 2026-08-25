@@ -5434,6 +5434,9 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("BackLogoPlacement").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("TopCorners");
                     b.Property<string>("NarrativeSource").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("ProjectBrief");
                     b.Property<string>("DefaultNarrativeAlignment").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("Left");
+                    b.Property<string>("DefaultDossierLayout").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
+                    b.Property<string>("DefaultBalancedTextFlowMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("FlowBelowImage");
+                    b.Property<string>("DefaultImageFitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
                     b.Property<string>("ProjectParticularsStyle").IsRequired().ValueGeneratedOnAdd().HasMaxLength(24).HasColumnType("character varying(24)").HasDefaultValue("Panel");
                     b.Property<string>("GroupingMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("TechnicalCategory");
                     b.Property<string>("SortMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Manual");
@@ -5442,7 +5445,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("NormalizedName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<byte[]>("RowVersion").IsRequired().IsConcurrencyToken().HasColumnType("bytea");
-                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(12);
+                    b.Property<int>("SettingsSchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(13);
                     b.Property<string>("Subtitle").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
                     b.Property<string>("Title").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
@@ -5479,8 +5482,11 @@ namespace ProjectManagement.Migrations
                     b.Property<long?>("CustomSectionId").HasColumnType("bigint");
                     b.Property<string>("ImageSelectionMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
                     b.Property<string>("ImageFitMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Fill");
+                    b.Property<string>("ImageFitModeOverride").HasMaxLength(16).HasColumnType("character varying(16)");
                     b.Property<string>("DossierLayout").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("Automatic");
+                    b.Property<string>("DossierLayoutOverride").HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<string>("BalancedTextFlowMode").IsRequired().ValueGeneratedOnAdd().HasMaxLength(32).HasColumnType("character varying(32)").HasDefaultValue("SideColumn");
+                    b.Property<string>("BalancedTextFlowModeOverride").HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<int>("DossierImageCount").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(1);
                     b.Property<int?>("SupportingPhoto1Id").HasColumnType("integer");
                     b.Property<double>("SupportingPhoto1FocalX").ValueGeneratedOnAdd().HasColumnType("double precision").HasDefaultValue(0.5);

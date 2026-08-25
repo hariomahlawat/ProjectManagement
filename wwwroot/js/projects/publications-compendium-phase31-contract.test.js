@@ -48,7 +48,7 @@ test('phase 31 records authoritative hardware technical specification bullets on
 });
 
 test('phase 31 persists dossier presentation choices through schema v7 and a forward migration', () => {
-  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[7-9]|10|11|12)/);
+  assert.match(preset, /CurrentSchemaVersion\s*=\s*(?:[7-9]|10|11|12|13)/);
   assert.match(migration, /Migration\("20261208190000_AddCompendiumAdaptiveDossiers"\)/);
   assert.match(migration, /DossierLayout/);
   assert.match(migration, /DossierImageCount/);
