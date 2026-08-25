@@ -39,6 +39,7 @@
     const canManage = Boolean(activeSeed?.canManage);
     const canMaintainProjectData = String(form.dataset.canMaintainProjectData || "").toLowerCase() === "true";
     const frameWidthPoints = Number(form.dataset.photoFrameWidth || 519) || 519;
+    const CompendiumLiveProofPageWidthPoints = 595.28;
     const frameHeightPoints = Number(form.dataset.photoFrameHeight || 240) || 240;
 
     const selectedInput = form.querySelector("[data-selected-project-ids]");
@@ -440,6 +441,24 @@
     const livePageSpecificationList = $("[data-live-page-specification-list]");
     const livePageAdditionalNote = $("[data-live-page-additional-note]");
     const livePageAdditionalNoteText = $("[data-live-page-additional-note-text]");
+    let liveProofResizeObserver = null;
+    const updateLiveProofScale = () => {
+        if (!livePagePreview) return;
+        const width = livePagePreview.getBoundingClientRect().width;
+        if (!(width > 0)) return;
+        const scale = Math.max(.5, Math.min(2, width / CompendiumLiveProofPageWidthPoints));
+        livePagePreview.style.setProperty("--proof-scale", scale.toFixed(4));
+    };
+
+    if (livePagePreview) {
+        if (typeof ResizeObserver === "function") {
+            liveProofResizeObserver = new ResizeObserver(() => updateLiveProofScale());
+            liveProofResizeObserver.observe(livePagePreview);
+        } else {
+            window.addEventListener("resize", updateLiveProofScale, { passive: true });
+        }
+        requestAnimationFrame(updateLiveProofScale);
+    }
 
     const coverPreview = $("[data-cover-preview]");
     const coverPreviewImage = $("[data-cover-preview-image]");
@@ -954,6 +973,7 @@
             reviewFocusToggle.title = reviewFocusMode ? "Return to the normal publication workspace" : "Give the review proof more working space";
         }
         requestAnimationFrame(() => setupOutputDockObserver());
+        requestAnimationFrame(updateLiveProofScale);
     };
 
     const applyLivePreviewZoom = value => {
@@ -965,6 +985,7 @@
             button.classList.toggle("active", active);
             button.setAttribute("aria-pressed", active ? "true" : "false");
         });
+        requestAnimationFrame(updateLiveProofScale);
     };
 
     const normalizeCollapsedGroups = () => {
@@ -1242,8 +1263,9 @@
         livePagePreview.style.setProperty("--narrative-scale", String(narrativeScale));
         livePagePreview.classList.remove("layout-automatic","layout-visualhero","layout-balanced","layout-multiimageeditorial","layout-technical");
         livePagePreview.classList.add(`layout-${normalize(effectiveLayout)}`);
+        requestAnimationFrame(updateLiveProofScale);
         if (livePageImageFrame) {
-            const imageHeight = Math.max(1, Number(review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
+            const imageHeight = Math.max(1, Number(review.dossierPrimaryImageRenderedHeightPoints || review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
             const frameWidth = effectiveLayout === "Balanced" ? 283 : 519;
             livePageImageFrame.style.setProperty("aspect-ratio", `${frameWidth} / ${imageHeight}`, "important");
         }

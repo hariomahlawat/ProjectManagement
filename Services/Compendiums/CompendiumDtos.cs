@@ -375,6 +375,7 @@ public sealed record CompendiumReviewProjectDto(
     public string DossierLayoutReason { get; init; } = string.Empty;
     public int DossierPressureScore { get; init; }
     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
+    public float DossierPrimaryImageRenderedHeightPoints { get; init; } = 246f;
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
     public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;
@@ -444,6 +445,7 @@ public sealed record CompendiumProjectDto(
     public string DossierLayoutReason { get; init; } = string.Empty;
     public int DossierPressureScore { get; init; }
     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
+    public float DossierPrimaryImageRenderedHeightPoints { get; init; } = 246f;
     public float DossierNarrativeFontScale { get; init; } = 1f;
     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
     public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;

@@ -572,6 +572,7 @@ public sealed class IndexModel : PageModel
             review.DossierLayoutReason,
             review.DossierPressureScore,
             review.DossierPrimaryImageHeightPoints,
+            review.DossierPrimaryImageRenderedHeightPoints,
             review.DossierNarrativeFontScale,
             review.DossierFirstPageNarrativeBudget,
             review.DossierFirstPageSpecificationCount,

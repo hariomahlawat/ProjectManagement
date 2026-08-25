@@ -53,9 +53,9 @@ test('phase 37 upgrades Balanced flow to paragraph-first plus sentence-fill with
   assert.match(flowPlanner, /SideUtilizationRatio/);
   assert.match(flowPlanner, /HasExcessiveGap[\s\S]*(?:>\s*40f|MaximumFlowBelowGapPoints)/);
   assert.doesNotMatch(flowPlanner, /Substring\(|Split\('\s'\)|Split\("\s"\)/);
-  assert.match(pagination, /SideRemainingHeightPoints\s*<=\s*18f/);
-  assert.match(pagination, /SideRemainingHeightPoints\s*<=\s*30f/);
-  assert.match(pagination, /SideRemainingHeightPoints\s*>\s*40f/);
+  assert.match(pagination, /FlowBelowGapScore/);
+  assert.match(read('Services/Compendiums/CompendiumDossierEditorialPolicy.cs'), /PreferredFlowBelowGapPoints\s*=\s*18f/);
+  assert.match(read('Services/Compendiums/CompendiumDossierEditorialPolicy.cs'), /MaximumFlowBelowGapPoints\s*=\s*40f/);
 });
 
 test('phase 37 jointly evaluates multiple image heights instead of freezing the Balanced frame first', () => {

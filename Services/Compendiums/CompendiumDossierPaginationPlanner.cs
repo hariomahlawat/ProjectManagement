@@ -88,7 +88,7 @@ public static class CompendiumDossierPaginationPlanner
 
         foreach (var layout in layouts)
         {
-            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi, protectPrintFidelity: !explicitLayout))
+            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi, protectPrintFidelity: !explicitLayout, balancedTextFlowMode: balancedTextFlowMode))
             {
                 foreach (var narrativeScale in CandidateNarrativeScales(cleanNarrative))
                 {
@@ -212,7 +212,8 @@ public static class CompendiumDossierPaginationPlanner
                 candidateLayout,
                 availablePhotoCount,
                 primaryImageEffectiveDpi,
-                protectPrintFidelity: !explicitLayout);
+                protectPrintFidelity: !explicitLayout,
+                balancedTextFlowMode: balancedTextFlowMode);
             if (candidateHeights.Count == 0) continue;
 
             var candidateCompactHeight = candidateHeights[^1];
@@ -639,6 +640,7 @@ public static class CompendiumDossierPaginationPlanner
         float sideBalanceRatio = 1f;
         var sideColumnBalanced = true;
         var flowBelowBalanced = true;
+        var hasFlowBelowContinuation = false;
         string? sideColumnWarning = null;
         string? flowBelowWarning = null;
 
@@ -670,6 +672,7 @@ public static class CompendiumDossierPaginationPlanner
             var side = CompendiumDossierNarrativeFlowPlanner.AssessSideFlow(
                 narrative, renderedImageHeight, narrativeFontScale, sideWidth, measurementSession);
             sideRemaining = side.RemainingHeightPoints;
+            hasFlowBelowContinuation = !string.IsNullOrWhiteSpace(side.BelowSegment);
             flowBelowBalanced = !side.HasExcessiveGap;
             if (!flowBelowBalanced)
                 flowBelowWarning = "Text beside the image leaves excessive unused vertical space before the full-width continuation. PRISM should use another measured image height or text split for a better balance.";
@@ -733,6 +736,7 @@ public static class CompendiumDossierPaginationPlanner
             SideOverflowHeightPoints = sideOverflow,
             SideBalanceRatio = sideBalanceRatio,
             NarrativeHeightCapacityPoints = narrativeHeightCapacity,
+            HasFlowBelowContinuation = hasFlowBelowContinuation,
             IsEditoriallyValid = imageGeometryValid && sideColumnBalanced && flowBelowBalanced,
             EditorialWarning = editorialWarning
         };
@@ -782,11 +786,9 @@ public static class CompendiumDossierPaginationPlanner
 
         if (candidate.Layout == CompendiumDossierLayout.Balanced
             && balancedTextFlowMode == CompendiumBalancedTextFlowMode.FlowBelowImage
-            && candidate.SideRemainingHeightPoints > 0f)
+            && candidate.HasFlowBelowContinuation)
         {
-            if (candidate.SideRemainingHeightPoints <= 18f) score += 24f;
-            else if (candidate.SideRemainingHeightPoints <= 30f) score += 10f;
-            else if (candidate.SideRemainingHeightPoints > 40f) score -= (candidate.SideRemainingHeightPoints - 40f) * 1.8f;
+            score += CompendiumDossierEditorialPolicy.FlowBelowGapScore(candidate.SideRemainingHeightPoints);
         }
 
         if (candidate.Layout == CompendiumDossierLayout.Balanced
@@ -848,7 +850,8 @@ public static class CompendiumDossierPaginationPlanner
         CompendiumDossierLayout layout,
         int availablePhotoCount,
         int? primaryImageEffectiveDpi,
-        bool protectPrintFidelity)
+        bool protectPrintFidelity,
+        CompendiumBalancedTextFlowMode balancedTextFlowMode)
     {
         if (availablePhotoCount <= 0) return new[] { 0f };
         IReadOnlyList<float> values = layout switch
@@ -856,6 +859,8 @@ public static class CompendiumDossierPaginationPlanner
             CompendiumDossierLayout.VisualHero => new[] { 330f, 315f, 285f, 255f, 230f, 205f, 185f },
             CompendiumDossierLayout.MultiImageEditorial => new[] { 285f, 275f, 260f, 245f, 220f, 200f, 185f },
             CompendiumDossierLayout.Technical => new[] { 185f, 175f, 160f, 145f, 125f, 105f, 90f, 82f },
+            CompendiumDossierLayout.Balanced when balancedTextFlowMode == CompendiumBalancedTextFlowMode.FlowBelowImage
+                => BalancedFlowImageHeights(),
             _ => new[] { 300f, 285f, 270f, 255f, 246f, 225f, 205f, 185f, 165f }
         };
 
@@ -866,6 +871,22 @@ public static class CompendiumDossierPaginationPlanner
             primaryImageEffectiveDpi);
         var filtered = values.Where(value => value <= safeMaximum + .1f).ToArray();
         return filtered;
+    }
+
+
+    private static IReadOnlyList<float> BalancedFlowImageHeights()
+    {
+        // Flow-below composition is sentence-boundary constrained. Ten-point image-height sampling
+        // gives the planner enough physical choices to align a semantic split closely with the
+        // bottom of the photograph without introducing an expensive per-point search. Historical
+        // publication heights are retained as exact candidates for visual continuity.
+        var dense = Enumerable.Range(0, 14)
+            .Select(index => 300f - (index * 10f)); // 300 .. 170
+        return dense
+            .Concat(new[] { 285f, 255f, 246f, 225f, 205f, 185f, 165f })
+            .Distinct()
+            .OrderByDescending(value => value)
+            .ToArray();
     }
 
     private static IReadOnlyList<float> CandidateNarrativeScales(string narrative)
@@ -1057,6 +1078,7 @@ public static class CompendiumDossierPaginationPlanner
         public float SideOverflowHeightPoints { get; init; }
         public float SideBalanceRatio { get; init; } = 1f;
         public float NarrativeHeightCapacityPoints { get; init; }
+        public bool HasFlowBelowContinuation { get; init; }
         public bool IsEditoriallyValid { get; init; } = true;
         public string? EditorialWarning { get; init; }
         public float ResidualSpacePoints => Math.Max(0f, PhysicalContentHeightPoints - TotalHeightPoints);

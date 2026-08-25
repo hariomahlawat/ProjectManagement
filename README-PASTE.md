@@ -1,105 +1,79 @@
-# PRISM Compendium Phase 44 — Semantic Editorial Justification
+# PRISM Compendium Phase 45 — Flow / Proof Parity
 
-## What this package does
+## Purpose
 
-Phase 44 makes the Compendium's **Justified** narrative setting behave consistently across the physical dossier instead of silently reverting Balanced side-column prose to Left alignment below the previous 245 pt width threshold.
+This package fixes the large *apparent* blank area in **Balanced → Flow below image** while preserving the semantic sentence-boundary flow introduced in the Compendium planner.
 
-The implementation deliberately keeps the existing Compendium pagination architecture intact:
+The phase addresses three related causes rather than masking the symptom:
 
-- paragraph/sentence-safe narrative splitting remains unchanged;
-- Skia/DM Sans physical measurement remains unchanged;
-- QuestPDF remains the only PDF text compositor;
-- headings and bullet/list blocks remain naturally left aligned;
-- the last line of a justified paragraph remains natural through QuestPDF;
-- Balanced side prose, below-image prose, full-width prose, continuation pages and Additional Note prose all honour the publisher's requested alignment;
-- new unsaved/authored Compendiums default to **Justified**;
-- existing saved presets retain their persisted alignment, including legacy Left-aligned presets;
-- existing Left-aligned review fingerprints remain valid; existing Justified reviews are invalidated once because their physical output changes.
+1. **Live Page proof typography parity** — the browser proof now scales narrative typography and Balanced geometry from the physical A4 point model used by the planner/PDF instead of using a fixed small `rem` body size.
+2. **Measured Flow-below optimisation** — Balanced Flow-below evaluates a denser, bounded set of image heights and scores the semantic remainder beside the image around an editorial target, strongly penalising excessive voids while never splitting a sentence merely to fill space.
+3. **Fit-image parity** — narrative flow and the browser proof now use the image's *actual rendered Fit height*, not merely its maximum frame height.
 
-## Files
+Justification itself is unchanged. Normal prose remains controlled by the Phase 44 semantic alignment policy; headings and bullets remain natural/left aligned.
 
-This package contains 17 ready-to-paste files. Copy the package contents over the project root while preserving the directory structure.
+## Prerequisite
 
-### Production files
+Apply this package over the current PRISM tree that already contains **Compendium Phase 44 — Semantic Justification**.
 
-1. `Pages/Projects/Publications/Compendium/Index.cshtml`
-2. `Pages/Projects/Publications/Compendium/Index.cshtml.cs`
-3. `Services/Compendiums/CompendiumDossierNarrativeFlowPlanner.cs`
-4. `Services/Compendiums/CompendiumDtos.cs`
-5. `Services/Compendiums/CompendiumNarrativeTypographyPolicy.cs`
-6. `Services/Compendiums/CompendiumReviewFingerprint.cs`
-7. `Services/Compendiums/ICompendiumExportService.cs`
-8. `Services/Publications/CompendiumPresetContracts.cs`
-9. `Utilities/Reporting/CompendiumBuildIdentity.cs`
-10. `Utilities/Reporting/CompendiumPdfReportBuilder.cs`
+## Paste method
 
-### Test/contract files
+The folders in this package mirror the project structure. Copy the contents into the root of `ProjectManagement-master` and replace the matching files.
 
-11. `ProjectManagement.Tests/Publications/CompendiumPhase37CompositionTests.cs`
-12. `ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs`
-13. `ProjectManagement.Tests/Publications/CompendiumPhase44SemanticJustificationTests.cs` **(new)**
-14. `wwwroot/js/projects/publications-compendium-phase37-contract.test.js`
-15. `wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js`
-16. `wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js`
-17. `wwwroot/js/projects/publications-compendium-phase44-contract.test.js` **(new)**
+There is **no EF Core migration and no database schema change** in Phase 45.
 
-## No EF migration is required
+`CHANGED-FILES.txt` contains the complete replacement-file manifest.
 
-Do **not** create an Entity Framework migration for Phase 44. The Compendium schema already persists `DefaultNarrativeAlignment` and project-level `NarrativeAlignmentOverride`. This phase changes policy/default behaviour, not database shape.
+## Verification commands
 
-## Important compatibility behaviour
-
-### New Compendiums
-
-A new unsaved/authored Compendium now starts with **Justified** as the publication default.
-
-### Existing saved Compendiums
-
-Existing presets continue to use their stored value. Legacy preset normalisation remains Left aligned where the old schema did not carry an alignment value.
-
-### Review fingerprints
-
-- Left-aligned dossiers keep the exact existing `compendium-review-v19-cover-identity` contract so previously reviewed Left output is not unnecessarily invalidated.
-- Justified dossiers use `compendium-review-v20-semantic-justification`; an existing Justified review therefore becomes stale once, correctly requiring visual re-review because Phase 44 changes its physical composition.
-
-## Recommended verification after pasting
-
-From the solution/project directory on the development machine:
+From the solution/project root, run:
 
 ```powershell
-dotnet build .\ProjectManagement.csproj -c Debug
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj -c Debug --no-build
-node --test (Get-ChildItem .\wwwroot\js\projects\publications-compendium*.test.js | ForEach-Object FullName)
+dotnet build
+dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj --filter "FullyQualifiedName~Compendium"
+node --check .\wwwroot\js\pages\projects-compendium.js
+node --test .\wwwroot\js\projects\publications-compendium*.test.js
 ```
 
-If your Node dependencies have not been restored and you want to run the complete npm suite, restore them first using the repository's normal package workflow before `npm test`.
+The supplied source was verified in the packaging environment with:
 
-## Visual smoke test
+- JavaScript syntax check: PASS
+- Full Compendium JavaScript contract suite: **280/280 PASS**
+- Structural delimiter/lexical scan of all changed C# files: PASS
 
-Use one project with a reasonably long Project Brief and at least one image.
+The packaging environment does not contain the .NET SDK, so `dotnet build` and xUnit could not be executed here. Run the two .NET commands above on the development machine before deployment.
 
-1. Select **Balanced** dossier layout.
-2. Select **Justified** narrative alignment.
-3. Check **Flow below image**:
-   - prose beside the image is justified;
-   - prose below the image is justified;
-   - the transition occurs at the planner's existing semantic boundary;
-   - headings and bullets remain left/natural.
-4. Check **Side column**:
-   - the side narrative now visibly honours Justified instead of silently reverting to Left.
-5. Switch to **Left aligned**:
-   - the same narrative remains ragged-right;
-   - project membership and semantic narrative segmentation do not change.
-6. Generate Preview PDF and compare the Live Page proof with the PDF.
+## Manual QA — priority cases
 
-## Verification performed in the supplied environment
+### 1. Balanced + Flow below image + Fill
 
-The .NET SDK is not installed in the execution environment, so `dotnet build` and xUnit could not be executed here. The C# changes were statically checked for balanced delimiters and the new xUnit tests are included for execution on your development machine.
+Use a project with a medium/long narrative. Confirm that:
 
-The complete Compendium JavaScript contract suite was executed after the final changes:
+- side narrative is visually at the same physical density as the generated PDF;
+- the server-chosen semantic split no longer appears to leave a large artificial hole in Live Page;
+- the continuation begins full width below the image;
+- a small residual gap can remain when the next complete sentence genuinely cannot fit — this is intentional.
 
-- **276 tests**
-- **276 passed**
-- **0 failed**
+### 2. Live Page zoom/focus parity
 
-The full repository `npm test` was also attempted earlier, but it cannot be treated as a clean verification in this environment because unrelated tests require the missing `jsdom` dependency and there are unrelated existing failures. Use the commands above on the normal development machine for full solution verification.
+Check **Fit**, **75%**, **100%**, and Review Focus. Narrative line wrapping should remain proportionally stable because body typography now scales with the displayed A4 sheet.
+
+### 3. Balanced + Flow below image + Fit
+
+Use a wide/landscape source image. Confirm that the side-flow budget and Live Page use the image's actual occupied Fit height. The below-flow text should no longer wait for empty frame height that the fitted image does not occupy.
+
+### 4. Side column
+
+Confirm that Side column behaviour is unchanged by the Flow-below optimiser.
+
+### 5. Alignment
+
+Toggle **Publication default / Left aligned / Justified**. Phase 44 alignment behaviour should remain intact.
+
+## Approval/review semantics
+
+Phase 45 does **not** perform a blanket review-fingerprint reset. The review contract remains the Phase 44 semantic-justification contract. This phase corrects proof geometry and candidate selection; it does not change authoritative project content.
+
+## Design constraint retained intentionally
+
+PRISM still does **not** break a sentence or word simply to remove every last point of whitespace beside an image. The planner prefers paragraph/sentence boundaries. The new scoring searches for a better measured image height first, and accepts a small editorial residual when a semantic boundary requires it.

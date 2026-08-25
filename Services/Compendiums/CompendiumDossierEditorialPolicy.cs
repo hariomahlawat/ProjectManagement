@@ -13,6 +13,7 @@ public static class CompendiumDossierEditorialPolicy
     public const float MaximumSideUnderfillAbsolutePoints = 72f;
     public const float MaximumSideOverflowFraction = .18f;
     public const float MaximumSideUnderfillFraction = .26f;
+    public const float PreferredFlowBelowGapPoints = 18f;
     public const float MaximumFlowBelowGapPoints = 40f;
     public const float ShallowFitWarningHeightPoints = 72f;
 
@@ -51,6 +52,31 @@ public static class CompendiumDossierEditorialPolicy
         return renderedImageHeightPoints + .1f >= MinimumEditorialFillHeightPoints(layout);
     }
 
+    /// <summary>
+    /// Editorial score for the unused semantic remainder beside a Balanced Flow-below image.
+    /// The planner never slices a sentence merely to fill the region; this score therefore
+    /// rewards a modest breathing gap, tolerates up to the publication maximum, and strongly
+    /// discourages larger voids when an alternative measured image height is available.
+    /// </summary>
+    public static int FlowBelowGapScore(float remainingHeightPoints)
+    {
+        var gap = Math.Max(0f, remainingHeightPoints);
+        if (gap <= PreferredFlowBelowGapPoints)
+        {
+            // Zero gap is acceptable, but a small editorial breathing gap is preferred.
+            return (int)Math.Round(36f - (PreferredFlowBelowGapPoints - gap) * .5f, MidpointRounding.AwayFromZero);
+        }
+
+        if (gap <= MaximumFlowBelowGapPoints)
+        {
+            return (int)Math.Round(36f - (gap - PreferredFlowBelowGapPoints) * 1.5f, MidpointRounding.AwayFromZero);
+        }
+
+        // Crossing the editorial maximum is a material quality defect. Keep the penalty steep so
+        // explicit Balanced composition still chooses the best semantic split when every candidate
+        // is imperfect, without silently switching the publisher's selected layout.
+        return (int)Math.Round(-60f - (gap - MaximumFlowBelowGapPoints) * 5f, MidpointRounding.AwayFromZero);
+    }
 
     public static string? ShallowFitWarning(
         CompendiumImageFitMode fitMode,

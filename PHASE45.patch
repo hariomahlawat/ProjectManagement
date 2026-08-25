@@ -1,0 +1,677 @@
+diff -ruN a/Pages/Projects/Publications/Compendium/Index.cshtml.cs b/Pages/Projects/Publications/Compendium/Index.cshtml.cs
+--- a/Pages/Projects/Publications/Compendium/Index.cshtml.cs	2026-08-24 17:11:16.578366415 +0000
++++ b/Pages/Projects/Publications/Compendium/Index.cshtml.cs	2026-08-24 17:49:31.334406859 +0000
+@@ -572,6 +572,7 @@
+             review.DossierLayoutReason,
+             review.DossierPressureScore,
+             review.DossierPrimaryImageHeightPoints,
++            review.DossierPrimaryImageRenderedHeightPoints,
+             review.DossierNarrativeFontScale,
+             review.DossierFirstPageNarrativeBudget,
+             review.DossierFirstPageSpecificationCount,
+diff -ruN a/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs b/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs
+--- a/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs	2026-08-24 17:10:46.900086059 +0000
++++ b/ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs	2026-08-24 17:53:11.008251034 +0000
+@@ -9,7 +9,7 @@
+     public void PhysicalPaginationContract_ReservesAtLeastOneBodyLine()
+     {
+         Assert.True(CompendiumLayoutMetrics.PhysicalPaginationReservePoints >= 10f);
+-        Assert.Equal("physical-a4-v44", CompendiumBuildIdentity.PdfContract);
++        Assert.Equal("physical-a4-v45", CompendiumBuildIdentity.PdfContract);
+     }
+ 
+     [Fact]
+diff -ruN a/ProjectManagement.Tests/Publications/CompendiumPhase45FlowParityTests.cs b/ProjectManagement.Tests/Publications/CompendiumPhase45FlowParityTests.cs
+--- a/ProjectManagement.Tests/Publications/CompendiumPhase45FlowParityTests.cs	1970-01-01 00:00:00.000000000 +0000
++++ b/ProjectManagement.Tests/Publications/CompendiumPhase45FlowParityTests.cs	2026-08-24 17:55:55.517266180 +0000
+@@ -0,0 +1,43 @@
++using ProjectManagement.Services.Compendiums;
++using Xunit;
++
++namespace ProjectManagement.Tests.Publications;
++
++public sealed class CompendiumPhase45FlowParityTests
++{
++    [Theory]
++    [InlineData(18f, 36)]
++    [InlineData(30f, 18)]
++    [InlineData(40f, 3)]
++    public void FlowBelowGapScore_PrefersSmallSemanticResiduals(float gap, int minimumExpected)
++    {
++        Assert.True(CompendiumDossierEditorialPolicy.FlowBelowGapScore(gap) >= minimumExpected);
++    }
++
++    [Fact]
++    public void FlowBelowGapScore_StronglyPenalisesEditoriallyExcessiveGap()
++    {
++        var preferred = CompendiumDossierEditorialPolicy.FlowBelowGapScore(
++            CompendiumDossierEditorialPolicy.PreferredFlowBelowGapPoints);
++        var excessive = CompendiumDossierEditorialPolicy.FlowBelowGapScore(
++            CompendiumDossierEditorialPolicy.MaximumFlowBelowGapPoints + 20f);
++
++        Assert.True(preferred > 0);
++        Assert.True(excessive < -100);
++        Assert.True(preferred - excessive > 120);
++    }
++
++    [Fact]
++    public void FitGeometry_ReportsActualOccupiedHeightRatherThanMaximumFrameHeight()
++    {
++        var geometry = CompendiumDossierImageGeometryPolicy.Resolve(
++            frameWidthPoints: 283f,
++            maximumHeightPoints: 300f,
++            sourceWidth: 2400,
++            sourceHeight: 800,
++            CompendiumImageFitMode.Fit);
++
++        Assert.True(geometry.RenderedHeightPoints < geometry.MaximumHeightPoints);
++        Assert.InRange(Math.Abs(geometry.RenderedHeightPoints - (283f / 3f)), 0f, .01f);
++    }
++}
+diff -ruN a/Services/Compendiums/CompendiumDossierEditorialPolicy.cs b/Services/Compendiums/CompendiumDossierEditorialPolicy.cs
+--- a/Services/Compendiums/CompendiumDossierEditorialPolicy.cs	2026-08-22 19:17:30.000000000 +0000
++++ b/Services/Compendiums/CompendiumDossierEditorialPolicy.cs	2026-08-24 17:57:31.471310563 +0000
+@@ -13,6 +13,7 @@
+     public const float MaximumSideUnderfillAbsolutePoints = 72f;
+     public const float MaximumSideOverflowFraction = .18f;
+     public const float MaximumSideUnderfillFraction = .26f;
++    public const float PreferredFlowBelowGapPoints = 18f;
+     public const float MaximumFlowBelowGapPoints = 40f;
+     public const float ShallowFitWarningHeightPoints = 72f;
+ 
+@@ -51,6 +52,31 @@
+         return renderedImageHeightPoints + .1f >= MinimumEditorialFillHeightPoints(layout);
+     }
+ 
++    /// <summary>
++    /// Editorial score for the unused semantic remainder beside a Balanced Flow-below image.
++    /// The planner never slices a sentence merely to fill the region; this score therefore
++    /// rewards a modest breathing gap, tolerates up to the publication maximum, and strongly
++    /// discourages larger voids when an alternative measured image height is available.
++    /// </summary>
++    public static int FlowBelowGapScore(float remainingHeightPoints)
++    {
++        var gap = Math.Max(0f, remainingHeightPoints);
++        if (gap <= PreferredFlowBelowGapPoints)
++        {
++            // Zero gap is acceptable, but a small editorial breathing gap is preferred.
++            return (int)Math.Round(36f - (PreferredFlowBelowGapPoints - gap) * .5f, MidpointRounding.AwayFromZero);
++        }
++
++        if (gap <= MaximumFlowBelowGapPoints)
++        {
++            return (int)Math.Round(36f - (gap - PreferredFlowBelowGapPoints) * 1.5f, MidpointRounding.AwayFromZero);
++        }
++
++        // Crossing the editorial maximum is a material quality defect. Keep the penalty steep so
++        // explicit Balanced composition still chooses the best semantic split when every candidate
++        // is imperfect, without silently switching the publisher's selected layout.
++        return (int)Math.Round(-60f - (gap - MaximumFlowBelowGapPoints) * 5f, MidpointRounding.AwayFromZero);
++    }
+ 
+     public static string? ShallowFitWarning(
+         CompendiumImageFitMode fitMode,
+diff -ruN a/Services/Compendiums/CompendiumDossierPaginationPlanner.cs b/Services/Compendiums/CompendiumDossierPaginationPlanner.cs
+--- a/Services/Compendiums/CompendiumDossierPaginationPlanner.cs	2026-08-22 19:17:30.000000000 +0000
++++ b/Services/Compendiums/CompendiumDossierPaginationPlanner.cs	2026-08-24 17:50:17.773432565 +0000
+@@ -88,7 +88,7 @@
+ 
+         foreach (var layout in layouts)
+         {
+-            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi, protectPrintFidelity: !explicitLayout))
++            foreach (var imageHeight in CandidateImageHeights(layout, availablePhotoCount, primaryImageEffectiveDpi, protectPrintFidelity: !explicitLayout, balancedTextFlowMode: balancedTextFlowMode))
+             {
+                 foreach (var narrativeScale in CandidateNarrativeScales(cleanNarrative))
+                 {
+@@ -212,7 +212,8 @@
+                 candidateLayout,
+                 availablePhotoCount,
+                 primaryImageEffectiveDpi,
+-                protectPrintFidelity: !explicitLayout);
++                protectPrintFidelity: !explicitLayout,
++                balancedTextFlowMode: balancedTextFlowMode);
+             if (candidateHeights.Count == 0) continue;
+ 
+             var candidateCompactHeight = candidateHeights[^1];
+@@ -639,6 +640,7 @@
+         float sideBalanceRatio = 1f;
+         var sideColumnBalanced = true;
+         var flowBelowBalanced = true;
++        var hasFlowBelowContinuation = false;
+         string? sideColumnWarning = null;
+         string? flowBelowWarning = null;
+ 
+@@ -670,6 +672,7 @@
+             var side = CompendiumDossierNarrativeFlowPlanner.AssessSideFlow(
+                 narrative, renderedImageHeight, narrativeFontScale, sideWidth, measurementSession);
+             sideRemaining = side.RemainingHeightPoints;
++            hasFlowBelowContinuation = !string.IsNullOrWhiteSpace(side.BelowSegment);
+             flowBelowBalanced = !side.HasExcessiveGap;
+             if (!flowBelowBalanced)
+                 flowBelowWarning = "Text beside the image leaves excessive unused vertical space before the full-width continuation. PRISM should use another measured image height or text split for a better balance.";
+@@ -733,6 +736,7 @@
+             SideOverflowHeightPoints = sideOverflow,
+             SideBalanceRatio = sideBalanceRatio,
+             NarrativeHeightCapacityPoints = narrativeHeightCapacity,
++            HasFlowBelowContinuation = hasFlowBelowContinuation,
+             IsEditoriallyValid = imageGeometryValid && sideColumnBalanced && flowBelowBalanced,
+             EditorialWarning = editorialWarning
+         };
+@@ -782,11 +786,9 @@
+ 
+         if (candidate.Layout == CompendiumDossierLayout.Balanced
+             && balancedTextFlowMode == CompendiumBalancedTextFlowMode.FlowBelowImage
+-            && candidate.SideRemainingHeightPoints > 0f)
++            && candidate.HasFlowBelowContinuation)
+         {
+-            if (candidate.SideRemainingHeightPoints <= 18f) score += 24f;
+-            else if (candidate.SideRemainingHeightPoints <= 30f) score += 10f;
+-            else if (candidate.SideRemainingHeightPoints > 40f) score -= (candidate.SideRemainingHeightPoints - 40f) * 1.8f;
++            score += CompendiumDossierEditorialPolicy.FlowBelowGapScore(candidate.SideRemainingHeightPoints);
+         }
+ 
+         if (candidate.Layout == CompendiumDossierLayout.Balanced
+@@ -848,7 +850,8 @@
+         CompendiumDossierLayout layout,
+         int availablePhotoCount,
+         int? primaryImageEffectiveDpi,
+-        bool protectPrintFidelity)
++        bool protectPrintFidelity,
++        CompendiumBalancedTextFlowMode balancedTextFlowMode)
+     {
+         if (availablePhotoCount <= 0) return new[] { 0f };
+         IReadOnlyList<float> values = layout switch
+@@ -856,6 +859,8 @@
+             CompendiumDossierLayout.VisualHero => new[] { 330f, 315f, 285f, 255f, 230f, 205f, 185f },
+             CompendiumDossierLayout.MultiImageEditorial => new[] { 285f, 275f, 260f, 245f, 220f, 200f, 185f },
+             CompendiumDossierLayout.Technical => new[] { 185f, 175f, 160f, 145f, 125f, 105f, 90f, 82f },
++            CompendiumDossierLayout.Balanced when balancedTextFlowMode == CompendiumBalancedTextFlowMode.FlowBelowImage
++                => BalancedFlowImageHeights(),
+             _ => new[] { 300f, 285f, 270f, 255f, 246f, 225f, 205f, 185f, 165f }
+         };
+ 
+@@ -868,6 +873,22 @@
+         return filtered;
+     }
+ 
++
++    private static IReadOnlyList<float> BalancedFlowImageHeights()
++    {
++        // Flow-below composition is sentence-boundary constrained. Ten-point image-height sampling
++        // gives the planner enough physical choices to align a semantic split closely with the
++        // bottom of the photograph without introducing an expensive per-point search. Historical
++        // publication heights are retained as exact candidates for visual continuity.
++        var dense = Enumerable.Range(0, 14)
++            .Select(index => 300f - (index * 10f)); // 300 .. 170
++        return dense
++            .Concat(new[] { 285f, 255f, 246f, 225f, 205f, 185f, 165f })
++            .Distinct()
++            .OrderByDescending(value => value)
++            .ToArray();
++    }
++
+     private static IReadOnlyList<float> CandidateNarrativeScales(string narrative)
+     {
+         if (string.IsNullOrWhiteSpace(narrative)) return new[] { 1f };
+@@ -1057,6 +1078,7 @@
+         public float SideOverflowHeightPoints { get; init; }
+         public float SideBalanceRatio { get; init; } = 1f;
+         public float NarrativeHeightCapacityPoints { get; init; }
++        public bool HasFlowBelowContinuation { get; init; }
+         public bool IsEditoriallyValid { get; init; } = true;
+         public string? EditorialWarning { get; init; }
+         public float ResidualSpacePoints => Math.Max(0f, PhysicalContentHeightPoints - TotalHeightPoints);
+diff -ruN a/Services/Compendiums/CompendiumDtos.cs b/Services/Compendiums/CompendiumDtos.cs
+--- a/Services/Compendiums/CompendiumDtos.cs	2026-08-24 17:11:17.208289296 +0000
++++ b/Services/Compendiums/CompendiumDtos.cs	2026-08-24 17:49:31.333351158 +0000
+@@ -375,6 +375,7 @@
+     public string DossierLayoutReason { get; init; } = string.Empty;
+     public int DossierPressureScore { get; init; }
+     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
++    public float DossierPrimaryImageRenderedHeightPoints { get; init; } = 246f;
+     public float DossierNarrativeFontScale { get; init; } = 1f;
+     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+     public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;
+@@ -444,6 +445,7 @@
+     public string DossierLayoutReason { get; init; } = string.Empty;
+     public int DossierPressureScore { get; init; }
+     public float DossierPrimaryImageHeightPoints { get; init; } = 246f;
++    public float DossierPrimaryImageRenderedHeightPoints { get; init; } = 246f;
+     public float DossierNarrativeFontScale { get; init; } = 1f;
+     public int DossierFirstPageNarrativeBudget { get; init; } = 2200;
+     public float DossierFirstPageNarrativeHeightPoints { get; init; } = 610f;
+diff -ruN a/Services/Compendiums/CompendiumReadService.cs b/Services/Compendiums/CompendiumReadService.cs
+--- a/Services/Compendiums/CompendiumReadService.cs	2026-08-22 19:17:30.000000000 +0000
++++ b/Services/Compendiums/CompendiumReadService.cs	2026-08-24 17:49:31.333981262 +0000
+@@ -333,6 +333,13 @@
+                 paginationDecision.Layout,
+                 dossierPhotoCount);
+             var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
++            var dossierRenderedImageHeight = ResolveRenderedPrimaryImageHeightPoints(
++                paginationDecision.Layout,
++                dossierPhotoCount,
++                paginationDecision.PrimaryImageHeightPoints,
++                probe?.Width,
++                probe?.Height,
++                resolved.Selection.ImageFitMode);
+             var effectiveDpi = probe is { IsReady: true }
+                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                     probe.Width,
+@@ -347,7 +354,7 @@
+                 selection.BalancedTextFlowMode,
+                 paginationDecision.Layout,
+                 dossierPhotoCount > 0,
+-                paginationDecision.PrimaryImageHeightPoints,
++                dossierRenderedImageHeight,
+                 paginationDecision.NarrativeFontScale,
+                 paginationDecision.FirstPageNarrativeBudget,
+                 effectiveNarrativeAlignment,
+@@ -459,6 +466,7 @@
+                 DossierLayoutReason = dossierDecision.Reason,
+                 DossierPressureScore = dossierDecision.PressureScore,
+                 DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
++                DossierPrimaryImageRenderedHeightPoints = dossierRenderedImageHeight,
+                 DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
+                 DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
+                 DossierFirstPageNarrativeHeightPoints = paginationDecision.FirstPageNarrativeHeightPoints,
+@@ -665,6 +673,13 @@
+             paginationDecision.Layout,
+             dossierPhotoCount);
+         var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
++        var dossierRenderedImageHeight = ResolveRenderedPrimaryImageHeightPoints(
++            paginationDecision.Layout,
++            dossierPhotoCount,
++            paginationDecision.PrimaryImageHeightPoints,
++            selectedProbe?.Width,
++            selectedProbe?.Height,
++            resolved.Selection.ImageFitMode);
+         var effectiveDpi = selectedProbe is { IsReady: true }
+             ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
+                 selectedProbe.Width,
+@@ -704,7 +719,7 @@
+ 
+         var narrativeFlow = CompendiumDossierNarrativeFlowPlanner.Resolve(
+             narrative.Text, selection.BalancedTextFlowMode, paginationDecision.Layout, dossierPhotoCount > 0,
+-            paginationDecision.PrimaryImageHeightPoints, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget,
++            dossierRenderedImageHeight, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget,
+             effectiveNarrativeAlignment, CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount),
+             paginationDecision.FirstPageNarrativeHeightPoints);
+         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
+@@ -811,6 +826,7 @@
+             DossierLayoutReason = dossierDecision.Reason,
+             DossierPressureScore = dossierDecision.PressureScore,
+             DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
++            DossierPrimaryImageRenderedHeightPoints = dossierRenderedImageHeight,
+             DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
+             DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
+             DossierFirstPageNarrativeHeightPoints = paginationDecision.FirstPageNarrativeHeightPoints,
+@@ -1626,6 +1642,24 @@
+         return yearOfDevelopment.HasValue ? yearOfDevelopment.Value : createdAt.Year;
+     }
+ 
++    private static float ResolveRenderedPrimaryImageHeightPoints(
++        CompendiumDossierLayout layout,
++        int availablePhotoCount,
++        float maximumHeightPoints,
++        int? sourceWidth,
++        int? sourceHeight,
++        CompendiumImageFitMode fitMode)
++    {
++        if (availablePhotoCount <= 0) return 0f;
++        var frameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(layout, availablePhotoCount);
++        return CompendiumDossierImageGeometryPolicy.Resolve(
++            frameWidth,
++            maximumHeightPoints,
++            sourceWidth,
++            sourceHeight,
++            fitMode).RenderedHeightPoints;
++    }
++
+     private static int CountWords(string? value)
+         => string.IsNullOrWhiteSpace(value)
+             ? 0
+diff -ruN a/Utilities/Reporting/CompendiumBuildIdentity.cs b/Utilities/Reporting/CompendiumBuildIdentity.cs
+--- a/Utilities/Reporting/CompendiumBuildIdentity.cs	2026-08-24 17:11:19.191429674 +0000
++++ b/Utilities/Reporting/CompendiumBuildIdentity.cs	2026-08-24 17:57:31.472820763 +0000
+@@ -7,14 +7,15 @@
+ /// </summary>
+ public static class CompendiumBuildIdentity
+ {
+-    public const string Phase = "44";
+-    public const string BuildStamp = "CompendiumPdf_2026-08-24_phase44-semantic-justification";
++    public const string Phase = "45";
++    public const string BuildStamp = "CompendiumPdf_2026-08-24_phase45-flow-proof-parity";
+     // Left-aligned reviews retain the v19 fingerprint byte-for-byte. Existing Justified reviews
+-    // move to v20 because Phase 44 changes their physical side-column treatment.
++    // moved to v20 in Phase 44 because their physical side-column treatment changed. Phase 45
++    // corrects flow/proof geometry without a blanket review-fingerprint reset.
+     public const string ReviewContract = "compendium-review-v19-left-v20-semantic-justification";
+-    public const string PdfContract = "physical-a4-v44";
++    public const string PdfContract = "physical-a4-v45";
+     public const string HeaderName = "X-PRISM-Compendium-Build";
+-    public const string PdfProducer = "PRISM ERP / QuestPDF / Phase 44";
++    public const string PdfProducer = "PRISM ERP / QuestPDF / Phase 45";
+ 
+     // Compendium generation is deliberately serialized per worker process. A production
+     // publication can contain 78+ image-rich dossiers and must not compete with a second
+diff -ruN a/wwwroot/css/pages/projects-publications.css b/wwwroot/css/pages/projects-publications.css
+--- a/wwwroot/css/pages/projects-publications.css	2026-08-22 19:17:30.000000000 +0000
++++ b/wwwroot/css/pages/projects-publications.css	2026-08-24 17:52:24.434135442 +0000
+@@ -3244,7 +3244,9 @@
+     width: min(100%, 510px);
+     aspect-ratio: 595.28 / 841.89;
+     overflow: hidden;
+-    padding: 4.7% 5.8% 5.1%;
++    --proof-scale: 1;
++    --narrative-scale: 1;
++    padding: 4.7% 6.38% 5.1%;
+     border: 1px solid #d9e0dd;
+     background: #fff;
+     box-shadow: 0 14px 34px rgba(29, 52, 44, .13);
+@@ -3353,12 +3355,13 @@
+ .compendium-live-page__narrative > header {
+     display: flex;
+     align-items: center;
+-    gap: .55rem;
++    gap: calc(10px * var(--proof-scale, 1));
++    min-height: calc(19px * var(--proof-scale, 1));
+ }
+ .compendium-live-page__narrative > header span {
+     flex: 0 0 auto;
+     color: #17382f;
+-    font-size: .45rem;
++    font-size: calc(8.6px * var(--proof-scale, 1));
+     font-weight: 800;
+     letter-spacing: .08em;
+ }
+@@ -3366,11 +3369,11 @@
+ .compendium-live-page__narrative > div {
+     position: relative;
+     max-height: 10.6rem;
+-    margin-top: .38rem;
++    margin-top: calc(7px * var(--proof-scale, 1));
+     overflow: hidden;
+     color: #334155;
+-    font-size: .49rem;
+-    line-height: 1.42;
++    font-size: calc(10px * var(--narrative-scale, 1) * var(--proof-scale, 1));
++    line-height: 1.25;
+ }
+ .compendium-live-page__narrative > div::after {
+     position: absolute;
+@@ -3385,9 +3388,9 @@
+ .compendium-live-page__narrative > div.is-missing { color: #7f8b86; font-style: italic; }
+ .compendium-live-page__sheet > footer {
+     position: absolute;
+-    right: 5.8%;
++    right: 6.38%;
+     bottom: 2.6%;
+-    left: 5.8%;
++    left: 6.38%;
+     display: flex;
+     justify-content: space-between;
+     gap: .5rem;
+@@ -4989,7 +4992,7 @@
+ .compendium-live-page__dossier-main{display:grid;grid-template-columns:1fr;gap:.55rem;margin-top:.45rem}
+ .compendium-live-page__dossier-main .compendium-live-page__image,
+ .compendium-live-page__dossier-main .compendium-live-page__narrative{margin-top:0}
+-.compendium-live-page__sheet.layout-balanced .compendium-live-page__dossier-main{grid-template-columns:1.1fr .9fr;align-items:start}
++.compendium-live-page__sheet.layout-balanced .compendium-live-page__dossier-main{grid-template-columns:1.12fr .88fr;gap:calc(13px * var(--proof-scale,1));align-items:start}
+ .compendium-live-page__sheet.layout-balanced .compendium-live-page__image{aspect-ratio:1.34/1!important}
+ .compendium-live-page__sheet.layout-balanced .compendium-live-page__narrative>div{max-height:11.5rem}
+ .compendium-live-page__sheet.layout-visualhero .compendium-live-page__image{aspect-ratio:1.78/1!important}
+@@ -5018,7 +5021,7 @@
+ .compendium-live-page__additional-note{margin-top:.72rem;padding-top:0;border-top:0}
+ .compendium-live-page__additional-note>header{display:flex;align-items:center;gap:.42rem;color:#17382f;font-size:.42rem;font-weight:800;letter-spacing:.08em}
+ .compendium-live-page__additional-note>header::after{flex:1 1 auto;height:1px;background:#e9d9a7;content:""}
+-.compendium-live-page__additional-note>div{margin-top:.28rem;color:#475569;font-size:calc(.49rem * var(--narrative-scale,1));line-height:1.25}
++.compendium-live-page__additional-note>div{margin-top:.28rem;color:#475569;font-size:calc(10px * var(--narrative-scale,1) * var(--proof-scale,1));line-height:1.25}
+ .compendium-live-page__additional-note>div p{margin:0 0 .24rem}
+ .compendium-live-page__additional-note>div p:last-child{margin-bottom:0}
+ .compendium-live-page__additional-note>div ul,.compendium-live-page__additional-note>div ol{margin:.12rem 0 .24rem;padding-left:1rem}
+@@ -5191,8 +5194,8 @@
+ 
+ /* Phase 32 — Adaptive composition and editorial polish */
+ .compendium-live-page__narrative > div {
+-    font-size: calc(.49rem * var(--narrative-scale, 1));
+-    line-height: 1.38;
++    font-size: calc(10px * var(--narrative-scale, 1) * var(--proof-scale, 1));
++    line-height: 1.25;
+ }
+ .compendium-live-page__specifications p {
+     font-size: .45rem;
+@@ -5300,9 +5303,9 @@
+ .compendium-live-page__image.is-fit img{background:transparent!important}
+ .compendium-review-image-frame.is-fit{border-color:transparent!important;background:transparent!important;box-shadow:none!important}
+ .compendium-review-image-frame.is-fit img{background:transparent!important}
+-.compendium-live-page__below-flow{grid-column:1/-1;margin-top:.1rem}
++.compendium-live-page__below-flow{grid-column:1/-1;margin-top:calc(8px * var(--proof-scale,1))}
+ .compendium-live-page__below-flow[hidden]{display:none!important}
+-.compendium-live-page__below-flow{color:#475569;font-size:calc(.49rem * var(--narrative-scale,1));line-height:1.38;white-space:pre-line}
++.compendium-live-page__below-flow{color:#475569;font-size:calc(10px * var(--narrative-scale,1) * var(--proof-scale,1));line-height:1.25;white-space:pre-line}
+ .compendium-text-flow-control{display:grid;grid-template-columns:auto auto;align-items:center;gap:.32rem .75rem;padding:.55rem .65rem;border:1px solid #d8e5df;border-radius:.65rem;background:#f8fbfa}
+ .compendium-text-flow-control[hidden]{display:none!important}
+ .compendium-text-flow-control>span{font-size:.68rem;font-weight:750;color:#17382f}
+@@ -5474,7 +5477,7 @@
+ }
+ .compendium-live-page__narrative > div p,
+ .compendium-live-page__below-flow p {
+-    margin: 0 0 .28rem;
++    margin: 0 0 calc(6px * var(--proof-scale, 1));
+ }
+ .compendium-live-page__narrative > div p:last-child,
+ .compendium-live-page__below-flow p:last-child {
+@@ -5482,23 +5485,33 @@
+ }
+ .compendium-live-page__narrative > div ul,
+ .compendium-live-page__below-flow ul {
+-    margin: .12rem 0 .28rem;
+-    padding-left: .9rem;
++    margin: 0 0 calc(6px * var(--proof-scale, 1));
++    padding-left: calc(18px * var(--proof-scale, 1));
+ }
++.compendium-live-page__narrative > div ul:last-child,
++.compendium-live-page__below-flow ul:last-child { margin-bottom: 0; }
+ .compendium-live-page__narrative > div li,
+ .compendium-live-page__below-flow li {
+-    margin: .08rem 0;
++    margin: 0;
+     text-align: left;
+ }
++.compendium-live-page__narrative > div li + li,
++.compendium-live-page__below-flow li + li {
++    margin-top: calc(2.5px * var(--proof-scale, 1));
++}
+ .compendium-live-page__narrative .compendium-review-markdown-heading,
+ .compendium-live-page__below-flow .compendium-review-markdown-heading {
+-    margin: .38rem 0 .16rem !important;
++    margin: calc(4px * var(--proof-scale, 1)) 0 calc(1.5px * var(--proof-scale, 1)) !important;
+     color: #17382f;
+     font-size: 1.08em;
+     font-weight: 700;
+     line-height: 1.15;
+     text-align: left;
+ }
++.compendium-live-page__narrative > div > :not(:first-child).compendium-review-markdown-heading,
++.compendium-live-page__below-flow > :not(:first-child).compendium-review-markdown-heading {
++    margin-top: calc(10px * var(--proof-scale, 1)) !important;
++}
+ [data-live-page-narrative].is-justified p:not(.compendium-review-markdown-heading),
+ .compendium-live-page__below-flow.is-justified p:not(.compendium-review-markdown-heading) {
+     text-align: justify;
+diff -ruN a/wwwroot/js/pages/projects-compendium.js b/wwwroot/js/pages/projects-compendium.js
+--- a/wwwroot/js/pages/projects-compendium.js	2026-08-22 19:17:30.000000000 +0000
++++ b/wwwroot/js/pages/projects-compendium.js	2026-08-24 17:54:14.826092719 +0000
+@@ -39,6 +39,7 @@
+     const canManage = Boolean(activeSeed?.canManage);
+     const canMaintainProjectData = String(form.dataset.canMaintainProjectData || "").toLowerCase() === "true";
+     const frameWidthPoints = Number(form.dataset.photoFrameWidth || 519) || 519;
++    const CompendiumLiveProofPageWidthPoints = 595.28;
+     const frameHeightPoints = Number(form.dataset.photoFrameHeight || 240) || 240;
+ 
+     const selectedInput = form.querySelector("[data-selected-project-ids]");
+@@ -440,6 +441,24 @@
+     const livePageSpecificationList = $("[data-live-page-specification-list]");
+     const livePageAdditionalNote = $("[data-live-page-additional-note]");
+     const livePageAdditionalNoteText = $("[data-live-page-additional-note-text]");
++    let liveProofResizeObserver = null;
++    const updateLiveProofScale = () => {
++        if (!livePagePreview) return;
++        const width = livePagePreview.getBoundingClientRect().width;
++        if (!(width > 0)) return;
++        const scale = Math.max(.5, Math.min(2, width / CompendiumLiveProofPageWidthPoints));
++        livePagePreview.style.setProperty("--proof-scale", scale.toFixed(4));
++    };
++
++    if (livePagePreview) {
++        if (typeof ResizeObserver === "function") {
++            liveProofResizeObserver = new ResizeObserver(() => updateLiveProofScale());
++            liveProofResizeObserver.observe(livePagePreview);
++        } else {
++            window.addEventListener("resize", updateLiveProofScale, { passive: true });
++        }
++        requestAnimationFrame(updateLiveProofScale);
++    }
+ 
+     const coverPreview = $("[data-cover-preview]");
+     const coverPreviewImage = $("[data-cover-preview-image]");
+@@ -954,6 +973,7 @@
+             reviewFocusToggle.title = reviewFocusMode ? "Return to the normal publication workspace" : "Give the review proof more working space";
+         }
+         requestAnimationFrame(() => setupOutputDockObserver());
++        requestAnimationFrame(updateLiveProofScale);
+     };
+ 
+     const applyLivePreviewZoom = value => {
+@@ -965,6 +985,7 @@
+             button.classList.toggle("active", active);
+             button.setAttribute("aria-pressed", active ? "true" : "false");
+         });
++        requestAnimationFrame(updateLiveProofScale);
+     };
+ 
+     const normalizeCollapsedGroups = () => {
+@@ -1242,8 +1263,9 @@
+         livePagePreview.style.setProperty("--narrative-scale", String(narrativeScale));
+         livePagePreview.classList.remove("layout-automatic","layout-visualhero","layout-balanced","layout-multiimageeditorial","layout-technical");
+         livePagePreview.classList.add(`layout-${normalize(effectiveLayout)}`);
++        requestAnimationFrame(updateLiveProofScale);
+         if (livePageImageFrame) {
+-            const imageHeight = Math.max(1, Number(review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
++            const imageHeight = Math.max(1, Number(review.dossierPrimaryImageRenderedHeightPoints || review.dossierPrimaryImageHeightPoints || (effectiveLayout === "Technical" ? 145 : effectiveLayout === "VisualHero" ? 255 : effectiveLayout === "MultiImageEditorial" ? 245 : 246)));
+             const frameWidth = effectiveLayout === "Balanced" ? 283 : 519;
+             livePageImageFrame.style.setProperty("aspect-ratio", `${frameWidth} / ${imageHeight}`, "important");
+         }
+diff -ruN a/wwwroot/js/projects/publications-compendium-phase37-contract.test.js b/wwwroot/js/projects/publications-compendium-phase37-contract.test.js
+--- a/wwwroot/js/projects/publications-compendium-phase37-contract.test.js	2026-08-24 17:09:59.451768526 +0000
++++ b/wwwroot/js/projects/publications-compendium-phase37-contract.test.js	2026-08-24 17:54:14.826348565 +0000
+@@ -53,9 +53,9 @@
+   assert.match(flowPlanner, /SideUtilizationRatio/);
+   assert.match(flowPlanner, /HasExcessiveGap[\s\S]*(?:>\s*40f|MaximumFlowBelowGapPoints)/);
+   assert.doesNotMatch(flowPlanner, /Substring\(|Split\('\s'\)|Split\("\s"\)/);
+-  assert.match(pagination, /SideRemainingHeightPoints\s*<=\s*18f/);
+-  assert.match(pagination, /SideRemainingHeightPoints\s*<=\s*30f/);
+-  assert.match(pagination, /SideRemainingHeightPoints\s*>\s*40f/);
++  assert.match(pagination, /FlowBelowGapScore/);
++  assert.match(read('Services/Compendiums/CompendiumDossierEditorialPolicy.cs'), /PreferredFlowBelowGapPoints\s*=\s*18f/);
++  assert.match(read('Services/Compendiums/CompendiumDossierEditorialPolicy.cs'), /MaximumFlowBelowGapPoints\s*=\s*40f/);
+ });
+ 
+ test('phase 37 jointly evaluates multiple image heights instead of freezing the Balanced frame first', () => {
+diff -ruN a/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js b/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js
+--- a/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js	2026-08-24 17:10:46.899967789 +0000
++++ b/wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js	2026-08-24 17:53:11.007596876 +0000
+@@ -18,8 +18,8 @@
+ const publishScript = read('ops/publish/create-publish-folder.ps1');
+ 
+ test('phase 41 exposes one build identity across HTTP PDF self-test and diagnostics', () => {
+-  assert.match(identity, /CompendiumPdf_2026-08-24_phase44-semantic-justification/);
+-  assert.match(identity, /physical-a4-v44/);
++  assert.match(identity, /CompendiumPdf_2026-08-24_phase45-flow-proof-parity/);
++  assert.match(identity, /physical-a4-v45/);
+   assert.match(pageModel, /CompendiumBuildIdentity\.HeaderName/);
+   assert.match(pageModel, /Response\.Headers\[CompendiumBuildIdentity\.HeaderName\]/);
+   assert.match(diagnostics, /build = CompendiumBuildIdentity\.BuildStamp/);
+diff -ruN a/wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js b/wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js
+--- a/wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js	2026-08-24 17:10:46.899772056 +0000
++++ b/wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js	2026-08-24 17:53:11.007879839 +0000
+@@ -75,7 +75,7 @@
+ 
+ test('build identity identifies the parity-corrected PDF contract', () => {
+   const identity = read('Utilities', 'Reporting', 'CompendiumBuildIdentity.cs');
+-  assert.match(identity, /Phase = "44"/);
+-  assert.match(identity, /CompendiumPdf_2026-08-24_phase44-semantic-justification/);
+-  assert.match(identity, /physical-a4-v44/);
++  assert.match(identity, /Phase = "45"/);
++  assert.match(identity, /CompendiumPdf_2026-08-24_phase45-flow-proof-parity/);
++  assert.match(identity, /physical-a4-v45/);
+ });
+diff -ruN a/wwwroot/js/projects/publications-compendium-phase44-contract.test.js b/wwwroot/js/projects/publications-compendium-phase44-contract.test.js
+--- a/wwwroot/js/projects/publications-compendium-phase44-contract.test.js	2026-08-24 17:13:24.987600860 +0000
++++ b/wwwroot/js/projects/publications-compendium-phase44-contract.test.js	2026-08-24 17:54:14.826530325 +0000
+@@ -59,7 +59,7 @@
+   assert.match(fingerprint, /compendium-review-v19-cover-identity/);
+   assert.match(fingerprint, /compendium-review-v20-semantic-justification/);
+   assert.match(fingerprint, /NarrativeAlignment\s*==\s*CompendiumNarrativeAlignment\.Justified/);
+-  assert.match(buildIdentity, /Phase\s*=\s*"44"/);
+-  assert.match(buildIdentity, /physical-a4-v44/);
++  assert.match(buildIdentity, /Phase\s*=\s*"(?:44|45)"/);
++  assert.match(buildIdentity, /physical-a4-v45/);
+   assert.match(buildIdentity, /semantic-justification/i);
+ });
+diff -ruN a/wwwroot/js/projects/publications-compendium-phase45-flow-parity.test.js b/wwwroot/js/projects/publications-compendium-phase45-flow-parity.test.js
+--- a/wwwroot/js/projects/publications-compendium-phase45-flow-parity.test.js	1970-01-01 00:00:00.000000000 +0000
++++ b/wwwroot/js/projects/publications-compendium-phase45-flow-parity.test.js	2026-08-24 17:50:55.393205290 +0000
+@@ -0,0 +1,52 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = file => fs.readFileSync(path.join(root, file), 'utf8');
++
++const mainJs = read('wwwroot/js/pages/projects-compendium.js');
++const css = read('wwwroot/css/pages/projects-publications.css');
++const readService = read('Services/Compendiums/CompendiumReadService.cs');
++const dto = read('Services/Compendiums/CompendiumDtos.cs');
++const indexPage = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs');
++const pagination = read('Services/Compendiums/CompendiumDossierPaginationPlanner.cs');
++const editorial = read('Services/Compendiums/CompendiumDossierEditorialPolicy.cs');
++const buildIdentity = read('Utilities/Reporting/CompendiumBuildIdentity.cs');
++
++const compact = value => value.replace(/\s+/g, ' ');
++
++test('phase 45 makes Live Page narrative typography scale from authoritative A4 points', () => {
++  assert.match(mainJs, /CompendiumLiveProofPageWidthPoints\s*=\s*595\.28/);
++  assert.match(mainJs, /updateLiveProofScale/);
++  assert.match(mainJs, /ResizeObserver/);
++  assert.match(mainJs, /--proof-scale/);
++  assert.match(css, /--proof-scale\s*:\s*1/);
++  assert.match(css, /font-size:\s*calc\(10px\s*\*\s*var\(--narrative-scale,\s*1\)\s*\*\s*var\(--proof-scale,\s*1\)\)/);
++  assert.match(css, /line-height:\s*1\.25/);
++});
++
++test('phase 45 uses actual rendered Fit height for flow, proof geometry and diagnostics', () => {
++  assert.match(dto, /DossierPrimaryImageRenderedHeightPoints/);
++  assert.match(readService, /ResolveRenderedPrimaryImageHeightPoints/);
++  assert.match(readService, /CompendiumDossierImageGeometryPolicy\.Resolve/);
++  assert.match(readService, /paginationDecision\.PrimaryImageHeightPoints,[\s\S]*selectedProbe\?\.Width,[\s\S]*selectedProbe\?\.Height,[\s\S]*resolved\.Selection\.ImageFitMode/);
++  assert.match(indexPage, /review\.DossierPrimaryImageRenderedHeightPoints/);
++  assert.match(mainJs, /dossierPrimaryImageRenderedHeightPoints/);
++});
++
++test('phase 45 optimises Flow Below around a preferred semantic gap before excessive-gap fallback', () => {
++  assert.match(editorial, /PreferredFlowBelowGapPoints\s*=\s*18f/);
++  assert.match(pagination, /FlowBelowGapScore/);
++  assert.match(editorial, /PreferredFlowBelowGapPoints/);
++  assert.match(pagination, /candidate\.SideRemainingHeightPoints/);
++  assert.match(pagination, /BalancedFlowImageHeights/);
++  assert.match(pagination, /Enumerable\.Range/);
++});
++
++test('phase 45 advances build identity for flow-proof parity', () => {
++  assert.match(buildIdentity, /Phase\s*=\s*"45"/);
++  assert.match(buildIdentity, /physical-a4-v45/);
++  assert.match(compact(buildIdentity), /flow-proof-parity/i);
++});

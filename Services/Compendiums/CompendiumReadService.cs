@@ -333,6 +333,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 paginationDecision.Layout,
                 dossierPhotoCount);
             var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
+            var dossierRenderedImageHeight = ResolveRenderedPrimaryImageHeightPoints(
+                paginationDecision.Layout,
+                dossierPhotoCount,
+                paginationDecision.PrimaryImageHeightPoints,
+                probe?.Width,
+                probe?.Height,
+                resolved.Selection.ImageFitMode);
             var effectiveDpi = probe is { IsReady: true }
                 ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                     probe.Width,
@@ -347,7 +354,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 selection.BalancedTextFlowMode,
                 paginationDecision.Layout,
                 dossierPhotoCount > 0,
-                paginationDecision.PrimaryImageHeightPoints,
+                dossierRenderedImageHeight,
                 paginationDecision.NarrativeFontScale,
                 paginationDecision.FirstPageNarrativeBudget,
                 effectiveNarrativeAlignment,
@@ -459,6 +466,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 DossierLayoutReason = dossierDecision.Reason,
                 DossierPressureScore = dossierDecision.PressureScore,
                 DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
+                DossierPrimaryImageRenderedHeightPoints = dossierRenderedImageHeight,
                 DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
                 DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
                 DossierFirstPageNarrativeHeightPoints = paginationDecision.FirstPageNarrativeHeightPoints,
@@ -665,6 +673,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
             paginationDecision.Layout,
             dossierPhotoCount);
         var dossierFrameHeight = paginationDecision.PrimaryImageHeightPoints;
+        var dossierRenderedImageHeight = ResolveRenderedPrimaryImageHeightPoints(
+            paginationDecision.Layout,
+            dossierPhotoCount,
+            paginationDecision.PrimaryImageHeightPoints,
+            selectedProbe?.Width,
+            selectedProbe?.Height,
+            resolved.Selection.ImageFitMode);
         var effectiveDpi = selectedProbe is { IsReady: true }
             ? CompendiumPublicationImagePolicy.CalculateEffectiveDpi(
                 selectedProbe.Width,
@@ -704,7 +719,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
         var narrativeFlow = CompendiumDossierNarrativeFlowPlanner.Resolve(
             narrative.Text, selection.BalancedTextFlowMode, paginationDecision.Layout, dossierPhotoCount > 0,
-            paginationDecision.PrimaryImageHeightPoints, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget,
+            dossierRenderedImageHeight, paginationDecision.NarrativeFontScale, paginationDecision.FirstPageNarrativeBudget,
             effectiveNarrativeAlignment, CompendiumDossierPaginationPlanner.ResolveBalancedSideWidthPoints(dossierPhotoCount),
             paginationDecision.FirstPageNarrativeHeightPoints);
         var completionYear = ResolveCompletionYear(project.CompletedYear, project.CompletedOn);
@@ -811,6 +826,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             DossierLayoutReason = dossierDecision.Reason,
             DossierPressureScore = dossierDecision.PressureScore,
             DossierPrimaryImageHeightPoints = paginationDecision.PrimaryImageHeightPoints,
+            DossierPrimaryImageRenderedHeightPoints = dossierRenderedImageHeight,
             DossierNarrativeFontScale = paginationDecision.NarrativeFontScale,
             DossierFirstPageNarrativeBudget = paginationDecision.FirstPageNarrativeBudget,
             DossierFirstPageNarrativeHeightPoints = paginationDecision.FirstPageNarrativeHeightPoints,
@@ -1624,6 +1640,24 @@ public sealed class CompendiumReadService : ICompendiumReadService
         }
 
         return yearOfDevelopment.HasValue ? yearOfDevelopment.Value : createdAt.Year;
+    }
+
+    private static float ResolveRenderedPrimaryImageHeightPoints(
+        CompendiumDossierLayout layout,
+        int availablePhotoCount,
+        float maximumHeightPoints,
+        int? sourceWidth,
+        int? sourceHeight,
+        CompendiumImageFitMode fitMode)
+    {
+        if (availablePhotoCount <= 0) return 0f;
+        var frameWidth = CompendiumDossierPaginationPlanner.ResolvePrimaryFrameWidthPoints(layout, availablePhotoCount);
+        return CompendiumDossierImageGeometryPolicy.Resolve(
+            frameWidth,
+            maximumHeightPoints,
+            sourceWidth,
+            sourceHeight,
+            fitMode).RenderedHeightPoints;
     }
 
     private static int CountWords(string? value)
