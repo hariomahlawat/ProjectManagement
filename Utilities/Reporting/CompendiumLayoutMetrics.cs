@@ -16,11 +16,25 @@ public static class CompendiumLayoutMetrics
     public const float RunningHeaderHeightPoints = 28f;
     public const float ProjectContentTopPaddingPoints = 8f;
     public const float SecondaryContentTopPaddingPoints = 12f;
+
+    // Physical body-text contract shared with the semantic typography policy. Keeping these values
+    // beside the A4 geometry prevents the planner's safety envelope from drifting away from the
+    // actual maximum first-page narrative typography.
+    public const float ProjectBodyFontSize = 10f;
+    public const float ProjectBodyMinimumFontSize = 9.5f;
+    public const float ProjectBodyMaximumNarrativeScale = 1.10f;
+    public const float ProjectBodyLineHeightMultiplier = 1.25f;
+    public const float MaximumProjectBodyLineHeightPoints =
+        ProjectBodyFontSize * ProjectBodyMaximumNarrativeScale * ProjectBodyLineHeightMultiplier;
+
     // SkiaSharp is used for deterministic planning while QuestPDF performs the final shaping pass.
-    // Even with the same bundled DM Sans faces, native text-shaping and floating-point rounding can
-    // differ slightly between deployment machines. Reserve one normal body-text line so a page that
-    // is physically valid in the planner cannot sit on a sub-point production boundary.
-    public const float PhysicalPaginationReservePoints = 12f;
+    // Even with the same bundled DM Sans faces, native text shaping, justification and floating-point
+    // rounding can move a boundary word onto one additional QuestPDF line on a deployment machine.
+    // Reserve one *maximum-scale* body line plus a small native-shaping tolerance. This reserve is
+    // deliberately unavailable to editorial content and is the safety gap protected by ShowEntire().
+    public const float PhysicalPaginationNativeShapingTolerancePoints = 2.25f;
+    public const float PhysicalPaginationReservePoints =
+        MaximumProjectBodyLineHeightPoints + PhysicalPaginationNativeShapingTolerancePoints;
     public const float ContentWidthPoints = PageWidthPoints - (2f * HorizontalMarginPoints);
 
     /// <summary>
@@ -66,8 +80,6 @@ public static class CompendiumLayoutMetrics
     public const float ContinuationLabelLineHeightPoints = 10.1f;
     public const float ContinuationHeadingRuleHeightPoints = 2f;
 
-    public const float ProjectBodyFontSize = 10f;
-    public const float ProjectBodyMinimumFontSize = 9.5f;
     public const float ContinuationBodyFontSize = 10f;
 
     // Index geometry mirrors ComposeIndexPage / ComposeIndexGroup exactly.

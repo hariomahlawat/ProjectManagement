@@ -1,27 +1,30 @@
-PRISM Compendium Phase 46.1 — verification record
+PRISM Compendium Phase 46.2 — Verification Record
+Generated: 2026-08-25
 
-TDD RED
-- New Phase 46.1 regression suite was executed against the Phase 46 source before the production fix.
-- Result: 3/3 tests failed for the expected reasons:
-  1. default handlers called undefined renderComposer();
-  2. button rendering did not synchronize aria-pressed;
-  3. renderComposer references remained in the workspace script.
+TDD regression cycle
+- RED was observed before production changes: new Phase 46.2 contract tests = 0/4 passing, failing because the reserve was still literal 12 pt, typography metrics were duplicated, and build identity was still Phase 46.
+- GREEN after implementation: new Phase 46.2 contract tests = 4/4 passing.
 
-GREEN / REGRESSION
-- node --check wwwroot/js/pages/projects-compendium.js : PASS
-- node --test wwwroot/js/projects/publications-compendium-phase46-1-live-state.test.js : 3/3 PASS
-- node --test wwwroot/js/projects/publications-compendium*.test.js : 293/293 PASS
+Fresh final verification
+- Phase 46.2 focused Node contract: PASS (4/4)
+- Complete Compendium Node/static contract suite: PASS (297/297)
+- git diff --check: PASS
+- Unified patch applies cleanly to Phase 46.1 baseline: PASS
+- Packaged code/test byte comparison: byte_compare=13/13 identical
+- ZIP integrity: PASS
+- Database/migration files in package: NONE
 
-SOURCE REVIEW
-- renderComposer references in projects-compendium.js : 0
-- Page layout default change path includes renderOrder, refreshReviewProgress, updateReviewNavigation, schedulePreflight : YES
-- Text flow default change path includes same refresh pipeline : YES
-- Image Fill/Fit default change path includes same refresh pipeline : YES
-- Narrative alignment / Page layout / Text flow / Fill-Fit buttons update both .active and aria-pressed : YES
+Physical contract
+maximum_body_line_points=13.75
+native_shaping_tolerance_points=2.25
+physical_pagination_reserve_points=16.00
+structural_contract=PASS
 
-SCOPE
-- C# changed: NO
-- Razor changed: NO
-- CSS changed: NO
-- EF migration/database changed: NO
-- QuestPDF/PDF composition changed: NO
+.NET verification
+- dotnet SDK in packaging environment: unavailable
+- Therefore dotnet build/xUnit could not be executed here.
+- Run dotnet clean, dotnet build and dotnet test on the development machine before IIS deployment.
+
+Important runtime validation
+- Re-test the previously failing non-Balanced dossier layouts for IWTS Wireless and VR MaRS.
+- Balanced remaining successful is expected; the purpose of Phase 46.2 is to make stacked layouts reserve a truthful cross-engine physical safety line before QuestPDF ShowEntire() validation.

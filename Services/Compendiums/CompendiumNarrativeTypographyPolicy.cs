@@ -1,3 +1,5 @@
+using ProjectManagement.Utilities.Reporting;
+
 namespace ProjectManagement.Services.Compendiums;
 
 /// <summary>
@@ -22,9 +24,9 @@ public enum CompendiumNarrativeSegment
 public static class CompendiumNarrativeTypographyPolicy
 {
     public const float MinimumScale = 1f;
-    public const float MaximumScale = 1.10f;
-    public const float BodyFontSizePoints = 10f;
-    public const float BodyLineHeightMultiplier = 1.25f;
+    public const float MaximumScale = CompendiumLayoutMetrics.ProjectBodyMaximumNarrativeScale;
+    public const float BodyFontSizePoints = CompendiumLayoutMetrics.ProjectBodyFontSize;
+    public const float BodyLineHeightMultiplier = CompendiumLayoutMetrics.ProjectBodyLineHeightMultiplier;
     public const float ParagraphSpacingPoints = 6f;
     public const float NarrativeHeadingReservePoints = 26f;
 

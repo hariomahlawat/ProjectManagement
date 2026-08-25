@@ -14,10 +14,10 @@ const pageModel = read('Pages/Projects/Publications/Compendium/Index.cshtml.cs')
 const fonts = read('Utilities/Reporting/PublicationFontRegistry.cs');
 
 test('phase 41 reserves one real shaping line between Skia planning and QuestPDF composition', () => {
-  const match = metrics.match(/PhysicalPaginationReservePoints\s*=\s*([0-9.]+)f/);
-  assert.ok(match, 'physical reserve must remain explicit');
-  assert.ok(Number(match[1]) >= 10, 'production shaping reserve must be at least one normal text line');
-  assert.match(metrics, /cross-engine\/native shaping variance/);
+  assert.match(metrics, /MaximumProjectBodyLineHeightPoints/);
+  assert.match(metrics, /PhysicalPaginationNativeShapingTolerancePoints/);
+  assert.match(metrics, /PhysicalPaginationReservePoints\s*=\s*MaximumProjectBodyLineHeightPoints\s*\+\s*PhysicalPaginationNativeShapingTolerancePoints/);
+  assert.match(metrics, /native-shaping tolerance|native shaping tolerance/i);
 });
 
 test('phase 41 makes DM Sans a hard Compendium pagination contract rather than silently using Lato', () => {

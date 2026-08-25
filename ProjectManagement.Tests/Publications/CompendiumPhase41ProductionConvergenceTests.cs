@@ -6,10 +6,20 @@ namespace ProjectManagement.Tests.Publications;
 public sealed class CompendiumPhase41ProductionConvergenceTests
 {
     [Fact]
-    public void PhysicalPaginationContract_ReservesAtLeastOneBodyLine()
+    public void PhysicalPaginationContract_ReservesMaximumBodyLinePlusNativeTolerance()
     {
-        Assert.True(CompendiumLayoutMetrics.PhysicalPaginationReservePoints >= 10f);
-        Assert.Equal("physical-a4-v45", CompendiumBuildIdentity.PdfContract);
+        var expectedMaximumLine =
+            CompendiumLayoutMetrics.ProjectBodyFontSize
+            * CompendiumLayoutMetrics.ProjectBodyMaximumNarrativeScale
+            * CompendiumLayoutMetrics.ProjectBodyLineHeightMultiplier;
+
+        Assert.Equal(expectedMaximumLine, CompendiumLayoutMetrics.MaximumProjectBodyLineHeightPoints, 3);
+        Assert.True(CompendiumLayoutMetrics.PhysicalPaginationNativeShapingTolerancePoints >= 2f);
+        Assert.True(
+            CompendiumLayoutMetrics.PhysicalPaginationReservePoints
+            >= CompendiumLayoutMetrics.MaximumProjectBodyLineHeightPoints
+               + CompendiumLayoutMetrics.PhysicalPaginationNativeShapingTolerancePoints);
+        Assert.Equal("physical-a4-v46.2", CompendiumBuildIdentity.PdfContract);
     }
 
     [Fact]

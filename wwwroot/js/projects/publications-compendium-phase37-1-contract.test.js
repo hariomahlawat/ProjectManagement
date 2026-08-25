@@ -18,12 +18,16 @@ const builder = read('Utilities/Reporting/CompendiumPdfReportBuilder.cs');
 const markdown = read('Utilities/Reporting/MarkdownPdfRenderer.cs');
 const mainJs = read('wwwroot/js/pages/projects-compendium.js');
 const css = read('wwwroot/css/pages/projects-publications.css');
+const layoutMetrics = read('Utilities/Reporting/CompendiumLayoutMetrics.cs');
 
 test('phase 37.1 centralises physical narrative typography limits', () => {
   assert.match(typography, /MinimumScale\s*=\s*1f/);
-  assert.match(typography, /MaximumScale\s*=\s*1\.10f/);
-  assert.match(typography, /BodyFontSizePoints\s*=\s*10f/);
-  assert.match(typography, /BodyLineHeightMultiplier\s*=\s*1\.25f/);
+  assert.match(layoutMetrics, /ProjectBodyMaximumNarrativeScale\s*=\s*1\.10f/);
+  assert.match(layoutMetrics, /ProjectBodyFontSize\s*=\s*10f/);
+  assert.match(layoutMetrics, /ProjectBodyLineHeightMultiplier\s*=\s*1\.25f/);
+  assert.match(typography, /MaximumScale\s*=\s*CompendiumLayoutMetrics\.ProjectBodyMaximumNarrativeScale/);
+  assert.match(typography, /BodyFontSizePoints\s*=\s*CompendiumLayoutMetrics\.ProjectBodyFontSize/);
+  assert.match(typography, /BodyLineHeightMultiplier\s*=\s*CompendiumLayoutMetrics\.ProjectBodyLineHeightMultiplier/);
   assert.match(pagination, /CompendiumNarrativeTypographyPolicy\.MaximumScale/);
   assert.match(builder, /CompendiumNarrativeTypographyPolicy\.NormalizeScale/);
   assert.doesNotMatch(mainJs, /Math\.min\(1\.08/);

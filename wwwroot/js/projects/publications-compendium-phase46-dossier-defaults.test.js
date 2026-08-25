@@ -109,7 +109,7 @@ test('phase 46 adds schema-13 migration and updates EF defaults', () => {
   assert.match(migration, /DefaultImageFitMode/);
   assert.match(migration, /nullable:\s*true/);
   assert.match(db, /SettingsSchemaVersion\)\.HasDefaultValue\(13\)/);
-  assert.match(compact(buildIdentity), /Phase\s*=\s*"46"/);
+  assert.match(compact(buildIdentity), /Phase\s*=\s*"(?:46|46\.2)"/);
 });
 
 test('phase 46 presentation policy keeps nullable alignment target-typed for C# compilation', () => {

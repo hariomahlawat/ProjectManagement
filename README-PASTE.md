@@ -1,75 +1,74 @@
-# PRISM Compendium Phase 46.1 — Live-State Synchronisation Hotfix
+# PRISM Compendium Phase 46.2 — Physical Layout Safety Closure
 
-## Scope
+## Purpose
 
-This is a focused hotfix for the Compendium **Dossier presentation defaults** controls introduced in Phase 46.
+This is a focused hotfix for the production `DocumentLayoutException` that can occur when a Compendium dossier is accepted by the SkiaSharp pagination planner but QuestPDF subsequently finds the atomic `ShowEntire()` dossier slightly taller than the real A4 envelope. The reported projects work in Balanced mode because Balanced overlaps image and narrative vertically; stacked layouts (Visual / Multi-image / Technical) consume image + narrative height additively and expose the cross-engine boundary more readily.
 
-The server state/persistence and PDF output were already correct. The browser defect was caused by three default-change handlers calling `renderComposer()`, a function that does not exist in `projects-compendium.js`. The state was therefore saved to the in-memory/hidden form model, but JavaScript execution stopped before the selected button and related review/preflight UI could repaint. A page refresh then reconstructed the correct visual state from the already-updated values.
+## Root cause fixed
 
-## Production file to replace
+The previous physical shaping reserve was a hard-coded **12 pt** while the maximum Compendium body line is:
 
-Paste this file over the file at the same project-relative path:
+`10 pt × 1.10 max narrative scale × 1.25 line height = 13.75 pt`
 
-- `wwwroot/js/pages/projects-compendium.js`
+The old reserve was therefore smaller than the line it claimed to protect. Phase 46.2 centralises the body typography metrics and derives the reserve as:
 
-Optional regression test file (recommended for source control):
+`13.75 pt maximum body line + 2.25 pt native shaping tolerance = 16.00 pt`
 
-- `wwwroot/js/projects/publications-compendium-phase46-1-live-state.test.js`
+This reduces planner-usable first-page height by only **4 pt** compared with the previous build, but gives QuestPDF a full maximum-scale body line plus native shaping/rounding tolerance before the atomic `ShowEntire()` guard can be reached.
 
-No C# file, database schema, EF migration, Razor markup, CSS, QuestPDF code, or Compendium review fingerprint changes are required for this hotfix.
+## Production files to replace
 
-## Behaviour after the fix
+Replace these three files in the application project:
 
-Changing any of these Compendium-level controls now repaints immediately without refresh:
+1. `Utilities/Reporting/CompendiumLayoutMetrics.cs`
+2. `Services/Compendiums/CompendiumNarrativeTypographyPolicy.cs`
+3. `Utilities/Reporting/CompendiumBuildIdentity.cs`
 
-- Page layout
-- Text flow
-- Publication image Fill/Fit
-- Narrative alignment remains on the same working render path
+The remaining files in this bundle are regression tests and should also be copied when you keep the repository test suite in sync.
 
-The hotfix also keeps `aria-pressed` synchronized with the visible active state for Narrative alignment, Page layout, Text flow, and Fill/Fit buttons.
+## Behaviour intentionally preserved
 
-Each Phase 46 default change now completes the same authoritative UI pipeline used by Narrative alignment:
+- `ShowEntire()` remains in place. Do **not** remove it; it protects index/page-number integrity.
+- Balanced / Flow-below-image logic is unchanged.
+- Justification is unchanged.
+- Image Fill/Fit geometry is unchanged.
+- Page-layout selection/scoring is unchanged.
+- Review fingerprints are unchanged.
+- No EF migration or database update is required.
 
-1. update editorial state;
-2. propagate the new effective value only to inheriting dossiers;
-3. invalidate only affected project reviews;
-4. synchronize hidden form state;
-5. render dirty state;
-6. repaint editorial controls and publication structure via `renderOrder()`;
-7. refresh review progress and navigation;
-8. schedule preflight;
-9. reload the active Focus Review dossier when applicable.
+If a stacked dossier is too close to the physical boundary after this change, the planner has 4 additional points of protected safety margin and will prefer a smaller one-page candidate or controlled continuation instead of allowing QuestPDF to discover the overflow after planning.
 
-## Paste / deployment
+## Build identity
 
-1. Back up your current `wwwroot/js/pages/projects-compendium.js`.
-2. Replace it with the file from this package.
-3. Add the regression test file if you keep the repository test suite under source control.
-4. Rebuild/republish the application normally. The Razor page already loads `projects-compendium.js` with `asp-append-version="true"`, so a new static-asset version is generated on publish.
-5. In development, hard-refresh the browser once if the old asset remains cached.
+Phase: `46.2`
 
-## Verification on your development machine
+Build stamp: `CompendiumPdf_2026-08-25_phase46.2-physical-layout-safety`
 
-From the project root:
+PDF contract: `physical-a4-v46.2`
+
+This makes it possible to confirm from diagnostics / the Compendium response header that the corrected build is actually deployed.
+
+## Local verification on your development machine
+
+From the solution/project root run:
 
 ```powershell
-node --check wwwroot/js/pages/projects-compendium.js
-node --test wwwroot/js/projects/publications-compendium-phase46-1-live-state.test.js
-node --test wwwroot/js/projects/publications-compendium*.test.js
+dotnet clean
+dotnet build
+dotnet test
 ```
 
-Then manually verify:
+Then test Preview PDF with the same projects that previously failed in non-Balanced layouts, especially:
 
-1. Open a saved Compendium.
-2. Click **Automatic → Balanced** under Dossier presentation defaults. `Balanced` must become visibly active immediately.
-3. Toggle **Flow below image ↔ Side column**. The selected button must update immediately.
-4. Toggle **Fill ↔ Fit**. The selected button must update immediately.
-5. Confirm the review count/status and right-side structure state refresh without reloading the browser.
-6. Open Focus Review and confirm an inheriting dossier resolves to the newly selected publication default.
-7. Refresh the page and confirm the same selections persist.
+- `Inf Wpn Trg Sml IWTS (Wireless) Ver-2 (Wireless comn)`
+- `VR Based Map Reading (VR MaRS) Sml`
 
-## Database / PDF impact
+Test the previously failing layout, not only Balanced. If the dossier no longer fits safely on one page, an intentional continuation/page-plan change is acceptable; an unplanned QuestPDF page is not.
 
-- **No migration required.**
-- **No PDF renderer change.** The physical PDF reviewed for Phase 46 was already honoring the persisted defaults; this hotfix only repairs immediate browser feedback and related live-state refresh.
+## Deployment
+
+No migration is included. Copy/publish the application normally. On the IIS machine ensure the deployed build identity is Phase 46.2 before retesting.
+
+## Verification limitation in this package environment
+
+The execution environment used to prepare this bundle does not contain the .NET SDK, so `dotnet build` and xUnit could not be executed here. The JavaScript/static publication contract suite and package integrity checks were executed; see `VERIFICATION.txt`.

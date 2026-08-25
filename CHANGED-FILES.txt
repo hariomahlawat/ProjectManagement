@@ -1,12 +1,13 @@
-PRISM Compendium Phase 46.1 — files in this hotfix
-
-PRODUCTION
-wwwroot/js/pages/projects-compendium.js
-
-REGRESSION TEST
-wwwroot/js/projects/publications-compendium-phase46-1-live-state.test.js
-
-DOCUMENTATION
-README-PASTE.md
-CHANGED-FILES.txt
-VERIFICATION.txt
+Utilities/Reporting/CompendiumLayoutMetrics.cs
+Services/Compendiums/CompendiumNarrativeTypographyPolicy.cs
+Utilities/Reporting/CompendiumBuildIdentity.cs
+ProjectManagement.Tests/Publications/CompendiumPhase41ProductionConvergenceTests.cs
+ProjectManagement.Tests/Publications/CompendiumPhase46_2PhysicalLayoutSafetyTests.cs
+wwwroot/js/projects/publications-compendium-phase37-1-contract.test.js
+wwwroot/js/projects/publications-compendium-phase41-offline-runtime.test.js
+wwwroot/js/projects/publications-compendium-phase41-production-convergence.test.js
+wwwroot/js/projects/publications-compendium-phase43-cover-proof-parity.test.js
+wwwroot/js/projects/publications-compendium-phase44-contract.test.js
+wwwroot/js/projects/publications-compendium-phase45-flow-parity.test.js
+wwwroot/js/projects/publications-compendium-phase46-dossier-defaults.test.js
+wwwroot/js/projects/publications-compendium-phase46-2-physical-layout-safety.test.js

@@ -18,8 +18,8 @@ const program = read('Program.cs');
 const publishScript = read('ops/publish/create-publish-folder.ps1');
 
 test('phase 41 exposes one build identity across HTTP PDF self-test and diagnostics', () => {
-  assert.match(identity, /CompendiumPdf_2026-08-(?:24_phase45-flow-proof-parity|25_phase46-dossier-defaults)/);
-  assert.match(identity, /physical-a4-v(?:45|46)/);
+  assert.match(identity, /CompendiumPdf_2026-08-(?:24_phase45-flow-proof-parity|25_phase46-dossier-defaults|25_phase46\.2-physical-layout-safety)/);
+  assert.match(identity, /physical-a4-v(?:45|46|46\.2)/);
   assert.match(pageModel, /CompendiumBuildIdentity\.HeaderName/);
   assert.match(pageModel, /Response\.Headers\[CompendiumBuildIdentity\.HeaderName\]/);
   assert.match(diagnostics, /build = CompendiumBuildIdentity\.BuildStamp/);
