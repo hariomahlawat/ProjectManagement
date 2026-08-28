@@ -26,17 +26,21 @@ public sealed class ProjectTimelineReadService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public ProjectTimelineReadService(
         ApplicationDbContext db,
         IClock clock,
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IProjectStageWorkflowPolicy workflowPolicy,
         IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
-        _db = db;
-        _clock = clock;
-        _workflowStageMetadataProvider = workflowStageMetadataProvider;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider
+            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
@@ -48,11 +52,7 @@ public sealed class ProjectTimelineReadService
 
     public async Task<ActualsEditorVm> GetActualsEditorAsync(int projectId, CancellationToken ct = default)
     {
-        var workflowVersion = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => p.WorkflowVersion)
-            .SingleOrDefaultAsync(ct);
+        var workflow = await _workflowPolicy.GetAsync(projectId, ct);
 
         var stages = await _db.ProjectStages
             .AsNoTracking()
@@ -68,7 +68,7 @@ public sealed class ProjectTimelineReadService
             .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, _ => true, StringComparer.OrdinalIgnoreCase);
 
-        var workflowStages = _workflowStageMetadataProvider.GetStages(workflowVersion);
+        var workflowStages = workflow.Stages;
         var stageLookup = stages
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, StringComparer.OrdinalIgnoreCase);
@@ -82,7 +82,7 @@ public sealed class ProjectTimelineReadService
                 var hasPending = pendingLookup.ContainsKey(stage.Code);
                 var status = projectStage?.Status ?? StageStatus.NotStarted;
                 var isEditable = status is StageStatus.InProgress or StageStatus.Completed;
-                var startBoundary = StageDateSuggestionResolver.Resolve(workflowStages, stages, stage.Code);
+                var startBoundary = StageDateSuggestionResolver.Resolve(workflow, stages, stage.Code);
 
                 return new ActualsEditorRowVm
                 {
@@ -123,11 +123,8 @@ public sealed class ProjectTimelineReadService
 
     public async Task<TimelineVm> GetAsync(int projectId, CancellationToken ct = default)
     {
-        var workflowVersion = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => p.WorkflowVersion)
-            .SingleOrDefaultAsync(ct);
+        var workflow = await _workflowPolicy.GetAsync(projectId, ct);
+        var workflowVersion = workflow.WorkflowVersion;
 
         var rows = await _db.ProjectStages
             .AsNoTracking()
@@ -147,7 +144,7 @@ public sealed class ProjectTimelineReadService
             .ToList();
 
         // SECTION: Workflow metadata
-        var workflowStages = _workflowStageMetadataProvider.GetStages(workflowVersion);
+        var workflowStages = workflow.Stages;
         var stageNameLookup = workflowStages
             .ToDictionary(stage => stage.Code, stage => stage.Name, StringComparer.OrdinalIgnoreCase);
 
@@ -266,7 +263,7 @@ public sealed class ProjectTimelineReadService
             var isArppManaged = ipaAuthority is not null &&
                                 string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
 
-            var startSuggestion = StageDateSuggestionResolver.Resolve(workflowStages, rows, code);
+            var startSuggestion = StageDateSuggestionResolver.Resolve(workflow, rows, code);
 
             DateOnly? effectiveActualStart = actualStart;
             var isActualStartInferred = false;

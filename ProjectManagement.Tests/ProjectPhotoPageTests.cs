@@ -424,7 +424,7 @@ public sealed class ProjectPhotoPageTests
     {
         var procure = new ProjectProcurementReadService(db);
         var workflowMetadata = new WorkflowStageMetadataProvider();
-        var timeline = new ProjectTimelineReadService(db, clock, workflowMetadata);
+        var timeline = new ProjectTimelineReadService(db, clock, workflowMetadata, StageWorkflowTestFactory.CreatePolicy(db));
         var planRead = new PlanReadService(db);
         var planCompare = new PlanCompareService(db);
         var userManager = CreateUserManager(db);

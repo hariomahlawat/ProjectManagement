@@ -246,6 +246,75 @@ public class StageValidationServiceTests
         Assert.Null(result.SuggestedAutoStart);
     }
 
+
+    [Fact]
+    public async Task ValidateAsync_DirectBenchmarkingCompletion_AllowsOverlapWithTechnicalEvaluation()
+    {
+        var today = new DateOnly(2026, 8, 28);
+        var bidCompleted = new DateOnly(2026, 8, 6);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            ProcurementWorkflow.VersionV2,
+            new StageSeed(StageCodes.BID, StageStatus.Completed, new DateOnly(2026, 8, 1), bidCompleted),
+            new StageSeed(StageCodes.TEC, StageStatus.Completed, new DateOnly(2026, 8, 7), new DateOnly(2026, 8, 21)),
+            new StageSeed(StageCodes.BM, StageStatus.NotStarted, null, null));
+        await SeedDependenciesAsync(
+            db,
+            ProcurementWorkflow.VersionV2,
+            (StageCodes.BM, StageCodes.BID));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.BM,
+            StageStatus.Completed.ToString(),
+            new DateOnly(2026, 8, 21),
+            requestedStartDate: new DateOnly(2026, 8, 7),
+            isHoD: true);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+        Assert.Equal(bidCompleted.AddDays(1), result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_BenchmarkingBeforeBidCompletion_IsRejectedAgainstBidBoundary()
+    {
+        var today = new DateOnly(2026, 8, 28);
+        var bidCompleted = new DateOnly(2026, 8, 6);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            ProcurementWorkflow.VersionV2,
+            new StageSeed(StageCodes.BID, StageStatus.Completed, new DateOnly(2026, 8, 1), bidCompleted),
+            new StageSeed(StageCodes.TEC, StageStatus.Completed, new DateOnly(2026, 8, 7), new DateOnly(2026, 8, 21)),
+            new StageSeed(StageCodes.BM, StageStatus.NotStarted, null, null));
+        await SeedDependenciesAsync(
+            db,
+            ProcurementWorkflow.VersionV2,
+            (StageCodes.BM, StageCodes.BID));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.BM,
+            StageStatus.InProgress.ToString(),
+            new DateOnly(2026, 8, 5),
+            requestedStartDate: null,
+            isHoD: false);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.Contains("2026-08-06", StringComparison.Ordinal)
+            && error.Contains("Bidding", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(bidCompleted.AddDays(1), result.SuggestedAutoStart);
+    }
+
     [Fact]
     public async Task ValidateAsync_DirectCompletion_RejectsCompletionBeforeEditedStart()
     {
@@ -273,7 +342,13 @@ public class StageValidationServiceTests
             error => error.Contains("2025-09-12", StringComparison.Ordinal));
     }
 
-    private static async Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
+    private static Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
+        => SeedAsync(db, ProcurementWorkflow.VersionV1, stages);
+
+    private static async Task SeedAsync(
+        ApplicationDbContext db,
+        string workflowVersion,
+        params StageSeed[] stages)
     {
         var project = new Project
         {
@@ -281,7 +356,7 @@ public class StageValidationServiceTests
             Name = "Project",
             CreatedByUserId = "seed",
             ActivePlanVersionNo = 1,
-            WorkflowVersion = ProcurementWorkflow.VersionV1
+            WorkflowVersion = workflowVersion
         };
 
         db.Projects.Add(project);
@@ -308,6 +383,24 @@ public class StageValidationServiceTests
                 Status = stage.Status,
                 ActualStart = stage.ActualStart,
                 CompletedOn = stage.CompletedOn
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedDependenciesAsync(
+        ApplicationDbContext db,
+        string workflowVersion,
+        params (string Stage, string Predecessor)[] dependencies)
+    {
+        foreach (var (stage, predecessor) in dependencies)
+        {
+            db.StageDependencyTemplates.Add(new StageDependencyTemplate
+            {
+                Version = workflowVersion,
+                FromStageCode = stage,
+                DependsOnStageCode = predecessor
             });
         }
 

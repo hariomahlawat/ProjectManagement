@@ -509,6 +509,73 @@ public class StageRequestServiceTests
         Assert.Equal("Pending", bid.DecisionStatus);
     }
 
+
+    [Fact]
+    public async Task CreateAsync_BenchmarkingMayStartWhileTechnicalEvaluationCompletionIsPending()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2026, 8, 28, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.BID, StageStatus.Completed),
+            (StageCodes.TEC, StageStatus.InProgress),
+            (StageCodes.BM, StageStatus.NotStarted));
+
+        var project = await db.Projects.SingleAsync();
+        project.WorkflowVersion = ProcurementWorkflow.VersionV2;
+
+        var bid = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BID);
+        bid.ActualStart = new DateOnly(2026, 8, 1);
+        bid.CompletedOn = new DateOnly(2026, 8, 6);
+
+        var technicalEvaluation = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.TEC);
+        technicalEvaluation.ActualStart = new DateOnly(2026, 8, 7);
+
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = ProcurementWorkflow.VersionV2,
+            FromStageCode = StageCodes.BM,
+            DependsOnStageCode = StageCodes.BID
+        });
+
+        db.StageChangeRequests.Add(new StageChangeRequest
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.TEC,
+            RequestedStatus = StageStatus.Completed.ToString(),
+            RequestedDate = new DateOnly(2026, 8, 21),
+            RequestedStartDate = new DateOnly(2026, 8, 7),
+            RequestedByUserId = "po-1",
+            RequestedOn = clock.UtcNow.AddMinutes(-5),
+            DecisionStatus = "Pending"
+        });
+        await db.SaveChangesAsync();
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validator = new StageValidationService(db, clock, workflowPolicy);
+        var service = new StageRequestService(
+            db,
+            clock,
+            validator,
+            workflowPolicy);
+
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BM,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2026, 8, 10)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.Success, result.Outcome);
+        Assert.Empty(result.Errors);
+
+        var benchmarkingRequest = await db.StageChangeRequests
+            .SingleAsync(request => request.StageCode == StageCodes.BM && request.DecisionStatus == "Pending");
+        Assert.Equal(new DateOnly(2026, 8, 10), benchmarkingRequest.RequestedDate);
+    }
+
     [Fact]
     public async Task CreateAsync_RevisingPredecessorCannotInvalidateUntouchedPendingDownstreamUpdate()
     {

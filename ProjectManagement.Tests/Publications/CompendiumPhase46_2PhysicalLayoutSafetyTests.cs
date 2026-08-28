@@ -14,11 +14,14 @@ public sealed class CompendiumPhase46_2PhysicalLayoutSafetyTests
             * CompendiumLayoutMetrics.ProjectBodyMaximumNarrativeScale
             * CompendiumLayoutMetrics.ProjectBodyLineHeightMultiplier;
 
-        Assert.Equal(maximumBodyLine, CompendiumLayoutMetrics.MaximumProjectBodyLineHeightPoints, 3);
+        Assert.Equal(
+            (double)maximumBodyLine,
+            (double)CompendiumLayoutMetrics.MaximumProjectBodyLineHeightPoints,
+            3);
         Assert.True(CompendiumLayoutMetrics.PhysicalPaginationNativeShapingTolerancePoints >= 2f);
         Assert.Equal(
-            maximumBodyLine + CompendiumLayoutMetrics.PhysicalPaginationNativeShapingTolerancePoints,
-            CompendiumLayoutMetrics.PhysicalPaginationReservePoints,
+            (double)(maximumBodyLine + CompendiumLayoutMetrics.PhysicalPaginationNativeShapingTolerancePoints),
+            (double)CompendiumLayoutMetrics.PhysicalPaginationReservePoints,
             3);
     }
 
@@ -40,8 +43,14 @@ public sealed class CompendiumPhase46_2PhysicalLayoutSafetyTests
             - CompendiumLayoutMetrics.SecondaryContentTopPaddingPoints
             - CompendiumLayoutMetrics.PhysicalPaginationReservePoints;
 
-        Assert.Equal(expectedProjectHeight, CompendiumLayoutMetrics.ProjectContentHeightPoints, 3);
-        Assert.Equal(expectedSecondaryHeight, CompendiumLayoutMetrics.SecondaryContentHeightPoints, 3);
+        Assert.Equal(
+            (double)expectedProjectHeight,
+            (double)CompendiumLayoutMetrics.ProjectContentHeightPoints,
+            3);
+        Assert.Equal(
+            (double)expectedSecondaryHeight,
+            (double)CompendiumLayoutMetrics.SecondaryContentHeightPoints,
+            3);
     }
 
     [Fact]

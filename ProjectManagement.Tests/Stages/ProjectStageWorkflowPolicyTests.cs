@@ -36,6 +36,32 @@ public sealed class ProjectStageWorkflowPolicyTests
         Assert.Contains(expectedPredecessor, snapshot.RequiredPredecessors(stageCode));
     }
 
+
+    [Theory]
+    [InlineData(ProcurementWorkflow.VersionV1)]
+    [InlineData(ProcurementWorkflow.VersionV2)]
+    public async Task GetAsync_FallbackParallelTopologyMatchesSeededWorkflow(string workflowVersion)
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "seed",
+            WorkflowVersion = workflowVersion
+        });
+        await db.SaveChangesAsync();
+
+        var policy = new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider());
+        var snapshot = await policy.GetAsync(1);
+
+        Assert.Equal(new[] { StageCodes.BID }, snapshot.RequiredPredecessors(StageCodes.BM));
+        Assert.Equal(
+            new[] { StageCodes.TEC, StageCodes.BM },
+            snapshot.RequiredPredecessors(StageCodes.COB));
+        Assert.Equal(new[] { StageCodes.COB }, snapshot.RequiredPredecessors(StageCodes.EAS));
+    }
+
     [Fact]
     public async Task GetAsync_ReturnsTransitivePredecessorsInWorkflowOrder()
     {

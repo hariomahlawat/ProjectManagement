@@ -593,20 +593,20 @@ public class StageRequestService
                 $"({proposedStartDate.Value:dd MMM yyyy}).");
         }
 
-        var boundary = ResolveProjectedStartBoundary(workflow, projectedStates, item.StageCode);
+        var boundary = ResolveProjectedChronology(workflow, projectedStates, item.StageCode);
         var chronologyDate = proposedStartDate
             ?? (item.RequestedStatus == StageStatus.Completed ? item.RequestedDate : null);
-        if (!chronologyDate.HasValue || !boundary.EarliestStartDate.HasValue)
+        if (!chronologyDate.HasValue || !boundary.EarliestAllowedStartDate.HasValue)
         {
             return;
         }
 
-        if (chronologyDate.Value < boundary.EarliestStartDate.Value)
+        if (chronologyDate.Value < boundary.EarliestAllowedStartDate.Value)
         {
             var dateLabel = proposedStartDate.HasValue ? "start date" : "completion date";
             errors.Add(
                 $"{DisplayName(stageNames, item.StageCode)} {dateLabel} must be on or after " +
-                $"{boundary.EarliestStartDate.Value:dd MMM yyyy}, when " +
+                $"{boundary.EarliestAllowedStartDate.Value:dd MMM yyyy}, when " +
                 $"{DisplayName(stageNames, boundary.SourceStageCode!)} was completed. Same-day commencement is permitted.");
         }
     }
@@ -672,20 +672,20 @@ public class StageRequestService
                 continue;
             }
 
-            var boundary = ResolveProjectedStartBoundary(workflow, projectedStates, pending.StageCode);
+            var boundary = ResolveProjectedChronology(workflow, projectedStates, pending.StageCode);
             var chronologyDate = proposedStartDate
                 ?? (pendingStatus == StageStatus.Completed ? pending.RequestedDate : null);
-            if (!chronologyDate.HasValue || !boundary.EarliestStartDate.HasValue)
+            if (!chronologyDate.HasValue || !boundary.EarliestAllowedStartDate.HasValue)
             {
                 continue;
             }
 
-            if (chronologyDate.Value < boundary.EarliestStartDate.Value)
+            if (chronologyDate.Value < boundary.EarliestAllowedStartDate.Value)
             {
                 var dateLabel = proposedStartDate.HasValue ? "start date" : "completion date";
                 errors.Add(
                     $"The pending {DisplayName(stageNames, pending.StageCode)} {dateLabel} {chronologyDate.Value:dd MMM yyyy} " +
-                    $"conflicts with this revised sequence. It must be on or after {boundary.EarliestStartDate.Value:dd MMM yyyy}, " +
+                    $"conflicts with this revised sequence. It must be on or after {boundary.EarliestAllowedStartDate.Value:dd MMM yyyy}, " +
                     $"when {DisplayName(stageNames, boundary.SourceStageCode!)} was completed. Same-day commencement is permitted. " +
                     $"Include {DisplayName(stageNames, pending.StageCode)} in this submission to revise it.");
             }
@@ -694,49 +694,24 @@ public class StageRequestService
         return DistinctMessages(errors);
     }
 
-    private static ProjectedStartBoundary ResolveProjectedStartBoundary(
+    private static StageDateSuggestion ResolveProjectedChronology(
         ProjectStageWorkflowSnapshot? workflow,
         IReadOnlyDictionary<string, ProjectedStageState> projectedStates,
         string stageCode)
     {
         if (workflow is null)
         {
-            return ProjectedStartBoundary.None;
+            return StageDateSuggestion.None;
         }
 
-        var targetIndex = workflow.OrderOf(stageCode);
-        if (targetIndex <= 0 || targetIndex == int.MaxValue)
-        {
-            return ProjectedStartBoundary.None;
-        }
-
-        for (var index = targetIndex - 1; index >= 0; index--)
-        {
-            var predecessorCode = workflow.Stages[index].Code;
-            if (!projectedStates.TryGetValue(predecessorCode, out var predecessor))
-            {
-                return ProjectedStartBoundary.None;
-            }
-
-            if (predecessor.ProjectedStatus == StageStatus.Skipped)
-            {
-                continue;
-            }
-
-            return predecessor.ProjectedStatus == StageStatus.Completed
-                   && predecessor.ProjectedCompletionDate.HasValue
-                ? new ProjectedStartBoundary(
-                    predecessor.ProjectedCompletionDate.Value,
-                    predecessorCode)
-                : ProjectedStartBoundary.None;
-        }
-
-        return ProjectedStartBoundary.None;
-    }
-
-    private sealed record ProjectedStartBoundary(DateOnly? EarliestStartDate, string? SourceStageCode)
-    {
-        public static ProjectedStartBoundary None { get; } = new(null, null);
+        return StageDateSuggestionResolver.Resolve(
+            workflow,
+            stageCode,
+            code => projectedStates.TryGetValue(code, out var state)
+                ? new StageChronologyState(
+                    state.ProjectedStatus,
+                    state.ProjectedCompletionDate)
+                : null);
     }
 
     private static IReadOnlyDictionary<string, string> BuildStageNameLookup(

@@ -423,7 +423,7 @@ public sealed class StageApprovalSequenceService
             var proposedStartDate = requestedStatus == StageStatus.InProgress
                 ? request.RequestedDate
                 : request.RequestedStartDate ?? stage.ActualStart;
-            var startBoundary = ResolveImmediatePredecessorBoundary(
+            var startBoundary = ResolveEffectiveChronology(
                 workflow,
                 request.StageCode,
                 projectStages,
@@ -431,18 +431,18 @@ public sealed class StageApprovalSequenceService
 
             var chronologyDate = proposedStartDate
                 ?? (requestedStatus == StageStatus.Completed ? request.RequestedDate : null);
-            if (chronologyDate.HasValue && startBoundary.EarliestStartDate.HasValue)
+            if (chronologyDate.HasValue && startBoundary.EarliestAllowedStartDate.HasValue)
             {
                 var chronologyLabel = proposedStartDate.HasValue
                     ? "proposed start date"
                     : "proposed completion date";
 
-                if (chronologyDate.Value < startBoundary.EarliestStartDate.Value)
+                if (chronologyDate.Value < startBoundary.EarliestAllowedStartDate.Value)
                 {
                     checks.Add(new ApprovalCheckVm(
                         ApprovalCheckState.Blocked,
                         "Lifecycle chronology",
-                        $"The {chronologyLabel} must be on or after {startBoundary.EarliestStartDate:dd MMM yyyy}, " +
+                        $"The {chronologyLabel} must be on or after {startBoundary.EarliestAllowedStartDate:dd MMM yyyy}, " +
                         $"when {StageCodes.DisplayNameOf(workflow.WorkflowVersion, startBoundary.SourceStageCode!)} was completed. Same-day commencement is permitted."));
                 }
                 else
@@ -497,57 +497,33 @@ public sealed class StageApprovalSequenceService
                 correctionUrl);
     }
 
-    private static StartBoundary ResolveImmediatePredecessorBoundary(
+    private static StageDateSuggestion ResolveEffectiveChronology(
         ProjectStageWorkflowSnapshot workflow,
         string stageCode,
         IReadOnlyDictionary<string, StageSnapshot> projectStages,
         IReadOnlyDictionary<string, RequestSnapshot> latestPendingByStage)
-    {
-        var targetIndex = workflow.OrderOf(stageCode);
-        if (targetIndex <= 0 || targetIndex == int.MaxValue)
-        {
-            return StartBoundary.None;
-        }
-
-        for (var index = targetIndex - 1; index >= 0; index--)
-        {
-            var predecessorCode = workflow.Stages[index].Code;
-            projectStages.TryGetValue(predecessorCode, out var official);
-            latestPendingByStage.TryGetValue(predecessorCode, out var pending);
-
-            StageStatus effectiveStatus;
-            DateOnly? effectiveCompletion;
-            if (pending is not null
-                && Enum.TryParse<StageStatus>(pending.RequestedStatus, true, out var pendingStatus))
+        => StageDateSuggestionResolver.Resolve(
+            workflow,
+            stageCode,
+            code =>
             {
-                effectiveStatus = pendingStatus;
-                effectiveCompletion = pendingStatus == StageStatus.Completed
-                    ? pending.RequestedDate
-                    : official?.CompletedOn;
-            }
-            else
-            {
-                effectiveStatus = official?.Status ?? StageStatus.NotStarted;
-                effectiveCompletion = official?.CompletedOn;
-            }
+                projectStages.TryGetValue(code, out var official);
+                latestPendingByStage.TryGetValue(code, out var pending);
 
-            if (effectiveStatus == StageStatus.Skipped)
-            {
-                continue;
-            }
+                if (pending is not null
+                    && Enum.TryParse<StageStatus>(pending.RequestedStatus, true, out var pendingStatus))
+                {
+                    return new StageChronologyState(
+                        pendingStatus,
+                        pendingStatus == StageStatus.Completed
+                            ? pending.RequestedDate
+                            : official?.CompletedOn);
+                }
 
-            return effectiveStatus == StageStatus.Completed && effectiveCompletion.HasValue
-                ? new StartBoundary(effectiveCompletion.Value, predecessorCode)
-                : StartBoundary.None;
-        }
-
-        return StartBoundary.None;
-    }
-
-    private sealed record StartBoundary(DateOnly? EarliestStartDate, string? SourceStageCode)
-    {
-        public static StartBoundary None { get; } = new(null, null);
-    }
+                return official is null
+                    ? null
+                    : new StageChronologyState(official.Status, official.CompletedOn);
+            });
 
     private static string BuildFactsUrl(int projectId, string stageCode)
         => stageCode switch

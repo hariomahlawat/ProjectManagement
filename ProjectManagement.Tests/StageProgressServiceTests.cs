@@ -101,6 +101,59 @@ public class StageProgressServiceTests
     }
 
     [Fact]
+    public async Task UpdateStageStatusAsync_CompletingBenchmarkingInfersStartFromBid_NotTechnicalEvaluation()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 8, 28, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(
+            db,
+            (StageCodes.BID, StageStatus.Completed),
+            (StageCodes.TEC, StageStatus.Completed),
+            (StageCodes.BM, StageStatus.InProgress));
+
+        var project = await db.Projects.SingleAsync();
+        project.WorkflowVersion = ProcurementWorkflow.VersionV2;
+
+        var bid = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BID);
+        bid.ActualStart = new DateOnly(2026, 8, 1);
+        bid.CompletedOn = new DateOnly(2026, 8, 6);
+
+        var technicalEvaluation = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.TEC);
+        technicalEvaluation.ActualStart = new DateOnly(2026, 8, 7);
+        technicalEvaluation.CompletedOn = new DateOnly(2026, 8, 21);
+
+        var benchmarking = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BM);
+        benchmarking.ActualStart = null;
+
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = ProcurementWorkflow.VersionV2,
+            FromStageCode = StageCodes.BM,
+            DependsOnStageCode = StageCodes.BID
+        });
+        db.ProjectBenchmarkFacts.Add(new ProjectBenchmarkFact
+        {
+            ProjectId = 1,
+            BenchmarkCost = 100m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = clock.UtcNow.UtcDateTime
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, clock);
+        await service.UpdateStageStatusAsync(
+            1,
+            StageCodes.BM,
+            StageStatus.Completed,
+            new DateOnly(2026, 8, 25),
+            "tester");
+
+        await db.Entry(benchmarking).ReloadAsync();
+        Assert.Equal(new DateOnly(2026, 8, 7), benchmarking.ActualStart);
+        Assert.Equal(new DateOnly(2026, 8, 25), benchmarking.CompletedOn);
+    }
+
+    [Fact]
     public async Task UpdateStageStatusAsync_DirectCompletion_PreservesBlankStartWhenRequested()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 2, 15, 0, 0, 0, TimeSpan.Zero));

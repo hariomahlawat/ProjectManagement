@@ -87,6 +87,93 @@ public sealed class StageActualsUpdateServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_AllowsBenchmarkingActualStartDuringTechnicalEvaluation_WhenBidWasComplete()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Parallel Actuals Project",
+            CreatedByUserId = "user-1",
+            WorkflowVersion = ProcurementWorkflow.VersionV2
+        });
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                SortOrder = 5,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2026, 8, 1),
+                CompletedOn = new DateOnly(2026, 8, 6)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.TEC,
+                SortOrder = 6,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2026, 8, 7),
+                CompletedOn = new DateOnly(2026, 8, 21)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BM,
+                SortOrder = 7,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2026, 8, 21),
+                CompletedOn = new DateOnly(2026, 8, 25)
+            });
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = ProcurementWorkflow.VersionV2,
+            FromStageCode = StageCodes.BM,
+            DependsOnStageCode = StageCodes.BID
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2026, 8, 28, 6, 30, 0, TimeSpan.Zero));
+        var service = new StageActualsUpdateService(
+            db,
+            clock,
+            new FakeAudit(),
+            NullLogger<StageActualsUpdateService>.Instance,
+            workflowPolicy: StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.UpdateAsync(
+            new ActualsEditInput
+            {
+                ProjectId = 1,
+                Rows = new List<ActualsEditRowInput>
+                {
+                    new()
+                    {
+                        StageCode = StageCodes.BM,
+                        ActualStart = new DateOnly(2026, 8, 10),
+                        CompletedOn = new DateOnly(2026, 8, 25)
+                    }
+                }
+            },
+            userId: "user-1",
+            userName: "Tester");
+
+        Assert.Equal(1, result.UpdatedCount);
+        var benchmarking = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BM);
+        Assert.Equal(new DateOnly(2026, 8, 10), benchmarking.ActualStart);
+        Assert.Equal(new DateOnly(2026, 8, 25), benchmarking.CompletedOn);
+    }
+
+    [Fact]
     public async Task UpdateAsync_AllowsCompletionWithoutStart_ForCompletedStage()
     {
         var (connection, db, service) = await CreateServiceWithSingleStageAsync(

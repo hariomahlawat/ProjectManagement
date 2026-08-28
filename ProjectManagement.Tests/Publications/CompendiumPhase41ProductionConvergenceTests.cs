@@ -13,7 +13,10 @@ public sealed class CompendiumPhase41ProductionConvergenceTests
             * CompendiumLayoutMetrics.ProjectBodyMaximumNarrativeScale
             * CompendiumLayoutMetrics.ProjectBodyLineHeightMultiplier;
 
-        Assert.Equal(expectedMaximumLine, CompendiumLayoutMetrics.MaximumProjectBodyLineHeightPoints, 3);
+        Assert.Equal(
+            (double)expectedMaximumLine,
+            (double)CompendiumLayoutMetrics.MaximumProjectBodyLineHeightPoints,
+            3);
         Assert.True(CompendiumLayoutMetrics.PhysicalPaginationNativeShapingTolerancePoints >= 2f);
         Assert.True(
             CompendiumLayoutMetrics.PhysicalPaginationReservePoints

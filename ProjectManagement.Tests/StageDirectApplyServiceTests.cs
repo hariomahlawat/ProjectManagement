@@ -404,6 +404,82 @@ public class StageDirectApplyServiceTests
         Assert.Equal(new DateOnly(2026, 2, 26), persisted.CompletedOn);
     }
 
+
+    [Fact]
+    public async Task ApplyAsync_BenchmarkingCompletion_AllowsParallelTechnicalEvaluationChronology()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2026, 8, 28, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow,
+            WorkflowVersion = ProcurementWorkflow.VersionV2
+        });
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                SortOrder = 5,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2026, 8, 1),
+                CompletedOn = new DateOnly(2026, 8, 6)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.TEC,
+                SortOrder = 6,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2026, 8, 7),
+                CompletedOn = new DateOnly(2026, 8, 21)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BM,
+                SortOrder = 7,
+                Status = StageStatus.NotStarted
+            });
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = ProcurementWorkflow.VersionV2,
+            FromStageCode = StageCodes.BM,
+            DependsOnStageCode = StageCodes.BID
+        });
+        await db.SaveChangesAsync();
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.BM,
+            status: StageStatus.Completed.ToString(),
+            date: new DateOnly(2026, 8, 21),
+            startDate: new DateOnly(2026, 8, 7),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
+        Assert.Equal(new DateOnly(2026, 8, 7), result.ActualStart);
+        Assert.Equal(new DateOnly(2026, 8, 21), result.CompletedOn);
+
+        var benchmarking = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BM);
+        Assert.Equal(StageStatus.Completed, benchmarking.Status);
+        Assert.Equal(new DateOnly(2026, 8, 7), benchmarking.ActualStart);
+        Assert.Equal(new DateOnly(2026, 8, 21), benchmarking.CompletedOn);
+    }
+
     [Fact]
     public async Task ApplyAsync_WhenRealignmentFails_RollsBackStageAndAuditChanges()
     {
