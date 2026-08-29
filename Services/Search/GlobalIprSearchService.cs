@@ -35,7 +35,7 @@ namespace ProjectManagement.Services.Search
                 return Array.Empty<GlobalSearchHit>();
             }
 
-            var pattern = $"%{query.Trim()}%";
+            var pattern = SearchLikePattern.Contains(query.Trim());
             var recordLimit = Math.Max(1, maxResults);
             var attachmentLimit = Math.Max(1, maxResults / 2);
             var hits = new List<GlobalSearchHit>();
@@ -49,10 +49,10 @@ namespace ProjectManagement.Services.Search
                     (record.Status == IprStatus.FilingUnderProcess ||
                      record.Status == IprStatus.Filed ||
                      record.Status == IprStatus.Granted) &&
-                    (EF.Functions.ILike(record.IprFilingNumber, pattern) ||
-                     EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
-                     EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
-                     EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern)))
+                    (EF.Functions.ILike(record.IprFilingNumber, pattern, SearchLikePattern.EscapeCharacter) ||
+                     EF.Functions.ILike(record.Title ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||
+                     EF.Functions.ILike(record.Notes ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||
+                     EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter)))
                 .OrderByDescending(record => record.GrantedAtUtc ?? record.FiledAtUtc ?? DateTimeOffset.MinValue)
                 .Take(recordLimit)
                 .ToListAsync(cancellationToken);
@@ -88,8 +88,8 @@ namespace ProjectManagement.Services.Search
                      attachment.Record.Status == IprStatus.Granted) &&
                     attachment.ContentType == "application/pdf" &&
                     (
-                        EF.Functions.ILike(attachment.OriginalFileName ?? string.Empty, pattern) ||
-                        EF.Functions.ILike(attachment.ContentType ?? string.Empty, pattern)
+                        EF.Functions.ILike(attachment.OriginalFileName ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||
+                        EF.Functions.ILike(attachment.ContentType ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter)
                     ))
                 .OrderByDescending(attachment => attachment.UploadedAtUtc)
                 .Take(attachmentLimit)

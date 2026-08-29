@@ -1,68 +1,86 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Services.Search;
+using ProjectManagement.Services.SearchV2.Models;
+using ProjectManagement.Services.SearchV2.Query;
 
 namespace ProjectManagement.Areas.Common.Pages.Search;
 
 [Authorize]
-public class IndexModel : PageModel
+public sealed class IndexModel : PageModel
 {
-    // SECTION: Dependencies
-    private readonly IGlobalSearchService _globalSearchService;
+    private readonly ISearchGateway _search;
 
-    public IndexModel(IGlobalSearchService globalSearchService)
+    public IndexModel(ISearchGateway search)
     {
-        _globalSearchService = globalSearchService ?? throw new ArgumentNullException(nameof(globalSearchService));
+        _search = search ?? throw new ArgumentNullException(nameof(search));
     }
 
-    // SECTION: Query parameters
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string[]? Category { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public string[]? Source { get; set; }
 
-    // SECTION: Page data
-    public IReadOnlyList<GlobalSearchHit> Results { get; private set; } = Array.Empty<GlobalSearchHit>();
+    [BindProperty(SupportsGet = true)]
+    public string? Cursor { get; set; }
 
-    public IReadOnlyList<string> AvailableSources { get; private set; } = Array.Empty<string>();
+    public SearchGatewayResponse Search { get; private set; } = SearchGatewayResponse.Empty(string.Empty);
 
-    // SECTION: Handlers
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(Q))
+        if (string.IsNullOrWhiteSpace(Q)) return;
+
+        Search = await _search.SearchAsync(
+            new SearchRequest(
+                Q,
+                Category?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                Source?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                Cursor),
+            User,
+            cancellationToken);
+    }
+
+    public async Task<IActionResult> OnGetSuggestionsAsync(string? q, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
         {
-            return;
+            return new JsonResult(Array.Empty<object>());
         }
 
-        var rawResults = await _globalSearchService.SearchAsync(Q, cancellationToken);
-        AvailableSources = rawResults
-            .Select(hit => hit.Source)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(source => source)
-            .ToList();
-
-        var filteredResults = rawResults;
-        if (Source is { Length: > 0 })
+        var suggestions = await _search.SuggestAsync(q, User, 8, cancellationToken);
+        return new JsonResult(suggestions.Select(suggestion => new
         {
-            var filter = new HashSet<string>(Source, StringComparer.OrdinalIgnoreCase);
-            filteredResults = filteredResults
-                .Where(hit => filter.Contains(hit.Source))
-                .ToList();
+            suggestion.Title,
+            suggestion.Subtitle,
+            suggestion.Url,
+            suggestion.SourceModule,
+            suggestion.Category,
+            suggestion.Identifier
+        }));
+    }
+
+    public async Task<IActionResult> OnPostClickAsync(
+        string? query,
+        string? entityType,
+        string? entityKey,
+        int rank,
+        string? sourceModule,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query)
+            || string.IsNullOrWhiteSpace(entityType)
+            || string.IsNullOrWhiteSpace(entityKey)
+            || string.IsNullOrWhiteSpace(sourceModule)
+            || rank <= 0)
+        {
+            return new JsonResult(new { ok = false }) { StatusCode = StatusCodes.Status400BadRequest };
         }
 
-        Results = filteredResults
-            .GroupBy(hit => hit.Url, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(hit => hit.Score)
-                .ThenByDescending(hit => hit.Date)
-                .First())
-            .ToList();
+        await _search.LogClickAsync(query, entityType, entityKey, rank, sourceModule, cancellationToken);
+        return new JsonResult(new { ok = true });
     }
 }

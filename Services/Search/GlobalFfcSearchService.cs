@@ -35,6 +35,7 @@ namespace ProjectManagement.Services.Search
             }
 
             var trimmed = query.Trim();
+            var literalPattern = SearchLikePattern.Contains(trimmed);
             var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var recordLimit = Math.Max(1, maxResults);
             var attachmentLimit = Math.Max(1, maxResults / 2);
@@ -121,8 +122,8 @@ namespace ProjectManagement.Services.Search
                     // EF-translatable check, no StringComparison
                     attachment.ContentType == "application/pdf" &&
                     (
-                        EF.Functions.ILike(attachment.Caption ?? string.Empty, $"%{trimmed}%") ||
-                        EF.Functions.ILike(attachment.Record.Country.Name, $"%{trimmed}%")
+                        EF.Functions.ILike(attachment.Caption ?? string.Empty, literalPattern, SearchLikePattern.EscapeCharacter) ||
+                        EF.Functions.ILike(attachment.Record.Country.Name, literalPattern, SearchLikePattern.EscapeCharacter)
                     ))
                 .OrderByDescending(attachment => attachment.UploadedAt)
                 .Take(attachmentLimit)

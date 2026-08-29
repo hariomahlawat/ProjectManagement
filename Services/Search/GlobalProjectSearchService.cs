@@ -36,6 +36,7 @@ namespace ProjectManagement.Services.Search
             }
 
             var trimmed = query.Trim();
+            var literalPattern = SearchLikePattern.Contains(trimmed);
             var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var limit = Math.Max(1, maxResults);
 
@@ -49,11 +50,11 @@ namespace ProjectManagement.Services.Search
                         !p.IsDeleted &&
                         !p.IsArchived &&
                         (
-                            (!string.IsNullOrEmpty(p.Name) && EF.Functions.Like(p.Name!, $"%{trimmed}%")) ||
-                            (!string.IsNullOrEmpty(p.ProjectBrief) && EF.Functions.Like(p.ProjectBrief!, $"%{trimmed}%")) ||
-                            (!string.IsNullOrEmpty(p.CaseFileNumber) && EF.Functions.Like(p.CaseFileNumber!, $"%{trimmed}%")) ||
-                            (p.SponsoringUnit != null && EF.Functions.Like(p.SponsoringUnit.Name, $"%{trimmed}%")) ||
-                            (p.SponsoringLineDirectorate != null && EF.Functions.Like(p.SponsoringLineDirectorate.Name, $"%{trimmed}%"))
+                            (!string.IsNullOrEmpty(p.Name) && EF.Functions.Like(p.Name!, literalPattern, SearchLikePattern.EscapeCharacter)) ||
+                            (!string.IsNullOrEmpty(p.ProjectBrief) && EF.Functions.Like(p.ProjectBrief!, literalPattern, SearchLikePattern.EscapeCharacter)) ||
+                            (!string.IsNullOrEmpty(p.CaseFileNumber) && EF.Functions.Like(p.CaseFileNumber!, literalPattern, SearchLikePattern.EscapeCharacter)) ||
+                            (p.SponsoringUnit != null && EF.Functions.Like(p.SponsoringUnit.Name, literalPattern, SearchLikePattern.EscapeCharacter)) ||
+                            (p.SponsoringLineDirectorate != null && EF.Functions.Like(p.SponsoringLineDirectorate.Name, literalPattern, SearchLikePattern.EscapeCharacter))
                         ))
                     .Take(limit * 3)
                     .Select(p => new ProjectSearchRow(
@@ -65,28 +66,40 @@ namespace ProjectManagement.Services.Search
                         p.DeletedAt,
                         p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
                         p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
+                        null,
                         null))
                     .ToListAsync(cancellationToken);
 
                 return BuildHits(fallbackProjects, limit);
             }
 
-            // 1) EF-friendly query only
+            // Preserve PostgreSQL FTS relevance all the way through candidate selection.
+            // Search V1 remains the visible fallback during V2 shadow validation, so it must
+            // not find with FTS and then silently reorder those matches by recency.
+            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
             var projects = await _dbContext.Projects
                 .AsNoTracking()
-                .Include(p => p.SponsoringUnit)
-                .Include(p => p.SponsoringLineDirectorate)
                 .Where(p =>
                     !p.IsDeleted &&
                     !p.IsArchived &&
-                    EF.Functions.ToTsVector("english",
+                    EF.Functions.ToTsVector(
+                        "english",
                         (p.Name ?? string.Empty) + " " +
                         (p.ProjectBrief ?? string.Empty) + " " +
                         (p.CaseFileNumber ?? string.Empty) + " " +
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty))
-                        .Matches(EF.Functions.WebSearchToTsQuery("english", trimmed)))
-                // pull a few extra so sorting in-memory still has room
+                        .Matches(searchQuery))
+                .OrderByDescending(p =>
+                    EF.Functions.ToTsVector(
+                        "english",
+                        (p.Name ?? string.Empty) + " " +
+                        (p.ProjectBrief ?? string.Empty) + " " +
+                        (p.CaseFileNumber ?? string.Empty) + " " +
+                        (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
+                        (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty))
+                        .RankCoverDensity(searchQuery))
+                .ThenByDescending(p => p.CreatedAt)
                 .Take(limit * 3)
                 .Select(p => new ProjectSearchRow(
                     p.Id,
@@ -104,8 +117,16 @@ namespace ProjectManagement.Services.Search
                         (p.CaseFileNumber ?? string.Empty) + " " +
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty),
-                        EF.Functions.WebSearchToTsQuery("english", trimmed),
-                        headlineOptions)))
+                        searchQuery,
+                        headlineOptions),
+                    (double?)EF.Functions.ToTsVector(
+                        "english",
+                        (p.Name ?? string.Empty) + " " +
+                        (p.ProjectBrief ?? string.Empty) + " " +
+                        (p.CaseFileNumber ?? string.Empty) + " " +
+                        (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
+                        (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty))
+                        .RankCoverDensity(searchQuery)))
                 .ToListAsync(cancellationToken);
 
             return BuildHits(projects, limit);
@@ -147,6 +168,7 @@ namespace ProjectManagement.Services.Search
 
                     return new
                     {
+                        Rank = p.Rank ?? 0d,
                         Date = date,
                         Hit = new GlobalSearchHit(
                             Source: "Projects",
@@ -159,7 +181,8 @@ namespace ProjectManagement.Services.Search
                             Extra: null)
                     };
                 })
-                .OrderByDescending(x => x.Date)
+                .OrderByDescending(x => x.Rank)
+                .ThenByDescending(x => x.Date)
                 .ThenBy(x => x.Hit.Title)
                 .Take(limit)
                 .Select(x => x.Hit)
@@ -193,6 +216,7 @@ namespace ProjectManagement.Services.Search
             DateTimeOffset? DeletedAt,
             string? SponsoringUnit,
             string? LineDirectorate,
-            string? Snippet);
+            string? Snippet,
+            double? Rank);
     }
 }

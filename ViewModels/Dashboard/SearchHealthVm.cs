@@ -15,6 +15,10 @@ public sealed class SearchHealthVm
     public bool IncludeProjectReports { get; init; }
     // END SECTION
 
+    // SECTION: Search V2 index health
+    public SearchIndexHealthSnapshot SearchIndex { get; init; } = new();
+    // END SECTION
+
     // SECTION: OCR snapshot metrics
     public SearchHealthOcrSnapshot Ocr { get; init; } = new();
     // END SECTION
@@ -26,7 +30,7 @@ public sealed class SearchHealthVm
     // END SECTION
 
     // SECTION: Convenience flags
-    public bool HasSearchableCorpus => TotalSearchable > 0;
+    public bool HasSearchableCorpus => TotalSearchable > 0 || SearchIndex.EntryCount > 0;
     public bool HasOcrActivity => OcrCompletionsTrend.Count > 0 && OcrCompletionsTrend.Any(value => value > 0);
     // END SECTION
 }
@@ -45,4 +49,19 @@ public sealed class SearchHealthOcrSnapshot
     public long DocRepoSucceeded { get; init; }
     public long DocRepoPending { get; init; }
     public long DocRepoFailed { get; init; }
+}
+
+
+// SECTION: Search V2 index snapshot
+public sealed class SearchIndexHealthSnapshot
+{
+    public bool IsReady { get; init; }
+    public long ActiveGeneration { get; init; }
+    public int IndexVersion { get; init; }
+    public long EntryCount { get; init; }
+    public long PendingItems { get; init; }
+    public long FailedItems { get; init; }
+    public DateTimeOffset? LastFullRebuildUtc { get; init; }
+    public DateTimeOffset? LastReconciliationUtc { get; init; }
+    public string? LastError { get; init; }
 }

@@ -9,6 +9,7 @@ public interface IUrlBuilder
 {
     string DocumentRepositoryView(Guid documentId);
     string DocumentRepositoryDownload(Guid documentId);
+    string FfcRecordDetails(long recordId);
     string FfcRecordManage(long recordId);
     string FfcAttachmentView(long attachmentId);
     string IprRecordView(int recordId);
@@ -19,7 +20,10 @@ public interface IUrlBuilder
     string ProjectOverview(int projectId);
     string ProjectOfficeVisitDetails(Guid id);
     string ProjectOfficeSocialMediaDetails(Guid id);
+    string ProjectOfficeTrainingView(Guid trainingId);
     string ProjectOfficeTrainingManage(Guid trainingId);
     string ProjectOfficeTotTracker(int projectId);
+    string ProjectOfficeArppDetails(long issueId);
+    string ProjectOfficeProliferationProject(int projectId);
     string ProjectOfficeProliferationManage(int projectId, ProliferationRecordKind kind, ProliferationSource source, int? year);
 }

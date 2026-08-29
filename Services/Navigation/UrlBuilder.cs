@@ -14,6 +14,9 @@ public sealed class UrlBuilder : IUrlBuilder
     public string DocumentRepositoryDownload(Guid documentId)
         => $"/DocumentRepository/Documents/Download?id={documentId}";
 
+    public string FfcRecordDetails(long recordId)
+        => $"/ProjectOfficeReports/FFC/Records/Details/{recordId.ToString(CultureInfo.InvariantCulture)}";
+
     public string FfcRecordManage(long recordId)
         => $"/ProjectOfficeReports/FFC/Records/Manage?editId={recordId.ToString(CultureInfo.InvariantCulture)}";
 
@@ -44,11 +47,20 @@ public sealed class UrlBuilder : IUrlBuilder
     public string ProjectOfficeSocialMediaDetails(Guid id)
         => $"/ProjectOfficeReports/SocialMedia/Details/{id}";
 
+    public string ProjectOfficeTrainingView(Guid trainingId)
+        => $"/ProjectOfficeReports/Training/View?id={trainingId}";
+
     public string ProjectOfficeTrainingManage(Guid trainingId)
         => $"/ProjectOfficeReports/Training/Manage?id={trainingId}";
 
     public string ProjectOfficeTotTracker(int projectId)
         => $"/ProjectOfficeReports/Tot/Index?selectedProjectId={projectId.ToString(CultureInfo.InvariantCulture)}";
+
+    public string ProjectOfficeArppDetails(long issueId)
+        => $"/ProjectOfficeReports/ARPP/Details?id={issueId.ToString(CultureInfo.InvariantCulture)}";
+
+    public string ProjectOfficeProliferationProject(int projectId)
+        => $"/ProjectOfficeReports/Proliferation/Project/{projectId.ToString(CultureInfo.InvariantCulture)}";
 
     public string ProjectOfficeProliferationManage(int projectId, ProliferationRecordKind kind, ProliferationSource source, int? year)
     {

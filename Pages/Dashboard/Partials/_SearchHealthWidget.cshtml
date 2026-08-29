@@ -13,7 +13,7 @@
     var workerBadgeClass = "bg-light text-muted border";
     var workerTextClass = workerIsActive ? "text-success" : "text-warning";
     var workerDotClass = workerIsActive ? "dot-success" : "dot-warning";
-    var workerBadgeLabel = workerIsActive ? "Worker active" : "Worker offline";
+    var workerBadgeLabel = workerIsActive ? "OCR worker active" : "OCR worker offline";
     // END SECTION
 
     // SECTION: Trend serialization
@@ -87,6 +87,37 @@
                             }
                         </div>
                     </div>
+                </section>
+                @* END SECTION *@
+
+                <hr class="search-health__divider my-0" />
+
+                @* SECTION: Search index status *@
+                <section aria-label="Search index status" class="search-health__section">
+                    <div class="text-muted small fw-semibold mb-2">Search index</div>
+                    <div class="d-flex flex-wrap align-items-center gap-3 small">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="search-health__dot @(Model.SearchIndex.IsReady ? "dot-success" : "dot-warning")"></span>
+                            <span class="text-muted">Status</span>
+                            <strong>@(Model.SearchIndex.IsReady ? "Ready" : "Warming")</strong>
+                        </div>
+                        <div><span class="text-muted">Entries</span> <strong>@Model.SearchIndex.EntryCount.ToString("N0")</strong></div>
+                        <div><span class="text-muted">Pending</span> <strong>@Model.SearchIndex.PendingItems.ToString("N0")</strong></div>
+                        <div class="@(Model.SearchIndex.FailedItems > 0 ? "text-danger" : string.Empty)">
+                            <span class="text-muted">Failed</span> <strong>@Model.SearchIndex.FailedItems.ToString("N0")</strong>
+                        </div>
+                        <div><span class="text-muted">Version</span> <strong>@Model.SearchIndex.IndexVersion</strong></div>
+                    </div>
+                    @if (Model.SearchIndex.LastFullRebuildUtc.HasValue)
+                    {
+                        <div class="text-muted small mt-2">
+                            Last full rebuild @Model.SearchIndex.LastFullRebuildUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.SearchIndex.LastError))
+                    {
+                        <div class="text-danger small mt-2">Search index warning: @Model.SearchIndex.LastError</div>
+                    }
                 </section>
                 @* END SECTION *@
 
@@ -175,11 +206,11 @@
 
                 @* SECTION: Footer *@
                 <div class="text-muted small search-health__section">
-                    Ranking blends metadata, tags, and OCR body.
+                    Search V2 ranks exact identifiers, names, structured metadata, full text and typo-tolerant matches.
                     <a asp-area="DocumentRepository"
                        asp-page="/Documents/Index"
                        class="small text-decoration-none ms-1">
-                        Search docus repository →
+                        Open document repository →
                     </a>
                 </div>
                 @* END SECTION *@

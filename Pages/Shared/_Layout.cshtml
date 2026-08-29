@@ -72,6 +72,8 @@
         var isFfcPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
             && hasCurrentPage
             && currentPage!.StartsWith("/FFC", StringComparison.OrdinalIgnoreCase);
+        var isGlobalSearchPage = string.Equals(currentArea, "Common", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(currentPage, "/Search/Index", StringComparison.OrdinalIgnoreCase);
 
         var isAdminModulePage = signedIn && AdminNavigationCatalog.IsInScope(
             currentArea,
@@ -197,31 +199,34 @@
                 </div>
 
                 <div class="pm-topbar__right">
-                    <form method="get"
-                          asp-area="Common"
-                          asp-page="/Search/Index"
-                          class="pm-top-search d-none d-md-flex"
-                          role="search"
-                          data-global-search>
-                        <label class="visually-hidden" for="pmGlobalSearch">Search PRISM</label>
-                        <i class="bi bi-search pm-top-search__icon" aria-hidden="true"></i>
-                        <input type="search"
-                               id="pmGlobalSearch"
-                               name="q"
-                               class="pm-top-search__input"
-                               placeholder="Search PRISM"
-                               autocomplete="off"
-                               aria-keyshortcuts="Control+K Meta+K" />
-                        <kbd class="pm-top-search__shortcut" aria-hidden="true">Ctrl K</kbd>
-                    </form>
+                    @if (!isGlobalSearchPage)
+                    {
+                        <form method="get"
+                              asp-area="Common"
+                              asp-page="/Search/Index"
+                              class="pm-top-search d-none d-md-flex"
+                              role="search"
+                              data-global-search>
+                            <label class="visually-hidden" for="pmGlobalSearch">Search PRISM</label>
+                            <i class="bi bi-search pm-top-search__icon" aria-hidden="true"></i>
+                            <input type="search"
+                                   id="pmGlobalSearch"
+                                   name="q"
+                                   class="pm-top-search__input"
+                                   placeholder="Search PRISM"
+                                   autocomplete="off"
+                                   aria-keyshortcuts="Control+K Meta+K" />
+                            <kbd class="pm-top-search__shortcut" aria-hidden="true">Ctrl K</kbd>
+                        </form>
 
-                    <a asp-area="Common"
-                       asp-page="/Search/Index"
-                       class="pm-topbar__icon-button d-inline-flex d-md-none"
-                       aria-label="Search PRISM"
-                       title="Search PRISM">
-                        <i class="bi bi-search" aria-hidden="true"></i>
-                    </a>
+                        <a asp-area="Common"
+                           asp-page="/Search/Index"
+                           class="pm-topbar__icon-button d-inline-flex d-md-none"
+                           aria-label="Search PRISM"
+                           title="Search PRISM">
+                            <i class="bi bi-search" aria-hidden="true"></i>
+                        </a>
+                    }
 
                     @await Component.InvokeAsync("NotificationBell")
                     <partial name="_LoginPartial" />

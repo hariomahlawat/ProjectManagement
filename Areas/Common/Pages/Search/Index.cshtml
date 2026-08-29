@@ -1,84 +1,97 @@
 @page
 @model ProjectManagement.Areas.Common.Pages.Search.IndexModel
+@using Microsoft.AspNetCore.Http
+@using ProjectManagement.Services.SearchV2.Models
 @{
     ViewData["Title"] = "Global Search";
     var hasQuery = !string.IsNullOrWhiteSpace(Model.Q);
+    var selectedCategory = (Model.Category ?? Array.Empty<string>())
+        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    var selectedSources = new HashSet<string>(
+        (Model.Source ?? Array.Empty<string>()).Where(value => !string.IsNullOrWhiteSpace(value)),
+        StringComparer.OrdinalIgnoreCase);
 
-    // Build a query string for exactly one source (Google-style single select)
-    string BuildUrl(string? q, string? source)
+    string BuildUrl(string query, string? category, string? cursor = null)
     {
-        var qp = System.Web.HttpUtility.ParseQueryString(string.Empty);
-        if (!string.IsNullOrWhiteSpace(q)) qp["q"] = q;
-        if (!string.IsNullOrWhiteSpace(source)) qp["Source"] = source;
-        return $"?{qp}";
+        var values = new List<KeyValuePair<string, string?>>
+        {
+            new("q", query)
+        };
+        if (!string.IsNullOrWhiteSpace(category)) values.Add(new("Category", category));
+        foreach (var source in selectedSources) values.Add(new("Source", source));
+        if (!string.IsNullOrWhiteSpace(cursor)) values.Add(new("Cursor", cursor));
+        return QueryString.Create(values).ToString();
     }
-
-    // Sources
-    var allSources = Model.AvailableSources
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    // Whatever arrived in querystring; we allow only zero or one active tab
-    var selectedSources = (Model.Source ?? Array.Empty<string>())
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    // Active = exactly one selection and it matches this source
-    bool IsActive(string s) =>
-        selectedSources.Count == 1 &&
-        selectedSources.Contains(s, StringComparer.OrdinalIgnoreCase);
 }
 
+<div class="pm-gs-page" data-search-page>
 @if (!hasQuery)
 {
-    <!-- HERO (no query) -->
-    <section class="pm-gs-hero">
-        <div class="pm-gs-hero__logo" aria-label="PRISM search">
-            <span class="pm-gs-logo-letter pm-gs-logo-letter--p">P</span>
-            <span class="pm-gs-logo-letter pm-gs-logo-letter--r">r</span>
-            <span class="pm-gs-logo-letter pm-gs-logo-letter--i">i</span>
-            <span class="pm-gs-logo-letter pm-gs-logo-letter--s">s</span>
-            <span class="pm-gs-logo-letter pm-gs-logo-letter--m">m</span>
-        </div>
-
-        <div class="pm-gs-hero__tag">Search across documents, projects, FFC, IPR, Visits, Social Media and Trg trackers.</div>
+    <section class="pm-gs-hero" aria-labelledby="searchTitle">
+        <div class="pm-gs-brandmark" aria-hidden="true"><span>PRISM</span></div>
+        <h1 id="searchTitle" class="pm-gs-hero__title">Search PRISM</h1>
+        <p class="pm-gs-hero__tag">Find projects, documents, FFC, IPR, activities, visits, training, ToT, proliferation and ARPP records.</p>
 
         <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-search" role="search" aria-label="Global search">
             <i class="bi bi-search pm-gs-search__icon" aria-hidden="true"></i>
-            <input type="text" name="q" value="@Model.Q" class="pm-gs-search__input" placeholder="Search anything…" autocomplete="off" />
-            <button class="pm-gs-search__clear" type="button" data-clear aria-label="Clear">×</button>
+            <label class="visually-hidden" for="prismSearchHero">Search PRISM</label>
+            <input id="prismSearchHero"
+                   type="search"
+                   name="q"
+                   class="pm-gs-search__input"
+                   placeholder="Search projects, identifiers, documents and trackers"
+                   autocomplete="off"
+                   spellcheck="false"
+                   data-search-suggest
+                   aria-autocomplete="list"
+                   aria-expanded="false" />
+            <button class="pm-gs-search__clear" type="button" data-clear aria-label="Clear search"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
             <button class="pm-gs-search__btn" type="submit">Search</button>
+            <div class="pm-gs-suggestions" data-search-suggestions hidden></div>
         </form>
+
+        <div class="pm-gs-hero__hints" aria-label="Search examples">
+            <span>Try:</span>
+            <a href="?q=AURA">AURA</a>
+            <a href="?q=ARPP">ARPP</a>
+            <a href="?q=autonomous+surveillance">autonomous surveillance</a>
+        </div>
     </section>
 }
 else
 {
-    <!-- TOP BAR (edge-to-edge, like Google) -->
     <header class="pm-gs-top">
         <div class="pm-gs-top__inner">
             <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-top__form" role="search" aria-label="Global search">
                 <div class="pm-gs-top__search">
                     <i class="bi bi-search pm-gs-top__icon" aria-hidden="true"></i>
-                    <input type="text" name="q" value="@Model.Q" class="pm-gs-top__input" placeholder="Search anything…" />
-                    <button class="pm-gs-top__clear" type="button" data-clear aria-label="Clear">×</button>
+                    <label class="visually-hidden" for="prismSearchResults">Search PRISM</label>
+                    <input id="prismSearchResults"
+                           type="search"
+                           name="q"
+                           value="@Model.Q"
+                           class="pm-gs-top__input"
+                           placeholder="Search PRISM"
+                           autocomplete="off"
+                           spellcheck="false"
+                           data-search-suggest
+                           aria-autocomplete="list"
+                           aria-expanded="false" />
+                    <button class="pm-gs-top__clear" type="button" data-clear aria-label="Clear search"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                    <div class="pm-gs-suggestions" data-search-suggestions hidden></div>
                 </div>
                 <button class="pm-gs-top__button" type="submit">Search</button>
             </form>
 
-            @if (allSources.Count > 0)
+            @if (Model.Search.Facets.Categories.Count > 0)
             {
-                <nav class="pm-gs-tabs" aria-label="Result sources">
-                    <!-- All = no Source -->
-                    <a class="pm-gs-tab @(selectedSources.Count == 0 ? "is-active" : "")"
-                       href="@BuildUrl(Model.Q, null)">
-                        All
-                    </a>
-
-                    @foreach (var s in allSources)
+                <nav class="pm-gs-tabs" aria-label="Result categories">
+                    <a class="pm-gs-tab @(selectedCategory is null ? "is-active" : string.Empty)" href="@BuildUrl(Model.Q!, null)">All</a>
+                    @foreach (var facet in Model.Search.Facets.Categories)
                     {
-                        <a class="pm-gs-tab @(IsActive(s) ? "is-active" : "")"
-                           href="@BuildUrl(Model.Q, s)">
-                            @s
+                        <a class="pm-gs-tab @(string.Equals(selectedCategory, facet.Value, StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)"
+                           href="@BuildUrl(Model.Q!, facet.Value)">
+                            @facet.Value <span class="pm-gs-tab__count">@facet.Count</span>
                         </a>
                     }
                 </nav>
@@ -86,75 +99,173 @@ else
         </div>
     </header>
 
-    <!-- RESULTS -->
     <main class="pm-gs-body" role="main">
         <div class="pm-gs-body__inner">
-            <div class="pm-gs-meta">@Model.Results.Count result@(Model.Results.Count == 1 ? "" : "s")</div>
+            <section class="pm-gs-toolbar" aria-label="Search result controls">
+                <div>
+                    @if (Model.Search.IsPartial)
+                    {
+                        <div class="pm-gs-meta"><strong>Top results</strong> <span>· Legacy compatibility results are serving this request while Search V2 is validated in shadow mode.</span></div>
+                    }
+                    else
+                    {
+                        <div class="pm-gs-meta"><strong>@Model.Search.TotalHits</strong> result@(Model.Search.TotalHits == 1 ? "" : "s") <span>· @Model.Search.QueryTimeMilliseconds ms</span></div>
+                    }
 
-            @if (Model.Results.Count > 0)
+                    @if (!string.IsNullOrWhiteSpace(Model.Search.CorrectedQuery))
+                    {
+                        <div class="pm-gs-correction">
+                            Did you mean <a href="?q=@Uri.EscapeDataString(Model.Search.CorrectedQuery)"><strong>@Model.Search.CorrectedQuery</strong></a>?
+                        </div>
+                    }
+                </div>
+
+                @if (Model.Search.Facets.Sources.Count > 1)
+                {
+                    <details class="pm-gs-filter">
+                        <summary><i class="bi bi-funnel" aria-hidden="true"></i> Sources @(selectedSources.Count > 0 ? $"({selectedSources.Count})" : string.Empty)</summary>
+                        <form method="get" class="pm-gs-filter__panel">
+                            <input type="hidden" name="q" value="@Model.Q" />
+                            @if (!string.IsNullOrWhiteSpace(selectedCategory))
+                            {
+                                <input type="hidden" name="Category" value="@selectedCategory" />
+                            }
+                            @{ var sourceIndex = 0; }
+                            @foreach (var sourceFacet in Model.Search.Facets.Sources)
+                            {
+                                var sourceId = $"source-{sourceIndex++}";
+                                <label class="pm-gs-filter__option" for="@sourceId">
+                                    <input id="@sourceId" type="checkbox" name="Source" value="@sourceFacet.Value" checked="@selectedSources.Contains(sourceFacet.Value)" />
+                                    <span>@sourceFacet.Value</span>
+                                    <small>@sourceFacet.Count</small>
+                                </label>
+                            }
+                            <div class="pm-gs-filter__actions">
+                                <a href="@BuildUrl(Model.Q!, selectedCategory)" class="btn btn-sm btn-outline-secondary">Clear</a>
+                                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+                            </div>
+                        </form>
+                    </details>
+                }
+            </section>
+
+            @if (Model.Search.Results.Count > 0)
             {
                 <section class="pm-gs-results" aria-label="Search results">
-                    @foreach (var hit in Model.Results)
+                    @foreach (var hit in Model.Search.Results)
                     {
                         <article class="pm-gs-hit">
-                            <a class="pm-gs-hit__title" href="@hit.Url">@hit.Title</a>
-
-                            <div class="pm-gs-hit__meta">
-                                @if (!string.IsNullOrWhiteSpace(hit.Source))
+                            <div class="pm-gs-hit__breadcrumb">
+                                <span>@hit.Category</span>
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                <span>@hit.SourceModule</span>
+                                @if (!string.IsNullOrWhiteSpace(hit.Status))
                                 {
-                                    <span class="pm-gs-hit__source">@hit.Source</span>
-                                }
-                                @if (hit.Date.HasValue)
-                                {
-                                    <span class="pm-gs-hit__sep">·</span>
-                                    <time datetime="@hit.Date.Value.ToUniversalTime().ToString("u")">
-                                        @hit.Date.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
-                                    </time>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(hit.FileType))
-                                {
-                                    <span class="pm-gs-hit__sep">·</span>
-                                    <span>@hit.FileType</span>
+                                    <span class="pm-gs-hit__status">@hit.Status</span>
                                 }
                             </div>
 
-                            @if (!string.IsNullOrWhiteSpace(hit.Snippet))
+                            <a class="pm-gs-hit__title"
+                               href="@hit.Url"
+                               data-search-result
+                               data-search-entity-type="@hit.EntityType"
+                               data-search-entity-key="@hit.EntityKey"
+                               data-search-rank="@hit.Rank"
+                               data-search-source="@hit.SourceModule">
+                                @foreach (var segment in hit.TitleSegments)
+                                {
+                                    if (segment.Highlighted)
+                                    {
+                                        <mark>@segment.Text</mark>
+                                    }
+                                    else
+                                    {
+                                        @segment.Text
+                                    }
+                                }
+                            </a>
+
+                            @if (!string.IsNullOrWhiteSpace(hit.Subtitle))
                             {
-                                var hasMarkup = hit.Snippet.Contains("<mark>", StringComparison.OrdinalIgnoreCase);
-                                if (hasMarkup)
+                                <div class="pm-gs-hit__subtitle">@hit.Subtitle</div>
+                            }
+
+                            @if (hit.SnippetSegments.Count > 0)
+                            {
+                                <p class="pm-gs-hit__snippet">
+                                    @foreach (var segment in hit.SnippetSegments)
+                                    {
+                                        if (segment.Highlighted)
+                                        {
+                                            <mark>@segment.Text</mark>
+                                        }
+                                        else
+                                        {
+                                            @segment.Text
+                                        }
+                                    }
+                                </p>
+                            }
+
+                            <div class="pm-gs-hit__meta">
+                                @if (!string.IsNullOrWhiteSpace(hit.MatchedField))
                                 {
-                                    <p class="pm-gs-hit__snippet">@Html.Raw(hit.Snippet)</p>
+                                    <span class="pm-gs-hit__match"><i class="bi bi-check2-circle" aria-hidden="true"></i> Matched in @hit.MatchedField</span>
                                 }
-                                else
+                                @if (hit.EventDate.HasValue)
                                 {
-                                    <p class="pm-gs-hit__snippet">@hit.Snippet</p>
+                                    <span class="pm-gs-hit__sep">·</span>
+                                    <time datetime="@hit.EventDate.Value.ToUniversalTime().ToString("O")">@hit.EventDate.Value.ToLocalTime().ToString("dd MMM yyyy")</time>
                                 }
+                                @if (!string.IsNullOrWhiteSpace(hit.FileType))
+                                {
+                                    <span class="pm-gs-hit__sep">·</span><span>@hit.FileType</span>
+                                }
+                            </div>
+
+                            @if (hit.RelatedResults.Count > 0)
+                            {
+                                <div class="pm-gs-hit__related">
+                                    <span>Related:</span>
+                                    @foreach (var related in hit.RelatedResults.Take(4))
+                                    {
+                                        <span class="pm-gs-related-chip">@related.Label</span>
+                                    }
+                                </div>
                             }
                         </article>
                     }
                 </section>
+
+                @if (!string.IsNullOrWhiteSpace(Model.Search.NextCursor))
+                {
+                    <nav class="pm-gs-pagination" aria-label="Search pagination">
+                        <a class="btn btn-outline-primary" href="@BuildUrl(Model.Q!, selectedCategory, Model.Search.NextCursor)">Next results <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                    </nav>
+                }
             }
             else
             {
                 <section class="pm-gs-nores">
-                    <div class="pm-gs-nores__box">
-                        <div class="pm-gs-nores__title">No results for “@Model.Q”.</div>
-                        <ul class="pm-gs-nores__tips">
-                            <li>Check spelling.</li>
-                            <li>Try fewer or different keywords.</li>
-                            <li>Use the source tabs above.</li>
-                        </ul>
+                    <div class="pm-gs-nores__icon"><i class="bi bi-search" aria-hidden="true"></i></div>
+                    <div>
+                        <h2>No results for “@Model.Q”</h2>
+                        <p>Check the spelling, try a project acronym or identifier, or use fewer terms.</p>
                     </div>
                 </section>
             }
         </div>
     </main>
+
+    <form method="post" class="d-none" data-search-click-token aria-hidden="true">
+        @Html.AntiForgeryToken()
+    </form>
 }
+</div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/search.css" asp-append-version="true" />
 }
 @section Scripts {
-    <script src="~/js/pages/search.js" asp-append-version="true"></script>
+    <script src="~/js/pages/search.js" asp-append-version="true" defer></script>
 }
-

@@ -8,6 +8,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Dashboard;
+using ProjectManagement.Services.SearchV2.Indexing;
 
 namespace ProjectManagement.Services.Dashboard;
 
@@ -23,10 +24,12 @@ public sealed class SearchHealthService : ISearchHealthService
     private static readonly TimeSpan WorkerActivityWindow = TimeSpan.FromMinutes(10);
 
     private readonly ApplicationDbContext _db;
+    private readonly ISearchIndexStore _searchIndexStore;
 
-    public SearchHealthService(ApplicationDbContext db)
+    public SearchHealthService(ApplicationDbContext db, ISearchIndexStore searchIndexStore)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _searchIndexStore = searchIndexStore ?? throw new ArgumentNullException(nameof(searchIndexStore));
     }
 
     public async Task<SearchHealthVm> GetAsync(CancellationToken cancellationToken)
@@ -154,6 +157,7 @@ public sealed class SearchHealthService : ISearchHealthService
         var trendValues = BuildTrend(trendStartDate, docRepoTrend, projectDocsTrend);
         var oldestPending = MinNonNull(docRepoPendingOldest, projectDocPendingOldest);
         var lastAttempt = MaxNonNull(docRepoLastAttempt, projectDocLastAttempt);
+        var searchIndexHealth = await _searchIndexStore.GetHealthAsync(cancellationToken).ConfigureAwait(false);
         // END SECTION
 
         return new SearchHealthVm
@@ -163,6 +167,18 @@ public sealed class SearchHealthService : ISearchHealthService
             ProjectDocumentsSearchable = projectDocsSearchable,
             ProjectReportsSearchable = projectReportsSearchable,
             IncludeProjectReports = projectReportsSearchable > 0,
+            SearchIndex = new SearchIndexHealthSnapshot
+            {
+                IsReady = searchIndexHealth.IsReady,
+                ActiveGeneration = searchIndexHealth.ActiveGeneration,
+                IndexVersion = searchIndexHealth.IndexVersion,
+                EntryCount = searchIndexHealth.EntryCount,
+                PendingItems = searchIndexHealth.PendingItems,
+                FailedItems = searchIndexHealth.FailedItems,
+                LastFullRebuildUtc = searchIndexHealth.LastFullRebuildUtc,
+                LastReconciliationUtc = searchIndexHealth.LastReconciliationUtc,
+                LastError = searchIndexHealth.LastError
+            },
             Ocr = ocrSnapshot,
             OcrCompletionsTrend = trendValues,
             OldestPendingLabel = FormatPendingAge(oldestPending),

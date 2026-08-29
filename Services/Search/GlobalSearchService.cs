@@ -1,110 +1,114 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ProjectManagement.Services.Search
+namespace ProjectManagement.Services.Search;
+
+// SECTION: Global search contract
+public interface IGlobalSearchService
 {
-    // SECTION: Global search contract
-    public interface IGlobalSearchService
+    Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken);
+}
+
+// SECTION: Legacy global search implementation
+// Search V2 is the primary long-term engine. This service remains deliberately
+// robust while it is retained for warm-up, shadow comparison and rollback.
+public sealed class GlobalSearchService : IGlobalSearchService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<GlobalSearchService> _logger;
+
+    public GlobalSearchService(IServiceScopeFactory scopeFactory, ILogger<GlobalSearchService> logger)
     {
-        Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken);
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    // SECTION: Global search implementation
-    public sealed class GlobalSearchService : IGlobalSearchService
+    public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        private readonly IServiceScopeFactory _scopeFactory;
-
-        public GlobalSearchService(IServiceScopeFactory scopeFactory)
+        if (string.IsNullOrWhiteSpace(query))
         {
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+            return Array.Empty<GlobalSearchHit>();
         }
 
-        public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
+        // Each provider keeps its own DI scope/DbContext. EF DbContext is not
+        // thread-safe, so this is what makes the fan-out genuinely concurrent.
+        using var docScope = _scopeFactory.CreateScope();
+        using var ffcScope = _scopeFactory.CreateScope();
+        using var iprScope = _scopeFactory.CreateScope();
+        using var actScope = _scopeFactory.CreateScope();
+        using var projectScope = _scopeFactory.CreateScope();
+        using var projectDocumentScope = _scopeFactory.CreateScope();
+        using var reportsScope = _scopeFactory.CreateScope();
+
+        var docService = docScope.ServiceProvider.GetRequiredService<DocRepo.IGlobalDocRepoSearchService>();
+        var ffcService = ffcScope.ServiceProvider.GetRequiredService<IGlobalFfcSearchService>();
+        var iprService = iprScope.ServiceProvider.GetRequiredService<IGlobalIprSearchService>();
+        var actService = actScope.ServiceProvider.GetRequiredService<IGlobalActivitiesSearchService>();
+        var projectService = projectScope.ServiceProvider.GetRequiredService<IGlobalProjectSearchService>();
+        var projectDocumentService = projectDocumentScope.ServiceProvider.GetRequiredService<IGlobalProjectDocumentSearchService>();
+        var reportsService = reportsScope.ServiceProvider.GetRequiredService<IGlobalProjectReportsSearchService>();
+
+        var tasks = new[]
         {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                return Array.Empty<GlobalSearchHit>();
-            }
+            SafeSearchAsync("Document Repository", () => docService.SearchAsync(query, 30, cancellationToken), cancellationToken),
+            SafeSearchAsync("FFC", () => ffcService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("IPR", () => iprService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("Activities", () => actService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("Projects", () => projectService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("Project documents", () => projectDocumentService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("Project Office trackers", () => reportsService.SearchAsync(query, 20, cancellationToken), cancellationToken)
+        };
 
-            // create separate scopes so each search gets its own DbContext
-            var docScope = _scopeFactory.CreateScope();
-            var ffcScope = _scopeFactory.CreateScope();
-            var iprScope = _scopeFactory.CreateScope();
-            var actScope = _scopeFactory.CreateScope();
-            var projectScope = _scopeFactory.CreateScope();
-            var projectDocumentScope = _scopeFactory.CreateScope();
-            var reportsScope = _scopeFactory.CreateScope();
+        var providerResults = await Task.WhenAll(tasks);
+        var combined = providerResults.SelectMany(result => result).ToList();
+        if (combined.Count == 0)
+        {
+            return Array.Empty<GlobalSearchHit>();
+        }
 
-            try
-            {
-                var docService = docScope.ServiceProvider
-                    .GetRequiredService<DocRepo.IGlobalDocRepoSearchService>();
-                var ffcService = ffcScope.ServiceProvider
-                    .GetRequiredService<IGlobalFfcSearchService>();
-                var iprService = iprScope.ServiceProvider
-                    .GetRequiredService<IGlobalIprSearchService>();
-                var actService = actScope.ServiceProvider
-                    .GetRequiredService<IGlobalActivitiesSearchService>();
-                var projectService = projectScope.ServiceProvider
-                    .GetRequiredService<IGlobalProjectSearchService>();
-                var projectDocumentService = projectDocumentScope.ServiceProvider
-                    .GetRequiredService<IGlobalProjectDocumentSearchService>();
-                var reportsService = reportsScope.ServiceProvider
-                    .GetRequiredService<IGlobalProjectReportsSearchService>();
+        // URL deduplication is retained only as a legacy safety mechanism.
+        // Search V2 performs canonical-entity clustering before pagination.
+        return combined
+            .GroupBy(hit => hit.Url, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(hit => hit.Score)
+                .ThenByDescending(hit => hit.Date)
+                .First())
+            .OrderByDescending(hit => hit.Score)
+            .ThenByDescending(hit => hit.Date)
+            .ToList();
+    }
 
-                // run all module searches in parallel, each has its own scope/DbContext now
-                var docTask = docService.SearchAsync(query, 30, cancellationToken);
-                var ffcTask = ffcService.SearchAsync(query, 20, cancellationToken);
-                var iprTask = iprService.SearchAsync(query, 20, cancellationToken);
-                var actTask = actService.SearchAsync(query, 20, cancellationToken);
-                var projectTask = projectService.SearchAsync(query, 20, cancellationToken);
-                var projectDocumentTask = projectDocumentService.SearchAsync(query, 20, cancellationToken);
-                var reportsTask = reportsService.SearchAsync(query, 20, cancellationToken);
-
-                await Task.WhenAll(docTask, ffcTask, iprTask, actTask, projectTask, projectDocumentTask, reportsTask);
-
-                var combined = docTask.Result
-                    .Concat(ffcTask.Result)
-                    .Concat(iprTask.Result)
-                    .Concat(actTask.Result)
-                    .Concat(projectTask.Result)
-                    .Concat(projectDocumentTask.Result)
-                    .Concat(reportsTask.Result)
-                    .ToList();
-
-                if (combined.Count == 0)
-                {
-                    return Array.Empty<GlobalSearchHit>();
-                }
-
-                // dedupe by Url and keep best scored
-                var distinct = combined
-                    .GroupBy(h => h.Url, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g
-                        .OrderByDescending(x => x.Score)
-                        .ThenByDescending(x => x.Date)
-                        .First())
-                    .OrderByDescending(h => h.Score)
-                    .ThenByDescending(h => h.Date)
-                    .ToList();
-
-                return distinct;
-            }
-            finally
-            {
-                // make sure we dispose all scopes
-                docScope.Dispose();
-                ffcScope.Dispose();
-                iprScope.Dispose();
-                actScope.Dispose();
-                projectScope.Dispose();
-                projectDocumentScope.Dispose();
-                reportsScope.Dispose();
-            }
+    private async Task<IReadOnlyList<GlobalSearchHit>> SafeSearchAsync(
+        string provider,
+        Func<Task<IReadOnlyList<GlobalSearchHit>>> search,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var results = await search();
+            stopwatch.Stop();
+            _logger.LogDebug(
+                "Legacy search provider {Provider} returned {Count} candidate(s) in {ElapsedMilliseconds} ms.",
+                provider,
+                results.Count,
+                stopwatch.ElapsedMilliseconds);
+            return results;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            _logger.LogWarning(
+                ex,
+                "Legacy search provider {Provider} failed after {ElapsedMilliseconds} ms. Other providers will continue.",
+                provider,
+                stopwatch.ElapsedMilliseconds);
+            return Array.Empty<GlobalSearchHit>();
         }
     }
 }

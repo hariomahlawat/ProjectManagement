@@ -3,6 +3,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Areas.DocumentRepository.Models;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.Search;
 using System;
 using System.Linq;
 
@@ -53,6 +54,7 @@ namespace ProjectManagement.Services.DocRepo
         public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
         {
             var normalizedQuery = preparedQuery.ToLowerInvariant();
+            var literalPattern = SearchLikePattern.Contains(preparedQuery);
 
             return source
                 // 1) full-text filter, fully inlined
@@ -93,13 +95,17 @@ namespace ProjectManagement.Services.DocRepo
 
                     // match hints
                     MatchedInSubject = d.Subject != null &&
-                        EF.Functions.ILike(d.Subject, "%" + preparedQuery + "%"),
+                        EF.Functions.ILike(d.Subject, literalPattern, SearchLikePattern.EscapeCharacter),
 
                     MatchedInTags = d.DocumentTags.Any(dt =>
                         dt.Tag.Name == preparedQuery ||
                         dt.Tag.NormalizedName == normalizedQuery),
 
-                    MatchedInBody = d.DocumentText != null
+                    MatchedInBody = d.DocumentText != null &&
+                        EF.Functions.ToTsVector(
+                            SearchConfiguration,
+                            d.DocumentText.OcrText ?? string.Empty)
+                        .Matches(EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery))
                 })
                 // 3) order by rank/date
                 .OrderByDescending(r => r.Rank)

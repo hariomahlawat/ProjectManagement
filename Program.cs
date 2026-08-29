@@ -73,6 +73,7 @@ using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Search;
+using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.Ocr;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
@@ -466,6 +467,7 @@ builder.Services.AddScoped<IProjectDocumentTextExtractor, ProjectDocumentTextExt
 builder.Services.AddScoped<IProjectDocumentOcrRunner, OcrmypdfProjectOcrRunner>();
 builder.Services.AddScoped<IGlobalProjectDocumentSearchService, GlobalProjectDocumentSearchService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
+builder.Services.AddSearchV2(builder.Configuration);
 
 builder.Services
     .AddOptions<OcrBackfillOptions>()
