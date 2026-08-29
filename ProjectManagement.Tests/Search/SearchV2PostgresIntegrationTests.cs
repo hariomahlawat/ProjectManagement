@@ -55,4 +55,58 @@ public sealed class SearchV2PostgresIntegrationTests
         Assert.True(reader.GetInt32(1) >= 1);
         Assert.True(reader.GetInt64(2) >= 0);
     }
+
+
+    [Fact]
+    public async Task PostgreSql_DisjunctiveFacetCounting_PreservesOtherFiltersAndCanonicalEntities()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH candidate_scored("CanonicalEntityType", "CanonicalEntityKey", "ResultCategory", "SourceModule", "Status") AS (
+                VALUES
+                    ('Project','1','Projects','Projects','Active'),
+                    ('Project','1','Documents','Project documents','Published'),
+                    ('Project','2','Projects','Projects','Completed'),
+                    ('Project','3','Documents','Project documents','Published')
+            ),
+            category_scope AS (
+                SELECT * FROM candidate_scored WHERE "SourceModule" = 'Project documents'
+            ),
+            source_scope AS (
+                SELECT * FROM candidate_scored WHERE "ResultCategory" = 'Projects'
+            )
+            SELECT
+                (SELECT COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) FROM category_scope),
+                (SELECT COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) FROM source_scope);
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.Equal(2L, reader.GetInt64(1));
+    }
+
+    [Fact]
+    public async Task SearchV2_RuntimeAliasCatalogue_IsQueryableWhenSchemaIsInstalled()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*)
+            FROM "SearchAliases"
+            WHERE "IsActive"
+              AND NULLIF(BTRIM("NormalizedAlias"), '') IS NOT NULL
+              AND NULLIF(BTRIM("Expansion"), '') IS NOT NULL;
+            """;
+
+        var count = Convert.ToInt64(await command.ExecuteScalarAsync());
+        Assert.True(count >= 1);
+    }
 }

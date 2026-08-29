@@ -13,6 +13,7 @@ public static class AdminNavigationKeys
     public const string ErpUsage = "erp-usage";
     public const string Logs = "logs";
     public const string DatabaseHealth = "database-health";
+    public const string SearchIndex = "search-index";
     public const string RecoveryCentre = "recovery-centre";
     public const string ProjectTrash = "project-trash";
     public const string DocumentRecycle = "document-recycle";
@@ -174,6 +175,15 @@ public static class AdminNavigationCatalog
             Item("System health", "Admin", "/Diagnostics/DbHealth", "bi-heart-pulse", AdminPolicies.SecurityView),
             exactPage: true,
             showOnDashboard: true,
+            showInQuickLinks: true),
+
+        Entry(
+            AdminNavigationKeys.SearchIndex,
+            AdminNavigationGroups.Monitoring,
+            52,
+            Item("Search index", "Admin", "/Diagnostics/SearchIndex", "bi-search", AdminPolicies.SecurityView),
+            exactPage: true,
+            showOnDashboard: false,
             showInQuickLinks: true),
 
         Entry(

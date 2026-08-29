@@ -54,6 +54,7 @@ public sealed class AdminNavigationCatalogTests
         Assert.Equal(AdminPolicies.HolidaysManage, AdminNavigationCatalog.Get(AdminNavigationKeys.Holidays).AuthorizationPolicy);
         Assert.Equal(Policies.Calendar.ManageCelebrations, AdminNavigationCatalog.Get(AdminNavigationKeys.Celebrations).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.IngestionManage, AdminNavigationCatalog.Get(AdminNavigationKeys.PdfIngestion).AuthorizationPolicy);
+        Assert.Equal(AdminPolicies.SecurityView, AdminNavigationCatalog.Get(AdminNavigationKeys.SearchIndex).AuthorizationPolicy);
     }
 
     [Theory]
@@ -61,6 +62,7 @@ public sealed class AdminNavigationCatalogTests
     [InlineData("Admin", "/Users/Edit", AdminNavigationKeys.Users)]
     [InlineData("Admin", "/AccessGovernance/Index", AdminNavigationKeys.AccessGovernance)]
     [InlineData("Admin", "/Analytics/Index", AdminNavigationKeys.Logins)]
+    [InlineData("Admin", "/Diagnostics/SearchIndex", AdminNavigationKeys.SearchIndex)]
     [InlineData("Admin", "/Recovery/Index", AdminNavigationKeys.RecoveryCentre)]
     [InlineData("Admin", "/Projects/Archived", AdminNavigationKeys.ArchivedProjects)]
     [InlineData("Admin", "/MasterData/Index", AdminNavigationKeys.MasterDataCentre)]

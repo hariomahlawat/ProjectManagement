@@ -160,7 +160,9 @@ public sealed class SearchHealthService : ISearchHealthService
         var oldestPending = MinNonNull(docRepoPendingOldest, projectDocPendingOldest);
         var lastAttempt = MaxNonNull(docRepoLastAttempt, projectDocLastAttempt);
         var searchIndexHealth = await _searchIndexStore.GetHealthAsync(cancellationToken).ConfigureAwait(false);
-        var searchQueryHealth = await ReadPercentileContMetricsAsync(cancellationToken).ConfigureAwait(false);
+        var searchQueryHealth = await ReadPercentileContMetricsAsync("V2", cancellationToken).ConfigureAwait(false);
+        var engineQueryHealth = await ReadPercentileContMetricsAsync("V2-Engine", cancellationToken).ConfigureAwait(false);
+        var suggestionHealth = await ReadPercentileContMetricsAsync("V2-Suggest", cancellationToken).ConfigureAwait(false);
         // END SECTION
 
         return new SearchHealthVm
@@ -183,6 +185,10 @@ public sealed class SearchHealthService : ISearchHealthService
                 QueryCount24Hours = searchQueryHealth.QueryCount,
                 P50LatencyMs = searchQueryHealth.P50LatencyMs,
                 P95LatencyMs = searchQueryHealth.P95LatencyMs,
+                EngineP50LatencyMs = engineQueryHealth.P50LatencyMs,
+                EngineP95LatencyMs = engineQueryHealth.P95LatencyMs,
+                SuggestionP50LatencyMs = suggestionHealth.P50LatencyMs,
+                SuggestionP95LatencyMs = suggestionHealth.P95LatencyMs,
                 ZeroResultRate = searchQueryHealth.ZeroResultRate,
                 LastError = searchIndexHealth.LastError
             },
@@ -194,7 +200,7 @@ public sealed class SearchHealthService : ISearchHealthService
     }
 
 
-    private async Task<SearchQueryHealthMetrics> ReadPercentileContMetricsAsync(CancellationToken cancellationToken)
+    private async Task<SearchQueryHealthMetrics> ReadPercentileContMetricsAsync(string engine, CancellationToken cancellationToken)
     {
         try
         {
@@ -206,9 +212,13 @@ public sealed class SearchHealthService : ISearchHealthService
                        (percentile_cont(0.95) WITHIN GROUP (ORDER BY "LatencyMs"))::double precision AS p95,
                        AVG(CASE WHEN "ZeroResult" THEN 1.0 ELSE 0.0 END)::double precision AS zero_result_rate
                 FROM "SearchQueryLogs"
-                WHERE "Engine" = 'V2'
+                WHERE "Engine" = @engine
                   AND "SearchedAtUtc" >= NOW() - INTERVAL '24 hours';
                 """;
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "@engine";
+            parameter.Value = engine;
+            command.Parameters.Add(parameter);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return SearchQueryHealthMetrics.Empty;
 

@@ -17,6 +17,10 @@ public interface ISearchIndexStore
     Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken);
     Task FailAsync(long workItemId, string error, CancellationToken cancellationToken);
     Task RecordReconciliationAsync(CancellationToken cancellationToken);
+    Task RecordIndexErrorAsync(string error, CancellationToken cancellationToken);
+    Task RequestFullRebuildAsync(string requestedBy, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SearchFailedIndexWorkItem>> GetFailedItemsAsync(int take, CancellationToken cancellationToken);
+    Task RetryFailedAsync(long? workItemId, CancellationToken cancellationToken);
 }
 
 public sealed class SearchIndexStore : ISearchIndexStore
@@ -307,6 +311,92 @@ public sealed class SearchIndexStore : ISearchIndexStore
 
     public Task RecordReconciliationAsync(CancellationToken cancellationToken) =>
         _db.Database.ExecuteSqlRawAsync("UPDATE \"SearchIndexState\" SET \"LastReconciliationUtc\" = NOW() WHERE \"Id\" = 1;", cancellationToken);
+
+    public Task RecordIndexErrorAsync(string error, CancellationToken cancellationToken)
+    {
+        var compact = string.IsNullOrWhiteSpace(error) ? "Search index operation failed." : error.Trim();
+        if (compact.Length > 4000) compact = compact[..4000];
+        return _db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "SearchIndexState"
+            SET "LastError" = {compact}
+            WHERE "Id" = 1;
+            """, cancellationToken);
+    }
+
+    public Task RequestFullRebuildAsync(string requestedBy, CancellationToken cancellationToken)
+    {
+        var actor = string.IsNullOrWhiteSpace(requestedBy) ? "administrator" : requestedBy.Trim();
+        var note = $"Requested by {actor}.";
+        return _db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "SearchIndexWorkItems" ("EntityType", "EntityKey", "RequestedAtUtc", "Status", "RetryCount", "NextAttemptAtUtc", "LastError")
+            VALUES ('__FullRebuild__', 'active', NOW(), 0, 0, NOW(), {note})
+            ON CONFLICT ("EntityType", "EntityKey") DO UPDATE SET
+                "RequestedAtUtc" = NOW(),
+                -- Preserve an in-flight lease. CompleteAsync will observe the newer
+                -- RequestedAtUtc and return the row to Pending after the current build.
+                "Status" = CASE WHEN "SearchIndexWorkItems"."Status" = 1 THEN 1 ELSE 0 END,
+                "RetryCount" = CASE WHEN "SearchIndexWorkItems"."Status" = 1 THEN "SearchIndexWorkItems"."RetryCount" ELSE 0 END,
+                "NextAttemptAtUtc" = NOW(),
+                "LastError" = {note};
+            """, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SearchFailedIndexWorkItem>> GetFailedItemsAsync(int take, CancellationToken cancellationToken)
+    {
+        var limit = Math.Clamp(take, 1, 100);
+        try
+        {
+            await _db.Database.OpenConnectionAsync(cancellationToken);
+            await using var command = _db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT "Id", "EntityType", "EntityKey", "RetryCount", "RequestedAtUtc", "LastError"
+                FROM "SearchIndexWorkItems"
+                WHERE "Status" = 3
+                ORDER BY "RequestedAtUtc" DESC, "Id" DESC
+                LIMIT @take;
+                """;
+            Add(command, "take", limit);
+            var rows = new List<SearchFailedIndexWorkItem>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                rows.Add(new SearchFailedIndexWorkItem(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.GetInt32(3),
+                    reader.GetFieldValue<DateTimeOffset>(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5)));
+            }
+            return rows;
+        }
+        catch (Exception ex) when (IsSchemaUnavailable(ex))
+        {
+            return Array.Empty<SearchFailedIndexWorkItem>();
+        }
+        finally
+        {
+            await SafeCloseAsync();
+        }
+    }
+
+    public Task RetryFailedAsync(long? workItemId, CancellationToken cancellationToken)
+    {
+        if (workItemId.HasValue && workItemId.Value > 0)
+        {
+            return _db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE "SearchIndexWorkItems"
+                SET "Status" = 0, "RetryCount" = 0, "StartedAtUtc" = NULL, "NextAttemptAtUtc" = NOW(), "LastError" = NULL
+                WHERE "Id" = {workItemId.Value} AND "Status" = 3;
+                """, cancellationToken);
+        }
+
+        return _db.Database.ExecuteSqlRawAsync("""
+            UPDATE "SearchIndexWorkItems"
+            SET "Status" = 0, "RetryCount" = 0, "StartedAtUtc" = NULL, "NextAttemptAtUtc" = NOW(), "LastError" = NULL
+            WHERE "Status" = 3;
+            """, cancellationToken);
+    }
 
     private static async Task<long> NextGenerationAsync(DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
     {

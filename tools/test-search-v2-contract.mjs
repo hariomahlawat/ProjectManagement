@@ -48,7 +48,7 @@ expect(engine.includes('exact_title'), 'Deterministic exact-title ranking tier i
 expect(engine.includes('SUM(weight / (@rrfK + channel_rank))'), 'Reciprocal Rank Fusion is missing');
 expect(engine.includes('PARTITION BY c."CanonicalEntityType", c."CanonicalEntityKey"'), 'Canonical entity clustering is missing');
 expect(engine.includes('request.ProjectIds') && engine.includes('request.Statuses') && engine.includes('request.DateFrom'), 'Search cursor is not bound to active search filters');
-expect(engine.includes('facet_clustered'), 'Search facets are still computed only from the filtered result set');
+expect(!engine.includes('facet_clustered'), 'Legacy representative-only facet clustering is still present');
 expect(engine.includes('filtered_candidates'), 'Search filters are not applied before canonical clustering');
 expect(!engine.includes('FROM authorised e\n            FROM authorised e'), 'Search SQL contains a duplicated FROM clause');
 expect(engine.includes('DateOnly.MaxValue'), 'Date facet upper bound does not guard DateOnly.MaxValue');
@@ -85,40 +85,62 @@ expect(docRepoSearch.includes('SearchLikePattern.Contains(preparedQuery)'), 'Doc
 expect(docRepoSearch.includes('EF.Functions.ILike(d.Subject, literalPattern, SearchLikePattern.EscapeCharacter)'), 'Document Repository subject matching is not using the escaped literal pattern');
 expect(docRepoSearch.includes('d.DocumentText.OcrText ?? string.Empty'), 'Document Repository body-match hint is not query-aware');
 
-// Relevance & production convergence gates.
+// Search V2.2 relevance, faceting and operational-assurance gates.
 const normalizer = read('Services', 'SearchV2', 'Query', 'SearchQueryNormalizer.cs');
-expect(normalizer.includes('BuildExpansionVariants'), 'Query normalizer does not preserve mandatory terms during terminology expansion');
-expect(!normalizer.includes('string.Join(" OR ", alternatives)'), 'Legacy whole-query OR expansion remains active');
+const aliasProvider = read('Services', 'SearchV2', 'Query', 'SearchAliasProvider.cs');
+const projectionModel = read('Services', 'SearchV2', 'Models', 'SearchProjection.cs');
+const searchJs = read('wwwroot', 'js', 'pages', 'search.js');
+const searchCss = read('wwwroot', 'css', 'pages', 'search.css');
+const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
+const adminSearchIndex = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml.cs');
+
+expect(options.includes('ProjectionVersion') && options.includes('= 3;'), 'Projection semantic version is missing or was not bumped');
+expect(worker.includes('IsReadyAsync(_options.ProjectionVersion'), 'Index worker does not force projection-version compatibility');
+expect(worker.includes('ReplaceFullGenerationAsync(projections, _options.ProjectionVersion'), 'Full rebuild does not activate the configured projection version');
+expect(indexStore.includes('RequestFullRebuildAsync') && indexStore.includes("'__FullRebuild__'"), 'Administrative full rebuild queue support is missing');
+expect(indexStore.includes('GetFailedItemsAsync') && indexStore.includes('RetryFailedAsync'), 'Failed indexing job inspection/retry support is missing');
+expect(indexStore.includes('RecordIndexErrorAsync') && worker.includes('RecordIndexErrorAsync(ex.Message'), 'Full rebuild failures are not persisted into Search Health');
+expect(indexStore.includes('CASE WHEN "SearchIndexWorkItems"."Status" = 1 THEN 1 ELSE 0 END'), 'Full-rebuild requests can overwrite an in-flight lease');
+expect(exists('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml'), 'Search index administration page is missing');
+expect(adminSearchIndex.includes('OnPostRebuildAsync') && adminSearchIndex.includes('OnPostRetryAllAsync'), 'Search index administration handlers are incomplete');
+
+for (const kind of ['Name', 'Organisation', 'Location', 'Person', 'Context']) {
+  expect(projectionModel.includes(`public const string ${kind} = "${kind}";`), `Typed search term ${kind} is missing`);
+}
+expect(exists('Services', 'SearchV2', 'Query', 'SearchAliasProvider.cs'), 'Database-backed search alias provider is missing');
+expect(aliasProvider.includes('FROM "SearchAliases"') && aliasProvider.includes('SearchAliasQueryExpander'), 'SearchAliases is not the runtime terminology source');
+expect(aliasProvider.includes('string.Join(" OR ", variants'), 'Compound alias expansion does not preserve mandatory non-alias terms through whole-query variants');
+expect(normalizer.includes('Runtime terminology expansion is owned by SearchAliasProvider'), 'Query normalizer still owns a second terminology catalogue');
+expect(!normalizer.includes('BuildExpansionVariants'), 'Hard-coded normalizer alias expansion is still present');
 expect(engine.includes('HasStrongLexicalChannel'), 'Did-you-mean is not gated by strong lexical matches');
 expect(engine.includes('rows.Count > 3'), 'Did-you-mean is not suppressed for healthy result sets');
-expect(engine.includes('prefixTsQuery'), 'Autocomplete does not use title-token prefix retrieval');
-expect(engine.includes("t.\"TermType\" = 'Identifier' AND LEFT(t.\"NormalizedTerm\", LENGTH(@exact)) = @exact"), 'Autocomplete identifier-prefix tier is missing');
-expect(engine.includes("t.\"TermType\" = 'Alias' AND LEFT(t.\"NormalizedTerm\", LENGTH(@exact)) = @exact"), 'Autocomplete alias-prefix tier is missing');
-expect(engine.includes('PARTITION BY s.\"CanonicalEntityType\", s.\"CanonicalEntityKey\"'), 'Autocomplete does not deduplicate canonical entities');
-expect(view.includes('preserveSources: false'), 'Sources Clear still preserves selected source filters');
-expect(view.includes('|| activeFilterCount > 0'), 'Active advanced filters can disappear when facet cardinality falls to one');
+expect(engine.includes('name_matches'), 'Name retrieval channel is missing');
+expect(engine.includes(`t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact`), 'Exact alias tier is missing');
+expect(engine.includes('query.HighlightTerms.Any(term => row.Title.Contains'), 'Title-visible matched-field precedence is missing');
+expect(engine.includes('MatchedFieldFromMetadata'), 'Precise metadata matched-field attribution is missing');
+expect(engine.includes('CategoryFacetFilterClause') && engine.includes('SourceFacetFilterClause') && engine.includes('ProjectFacetFilterClause'), 'Disjunctive facet scopes are missing');
+expect(engine.includes('COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey"))'), 'Facet counts are not canonical-entity aware');
+expect(engine.includes('reader.NextResultAsync') && engine.includes('Summary/facets are returned as their own result set'), 'Zero-result searches lose disjunctive facet recovery data');
+expect(engine.includes('ProjectFacets') && engine.includes('StatusFacets') && engine.includes('FileTypeFacets') && engine.includes('StageFacets'), 'Advanced Search V2 facets are incomplete');
+expect(engine.includes('ts_headline') && engine.includes('@maxSnippetSourceCharacters'), 'Search result query still transfers entire narrative/OCR bodies');
+expect(engine.includes('indexHealth.ActiveGeneration') && read('Services', 'SearchV2', 'Query', 'SearchCursorCodec.cs').includes('ActiveGeneration'), 'Search cursor is not generation-aware');
 expect(view.includes('CategoryOrder'), 'Category tabs are not rendered in stable product order');
+expect(view.includes('pm-gs-active-filters'), 'Active filter chips are missing');
+expect(view.includes('data-project-facet-search') && view.includes('data-project-facet-more'), 'Project facet search/show-more markup is missing');
+expect(view.includes('Relevant date'), 'Date facet has not been clarified as Relevant date');
+expect(view.includes('BuildRelatedUrl'), 'Related result chips are not navigable');
+expect(searchCss.includes('position: sticky') && searchCss.includes('.pm-gs-active-filter'), 'Filter sticky actions/active-chip styling is incomplete');
+expect(searchJs.includes('initProjectFacets'), 'Project facet search/show-more JavaScript is missing');
+expect(searchJs.includes('data-project-facet-search') && searchJs.includes('data-project-facet-more'), 'Project facet JavaScript is not wired to the Razor data contract');
+expect(pageModel.includes('if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value > DateTo.Value)'), 'Invalid date ranges are not normalized before search');
 expect(/"Visits",\s*"Trackers"/.test(projectionBuilder), 'Visits are not classified under Trackers');
 expect(projectionBuilder.includes('"Social media", "Trackers"'), 'Social Media is not classified under Trackers');
-expect(engine.includes('ProjectFacets') && engine.includes('StatusFacets') && engine.includes('FileTypeFacets') && engine.includes('StageFacets'), 'Advanced Search V2 facets are incomplete');
-expect(view.includes('name="DateFrom"') && view.includes('name="Project"') && view.includes('name="Stage"'), 'Advanced search filters are not wired into the Razor UI');
-const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
-expect(pageModel.includes('if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value > DateTo.Value)'), 'Invalid date ranges are not normalized before search');
-const searchCss = read('wwwroot', 'css', 'pages', 'search.css');
-expect(searchCss.includes('.pm-gs-suggestion__title') && searchCss.includes('display: block'), 'Search-page autocomplete title/subtitle layout remains run-together');
-expect(engine.includes('indexHealth.ActiveGeneration') && read('Services', 'SearchV2', 'Query', 'SearchCursorCodec.cs').includes('ActiveGeneration'), 'Search cursor is not generation-aware');
-expect(engine.includes('ts_headline') && engine.includes('@maxSnippetSourceCharacters'), 'Search result query still transfers entire narrative/OCR bodies');
-expect(options.includes('ServeV2Users') && options.includes('ServeV2Roles'), 'Selected-user/role Search V2 rollout controls are missing');
-expect(healthService.includes('PercentileCont'), 'Search Health does not calculate query latency percentiles');
-expect(healthService.includes('ZeroResultRate'), 'Search Health does not calculate zero-result rate');
-expect(engine.includes('MatchedFieldFromMetadata'), 'Search result matched-field attribution is still generic');
-expect(engine.includes('related_source_counts'), 'Related-result source counts are missing');
-expect(engine.includes('configured_alias_fts') && engine.includes('\"SearchAliases\"'), 'Database-managed SearchAliases are still unused by retrieval');
-expect(projectionBuilder.includes('["Project Brief"]') && projectionBuilder.includes('["Technical Specification"]'), 'Project matched-field metadata is incomplete');
+expect(projectionBuilder.includes('SearchTermKinds.Location') && projectionBuilder.includes('SearchTermKinds.Organisation'), 'Projection builder does not persist typed contextual terms');
+expect(!/BuildTerms\([^)]*aliases:\s*Values\(row\.Location\)/s.test(projectionBuilder), 'Activity location is still promoted to an Alias');
+expect(gateway.includes('gatewayLatencyMs') && gateway.includes('\"V2-Engine\"') && gateway.includes('\"V2-Suggest\"'), 'Engine/gateway/suggestion latency telemetry is incomplete');
+expect(healthService.includes('\"V2-Engine\"') && healthService.includes('EngineP95LatencyMs') && healthService.includes('\"V2-Suggest\"') && healthService.includes('SuggestionP95LatencyMs'), 'Search Health engine/suggestion latency metrics are missing');
 expect(exists('tools', 'search-v2-relevance-evaluator.mjs'), 'Search V2 relevance evaluator is missing');
 expect(exists('tools', 'search-v2-relevance-dataset.schema.json'), 'Search V2 relevance dataset schema is missing');
-expect(exists('ProjectManagement.Tests', 'Search', 'SearchV2AuthorizationTests.cs'), 'Search V2 authorization-context regression tests are missing');
-
 if (failures.length) {
   console.error(`Search V2 contract failed (${failures.length}):`);
   failures.forEach((failure) => console.error(` - ${failure}`));

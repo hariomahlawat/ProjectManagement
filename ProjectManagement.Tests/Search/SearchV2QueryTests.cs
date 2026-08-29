@@ -9,30 +9,56 @@ namespace ProjectManagement.Tests.Search;
 public sealed class SearchV2QueryTests
 {
     [Fact]
-    public void Normalizer_ExpandsPrismTerminologyWithoutLosingLiteralQuery()
+    public void Normalizer_IsDeterministicAndDatabaseIndependent()
     {
         var normalizer = new SearchQueryNormalizer();
 
-        var result = normalizer.Normalize("high-tech");
+        var result = normalizer.Normalize("  AURA   ToT  ");
 
-        Assert.Equal("high-tech", result.Original);
-        Assert.Equal("high tech", result.Exact);
-        Assert.Contains("hightech", result.Expansions, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains("high-tech", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("AURA ToT", result.Original);
+        Assert.Equal("aura tot", result.Exact);
+        Assert.Equal("aura tot", result.WebSearchQuery);
+        Assert.Empty(result.Expansions);
+        Assert.Contains("AURA", result.HighlightTerms, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("ToT", result.HighlightTerms, StringComparer.OrdinalIgnoreCase);
     }
 
     [Theory]
-    [InlineData("ToT", "tot", "transfer of technology")]
-    [InlineData("AoN", "aon", "approval of necessity")]
-    [InlineData("ARPP", "arpp", "annual rolled-on procurement plan")]
-    public void Normalizer_ExpandsRegisteredMilitaryTerminology(string query, string exact, string expansion)
+    [InlineData("ToT", "tot", "Transfer of Technology")]
+    [InlineData("AoN", "aon", "Approval of Necessity")]
+    [InlineData("ARPP", "arpp", "Annual Rolled-on Procurement Plan")]
+    public void AliasExpander_ExpandsRegisteredMilitaryTerminology(string query, string normalizedAlias, string expansion)
     {
-        var normalizer = new SearchQueryNormalizer();
+        var rules = new[] { new SearchAliasRule(query, normalizedAlias, expansion) };
 
-        var result = normalizer.Normalize(query);
+        var result = SearchAliasQueryExpander.Expand(normalizedAlias, rules);
 
-        Assert.Equal(exact, result.Exact);
+        Assert.Contains(normalizedAlias, result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expansion, result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(expansion, result.Expansions, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AliasExpander_MultiTermExpansionPreservesMandatoryTerms()
+    {
+        var rules = new[] { new SearchAliasRule("ToT", "tot", "Transfer of Technology") };
+
+        var result = SearchAliasQueryExpander.Expand("aura tot", rules);
+
+        Assert.Contains("aura tot", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("aura \"Transfer of Technology\"", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(" OR \"Transfer of Technology\"", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AliasExpander_DoesNotReplaceAliasInsideAnotherWord()
+    {
+        var rules = new[] { new SearchAliasRule("ToT", "tot", "Transfer of Technology") };
+
+        var result = SearchAliasQueryExpander.Expand("total simulator", rules);
+
+        Assert.Equal("total simulator", result.WebSearchQuery);
+        Assert.Empty(result.Expansions);
     }
 
     [Fact]
@@ -44,19 +70,6 @@ public sealed class SearchV2QueryTests
         Assert.True(cursor.TryDecode("AURA", encoded, out var rank));
         Assert.Equal(20, rank);
         Assert.False(cursor.TryDecode("ASTRAE", encoded, out _));
-    }
-
-
-    [Fact]
-    public void Normalizer_MultiTermExpansionPreservesMandatoryTerms()
-    {
-        var normalizer = new SearchQueryNormalizer();
-
-        var result = normalizer.Normalize("AURA ToT");
-
-        Assert.Contains("aura tot", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("aura \"transfer of technology\"", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(" OR \"transfer of technology\"", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

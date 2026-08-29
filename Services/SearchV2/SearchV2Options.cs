@@ -27,8 +27,17 @@ public sealed class SearchV2Options
     [Range(1, 500)]
     public int ReciprocalRankK { get; set; } = 60;
 
+    /// <summary>Database/search-schema generation understood by this application build.</summary>
     [Range(1, int.MaxValue)]
     public int IndexVersion { get; set; } = 2;
+
+    /// <summary>
+    /// Semantic version of the SearchEntry projection. Bump this whenever categories,
+    /// indexed fields, metadata, aliases or parent-context semantics change. The active
+    /// index generation is rebuilt atomically when this value changes.
+    /// </summary>
+    [Range(1, int.MaxValue)]
+    public int ProjectionVersion { get; set; } = 3;
 
     [Range(5, 3600)]
     public int WorkerIntervalSeconds { get; set; } = 15;

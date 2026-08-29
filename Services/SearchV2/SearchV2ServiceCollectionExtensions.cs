@@ -21,6 +21,7 @@ public static class SearchV2ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.AddSingleton<ISearchQueryNormalizer, SearchQueryNormalizer>();
+        services.AddScoped<ISearchAliasProvider, SearchAliasProvider>();
         services.AddSingleton<ISearchCursorCodec, SearchCursorCodec>();
         services.AddScoped<ISearchHighlightService, SearchHighlightService>();
         services.AddScoped<ISearchAccessContextFactory, SearchAccessContextFactory>();

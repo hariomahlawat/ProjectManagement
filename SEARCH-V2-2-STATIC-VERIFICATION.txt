@@ -1,0 +1,19 @@
+PRISM Search V2.2 — packaging/static verification
+
+Verified in packaging environment:
+- Search V2 source contract: PASS
+- search.js Node syntax: PASS
+- global-search ES-module syntax: PASS
+- relevance evaluator/tool syntax: PASS
+- relevance schema JSON parse: PASS
+- relevance evaluator smoke test: PASS
+- changed/new C# delimiter/string structural scan: PASS
+- merge-conflict marker scan: PASS
+- known CS9006 raw-string JSON pattern: ABSENT
+- Existing JavaScript suite: Search V2.2 = 647/673 pass, convergence baseline = 647/673 pass; the same 26 pre-existing tests fail in both
+- Full and production patch dry-runs against the convergence baseline: PASS
+- appsettings.json intentionally excluded from both overlays
+
+Environment limitation:
+- .NET SDK/MSBuild/C# compiler is not installed in this packaging environment.
+- Authoritative dotnet restore/build/xUnit execution must be run on the development machine using VERIFY-SEARCH-V2.ps1 from the full package.

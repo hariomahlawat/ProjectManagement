@@ -51,6 +51,44 @@
         if (!string.IsNullOrWhiteSpace(cursor)) values.Add(new("Cursor", cursor));
         return QueryString.Create(values).ToString();
     }
+
+    string BuildUrlRemoving(string dimension, string value)
+    {
+        var values = new List<KeyValuePair<string, string?>> { new("q", Model.Q) };
+        if (!string.IsNullOrWhiteSpace(selectedCategory) && !string.Equals(dimension, "Category", StringComparison.OrdinalIgnoreCase))
+            values.Add(new("Category", selectedCategory));
+
+        foreach (var source in selectedSources)
+            if (!(string.Equals(dimension, "Source", StringComparison.OrdinalIgnoreCase) && string.Equals(source, value, StringComparison.OrdinalIgnoreCase))) values.Add(new("Source", source));
+        foreach (var project in selectedProjects)
+            if (!(string.Equals(dimension, "Project", StringComparison.OrdinalIgnoreCase) && string.Equals(project.ToString(System.Globalization.CultureInfo.InvariantCulture), value, StringComparison.OrdinalIgnoreCase))) values.Add(new("Project", project.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        foreach (var status in selectedStatuses)
+            if (!(string.Equals(dimension, "Status", StringComparison.OrdinalIgnoreCase) && string.Equals(status, value, StringComparison.OrdinalIgnoreCase))) values.Add(new("Status", status));
+        foreach (var fileType in selectedFileTypes)
+            if (!(string.Equals(dimension, "FileType", StringComparison.OrdinalIgnoreCase) && string.Equals(fileType, value, StringComparison.OrdinalIgnoreCase))) values.Add(new("FileType", fileType));
+        foreach (var stage in selectedStages)
+            if (!(string.Equals(dimension, "Stage", StringComparison.OrdinalIgnoreCase) && string.Equals(stage, value, StringComparison.OrdinalIgnoreCase))) values.Add(new("Stage", stage));
+        if (Model.DateFrom.HasValue && !string.Equals(dimension, "DateFrom", StringComparison.OrdinalIgnoreCase)) values.Add(new("DateFrom", Model.DateFrom.Value.ToString("yyyy-MM-dd")));
+        if (Model.DateTo.HasValue && !string.Equals(dimension, "DateTo", StringComparison.OrdinalIgnoreCase)) values.Add(new("DateTo", Model.DateTo.Value.ToString("yyyy-MM-dd")));
+        return QueryString.Create(values).ToString();
+    }
+
+    string BuildRelatedUrl(SearchResult hit, SearchRelatedResult related)
+    {
+        var values = new List<KeyValuePair<string, string?>>
+        {
+            new("q", Model.Q),
+            new("Source", related.SourceModule)
+        };
+        var projectId = hit.ParentProjectId;
+        if (!projectId.HasValue && string.Equals(hit.CanonicalEntityType, "Project", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(hit.CanonicalEntityKey, out var parsedProjectId))
+        {
+            projectId = parsedProjectId;
+        }
+        if (projectId.HasValue) values.Add(new("Project", projectId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        return QueryString.Create(values).ToString();
+    }
 }
 
 <div class="pm-gs-page" data-search-page>
@@ -162,97 +200,120 @@ else
 
                             @if (Model.Search.Facets.Sources.Count > 0)
                             {
-                                <fieldset class="pm-gs-filter__group">
-                                    <legend>Source</legend>
-                                    @{ var sourceIndex = 0; }
-                                    @foreach (var sourceFacet in Model.Search.Facets.Sources)
-                                    {
-                                        var sourceId = $"source-{sourceIndex++}";
-                                        <label class="pm-gs-filter__option" for="@sourceId">
-                                            <input id="@sourceId" type="checkbox" name="Source" value="@sourceFacet.Value" checked="@selectedSources.Contains(sourceFacet.Value)" />
-                                            <span>@sourceFacet.Value</span>
-                                            <small>@sourceFacet.Count</small>
-                                        </label>
-                                    }
-                                </fieldset>
+                                <details class="pm-gs-filter__section" open>
+                                    <summary>Source <span>@Model.Search.Facets.Sources.Count</span></summary>
+                                    <div class="pm-gs-filter__section-body">
+                                        @{ var sourceIndex = 0; }
+                                        @foreach (var sourceFacet in Model.Search.Facets.Sources)
+                                        {
+                                            var sourceId = $"source-{sourceIndex++}";
+                                            <label class="pm-gs-filter__option" for="@sourceId">
+                                                <input id="@sourceId" type="checkbox" name="Source" value="@sourceFacet.Value" checked="@selectedSources.Contains(sourceFacet.Value)" />
+                                                <span>@sourceFacet.Value</span>
+                                                <small>@sourceFacet.Count</small>
+                                            </label>
+                                        }
+                                    </div>
+                                </details>
                             }
 
                             @if (Model.Search.Facets.Projects.Count > 0)
                             {
-                                <fieldset class="pm-gs-filter__group">
-                                    <legend>Project</legend>
-                                    @{ var projectIndex = 0; }
-                                    @foreach (var projectFacet in Model.Search.Facets.Projects.Take(12))
-                                    {
-                                        var projectId = $"project-{projectIndex++}";
-                                        var projectValue = int.TryParse(projectFacet.Value, out var parsedProject) ? parsedProject : 0;
-                                        <label class="pm-gs-filter__option" for="@projectId">
-                                            <input id="@projectId" type="checkbox" name="Project" value="@projectFacet.Value" checked="@(projectValue > 0 && selectedProjects.Contains(projectValue))" />
-                                            <span>@(projectFacet.Label ?? projectFacet.Value)</span>
-                                            <small>@projectFacet.Count</small>
-                                        </label>
-                                    }
-                                </fieldset>
+                                <details class="pm-gs-filter__section" open="@(selectedProjects.Count > 0 ? "open" : null)">
+                                    <summary>Project <span>@Model.Search.Facets.Projects.Count</span></summary>
+                                    <div class="pm-gs-filter__section-body" data-project-facet-list>
+                                        @if (Model.Search.Facets.Projects.Count > 8)
+                                        {
+                                            <label class="visually-hidden" for="projectFacetSearch">Filter project facets</label>
+                                            <input id="projectFacetSearch" class="pm-gs-filter__facet-search" type="search" placeholder="Find project…" autocomplete="off" data-project-facet-search />
+                                        }
+                                        @{ var projectIndex = 0; }
+                                        @foreach (var projectFacet in Model.Search.Facets.Projects)
+                                        {
+                                            var projectId = $"project-{projectIndex++}";
+                                            var projectValue = int.TryParse(projectFacet.Value, out var parsedProject) ? parsedProject : 0;
+                                            var projectLabel = projectFacet.Label ?? projectFacet.Value;
+                                            <label class="pm-gs-filter__option" for="@projectId" data-project-facet data-project-label="@projectLabel.ToLowerInvariant()">
+                                                <input id="@projectId" type="checkbox" name="Project" value="@projectFacet.Value" checked="@(projectValue > 0 && selectedProjects.Contains(projectValue))" />
+                                                <span>@projectLabel</span>
+                                                <small>@projectFacet.Count</small>
+                                            </label>
+                                        }
+                                        @if (Model.Search.Facets.Projects.Count > 8)
+                                        {
+                                            <button class="pm-gs-filter__show-more" type="button" data-project-facet-more>Show more</button>
+                                        }
+                                    </div>
+                                </details>
                             }
 
                             @if (Model.Search.Facets.Statuses.Count > 0)
                             {
-                                <fieldset class="pm-gs-filter__group">
-                                    <legend>Status</legend>
-                                    @{ var statusIndex = 0; }
-                                    @foreach (var statusFacet in Model.Search.Facets.Statuses.Take(12))
-                                    {
-                                        var statusId = $"status-{statusIndex++}";
-                                        <label class="pm-gs-filter__option" for="@statusId">
-                                            <input id="@statusId" type="checkbox" name="Status" value="@statusFacet.Value" checked="@selectedStatuses.Contains(statusFacet.Value)" />
-                                            <span>@statusFacet.Value</span>
-                                            <small>@statusFacet.Count</small>
-                                        </label>
-                                    }
-                                </fieldset>
+                                <details class="pm-gs-filter__section" open="@(selectedStatuses.Count > 0 ? "open" : null)">
+                                    <summary>Status <span>@Model.Search.Facets.Statuses.Count</span></summary>
+                                    <div class="pm-gs-filter__section-body">
+                                        @{ var statusIndex = 0; }
+                                        @foreach (var statusFacet in Model.Search.Facets.Statuses.Take(20))
+                                        {
+                                            var statusId = $"status-{statusIndex++}";
+                                            <label class="pm-gs-filter__option" for="@statusId">
+                                                <input id="@statusId" type="checkbox" name="Status" value="@statusFacet.Value" checked="@selectedStatuses.Contains(statusFacet.Value)" />
+                                                <span>@statusFacet.Value</span>
+                                                <small>@statusFacet.Count</small>
+                                            </label>
+                                        }
+                                    </div>
+                                </details>
                             }
 
                             @if (Model.Search.Facets.FileTypes.Count > 0)
                             {
-                                <fieldset class="pm-gs-filter__group">
-                                    <legend>File type</legend>
-                                    @{ var fileTypeIndex = 0; }
-                                    @foreach (var fileTypeFacet in Model.Search.Facets.FileTypes)
-                                    {
-                                        var fileTypeId = $"file-type-{fileTypeIndex++}";
-                                        <label class="pm-gs-filter__option" for="@fileTypeId">
-                                            <input id="@fileTypeId" type="checkbox" name="FileType" value="@fileTypeFacet.Value" checked="@selectedFileTypes.Contains(fileTypeFacet.Value)" />
-                                            <span>@fileTypeFacet.Value</span>
-                                            <small>@fileTypeFacet.Count</small>
-                                        </label>
-                                    }
-                                </fieldset>
+                                <details class="pm-gs-filter__section" open="@(selectedFileTypes.Count > 0 ? "open" : null)">
+                                    <summary>File type <span>@Model.Search.Facets.FileTypes.Count</span></summary>
+                                    <div class="pm-gs-filter__section-body">
+                                        @{ var fileTypeIndex = 0; }
+                                        @foreach (var fileTypeFacet in Model.Search.Facets.FileTypes)
+                                        {
+                                            var fileTypeId = $"file-type-{fileTypeIndex++}";
+                                            <label class="pm-gs-filter__option" for="@fileTypeId">
+                                                <input id="@fileTypeId" type="checkbox" name="FileType" value="@fileTypeFacet.Value" checked="@selectedFileTypes.Contains(fileTypeFacet.Value)" />
+                                                <span>@fileTypeFacet.Value</span>
+                                                <small>@fileTypeFacet.Count</small>
+                                            </label>
+                                        }
+                                    </div>
+                                </details>
                             }
 
                             @if (Model.Search.Facets.Stages.Count > 0)
                             {
-                                <fieldset class="pm-gs-filter__group">
-                                    <legend>Stage</legend>
-                                    @{ var stageIndex = 0; }
-                                    @foreach (var stageFacet in Model.Search.Facets.Stages)
-                                    {
-                                        var stageId = $"stage-{stageIndex++}";
-                                        <label class="pm-gs-filter__option" for="@stageId">
-                                            <input id="@stageId" type="checkbox" name="Stage" value="@stageFacet.Value" checked="@selectedStages.Contains(stageFacet.Value)" />
-                                            <span>@stageFacet.Value</span>
-                                            <small>@stageFacet.Count</small>
-                                        </label>
-                                    }
-                                </fieldset>
+                                <details class="pm-gs-filter__section" open="@(selectedStages.Count > 0 ? "open" : null)">
+                                    <summary>Stage <span>@Model.Search.Facets.Stages.Count</span></summary>
+                                    <div class="pm-gs-filter__section-body">
+                                        @{ var stageIndex = 0; }
+                                        @foreach (var stageFacet in Model.Search.Facets.Stages)
+                                        {
+                                            var stageId = $"stage-{stageIndex++}";
+                                            <label class="pm-gs-filter__option" for="@stageId">
+                                                <input id="@stageId" type="checkbox" name="Stage" value="@stageFacet.Value" checked="@selectedStages.Contains(stageFacet.Value)" />
+                                                <span>@stageFacet.Value</span>
+                                                <small>@stageFacet.Count</small>
+                                            </label>
+                                        }
+                                    </div>
+                                </details>
                             }
 
-                            <fieldset class="pm-gs-filter__group">
-                                <legend>Date</legend>
-                                <div class="pm-gs-filter__dates">
-                                    <label><span>From</span><input type="date" name="DateFrom" value="@(Model.DateFrom?.ToString("yyyy-MM-dd"))" /></label>
-                                    <label><span>To</span><input type="date" name="DateTo" value="@(Model.DateTo?.ToString("yyyy-MM-dd"))" /></label>
+                            <details class="pm-gs-filter__section" open="@(Model.DateFrom.HasValue || Model.DateTo.HasValue ? "open" : null)">
+                                <summary>Relevant date</summary>
+                                <div class="pm-gs-filter__section-body">
+                                    <p class="pm-gs-filter__hint">Uses the primary date associated with each result type.</p>
+                                    <div class="pm-gs-filter__dates">
+                                        <label><span>From</span><input type="date" name="DateFrom" value="@(Model.DateFrom?.ToString("yyyy-MM-dd"))" /></label>
+                                        <label><span>To</span><input type="date" name="DateTo" value="@(Model.DateTo?.ToString("yyyy-MM-dd"))" /></label>
+                                    </div>
                                 </div>
-                            </fieldset>
+                            </details>
 
                             <div class="pm-gs-filter__actions">
                                 <a href="@BuildUrl(Model.Q!, selectedCategory, preserveSources: false, preserveAdvanced: false)" class="btn btn-sm btn-outline-secondary">Clear all</a>
@@ -262,6 +323,43 @@ else
                     </details>
                 }
             </section>
+
+            @if (Model.Search.UsedSearchV2 && activeFilterCount > 0)
+            {
+                <nav class="pm-gs-active-filters" aria-label="Active search filters">
+                    @foreach (var source in selectedSources)
+                    {
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Source", source)" aria-label="Remove source filter @source"><span>Source: @source</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    @foreach (var project in selectedProjects)
+                    {
+                        var projectValue = project.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        var projectLabel = Model.Search.Facets.Projects.FirstOrDefault(facet => string.Equals(facet.Value, projectValue, StringComparison.OrdinalIgnoreCase))?.Label ?? $"Project {projectValue}";
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Project", projectValue)" aria-label="Remove project filter @projectLabel"><span>@projectLabel</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    @foreach (var status in selectedStatuses)
+                    {
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Status", status)" aria-label="Remove status filter @status"><span>Status: @status</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    @foreach (var fileType in selectedFileTypes)
+                    {
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("FileType", fileType)" aria-label="Remove file type filter @fileType"><span>@fileType</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    @foreach (var stage in selectedStages)
+                    {
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Stage", stage)" aria-label="Remove stage filter @stage"><span>Stage: @stage</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    @if (Model.DateFrom.HasValue)
+                    {
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("DateFrom", string.Empty)" aria-label="Remove from date filter"><span>From @Model.DateFrom.Value.ToString("dd MMM yyyy")</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    @if (Model.DateTo.HasValue)
+                    {
+                        <a class="pm-gs-active-filter" href="@BuildUrlRemoving("DateTo", string.Empty)" aria-label="Remove to date filter"><span>To @Model.DateTo.Value.ToString("dd MMM yyyy")</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                    }
+                    <a class="pm-gs-active-filter pm-gs-active-filter--clear" href="@BuildUrl(Model.Q!, selectedCategory, preserveSources: false, preserveAdvanced: false)">Clear all</a>
+                </nav>
+            }
 
             @if (Model.Search.Results.Count > 0)
             {
@@ -343,7 +441,7 @@ else
                                     <span>Related:</span>
                                     @foreach (var related in hit.RelatedResults.Take(4))
                                     {
-                                        <span class="pm-gs-related-chip">@related.Label@if (related.Count > 1) {<text> · @related.Count</text>}</span>
+                                        <a class="pm-gs-related-chip" href="@BuildRelatedUrl(hit, related)">@related.Label@if (related.Count > 1) {<text> · @related.Count</text>}</a>
                                     }
                                 </div>
                             }

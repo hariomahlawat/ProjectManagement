@@ -212,6 +212,77 @@
     });
   }
 
+  function initProjectFacets() {
+    document.querySelectorAll('[data-project-facet-list]').forEach((container) => {
+      if (!(container instanceof HTMLElement)) return;
+
+      const search = container.querySelector('[data-project-facet-search]');
+      const more = container.querySelector('[data-project-facet-more]');
+      const facets = Array.from(container.querySelectorAll('[data-project-facet]'))
+        .filter((node) => node instanceof HTMLElement);
+      const initialLimit = 8;
+      let expanded = false;
+
+      const isSelected = (facet) => {
+        const checkbox = facet.querySelector('input[type="checkbox"]');
+        return checkbox instanceof HTMLInputElement && checkbox.checked;
+      };
+
+      const applyVisibility = () => {
+        const term = search instanceof HTMLInputElement ? search.value.trim().toLocaleLowerCase() : '';
+        let matchingCount = 0;
+
+        facets.forEach((facet, index) => {
+          const label = (facet.dataset.projectLabel || facet.textContent || '').toLocaleLowerCase();
+          const matches = term.length === 0 || label.includes(term);
+          if (matches) matchingCount += 1;
+
+          const visible = term.length > 0
+            ? matches
+            : (expanded || index < initialLimit || isSelected(facet));
+          facet.classList.toggle('is-collapsed', !visible);
+        });
+
+        if (more instanceof HTMLButtonElement) {
+          const canExpand = term.length === 0 && facets.length > initialLimit;
+          more.hidden = !canExpand;
+          more.textContent = expanded ? 'Show less' : `Show all (${facets.length})`;
+          more.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+
+        if (search instanceof HTMLInputElement) {
+          search.setAttribute('aria-label', `Filter ${facets.length} project facets`);
+          search.dataset.matchCount = String(matchingCount);
+        }
+      };
+
+      if (search instanceof HTMLInputElement) {
+        search.addEventListener('input', applyVisibility);
+        search.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && search.value) {
+            search.value = '';
+            applyVisibility();
+            event.stopPropagation();
+          }
+        });
+      }
+
+      if (more instanceof HTMLButtonElement) {
+        more.addEventListener('click', () => {
+          expanded = !expanded;
+          applyVisibility();
+        });
+      }
+
+      facets.forEach((facet) => {
+        const checkbox = facet.querySelector('input[type="checkbox"]');
+        checkbox?.addEventListener('change', applyVisibility);
+      });
+
+      applyVisibility();
+    });
+  }
+
   function initFilters() {
     document.querySelectorAll('.pm-gs-filter').forEach((details) => {
       if (!(details instanceof HTMLDetailsElement)) return;
@@ -225,6 +296,7 @@
     initSuggestions();
     initShortcut();
     initClickTelemetry();
+    initProjectFacets();
     initFilters();
   }
 

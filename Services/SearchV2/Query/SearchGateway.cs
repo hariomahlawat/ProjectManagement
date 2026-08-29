@@ -103,11 +103,20 @@ public sealed class SearchGateway : ISearchGateway
         if (serveV2ToUser && v2Response is { IsReady: true })
         {
             stopwatch.Stop();
+            var gatewayLatencyMs = stopwatch.ElapsedMilliseconds;
             await SafeQueryLogAsync(
                 normalized.Original,
                 user,
                 v2Response.TotalHits,
                 v2Response.QueryTimeMilliseconds,
+                "V2-Engine",
+                v2Response.CorrectedQuery,
+                cancellationToken);
+            await SafeQueryLogAsync(
+                normalized.Original,
+                user,
+                v2Response.TotalHits,
+                gatewayLatencyMs,
                 "V2",
                 v2Response.CorrectedQuery,
                 cancellationToken);
@@ -118,7 +127,7 @@ public sealed class SearchGateway : ISearchGateway
                 v2Response.TotalHits,
                 v2Response.Facets,
                 v2Response.NextCursor,
-                v2Response.QueryTimeMilliseconds,
+                gatewayLatencyMs,
                 true,
                 v2Response.IsPartial,
                 v2Response.CorrectedQuery);
@@ -165,7 +174,7 @@ public sealed class SearchGateway : ISearchGateway
             null);
     }
 
-    public Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(
+    public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(
         string query,
         ClaimsPrincipal user,
         int? limit,
@@ -175,10 +184,21 @@ public sealed class SearchGateway : ISearchGateway
         // when V2 itself is explicitly allowed to serve user-facing results.
         if (!_options.Enabled || !ShouldServeV2(user))
         {
-            return Task.FromResult<IReadOnlyList<SearchSuggestion>>(Array.Empty<SearchSuggestion>());
+            return Array.Empty<SearchSuggestion>();
         }
 
-        return _v2.SuggestAsync(query, user, limit, cancellationToken);
+        var stopwatch = Stopwatch.StartNew();
+        var suggestions = await _v2.SuggestAsync(query, user, limit, cancellationToken);
+        stopwatch.Stop();
+        await SafeQueryLogAsync(
+            query?.Trim() ?? string.Empty,
+            user,
+            suggestions.Count,
+            stopwatch.ElapsedMilliseconds,
+            "V2-Suggest",
+            null,
+            cancellationToken);
+        return suggestions;
     }
 
     public async Task LogClickAsync(

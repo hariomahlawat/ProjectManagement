@@ -76,7 +76,7 @@ public sealed class SearchIndexWorker : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<ISearchIndexStore>();
-        if (await store.IsReadyAsync(_options.IndexVersion, cancellationToken)) return;
+        if (await store.IsReadyAsync(_options.ProjectionVersion, cancellationToken)) return;
 
         await FullRebuildAsync(scope.ServiceProvider, cancellationToken);
     }
@@ -87,7 +87,7 @@ public sealed class SearchIndexWorker : BackgroundService
         {
             using var scope = _scopeFactory.CreateScope();
             var store = scope.ServiceProvider.GetRequiredService<ISearchIndexStore>();
-            if (!await store.IsReadyAsync(_options.IndexVersion, cancellationToken))
+            if (!await store.IsReadyAsync(_options.ProjectionVersion, cancellationToken))
             {
                 await FullRebuildAsync(scope.ServiceProvider, cancellationToken);
                 return;
@@ -98,9 +98,22 @@ public sealed class SearchIndexWorker : BackgroundService
 
             try
             {
+                if (string.Equals(item.EntityType, "__FullRebuild__", StringComparison.Ordinal))
+                {
+                    if (await FullRebuildAsync(scope.ServiceProvider, cancellationToken))
+                    {
+                        await store.CompleteAsync(item.Id, cancellationToken);
+                    }
+                    else
+                    {
+                        await store.FailAsync(item.Id, "Full Search V2 rebuild failed. Review application logs for the underlying exception.", cancellationToken);
+                    }
+                    return;
+                }
+
                 var builder = scope.ServiceProvider.GetRequiredService<ISearchProjectionBuilder>();
                 var projections = await builder.BuildEntityAsync(item.EntityType, item.EntityKey, cancellationToken);
-                await store.ReplaceEntityAsync(item.EntityType, item.EntityKey, projections, _options.IndexVersion, cancellationToken);
+                await store.ReplaceEntityAsync(item.EntityType, item.EntityKey, projections, _options.ProjectionVersion, cancellationToken);
                 await store.CompleteAsync(item.Id, cancellationToken);
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -127,7 +140,7 @@ public sealed class SearchIndexWorker : BackgroundService
         await FullRebuildAsync(scope.ServiceProvider, cancellationToken);
     }
 
-    private async Task FullRebuildAsync(IServiceProvider services, CancellationToken cancellationToken)
+    private async Task<bool> FullRebuildAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
         var started = DateTimeOffset.UtcNow;
         try
@@ -135,15 +148,27 @@ public sealed class SearchIndexWorker : BackgroundService
             var builder = services.GetRequiredService<ISearchProjectionBuilder>();
             var store = services.GetRequiredService<ISearchIndexStore>();
             var projections = await builder.BuildAllAsync(cancellationToken);
-            await store.ReplaceFullGenerationAsync(projections, _options.IndexVersion, cancellationToken);
+            await store.ReplaceFullGenerationAsync(projections, _options.ProjectionVersion, cancellationToken);
             _logger.LogInformation(
-                "Search V2 full index rebuild activated {EntryCount} entries in {ElapsedMs} ms.",
+                "Search V2 full index rebuild activated {EntryCount} entries for projection version {ProjectionVersion} in {ElapsedMs} ms.",
                 projections.Count,
+                _options.ProjectionVersion,
                 (DateTimeOffset.UtcNow - started).TotalMilliseconds);
+            return true;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogError(ex, "Search V2 full index rebuild failed. Legacy search remains available.");
+            _logger.LogError(ex, "Search V2 full index rebuild failed. The previous active generation remains available.");
+            try
+            {
+                var store = services.GetRequiredService<ISearchIndexStore>();
+                await store.RecordIndexErrorAsync(ex.Message, cancellationToken);
+            }
+            catch (Exception healthEx) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug(healthEx, "Search V2 could not persist full-rebuild health diagnostics.");
+            }
+            return false;
         }
     }
 }

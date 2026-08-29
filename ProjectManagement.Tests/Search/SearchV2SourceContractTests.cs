@@ -105,7 +105,9 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("request.Statuses", engine, StringComparison.Ordinal);
         Assert.Contains("request.DateFrom", engine, StringComparison.Ordinal);
         Assert.Contains("indexHealth.ActiveGeneration", engine, StringComparison.Ordinal);
-        Assert.Contains("facet_clustered", engine, StringComparison.Ordinal);
+        Assert.DoesNotContain("facet_clustered", engine, StringComparison.Ordinal);
+        Assert.Contains("CategoryFacetFilterClause", engine, StringComparison.Ordinal);
+        Assert.Contains("SourceFacetFilterClause", engine, StringComparison.Ordinal);
         Assert.Contains("filtered_candidates", engine, StringComparison.Ordinal);
     }
 
@@ -120,6 +122,57 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("SearchLikePattern.Contains(preparedQuery)", documents, StringComparison.Ordinal);
         Assert.Contains("EF.Functions.ILike(d.Subject, literalPattern, SearchLikePattern.EscapeCharacter)", documents, StringComparison.Ordinal);
         Assert.Contains("d.DocumentText.OcrText ?? string.Empty", documents, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchV2_ProjectionVersionAndOperationalControlsPreventStaleIndexServing()
+    {
+        var options = ReadRepoFile("Services", "SearchV2", "SearchV2Options.cs");
+        var worker = ReadRepoFile("Services", "SearchV2", "Indexing", "SearchIndexWorker.cs");
+        var store = ReadRepoFile("Services", "SearchV2", "Indexing", "SearchIndexStore.cs");
+        var adminPage = ReadRepoFile("Areas", "Admin", "Pages", "Diagnostics", "SearchIndex.cshtml.cs");
+
+        Assert.Contains("ProjectionVersion", options, StringComparison.Ordinal);
+        Assert.Contains("IsReadyAsync(_options.ProjectionVersion", worker, StringComparison.Ordinal);
+        Assert.Contains("ReplaceFullGenerationAsync(projections, _options.ProjectionVersion", worker, StringComparison.Ordinal);
+        Assert.Contains("RequestFullRebuildAsync", store, StringComparison.Ordinal);
+        Assert.Contains("GetFailedItemsAsync", store, StringComparison.Ordinal);
+        Assert.Contains("RetryFailedAsync", store, StringComparison.Ordinal);
+        Assert.Contains("OnPostRebuildAsync", adminPage, StringComparison.Ordinal);
+        Assert.Contains("OnPostRetryAllAsync", adminPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchV2_TypedTermsAndRuntimeAliasesDoNotPromoteLocationToAlias()
+    {
+        var projection = ReadRepoFile("Services", "SearchV2", "Models", "SearchProjection.cs");
+        var builder = ReadRepoFile("Services", "SearchV2", "Indexing", "SearchProjectionBuilder.cs");
+        var aliases = ReadRepoFile("Services", "SearchV2", "Query", "SearchAliasProvider.cs");
+        var normalizer = ReadRepoFile("Services", "SearchV2", "Query", "SearchQueryNormalizer.cs");
+
+        Assert.Contains("public const string Location = \"Location\";", projection, StringComparison.Ordinal);
+        Assert.Contains("public const string Organisation = \"Organisation\";", projection, StringComparison.Ordinal);
+        Assert.Contains("SearchTermKinds.Location", builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("aliases: Values(row.Location)", builder, StringComparison.Ordinal);
+        Assert.Contains("FROM \"SearchAliases\"", aliases, StringComparison.Ordinal);
+        Assert.Contains("SearchAliasQueryExpander", aliases, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildExpansionVariants", normalizer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchV2_FilterUxSupportsActiveChipsProjectSearchAndStickyActions()
+    {
+        var view = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "search.js");
+        var css = ReadRepoFile("wwwroot", "css", "pages", "search.css");
+
+        Assert.Contains("pm-gs-active-filters", view, StringComparison.Ordinal);
+        Assert.Contains("data-project-facet-search", view, StringComparison.Ordinal);
+        Assert.Contains("data-project-facet-more", view, StringComparison.Ordinal);
+        Assert.Contains("Relevant date", view, StringComparison.Ordinal);
+        Assert.Contains("initProjectFacets", script, StringComparison.Ordinal);
+        Assert.Contains("data-project-facet-search", script, StringComparison.Ordinal);
+        Assert.Contains("position: sticky", css, StringComparison.Ordinal);
     }
     private static string ReadRepoFile(params string[] parts)
     {

@@ -11,6 +11,11 @@ public static class SearchTermKinds
 {
     public const string Identifier = "Identifier";
     public const string Alias = "Alias";
+    public const string Name = "Name";
+    public const string Organisation = "Organisation";
+    public const string Location = "Location";
+    public const string Person = "Person";
+    public const string Context = "Context";
 }
 
 public sealed record SearchProjectionTerm(string Term, string NormalizedTerm, string Kind);
@@ -51,6 +56,14 @@ public sealed record SearchIndexWorkItem(
     string EntityType,
     string EntityKey,
     int RetryCount);
+
+public sealed record SearchFailedIndexWorkItem(
+    long Id,
+    string EntityType,
+    string EntityKey,
+    int RetryCount,
+    DateTimeOffset RequestedAtUtc,
+    string? LastError);
 
 public sealed record SearchIndexHealth(
     bool IsReady,

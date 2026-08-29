@@ -14,7 +14,7 @@ function Require-Command([string]$Name) {
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
-Write-Host "PRISM Search V2 convergence verification" -ForegroundColor Cyan
+Write-Host "PRISM Search V2.2 production-assurance verification" -ForegroundColor Cyan
 Write-Host "Project root: $root"
 
 Require-Command dotnet
@@ -72,4 +72,4 @@ if ($FullTests) {
     if ($LASTEXITCODE -ne 0) { throw "Full .NET test suite failed." }
 }
 
-Write-Host "Search V2 convergence verification completed successfully." -ForegroundColor Green
+Write-Host "Search V2.2 production-assurance verification completed successfully." -ForegroundColor Green

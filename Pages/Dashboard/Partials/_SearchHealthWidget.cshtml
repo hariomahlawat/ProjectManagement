@@ -117,6 +117,14 @@
                         {
                             <div><span class="text-muted">p95</span> <strong>@Model.SearchIndex.P95LatencyMs.Value.ToString("0") ms</strong></div>
                         }
+                        @if (Model.SearchIndex.EngineP95LatencyMs.HasValue)
+                        {
+                            <div><span class="text-muted">Engine p95</span> <strong>@Model.SearchIndex.EngineP95LatencyMs.Value.ToString("0") ms</strong></div>
+                        }
+                        @if (Model.SearchIndex.SuggestionP95LatencyMs.HasValue)
+                        {
+                            <div><span class="text-muted">Suggest p95</span> <strong>@Model.SearchIndex.SuggestionP95LatencyMs.Value.ToString("0") ms</strong></div>
+                        }
                         @if (Model.SearchIndex.ZeroResultRate.HasValue)
                         {
                             <div><span class="text-muted">Zero-result</span> <strong>@Model.SearchIndex.ZeroResultRate.Value.ToString("P1")</strong></div>

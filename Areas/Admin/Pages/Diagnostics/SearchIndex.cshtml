@@ -1,0 +1,98 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Diagnostics.SearchIndexModel
+@{
+    ViewData["Title"] = "Search index";
+    var ready = Model.Health.IsReady && Model.Health.IndexVersion == Model.ConfiguredProjectionVersion;
+}
+
+<header class="admin-page-header">
+    <div class="admin-page-header__content">
+        <div class="admin-page-header__eyebrow">Monitoring</div>
+        <h1><i class="bi bi-search me-2" aria-hidden="true"></i>Search index</h1>
+        <p>Review Search V2 generation health, projection freshness and failed indexing work without interrupting the active search generation.</p>
+    </div>
+    <div class="admin-page-header__actions">
+        <a asp-area="Admin" asp-page="/Diagnostics/DbHealth" class="btn btn-outline-secondary"><i class="bi bi-heart-pulse me-1"></i>System health</a>
+        @if (Model.CanMaintain)
+        {
+            <form method="post" asp-page-handler="Rebuild" onsubmit="return confirm('Queue a full Search V2 rebuild? The existing active generation will remain live until the new generation is ready.');">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Rebuild search index</button>
+            </form>
+        }
+    </div>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-info" role="status">@Model.StatusMessage</div>
+}
+
+<section class="admin-monitoring-metric-grid" aria-label="Search index summary">
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi @(ready ? "bi-check-circle" : "bi-exclamation-triangle")"></i></span>
+        <div><small>Status</small><strong>@(ready ? "Ready" : "Attention required")</strong><span>Active generation @Model.Health.ActiveGeneration</span></div>
+    </article>
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-diagram-3"></i></span>
+        <div><small>Projection</small><strong>@Model.Health.IndexVersion / @Model.ConfiguredProjectionVersion</strong><span>Active / required projection version</span></div>
+    </article>
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span>
+        <div><small>Entries</small><strong>@Model.Health.EntryCount.ToString("N0")</strong><span>Schema generation @Model.SearchSchemaVersion</span></div>
+    </article>
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-hourglass-split"></i></span>
+        <div><small>Indexing queue</small><strong>@Model.Health.PendingItems.ToString("N0") pending</strong><span>@Model.Health.FailedItems.ToString("N0") failed</span></div>
+    </article>
+</section>
+
+<section class="admin-panel mt-3">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Generation lifecycle</div><h2>Current state</h2></div>
+    </header>
+    <div class="admin-health-facts">
+        <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-clock-history"></i></span><div><small>Last full rebuild</small><strong>@(Model.Health.LastFullRebuildUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</strong><span>Atomic generation activation</span></div></article>
+        <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-arrow-repeat"></i></span><div><small>Last reconciliation</small><strong>@(Model.Health.LastReconciliationUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</strong><span>Scheduled full assurance pass</span></div></article>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Model.Health.LastError))
+    {
+        <div class="admin-inline-notice admin-inline-notice--danger mt-3"><i class="bi bi-exclamation-octagon"></i><span>@Model.Health.LastError</span></div>
+    }
+</section>
+
+<section class="admin-panel mt-3">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Recovery</div><h2>Failed indexing jobs</h2></div>
+        @if (Model.CanMaintain && Model.FailedItems.Count > 0)
+        {
+            <form method="post" asp-page-handler="RetryAll"><button type="submit" class="btn btn-sm btn-outline-primary">Retry all failed</button></form>
+        }
+    </header>
+    @if (Model.FailedItems.Count == 0)
+    {
+        <div class="admin-compact-empty"><i class="bi bi-check-circle"></i><span>No failed Search V2 indexing jobs.</span></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Entity</th><th>Key</th><th>Attempts</th><th>Requested</th><th>Last error</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.FailedItems)
+                {
+                    <tr>
+                        <td>@item.EntityType</td><td><code>@item.EntityKey</code></td><td>@item.RetryCount</td><td>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                        <td class="text-break small">@(string.IsNullOrWhiteSpace(item.LastError) ? "—" : item.LastError)</td>
+                        <td class="text-end">
+                            @if (Model.CanMaintain)
+                            {
+                                <form method="post" asp-page-handler="Retry"><input type="hidden" name="id" value="@item.Id" /><button type="submit" class="btn btn-sm btn-outline-secondary">Retry</button></form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

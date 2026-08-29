@@ -24,6 +24,7 @@ public sealed class SearchEngine : ISearchV2Engine
     private readonly ISearchIndexStore _store;
     private readonly ISearchAccessContextFactory _accessFactory;
     private readonly ISearchQueryNormalizer _normalizer;
+    private readonly ISearchAliasProvider _aliases;
     private readonly ISearchHighlightService _highlight;
     private readonly ISearchCursorCodec _cursorCodec;
     private readonly SearchV2Options _options;
@@ -34,6 +35,7 @@ public sealed class SearchEngine : ISearchV2Engine
         ISearchIndexStore store,
         ISearchAccessContextFactory accessFactory,
         ISearchQueryNormalizer normalizer,
+        ISearchAliasProvider aliases,
         ISearchHighlightService highlight,
         ISearchCursorCodec cursorCodec,
         IOptions<SearchV2Options> options,
@@ -43,6 +45,7 @@ public sealed class SearchEngine : ISearchV2Engine
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _accessFactory = accessFactory ?? throw new ArgumentNullException(nameof(accessFactory));
         _normalizer = normalizer ?? throw new ArgumentNullException(nameof(normalizer));
+        _aliases = aliases ?? throw new ArgumentNullException(nameof(aliases));
         _highlight = highlight ?? throw new ArgumentNullException(nameof(highlight));
         _cursorCodec = cursorCodec ?? throw new ArgumentNullException(nameof(cursorCodec));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -60,10 +63,18 @@ public sealed class SearchEngine : ISearchV2Engine
             return new SearchResponse(normalized.Original, Array.Empty<SearchResult>(), 0, SearchFacets.Empty, null, 0, true);
         }
 
+        var aliasRules = await _aliases.GetActiveAsync(cancellationToken);
+        var expanded = SearchAliasQueryExpander.Expand(normalized.Exact, aliasRules);
+        normalized = normalized with
+        {
+            WebSearchQuery = expanded.WebSearchQuery,
+            Expansions = expanded.Expansions
+        };
+
         var indexHealth = _options.Enabled
             ? await _store.GetHealthAsync(cancellationToken)
             : new SearchIndexHealth(false, 0, 0, 0, 0, 0, null, null, null);
-        if (!indexHealth.IsReady || indexHealth.IndexVersion != _options.IndexVersion)
+        if (!indexHealth.IsReady || indexHealth.IndexVersion != _options.ProjectionVersion)
         {
             return SearchResponse.NotReady(normalized.Original);
         }
@@ -99,7 +110,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 request.DateFrom,
                 request.DateTo);
             command.CommandText = BuildSearchSql(sqlParts);
-            Add(command, "indexVersion", _options.IndexVersion);
+            Add(command, "indexVersion", _options.ProjectionVersion);
             Add(command, "exact", normalized.Exact);
             Add(command, "webQuery", normalized.WebSearchQuery);
             Add(command, "fuzzyThreshold", _options.FuzzyThreshold);
@@ -114,21 +125,27 @@ public sealed class SearchEngine : ISearchV2Engine
 
             await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
-                while (await reader.ReadAsync(cancellationToken))
+                // Summary/facets are returned as their own result set so useful
+                // disjunctive facets remain available even when the active filter
+                // combination currently produces zero result rows.
+                if (await reader.ReadAsync(cancellationToken))
                 {
-                    if (rows.Count == 0)
-                    {
-                        totalHits = reader.GetInt64(reader.GetOrdinal("TotalHits"));
-                        facets = new SearchFacets(
-                            ParseFacets(reader, "CategoryFacets"),
-                            ParseFacets(reader, "SourceFacets"),
-                            ParseFacets(reader, "ProjectFacets"),
-                            ParseFacets(reader, "StatusFacets"),
-                            ParseFacets(reader, "FileTypeFacets"),
-                            ParseFacets(reader, "StageFacets"));
-                    }
+                    totalHits = reader.GetInt64(reader.GetOrdinal("TotalHits"));
+                    facets = new SearchFacets(
+                        ParseFacets(reader, "CategoryFacets"),
+                        ParseFacets(reader, "SourceFacets"),
+                        ParseFacets(reader, "ProjectFacets"),
+                        ParseFacets(reader, "StatusFacets"),
+                        ParseFacets(reader, "FileTypeFacets"),
+                        ParseFacets(reader, "StageFacets"));
+                }
 
-                    rows.Add(ReadRow(reader));
+                if (await reader.NextResultAsync(cancellationToken))
+                {
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        rows.Add(ReadRow(reader));
+                    }
                 }
             }
 
@@ -177,7 +194,7 @@ public sealed class SearchEngine : ISearchV2Engine
         CancellationToken cancellationToken)
     {
         var normalized = _normalizer.Normalize(query);
-        if (!_options.Enabled || normalized.Exact.Length < 2 || !await _store.IsReadyAsync(_options.IndexVersion, cancellationToken))
+        if (!_options.Enabled || normalized.Exact.Length < 2 || !await _store.IsReadyAsync(_options.ProjectionVersion, cancellationToken))
         {
             return Array.Empty<SearchSuggestion>();
         }
@@ -248,7 +265,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 ORDER BY priority, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
                 LIMIT @take;
                 """;
-            Add(command, "indexVersion", _options.IndexVersion);
+            Add(command, "indexVersion", _options.ProjectionVersion);
             Add(command, "exact", normalized.Exact);
             Add(command, "prefixTsQuery", prefixTsQuery);
             Add(command, "suggestionFuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.42));
@@ -333,13 +350,18 @@ public sealed class SearchEngine : ISearchV2Engine
     private static string? MatchedField(string channels, SearchRow row, NormalizedSearchQuery query)
     {
         if (channels.Contains("exact_identifier", StringComparison.Ordinal)) return "Identifier";
-        if (channels.Contains("exact_title", StringComparison.Ordinal) || channels.Contains("title_prefix", StringComparison.Ordinal)) return "Title";
-        if (channels.Contains("alias", StringComparison.Ordinal)) return "Alias";
-        if (query.HighlightTerms.Any(term => row.Title.Contains(term, StringComparison.OrdinalIgnoreCase))) return "Title";
+        if (channels.Contains("exact_title", StringComparison.Ordinal)
+            || channels.Contains("title_prefix", StringComparison.Ordinal)
+            || query.HighlightTerms.Any(term => row.Title.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Title";
+        }
 
         var metadataMatch = MatchedFieldFromMetadata(row.MetadataJson, query.HighlightTerms);
         if (!string.IsNullOrWhiteSpace(metadataMatch)) return metadataMatch;
 
+        if (channels.Contains("alias", StringComparison.Ordinal)) return "Alias";
+        if (channels.Contains("name", StringComparison.Ordinal)) return "Name";
         if (query.HighlightTerms.Any(term => (row.StructuredText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))) return "structured details";
         if (query.HighlightTerms.Any(term => (row.NarrativeText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
@@ -399,6 +421,7 @@ public sealed class SearchEngine : ISearchV2Engine
         || channels.Contains("exact_title", StringComparison.Ordinal)
         || channels.Contains("alias", StringComparison.Ordinal)
         || channels.Contains("title_prefix", StringComparison.Ordinal)
+        || channels.Contains("name", StringComparison.Ordinal)
         || channels.Contains("simple_fts", StringComparison.Ordinal)
         || channels.Contains("english_fts", StringComparison.Ordinal)
         || channels.Contains("configured_alias_fts", StringComparison.Ordinal);
@@ -432,7 +455,7 @@ public sealed class SearchEngine : ISearchV2Engine
             ORDER BY similarity(token, @exact) DESC, ABS(LENGTH(token) - LENGTH(@exact)), token
             LIMIT 1;
             """;
-        Add(command, "indexVersion", _options.IndexVersion);
+        Add(command, "indexVersion", _options.ProjectionVersion);
         Add(command, "exact", exact);
         return (await command.ExecuteScalarAsync(cancellationToken)) as string;
     }
@@ -478,6 +501,16 @@ public sealed class SearchEngine : ISearchV2Engine
                    'title_prefix'::text AS channel, 1.6::double precision AS weight
             FROM authorised e
             WHERE e."NormalizedTitle" <> @exact AND LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact
+        ), name_matches AS (
+            SELECT e."Id", 3 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY CASE WHEN t."NormalizedTerm" = @exact THEN 0 ELSE 1 END,
+                                LENGTH(t."NormalizedTerm"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
+                   'name'::text AS channel, 1.35::double precision AS weight
+            FROM authorised e
+            JOIN "SearchEntryTerms" t ON t."SearchEntryId" = e."Id" AND t."TermType" = 'Name'
+            WHERE t."NormalizedTerm" = @exact
+               OR (LENGTH(@exact) >= 3 AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact)
         ), simple_fts AS (
             SELECT e."Id", 3 AS tier,
                    ROW_NUMBER() OVER (ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', @webQuery)) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
@@ -513,6 +546,7 @@ public sealed class SearchEngine : ISearchV2Engine
             UNION ALL SELECT * FROM exact_title
             UNION ALL SELECT * FROM alias_matches
             UNION ALL SELECT * FROM title_prefix
+            UNION ALL SELECT * FROM name_matches
             UNION ALL SELECT * FROM simple_fts
             UNION ALL SELECT * FROM english_fts
             UNION ALL SELECT * FROM configured_alias_fts
@@ -537,21 +571,10 @@ public sealed class SearchEngine : ISearchV2Engine
                    STRING_AGG("SourceModule" || ':' || source_count::text, ' · ' ORDER BY source_count DESC, "SourceModule") AS related_sources
             FROM related_source_counts
             GROUP BY "CanonicalEntityType", "CanonicalEntityKey"
-        ), facet_clustered AS (
-            SELECT f.*
-            FROM (
-                SELECT c.*,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY c."CanonicalEntityType", c."CanonicalEntityKey"
-                           ORDER BY c.tier, c.fusion_score DESC, c."EventDateUtc" DESC NULLS LAST, c."UpdatedAtUtc" DESC, c."Id"
-                       ) AS facet_cluster_rank
-                FROM candidate_scored c
-            ) f
-            WHERE f.facet_cluster_rank = 1
         ), filtered_candidates AS (
             SELECT c.*
             FROM candidate_scored c
-            WHERE TRUE {scope.FilterClause}
+            WHERE TRUE {scope.ResultFilterClause}
         ), clustered AS (
             SELECT x.*, r.related_sources
             FROM (
@@ -570,31 +593,70 @@ public sealed class SearchEngine : ISearchV2Engine
                        ORDER BY c.tier, c.fusion_score DESC, c."EventDateUtc" DESC NULLS LAST, c."UpdatedAtUtc" DESC, c."Id"
                    ) AS global_rank
             FROM clustered c
+        ), category_facet_candidates AS (
+            SELECT c.* FROM candidate_scored c WHERE TRUE {scope.CategoryFacetFilterClause}
         ), category_facets AS (
             SELECT COALESCE(jsonb_object_agg("ResultCategory", item_count), jsonb_build_object()) AS value
-            FROM (SELECT "ResultCategory", COUNT(*) AS item_count FROM facet_clustered GROUP BY "ResultCategory") x
+            FROM (
+                SELECT "ResultCategory", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
+                FROM category_facet_candidates
+                GROUP BY "ResultCategory"
+            ) x
+        ), source_facet_candidates AS (
+            SELECT c.* FROM candidate_scored c WHERE TRUE {scope.SourceFacetFilterClause}
         ), source_facets AS (
             SELECT COALESCE(jsonb_object_agg("SourceModule", item_count), jsonb_build_object()) AS value
-            FROM (SELECT "SourceModule", COUNT(*) AS item_count FROM facet_clustered GROUP BY "SourceModule") x
+            FROM (
+                SELECT "SourceModule", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
+                FROM source_facet_candidates
+                GROUP BY "SourceModule"
+            ) x
+        ), status_facet_candidates AS (
+            SELECT c.* FROM candidate_scored c WHERE TRUE {scope.StatusFacetFilterClause}
         ), status_facets AS (
             SELECT COALESCE(jsonb_object_agg("Status", item_count), jsonb_build_object()) AS value
-            FROM (SELECT "Status", COUNT(*) AS item_count FROM facet_clustered WHERE NULLIF("Status", '') IS NOT NULL GROUP BY "Status") x
+            FROM (
+                SELECT "Status", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
+                FROM status_facet_candidates
+                WHERE NULLIF("Status", '') IS NOT NULL
+                GROUP BY "Status"
+            ) x
+        ), file_type_facet_candidates AS (
+            SELECT c.* FROM candidate_scored c WHERE TRUE {scope.FileTypeFacetFilterClause}
         ), file_type_facets AS (
             SELECT COALESCE(jsonb_object_agg("FileType", item_count), jsonb_build_object()) AS value
-            FROM (SELECT "FileType", COUNT(*) AS item_count FROM facet_clustered WHERE NULLIF("FileType", '') IS NOT NULL GROUP BY "FileType") x
+            FROM (
+                SELECT "FileType", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
+                FROM file_type_facet_candidates
+                WHERE NULLIF("FileType", '') IS NOT NULL
+                GROUP BY "FileType"
+            ) x
+        ), stage_facet_candidates AS (
+            SELECT c.* FROM candidate_scored c WHERE TRUE {scope.StageFacetFilterClause}
+        ), stage_facet_values AS (
+            SELECT DISTINCT c."CanonicalEntityType", c."CanonicalEntityKey", s.stage
+            FROM stage_facet_candidates c
+            CROSS JOIN LATERAL (
+                SELECT NULLIF(c."MetadataJson"->>'currentStage', '') AS stage
+                UNION
+                SELECT NULLIF(value, '') AS stage
+                FROM jsonb_array_elements_text(COALESCE(c."MetadataJson"->'projectStages', '[]'::jsonb)) value
+            ) s
+            WHERE s.stage IS NOT NULL
         ), stage_facets AS (
             SELECT COALESCE(jsonb_object_agg(stage, item_count), jsonb_build_object()) AS value
             FROM (
-                SELECT "MetadataJson"->>'currentStage' AS stage, COUNT(*) AS item_count
-                FROM facet_clustered
-                WHERE NULLIF("MetadataJson"->>'currentStage', '') IS NOT NULL
-                GROUP BY "MetadataJson"->>'currentStage'
+                SELECT stage, COUNT(*) AS item_count
+                FROM stage_facet_values
+                GROUP BY stage
             ) x
+        ), project_facet_candidates AS (
+            SELECT c.* FROM candidate_scored c WHERE TRUE {scope.ProjectFacetFilterClause}
         ), project_facet_rows AS (
             SELECT f."ParentProjectId"::text AS value,
                    COALESCE(p."Title", 'Project ' || f."ParentProjectId"::text) AS label,
-                   COUNT(*) AS item_count
-            FROM facet_clustered f
+                   COUNT(DISTINCT (f."CanonicalEntityType", f."CanonicalEntityKey")) AS item_count
+            FROM project_facet_candidates f
             LEFT JOIN authorised p
               ON p."EntityType" = 'Project'
              AND p."EntityKey" = f."ParentProjectId"::text
@@ -606,6 +668,14 @@ public sealed class SearchEngine : ISearchV2Engine
                 jsonb_build_object()) AS value
             FROM project_facet_rows
         )
+        SELECT (SELECT COUNT(*) FROM ranked) AS "TotalHits",
+               (SELECT value::text FROM category_facets) AS "CategoryFacets",
+               (SELECT value::text FROM source_facets) AS "SourceFacets",
+               (SELECT value::text FROM project_facets) AS "ProjectFacets",
+               (SELECT value::text FROM status_facets) AS "StatusFacets",
+               (SELECT value::text FROM file_type_facets) AS "FileTypeFacets",
+               (SELECT value::text FROM stage_facets) AS "StageFacets";
+
         SELECT r."Id", r."EntityType", r."EntityKey", r."CanonicalEntityType", r."CanonicalEntityKey", r."ParentProjectId",
                r."SourceModule", r."ResultCategory", r."Title", r."Subtitle", r."CanonicalUrl",
                LEFT(COALESCE(r."StructuredText", ''), @maxSnippetSourceCharacters) AS "StructuredText",
@@ -619,14 +689,7 @@ public sealed class SearchEngine : ISearchV2Engine
                        @maxSnippetSourceCharacters)
                END AS "NarrativeText",
                r."Status", r."FileType", r."EventDateUtc", r."UpdatedAtUtc", r."MetadataJson"::text,
-               r.tier, r.fusion_score, r.channels, r.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources",
-               (SELECT COUNT(*) FROM ranked) AS "TotalHits",
-               (SELECT value::text FROM category_facets) AS "CategoryFacets",
-               (SELECT value::text FROM source_facets) AS "SourceFacets",
-               (SELECT value::text FROM project_facets) AS "ProjectFacets",
-               (SELECT value::text FROM status_facets) AS "StatusFacets",
-               (SELECT value::text FROM file_type_facets) AS "FileTypeFacets",
-               (SELECT value::text FROM stage_facets) AS "StageFacets"
+               r.tier, r.fusion_score, r.channels, r.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources"
         FROM ranked r
         WHERE r.global_rank > @afterRank
         ORDER BY r.global_rank
@@ -735,40 +798,49 @@ public sealed class SearchEngine : ISearchV2Engine
             )
             """;
 
-        var filters = new List<string>();
-        AddListFilter(command, filters, "ResultCategory", "category", categories);
-        AddListFilter(command, filters, "SourceModule", "source", sources);
-        AddListFilter(command, filters, "Status", "status", statuses);
-        AddListFilter(command, filters, "FileType", "fileType", fileTypes);
-        AddProjectFilter(command, filters, projectIds);
-        AddStageFilter(command, filters, stages);
-        if (dateFrom.HasValue)
+        var filters = new Dictionary<SearchFilterDimension, string?>
         {
-            Add(command, "dateFrom", dateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-            filters.Add("c.\"EventDateUtc\" >= @dateFrom");
-        }
-        if (dateTo.HasValue)
+            [SearchFilterDimension.Category] = BuildListFilter(command, "ResultCategory", "category", categories),
+            [SearchFilterDimension.Source] = BuildListFilter(command, "SourceModule", "source", sources),
+            [SearchFilterDimension.Project] = BuildProjectFilter(command, projectIds),
+            [SearchFilterDimension.Status] = BuildListFilter(command, "Status", "status", statuses),
+            [SearchFilterDimension.FileType] = BuildListFilter(command, "FileType", "fileType", fileTypes),
+            [SearchFilterDimension.Stage] = BuildStageFilter(command, stages),
+            [SearchFilterDimension.Date] = BuildDateFilter(command, dateFrom, dateTo)
+        };
+
+        string Combine(SearchFilterDimension? exclude = null)
         {
-            if (dateTo.Value == DateOnly.MaxValue)
-            {
-                Add(command, "dateToInclusive", DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc));
-                filters.Add("c.\"EventDateUtc\" <= @dateToInclusive");
-            }
-            else
-            {
-                Add(command, "dateToExclusive", dateTo.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-                filters.Add("c.\"EventDateUtc\" < @dateToExclusive");
-            }
+            var parts = filters
+                .Where(pair => pair.Key != exclude && !string.IsNullOrWhiteSpace(pair.Value))
+                .Select(pair => pair.Value!)
+                .ToArray();
+            return parts.Length == 0 ? string.Empty : $" AND {string.Join(" AND ", parts)}";
         }
 
-        var filterClause = filters.Count == 0 ? string.Empty : $" AND {string.Join(" AND ", filters)}";
-        return new SearchSqlScope(authorization, filterClause);
+        return new SearchSqlScope(
+            authorization,
+            Combine(),
+            Combine(SearchFilterDimension.Category),
+            Combine(SearchFilterDimension.Source),
+            Combine(SearchFilterDimension.Project),
+            Combine(SearchFilterDimension.Status),
+            Combine(SearchFilterDimension.FileType),
+            Combine(SearchFilterDimension.Stage));
     }
 
-    private static void AddListFilter(DbCommand command, ICollection<string> filters, string column, string prefix, IReadOnlyList<string>? values)
+    private static string? BuildListFilter(
+        DbCommand command,
+        string column,
+        string prefix,
+        IReadOnlyList<string>? values)
     {
-        var effective = values?.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
-        if (effective is not { Length: > 0 }) return;
+        var effective = values?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToArray();
+        if (effective is not { Length: > 0 }) return null;
 
         var names = new List<string>(effective.Length);
         for (var index = 0; index < effective.Length; index++)
@@ -777,13 +849,13 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, name, effective[index]);
             names.Add($"@{name}");
         }
-        filters.Add($"c.\"{column}\" IN ({string.Join(",", names)})");
+        return $"c.\"{column}\" IN ({string.Join(",", names)})";
     }
 
-    private static void AddProjectFilter(DbCommand command, ICollection<string> filters, IReadOnlyList<int>? projectIds)
+    private static string? BuildProjectFilter(DbCommand command, IReadOnlyList<int>? projectIds)
     {
         var effective = projectIds?.Where(value => value > 0).Distinct().Take(20).ToArray();
-        if (effective is not { Length: > 0 }) return;
+        if (effective is not { Length: > 0 }) return null;
 
         var names = new List<string>(effective.Length);
         for (var index = 0; index < effective.Length; index++)
@@ -792,13 +864,17 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, name, effective[index]);
             names.Add($"@{name}");
         }
-        filters.Add($"c.\"ParentProjectId\" IN ({string.Join(",", names)})");
+        return $"c.\"ParentProjectId\" IN ({string.Join(",", names)})";
     }
 
-    private static void AddStageFilter(DbCommand command, ICollection<string> filters, IReadOnlyList<string>? stages)
+    private static string? BuildStageFilter(DbCommand command, IReadOnlyList<string>? stages)
     {
-        var effective = stages?.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
-        if (effective is not { Length: > 0 }) return;
+        var effective = stages?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToArray();
+        if (effective is not { Length: > 0 }) return null;
 
         var names = new List<string>(effective.Length);
         for (var index = 0; index < effective.Length; index++)
@@ -807,7 +883,32 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, name, effective[index]);
             names.Add($"@{name}");
         }
-        filters.Add($"COALESCE(c.\"MetadataJson\"->>'currentStage', '') IN ({string.Join(",", names)})");
+        var inList = string.Join(",", names);
+        return $"(COALESCE(c.\"MetadataJson\"->>'currentStage', '') IN ({inList}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(c.\"MetadataJson\"->'projectStages', '[]'::jsonb)) stage(value) WHERE stage.value IN ({inList})))";
+    }
+
+    private static string? BuildDateFilter(DbCommand command, DateOnly? dateFrom, DateOnly? dateTo)
+    {
+        var parts = new List<string>();
+        if (dateFrom.HasValue)
+        {
+            Add(command, "dateFrom", dateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            parts.Add("c.\"EventDateUtc\" >= @dateFrom");
+        }
+        if (dateTo.HasValue)
+        {
+            if (dateTo.Value == DateOnly.MaxValue)
+            {
+                Add(command, "dateToInclusive", DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc));
+                parts.Add("c.\"EventDateUtc\" <= @dateToInclusive");
+            }
+            else
+            {
+                Add(command, "dateToExclusive", dateTo.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+                parts.Add("c.\"EventDateUtc\" < @dateToExclusive");
+            }
+        }
+        return parts.Count == 0 ? null : $"({string.Join(" AND ", parts)})";
     }
 
     private static string BuildCursorKey(
@@ -859,7 +960,26 @@ public sealed class SearchEngine : ISearchV2Engine
         return reader.IsDBNull(ordinal) ? null : reader.GetFieldValue<DateTimeOffset>(ordinal);
     }
 
-    private sealed record SearchSqlScope(string AuthorizationClause, string FilterClause);
+    private sealed record SearchSqlScope(
+        string AuthorizationClause,
+        string ResultFilterClause,
+        string CategoryFacetFilterClause,
+        string SourceFacetFilterClause,
+        string ProjectFacetFilterClause,
+        string StatusFacetFilterClause,
+        string FileTypeFacetFilterClause,
+        string StageFacetFilterClause);
+
+    private enum SearchFilterDimension
+    {
+        Category,
+        Source,
+        Project,
+        Status,
+        FileType,
+        Stage,
+        Date
+    }
 
     private sealed record SearchRow(
         long Id,
