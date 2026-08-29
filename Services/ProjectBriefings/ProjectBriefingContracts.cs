@@ -29,7 +29,7 @@ public sealed record ProjectBriefingCostValue(
     string DisplayValue,
     string BasisDisplay)
 {
-    public bool IsAvailable => AmountInRupees is > 0m;
+    public bool IsAvailable => AmountInRupees is >= 0m;
 
     public static ProjectBriefingCostValue Missing(ProjectBriefingCostBasis basis = ProjectBriefingCostBasis.None)
         => new(null, basis, "Not recorded", basis == ProjectBriefingCostBasis.Proliferation ? "Proliferation" : string.Empty);

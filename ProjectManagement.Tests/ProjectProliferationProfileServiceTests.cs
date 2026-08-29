@@ -113,10 +113,39 @@ public sealed class ProjectProliferationProfileServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ZeroCost_ReturnsValidationError()
+    public async Task UpdateAsync_ZeroCost_PersistsExplicitZeroAndKeepsItDistinctFromMissing()
     {
         await using var db = CreateContext();
         db.Projects.Add(Project(4, "MU-UGV"));
+        await db.SaveChangesAsync();
+
+        var audit = new RecordingAudit();
+        var service = new ProjectProliferationProfileService(
+            db,
+            new FixedClock(new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero)),
+            audit);
+
+        var result = await service.UpdateAsync(
+            new ProjectProliferationUpdateCommand(4, 0m, null, null, null),
+            "user-4",
+            "User Four");
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Profile);
+        Assert.Equal(0m, result.Profile!.CostLakhs);
+        Assert.Equal("₹0 lakh", result.Profile.CostDisplay);
+        Assert.NotEqual("Cost not recorded", result.Profile.CostDisplay);
+
+        var cost = await db.ProjectProductionCostFacts.SingleAsync(item => item.ProjectId == 4);
+        Assert.Equal(0m, cost.ApproxProductionCost);
+        Assert.Equal("0", Assert.Single(audit.Entries).Data["CostAfterLakhs"]);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NegativeCost_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(Project(5, "NEGATIVE-COST"));
         await db.SaveChangesAsync();
 
         var service = new ProjectProliferationProfileService(
@@ -125,9 +154,9 @@ public sealed class ProjectProliferationProfileServiceTests
             new RecordingAudit());
 
         var result = await service.UpdateAsync(
-            new ProjectProliferationUpdateCommand(4, 0m, null, null, null),
-            "user-4",
-            "User Four");
+            new ProjectProliferationUpdateCommand(5, -0.01m, null, null, null),
+            "user-5",
+            "User Five");
 
         Assert.Equal(ProjectProliferationUpdateStatus.ValidationFailed, result.Status);
         Assert.Contains(nameof(ProjectProliferationUpdateCommand.CostLakhs), result.Errors.Keys);

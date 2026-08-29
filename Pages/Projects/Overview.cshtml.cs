@@ -781,9 +781,10 @@ namespace ProjectManagement.Pages.Projects
                 };
             }
 
-            if (!ModelState.IsValid)
+            var bindingErrors = GetProliferationModelStateErrors(ModelState);
+            if (bindingErrors.Count > 0)
             {
-                return ProliferationValidationResponse(ModelState);
+                return ProliferationValidationResponse(bindingErrors);
             }
 
             var result = await _proliferationProfiles.UpdateAsync(
@@ -841,10 +842,18 @@ namespace ProjectManagement.Pages.Projects
             });
         }
 
-        private static JsonResult ProliferationValidationResponse(Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary modelState)
+        private const string ProliferationInputPrefix = nameof(ProliferationInput) + ".";
+
+        private static IReadOnlyDictionary<string, string[]> GetProliferationModelStateErrors(
+            Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary modelState)
         {
-            var errors = modelState
-                .Where(entry => entry.Value?.Errors.Count > 0)
+            ArgumentNullException.ThrowIfNull(modelState);
+
+            return modelState
+                .Where(entry =>
+                    entry.Value?.Errors.Count > 0 &&
+                    (string.Equals(entry.Key, nameof(ProliferationInput), StringComparison.OrdinalIgnoreCase) ||
+                     entry.Key.StartsWith(ProliferationInputPrefix, StringComparison.OrdinalIgnoreCase)))
                 .ToDictionary(
                     entry => entry.Key,
                     entry => entry.Value!.Errors
@@ -853,6 +862,12 @@ namespace ProjectManagement.Pages.Projects
                             : error.ErrorMessage)
                         .ToArray(),
                     StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static JsonResult ProliferationValidationResponse(
+            IReadOnlyDictionary<string, string[]> errors)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
 
             return new JsonResult(new { errors })
             {

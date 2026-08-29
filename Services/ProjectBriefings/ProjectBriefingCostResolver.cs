@@ -138,7 +138,7 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
         foreach (var projectId in ids)
         {
             if (byProject.TryGetValue(projectId, out var row)
-                && row.ApproxProductionCost is > 0m)
+                && row.ApproxProductionCost is >= 0m)
             {
                 var amountInRupees = row.ApproxProductionCost.Value * RupeesPerLakh;
                 result[projectId] = Build(

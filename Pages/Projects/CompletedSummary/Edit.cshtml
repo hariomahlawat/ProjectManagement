@@ -157,11 +157,11 @@
                             <span aria-hidden="true">₹</span>
                             <input asp-for="Input.ProliferationCostLakhs"
                                    type="number"
-                                   min="0.01"
+                                   min="0"
                                    step="0.01"
                                    inputmode="decimal" />
                         </div>
-                        <small class="cpe-field-note">Enter the indicative cost for one proliferation unit or package, as applicable.</small>
+                        <small class="cpe-field-note">Enter the amount in lakh for one proliferation unit or package (for example, 2 = ₹2 lakh). Use 0 when the cost is explicitly zero; leave the field blank only when no cost has been recorded.</small>
                         <span asp-validation-for="Input.ProliferationCostLakhs" class="cpe-field-error"></span>
                     </div>
 

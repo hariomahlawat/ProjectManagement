@@ -28,14 +28,14 @@
             <input asp-for="ProliferationInput.CostLakhs"
                    class="form-control"
                    type="number"
-                   min="0.01"
+                   min="0"
                    step="0.01"
                    inputmode="decimal"
                    autocomplete="off"
                    placeholder="Leave blank if not recorded" />
             <span class="input-group-text">lakh</span>
         </div>
-        <div class="form-text">Enter the indicative cost for one proliferation unit or package, as applicable.</div>
+        <div class="form-text">Enter the amount in lakh for one proliferation unit or package (for example, 2 = ₹2 lakh). Use 0 when the cost is explicitly zero; leave the field blank only when no cost has been recorded.</div>
         <span class="text-danger small" data-proliferation-field-error="CostLakhs"></span>
     </div>
 

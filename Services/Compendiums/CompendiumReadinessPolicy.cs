@@ -128,7 +128,7 @@ public sealed class CompendiumReadinessPolicy : ICompendiumReadinessPolicy
         else if (context.ProliferationAvailability == true && context.ProliferationCostLakhs == 0m)
         {
             issues.Add(CompendiumPublicationIssue.ZeroProliferationCost);
-            Warning("zeroCost", "Proliferation cost is zero; verify that this is intentional.");
+            Information("zeroCost", "Proliferation cost is explicitly recorded as zero.");
         }
 
         if (string.IsNullOrWhiteSpace(context.Description))

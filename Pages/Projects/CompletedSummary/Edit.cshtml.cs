@@ -118,9 +118,9 @@ public sealed class EditModel : PageModel
             ModelState.AddModelError("Input.TechStatus", "Select a valid technology status.");
         }
 
-        if (Input.ProliferationCostLakhs is <= 0m)
+        if (Input.ProliferationCostLakhs is < 0m)
         {
-            ModelState.AddModelError("Input.ProliferationCostLakhs", "Enter a proliferation cost greater than zero, or leave it blank.");
+            ModelState.AddModelError("Input.ProliferationCostLakhs", "Proliferation cost cannot be negative.");
         }
 
         if (Input.AvailableForProliferation == false && string.IsNullOrWhiteSpace(Input.NotAvailableReason))

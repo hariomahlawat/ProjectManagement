@@ -52,12 +52,12 @@ public sealed class ProjectProliferationProfileVm
 
     public static string FormatCost(decimal? costLakhs)
     {
-        if (costLakhs is null or <= 0m)
+        if (!costLakhs.HasValue)
         {
             return "Cost not recorded";
         }
 
-        if (costLakhs >= 100m)
+        if (costLakhs.Value >= 100m)
         {
             return $"₹{costLakhs.Value / 100m:0.##} Cr";
         }
@@ -71,7 +71,7 @@ public sealed class ProjectProliferationUpdateInput
     public int ProjectId { get; set; }
 
     [Display(Name = "Indicative proliferation cost")]
-    [Range(typeof(decimal), "0.01", "9999999999999999.99", ErrorMessage = "Enter a cost greater than zero, or leave it blank.")]
+    [Range(typeof(decimal), "0", "9999999999999999.99", ErrorMessage = "Proliferation cost cannot be negative.")]
     public decimal? CostLakhs { get; set; }
 
     [Display(Name = "Availability for proliferation")]

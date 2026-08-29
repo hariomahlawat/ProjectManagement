@@ -77,7 +77,8 @@
         </div>
         <div class="mb-3">
             <label asp-for="Input.ProliferationCostLakhs" class="form-label">Proliferation cost (lakh)</label>
-            <input asp-for="Input.ProliferationCostLakhs" class="form-control" type="number" step="0.01" inputmode="decimal" />
+            <input asp-for="Input.ProliferationCostLakhs" class="form-control" type="number" min="0" step="0.01" inputmode="decimal" />
+            <div class="form-text">Enter the amount in lakh. Use 0 when the cost is explicitly zero; leave blank only when no cost has been recorded.</div>
             <span asp-validation-for="Input.ProliferationCostLakhs" class="text-danger"></span>
         </div>
     }

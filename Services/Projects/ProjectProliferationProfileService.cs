@@ -226,11 +226,11 @@ public sealed class ProjectProliferationProfileService
             errors[nameof(ProjectProliferationUpdateCommand.ProjectId)] = new[] { "A valid project is required." };
         }
 
-        if (command.CostLakhs is <= 0m)
+        if (command.CostLakhs is < 0m)
         {
             errors[nameof(ProjectProliferationUpdateCommand.CostLakhs)] = new[]
             {
-                "Enter a cost greater than zero, or leave it blank."
+                "Proliferation cost cannot be negative."
             };
         }
         else if (command.CostLakhs.HasValue && DecimalScale(command.CostLakhs.Value) > 2)

@@ -223,6 +223,23 @@ public sealed class CompletedSummaryPresentationContractTests
         return count;
     }
 
+    [Fact]
+    public void ProliferationCostEditors_PreserveExplicitZeroAndRejectOnlyNegativeValues()
+    {
+        var completedView = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml");
+        var completedModel = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml.cs");
+        var legacyMetaView = ReadRepoFile("Pages", "Projects", "Meta", "Edit.cshtml");
+        var legacyMetaModel = ReadRepoFile("Pages", "Projects", "Meta", "Edit.cshtml.cs");
+
+        Assert.Contains("min=\"0\"", completedView, StringComparison.Ordinal);
+        Assert.DoesNotContain("min=\"0.01\"", completedView, StringComparison.Ordinal);
+        Assert.Contains("Input.ProliferationCostLakhs is < 0m", completedModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Input.ProliferationCostLakhs is <= 0m", completedModel, StringComparison.Ordinal);
+
+        Assert.Contains("asp-for=\"Input.ProliferationCostLakhs\" class=\"form-control\" type=\"number\" min=\"0\"", legacyMetaView, StringComparison.Ordinal);
+        Assert.Contains("Input.ProliferationCostLakhs is < 0", legacyMetaModel, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

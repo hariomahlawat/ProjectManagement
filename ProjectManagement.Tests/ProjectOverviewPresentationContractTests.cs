@@ -111,6 +111,32 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.Contains("Compatibility placeholder", exploitationTransfer, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ProliferationEditor_IsolatesItsValidationScopeAndAllowsExplicitZeroCost()
+    {
+        var pageModel = ReadRepoFile("Pages", "Projects", "Overview.cshtml.cs");
+        var form = ReadRepoFile("Pages", "Projects", "_ProjectProliferationEditForm.cshtml");
+        var viewModel = ReadRepoFile("ViewModels", "ProjectProliferationProfileVm.cs");
+
+        var handlerStart = pageModel.IndexOf("OnPostProliferationAsync", StringComparison.Ordinal);
+        var handlerEnd = pageModel.IndexOf("OnPostCompleteAsync", handlerStart, StringComparison.Ordinal);
+        Assert.True(handlerStart >= 0 && handlerEnd > handlerStart, "The proliferation POST handler could not be isolated.");
+
+        var handler = pageModel[handlerStart..handlerEnd];
+        Assert.Contains("GetProliferationModelStateErrors(ModelState)", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (!ModelState.IsValid)", handler, StringComparison.Ordinal);
+        Assert.Contains("ProliferationInputPrefix", pageModel, StringComparison.Ordinal);
+        Assert.Contains("StartsWith(ProliferationInputPrefix", pageModel, StringComparison.Ordinal);
+
+        Assert.Contains("min=\"0\"", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("min=\"0.01\"", form, StringComparison.Ordinal);
+        Assert.Contains("Use 0 when the cost is explicitly zero", form, StringComparison.Ordinal);
+
+        Assert.Contains("[Range(typeof(decimal), \"0\"", viewModel, StringComparison.Ordinal);
+        Assert.Contains("if (!costLakhs.HasValue)", viewModel, StringComparison.Ordinal);
+        Assert.Contains("₹{costLakhs.Value:0.##} lakh", viewModel, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

@@ -1,19 +1,18 @@
-FILE-MANIFEST.txt
-Pages/Projects/Publications/Compendium/Index.cshtml.cs
-README-PHASE40-PHYSICAL-PAGINATION-CLOSURE.txt
-SHA256SUMS.txt
-SOURCE-FILES.txt
-Services/Compendiums/CompendiumDossierPaginationPlanner.cs
-Services/Compendiums/CompendiumDossierTextMeasurementService.cs
-Services/Compendiums/CompendiumExportService.cs
-Services/Compendiums/CompendiumProjectParticularsLayoutPolicy.cs
-Services/Compendiums/CompendiumReadService.cs
-Utilities/Reporting/CompendiumLayoutMetrics.cs
-Utilities/Reporting/CompendiumPagePlanner.cs
-Utilities/Reporting/CompendiumPdfCompositionVerifier.cs
-Utilities/Reporting/CompendiumPdfReportBuilder.cs
-VALIDATION.txt
-prism_compendium_phase40_physical_pagination_closure.patch
-wwwroot/js/projects/publications-compendium-phase33-contract.test.js
-wwwroot/js/projects/publications-compendium-phase37-1-contract.test.js
-wwwroot/js/projects/publications-compendium-phase40-pagination-closure.test.js
+PRODUCTION FILES — REPLACE
+Pages/Projects/Overview.cshtml.cs
+Pages/Projects/_ProjectProliferationEditForm.cshtml
+Pages/Projects/CompletedSummary/Edit.cshtml
+Pages/Projects/CompletedSummary/Edit.cshtml.cs
+Pages/Projects/Meta/Edit.cshtml
+Services/Projects/ProjectProliferationProfileService.cs
+ViewModels/ProjectProliferationProfileVm.cs
+Services/ProjectBriefings/ProjectBriefingCostResolver.cs
+Services/ProjectBriefings/ProjectBriefingContracts.cs
+Services/Compendiums/CompendiumReadinessPolicy.cs
+
+REGRESSION TESTS — REPLACE/ADD
+ProjectManagement.Tests/ProjectProliferationProfileServiceTests.cs
+ProjectManagement.Tests/ProjectOverviewPresentationContractTests.cs
+ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingProliferationCostTests.cs
+ProjectManagement.Tests/Publications/CompendiumZeroProliferationCostSemanticsTests.cs
