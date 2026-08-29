@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -158,6 +160,7 @@ public sealed class SearchHealthService : ISearchHealthService
         var oldestPending = MinNonNull(docRepoPendingOldest, projectDocPendingOldest);
         var lastAttempt = MaxNonNull(docRepoLastAttempt, projectDocLastAttempt);
         var searchIndexHealth = await _searchIndexStore.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+        var searchQueryHealth = await ReadPercentileContMetricsAsync(cancellationToken).ConfigureAwait(false);
         // END SECTION
 
         return new SearchHealthVm
@@ -177,6 +180,10 @@ public sealed class SearchHealthService : ISearchHealthService
                 FailedItems = searchIndexHealth.FailedItems,
                 LastFullRebuildUtc = searchIndexHealth.LastFullRebuildUtc,
                 LastReconciliationUtc = searchIndexHealth.LastReconciliationUtc,
+                QueryCount24Hours = searchQueryHealth.QueryCount,
+                P50LatencyMs = searchQueryHealth.P50LatencyMs,
+                P95LatencyMs = searchQueryHealth.P95LatencyMs,
+                ZeroResultRate = searchQueryHealth.ZeroResultRate,
                 LastError = searchIndexHealth.LastError
             },
             Ocr = ocrSnapshot,
@@ -184,6 +191,47 @@ public sealed class SearchHealthService : ISearchHealthService
             OldestPendingLabel = FormatPendingAge(oldestPending),
             WorkerActive = IsWorkerActive(lastAttempt)
         };
+    }
+
+
+    private async Task<SearchQueryHealthMetrics> ReadPercentileContMetricsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            await using var command = _db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)::bigint,
+                       (percentile_cont(0.50) WITHIN GROUP (ORDER BY "LatencyMs"))::double precision AS p50,
+                       (percentile_cont(0.95) WITHIN GROUP (ORDER BY "LatencyMs"))::double precision AS p95,
+                       AVG(CASE WHEN "ZeroResult" THEN 1.0 ELSE 0.0 END)::double precision AS zero_result_rate
+                FROM "SearchQueryLogs"
+                WHERE "Engine" = 'V2'
+                  AND "SearchedAtUtc" >= NOW() - INTERVAL '24 hours';
+                """;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return SearchQueryHealthMetrics.Empty;
+
+            var count = reader.GetInt64(0);
+            return new SearchQueryHealthMetrics(
+                count,
+                reader.IsDBNull(1) ? null : Convert.ToDouble(reader.GetValue(1), CultureInfo.InvariantCulture),
+                reader.IsDBNull(2) ? null : Convert.ToDouble(reader.GetValue(2), CultureInfo.InvariantCulture),
+                reader.IsDBNull(3) ? null : Convert.ToDouble(reader.GetValue(3), CultureInfo.InvariantCulture));
+        }
+        catch (DbException)
+        {
+            return SearchQueryHealthMetrics.Empty;
+        }
+        finally
+        {
+            try { await _db.Database.CloseConnectionAsync().ConfigureAwait(false); } catch { }
+        }
+    }
+
+    private sealed record SearchQueryHealthMetrics(long QueryCount, double? P50LatencyMs, double? P95LatencyMs, double? ZeroResultRate)
+    {
+        public static SearchQueryHealthMetrics Empty { get; } = new(0, null, null, null);
     }
 
     // SECTION: Helpers

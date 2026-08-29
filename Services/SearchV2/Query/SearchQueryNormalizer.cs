@@ -47,8 +47,14 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
         }
 
         var exact = NormalizeExact(original);
-        var expansions = ResolveExpansions(exact);
-        var webSearch = BuildWebSearchQuery(original, expansions);
+        var variants = BuildExpansionVariants(exact);
+        var expansions = variants
+            .Skip(1)
+            .Select(variant => variant.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
+        var webSearch = string.Join(" OR ", variants.Select(variant => variant.Query).Distinct(StringComparer.OrdinalIgnoreCase));
         var highlights = HighlightTokenRegex()
             .Matches(original)
             .Select(match => match.Value.Trim('"', '\'', '(', ')'))
@@ -89,40 +95,92 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
         return builder.ToString().Trim();
     }
 
-    private static IReadOnlyList<string> ResolveExpansions(string exact)
+    internal static IReadOnlyList<SearchExpansionVariant> BuildExpansionVariants(string exact)
     {
-        if (Terminology.TryGetValue(exact, out var direct))
+        if (string.IsNullOrWhiteSpace(exact))
         {
-            return direct;
+            return Array.Empty<SearchExpansionVariant>();
         }
 
-        var values = new List<string>();
-        foreach (var pair in Terminology)
+        var variants = new List<SearchExpansionVariant>
         {
-            if (exact.Contains(pair.Key, StringComparison.OrdinalIgnoreCase))
+            new(exact, exact)
+        };
+
+        foreach (var pair in Terminology.OrderByDescending(pair => pair.Key.Length))
+        {
+            if (!ContainsPhrase(exact, pair.Key))
             {
-                values.AddRange(pair.Value);
+                continue;
+            }
+
+            var currentVariants = variants.ToArray();
+            foreach (var current in currentVariants)
+            {
+                foreach (var expansion in pair.Value)
+                {
+                    if (string.Equals(expansion, pair.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var replaced = ReplacePhrase(current.Query, pair.Key, QuoteForWebSearch(expansion));
+                    if (!string.Equals(replaced, current.Query, StringComparison.OrdinalIgnoreCase))
+                    {
+                        variants.Add(new SearchExpansionVariant(replaced, expansion));
+                    }
+
+                    if (variants.Count >= 8)
+                    {
+                        break;
+                    }
+                }
+
+                if (variants.Count >= 8)
+                {
+                    break;
+                }
+            }
+
+            if (variants.Count >= 8)
+            {
+                break;
             }
         }
 
-        return values
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(6)
+        return variants
+            .DistinctBy(variant => variant.Query, StringComparer.OrdinalIgnoreCase)
+            .Take(8)
             .ToArray();
     }
 
-    private static string BuildWebSearchQuery(string original, IReadOnlyList<string> expansions)
+    private static bool ContainsPhrase(string text, string phrase)
     {
-        if (expansions.Count == 0)
-        {
-            return original;
-        }
+        var normalizedPhrase = phrase.Replace('-', ' ');
+        return Regex.IsMatch(
+            text,
+            $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(normalizedPhrase)}(?![\p{{L}}\p{{N}}])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
 
-        var alternatives = new List<string> { original };
-        alternatives.AddRange(expansions.Select(value => value.Contains(' ') ? $"\"{value.Replace("\"", string.Empty)}\"" : value));
-        return string.Join(" OR ", alternatives);
+    private static string ReplacePhrase(string text, string phrase, string replacement)
+    {
+        var normalizedPhrase = phrase.Replace('-', ' ');
+        return Regex.Replace(
+            text,
+            $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(normalizedPhrase)}(?![\p{{L}}\p{{N}}])",
+            replacement,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
+    private static string QuoteForWebSearch(string value)
+    {
+        var sanitized = value.Replace("\"", string.Empty, StringComparison.Ordinal).Trim();
+        return sanitized.Contains(' ') ? $"\"{sanitized}\"" : sanitized;
     }
 
     [GeneratedRegex("[\\p{L}\\p{N}][\\p{L}\\p{N}._/-]*", RegexOptions.CultureInvariant)]
     private static partial Regex HighlightTokenRegex();
 }
+
+internal sealed record SearchExpansionVariant(string Query, string Value);

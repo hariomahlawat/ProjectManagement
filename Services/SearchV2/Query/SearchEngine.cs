@@ -60,22 +60,44 @@ public sealed class SearchEngine : ISearchV2Engine
             return new SearchResponse(normalized.Original, Array.Empty<SearchResult>(), 0, SearchFacets.Empty, null, 0, true);
         }
 
-        if (!_options.Enabled || !await _store.IsReadyAsync(_options.IndexVersion, cancellationToken))
+        var indexHealth = _options.Enabled
+            ? await _store.GetHealthAsync(cancellationToken)
+            : new SearchIndexHealth(false, 0, 0, 0, 0, 0, null, null, null);
+        if (!indexHealth.IsReady || indexHealth.IndexVersion != _options.IndexVersion)
         {
             return SearchResponse.NotReady(normalized.Original);
         }
 
         var stopwatch = Stopwatch.StartNew();
         var pageSize = Math.Clamp(request.PageSize ?? _options.PageSize, 5, Math.Max(5, _options.MaxPageSize));
-        var cursorKey = BuildCursorKey(normalized.Original, request.Categories, request.Sources);
-        if (!_cursorCodec.TryDecode(cursorKey, request.Cursor, out var afterRank)) afterRank = 0;
+        var cursorKey = BuildCursorKey(
+            normalized.Original,
+            request.Categories,
+            request.Sources,
+            request.ProjectIds,
+            request.Statuses,
+            request.FileTypes,
+            request.Stages,
+            request.DateFrom,
+            request.DateTo);
+        if (!_cursorCodec.TryDecode(cursorKey, request.Cursor, indexHealth.ActiveGeneration, out var afterRank)) afterRank = 0;
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
 
         try
         {
             await _db.Database.OpenConnectionAsync(cancellationToken);
             await using var command = _db.Database.GetDbConnection().CreateCommand();
-            var sqlParts = BuildScopeSql(command, access, request.Categories, request.Sources);
+            var sqlParts = BuildScopeSql(
+                command,
+                access,
+                request.Categories,
+                request.Sources,
+                request.ProjectIds,
+                request.Statuses,
+                request.FileTypes,
+                request.Stages,
+                request.DateFrom,
+                request.DateTo);
             command.CommandText = BuildSearchSql(sqlParts);
             Add(command, "indexVersion", _options.IndexVersion);
             Add(command, "exact", normalized.Exact);
@@ -84,6 +106,7 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, "rrfK", _options.ReciprocalRankK);
             Add(command, "afterRank", afterRank);
             Add(command, "take", pageSize + 1);
+            Add(command, "maxSnippetSourceCharacters", Math.Max(_options.MaxSnippetCharacters * 2, 600));
 
             var rows = new List<SearchRow>(pageSize + 1);
             long totalHits = 0;
@@ -98,7 +121,11 @@ public sealed class SearchEngine : ISearchV2Engine
                         totalHits = reader.GetInt64(reader.GetOrdinal("TotalHits"));
                         facets = new SearchFacets(
                             ParseFacets(reader, "CategoryFacets"),
-                            ParseFacets(reader, "SourceFacets"));
+                            ParseFacets(reader, "SourceFacets"),
+                            ParseFacets(reader, "ProjectFacets"),
+                            ParseFacets(reader, "StatusFacets"),
+                            ParseFacets(reader, "FileTypeFacets"),
+                            ParseFacets(reader, "StageFacets"));
                     }
 
                     rows.Add(ReadRow(reader));
@@ -110,7 +137,7 @@ public sealed class SearchEngine : ISearchV2Engine
 
             var results = rows.Select(row => ToResult(row, normalized)).ToArray();
             var nextCursor = hasMore && rows.Count > 0
-                ? _cursorCodec.Encode(cursorKey, rows[^1].GlobalRank)
+                ? _cursorCodec.Encode(cursorKey, rows[^1].GlobalRank, indexHealth.ActiveGeneration)
                 : null;
 
             string? correctedQuery = null;
@@ -157,11 +184,12 @@ public sealed class SearchEngine : ISearchV2Engine
 
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
         var take = Math.Clamp(limit ?? _options.SuggestionLimit, 3, 20);
+        var prefixTsQuery = BuildPrefixTsQuery(normalized.Exact);
         try
         {
             await _db.Database.OpenConnectionAsync(cancellationToken);
             await using var command = _db.Database.GetDbConnection().CreateCommand();
-            var scope = BuildScopeSql(command, access, null, null);
+            var scope = BuildScopeSql(command, access, null, null, null, null, null, null, null, null);
             command.CommandText = $"""
                 WITH state AS (
                     SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
@@ -173,32 +201,57 @@ public sealed class SearchEngine : ISearchV2Engine
                 ), scored AS (
                     SELECT e.*,
                            CASE
-                               WHEN e."NormalizedTitle" = @exact THEN 0
-                               WHEN LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact THEN 1
                                WHEN EXISTS (
                                    SELECT 1 FROM "SearchEntryTerms" t
-                                   WHERE t."SearchEntryId" = e."Id" AND t."NormalizedTerm" = @exact
-                               ) THEN 2
-                               ELSE 3
+                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND t."NormalizedTerm" = @exact
+                               ) THEN 0
+                               WHEN EXISTS (
+                                   SELECT 1 FROM "SearchEntryTerms" t
+                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+                               ) THEN 1
+                               WHEN e."NormalizedTitle" = @exact THEN 2
+                               WHEN LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact THEN 3
+                               WHEN @prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery) THEN 4
+                               WHEN EXISTS (
+                                   SELECT 1 FROM "SearchEntryTerms" t
+                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact
+                               ) THEN 5
+                               WHEN EXISTS (
+                                   SELECT 1 FROM "SearchEntryTerms" t
+                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+                               ) THEN 6
+                               ELSE 7
                            END AS priority,
-                           similarity(e."FuzzyText", @exact) AS fuzzy_score
+                           GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) AS fuzzy_score
                     FROM authorised e
                     WHERE e."NormalizedTitle" = @exact
                        OR LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact
+                       OR (@prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery))
                        OR EXISTS (
                            SELECT 1 FROM "SearchEntryTerms" t
-                           WHERE t."SearchEntryId" = e."Id" AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+                           WHERE t."SearchEntryId" = e."Id"
+                             AND t."TermType" IN ('Identifier', 'Alias')
+                             AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
                        )
-                       OR similarity(e."FuzzyText", @exact) >= @fuzzyThreshold
+                       OR (LENGTH(@exact) >= 4 AND e."NormalizedTitle" % @exact AND similarity(e."NormalizedTitle", @exact) >= @suggestionFuzzyThreshold)
+                ), deduplicated AS (
+                    SELECT s.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY s."CanonicalEntityType", s."CanonicalEntityKey"
+                               ORDER BY s.priority, s.fuzzy_score DESC, s."UpdatedAtUtc" DESC, s."Id"
+                           ) AS canonical_rank
+                    FROM scored s
                 )
                 SELECT "Title", "Subtitle", "CanonicalUrl", "SourceModule", "ResultCategory", NULLIF("IdentifierText", '') AS "IdentifierText"
-                FROM scored
+                FROM deduplicated
+                WHERE canonical_rank = 1
                 ORDER BY priority, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
                 LIMIT @take;
                 """;
             Add(command, "indexVersion", _options.IndexVersion);
             Add(command, "exact", normalized.Exact);
-            Add(command, "fuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.34));
+            Add(command, "prefixTsQuery", prefixTsQuery);
+            Add(command, "suggestionFuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.42));
             Add(command, "take", take);
 
             var results = new List<SearchSuggestion>(take);
@@ -226,15 +279,30 @@ public sealed class SearchEngine : ISearchV2Engine
         }
     }
 
+    private static string BuildPrefixTsQuery(string exact)
+    {
+        var lexemes = exact
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => new string(value.Where(char.IsLetterOrDigit).ToArray()))
+            .Where(value => value.Length >= 2)
+            .Take(5)
+            .ToArray();
+        if (lexemes.Length == 0) return string.Empty;
+
+        return string.Join(" & ", lexemes.Select((value, index) => index == lexemes.Length - 1 ? $"{value}:*" : value));
+    }
+
     private SearchResult ToResult(SearchRow row, NormalizedSearchQuery query)
     {
         var snippet = _highlight.BuildSnippet(row.StructuredText, row.NarrativeText, query.HighlightTerms);
         var matchedField = MatchedField(row.Channels, row, query);
         var related = (row.RelatedSources ?? string.Empty)
             .Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(source => !string.Equals(source, row.SourceModule, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(source => new SearchRelatedResult(source, source))
+            .Select(ParseRelatedResult)
+            .Where(item => item is not null && !string.Equals(item.SourceModule, row.SourceModule, StringComparison.OrdinalIgnoreCase))
+            .Cast<SearchRelatedResult>()
+            .OrderByDescending(item => item.Count)
+            .ThenBy(item => item.SourceModule, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         return new SearchResult(
@@ -268,17 +336,72 @@ public sealed class SearchEngine : ISearchV2Engine
         if (channels.Contains("exact_title", StringComparison.Ordinal) || channels.Contains("title_prefix", StringComparison.Ordinal)) return "Title";
         if (channels.Contains("alias", StringComparison.Ordinal)) return "Alias";
         if (query.HighlightTerms.Any(term => row.Title.Contains(term, StringComparison.OrdinalIgnoreCase))) return "Title";
-        if (query.HighlightTerms.Any(term => (row.StructuredText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))) return "Details";
-        if (query.HighlightTerms.Any(term => (row.NarrativeText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))) return "Content";
-        if (channels.Contains("fuzzy", StringComparison.Ordinal)) return "Similar terminology";
+
+        var metadataMatch = MatchedFieldFromMetadata(row.MetadataJson, query.HighlightTerms);
+        if (!string.IsNullOrWhiteSpace(metadataMatch)) return metadataMatch;
+
+        if (query.HighlightTerms.Any(term => (row.StructuredText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))) return "structured details";
+        if (query.HighlightTerms.Any(term => (row.NarrativeText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            return row.EntityType is "ProjectDocument" or "DocRepoDocument" ? "OCR text" : "content";
+        }
+        if (channels.Contains("fuzzy", StringComparison.Ordinal)) return "similar terminology";
         return null;
+    }
+
+    private static string? MatchedFieldFromMetadata(string? metadataJson, IReadOnlyList<string> terms)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson) || terms.Count == 0) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(metadataJson);
+            if (!document.RootElement.TryGetProperty("matchFields", out var fields) || fields.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            foreach (var property in fields.EnumerateObject())
+            {
+                var value = property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(value) && terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return property.Name;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Metadata is non-authoritative display enrichment. Ignore malformed legacy rows.
+        }
+
+        return null;
+    }
+
+    private static SearchRelatedResult? ParseRelatedResult(string value)
+    {
+        var separator = value.LastIndexOf(':');
+        if (separator <= 0 || separator == value.Length - 1) return null;
+        var source = value[..separator].Trim();
+        if (!long.TryParse(value[(separator + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)) return null;
+        return new SearchRelatedResult(source, source, Math.Max(1, count));
     }
 
     private static bool ShouldOfferCorrection(NormalizedSearchQuery query, IReadOnlyList<SearchRow> rows)
     {
         if (query.HighlightTerms.Count != 1 || query.Exact.Length is < 4 or > 32) return false;
-        return rows.Count == 0 || rows[0].Channels.Contains("fuzzy", StringComparison.Ordinal);
+        if (rows.Count > 3) return false;
+        if (rows.Any(row => HasStrongLexicalChannel(row.Channels))) return false;
+        return rows.Count == 0 || rows.All(row => row.Channels.Contains("fuzzy", StringComparison.Ordinal));
     }
+
+    private static bool HasStrongLexicalChannel(string channels) =>
+        channels.Contains("exact_identifier", StringComparison.Ordinal)
+        || channels.Contains("exact_title", StringComparison.Ordinal)
+        || channels.Contains("alias", StringComparison.Ordinal)
+        || channels.Contains("title_prefix", StringComparison.Ordinal)
+        || channels.Contains("simple_fts", StringComparison.Ordinal)
+        || channels.Contains("english_fts", StringComparison.Ordinal)
+        || channels.Contains("configured_alias_fts", StringComparison.Ordinal);
 
     private async Task<string?> FindCorrectionAsync(
         DbConnection connection,
@@ -287,7 +410,7 @@ public sealed class SearchEngine : ISearchV2Engine
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        var scope = BuildScopeSql(command, access, null, null);
+        var scope = BuildScopeSql(command, access, null, null, null, null, null, null, null, null);
         command.CommandText = $"""
             WITH state AS (
                 SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
@@ -304,8 +427,9 @@ public sealed class SearchEngine : ISearchV2Engine
             )
             SELECT token
             FROM vocabulary
-            WHERE similarity(token, @exact) >= 0.48
-            ORDER BY similarity(token, @exact) DESC, LENGTH(token), token
+            WHERE token <> @exact
+              AND similarity(token, @exact) >= 0.62
+            ORDER BY similarity(token, @exact) DESC, ABS(LENGTH(token) - LENGTH(@exact)), token
             LIMIT 1;
             """;
         Add(command, "indexVersion", _options.IndexVersion);
@@ -366,12 +490,24 @@ public sealed class SearchEngine : ISearchV2Engine
                    'english_fts'::text AS channel, 1.0::double precision AS weight
             FROM authorised e
             WHERE e."SearchVectorEnglish" @@ websearch_to_tsquery('english', @webQuery)
+        ), configured_alias_fts AS (
+            SELECT e."Id", 3 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', a."Expansion")) DESC,
+                                e."UpdatedAtUtc" DESC,
+                                e."Id") AS channel_rank,
+                   'configured_alias_fts'::text AS channel, 1.15::double precision AS weight
+            FROM authorised e
+            JOIN "SearchAliases" a ON a."IsActive" AND a."NormalizedAlias" = @exact
+            WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', a."Expansion")
         ), fuzzy_matches AS (
             SELECT e."Id", 4 AS tier,
                    ROW_NUMBER() OVER (ORDER BY similarity(e."FuzzyText", @exact) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'fuzzy'::text AS channel, 0.55::double precision AS weight
             FROM authorised e
-            WHERE LENGTH(@exact) >= 3 AND similarity(e."FuzzyText", @exact) >= @fuzzyThreshold
+            WHERE LENGTH(@exact) >= 3
+              AND e."FuzzyText" % @exact
+              AND similarity(e."FuzzyText", @exact) >= @fuzzyThreshold
         ), channels AS (
             SELECT * FROM exact_identifier
             UNION ALL SELECT * FROM exact_title
@@ -379,6 +515,7 @@ public sealed class SearchEngine : ISearchV2Engine
             UNION ALL SELECT * FROM title_prefix
             UNION ALL SELECT * FROM simple_fts
             UNION ALL SELECT * FROM english_fts
+            UNION ALL SELECT * FROM configured_alias_fts
             UNION ALL SELECT * FROM fuzzy_matches
         ), fused AS (
             SELECT "Id",
@@ -391,10 +528,14 @@ public sealed class SearchEngine : ISearchV2Engine
             SELECT e.*, f.tier, f.fusion_score, f.channels
             FROM fused f
             JOIN authorised e ON e."Id" = f."Id"
+        ), related_source_counts AS (
+            SELECT "CanonicalEntityType", "CanonicalEntityKey", "SourceModule", COUNT(*) AS source_count
+            FROM candidate_scored
+            GROUP BY "CanonicalEntityType", "CanonicalEntityKey", "SourceModule"
         ), related AS (
             SELECT "CanonicalEntityType", "CanonicalEntityKey",
-                   STRING_AGG(DISTINCT "SourceModule", ' · ') AS related_sources
-            FROM candidate_scored
+                   STRING_AGG("SourceModule" || ':' || source_count::text, ' · ' ORDER BY source_count DESC, "SourceModule") AS related_sources
+            FROM related_source_counts
             GROUP BY "CanonicalEntityType", "CanonicalEntityKey"
         ), facet_clustered AS (
             SELECT f.*
@@ -435,14 +576,57 @@ public sealed class SearchEngine : ISearchV2Engine
         ), source_facets AS (
             SELECT COALESCE(jsonb_object_agg("SourceModule", item_count), jsonb_build_object()) AS value
             FROM (SELECT "SourceModule", COUNT(*) AS item_count FROM facet_clustered GROUP BY "SourceModule") x
+        ), status_facets AS (
+            SELECT COALESCE(jsonb_object_agg("Status", item_count), jsonb_build_object()) AS value
+            FROM (SELECT "Status", COUNT(*) AS item_count FROM facet_clustered WHERE NULLIF("Status", '') IS NOT NULL GROUP BY "Status") x
+        ), file_type_facets AS (
+            SELECT COALESCE(jsonb_object_agg("FileType", item_count), jsonb_build_object()) AS value
+            FROM (SELECT "FileType", COUNT(*) AS item_count FROM facet_clustered WHERE NULLIF("FileType", '') IS NOT NULL GROUP BY "FileType") x
+        ), stage_facets AS (
+            SELECT COALESCE(jsonb_object_agg(stage, item_count), jsonb_build_object()) AS value
+            FROM (
+                SELECT "MetadataJson"->>'currentStage' AS stage, COUNT(*) AS item_count
+                FROM facet_clustered
+                WHERE NULLIF("MetadataJson"->>'currentStage', '') IS NOT NULL
+                GROUP BY "MetadataJson"->>'currentStage'
+            ) x
+        ), project_facet_rows AS (
+            SELECT f."ParentProjectId"::text AS value,
+                   COALESCE(p."Title", 'Project ' || f."ParentProjectId"::text) AS label,
+                   COUNT(*) AS item_count
+            FROM facet_clustered f
+            LEFT JOIN authorised p
+              ON p."EntityType" = 'Project'
+             AND p."EntityKey" = f."ParentProjectId"::text
+            WHERE f."ParentProjectId" IS NOT NULL
+            GROUP BY f."ParentProjectId", p."Title"
+        ), project_facets AS (
+            SELECT COALESCE(
+                jsonb_object_agg(value, jsonb_build_object('label', label, 'count', item_count)),
+                jsonb_build_object()) AS value
+            FROM project_facet_rows
         )
         SELECT r."Id", r."EntityType", r."EntityKey", r."CanonicalEntityType", r."CanonicalEntityKey", r."ParentProjectId",
-               r."SourceModule", r."ResultCategory", r."Title", r."Subtitle", r."CanonicalUrl", r."StructuredText", r."NarrativeText",
+               r."SourceModule", r."ResultCategory", r."Title", r."Subtitle", r."CanonicalUrl",
+               LEFT(COALESCE(r."StructuredText", ''), @maxSnippetSourceCharacters) AS "StructuredText",
+               CASE
+                   WHEN r."NarrativeText" IS NULL THEN NULL
+                   ELSE LEFT(
+                       regexp_replace(
+                           ts_headline('simple', r."NarrativeText", websearch_to_tsquery('simple', @webQuery),
+                               'StartSel=<<,StopSel=>>,MaxWords=60,MinWords=15,ShortWord=2,MaxFragments=2,FragmentDelimiter=...'),
+                           '<<|>>', '', 'g'),
+                       @maxSnippetSourceCharacters)
+               END AS "NarrativeText",
                r."Status", r."FileType", r."EventDateUtc", r."UpdatedAtUtc", r."MetadataJson"::text,
                r.tier, r.fusion_score, r.channels, r.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources",
                (SELECT COUNT(*) FROM ranked) AS "TotalHits",
                (SELECT value::text FROM category_facets) AS "CategoryFacets",
-               (SELECT value::text FROM source_facets) AS "SourceFacets"
+               (SELECT value::text FROM source_facets) AS "SourceFacets",
+               (SELECT value::text FROM project_facets) AS "ProjectFacets",
+               (SELECT value::text FROM status_facets) AS "StatusFacets",
+               (SELECT value::text FROM file_type_facets) AS "FileTypeFacets",
+               (SELECT value::text FROM stage_facets) AS "StageFacets"
         FROM ranked r
         WHERE r.global_rank > @afterRank
         ORDER BY r.global_rank
@@ -482,9 +666,19 @@ public sealed class SearchEngine : ISearchV2Engine
         {
             using var document = JsonDocument.Parse(reader.GetString(ordinal));
             return document.RootElement.EnumerateObject()
-                .Select(property => new SearchFacetValue(property.Name, property.Value.GetInt64()))
+                .Select(property =>
+                {
+                    if (property.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        var count = property.Value.TryGetProperty("count", out var countNode) ? countNode.GetInt64() : 0;
+                        var label = property.Value.TryGetProperty("label", out var labelNode) ? labelNode.GetString() : null;
+                        return new SearchFacetValue(property.Name, count, label);
+                    }
+
+                    return new SearchFacetValue(property.Name, property.Value.GetInt64());
+                })
                 .OrderByDescending(value => value.Count)
-                .ThenBy(value => value.Value, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(value => value.Label ?? value.Value, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
         catch (JsonException)
@@ -497,7 +691,13 @@ public sealed class SearchEngine : ISearchV2Engine
         DbCommand command,
         SearchAccessContext access,
         IReadOnlyList<string>? categories,
-        IReadOnlyList<string>? sources)
+        IReadOnlyList<string>? sources,
+        IReadOnlyList<int>? projectIds,
+        IReadOnlyList<string>? statuses,
+        IReadOnlyList<string>? fileTypes,
+        IReadOnlyList<string>? stages,
+        DateOnly? dateFrom,
+        DateOnly? dateTo)
     {
         var policyParts = new List<string> { "e.\"RequiredPolicy\" IS NULL" };
         for (var index = 0; index < access.AllowedPolicies.Count; index++)
@@ -538,6 +738,29 @@ public sealed class SearchEngine : ISearchV2Engine
         var filters = new List<string>();
         AddListFilter(command, filters, "ResultCategory", "category", categories);
         AddListFilter(command, filters, "SourceModule", "source", sources);
+        AddListFilter(command, filters, "Status", "status", statuses);
+        AddListFilter(command, filters, "FileType", "fileType", fileTypes);
+        AddProjectFilter(command, filters, projectIds);
+        AddStageFilter(command, filters, stages);
+        if (dateFrom.HasValue)
+        {
+            Add(command, "dateFrom", dateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            filters.Add("c.\"EventDateUtc\" >= @dateFrom");
+        }
+        if (dateTo.HasValue)
+        {
+            if (dateTo.Value == DateOnly.MaxValue)
+            {
+                Add(command, "dateToInclusive", DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc));
+                filters.Add("c.\"EventDateUtc\" <= @dateToInclusive");
+            }
+            else
+            {
+                Add(command, "dateToExclusive", dateTo.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+                filters.Add("c.\"EventDateUtc\" < @dateToExclusive");
+            }
+        }
+
         var filterClause = filters.Count == 0 ? string.Empty : $" AND {string.Join(" AND ", filters)}";
         return new SearchSqlScope(authorization, filterClause);
     }
@@ -557,10 +780,46 @@ public sealed class SearchEngine : ISearchV2Engine
         filters.Add($"c.\"{column}\" IN ({string.Join(",", names)})");
     }
 
+    private static void AddProjectFilter(DbCommand command, ICollection<string> filters, IReadOnlyList<int>? projectIds)
+    {
+        var effective = projectIds?.Where(value => value > 0).Distinct().Take(20).ToArray();
+        if (effective is not { Length: > 0 }) return;
+
+        var names = new List<string>(effective.Length);
+        for (var index = 0; index < effective.Length; index++)
+        {
+            var name = $"project{index}";
+            Add(command, name, effective[index]);
+            names.Add($"@{name}");
+        }
+        filters.Add($"c.\"ParentProjectId\" IN ({string.Join(",", names)})");
+    }
+
+    private static void AddStageFilter(DbCommand command, ICollection<string> filters, IReadOnlyList<string>? stages)
+    {
+        var effective = stages?.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
+        if (effective is not { Length: > 0 }) return;
+
+        var names = new List<string>(effective.Length);
+        for (var index = 0; index < effective.Length; index++)
+        {
+            var name = $"stage{index}";
+            Add(command, name, effective[index]);
+            names.Add($"@{name}");
+        }
+        filters.Add($"COALESCE(c.\"MetadataJson\"->>'currentStage', '') IN ({string.Join(",", names)})");
+    }
+
     private static string BuildCursorKey(
         string query,
         IReadOnlyList<string>? categories,
-        IReadOnlyList<string>? sources)
+        IReadOnlyList<string>? sources,
+        IReadOnlyList<int>? projectIds,
+        IReadOnlyList<string>? statuses,
+        IReadOnlyList<string>? fileTypes,
+        IReadOnlyList<string>? stages,
+        DateOnly? dateFrom,
+        DateOnly? dateTo)
     {
         static string Normalize(IReadOnlyList<string>? values) => string.Join(
             '\u001F',
@@ -569,8 +828,9 @@ public sealed class SearchEngine : ISearchV2Engine
                 .Select(static value => value.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase));
+        static string NormalizeIds(IReadOnlyList<int>? values) => string.Join(',', (values ?? Array.Empty<int>()).Where(value => value > 0).Distinct().OrderBy(value => value));
 
-        return $"{query.Trim()}\u001EC:{Normalize(categories)}\u001ES:{Normalize(sources)}";
+        return $"{query.Trim()}\u001EC:{Normalize(categories)}\u001ES:{Normalize(sources)}\u001EP:{NormalizeIds(projectIds)}\u001EST:{Normalize(statuses)}\u001EFT:{Normalize(fileTypes)}\u001ESG:{Normalize(stages)}\u001EDF:{dateFrom:yyyy-MM-dd}\u001EDT:{dateTo:yyyy-MM-dd}";
     }
 
     private static void Add(DbCommand command, string name, object? value)

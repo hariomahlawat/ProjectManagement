@@ -69,14 +69,16 @@ public sealed class SearchGateway : ISearchGateway
         }
 
         var stopwatch = Stopwatch.StartNew();
+        var serveV2ToUser = ShouldServeV2(user);
 
-        // Start both paths before awaiting either. In shadow mode this changes
-        // user latency from V2 + Legacy to approximately max(V2, Legacy).
-        var v2Task = _options.Enabled
+        // Run V2 only when it can serve this user or when shadow comparison is explicitly enabled.
+        // When both paths are needed they are still started before either is awaited.
+        var runV2 = _options.Enabled && (serveV2ToUser || _options.ShadowMode);
+        var v2Task = runV2
             ? _v2.SearchAsync(request, user, cancellationToken)
             : null;
 
-        var legacyRequired = !_options.Enabled || !_options.ServeV2 || _options.ShadowMode;
+        var legacyRequired = !_options.Enabled || !serveV2ToUser || _options.ShadowMode;
         var legacyTask = legacyRequired
             ? ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken)
             : null;
@@ -98,7 +100,7 @@ public sealed class SearchGateway : ISearchGateway
             await SafeShadowLogAsync(normalized.Original, legacyResults, v2Response.Results, cancellationToken);
         }
 
-        if (_options.ServeV2 && v2Response is { IsReady: true })
+        if (serveV2ToUser && v2Response is { IsReady: true })
         {
             stopwatch.Stop();
             await SafeQueryLogAsync(
@@ -149,7 +151,13 @@ public sealed class SearchGateway : ISearchGateway
             normalized.Original,
             adapted,
             adapted.Length,
-            new SearchFacets(categoryFacets, sourceFacets),
+            new SearchFacets(
+                categoryFacets,
+                sourceFacets,
+                Array.Empty<SearchFacetValue>(),
+                Array.Empty<SearchFacetValue>(),
+                Array.Empty<SearchFacetValue>(),
+                Array.Empty<SearchFacetValue>()),
             null,
             stopwatch.ElapsedMilliseconds,
             false,
@@ -165,7 +173,7 @@ public sealed class SearchGateway : ISearchGateway
     {
         // Shadow mode must be observational only. Suggestions become visible
         // when V2 itself is explicitly allowed to serve user-facing results.
-        if (!_options.Enabled || !_options.ServeV2)
+        if (!_options.Enabled || !ShouldServeV2(user))
         {
             return Task.FromResult<IReadOnlyList<SearchSuggestion>>(Array.Empty<SearchSuggestion>());
         }
@@ -189,6 +197,23 @@ public sealed class SearchGateway : ISearchGateway
         {
             _logger.LogDebug(ex, "Search click telemetry write failed.");
         }
+    }
+
+    private bool ShouldServeV2(ClaimsPrincipal user)
+    {
+        if (!_options.Enabled) return false;
+        if (_options.ServeV2) return true;
+
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userName = user.Identity?.Name ?? user.FindFirstValue(ClaimTypes.Name);
+        if (_options.ServeV2Users.Any(value =>
+                (!string.IsNullOrWhiteSpace(userId) && string.Equals(value, userId, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(userName) && string.Equals(value, userName, StringComparison.OrdinalIgnoreCase))))
+        {
+            return true;
+        }
+
+        return _options.ServeV2Roles.Any(role => user.IsInRole(role));
     }
 
     private async Task<IReadOnlyList<GlobalSearchHit>> ReadLegacyAuthorizedAsync(

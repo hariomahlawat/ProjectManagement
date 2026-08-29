@@ -28,18 +28,47 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Cursor { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public int[]? Project { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string[]? Status { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string[]? FileType { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string[]? Stage { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? DateFrom { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? DateTo { get; set; }
+
     public SearchGatewayResponse Search { get; private set; } = SearchGatewayResponse.Empty(string.Empty);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(Q)) return;
 
+        if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value > DateTo.Value)
+        {
+            (DateFrom, DateTo) = (DateTo, DateFrom);
+        }
+
         Search = await _search.SearchAsync(
             new SearchRequest(
-                Q,
-                Category?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                Source?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                Cursor),
+                Query: Q,
+                Categories: Category?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                Sources: Source?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                Cursor: Cursor,
+                ProjectIds: Project?.Where(value => value > 0).Distinct().ToArray(),
+                Statuses: Status?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                FileTypes: FileType?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                Stages: Stage?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+                DateFrom: DateFrom,
+                DateTo: DateTo),
             User,
             cancellationToken);
     }

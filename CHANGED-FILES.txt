@@ -1,18 +1,32 @@
-Services/Stages/StageDateSuggestionResolver.cs
-Services/Stages/StageRequestService.cs
-Services/Stages/ProjectStageWorkflowPolicy.cs
-Services/Approvals/StageApprovalSequenceService.cs
-Services/Projects/ProjectTimelineReadService.cs
-ProjectManagement.Tests/Stages/StageDateSuggestionResolverTests.cs
-ProjectManagement.Tests/Stages/StageValidationServiceTests.cs
-ProjectManagement.Tests/Stages/StageRequestServiceTests.cs
-ProjectManagement.Tests/Stages/ProjectStageWorkflowPolicyTests.cs
-ProjectManagement.Tests/StageDirectApplyServiceTests.cs
-ProjectManagement.Tests/StageActualsUpdateServiceTests.cs
-ProjectManagement.Tests/StageProgressServiceTests.cs
-ProjectManagement.Tests/Approvals/StageApprovalSequenceServiceTests.cs
-ProjectManagement.Tests/Projects/ProjectTimelineReadServiceTests.cs
-ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
-ProjectManagement.Tests/ProjectPhotoPageTests.cs
-README - APPLY FIRST.txt
-VERIFY-STAGE-CHRONOLOGY.ps1
+PRISM Search V2 Relevance & Production Convergence
+Incremental overlay for the previously supplied Search V2 build-fix package.
+appsettings.json is intentionally NOT included.
+
+Production files:
+Areas/Common/Pages/Search/Index.cshtml
+Areas/Common/Pages/Search/Index.cshtml.cs
+Pages/Dashboard/Partials/_SearchHealthWidget.cshtml
+Services/Dashboard/SearchHealthService.cs
+Services/SearchV2/Indexing/SearchProjectionBuilder.cs
+Services/SearchV2/Models/SearchContracts.cs
+Services/SearchV2/Query/SearchCursorCodec.cs
+Services/SearchV2/Query/SearchEngine.cs
+Services/SearchV2/Query/SearchGateway.cs
+Services/SearchV2/Query/SearchQueryNormalizer.cs
+Services/SearchV2/SearchV2Options.cs
+ViewModels/Dashboard/SearchHealthVm.cs
+wwwroot/css/pages/search.css
+
+Regression/support files:
+ProjectManagement.Tests/Search/SearchV2AuthorizationTests.cs
+ProjectManagement.Tests/Search/SearchV2PostgresIntegrationTests.cs
+ProjectManagement.Tests/Search/SearchV2QueryTests.cs
+ProjectManagement.Tests/Search/SearchV2SourceContractTests.cs
+tools/search-v2-relevance-dataset.schema.json
+tools/search-v2-relevance-evaluator.mjs
+tools/test-search-v2-contract.mjs
+docs/superpowers/plans/2026-08-29-search-v2-relevance-production-convergence.md
+
+Handoff files:
+README-SEARCH-V2-CONVERGENCE.md
+VERIFY-SEARCH-V2.ps1

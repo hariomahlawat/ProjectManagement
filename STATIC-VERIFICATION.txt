@@ -1,26 +1,19 @@
-STATIC VERIFICATION PERFORMED IN THE DELIVERY ENVIRONMENT
-----------------------------------------------------------
-1. All 16 changed/new C# files were tokenised and checked for balanced
-   parentheses, brackets and braces outside comments/string literals.
-2. No merge-conflict markers were found.
-3. The removed predecessor-by-display-order implementations
-   ResolveProjectedStartBoundary and ResolveImmediatePredecessorBoundary
-   are no longer present in production source.
-4. All production StageDateSuggestionResolver call sites now supply a
-   ProjectStageWorkflowSnapshot or an effective-state accessor.
-5. ProjectStageWorkflowPolicy fallback dependency sets were programmatically
-   compared with StageFlowSeeder and match for both V1 and V2.
-6. The required parallel topology is present:
-      TEC -> BID
-      BM  -> BID
-      COB -> TEC
-      COB -> BM
-7. Both delivery ZIP files were tested with unzip -t and contain no corrupt
-   entries.
+Search V2 convergence packaging verification
 
-LIMITATION
-----------
-The execution container does not include the .NET SDK/C# compiler, so a real
-'dotnet test' and 'dotnet build' could not be run here. Run the included
-VERIFY-STAGE-CHRONOLOGY.ps1 on the normal PRISM development machine before
-publishing to IIS.
+PASS: tools/test-search-v2-contract.mjs
+PASS: wwwroot/js/pages/search.js syntax
+PASS: wwwroot/js/navigation/global-search.js ES-module syntax
+PASS: tools/search-v2-relevance-evaluator.mjs syntax
+PASS: relevance dataset schema JSON parse
+PASS: appsettings.json JSON parse (source baseline only; appsettings is NOT packaged)
+PASS: relevance evaluator smoke dataset => MRR/nDCG/Recall/Rank1 = 1.0
+PASS: C# delimiter/string structural scan on changed Search V2/test files
+PASS: no merge-conflict markers in targeted Search V2 paths
+PASS: previous CS9006 raw JSON literal pattern absent
+
+Existing JavaScript suite, fresh run:
+Convergence tree: 673 tests / 647 pass / 26 fail
+Untouched supplied baseline: 673 tests / 647 pass / 26 fail
+The same failure count is present in the supplied baseline; several failures are caused by unavailable jsdom in this environment.
+
+LIMITATION: .NET SDK/MSBuild/C# compiler is not installed in the packaging environment. Run VERIFY-SEARCH-V2.ps1 on the PRISM development machine for authoritative build/xUnit verification.

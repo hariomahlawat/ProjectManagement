@@ -63,5 +63,9 @@ public sealed class SearchIndexHealthSnapshot
     public long FailedItems { get; init; }
     public DateTimeOffset? LastFullRebuildUtc { get; init; }
     public DateTimeOffset? LastReconciliationUtc { get; init; }
+    public long QueryCount24Hours { get; init; }
+    public double? P50LatencyMs { get; init; }
+    public double? P95LatencyMs { get; init; }
+    public double? ZeroResultRate { get; init; }
     public string? LastError { get; init; }
 }

@@ -148,6 +148,20 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             .GroupBy(row => row.ProjectId)
             .ToDictionary(group => group.Key, group => group.Select(row => row.Text).ToArray());
 
+        var totSummaries = (await _db.ProjectTots.AsNoTracking()
+                .Where(row => ids.Contains(row.ProjectId))
+                .Select(row => new { row.ProjectId, row.Status })
+                .ToListAsync(cancellationToken))
+            .GroupBy(row => row.ProjectId)
+            .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => $"ToT {row.Status}").Distinct()));
+
+        var iprSummaries = (await _db.IprRecords.AsNoTracking()
+                .Where(row => row.ProjectId.HasValue && ids.Contains(row.ProjectId.Value))
+                .Select(row => new { ProjectId = row.ProjectId!.Value, row.Status, row.Type })
+                .ToListAsync(cancellationToken))
+            .GroupBy(row => row.ProjectId)
+            .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => $"IPR {row.Type} {row.Status}").Distinct()));
+
         var stages = (await _db.ProjectStages.AsNoTracking()
                 .Where(stage => ids.Contains(stage.ProjectId))
                 .Select(stage => new { stage.ProjectId, stage.StageCode, stage.SortOrder, stage.Status })
@@ -171,6 +185,8 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             capabilities.TryGetValue(project.Id, out var capabilityRows);
             specifications.TryGetValue(project.Id, out var specificationRows);
             stages.TryGetValue(project.Id, out var currentStage);
+            totSummaries.TryGetValue(project.Id, out var totSummary);
+            iprSummaries.TryGetValue(project.Id, out var iprSummary);
             var aliases = ExtractAliases(project.Name);
             var identifiers = Values(project.CaseFileNumber);
             var structured = JoinNonEmpty(
@@ -181,6 +197,8 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 project.SponsoringUnit,
                 project.LineDirectorate,
                 currentStage,
+                totSummary,
+                iprSummary,
                 string.Join(" · ", capabilityRows ?? Array.Empty<string>()),
                 string.Join(" · ", specificationRows ?? Array.Empty<string>()));
 
@@ -210,7 +228,24 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 updatedAt,
                 null,
                 terms,
-                new { projectId = project.Id, matchedFields = new[] { "Project", "Capability", "TechnicalSpecification" } }));
+                new
+                {
+                    projectId = project.Id,
+                    currentStage,
+                    matchFields = new Dictionary<string, string?>
+                    {
+                        ["Case File Number"] = project.CaseFileNumber,
+                        ["Project Brief"] = project.ProjectBrief,
+                        ["Description"] = project.Description,
+                        ["Capability"] = string.Join(" · ", capabilityRows ?? Array.Empty<string>()),
+                        ["Technical Specification"] = string.Join(" · ", specificationRows ?? Array.Empty<string>()),
+                        ["Category"] = JoinNonEmpty(project.Category, project.TechnicalCategory, project.ArmService),
+                        ["Organisation"] = JoinNonEmpty(project.SponsoringUnit, project.LineDirectorate),
+                        ["Lifecycle Stage"] = currentStage,
+                        ["Transfer of Technology"] = totSummary,
+                        ["IPR"] = iprSummary
+                    }
+                }));
         }
 
         if (includeProjectDocuments && projectId.HasValue)
@@ -242,13 +277,18 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             document.UploadedAtUtc,
             ProjectName = document.Project.Name,
             ProjectCase = document.Project.CaseFileNumber,
+            ProjectCategory = document.Project.Category != null ? document.Project.Category.Name : null,
+            ProjectTechnicalCategory = document.Project.TechnicalCategory != null ? document.Project.TechnicalCategory.Name : null,
             OcrText = document.DocumentText != null ? document.DocumentText.OcrText : null,
             OcrUpdated = document.DocumentText != null ? (DateTimeOffset?)document.DocumentText.UpdatedAtUtc : null
         }).ToListAsync(cancellationToken);
 
         return rows.Select(row =>
         {
-            var aliases = Values(row.OriginalFileName, row.ProjectName, row.ProjectCase);
+            var aliases = Values(row.OriginalFileName, row.ProjectName, row.ProjectCase, row.ProjectCategory, row.ProjectTechnicalCategory)
+                .Concat(ExtractAliases(row.ProjectName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             var terms = BuildTerms(Array.Empty<string>(), aliases);
             var updated = row.OcrUpdated ?? row.UploadedAtUtc;
             return Project(
@@ -264,7 +304,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 _urls.ProjectDocumentPreview(row.Id),
                 row.ProjectCase,
                 string.Join(' ', aliases),
-                JoinNonEmpty(row.ProjectName, row.ProjectCase, row.Description, row.OriginalFileName),
+                JoinNonEmpty(row.ProjectName, row.ProjectCase, row.ProjectCategory, row.ProjectTechnicalCategory, row.Description, row.OriginalFileName),
                 row.OcrText,
                 "Published",
                 FileType(row.OriginalFileName, row.ContentType),
@@ -272,7 +312,17 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 updated,
                 null,
                 terms,
-                new { projectId = row.ProjectId, documentId = row.Id });
+                new
+                {
+                    projectId = row.ProjectId,
+                    documentId = row.Id,
+                    matchFields = new Dictionary<string, string?>
+                    {
+                        ["Project"] = JoinNonEmpty(row.ProjectName, row.ProjectCase),
+                        ["Project category"] = JoinNonEmpty(row.ProjectCategory, row.ProjectTechnicalCategory),
+                        ["Document metadata"] = JoinNonEmpty(row.Description, row.OriginalFileName)
+                    }
+                });
         }).ToArray();
     }
 
@@ -325,7 +375,14 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 updated,
                 Policies.Documents.View,
                 BuildTerms(Array.Empty<string>(), aliases),
-                new { documentId = row.Id });
+                new
+                {
+                    documentId = row.Id,
+                    matchFields = new Dictionary<string, string?>
+                    {
+                        ["Document metadata"] = JoinNonEmpty(row.ReceivedFrom, row.DocumentCategory, row.OfficeCategory, row.OriginalFileName)
+                    }
+                });
         }).ToArray();
     }
 
@@ -496,7 +553,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 row.Id.ToString(),
                 null,
                 "Visits",
-                "Organisation",
+                "Trackers",
                 row.VisitorName,
                 JoinNonEmpty(row.Type, $"Strength {row.Strength}"),
                 _urls.ProjectOfficeVisitDetails(row.Id),
@@ -535,7 +592,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             var date = new DateTimeOffset(row.DateOfEvent.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             return Project(
                 "SocialMediaEvent", row.Id.ToString(), "SocialMediaEvent", row.Id.ToString(), null,
-                "Social media", "Organisation", row.Title, JoinNonEmpty(row.Platform, row.EventType),
+                "Social media", "Trackers", row.Title, JoinNonEmpty(row.Platform, row.EventType),
                 _urls.ProjectOfficeSocialMediaDetails(row.Id), null, JoinNonEmpty(row.Platform, row.EventType),
                 JoinNonEmpty(row.Platform, row.EventType), row.Description, null, null, date,
                 row.LastModifiedAtUtc ?? row.CreatedAtUtc, null,

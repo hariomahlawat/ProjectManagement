@@ -108,10 +108,35 @@
                         </div>
                         <div><span class="text-muted">Version</span> <strong>@Model.SearchIndex.IndexVersion</strong></div>
                     </div>
-                    @if (Model.SearchIndex.LastFullRebuildUtc.HasValue)
+                    <div class="d-flex flex-wrap align-items-center gap-3 small mt-2">
+                        @if (Model.SearchIndex.P50LatencyMs.HasValue)
+                        {
+                            <div><span class="text-muted">p50</span> <strong>@Model.SearchIndex.P50LatencyMs.Value.ToString("0") ms</strong></div>
+                        }
+                        @if (Model.SearchIndex.P95LatencyMs.HasValue)
+                        {
+                            <div><span class="text-muted">p95</span> <strong>@Model.SearchIndex.P95LatencyMs.Value.ToString("0") ms</strong></div>
+                        }
+                        @if (Model.SearchIndex.ZeroResultRate.HasValue)
+                        {
+                            <div><span class="text-muted">Zero-result</span> <strong>@Model.SearchIndex.ZeroResultRate.Value.ToString("P1")</strong></div>
+                        }
+                        @if (Model.SearchIndex.QueryCount24Hours > 0)
+                        {
+                            <div><span class="text-muted">Queries 24h</span> <strong>@Model.SearchIndex.QueryCount24Hours.ToString("N0")</strong></div>
+                        }
+                    </div>
+                    @if (Model.SearchIndex.LastFullRebuildUtc.HasValue || Model.SearchIndex.LastReconciliationUtc.HasValue)
                     {
                         <div class="text-muted small mt-2">
-                            Last full rebuild @Model.SearchIndex.LastFullRebuildUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                            @if (Model.SearchIndex.LastFullRebuildUtc.HasValue)
+                            {
+                                <span>Full rebuild @Model.SearchIndex.LastFullRebuildUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+                            }
+                            @if (Model.SearchIndex.LastReconciliationUtc.HasValue)
+                            {
+                                <span class="mx-1">·</span><span>Reconciled @Model.SearchIndex.LastReconciliationUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+                            }
                         </div>
                     }
                     @if (!string.IsNullOrWhiteSpace(Model.SearchIndex.LastError))

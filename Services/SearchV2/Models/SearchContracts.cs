@@ -4,7 +4,7 @@ namespace ProjectManagement.Services.SearchV2.Models;
 
 public sealed record SearchTextSegment(string Text, bool Highlighted);
 
-public sealed record SearchRelatedResult(string SourceModule, string Label);
+public sealed record SearchRelatedResult(string SourceModule, string Label, long Count);
 
 public sealed record SearchResult(
     long SearchEntryId,
@@ -30,13 +30,21 @@ public sealed record SearchResult(
     IReadOnlyList<SearchRelatedResult> RelatedResults,
     string? MetadataJson);
 
-public sealed record SearchFacetValue(string Value, long Count);
+public sealed record SearchFacetValue(string Value, long Count, string? Label = null);
 
 public sealed record SearchFacets(
     IReadOnlyList<SearchFacetValue> Categories,
-    IReadOnlyList<SearchFacetValue> Sources)
+    IReadOnlyList<SearchFacetValue> Sources,
+    IReadOnlyList<SearchFacetValue> Projects,
+    IReadOnlyList<SearchFacetValue> Statuses,
+    IReadOnlyList<SearchFacetValue> FileTypes,
+    IReadOnlyList<SearchFacetValue> Stages)
 {
     public static SearchFacets Empty { get; } = new(
+        Array.Empty<SearchFacetValue>(),
+        Array.Empty<SearchFacetValue>(),
+        Array.Empty<SearchFacetValue>(),
+        Array.Empty<SearchFacetValue>(),
         Array.Empty<SearchFacetValue>(),
         Array.Empty<SearchFacetValue>());
 }
@@ -46,7 +54,13 @@ public sealed record SearchRequest(
     IReadOnlyList<string>? Categories = null,
     IReadOnlyList<string>? Sources = null,
     string? Cursor = null,
-    int? PageSize = null);
+    int? PageSize = null,
+    IReadOnlyList<int>? ProjectIds = null,
+    IReadOnlyList<string>? Statuses = null,
+    IReadOnlyList<string>? FileTypes = null,
+    IReadOnlyList<string>? Stages = null,
+    DateOnly? DateFrom = null,
+    DateOnly? DateTo = null);
 
 public sealed record SearchResponse(
     string Query,

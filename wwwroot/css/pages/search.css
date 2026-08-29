@@ -580,6 +580,7 @@
 }
 
 .pm-gs-suggestion__title {
+  display: block;
     overflow: hidden;
     color: #263650;
     font-size: .79rem;
@@ -589,6 +590,7 @@
 }
 
 .pm-gs-suggestion__subtitle {
+  display: block;
     overflow: hidden;
     margin-top: .08rem;
     color: #7a8799;
@@ -666,4 +668,57 @@
         top: auto;
         width: auto;
     }
+}
+
+/* Search V2 convergence: advanced facets */
+.pm-gs-filter__panel--advanced {
+  width: min(390px, calc(100vw - 2rem));
+  max-height: min(70vh, 620px);
+  overflow-y: auto;
+}
+
+.pm-gs-filter__group {
+  margin: 0;
+  padding: .15rem 0 .5rem;
+  border: 0;
+}
+
+.pm-gs-filter__group + .pm-gs-filter__group {
+  padding-top: .55rem;
+  border-top: 1px solid #edf0f4;
+}
+
+.pm-gs-filter__group legend {
+  float: none;
+  width: auto;
+  margin: 0 0 .2rem;
+  color: #66758a;
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+.pm-gs-filter__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .5rem;
+}
+
+.pm-gs-filter__dates label {
+  display: grid;
+  gap: .2rem;
+  color: #66758a;
+  font-size: .68rem;
+}
+
+.pm-gs-filter__dates input {
+  min-width: 0;
+  height: 32px;
+  padding: .25rem .4rem;
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  background: #fff;
+  color: #394960;
+  font-size: .72rem;
 }

@@ -9,6 +9,8 @@ public sealed class SearchV2Options
     public bool Enabled { get; set; } = true;
     public bool ServeV2 { get; set; } = false;
     public bool ShadowMode { get; set; } = true;
+    public string[] ServeV2Users { get; set; } = Array.Empty<string>();
+    public string[] ServeV2Roles { get; set; } = Array.Empty<string>();
 
     [Range(5, 100)]
     public int PageSize { get; set; } = 20;

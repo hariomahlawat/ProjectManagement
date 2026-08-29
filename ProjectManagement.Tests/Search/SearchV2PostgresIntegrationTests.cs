@@ -1,0 +1,58 @@
+using Npgsql;
+using Xunit;
+
+namespace ProjectManagement.Tests.Search;
+
+/// <summary>
+/// Real PostgreSQL smoke tests for the primitives Search V2 depends on.
+/// Set PRISM_SEARCHV2_TEST_CONNECTION to run them against a disposable/test database.
+/// They intentionally do not use EF InMemory because it cannot validate PostgreSQL FTS or pg_trgm behaviour.
+/// </summary>
+public sealed class SearchV2PostgresIntegrationTests
+{
+    private static string? ConnectionString => Environment.GetEnvironmentVariable("PRISM_SEARCHV2_TEST_CONNECTION");
+
+    [Fact]
+    public async Task PostgreSql_SearchPrimitives_AreAvailable()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'),
+                to_tsvector('english', 'filed filing') @@ websearch_to_tsquery('english', 'filing'),
+                similarity('hyderbad', 'hyderabad') > similarity('hyderbad', 'secunderabad');
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+        Assert.True(reader.GetBoolean(2));
+    }
+
+    [Fact]
+    public async Task SearchV2_ActiveGeneration_IsQueryableWhenSchemaIsInstalled()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s."ActiveGeneration", s."IndexVersion", COUNT(e."Id")
+            FROM "SearchIndexState" s
+            LEFT JOIN "SearchEntries" e ON e."Generation" = s."ActiveGeneration"
+            WHERE s."Id" = 1
+            GROUP BY s."ActiveGeneration", s."IndexVersion";
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetInt64(0) >= 0);
+        Assert.True(reader.GetInt32(1) >= 1);
+        Assert.True(reader.GetInt64(2) >= 0);
+    }
+}
