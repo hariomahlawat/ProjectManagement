@@ -2,6 +2,8 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -60,7 +62,12 @@ public sealed class SearchEngine : ISearchV2Engine
         var normalized = _normalizer.Normalize(request.Query);
         if (string.IsNullOrWhiteSpace(normalized.Original))
         {
-            return new SearchResponse(normalized.Original, Array.Empty<SearchResult>(), 0, SearchFacets.Empty, null, 0, true);
+            return SearchResponse.Empty(normalized.Original);
+        }
+
+        if (!_options.Enabled)
+        {
+            return SearchResponse.NotReady(normalized.Original, SearchV2ExecutionStatus.Disabled);
         }
 
         var aliasRules = await _aliases.GetActiveAsync(cancellationToken);
@@ -71,12 +78,15 @@ public sealed class SearchEngine : ISearchV2Engine
             Expansions = expanded.Expansions
         };
 
-        var indexHealth = _options.Enabled
-            ? await _store.GetHealthAsync(cancellationToken)
-            : new SearchIndexHealth(false, 0, 0, 0, 0, 0, null, null, null);
+        var indexHealth = await _store.GetHealthAsync(cancellationToken);
         if (!indexHealth.IsReady || indexHealth.IndexVersion != _options.ProjectionVersion)
         {
-            return SearchResponse.NotReady(normalized.Original);
+            _logger.LogDebug(
+                "Search V2 index is not ready for ProjectionVersion {ProjectionVersion}. ActiveGeneration={ActiveGeneration}, IndexVersion={IndexVersion}.",
+                _options.ProjectionVersion,
+                indexHealth.ActiveGeneration,
+                indexHealth.IndexVersion);
+            return SearchResponse.NotReady(normalized.Original, SearchV2ExecutionStatus.IndexNotReady);
         }
 
         var stopwatch = Stopwatch.StartNew();
@@ -123,16 +133,18 @@ public sealed class SearchEngine : ISearchV2Engine
 
             var rows = new List<SearchRow>(pageSize + 1);
             long totalHits = 0;
+            long filteredHits = 0;
             SearchFacets facets = SearchFacets.Empty;
 
             await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
-                // Summary/facets are returned as their own result set so useful
-                // disjunctive facets remain available even when the active filter
-                // combination currently produces zero result rows.
+                // Summary/facets and paged rows deliberately share one PostgreSQL
+                // statement. PostgreSQL CTEs are statement-scoped, so a second
+                // SELECT cannot safely reference the ranked CTE.
                 if (await reader.ReadAsync(cancellationToken))
                 {
                     totalHits = reader.GetInt64(reader.GetOrdinal("TotalHits"));
+                    filteredHits = reader.GetInt64(reader.GetOrdinal("FilteredHits"));
                     facets = new SearchFacets(
                         ParseFacets(reader, "CategoryFacets"),
                         ParseFacets(reader, "SourceFacets"),
@@ -140,14 +152,16 @@ public sealed class SearchEngine : ISearchV2Engine
                         ParseFacets(reader, "StatusFacets"),
                         ParseFacets(reader, "FileTypeFacets"),
                         ParseFacets(reader, "StageFacets"));
-                }
 
-                if (await reader.NextResultAsync(cancellationToken))
-                {
-                    while (await reader.ReadAsync(cancellationToken))
+                    var idOrdinal = reader.GetOrdinal("Id");
+                    do
                     {
-                        rows.Add(ReadRow(reader));
+                        if (!reader.IsDBNull(idOrdinal))
+                        {
+                            rows.Add(ReadRow(reader));
+                        }
                     }
+                    while (await reader.ReadAsync(cancellationToken));
                 }
             }
 
@@ -171,17 +185,32 @@ public sealed class SearchEngine : ISearchV2Engine
                 normalized.Original,
                 results,
                 totalHits,
+                filteredHits,
                 facets,
                 nextCursor,
                 stopwatch.ElapsedMilliseconds,
                 true,
                 false,
-                correctedQuery);
+                correctedQuery,
+                SearchV2ExecutionStatus.Success);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogError(ex, "Search V2 query failed; caller may fall back to legacy search.");
-            return SearchResponse.NotReady(normalized.Original);
+            var diagnosticId = CreateDiagnosticId();
+            _logger.LogError(
+                ex,
+                "Search V2 query failed. DiagnosticId={DiagnosticId}, QueryFingerprint={QueryFingerprint}, QueryLength={QueryLength}, ProjectionVersion={ProjectionVersion}, Categories={CategoryCount}, Sources={SourceCount}, Projects={ProjectCount}, Statuses={StatusCount}, FileTypes={FileTypeCount}, Stages={StageCount}.",
+                diagnosticId,
+                Fingerprint(normalized.Exact),
+                normalized.Exact.Length,
+                _options.ProjectionVersion,
+                request.Categories?.Count ?? 0,
+                request.Sources?.Count ?? 0,
+                request.ProjectIds?.Count ?? 0,
+                request.Statuses?.Count ?? 0,
+                request.FileTypes?.Count ?? 0,
+                request.Stages?.Count ?? 0);
+            return SearchResponse.NotReady(normalized.Original, SearchV2ExecutionStatus.QueryFailed, diagnosticId);
         }
         finally
         {
@@ -720,7 +749,12 @@ public sealed class SearchEngine : ISearchV2Engine
                 SELECT NULLIF(c."MetadataJson"->>'currentStage', '') AS stage
                 UNION
                 SELECT NULLIF(value, '') AS stage
-                FROM jsonb_array_elements_text(COALESCE(c."MetadataJson"->'projectStages', '[]'::jsonb)) value
+                FROM jsonb_array_elements_text(
+                    CASE
+                        WHEN jsonb_typeof(c."MetadataJson"->'projectStages') = 'array'
+                            THEN c."MetadataJson"->'projectStages'
+                        ELSE '[]'::jsonb
+                    END) value
             ) s
             WHERE s.stage IS NOT NULL
         ), stage_facets AS (
@@ -747,33 +781,45 @@ public sealed class SearchEngine : ISearchV2Engine
                 jsonb_object_agg(value, jsonb_build_object('label', label, 'count', item_count)),
                 jsonb_build_object()) AS value
             FROM project_facet_rows
+        ), summary AS (
+            SELECT
+                (SELECT COUNT(DISTINCT (c."CanonicalEntityType", c."CanonicalEntityKey")) FROM category_facet_candidates c) AS "TotalHits",
+                (SELECT COUNT(*) FROM ranked) AS "FilteredHits",
+                (SELECT value::text FROM category_facets) AS "CategoryFacets",
+                (SELECT value::text FROM source_facets) AS "SourceFacets",
+                (SELECT value::text FROM project_facets) AS "ProjectFacets",
+                (SELECT value::text FROM status_facets) AS "StatusFacets",
+                (SELECT value::text FROM file_type_facets) AS "FileTypeFacets",
+                (SELECT value::text FROM stage_facets) AS "StageFacets"
+        ), paged_results AS (
+            SELECT r."Id", r."EntityType", r."EntityKey", r."CanonicalEntityType", r."CanonicalEntityKey", r."ParentProjectId",
+                   r."SourceModule", r."ResultCategory", r."Title", r."Subtitle", r."CanonicalUrl",
+                   LEFT(COALESCE(r."StructuredText", ''), @maxSnippetSourceCharacters) AS "StructuredText",
+                   CASE
+                       WHEN r."NarrativeText" IS NULL THEN NULL
+                       ELSE LEFT(
+                           regexp_replace(
+                               ts_headline('simple', r."NarrativeText", websearch_to_tsquery('simple', @webQuery),
+                                   'StartSel=<<,StopSel=>>,MaxWords=60,MinWords=15,ShortWord=2,MaxFragments=2,FragmentDelimiter=...'),
+                               '<<|>>', '', 'g'),
+                           @maxSnippetSourceCharacters)
+                   END AS "NarrativeText",
+                   r."Status", r."FileType", r."EventDateUtc", r."UpdatedAtUtc", r."MetadataJson"::text AS "MetadataJson",
+                   r.tier, r.fusion_score, r.channels, r.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources"
+            FROM ranked r
+            WHERE r.global_rank > @afterRank
+            ORDER BY r.global_rank
+            LIMIT @take
         )
-        SELECT (SELECT COUNT(*) FROM ranked) AS "TotalHits",
-               (SELECT value::text FROM category_facets) AS "CategoryFacets",
-               (SELECT value::text FROM source_facets) AS "SourceFacets",
-               (SELECT value::text FROM project_facets) AS "ProjectFacets",
-               (SELECT value::text FROM status_facets) AS "StatusFacets",
-               (SELECT value::text FROM file_type_facets) AS "FileTypeFacets",
-               (SELECT value::text FROM stage_facets) AS "StageFacets";
-
-        SELECT r."Id", r."EntityType", r."EntityKey", r."CanonicalEntityType", r."CanonicalEntityKey", r."ParentProjectId",
-               r."SourceModule", r."ResultCategory", r."Title", r."Subtitle", r."CanonicalUrl",
-               LEFT(COALESCE(r."StructuredText", ''), @maxSnippetSourceCharacters) AS "StructuredText",
-               CASE
-                   WHEN r."NarrativeText" IS NULL THEN NULL
-                   ELSE LEFT(
-                       regexp_replace(
-                           ts_headline('simple', r."NarrativeText", websearch_to_tsquery('simple', @webQuery),
-                               'StartSel=<<,StopSel=>>,MaxWords=60,MinWords=15,ShortWord=2,MaxFragments=2,FragmentDelimiter=...'),
-                           '<<|>>', '', 'g'),
-                       @maxSnippetSourceCharacters)
-               END AS "NarrativeText",
-               r."Status", r."FileType", r."EventDateUtc", r."UpdatedAtUtc", r."MetadataJson"::text,
-               r.tier, r.fusion_score, r.channels, r.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources"
-        FROM ranked r
-        WHERE r.global_rank > @afterRank
-        ORDER BY r.global_rank
-        LIMIT @take;
+        SELECT s."TotalHits", s."FilteredHits", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",
+               s."StatusFacets", s."FileTypeFacets", s."StageFacets",
+               p."Id", p."EntityType", p."EntityKey", p."CanonicalEntityType", p."CanonicalEntityKey", p."ParentProjectId",
+               p."SourceModule", p."ResultCategory", p."Title", p."Subtitle", p."CanonicalUrl",
+               p."StructuredText", p."NarrativeText", p."Status", p."FileType", p."EventDateUtc", p."UpdatedAtUtc", p."MetadataJson",
+               p.tier, p.fusion_score, p.channels, p."GlobalRank", p."RelatedSources"
+        FROM summary s
+        LEFT JOIN paged_results p ON TRUE
+        ORDER BY p."GlobalRank" NULLS LAST;
         """;
 
     private static SearchRow ReadRow(DbDataReader reader) => new(
@@ -964,7 +1010,7 @@ public sealed class SearchEngine : ISearchV2Engine
             names.Add($"@{name}");
         }
         var inList = string.Join(",", names);
-        return $"(COALESCE(c.\"MetadataJson\"->>'currentStage', '') IN ({inList}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(c.\"MetadataJson\"->'projectStages', '[]'::jsonb)) stage(value) WHERE stage.value IN ({inList})))";
+        return $"(COALESCE(c.\"MetadataJson\"->>'currentStage', '') IN ({inList}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(c.\"MetadataJson\"->'projectStages') = 'array' THEN c.\"MetadataJson\"->'projectStages' ELSE '[]'::jsonb END) stage(value) WHERE stage.value IN ({inList})))";
     }
 
     private static string? BuildDateFilter(DbCommand command, DateOnly? dateFrom, DateOnly? dateTo)
@@ -1012,6 +1058,14 @@ public sealed class SearchEngine : ISearchV2Engine
         static string NormalizeIds(IReadOnlyList<int>? values) => string.Join(',', (values ?? Array.Empty<int>()).Where(value => value > 0).Distinct().OrderBy(value => value));
 
         return $"{query.Trim()}\u001EC:{Normalize(categories)}\u001ES:{Normalize(sources)}\u001EP:{NormalizeIds(projectIds)}\u001EST:{Normalize(statuses)}\u001EFT:{Normalize(fileTypes)}\u001ESG:{Normalize(stages)}\u001EDF:{dateFrom:yyyy-MM-dd}\u001EDT:{dateTo:yyyy-MM-dd}";
+    }
+
+    private static string CreateDiagnosticId() => Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+
+    private static string Fingerprint(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value ?? string.Empty));
+        return Convert.ToHexString(bytes.AsSpan(0, 6));
     }
 
     private static void Add(DbCommand command, string name, object? value)

@@ -308,6 +308,17 @@
     font-weight: 720;
 }
 
+.pm-gs-engine-diagnostic {
+    margin-top: .22rem;
+    color: #8a96a8;
+    font-size: .66rem;
+    line-height: 1.4;
+}
+
+.pm-gs-engine-diagnostic.is-fallback {
+    color: #8a641d;
+}
+
 .pm-gs-correction {
     margin-top: .3rem;
     color: #5c6b80;
@@ -388,7 +399,10 @@
 }
 
 .pm-gs-results {
-    width: min(820px, 100%);
+    width: min(820px, calc(100% - 1.5rem));
+    max-width: none;
+    margin: 0 0 0 clamp(0rem, 2vw, 1.5rem);
+    padding: 0;
 }
 
 .pm-gs-hit {
@@ -502,16 +516,18 @@
 }
 
 .pm-gs-pagination {
-    width: min(820px, 100%);
-    padding-top: 1.25rem;
+    width: min(820px, calc(100% - 1.5rem));
+    max-width: none;
+    margin: 0 0 0 clamp(0rem, 2vw, 1.5rem);
+    padding: 1.25rem 0 0;
 }
 
 .pm-gs-nores {
     display: flex;
     align-items: flex-start;
     gap: .9rem;
-    width: min(720px, 100%);
-    margin-top: 1rem;
+    width: min(720px, calc(100% - 1.5rem));
+    margin: 1rem 0 0 clamp(0rem, 2vw, 1.5rem);
     padding: 1.15rem;
     border: 1px solid #dfe5ee;
     border-radius: 12px;
@@ -659,6 +675,13 @@
     .pm-gs-body__inner,
     .pm-gs-top__inner {
         width: min(100% - 1rem, 1180px);
+    }
+
+    .pm-gs-results,
+    .pm-gs-pagination,
+    .pm-gs-nores {
+        width: 100%;
+        margin-left: 0;
     }
 
     .pm-gs-toolbar {

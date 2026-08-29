@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Hosting;
 using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Query;
 
@@ -10,11 +12,15 @@ namespace ProjectManagement.Areas.Common.Pages.Search;
 public sealed class IndexModel : PageModel
 {
     private readonly ISearchGateway _search;
+    private readonly IWebHostEnvironment _environment;
 
-    public IndexModel(ISearchGateway search)
+    public IndexModel(ISearchGateway search, IWebHostEnvironment environment)
     {
         _search = search ?? throw new ArgumentNullException(nameof(search));
+        _environment = environment ?? throw new ArgumentNullException(nameof(environment));
     }
+
+    public bool ShowEngineDiagnostics => _environment.IsDevelopment();
 
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }

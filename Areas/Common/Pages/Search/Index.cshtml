@@ -180,13 +180,28 @@ else
                     }
                     else
                     {
-                        <div class="pm-gs-meta"><strong>@Model.Search.TotalHits</strong> result@(Model.Search.TotalHits == 1 ? "" : "s") <span>· @Model.Search.QueryTimeMilliseconds ms</span></div>
+                        <div class="pm-gs-meta"><strong>@Model.Search.FilteredHits</strong> result@(Model.Search.FilteredHits == 1 ? "" : "s") <span>· @Model.Search.QueryTimeMilliseconds ms</span></div>
                     }
 
                     @if (!string.IsNullOrWhiteSpace(Model.Search.CorrectedQuery))
                     {
                         <div class="pm-gs-correction">
                             Did you mean <a href="?q=@Uri.EscapeDataString(Model.Search.CorrectedQuery)"><strong>@Model.Search.CorrectedQuery</strong></a>?
+                        </div>
+                    }
+
+                    @if (Model.ShowEngineDiagnostics)
+                    {
+                        <div class="pm-gs-engine-diagnostic @(Model.Search.FellBackToLegacy ? "is-fallback" : string.Empty)" role="status">
+                            <span>Engine: @Model.Search.EngineLabel</span>
+                            @if (Model.Search.FellBackToLegacy)
+                            {
+                                <span> · V2: @Model.Search.V2ExecutionStatus</span>
+                                @if (!string.IsNullOrWhiteSpace(Model.Search.V2DiagnosticId))
+                                {
+                                    <span> · ID @Model.Search.V2DiagnosticId</span>
+                                }
+                            }
                         </div>
                     }
                 </div>

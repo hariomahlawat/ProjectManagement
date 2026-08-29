@@ -2,6 +2,14 @@ using System.Collections.ObjectModel;
 
 namespace ProjectManagement.Services.SearchV2.Models;
 
+public enum SearchV2ExecutionStatus
+{
+    Success = 0,
+    Disabled = 1,
+    IndexNotReady = 2,
+    QueryFailed = 3
+}
+
 public sealed record SearchTextSegment(string Text, bool Highlighted);
 
 public sealed record SearchRelatedResult(string SourceModule, string Label, long Count);
@@ -68,21 +76,42 @@ public sealed record SearchResponse(
     string Query,
     IReadOnlyList<SearchResult> Results,
     long TotalHits,
+    long FilteredHits,
     SearchFacets Facets,
     string? NextCursor,
     long QueryTimeMilliseconds,
     bool IsReady,
     bool IsPartial = false,
-    string? CorrectedQuery = null)
+    string? CorrectedQuery = null,
+    SearchV2ExecutionStatus ExecutionStatus = SearchV2ExecutionStatus.Success,
+    string? DiagnosticId = null)
 {
-    public static SearchResponse NotReady(string query) => new(
+    public static SearchResponse Empty(string query) => new(
         query,
         Array.Empty<SearchResult>(),
+        0,
         0,
         SearchFacets.Empty,
         null,
         0,
-        false);
+        true);
+
+    public static SearchResponse NotReady(
+        string query,
+        SearchV2ExecutionStatus status = SearchV2ExecutionStatus.IndexNotReady,
+        string? diagnosticId = null) => new(
+        query,
+        Array.Empty<SearchResult>(),
+        0,
+        0,
+        SearchFacets.Empty,
+        null,
+        0,
+        false,
+        false,
+        null,
+        status,
+        diagnosticId);
 }
 
 public sealed record SearchSuggestion(
@@ -97,16 +126,27 @@ public sealed record SearchGatewayResponse(
     string Query,
     IReadOnlyList<SearchResult> Results,
     long TotalHits,
+    long FilteredHits,
     SearchFacets Facets,
     string? NextCursor,
     long QueryTimeMilliseconds,
     bool UsedSearchV2,
     bool IsPartial,
-    string? CorrectedQuery)
+    string? CorrectedQuery,
+    bool FellBackToLegacy = false,
+    SearchV2ExecutionStatus V2ExecutionStatus = SearchV2ExecutionStatus.Disabled,
+    string? V2DiagnosticId = null)
 {
+    public string EngineLabel => UsedSearchV2
+        ? "V2"
+        : FellBackToLegacy
+            ? "Legacy fallback"
+            : "Legacy";
+
     public static SearchGatewayResponse Empty(string query) => new(
         query,
         Array.Empty<SearchResult>(),
+        0,
         0,
         SearchFacets.Empty,
         null,

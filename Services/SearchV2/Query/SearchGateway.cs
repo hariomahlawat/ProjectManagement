@@ -86,7 +86,23 @@ public sealed class SearchGateway : ISearchGateway
         SearchResponse? v2Response = null;
         if (v2Task is not null)
         {
-            v2Response = await v2Task;
+            try
+            {
+                v2Response = await v2Task;
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                var diagnosticId = CreateDiagnosticId();
+                _logger.LogError(
+                    ex,
+                    "Search V2 escaped its engine boundary. Falling back safely. DiagnosticId={DiagnosticId}, ProjectionVersion={ProjectionVersion}.",
+                    diagnosticId,
+                    _options.ProjectionVersion);
+                v2Response = SearchResponse.NotReady(
+                    normalized.Original,
+                    SearchV2ExecutionStatus.QueryFailed,
+                    diagnosticId);
+            }
         }
 
         IReadOnlyList<GlobalSearchHit>? legacyResults = null;
@@ -107,7 +123,7 @@ public sealed class SearchGateway : ISearchGateway
             await SafeQueryLogAsync(
                 normalized.Original,
                 user,
-                v2Response.TotalHits,
+                v2Response.FilteredHits,
                 v2Response.QueryTimeMilliseconds,
                 "V2-Engine",
                 v2Response.CorrectedQuery,
@@ -115,7 +131,7 @@ public sealed class SearchGateway : ISearchGateway
             await SafeQueryLogAsync(
                 normalized.Original,
                 user,
-                v2Response.TotalHits,
+                v2Response.FilteredHits,
                 gatewayLatencyMs,
                 "V2",
                 v2Response.CorrectedQuery,
@@ -125,12 +141,16 @@ public sealed class SearchGateway : ISearchGateway
                 v2Response.Query,
                 v2Response.Results,
                 v2Response.TotalHits,
+                v2Response.FilteredHits,
                 v2Response.Facets,
                 v2Response.NextCursor,
                 gatewayLatencyMs,
                 true,
                 v2Response.IsPartial,
-                v2Response.CorrectedQuery);
+                v2Response.CorrectedQuery,
+                false,
+                v2Response.ExecutionStatus,
+                v2Response.DiagnosticId);
         }
 
         // V2 may be enabled without Legacy having been started (for example,
@@ -138,8 +158,27 @@ public sealed class SearchGateway : ISearchGateway
         // safely and apply source-module authorization before adapting results.
         legacyResults ??= await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
 
-        var categoryFacets = BuildLegacyFacets(legacyResults, static hit => LegacyCategory(hit.Source));
-        var sourceFacets = BuildLegacyFacets(legacyResults, static hit => hit.Source);
+        var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
+        var v2Status = v2Response?.ExecutionStatus
+            ?? (_options.Enabled ? SearchV2ExecutionStatus.IndexNotReady : SearchV2ExecutionStatus.Disabled);
+
+        if (fellBackToLegacy)
+        {
+            _logger.LogWarning(
+                "Search V2 fell back to Legacy. Status={Status}, DiagnosticId={DiagnosticId}, ProjectionVersion={ProjectionVersion}.",
+                v2Status,
+                v2Response?.DiagnosticId ?? "none",
+                _options.ProjectionVersion);
+        }
+
+        // Disjunctive Legacy facets/counts mirror the V2 page contract: the All
+        // count excludes only the active category, while the result list applies
+        // both category and source. Legacy remains a bounded/partial candidate set.
+        var allScope = ApplyLegacyFilters(legacyResults, null, request.Sources);
+        var categoryFacetScope = allScope;
+        var sourceFacetScope = ApplyLegacyFilters(legacyResults, request.Categories, null);
+        var categoryFacets = BuildLegacyFacets(categoryFacetScope, static hit => LegacyCategory(hit.Source));
+        var sourceFacets = BuildLegacyFacets(sourceFacetScope, static hit => hit.Source);
         var filtered = ApplyLegacyFilters(legacyResults, request.Categories, request.Sources);
         var adapted = filtered.Select((hit, index) => AdaptLegacy(hit, normalized, index + 1)).ToArray();
 
@@ -149,16 +188,14 @@ public sealed class SearchGateway : ISearchGateway
             user,
             adapted.Length,
             stopwatch.ElapsedMilliseconds,
-            "Legacy",
+            fellBackToLegacy ? "Legacy-Fallback" : "Legacy",
             null,
             cancellationToken);
 
-        // Legacy providers return bounded candidate sets rather than a true
-        // corpus count. IsPartial=true ensures the page labels these as Top
-        // results instead of presenting adapted.Length as an authoritative corpus total.
         return new SearchGatewayResponse(
             normalized.Original,
             adapted,
+            allScope.Count,
             adapted.Length,
             new SearchFacets(
                 categoryFacets,
@@ -171,7 +208,10 @@ public sealed class SearchGateway : ISearchGateway
             stopwatch.ElapsedMilliseconds,
             false,
             true,
-            null);
+            null,
+            fellBackToLegacy,
+            v2Status,
+            v2Response?.DiagnosticId);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(
@@ -188,17 +228,31 @@ public sealed class SearchGateway : ISearchGateway
         }
 
         var stopwatch = Stopwatch.StartNew();
-        var suggestions = await _v2.SuggestAsync(query, user, limit, cancellationToken);
-        stopwatch.Stop();
-        await SafeQueryLogAsync(
-            query?.Trim() ?? string.Empty,
-            user,
-            suggestions.Count,
-            stopwatch.ElapsedMilliseconds,
-            "V2-Suggest",
-            null,
-            cancellationToken);
-        return suggestions;
+        try
+        {
+            var suggestions = await _v2.SuggestAsync(query, user, limit, cancellationToken);
+            stopwatch.Stop();
+            await SafeQueryLogAsync(
+                query?.Trim() ?? string.Empty,
+                user,
+                suggestions.Count,
+                stopwatch.ElapsedMilliseconds,
+                "V2-Suggest",
+                null,
+                cancellationToken);
+            return suggestions;
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            stopwatch.Stop();
+            var diagnosticId = CreateDiagnosticId();
+            _logger.LogError(
+                ex,
+                "Search V2 suggestions failed safely. DiagnosticId={DiagnosticId}, ProjectionVersion={ProjectionVersion}.",
+                diagnosticId,
+                _options.ProjectionVersion);
+            return Array.Empty<SearchSuggestion>();
+        }
     }
 
     public async Task LogClickAsync(
@@ -359,6 +413,9 @@ public sealed class SearchGateway : ISearchGateway
 
         return "Trackers";
     }
+
+    private static string CreateDiagnosticId() =>
+        Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
 
     private async Task SafeQueryLogAsync(
         string query,

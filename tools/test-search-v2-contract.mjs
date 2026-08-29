@@ -120,7 +120,9 @@ expect(engine.includes('query.HighlightTerms.Any(term => row.Title.Contains'), '
 expect(engine.includes('MatchedFieldFromMetadata'), 'Precise metadata matched-field attribution is missing');
 expect(engine.includes('CategoryFacetFilterClause') && engine.includes('SourceFacetFilterClause') && engine.includes('ProjectFacetFilterClause'), 'Disjunctive facet scopes are missing');
 expect(engine.includes('COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey"))'), 'Facet counts are not canonical-entity aware');
-expect(engine.includes('reader.NextResultAsync') && engine.includes('Summary/facets are returned as their own result set'), 'Zero-result searches lose disjunctive facet recovery data');
+expect(!engine.includes('reader.NextResultAsync'), 'Committed Search V2 still depends on a second result set whose CTE scope cannot be shared');
+expect(engine.includes('paged_results') && engine.includes('LEFT JOIN paged_results'), 'Committed Search V2 must return summary/facets and paged rows from one SQL statement');
+expect(!/;\s*\n\s*SELECT r\."Id"[\s\S]{0,4000}FROM ranked r/.test(engine), 'Committed Search V2 still contains a second statement that references the ranked CTE');
 expect(engine.includes('ProjectFacets') && engine.includes('StatusFacets') && engine.includes('FileTypeFacets') && engine.includes('StageFacets'), 'Advanced Search V2 facets are incomplete');
 expect(engine.includes('ts_headline') && engine.includes('@maxSnippetSourceCharacters'), 'Search result query still transfers entire narrative/OCR bodies');
 expect(engine.includes('indexHealth.ActiveGeneration') && read('Services', 'SearchV2', 'Query', 'SearchCursorCodec.cs').includes('ActiveGeneration'), 'Search cursor is not generation-aware');
@@ -163,6 +165,17 @@ const searchDiagnosticsView = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'Se
 expect(adminSearchIndex.includes('ISearchV2Engine') && adminSearchIndex.includes('InspectQuery') && adminSearchIndex.includes('InspectionResults'), 'Authorised ranking inspector backend is missing');
 expect(searchDiagnosticsView.includes('Ranking inspector'), 'Search diagnostics ranking inspector UI is missing');
 expect(searchContracts.includes('MatchTier') && searchContracts.includes('MatchChannels'), 'Search results do not preserve rank tier/channel diagnostics');
+
+expect(searchContracts.includes('FilteredHits'), 'Search response does not distinguish All count from current filtered count');
+expect(searchContracts.includes('SearchV2ExecutionStatus'), 'Typed Search V2 execution status is missing');
+expect(searchContracts.includes('FellBackToLegacy'), 'Gateway response does not expose safe fallback state');
+expect(gateway.includes('Search V2 escaped its engine boundary') && gateway.includes('Legacy-Fallback'), 'Unexpected V2 failures are not safely observable at the gateway boundary');
+expect(pageModel.includes('_environment.IsDevelopment()') && view.includes('ShowEngineDiagnostics') && view.includes('V2DiagnosticId'), 'Engine/fallback diagnostics are not development-gated');
+expect(view.includes('@Model.Search.FilteredHits'), 'Search result heading does not use the current filtered result count');
+const siteCss = read('wwwroot', 'css', 'site.css');
+expect(!siteCss.includes('/* ---------- Global Search (Google-style) ---------- */'), 'Legacy Global Search CSS block still contaminates Search V2');
+expect(!/\.pm-gs-[a-zA-Z0-9_-]+\s*\{/.test(siteCss), 'site.css still owns Search V2 selectors');
+
 
 if (failures.length) {
   console.error(`Search V2 contract failed (${failures.length}):`);

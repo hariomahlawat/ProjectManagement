@@ -113,6 +113,72 @@ public sealed class SearchV2PostgresIntegrationTests
     }
 
     [Fact]
+    public async Task PostgreSql_SummaryAndPagedRowsShareOneStatementCteScope()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH ranked("GlobalRank", "Title") AS (
+                VALUES (1, 'A'), (2, 'B')
+            ),
+            summary AS (
+                SELECT COUNT(*)::bigint AS "TotalHits" FROM ranked
+            ),
+            paged_results AS (
+                SELECT * FROM ranked WHERE "GlobalRank" > 0 ORDER BY "GlobalRank" LIMIT 5
+            )
+            SELECT s."TotalHits", p."GlobalRank", p."Title"
+            FROM summary s
+            LEFT JOIN paged_results p ON TRUE
+            ORDER BY p."GlobalRank" NULLS LAST;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.Equal(1, reader.GetInt32(1));
+        Assert.Equal("A", reader.GetString(2));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(2, reader.GetInt32(1));
+        Assert.Equal("B", reader.GetString(2));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Fact]
+    public async Task PostgreSql_SummaryRowSurvivesAnEmptyPagedResult()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH ranked("GlobalRank") AS (
+                VALUES (1), (2)
+            ),
+            summary AS (
+                SELECT COUNT(*)::bigint AS "TotalHits" FROM ranked
+            ),
+            paged_results AS (
+                SELECT * FROM ranked WHERE "GlobalRank" > 99 ORDER BY "GlobalRank" LIMIT 5
+            )
+            SELECT s."TotalHits", p."GlobalRank"
+            FROM summary s
+            LEFT JOIN paged_results p ON TRUE
+            ORDER BY p."GlobalRank" NULLS LAST;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.True(reader.IsDBNull(1));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Fact]
     public async Task SearchV2_RuntimeAliasCatalogue_IsQueryableWhenSchemaIsInstalled()
     {
         if (string.IsNullOrWhiteSpace(ConnectionString)) return;

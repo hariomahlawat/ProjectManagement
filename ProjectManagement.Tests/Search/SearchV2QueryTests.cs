@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using ProjectManagement.Services.Search;
 using ProjectManagement.Services.SearchV2;
+using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Query;
 using Xunit;
 
@@ -166,6 +167,21 @@ public sealed class SearchV2QueryTests
         var snippet = service.BuildSnippet(null, noisy, new[] { "AURA" });
 
         Assert.Null(snippet);
+    }
+
+    [Fact]
+    public void SearchResponse_NotReadyPreservesTypedFailureStatusAndDiagnosticId()
+    {
+        var response = SearchResponse.NotReady(
+            "aura",
+            SearchV2ExecutionStatus.QueryFailed,
+            "ABC123DEF456");
+
+        Assert.False(response.IsReady);
+        Assert.Equal(SearchV2ExecutionStatus.QueryFailed, response.ExecutionStatus);
+        Assert.Equal("ABC123DEF456", response.DiagnosticId);
+        Assert.Equal(0L, response.TotalHits);
+        Assert.Equal(0L, response.FilteredHits);
     }
 
     [Theory]

@@ -229,6 +229,49 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("row.Channels", engine, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void SearchV2_CommittedQueryUsesSingleStatementAndExplicitExecutionState()
+    {
+        var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
+        var contracts = ReadRepoFile("Services", "SearchV2", "Models", "SearchContracts.cs");
+
+        Assert.DoesNotContain("reader.NextResultAsync", engine, StringComparison.Ordinal);
+        Assert.Contains("paged_results", engine, StringComparison.Ordinal);
+        Assert.Contains("LEFT JOIN paged_results", engine, StringComparison.Ordinal);
+        Assert.Contains("FilteredHits", contracts, StringComparison.Ordinal);
+        Assert.Contains("SearchV2ExecutionStatus", contracts, StringComparison.Ordinal);
+        Assert.Contains("FellBackToLegacy", contracts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchPage_UsesGlobalAllCountCurrentResultCountAndIsolatedSearchCss()
+    {
+        var view = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml");
+        var siteCss = ReadRepoFile("wwwroot", "css", "site.css");
+
+        Assert.Contains("@Model.Search.TotalHits", view, StringComparison.Ordinal);
+        Assert.Contains("@Model.Search.FilteredHits", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("/* ---------- Global Search (Google-style) ---------- */", siteCss, StringComparison.Ordinal);
+        Assert.DoesNotContain(".pm-gs-results", siteCss, StringComparison.Ordinal);
+        Assert.DoesNotContain(".pm-gs-filter", siteCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchV2_FallbackIsObservableAndDevelopmentDiagnosticsDoNotLeakToProduction()
+    {
+        var gateway = ReadRepoFile("Services", "SearchV2", "Query", "SearchGateway.cs");
+        var pageModel = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml.cs");
+        var view = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml");
+
+        Assert.Contains("Search V2 escaped its engine boundary", gateway, StringComparison.Ordinal);
+        Assert.Contains("Legacy-Fallback", gateway, StringComparison.Ordinal);
+        Assert.Contains("FellBackToLegacy", gateway, StringComparison.Ordinal);
+        Assert.Contains("_environment.IsDevelopment()", pageModel, StringComparison.Ordinal);
+        Assert.Contains("ShowEngineDiagnostics", view, StringComparison.Ordinal);
+        Assert.Contains("V2DiagnosticId", view, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] parts)
     {
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", Path.Combine(parts)));
