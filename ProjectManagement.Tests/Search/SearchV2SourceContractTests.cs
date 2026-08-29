@@ -272,6 +272,34 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("V2DiagnosticId", view, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SearchV2_RankingEvidenceAndLazyFacetHardening_IsWiredEndToEnd()
+    {
+        var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
+        var aliases = ReadRepoFile("Services", "SearchV2", "Query", "SearchAliasProvider.cs");
+        var evidence = ReadRepoFile("Services", "SearchV2", "Query", "SearchMatchEvidence.cs");
+        var contracts = ReadRepoFile("Services", "SearchV2", "Models", "SearchContracts.cs");
+        var page = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml.cs");
+        var view = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "search.js");
+
+        Assert.Contains("title_tokens_exact", engine, StringComparison.Ordinal);
+        Assert.Contains("alias_title_phrase", engine, StringComparison.Ordinal);
+        Assert.Contains("strong_candidate_count", engine, StringComparison.Ordinal);
+        Assert.Contains("@canonicalEntityBoost", engine, StringComparison.Ordinal);
+        Assert.Contains("high tech", aliases, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("hi tech", aliases, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SearchMatchEvidenceResolver", evidence, StringComparison.Ordinal);
+        Assert.Contains("IncludeDetailedFacets", contracts, StringComparison.Ordinal);
+        Assert.Contains("FacetsOnly", contracts, StringComparison.Ordinal);
+        Assert.Contains("DetailedLoaded", contracts, StringComparison.Ordinal);
+        Assert.Contains("OnGetFacetsAsync", page, StringComparison.Ordinal);
+        Assert.Contains("data-search-dynamic-facets", view, StringComparison.Ordinal);
+        Assert.Contains("pm-gs-filter__active-count", view, StringComparison.Ordinal);
+        Assert.Contains("initLazyFacets", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("bi-check2-circle", view, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] parts)
     {
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", Path.Combine(parts)));

@@ -27,6 +27,20 @@ public sealed class SearchV2Options
     [Range(1, 500)]
     public int ReciprocalRankK { get; set; } = 60;
 
+    /// <summary>
+    /// Small same-tier preference for the canonical entity row (for example, the Project
+    /// itself versus a linked document) without overriding stronger lexical match tiers.
+    /// </summary>
+    [Range(0.0, 0.05)]
+    public double CanonicalEntityBoost { get; set; } = 0.0025;
+
+    /// <summary>
+    /// Fuzzy retrieval is a true fallback. Once this many strong lexical candidates exist,
+    /// expensive trigram channels are skipped for the committed query.
+    /// </summary>
+    [Range(1, 20)]
+    public int FuzzyFallbackStrongCandidateThreshold { get; set; } = 1;
+
     /// <summary>Database/search-schema generation understood by this application build.</summary>
     [Range(1, int.MaxValue)]
     public int IndexVersion { get; set; } = 2;

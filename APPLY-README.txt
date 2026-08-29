@@ -1,18 +1,12 @@
-PRISM GLOBAL SEARCH V2 — CONVERGENCE / RUNTIME STABILIZATION
+PRISM Global Search V2 — Ranking Precision, Match Evidence & Performance Hardening
 
-BASELINE
-This overlay is designed for the immediately preceding Search V2 Relevance & Quality Hardening implementation.
+READY-TO-PASTE OVERLAY
 
-HOW TO APPLY
-1. Back up the project.
-2. Copy every file/folder from this package over the project root, preserving relative paths.
-3. No EF migration is required. ProjectionVersion remains 4.
-4. Run: dotnet restore
-5. Run: dotnet build
-6. Run: dotnet test ProjectManagement.Tests
-7. Start in Development and verify a committed query shows Engine: V2.
-8. Test aura, high tech, high-tech, HI-TECH and hyderabad.
+1. Back up your current project.
+2. Copy the contents of this folder over the root of the current PRISM project, preserving paths.
+3. No EF migration is required. Search V2 ProjectionVersion remains 4.
+4. Run: dotnet restore, dotnet build, dotnet test ProjectManagement.Tests.
+5. Start PRISM in Development and confirm committed searches still report Engine: V2.
+6. Run the acceptance checks in README-SEARCH-V2-RANKING-EVIDENCE-PERFORMANCE.md.
 
-If a committed query shows Legacy fallback in Development, note its diagnostic ID and inspect the server log entry carrying the same ID. Exception details are deliberately not rendered in the browser.
-
-See README-SEARCH-V2-RUNTIME-STABILIZATION.md for full details.
+Baseline: the immediately preceding Search V2 Convergence/Runtime-Stabilized project supplied in this conversation.

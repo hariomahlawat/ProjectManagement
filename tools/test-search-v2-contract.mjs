@@ -31,7 +31,7 @@ expect(options.includes('public bool ServeV2 { get; set; } = false;'), 'Search V
 expect(settings?.Search?.V2?.Enabled === true, 'Search V2 must remain enabled in appsettings');
 expect(typeof settings?.Search?.V2?.ServeV2 === 'boolean' && typeof settings?.Search?.V2?.ShadowMode === 'boolean', 'Search V2 rollout flags must be explicit booleans');
 expect(gateway.includes('if (_options.ShadowMode && v2Response is { IsReady: true } && legacyResults is not null)'), 'Shadow comparison must run even while Legacy serves users');
-expect(gateway.includes('var runV2 = _options.Enabled && (serveV2ToUser || _options.ShadowMode);'), 'Search V2 should run only for served users or shadow comparison');
+expect(gateway.includes('serveV2ToUser || (!request.FacetsOnly && _options.ShadowMode)'), 'Search V2 should run only for served users or non-facet shadow comparison');
 expect(gateway.includes('var v2Task = runV2'), 'Search V2 and Legacy must be launched without serial shadow-mode latency');
 expect(gateway.includes('ApplyLegacyFilters(legacyResults, request.Categories, request.Sources)'), 'Legacy fallback does not honour category and source filters');
 expect(gateway.includes('!ShouldServeV2(user)'), 'V2 suggestions must remain hidden from users outside the V2 rollout');
@@ -51,6 +51,7 @@ expect(engine.includes('request.ProjectIds') && engine.includes('request.Statuse
 expect(!engine.includes('facet_clustered'), 'Legacy representative-only facet clustering is still present');
 expect(engine.includes('filtered_candidates'), 'Search filters are not applied before canonical clustering');
 expect(!engine.includes('FROM authorised e\n            FROM authorised e'), 'Search SQL contains a duplicated FROM clause');
+expect(!engine.includes('FROM status_facet_candidates\n                FROM status_facet_candidates'), 'Search SQL contains a duplicated status facet FROM clause');
 expect(engine.includes('DateOnly.MaxValue'), 'Date facet upper bound does not guard DateOnly.MaxValue');
 
 // Search results must navigate to pages authorised at the same visibility level as retrieval.
@@ -92,6 +93,7 @@ const projectionModel = read('Services', 'SearchV2', 'Models', 'SearchProjection
 const searchJs = read('wwwroot', 'js', 'pages', 'search.js');
 const searchCss = read('wwwroot', 'css', 'pages', 'search.css');
 const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
+const searchContracts = read('Services', 'SearchV2', 'Models', 'SearchContracts.cs');
 const adminSearchIndex = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml.cs');
 
 expect(options.includes('ProjectionVersion') && options.includes('= 4;'), 'Projection semantic version is missing or was not bumped to 4');
@@ -116,8 +118,9 @@ expect(engine.includes('HasStrongLexicalChannel'), 'Did-you-mean is not gated by
 expect(engine.includes('rows.Count > 3'), 'Did-you-mean is not suppressed for healthy result sets');
 expect(engine.includes('name_matches'), 'Name retrieval channel is missing');
 expect(engine.includes(`t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact`), 'Exact alias tier is missing');
-expect(engine.includes('query.HighlightTerms.Any(term => row.Title.Contains'), 'Title-visible matched-field precedence is missing');
-expect(engine.includes('MatchedFieldFromMetadata'), 'Precise metadata matched-field attribution is missing');
+expect(engine.includes('SearchMatchEvidenceResolver.Resolve'), 'SearchEngine does not use compositional match evidence');
+const matchEvidence = read('Services', 'SearchV2', 'Query', 'SearchMatchEvidence.cs');
+expect(matchEvidence.includes('matchFields') && matchEvidence.includes('string.Join(" + ", selected'), 'Compositional metadata/title match evidence is incomplete');
 expect(engine.includes('CategoryFacetFilterClause') && engine.includes('SourceFacetFilterClause') && engine.includes('ProjectFacetFilterClause'), 'Disjunctive facet scopes are missing');
 expect(engine.includes('COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey"))'), 'Facet counts are not canonical-entity aware');
 expect(!engine.includes('reader.NextResultAsync'), 'Committed Search V2 still depends on a second result set whose CTE scope cannot be shared');
@@ -128,6 +131,13 @@ expect(engine.includes('ts_headline') && engine.includes('@maxSnippetSourceChara
 expect(engine.includes('indexHealth.ActiveGeneration') && read('Services', 'SearchV2', 'Query', 'SearchCursorCodec.cs').includes('ActiveGeneration'), 'Search cursor is not generation-aware');
 expect(view.includes('CategoryOrder'), 'Category tabs are not rendered in stable product order');
 expect(view.includes('pm-gs-active-filters'), 'Active filter chips are missing');
+expect(exists('Services', 'SearchV2', 'Query', 'SearchMatchEvidence.cs'), 'Compositional match-evidence resolver is missing');
+expect(view.includes('bi-search') && !view.includes('bi-check2-circle'), 'Search match evidence still uses a success/check icon');
+expect(searchContracts.includes('IncludeDetailedFacets') && searchContracts.includes('FacetsOnly'), 'Search request does not support lazy detailed facets');
+expect(searchContracts.includes('DetailedLoaded'), 'Facet response does not expose whether detailed facets were loaded');
+expect(pageModel.includes('OnGetFacetsAsync') && pageModel.includes('BuildSearchRequest(includeDetailedFacets: HasAdvancedFilters()') && pageModel.includes('FacetsOnly: facetsOnly'), 'Search page does not lazy-load detailed facets');
+expect(searchJs.includes('initLazyFacets') && searchJs.includes('handler=Facets'), 'Search filter panel does not lazily fetch detailed facets');
+expect(view.includes('pm-gs-filter__active-count'), 'Filters button does not expose a dedicated active-selection badge');
 expect(view.includes('data-project-facet-search') && view.includes('data-project-facet-more'), 'Project facet search/show-more markup is missing');
 expect(view.includes('Relevant date'), 'Date facet has not been clarified as Relevant date');
 expect(view.includes('BuildRelatedUrl'), 'Related result chips are not navigable');
@@ -152,6 +162,13 @@ expect(engine.includes('title_phrase'), 'Normalized title-phrase ranking channel
 expect(engine.includes('identifier_prefix'), 'Committed search does not cover autocomplete identifier-prefix candidates');
 expect(engine.includes('alias_prefix'), 'Committed search does not cover autocomplete alias-prefix candidates');
 expect(engine.includes('title_token_prefix'), 'Committed search does not share title-prefix semantics with autocomplete');
+expect(engine.includes('title_tokens_exact'), 'Exact whole-token title ranking channel is missing');
+expect(engine.includes('@exactTokenTsQuery'), 'Exact whole-token title query is not parameterized');
+expect(engine.includes('alias_title_phrase'), 'Controlled alias title-phrase channel is missing');
+expect(engine.includes('strong_candidate_count'), 'Fuzzy matching is not gated by a strong lexical candidate pool');
+expect(engine.includes('UNION ALL SELECT "Id" FROM simple_fts'), 'Fuzzy fallback must be skipped when ordinary lexical FTS already has candidates');
+expect(engine.includes('CanonicalEntityBoost'), 'Canonical entity authority boost is not applied within a relevance tier');
+expect(aliasProvider.includes('high tech') && aliasProvider.includes('hi tech'), 'Built-in HI-TECH/HIGH-TECH controlled aliases are missing');
 expect(engine.includes('title_fuzzy'), 'Committed search does not cover autocomplete title-fuzzy candidates');
 expect(engine.includes(`STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || @exact || ' ') > 0`), 'Title phrase detection is missing');
 expect(engine.includes('searchTextQuality'), 'Narrative/OCR ranking is not quality-aware');
@@ -160,7 +177,6 @@ expect(options.includes('public int SuggestionLimit { get; set; } = 6;'), 'Autoc
 expect(pageModel.includes('SuggestAsync(q, User, 6'), 'Search page does not request six autocomplete results');
 expect(view.includes('CategoryLabel') && view.includes('Records'), 'Trackers is not mapped to the user-facing Records label');
 expect(view.includes('pm-gs-tab__count">@Model.Search.TotalHits'), 'All tab does not show the total result count');
-const searchContracts = read('Services', 'SearchV2', 'Models', 'SearchContracts.cs');
 const searchDiagnosticsView = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml');
 expect(adminSearchIndex.includes('ISearchV2Engine') && adminSearchIndex.includes('InspectQuery') && adminSearchIndex.includes('InspectionResults'), 'Authorised ranking inspector backend is missing');
 expect(searchDiagnosticsView.includes('Ranking inspector'), 'Search diagnostics ranking inspector UI is missing');

@@ -21,6 +21,15 @@ public interface ISearchAliasProvider
 public sealed class SearchAliasProvider : ISearchAliasProvider
 {
     private const string CacheKey = "search-v2:active-aliases";
+
+    // Product-owned aliases cover only stable PRISM/defence terminology that must work
+    // even before an administrator adds catalogue entries. Keep this list deliberately
+    // small; the database remains the extensible runtime terminology source.
+    private static readonly SearchAliasRule[] BuiltInRules =
+    [
+        new("High Tech", "high tech", "hi tech"),
+        new("Hi Tech", "hi tech", "high tech")
+    ];
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
     private readonly ILogger<SearchAliasProvider> _logger;
@@ -58,6 +67,7 @@ public sealed class SearchAliasProvider : ISearchAliasProvider
             }
 
             var result = rows
+                .Concat(BuiltInRules)
                 .Where(rule => !string.IsNullOrWhiteSpace(rule.NormalizedAlias) && !string.IsNullOrWhiteSpace(rule.Expansion))
                 .DistinctBy(rule => $"{rule.NormalizedAlias}\u001f{rule.Expansion}", StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -66,8 +76,8 @@ public sealed class SearchAliasProvider : ISearchAliasProvider
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogDebug(ex, "Search alias catalogue unavailable; literal Search V2 query will be used.");
-            return Array.Empty<SearchAliasRule>();
+            _logger.LogDebug(ex, "Search alias catalogue unavailable; built-in Search V2 terminology will be used.");
+            return BuiltInRules;
         }
         finally
         {

@@ -212,9 +212,10 @@
     });
   }
 
-  function initProjectFacets() {
-    document.querySelectorAll('[data-project-facet-list]').forEach((container) => {
-      if (!(container instanceof HTMLElement)) return;
+  function initProjectFacets(root = document) {
+    root.querySelectorAll('[data-project-facet-list]').forEach((container) => {
+      if (!(container instanceof HTMLElement) || container.dataset.projectFacetInit === 'true') return;
+      container.dataset.projectFacetInit = 'true';
 
       const search = container.querySelector('[data-project-facet-search]');
       const more = container.querySelector('[data-project-facet-more]');
@@ -283,8 +284,198 @@
     });
   }
 
+  function humanizeToken(value) {
+    return String(value || '').replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+  }
+
+  function selectedValues(name) {
+    return new Set(new URLSearchParams(window.location.search).getAll(name).map((value) => value.toLocaleLowerCase()));
+  }
+
+  function createFacetSection(title, inputName, facets, { project = false, humanize = false, open = false } = {}) {
+    if (!Array.isArray(facets) || facets.length === 0) return null;
+
+    const details = document.createElement('details');
+    details.className = 'pm-gs-filter__section';
+    details.dataset.filterSection = '';
+    const selected = selectedValues(inputName);
+    details.open = open || selected.size > 0;
+
+    const summary = document.createElement('summary');
+    summary.append(document.createTextNode(title));
+    const selectedCount = document.createElement('span');
+    selectedCount.className = 'pm-gs-filter__selection-count';
+    selectedCount.dataset.filterSelectedCount = '';
+    selectedCount.textContent = String(selected.size);
+    selectedCount.hidden = selected.size === 0;
+    summary.append(selectedCount);
+    details.append(summary);
+
+    const body = document.createElement('div');
+    body.className = 'pm-gs-filter__section-body';
+    if (project) body.dataset.projectFacetList = '';
+
+    if (project && facets.length > 8) {
+      const search = document.createElement('input');
+      search.className = 'pm-gs-filter__facet-search';
+      search.type = 'search';
+      search.placeholder = 'Find project…';
+      search.autocomplete = 'off';
+      search.dataset.projectFacetSearch = '';
+      body.append(search);
+    }
+
+    facets.forEach((facet, index) => {
+      const value = String(facet?.value ?? '');
+      if (!value) return;
+      const labelText = String(facet?.label || value);
+      const id = `lazy-${inputName.toLocaleLowerCase()}-${index}`;
+
+      const label = document.createElement('label');
+      label.className = 'pm-gs-filter__option';
+      label.htmlFor = id;
+      if (project) {
+        label.dataset.projectFacet = '';
+        label.dataset.projectLabel = labelText.toLocaleLowerCase();
+      }
+
+      const input = document.createElement('input');
+      input.id = id;
+      input.type = 'checkbox';
+      input.name = inputName;
+      input.value = value;
+      input.checked = selected.has(value.toLocaleLowerCase());
+
+      const text = document.createElement('span');
+      text.textContent = humanize ? humanizeToken(labelText) : labelText;
+      const count = document.createElement('small');
+      count.textContent = String(facet?.count ?? 0);
+      label.append(input, text, count);
+      body.append(label);
+    });
+
+    if (project && facets.length > 8) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'pm-gs-filter__show-more';
+      more.dataset.projectFacetMore = '';
+      more.textContent = 'Show more';
+      body.append(more);
+    }
+
+    details.append(body);
+    return details;
+  }
+
+  function updateFilterSelectionCounts(form) {
+    if (!(form instanceof HTMLFormElement)) return;
+
+    form.querySelectorAll('[data-filter-section]').forEach((section) => {
+      if (!(section instanceof HTMLDetailsElement)) return;
+      const count = section.querySelectorAll('input[type="checkbox"]:checked').length
+        + Array.from(section.querySelectorAll('input[type="date"]'))
+          .filter((input) => input instanceof HTMLInputElement && input.value).length;
+      const badge = section.querySelector('[data-filter-selected-count]');
+      if (badge instanceof HTMLElement) {
+        badge.textContent = String(count);
+        badge.hidden = count === 0;
+      }
+    });
+
+    const count = form.querySelectorAll('input[type="checkbox"]:checked').length
+      + Array.from(form.querySelectorAll('input[type="date"]'))
+        .filter((input) => input instanceof HTMLInputElement && input.value).length;
+    const owner = form.closest('[data-search-filter]');
+    const badge = owner?.querySelector('[data-filter-active-count]');
+    if (badge instanceof HTMLElement) {
+      badge.textContent = String(count);
+      badge.hidden = count === 0;
+    }
+  }
+
+  function initFilterSelectionCounts(root = document) {
+    root.querySelectorAll('[data-search-filter-form]').forEach((form) => {
+      if (!(form instanceof HTMLFormElement) || form.dataset.selectionCountInit === 'true') return;
+      form.dataset.selectionCountInit = 'true';
+      form.addEventListener('change', () => updateFilterSelectionCounts(form));
+      form.addEventListener('input', (event) => {
+        if (event.target instanceof HTMLInputElement && event.target.type === 'date') updateFilterSelectionCounts(form);
+      });
+      updateFilterSelectionCounts(form);
+    });
+  }
+
+  function renderDetailedFacets(container, payload) {
+    if (!(container instanceof HTMLElement)) return;
+    container.replaceChildren();
+    const sections = [
+      createFacetSection('Source', 'Source', payload.sources, { open: true }),
+      createFacetSection('Project', 'Project', payload.projects, { project: true }),
+      createFacetSection('Status', 'Status', payload.statuses, { humanize: true }),
+      createFacetSection('File type', 'FileType', payload.fileTypes),
+      createFacetSection('Stage', 'Stage', payload.stages, { humanize: true })
+    ].filter(Boolean);
+    sections.forEach((section) => container.append(section));
+  }
+
+  function initLazyFacets() {
+    document.querySelectorAll('[data-search-filter]').forEach((details) => {
+      if (!(details instanceof HTMLDetailsElement)) return;
+      const dynamic = details.querySelector('[data-search-dynamic-facets]');
+      const form = details.querySelector('[data-search-filter-form]');
+      if (!(dynamic instanceof HTMLElement) || !(form instanceof HTMLFormElement)) return;
+
+      const load = async () => {
+        if (details.dataset.facetsLoaded === 'true' || details.dataset.facetsLoading === 'true') return;
+        details.dataset.facetsLoading = 'true';
+        dynamic.classList.add('is-loading');
+        dynamic.setAttribute('aria-busy', 'true');
+
+        const loading = document.createElement('div');
+        loading.className = 'pm-gs-filter__loading';
+        loading.textContent = 'Loading filters…';
+        dynamic.replaceChildren(loading);
+
+        try {
+          // Razor Pages facet handler: handler=Facets. Preserve the authorised query/filter state.
+          const url = new URL(window.location.href);
+          url.searchParams.set('handler', 'Facets');
+          url.searchParams.delete('Cursor');
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+          });
+          if (!response.ok) throw new Error(`Search facets failed with HTTP ${response.status}.`);
+          const payload = await response.json();
+          if (!payload?.ok || !payload?.detailedLoaded) throw new Error('Search facets are unavailable.');
+
+          renderDetailedFacets(dynamic, payload);
+          details.dataset.facetsLoaded = 'true';
+          initProjectFacets(dynamic);
+          updateFilterSelectionCounts(form);
+        } catch (error) {
+          const message = document.createElement('div');
+          message.className = 'pm-gs-filter__loading pm-gs-filter__loading--error';
+          message.textContent = 'Filters are temporarily unavailable.';
+          dynamic.replaceChildren(message);
+          console.warn('[PRISM] Search facets are temporarily unavailable.', error);
+        } finally {
+          details.dataset.facetsLoading = 'false';
+          dynamic.classList.remove('is-loading');
+          dynamic.removeAttribute('aria-busy');
+        }
+      };
+
+      details.addEventListener('toggle', () => {
+        if (details.open) void load();
+      });
+      if (details.open) void load();
+    });
+  }
+
   function initFilters() {
-    document.querySelectorAll('.pm-gs-filter').forEach((details) => {
+    document.querySelectorAll('[data-search-filter]').forEach((details) => {
       if (!(details instanceof HTMLDetailsElement)) return;
       document.addEventListener('pointerdown', (event) => {
         if (details.open && !details.contains(event.target)) details.open = false;
@@ -297,6 +488,8 @@
     initShortcut();
     initClickTelemetry();
     initProjectFacets();
+    initFilterSelectionCounts();
+    initLazyFacets();
     initFilters();
   }
 

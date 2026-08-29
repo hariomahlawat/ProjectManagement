@@ -58,25 +58,48 @@ public sealed class IndexModel : PageModel
     {
         if (string.IsNullOrWhiteSpace(Q)) return;
 
-        if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value > DateTo.Value)
-        {
-            (DateFrom, DateTo) = (DateTo, DateFrom);
-        }
-
+        NormalizeDateRange();
         Search = await _search.SearchAsync(
-            new SearchRequest(
-                Query: Q,
-                Categories: Category?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                Sources: Source?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                Cursor: Cursor,
-                ProjectIds: Project?.Where(value => value > 0).Distinct().ToArray(),
-                Statuses: Status?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                FileTypes: FileType?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                Stages: Stage?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
-                DateFrom: DateFrom,
-                DateTo: DateTo),
+            BuildSearchRequest(includeDetailedFacets: HasAdvancedFilters(), facetsOnly: false),
             User,
             cancellationToken);
+    }
+
+    public async Task<IActionResult> OnGetFacetsAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(Q))
+        {
+            return new JsonResult(new { ok = false, detailedLoaded = false });
+        }
+
+        NormalizeDateRange();
+        var response = await _search.SearchAsync(
+            BuildSearchRequest(includeDetailedFacets: true, facetsOnly: true),
+            User,
+            cancellationToken);
+
+        if (!response.UsedSearchV2 || !response.Facets.DetailedLoaded)
+        {
+            return new JsonResult(new { ok = false, detailedLoaded = false });
+        }
+
+        static object Values(IReadOnlyList<SearchFacetValue> facets) => facets.Select(facet => new
+        {
+            facet.Value,
+            facet.Count,
+            facet.Label
+        }).ToArray();
+
+        return new JsonResult(new
+        {
+            ok = true,
+            detailedLoaded = true,
+            sources = Values(response.Facets.Sources),
+            projects = Values(response.Facets.Projects),
+            statuses = Values(response.Facets.Statuses),
+            fileTypes = Values(response.Facets.FileTypes),
+            stages = Values(response.Facets.Stages)
+        });
     }
 
     public async Task<IActionResult> OnGetSuggestionsAsync(string? q, CancellationToken cancellationToken)
@@ -117,5 +140,37 @@ public sealed class IndexModel : PageModel
 
         await _search.LogClickAsync(query, entityType, entityKey, rank, sourceModule, cancellationToken);
         return new JsonResult(new { ok = true });
+    }
+
+    private SearchRequest BuildSearchRequest(bool includeDetailedFacets, bool facetsOnly) => new(
+        Query: Q ?? string.Empty,
+        Categories: Category?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+        Sources: Source?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+        Cursor: facetsOnly ? null : Cursor,
+        PageSize: facetsOnly ? 5 : null,
+        ProjectIds: Project?.Where(value => value > 0).Distinct().ToArray(),
+        Statuses: Status?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+        FileTypes: FileType?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+        Stages: Stage?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+        DateFrom: DateFrom,
+        DateTo: DateTo,
+        IncludeDetailedFacets: includeDetailedFacets,
+        FacetsOnly: facetsOnly);
+
+    private bool HasAdvancedFilters() =>
+        (Source?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
+        || (Project?.Any(value => value > 0) ?? false)
+        || (Status?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
+        || (FileType?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
+        || (Stage?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
+        || DateFrom.HasValue
+        || DateTo.HasValue;
+
+    private void NormalizeDateRange()
+    {
+        if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value > DateTo.Value)
+        {
+            (DateFrom, DateTo) = (DateTo, DateFrom);
+        }
     }
 }

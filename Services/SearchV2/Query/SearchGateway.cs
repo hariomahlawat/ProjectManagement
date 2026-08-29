@@ -73,12 +73,12 @@ public sealed class SearchGateway : ISearchGateway
 
         // Run V2 only when it can serve this user or when shadow comparison is explicitly enabled.
         // When both paths are needed they are still started before either is awaited.
-        var runV2 = _options.Enabled && (serveV2ToUser || _options.ShadowMode);
+        var runV2 = _options.Enabled && (serveV2ToUser || (!request.FacetsOnly && _options.ShadowMode));
         var v2Task = runV2
             ? _v2.SearchAsync(request, user, cancellationToken)
             : null;
 
-        var legacyRequired = !_options.Enabled || !serveV2ToUser || _options.ShadowMode;
+        var legacyRequired = !request.FacetsOnly && (!_options.Enabled || !serveV2ToUser || _options.ShadowMode);
         var legacyTask = legacyRequired
             ? ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken)
             : null;
@@ -120,22 +120,25 @@ public sealed class SearchGateway : ISearchGateway
         {
             stopwatch.Stop();
             var gatewayLatencyMs = stopwatch.ElapsedMilliseconds;
-            await SafeQueryLogAsync(
-                normalized.Original,
-                user,
-                v2Response.FilteredHits,
-                v2Response.QueryTimeMilliseconds,
-                "V2-Engine",
-                v2Response.CorrectedQuery,
-                cancellationToken);
-            await SafeQueryLogAsync(
-                normalized.Original,
-                user,
-                v2Response.FilteredHits,
-                gatewayLatencyMs,
-                "V2",
-                v2Response.CorrectedQuery,
-                cancellationToken);
+            if (!request.FacetsOnly)
+            {
+                await SafeQueryLogAsync(
+                    normalized.Original,
+                    user,
+                    v2Response.FilteredHits,
+                    v2Response.QueryTimeMilliseconds,
+                    "V2-Engine",
+                    v2Response.CorrectedQuery,
+                    cancellationToken);
+                await SafeQueryLogAsync(
+                    normalized.Original,
+                    user,
+                    v2Response.FilteredHits,
+                    gatewayLatencyMs,
+                    "V2",
+                    v2Response.CorrectedQuery,
+                    cancellationToken);
+            }
 
             return new SearchGatewayResponse(
                 v2Response.Query,
@@ -151,6 +154,25 @@ public sealed class SearchGateway : ISearchGateway
                 false,
                 v2Response.ExecutionStatus,
                 v2Response.DiagnosticId);
+        }
+
+        if (request.FacetsOnly)
+        {
+            stopwatch.Stop();
+            return new SearchGatewayResponse(
+                normalized.Original,
+                Array.Empty<SearchResult>(),
+                0,
+                0,
+                SearchFacets.Empty,
+                null,
+                stopwatch.ElapsedMilliseconds,
+                false,
+                false,
+                null,
+                false,
+                v2Response?.ExecutionStatus ?? SearchV2ExecutionStatus.IndexNotReady,
+                v2Response?.DiagnosticId);
         }
 
         // V2 may be enabled without Legacy having been started (for example,

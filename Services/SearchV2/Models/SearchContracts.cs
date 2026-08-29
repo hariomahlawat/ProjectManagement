@@ -48,7 +48,8 @@ public sealed record SearchFacets(
     IReadOnlyList<SearchFacetValue> Projects,
     IReadOnlyList<SearchFacetValue> Statuses,
     IReadOnlyList<SearchFacetValue> FileTypes,
-    IReadOnlyList<SearchFacetValue> Stages)
+    IReadOnlyList<SearchFacetValue> Stages,
+    bool DetailedLoaded = true)
 {
     public static SearchFacets Empty { get; } = new(
         Array.Empty<SearchFacetValue>(),
@@ -56,7 +57,8 @@ public sealed record SearchFacets(
         Array.Empty<SearchFacetValue>(),
         Array.Empty<SearchFacetValue>(),
         Array.Empty<SearchFacetValue>(),
-        Array.Empty<SearchFacetValue>());
+        Array.Empty<SearchFacetValue>(),
+        false);
 }
 
 public sealed record SearchRequest(
@@ -70,7 +72,9 @@ public sealed record SearchRequest(
     IReadOnlyList<string>? FileTypes = null,
     IReadOnlyList<string>? Stages = null,
     DateOnly? DateFrom = null,
-    DateOnly? DateTo = null);
+    DateOnly? DateTo = null,
+    bool IncludeDetailedFacets = true,
+    bool FacetsOnly = false);
 
 public sealed record SearchResponse(
     string Query,

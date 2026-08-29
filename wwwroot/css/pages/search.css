@@ -919,3 +919,53 @@
     color: #315ee8;
     background: #f7f9ff;
 }
+
+/* Search V2 ranking/evidence/performance hardening ------------------- */
+.pm-gs-filter__active-count,
+.pm-gs-filter__selection-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 .3rem;
+    border-radius: 999px;
+    background: #edf2ff;
+    color: #315ee8;
+    font-size: .61rem;
+    font-weight: 760;
+    line-height: 1;
+}
+
+.pm-gs-filter__active-count[hidden],
+.pm-gs-filter__selection-count[hidden] {
+    display: none;
+}
+
+.pm-gs-filter__section > summary .pm-gs-filter__selection-count {
+    margin-left: auto;
+    margin-right: .25rem;
+    color: #315ee8;
+    font-size: .61rem;
+    font-weight: 760;
+}
+
+.pm-gs-filter__loading {
+    padding: .7rem .75rem;
+    color: #7b8799;
+    font-size: .7rem;
+}
+
+.pm-gs-filter__loading--error {
+    color: #93622b;
+}
+
+.pm-gs-hit__match .bi {
+    color: #6f7f95;
+}
+
+.pm-gs-hit__snippet {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}

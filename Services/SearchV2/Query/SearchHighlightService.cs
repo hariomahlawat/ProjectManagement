@@ -39,7 +39,7 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
             return [new SearchTextSegment(text, false)];
         }
 
-        var pattern = string.Join('|', effectiveTerms.Select(Regex.Escape));
+        var pattern = string.Join('|', effectiveTerms.Select(BuildHighlightPattern));
         var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (matches.Count == 0)
         {
@@ -148,6 +148,14 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
         }
 
         return narrativeQuality >= .60d && !string.IsNullOrWhiteSpace(narrative) ? narrative : null;
+    }
+
+    private static string BuildHighlightPattern(string term)
+    {
+        var escaped = Regex.Escape(term);
+        return term.All(char.IsLetterOrDigit)
+            ? $@"(?<![\p{{L}}\p{{N}}]){escaped}[\p{{L}}\p{{N}}]*(?![\p{{L}}\p{{N}}])"
+            : escaped;
     }
 
     private static int FindFirstMatch(string text, IReadOnlyList<string> terms)

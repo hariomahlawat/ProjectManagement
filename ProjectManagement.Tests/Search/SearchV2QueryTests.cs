@@ -192,4 +192,65 @@ public sealed class SearchV2QueryTests
     {
         Assert.Equal(expected, SearchLikePattern.Contains(input));
     }
+    [Fact]
+    public void Highlight_PrefixMatchHighlightsWholeLexicalWord()
+    {
+        var service = new SearchHighlightService(Options.Create(new SearchV2Options()));
+
+        var segments = service.Highlight("Transfer of Technology", new[] { "tech" });
+
+        Assert.Contains(segments, segment => segment.Highlighted && segment.Text == "Technology");
+        Assert.DoesNotContain(segments, segment => segment.Highlighted && segment.Text == "Tech");
+    }
+
+    [Fact]
+    public void MatchEvidence_ComposesTitleAndDocumentTextForMultiFieldQuery()
+    {
+        var query = new SearchQueryNormalizer().Normalize("high tech");
+
+        var evidence = SearchMatchEvidenceResolver.Resolve(
+            query,
+            title: "CPDS North Tech Symposium 2026",
+            structuredText: null,
+            narrativeText: "The document discusses high altitude challenges.",
+            metadataJson: null,
+            entityType: "DocRepoDocument",
+            channels: "simple_fts");
+
+        Assert.Equal("Title + document text", evidence);
+    }
+
+    [Fact]
+    public void MatchEvidence_UsesTitleWhenEntireQueryIsCoveredByTitle()
+    {
+        var query = new SearchQueryNormalizer().Normalize("high tech");
+
+        var evidence = SearchMatchEvidenceResolver.Resolve(
+            query,
+            title: "Mockup based Pinaka High-Tech Sml",
+            structuredText: null,
+            narrativeText: null,
+            metadataJson: null,
+            entityType: "Project",
+            channels: "title_phrase,title_tokens_exact");
+
+        Assert.Equal("Title", evidence);
+    }
+
+    [Fact]
+    public void AliasExpander_TreatsHiTechAndHighTechAsControlledEquivalentPhrases()
+    {
+        var rules = new[]
+        {
+            new SearchAliasRule("High Tech", "high tech", "hi tech"),
+            new SearchAliasRule("Hi Tech", "hi tech", "high tech")
+        };
+
+        var highTech = SearchAliasQueryExpander.Expand("high tech", rules);
+        var hiTech = SearchAliasQueryExpander.Expand("hi tech", rules);
+
+        Assert.Contains("hi tech", highTech.Expansions, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("high tech", hiTech.Expansions, StringComparer.OrdinalIgnoreCase);
+    }
+
 }

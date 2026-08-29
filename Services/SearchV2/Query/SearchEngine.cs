@@ -103,7 +103,12 @@ public sealed class SearchEngine : ISearchV2Engine
             request.DateTo);
         if (!_cursorCodec.TryDecode(cursorKey, request.Cursor, indexHealth.ActiveGeneration, out var afterRank)) afterRank = 0;
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
+        var exactTokenTsQuery = BuildExactTokenTsQuery(normalized.Exact);
         var prefixTsQuery = BuildPrefixTsQuery(normalized.Exact);
+        var aliasPhrases = string.Join("\u001F", normalized.Expansions
+            .Select(_normalizer.NormalizeExact)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase));
 
         try
         {
@@ -120,15 +125,20 @@ public sealed class SearchEngine : ISearchV2Engine
                 request.Stages,
                 request.DateFrom,
                 request.DateTo);
-            command.CommandText = BuildSearchSql(sqlParts);
+            command.CommandText = BuildSearchSql(sqlParts, request.IncludeDetailedFacets);
             Add(command, "indexVersion", _options.ProjectionVersion);
             Add(command, "exact", normalized.Exact);
             Add(command, "webQuery", normalized.WebSearchQuery);
+            Add(command, "exactTokenTsQuery", exactTokenTsQuery);
             Add(command, "prefixTsQuery", prefixTsQuery);
+            Add(command, "aliasPhrases", aliasPhrases);
             Add(command, "fuzzyThreshold", _options.FuzzyThreshold);
+            Add(command, "fuzzyStrongThreshold", _options.FuzzyFallbackStrongCandidateThreshold);
+            Add(command, "canonicalEntityBoost", _options.CanonicalEntityBoost);
             Add(command, "rrfK", _options.ReciprocalRankK);
             Add(command, "afterRank", afterRank);
             Add(command, "take", pageSize + 1);
+            Add(command, "facetsOnly", request.FacetsOnly);
             Add(command, "maxSnippetSourceCharacters", Math.Max(_options.MaxSnippetCharacters * 2, 600));
 
             var rows = new List<SearchRow>(pageSize + 1);
@@ -136,6 +146,7 @@ public sealed class SearchEngine : ISearchV2Engine
             long filteredHits = 0;
             SearchFacets facets = SearchFacets.Empty;
 
+            var databaseStopwatch = Stopwatch.StartNew();
             await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
                 // Summary/facets and paged rows deliberately share one PostgreSQL
@@ -151,7 +162,8 @@ public sealed class SearchEngine : ISearchV2Engine
                         ParseFacets(reader, "ProjectFacets"),
                         ParseFacets(reader, "StatusFacets"),
                         ParseFacets(reader, "FileTypeFacets"),
-                        ParseFacets(reader, "StageFacets"));
+                        ParseFacets(reader, "StageFacets"),
+                        request.IncludeDetailedFacets);
 
                     var idOrdinal = reader.GetOrdinal("Id");
                     do
@@ -164,6 +176,7 @@ public sealed class SearchEngine : ISearchV2Engine
                     while (await reader.ReadAsync(cancellationToken));
                 }
             }
+            databaseStopwatch.Stop();
 
             var hasMore = rows.Count > pageSize;
             if (hasMore) rows.RemoveAt(rows.Count - 1);
@@ -174,13 +187,25 @@ public sealed class SearchEngine : ISearchV2Engine
                 : null;
 
             string? correctedQuery = null;
-            if (ShouldOfferCorrection(normalized, rows))
+            var correctionMilliseconds = 0L;
+            if (!request.FacetsOnly && ShouldOfferCorrection(normalized, rows))
             {
+                var correctionStopwatch = Stopwatch.StartNew();
                 correctedQuery = await FindCorrectionAsync(_db.Database.GetDbConnection(), normalized.Exact, access, cancellationToken);
+                correctionStopwatch.Stop();
+                correctionMilliseconds = correctionStopwatch.ElapsedMilliseconds;
                 if (string.Equals(correctedQuery, normalized.Exact, StringComparison.OrdinalIgnoreCase)) correctedQuery = null;
             }
 
             stopwatch.Stop();
+            _logger.LogDebug(
+                "Search V2 timing. TotalMs={TotalMs}, DatabaseMs={DatabaseMs}, CorrectionMs={CorrectionMs}, DetailedFacets={DetailedFacets}, FacetsOnly={FacetsOnly}, ResultCount={ResultCount}.",
+                stopwatch.ElapsedMilliseconds,
+                databaseStopwatch.ElapsedMilliseconds,
+                correctionMilliseconds,
+                request.IncludeDetailedFacets,
+                request.FacetsOnly,
+                results.Length);
             return new SearchResponse(
                 normalized.Original,
                 results,
@@ -232,6 +257,7 @@ public sealed class SearchEngine : ISearchV2Engine
 
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
         var take = Math.Clamp(limit ?? _options.SuggestionLimit, 3, 20);
+        var exactTokenTsQuery = BuildExactTokenTsQuery(normalized.Exact);
         var prefixTsQuery = BuildPrefixTsQuery(normalized.Exact);
         try
         {
@@ -258,21 +284,23 @@ public sealed class SearchEngine : ISearchV2Engine
                                    WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
                                ) THEN 1
                                WHEN e."NormalizedTitle" = @exact THEN 2
-                               WHEN LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact THEN 3
-                               WHEN @prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery) THEN 4
+                               WHEN @exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery) THEN 3
+                               WHEN LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact THEN 4
+                               WHEN @prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery) THEN 5
                                WHEN EXISTS (
                                    SELECT 1 FROM "SearchEntryTerms" t
                                    WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact
-                               ) THEN 5
+                               ) THEN 6
                                WHEN EXISTS (
                                    SELECT 1 FROM "SearchEntryTerms" t
                                    WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
-                               ) THEN 6
-                               ELSE 7
+                               ) THEN 7
+                               ELSE 8
                            END AS priority,
                            GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) AS fuzzy_score
                     FROM authorised e
                     WHERE e."NormalizedTitle" = @exact
+                       OR (@exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery))
                        OR LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact
                        OR (@prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery))
                        OR EXISTS (
@@ -298,6 +326,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 """;
             Add(command, "indexVersion", _options.ProjectionVersion);
             Add(command, "exact", normalized.Exact);
+            Add(command, "exactTokenTsQuery", exactTokenTsQuery);
             Add(command, "prefixTsQuery", prefixTsQuery);
             Add(command, "suggestionFuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.42));
             Add(command, "take", take);
@@ -327,6 +356,17 @@ public sealed class SearchEngine : ISearchV2Engine
         }
     }
 
+    private static string BuildExactTokenTsQuery(string exact)
+    {
+        var lexemes = exact
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => new string(value.Where(char.IsLetterOrDigit).ToArray()))
+            .Where(value => value.Length >= 2)
+            .Take(5)
+            .ToArray();
+        return lexemes.Length == 0 ? string.Empty : string.Join(" & ", lexemes);
+    }
+
     private static string BuildPrefixTsQuery(string exact)
     {
         var lexemes = exact
@@ -343,7 +383,14 @@ public sealed class SearchEngine : ISearchV2Engine
     private SearchResult ToResult(SearchRow row, NormalizedSearchQuery query)
     {
         var snippet = _highlight.BuildSnippet(row.StructuredText, row.NarrativeText, query.HighlightTerms);
-        var matchedField = MatchedField(row.Channels, row, query);
+        var matchedField = SearchMatchEvidenceResolver.Resolve(
+            query,
+            row.Title,
+            row.StructuredText,
+            row.NarrativeText,
+            row.MetadataJson,
+            row.EntityType,
+            row.Channels);
         var related = (row.RelatedSources ?? string.Empty)
             .Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(ParseRelatedResult)
@@ -380,63 +427,6 @@ public sealed class SearchEngine : ISearchV2Engine
             row.Channels);
     }
 
-    private static string? MatchedField(string channels, SearchRow row, NormalizedSearchQuery query)
-    {
-        if (channels.Contains("exact_identifier", StringComparison.Ordinal)
-            || channels.Contains("identifier_prefix", StringComparison.Ordinal)) return "Identifier";
-        if (channels.Contains("exact_title", StringComparison.Ordinal)
-            || channels.Contains("title_phrase", StringComparison.Ordinal)
-            || channels.Contains("title_token_prefix", StringComparison.Ordinal)
-            || channels.Contains("title_prefix", StringComparison.Ordinal)
-            || query.HighlightTerms.Any(term => row.Title.Contains(term, StringComparison.OrdinalIgnoreCase)))
-        {
-            return "Title";
-        }
-
-        var metadataMatch = MatchedFieldFromMetadata(row.MetadataJson, query.HighlightTerms);
-        if (!string.IsNullOrWhiteSpace(metadataMatch)) return metadataMatch;
-
-        if (channels.Contains("alias", StringComparison.Ordinal)
-            || channels.Contains("alias_prefix", StringComparison.Ordinal)) return "Alias";
-        if (channels.Contains("name", StringComparison.Ordinal)) return "Name";
-        if (query.HighlightTerms.Any(term => (row.StructuredText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))) return "structured details";
-        if (query.HighlightTerms.Any(term => (row.NarrativeText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)))
-        {
-            return row.EntityType is "ProjectDocument" or "DocRepoDocument" ? "OCR text" : "content";
-        }
-        if (channels.Contains("title_fuzzy", StringComparison.Ordinal)) return "similar title";
-        if (channels.Contains("fuzzy", StringComparison.Ordinal)) return "similar terminology";
-        return null;
-    }
-
-    private static string? MatchedFieldFromMetadata(string? metadataJson, IReadOnlyList<string> terms)
-    {
-        if (string.IsNullOrWhiteSpace(metadataJson) || terms.Count == 0) return null;
-        try
-        {
-            using var document = JsonDocument.Parse(metadataJson);
-            if (!document.RootElement.TryGetProperty("matchFields", out var fields) || fields.ValueKind != JsonValueKind.Object)
-            {
-                return null;
-            }
-
-            foreach (var property in fields.EnumerateObject())
-            {
-                var value = property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString() : null;
-                if (!string.IsNullOrWhiteSpace(value) && terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return property.Name;
-                }
-            }
-        }
-        catch (JsonException)
-        {
-            // Metadata is non-authoritative display enrichment. Ignore malformed legacy rows.
-        }
-
-        return null;
-    }
-
     private static SearchRelatedResult? ParseRelatedResult(string value)
     {
         var separator = value.LastIndexOf(':');
@@ -459,6 +449,8 @@ public sealed class SearchEngine : ISearchV2Engine
         || channels.Contains("identifier_prefix", StringComparison.Ordinal)
         || channels.Contains("exact_title", StringComparison.Ordinal)
         || channels.Contains("title_phrase", StringComparison.Ordinal)
+        || channels.Contains("alias_title_phrase", StringComparison.Ordinal)
+        || channels.Contains("title_tokens_exact", StringComparison.Ordinal)
         || channels.Contains("title_token_prefix", StringComparison.Ordinal)
         || channels.Contains("alias", StringComparison.Ordinal)
         || channels.Contains("alias_prefix", StringComparison.Ordinal)
@@ -502,7 +494,15 @@ public sealed class SearchEngine : ISearchV2Engine
         return (await command.ExecuteScalarAsync(cancellationToken)) as string;
     }
 
-    private string BuildSearchSql(SearchSqlScope scope) => $"""
+    private string BuildSearchSql(SearchSqlScope scope, bool includeDetailedFacets)
+    {
+        var sourceFacetValue = includeDetailedFacets ? "(SELECT value::text FROM source_facets)" : "'{}'::text";
+        var projectFacetValue = includeDetailedFacets ? "(SELECT value::text FROM project_facets)" : "'{}'::text";
+        var statusFacetValue = includeDetailedFacets ? "(SELECT value::text FROM status_facets)" : "'{}'::text";
+        var fileTypeFacetValue = includeDetailedFacets ? "(SELECT value::text FROM file_type_facets)" : "'{}'::text";
+        var stageFacetValue = includeDetailedFacets ? "(SELECT value::text FROM stage_facets)" : "'{}'::text";
+
+        return $"""
         WITH state AS (
             SELECT "ActiveGeneration"
             FROM "SearchIndexState"
@@ -558,8 +558,33 @@ public sealed class SearchEngine : ISearchV2Engine
                 SELECT 1 FROM "SearchEntryTerms" t
                 WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact
             )
-        ), alias_prefix AS (
+        ), alias_title_phrase AS (
             SELECT e."Id", 3 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY LENGTH(e."NormalizedTitle"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
+                   'alias_title_phrase'::text AS channel, 3.15::double precision AS weight
+            FROM authorised e
+            WHERE @aliasPhrases <> ''
+              AND EXISTS (
+                  SELECT 1
+                  FROM unnest(string_to_array(@aliasPhrases, chr(31))) AS phrases(phrase)
+                  WHERE NULLIF(BTRIM(phrase), '') IS NOT NULL
+                    AND STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || phrase || ' ') > 0
+              )
+        ), title_tokens_exact AS (
+            SELECT e."Id", 3 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY ts_rank_cd(to_tsvector('simple', e."Title"), to_tsquery('simple', @exactTokenTsQuery)) DESC,
+                                LENGTH(e."NormalizedTitle"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
+                   'title_tokens_exact'::text AS channel, 2.8::double precision AS weight
+            FROM authorised e
+            WHERE @exactTokenTsQuery <> ''
+              AND e."SearchVectorSimple" @@ to_tsquery('simple', @exactTokenTsQuery)
+              AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery)
+              AND e."NormalizedTitle" <> @exact
+              AND STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || @exact || ' ') = 0
+        ), alias_prefix AS (
+            SELECT e."Id", 4 AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY LENGTH(t."NormalizedTerm"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'alias_prefix'::text AS channel, 1.6::double precision AS weight
@@ -569,19 +594,19 @@ public sealed class SearchEngine : ISearchV2Engine
               AND t."NormalizedTerm" <> @exact
               AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
         ), title_token_prefix AS (
-            SELECT e."Id", 3 AS tier,
+            SELECT e."Id", 4 AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY ts_rank_cd(to_tsvector('simple', e."Title"), to_tsquery('simple', @prefixTsQuery)) DESC,
                                 LENGTH(e."NormalizedTitle"),
                                 e."UpdatedAtUtc" DESC,
                                 e."Id") AS channel_rank,
-                   'title_token_prefix'::text AS channel, 2.25::double precision AS weight
+                   'title_token_prefix'::text AS channel, 2.05::double precision AS weight
             FROM authorised e
             WHERE @prefixTsQuery <> ''
               AND e."SearchVectorSimple" @@ to_tsquery('simple', @prefixTsQuery)
               AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery)
         ), title_prefix AS (
-            SELECT e."Id", 3 AS tier,
+            SELECT e."Id", 4 AS tier,
                    ROW_NUMBER() OVER (ORDER BY LENGTH(e."NormalizedTitle"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'title_prefix'::text AS channel, 2.0::double precision AS weight
             FROM authorised e
@@ -597,13 +622,13 @@ public sealed class SearchEngine : ISearchV2Engine
             WHERE t."NormalizedTerm" = @exact
                OR (LENGTH(@exact) >= 3 AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact)
         ), simple_fts AS (
-            SELECT e."Id", 4 AS tier,
+            SELECT e."Id", 5 AS tier,
                    ROW_NUMBER() OVER (ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', @webQuery)) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'simple_fts'::text AS channel, 1.25::double precision AS weight
             FROM authorised e
             WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', @webQuery)
         ), configured_alias_fts AS (
-            SELECT e."Id", 4 AS tier,
+            SELECT e."Id", 5 AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', a."Expansion")) DESC,
                                 e."UpdatedAtUtc" DESC,
@@ -613,7 +638,7 @@ public sealed class SearchEngine : ISearchV2Engine
             JOIN "SearchAliases" a ON a."IsActive" AND a."NormalizedAlias" = @exact
             WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', a."Expansion")
         ), english_fts AS (
-            SELECT e."Id", 5 AS tier,
+            SELECT e."Id", 6 AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY (
                            ts_rank_cd(e."SearchVectorEnglish", websearch_to_tsquery('english', @webQuery))
@@ -628,21 +653,41 @@ public sealed class SearchEngine : ISearchV2Engine
                    'english_fts'::text AS channel, .85::double precision AS weight
             FROM authorised e
             WHERE e."SearchVectorEnglish" @@ websearch_to_tsquery('english', @webQuery)
+        ), strong_candidate_count AS (
+            SELECT COUNT(DISTINCT "Id")::int AS value
+            FROM (
+                SELECT "Id" FROM exact_identifier
+                UNION ALL SELECT "Id" FROM exact_title
+                UNION ALL SELECT "Id" FROM identifier_prefix
+                UNION ALL SELECT "Id" FROM title_phrase
+                UNION ALL SELECT "Id" FROM alias_matches
+                UNION ALL SELECT "Id" FROM alias_title_phrase
+                UNION ALL SELECT "Id" FROM title_tokens_exact
+                UNION ALL SELECT "Id" FROM alias_prefix
+                UNION ALL SELECT "Id" FROM title_token_prefix
+                UNION ALL SELECT "Id" FROM title_prefix
+                UNION ALL SELECT "Id" FROM name_matches
+                UNION ALL SELECT "Id" FROM simple_fts
+                UNION ALL SELECT "Id" FROM configured_alias_fts
+                UNION ALL SELECT "Id" FROM english_fts
+            ) strong
         ), title_fuzzy AS (
-            SELECT e."Id", 6 AS tier,
+            SELECT e."Id", 7 AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY similarity(e."NormalizedTitle", @exact) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'title_fuzzy'::text AS channel, 0.5::double precision AS weight
             FROM authorised e
             WHERE LENGTH(@exact) >= 4
+              AND (SELECT value FROM strong_candidate_count) < @fuzzyStrongThreshold
               AND e."NormalizedTitle" % @exact
               AND similarity(e."NormalizedTitle", @exact) >= @fuzzyThreshold
         ), fuzzy_matches AS (
-            SELECT e."Id", 6 AS tier,
+            SELECT e."Id", 7 AS tier,
                    ROW_NUMBER() OVER (ORDER BY similarity(e."FuzzyText", @exact) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'fuzzy'::text AS channel, 0.45::double precision AS weight
             FROM authorised e
             WHERE LENGTH(@exact) >= 3
+              AND (SELECT value FROM strong_candidate_count) < @fuzzyStrongThreshold
               AND e."FuzzyText" % @exact
               AND similarity(e."FuzzyText", @exact) >= @fuzzyThreshold
         ), channels AS (
@@ -651,6 +696,8 @@ public sealed class SearchEngine : ISearchV2Engine
             UNION ALL SELECT * FROM identifier_prefix
             UNION ALL SELECT * FROM title_phrase
             UNION ALL SELECT * FROM alias_matches
+            UNION ALL SELECT * FROM alias_title_phrase
+            UNION ALL SELECT * FROM title_tokens_exact
             UNION ALL SELECT * FROM alias_prefix
             UNION ALL SELECT * FROM title_token_prefix
             UNION ALL SELECT * FROM title_prefix
@@ -668,7 +715,13 @@ public sealed class SearchEngine : ISearchV2Engine
             FROM channels
             GROUP BY "Id"
         ), candidate_scored AS (
-            SELECT e.*, f.tier, f.fusion_score, f.channels
+            SELECT e.*, f.tier,
+                   f.fusion_score + CASE
+                       WHEN e."EntityType" = e."CanonicalEntityType" AND e."EntityKey" = e."CanonicalEntityKey"
+                           THEN @canonicalEntityBoost
+                       ELSE 0::double precision
+                   END AS fusion_score,
+                   f.channels
             FROM fused f
             JOIN authorised e ON e."Id" = f."Id"
         ), related_source_counts AS (
@@ -786,11 +839,11 @@ public sealed class SearchEngine : ISearchV2Engine
                 (SELECT COUNT(DISTINCT (c."CanonicalEntityType", c."CanonicalEntityKey")) FROM category_facet_candidates c) AS "TotalHits",
                 (SELECT COUNT(*) FROM ranked) AS "FilteredHits",
                 (SELECT value::text FROM category_facets) AS "CategoryFacets",
-                (SELECT value::text FROM source_facets) AS "SourceFacets",
-                (SELECT value::text FROM project_facets) AS "ProjectFacets",
-                (SELECT value::text FROM status_facets) AS "StatusFacets",
-                (SELECT value::text FROM file_type_facets) AS "FileTypeFacets",
-                (SELECT value::text FROM stage_facets) AS "StageFacets"
+                {sourceFacetValue} AS "SourceFacets",
+                {projectFacetValue} AS "ProjectFacets",
+                {statusFacetValue} AS "StatusFacets",
+                {fileTypeFacetValue} AS "FileTypeFacets",
+                {stageFacetValue} AS "StageFacets"
         ), paged_results AS (
             SELECT r."Id", r."EntityType", r."EntityKey", r."CanonicalEntityType", r."CanonicalEntityKey", r."ParentProjectId",
                    r."SourceModule", r."ResultCategory", r."Title", r."Subtitle", r."CanonicalUrl",
@@ -807,7 +860,8 @@ public sealed class SearchEngine : ISearchV2Engine
                    r."Status", r."FileType", r."EventDateUtc", r."UpdatedAtUtc", r."MetadataJson"::text AS "MetadataJson",
                    r.tier, r.fusion_score, r.channels, r.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources"
             FROM ranked r
-            WHERE r.global_rank > @afterRank
+            WHERE @facetsOnly = FALSE
+              AND r.global_rank > @afterRank
             ORDER BY r.global_rank
             LIMIT @take
         )
@@ -821,6 +875,7 @@ public sealed class SearchEngine : ISearchV2Engine
         LEFT JOIN paged_results p ON TRUE
         ORDER BY p."GlobalRank" NULLS LAST;
         """;
+    }
 
     private static SearchRow ReadRow(DbDataReader reader) => new(
         reader.GetInt64(reader.GetOrdinal("Id")),

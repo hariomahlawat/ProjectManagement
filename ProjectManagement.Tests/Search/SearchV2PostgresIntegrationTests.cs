@@ -197,4 +197,54 @@ public sealed class SearchV2PostgresIntegrationTests
         var count = Convert.ToInt64(await command.ExecuteScalarAsync());
         Assert.True(count >= 1);
     }
+
+    [Fact]
+    public async Task PostgreSql_ExactWholeTitleTokensOutrankFinalTokenPrefixSemantics()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                to_tsvector('simple', 'Mockup High Tech Simulator') @@ to_tsquery('simple', 'high & tech'),
+                NOT (to_tsvector('simple', 'High Technology Transmitter') @@ to_tsquery('simple', 'high & tech')),
+                to_tsvector('simple', 'High Technology Transmitter') @@ to_tsquery('simple', 'high & tech:*');
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+        Assert.True(reader.GetBoolean(2));
+    }
+
+    [Fact]
+    public async Task PostgreSql_FuzzyFallbackGateSkipsTrigramWhenLexicalCandidatesExist()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH simple_fts("Id") AS (
+                VALUES (101::bigint), (102::bigint)
+            ), strong_candidate_count AS (
+                SELECT COUNT(DISTINCT "Id")::int AS value
+                FROM simple_fts
+            )
+            SELECT
+                (SELECT value FROM strong_candidate_count) >= 1 AS skip_fuzzy,
+                (SELECT value FROM strong_candidate_count) = 2 AS preserves_candidate_count;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+    }
+
+
 }
