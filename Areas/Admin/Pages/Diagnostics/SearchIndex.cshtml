@@ -62,6 +62,54 @@
 
 <section class="admin-panel mt-3">
     <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Relevance diagnostics</div><h2>Ranking inspector</h2></div>
+    </header>
+    <p class="text-muted small mb-2">Runs the production Search V2 ranker with your current authorization context and shows the first ten canonical results, including the winning relevance tier and contributing retrieval channels. It does not write search analytics.</p>
+    <form method="get" class="row g-2 align-items-end" role="search" aria-label="Inspect Search V2 ranking">
+        <div class="col-lg-8">
+            <label class="form-label small" for="searchRankInspectQuery">Query</label>
+            <input id="searchRankInspectQuery" name="InspectQuery" value="@Model.InspectQuery" class="form-control" autocomplete="off" placeholder="e.g. high tech" />
+        </div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Inspect ranking</button></div>
+        @if (Model.InspectionRequested)
+        {
+            <div class="col-12 small text-muted">@(Model.InspectionReady ? $"{Model.InspectionTotalHits:N0} result(s) · {Model.InspectionLatencyMs:N0} ms" : "Search V2 is not ready for inspection.")</div>
+        }
+    </form>
+
+    @if (Model.InspectionRequested && Model.InspectionReady)
+    {
+        if (Model.InspectionResults.Count == 0)
+        {
+            <div class="admin-compact-empty mt-3"><i class="bi bi-search"></i><span>No authorized Search V2 results for this query.</span></div>
+        }
+        else
+        {
+            <div class="table-responsive mt-3">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Rank</th><th>Result</th><th>Source</th><th>Matched in</th><th>Tier</th><th>Channels</th><th>RRF score</th></tr></thead>
+                    <tbody>
+                    @foreach (var result in Model.InspectionResults)
+                    {
+                        <tr>
+                            <td><strong>@result.Rank</strong></td>
+                            <td><a href="@result.Url">@result.Title</a></td>
+                            <td><span class="small">@result.Category · @result.SourceModule</span></td>
+                            <td><span class="small">@(result.MatchedField ?? "—")</span></td>
+                            <td>@(result.MatchTier?.ToString() ?? "—")</td>
+                            <td><code class="small">@(string.IsNullOrWhiteSpace(result.MatchChannels) ? "—" : result.MatchChannels)</code></td>
+                            <td><code class="small">@result.Score.ToString("0.000000")</code></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</section>
+
+<section class="admin-panel mt-3">
+    <header class="admin-panel__header">
         <div><div class="admin-panel__eyebrow">Recovery</div><h2>Failed indexing jobs</h2></div>
         @if (Model.CanMaintain && Model.FailedItems.Count > 0)
         {

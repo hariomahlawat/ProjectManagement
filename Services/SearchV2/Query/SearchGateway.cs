@@ -155,7 +155,7 @@ public sealed class SearchGateway : ISearchGateway
 
         // Legacy providers return bounded candidate sets rather than a true
         // corpus count. IsPartial=true ensures the page labels these as Top
-        // results instead of presenting adapted.Length as an authoritative total.
+        // results instead of presenting adapted.Length as an authoritative corpus total.
         return new SearchGatewayResponse(
             normalized.Original,
             adapted,

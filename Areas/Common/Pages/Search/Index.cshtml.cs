@@ -80,7 +80,7 @@ public sealed class IndexModel : PageModel
             return new JsonResult(Array.Empty<object>());
         }
 
-        var suggestions = await _search.SuggestAsync(q, User, 8, cancellationToken);
+        var suggestions = await _search.SuggestAsync(q, User, 6, cancellationToken);
         return new JsonResult(suggestions.Select(suggestion => new
         {
             suggestion.Title,

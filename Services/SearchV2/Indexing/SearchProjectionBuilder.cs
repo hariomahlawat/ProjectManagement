@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -1022,6 +1023,8 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         object metadata)
     {
         var fuzzy = JoinNonEmpty(title, aliasText, identifierText, structuredText) ?? title;
+        var metadataNode = JsonSerializer.SerializeToNode(metadata) as JsonObject ?? new JsonObject();
+        metadataNode["searchTextQuality"] = SearchTextQuality.Score(narrativeText);
         return new SearchProjection(
             entityType,
             entityKey,
@@ -1049,7 +1052,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             _options.ProjectionVersion,
             terms,
             Array.Empty<SearchProjectionPrincipal>(),
-            JsonSerializer.Serialize(metadata));
+            metadataNode.ToJsonString());
     }
 
     private IReadOnlyList<SearchProjectionTerm> BuildTerms(

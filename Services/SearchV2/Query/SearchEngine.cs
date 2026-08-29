@@ -93,6 +93,7 @@ public sealed class SearchEngine : ISearchV2Engine
             request.DateTo);
         if (!_cursorCodec.TryDecode(cursorKey, request.Cursor, indexHealth.ActiveGeneration, out var afterRank)) afterRank = 0;
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
+        var prefixTsQuery = BuildPrefixTsQuery(normalized.Exact);
 
         try
         {
@@ -113,6 +114,7 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, "indexVersion", _options.ProjectionVersion);
             Add(command, "exact", normalized.Exact);
             Add(command, "webQuery", normalized.WebSearchQuery);
+            Add(command, "prefixTsQuery", prefixTsQuery);
             Add(command, "fuzzyThreshold", _options.FuzzyThreshold);
             Add(command, "rrfK", _options.ReciprocalRankK);
             Add(command, "afterRank", afterRank);
@@ -344,13 +346,18 @@ public sealed class SearchEngine : ISearchV2Engine
             row.FusionScore,
             row.GlobalRank,
             related,
-            row.MetadataJson);
+            row.MetadataJson,
+            row.Tier,
+            row.Channels);
     }
 
     private static string? MatchedField(string channels, SearchRow row, NormalizedSearchQuery query)
     {
-        if (channels.Contains("exact_identifier", StringComparison.Ordinal)) return "Identifier";
+        if (channels.Contains("exact_identifier", StringComparison.Ordinal)
+            || channels.Contains("identifier_prefix", StringComparison.Ordinal)) return "Identifier";
         if (channels.Contains("exact_title", StringComparison.Ordinal)
+            || channels.Contains("title_phrase", StringComparison.Ordinal)
+            || channels.Contains("title_token_prefix", StringComparison.Ordinal)
             || channels.Contains("title_prefix", StringComparison.Ordinal)
             || query.HighlightTerms.Any(term => row.Title.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
@@ -360,13 +367,15 @@ public sealed class SearchEngine : ISearchV2Engine
         var metadataMatch = MatchedFieldFromMetadata(row.MetadataJson, query.HighlightTerms);
         if (!string.IsNullOrWhiteSpace(metadataMatch)) return metadataMatch;
 
-        if (channels.Contains("alias", StringComparison.Ordinal)) return "Alias";
+        if (channels.Contains("alias", StringComparison.Ordinal)
+            || channels.Contains("alias_prefix", StringComparison.Ordinal)) return "Alias";
         if (channels.Contains("name", StringComparison.Ordinal)) return "Name";
         if (query.HighlightTerms.Any(term => (row.StructuredText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))) return "structured details";
         if (query.HighlightTerms.Any(term => (row.NarrativeText ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
             return row.EntityType is "ProjectDocument" or "DocRepoDocument" ? "OCR text" : "content";
         }
+        if (channels.Contains("title_fuzzy", StringComparison.Ordinal)) return "similar title";
         if (channels.Contains("fuzzy", StringComparison.Ordinal)) return "similar terminology";
         return null;
     }
@@ -418,8 +427,12 @@ public sealed class SearchEngine : ISearchV2Engine
 
     private static bool HasStrongLexicalChannel(string channels) =>
         channels.Contains("exact_identifier", StringComparison.Ordinal)
+        || channels.Contains("identifier_prefix", StringComparison.Ordinal)
         || channels.Contains("exact_title", StringComparison.Ordinal)
+        || channels.Contains("title_phrase", StringComparison.Ordinal)
+        || channels.Contains("title_token_prefix", StringComparison.Ordinal)
         || channels.Contains("alias", StringComparison.Ordinal)
+        || channels.Contains("alias_prefix", StringComparison.Ordinal)
         || channels.Contains("title_prefix", StringComparison.Ordinal)
         || channels.Contains("name", StringComparison.Ordinal)
         || channels.Contains("simple_fts", StringComparison.Ordinal)
@@ -483,22 +496,65 @@ public sealed class SearchEngine : ISearchV2Engine
         ), exact_title AS (
             SELECT e."Id", 1 AS tier,
                    ROW_NUMBER() OVER (ORDER BY e."EventDateUtc" DESC NULLS LAST, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
-                   'exact_title'::text AS channel, 4.0::double precision AS weight
+                   'exact_title'::text AS channel, 4.5::double precision AS weight
             FROM authorised e
             WHERE e."NormalizedTitle" = @exact
+        ), identifier_prefix AS (
+            SELECT e."Id", 1 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY LENGTH(t."NormalizedTerm"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
+                   'identifier_prefix'::text AS channel, 4.0::double precision AS weight
+            FROM authorised e
+            JOIN "SearchEntryTerms" t ON t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier'
+            WHERE LENGTH(@exact) >= 2
+              AND t."NormalizedTerm" <> @exact
+              AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+        ), title_phrase AS (
+            SELECT e."Id", 2 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || @exact || ' '),
+                                LENGTH(e."NormalizedTitle"),
+                                e."UpdatedAtUtc" DESC,
+                                e."Id") AS channel_rank,
+                   'title_phrase'::text AS channel, 3.6::double precision AS weight
+            FROM authorised e
+            WHERE e."NormalizedTitle" <> @exact
+              AND STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || @exact || ' ') > 0
         ), alias_matches AS (
             SELECT e."Id", 2 AS tier,
                    ROW_NUMBER() OVER (ORDER BY e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
-                   'alias'::text AS channel, 2.0::double precision AS weight
+                   'alias'::text AS channel, 3.0::double precision AS weight
             FROM authorised e
             WHERE EXISTS (
                 SELECT 1 FROM "SearchEntryTerms" t
                 WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact
             )
+        ), alias_prefix AS (
+            SELECT e."Id", 3 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY LENGTH(t."NormalizedTerm"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
+                   'alias_prefix'::text AS channel, 1.6::double precision AS weight
+            FROM authorised e
+            JOIN "SearchEntryTerms" t ON t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias'
+            WHERE LENGTH(@exact) >= 2
+              AND t."NormalizedTerm" <> @exact
+              AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+        ), title_token_prefix AS (
+            SELECT e."Id", 3 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY ts_rank_cd(to_tsvector('simple', e."Title"), to_tsquery('simple', @prefixTsQuery)) DESC,
+                                LENGTH(e."NormalizedTitle"),
+                                e."UpdatedAtUtc" DESC,
+                                e."Id") AS channel_rank,
+                   'title_token_prefix'::text AS channel, 2.25::double precision AS weight
+            FROM authorised e
+            WHERE @prefixTsQuery <> ''
+              AND e."SearchVectorSimple" @@ to_tsquery('simple', @prefixTsQuery)
+              AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery)
         ), title_prefix AS (
             SELECT e."Id", 3 AS tier,
                    ROW_NUMBER() OVER (ORDER BY LENGTH(e."NormalizedTitle"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
-                   'title_prefix'::text AS channel, 1.6::double precision AS weight
+                   'title_prefix'::text AS channel, 2.0::double precision AS weight
             FROM authorised e
             WHERE e."NormalizedTitle" <> @exact AND LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact
         ), name_matches AS (
@@ -506,25 +562,19 @@ public sealed class SearchEngine : ISearchV2Engine
                    ROW_NUMBER() OVER (
                        ORDER BY CASE WHEN t."NormalizedTerm" = @exact THEN 0 ELSE 1 END,
                                 LENGTH(t."NormalizedTerm"), e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
-                   'name'::text AS channel, 1.35::double precision AS weight
+                   'name'::text AS channel, 1.75::double precision AS weight
             FROM authorised e
             JOIN "SearchEntryTerms" t ON t."SearchEntryId" = e."Id" AND t."TermType" = 'Name'
             WHERE t."NormalizedTerm" = @exact
                OR (LENGTH(@exact) >= 3 AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact)
         ), simple_fts AS (
-            SELECT e."Id", 3 AS tier,
+            SELECT e."Id", 4 AS tier,
                    ROW_NUMBER() OVER (ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', @webQuery)) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
                    'simple_fts'::text AS channel, 1.25::double precision AS weight
             FROM authorised e
             WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', @webQuery)
-        ), english_fts AS (
-            SELECT e."Id", 3 AS tier,
-                   ROW_NUMBER() OVER (ORDER BY ts_rank_cd(e."SearchVectorEnglish", websearch_to_tsquery('english', @webQuery)) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
-                   'english_fts'::text AS channel, 1.0::double precision AS weight
-            FROM authorised e
-            WHERE e."SearchVectorEnglish" @@ websearch_to_tsquery('english', @webQuery)
         ), configured_alias_fts AS (
-            SELECT e."Id", 3 AS tier,
+            SELECT e."Id", 4 AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', a."Expansion")) DESC,
                                 e."UpdatedAtUtc" DESC,
@@ -533,10 +583,35 @@ public sealed class SearchEngine : ISearchV2Engine
             FROM authorised e
             JOIN "SearchAliases" a ON a."IsActive" AND a."NormalizedAlias" = @exact
             WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', a."Expansion")
+        ), english_fts AS (
+            SELECT e."Id", 5 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY (
+                           ts_rank_cd(e."SearchVectorEnglish", websearch_to_tsquery('english', @webQuery))
+                           * CASE
+                               WHEN COALESCE(e."MetadataJson"->>'searchTextQuality', '') ~ '^(0(\.[0-9]+)?|1(\.0+)?)$'
+                                   THEN GREATEST(.15::double precision, LEAST(1.0::double precision, (e."MetadataJson"->>'searchTextQuality')::double precision))
+                               ELSE 1.0::double precision
+                             END
+                       ) DESC,
+                       e."UpdatedAtUtc" DESC,
+                       e."Id") AS channel_rank,
+                   'english_fts'::text AS channel, .85::double precision AS weight
+            FROM authorised e
+            WHERE e."SearchVectorEnglish" @@ websearch_to_tsquery('english', @webQuery)
+        ), title_fuzzy AS (
+            SELECT e."Id", 6 AS tier,
+                   ROW_NUMBER() OVER (
+                       ORDER BY similarity(e."NormalizedTitle", @exact) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
+                   'title_fuzzy'::text AS channel, 0.5::double precision AS weight
+            FROM authorised e
+            WHERE LENGTH(@exact) >= 4
+              AND e."NormalizedTitle" % @exact
+              AND similarity(e."NormalizedTitle", @exact) >= @fuzzyThreshold
         ), fuzzy_matches AS (
-            SELECT e."Id", 4 AS tier,
+            SELECT e."Id", 6 AS tier,
                    ROW_NUMBER() OVER (ORDER BY similarity(e."FuzzyText", @exact) DESC, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
-                   'fuzzy'::text AS channel, 0.55::double precision AS weight
+                   'fuzzy'::text AS channel, 0.45::double precision AS weight
             FROM authorised e
             WHERE LENGTH(@exact) >= 3
               AND e."FuzzyText" % @exact
@@ -544,12 +619,17 @@ public sealed class SearchEngine : ISearchV2Engine
         ), channels AS (
             SELECT * FROM exact_identifier
             UNION ALL SELECT * FROM exact_title
+            UNION ALL SELECT * FROM identifier_prefix
+            UNION ALL SELECT * FROM title_phrase
             UNION ALL SELECT * FROM alias_matches
+            UNION ALL SELECT * FROM alias_prefix
+            UNION ALL SELECT * FROM title_token_prefix
             UNION ALL SELECT * FROM title_prefix
             UNION ALL SELECT * FROM name_matches
             UNION ALL SELECT * FROM simple_fts
-            UNION ALL SELECT * FROM english_fts
             UNION ALL SELECT * FROM configured_alias_fts
+            UNION ALL SELECT * FROM english_fts
+            UNION ALL SELECT * FROM title_fuzzy
             UNION ALL SELECT * FROM fuzzy_matches
         ), fused AS (
             SELECT "Id",

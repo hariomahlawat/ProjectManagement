@@ -28,7 +28,9 @@ public sealed record SearchResult(
     double Score,
     int Rank,
     IReadOnlyList<SearchRelatedResult> RelatedResults,
-    string? MetadataJson);
+    string? MetadataJson,
+    int? MatchTier = null,
+    string? MatchChannels = null);
 
 public sealed record SearchFacetValue(string Value, long Count, string? Label = null);
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -36,6 +37,7 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
         var highlights = HighlightTokenRegex()
             .Matches(original)
             .Select(match => match.Value.Trim('"', '\'', '(', ')'))
+            .Concat(exact.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Where(value => value.Length >= 2)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(value => value.Length)
@@ -55,7 +57,8 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
         var previousWasSpace = false;
         foreach (var ch in value.Trim().ToLowerInvariant())
         {
-            var normalized = ch is '-' or '_' ? ' ' : ch;
+            var category = char.GetUnicodeCategory(ch);
+            var normalized = ch == '_' || category == UnicodeCategory.DashPunctuation ? ' ' : ch;
             if (char.IsWhiteSpace(normalized))
             {
                 if (!previousWasSpace)

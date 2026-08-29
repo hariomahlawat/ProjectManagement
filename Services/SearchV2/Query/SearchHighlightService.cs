@@ -74,7 +74,11 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
 
     public string? BuildSnippet(string? structuredText, string? narrativeText, IReadOnlyList<string> terms)
     {
-        var source = ChooseSource(structuredText, narrativeText, terms);
+        var structured = SearchTextQuality.SanitizeForDisplay(structuredText);
+        var narrative = SearchTextQuality.SanitizeForDisplay(narrativeText);
+        var narrativeQuality = SearchTextQuality.Score(narrativeText);
+
+        var source = ChooseSource(structured, narrative, narrativeQuality, terms);
         if (string.IsNullOrWhiteSpace(source))
         {
             return null;
@@ -118,24 +122,32 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
             return string.Empty;
         }
 
-        return value
+        var stripped = value
             .Replace("<mark>", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace("</mark>", string.Empty, StringComparison.OrdinalIgnoreCase);
+        return SearchTextQuality.SanitizeForDisplay(stripped);
     }
 
-    private static string? ChooseSource(string? structured, string? narrative, IReadOnlyList<string> terms)
+    private static string? ChooseSource(string? structured, string? narrative, double narrativeQuality, IReadOnlyList<string> terms)
     {
         if (!string.IsNullOrWhiteSpace(structured) && FindFirstMatch(structured, terms) >= 0)
         {
             return structured;
         }
 
-        if (!string.IsNullOrWhiteSpace(narrative) && FindFirstMatch(narrative, terms) >= 0)
+        if (!string.IsNullOrWhiteSpace(narrative)
+            && narrativeQuality >= .42d
+            && FindFirstMatch(narrative, terms) >= 0)
         {
             return narrative;
         }
 
-        return !string.IsNullOrWhiteSpace(structured) ? structured : narrative;
+        if (!string.IsNullOrWhiteSpace(structured))
+        {
+            return structured;
+        }
+
+        return narrativeQuality >= .60d && !string.IsNullOrWhiteSpace(narrative) ? narrative : null;
     }
 
     private static int FindFirstMatch(string text, IReadOnlyList<string> terms)

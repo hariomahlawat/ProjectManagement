@@ -23,6 +23,10 @@
         .Cast<SearchFacetValue>()
         .ToArray();
 
+
+    string CategoryLabel(string? category) =>
+        string.Equals(category, "Trackers", StringComparison.OrdinalIgnoreCase) ? "Records" : category ?? string.Empty;
+
     string BuildUrl(
         string query,
         string? category,
@@ -106,7 +110,7 @@
                    type="search"
                    name="q"
                    class="pm-gs-search__input"
-                   placeholder="Search projects, identifiers, documents and trackers"
+                   placeholder="Search projects, identifiers, documents and records"
                    autocomplete="off"
                    spellcheck="false"
                    data-search-suggest
@@ -153,12 +157,12 @@ else
             @if (Model.Search.Facets.Categories.Count > 0)
             {
                 <nav class="pm-gs-tabs" aria-label="Result categories">
-                    <a class="pm-gs-tab @(selectedCategory is null ? "is-active" : string.Empty)" href="@BuildUrl(Model.Q!, null)">All</a>
+                    <a class="pm-gs-tab @(selectedCategory is null ? "is-active" : string.Empty)" href="@BuildUrl(Model.Q!, null)">All <span class="pm-gs-tab__count">@Model.Search.TotalHits</span></a>
                     @foreach (var facet in orderedCategoryFacets)
                     {
                         <a class="pm-gs-tab @(string.Equals(selectedCategory, facet.Value, StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)"
                            href="@BuildUrl(Model.Q!, facet.Value)">
-                            @facet.Value <span class="pm-gs-tab__count">@facet.Count</span>
+                            @CategoryLabel(facet.Value) <span class="pm-gs-tab__count">@facet.Count</span>
                         </a>
                     }
                 </nav>
@@ -172,7 +176,7 @@ else
                 <div>
                     @if (Model.Search.IsPartial)
                     {
-                        <div class="pm-gs-meta"><strong>Top results</strong></div>
+                        <div class="pm-gs-meta"><strong>Results</strong></div>
                     }
                     else
                     {
@@ -368,7 +372,7 @@ else
                     {
                         <article class="pm-gs-hit">
                             <div class="pm-gs-hit__breadcrumb">
-                                <span>@hit.Category</span>
+                                <span>@CategoryLabel(hit.Category)</span>
                                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
                                 <span>@hit.SourceModule</span>
                                 @if (!string.IsNullOrWhiteSpace(hit.Status))

@@ -58,6 +58,28 @@ public sealed class SearchV2PostgresIntegrationTests
 
 
     [Fact]
+    public async Task PostgreSql_TitlePhraseAndFinalTokenPrefix_PrimitivesMatchSearchV2Semantics()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                STRPOS(' mockup based pinaka high tech sml ', ' high tech ') > 0,
+                to_tsvector('simple', 'Design and Devp of High Technology Transmitter')
+                    @@ to_tsquery('simple', 'high & tech:*');
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+    }
+
+
+    [Fact]
     public async Task PostgreSql_DisjunctiveFacetCounting_PreservesOtherFiltersAndCanonicalEntities()
     {
         if (string.IsNullOrWhiteSpace(ConnectionString)) return;

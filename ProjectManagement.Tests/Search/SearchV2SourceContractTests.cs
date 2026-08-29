@@ -173,7 +173,62 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("initProjectFacets", script, StringComparison.Ordinal);
         Assert.Contains("data-project-facet-search", script, StringComparison.Ordinal);
         Assert.Contains("position: sticky", css, StringComparison.Ordinal);
+        Assert.Contains("top: var(--pm-header-height, 52px);", css, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void SearchV2_RelevanceHardeningIsTitleFirstAndQualityAware()
+    {
+        var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
+        var projection = ReadRepoFile("Services", "SearchV2", "Indexing", "SearchProjectionBuilder.cs");
+        var options = ReadRepoFile("Services", "SearchV2", "SearchV2Options.cs");
+
+        Assert.Contains("title_phrase", engine, StringComparison.Ordinal);
+        Assert.Contains("identifier_prefix", engine, StringComparison.Ordinal);
+        Assert.Contains("alias_prefix", engine, StringComparison.Ordinal);
+        Assert.Contains("title_token_prefix", engine, StringComparison.Ordinal);
+        Assert.Contains("title_fuzzy", engine, StringComparison.Ordinal);
+        Assert.Contains("@prefixTsQuery", engine, StringComparison.Ordinal);
+        Assert.Contains("STRPOS(' ' || e.\"NormalizedTitle\" || ' ', ' ' || @exact || ' ') > 0", engine, StringComparison.Ordinal);
+        Assert.Contains("'english_fts'::text AS channel", engine, StringComparison.Ordinal);
+        Assert.Contains("5 AS tier", engine, StringComparison.Ordinal);
+        Assert.Contains("searchTextQuality", engine, StringComparison.Ordinal);
+        Assert.Contains("searchTextQuality", projection, StringComparison.Ordinal);
+        Assert.Contains("public int ProjectionVersion { get; set; } = 4;", options, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchPage_UsesRecordsDisplayLabelAllCountAndSixSuggestions()
+    {
+        var view = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml");
+        var model = ReadRepoFile("Areas", "Common", "Pages", "Search", "Index.cshtml.cs");
+        var options = ReadRepoFile("Services", "SearchV2", "SearchV2Options.cs");
+
+        Assert.Contains("CategoryLabel", view, StringComparison.Ordinal);
+        Assert.Contains("Records", view, StringComparison.Ordinal);
+        Assert.Contains("@Model.Search.TotalHits", view, StringComparison.Ordinal);
+        Assert.Contains("SuggestAsync(q, User, 6", model, StringComparison.Ordinal);
+        Assert.Contains("public int SuggestionLimit { get; set; } = 6;", options, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchDiagnostics_ExposeAuthorisedRankingInspectorWithTierAndChannels()
+    {
+        var model = ReadRepoFile("Areas", "Admin", "Pages", "Diagnostics", "SearchIndex.cshtml.cs");
+        var view = ReadRepoFile("Areas", "Admin", "Pages", "Diagnostics", "SearchIndex.cshtml");
+        var contracts = ReadRepoFile("Services", "SearchV2", "Models", "SearchContracts.cs");
+        var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
+
+        Assert.Contains("ISearchV2Engine", model, StringComparison.Ordinal);
+        Assert.Contains("InspectQuery", model, StringComparison.Ordinal);
+        Assert.Contains("InspectionResults", model, StringComparison.Ordinal);
+        Assert.Contains("Ranking inspector", view, StringComparison.Ordinal);
+        Assert.Contains("MatchTier", contracts, StringComparison.Ordinal);
+        Assert.Contains("MatchChannels", contracts, StringComparison.Ordinal);
+        Assert.Contains("row.Tier", engine, StringComparison.Ordinal);
+        Assert.Contains("row.Channels", engine, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] parts)
     {
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", Path.Combine(parts)));

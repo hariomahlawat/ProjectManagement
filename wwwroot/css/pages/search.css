@@ -191,7 +191,7 @@
 /* Results state ------------------------------------------------------- */
 .pm-gs-top {
     position: sticky;
-    top: var(--pm-topbar-height, 0px);
+    top: var(--pm-header-height, 52px);
     z-index: 12;
     border-bottom: 1px solid #dde4ee;
     background: rgba(248, 250, 253, .95);
@@ -627,6 +627,10 @@
 }
 
 @media (max-width: 767.98px) {
+    .pm-gs-top {
+        top: var(--pm-header-height, 50px);
+    }
+
     .pm-gs-hero {
         padding-top: 3.5rem;
     }

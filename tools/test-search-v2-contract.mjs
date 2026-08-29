@@ -94,7 +94,7 @@ const searchCss = read('wwwroot', 'css', 'pages', 'search.css');
 const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
 const adminSearchIndex = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml.cs');
 
-expect(options.includes('ProjectionVersion') && options.includes('= 3;'), 'Projection semantic version is missing or was not bumped');
+expect(options.includes('ProjectionVersion') && options.includes('= 4;'), 'Projection semantic version is missing or was not bumped to 4');
 expect(worker.includes('IsReadyAsync(_options.ProjectionVersion'), 'Index worker does not force projection-version compatibility');
 expect(worker.includes('ReplaceFullGenerationAsync(projections, _options.ProjectionVersion'), 'Full rebuild does not activate the configured projection version');
 expect(indexStore.includes('RequestFullRebuildAsync') && indexStore.includes("'__FullRebuild__'"), 'Administrative full rebuild queue support is missing');
@@ -130,6 +130,7 @@ expect(view.includes('data-project-facet-search') && view.includes('data-project
 expect(view.includes('Relevant date'), 'Date facet has not been clarified as Relevant date');
 expect(view.includes('BuildRelatedUrl'), 'Related result chips are not navigable');
 expect(searchCss.includes('position: sticky') && searchCss.includes('.pm-gs-active-filter'), 'Filter sticky actions/active-chip styling is incomplete');
+expect(searchCss.includes('top: var(--pm-header-height, 52px);'), 'Search results sticky header does not clear the 52px PRISM application header');
 expect(searchJs.includes('initProjectFacets'), 'Project facet search/show-more JavaScript is missing');
 expect(searchJs.includes('data-project-facet-search') && searchJs.includes('data-project-facet-more'), 'Project facet JavaScript is not wired to the Razor data contract');
 expect(pageModel.includes('if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value > DateTo.Value)'), 'Invalid date ranges are not normalized before search');
@@ -141,6 +142,28 @@ expect(gateway.includes('gatewayLatencyMs') && gateway.includes('\"V2-Engine\"')
 expect(healthService.includes('\"V2-Engine\"') && healthService.includes('EngineP95LatencyMs') && healthService.includes('\"V2-Suggest\"') && healthService.includes('SuggestionP95LatencyMs'), 'Search Health engine/suggestion latency metrics are missing');
 expect(exists('tools', 'search-v2-relevance-evaluator.mjs'), 'Search V2 relevance evaluator is missing');
 expect(exists('tools', 'search-v2-relevance-dataset.schema.json'), 'Search V2 relevance dataset schema is missing');
+
+// Search V2 relevance & result-quality hardening gates.
+expect(normalizer.includes('UnicodeCategory.DashPunctuation'), 'Unicode dash punctuation is not normalized consistently');
+expect(exists('Services', 'SearchV2', 'Query', 'SearchTextQuality.cs'), 'Search text-quality utility is missing');
+expect(engine.includes('title_phrase'), 'Normalized title-phrase ranking channel is missing');
+expect(engine.includes('identifier_prefix'), 'Committed search does not cover autocomplete identifier-prefix candidates');
+expect(engine.includes('alias_prefix'), 'Committed search does not cover autocomplete alias-prefix candidates');
+expect(engine.includes('title_token_prefix'), 'Committed search does not share title-prefix semantics with autocomplete');
+expect(engine.includes('title_fuzzy'), 'Committed search does not cover autocomplete title-fuzzy candidates');
+expect(engine.includes(`STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || @exact || ' ') > 0`), 'Title phrase detection is missing');
+expect(engine.includes('searchTextQuality'), 'Narrative/OCR ranking is not quality-aware');
+expect(projectionBuilder.includes('searchTextQuality'), 'Projection metadata does not persist searchTextQuality');
+expect(options.includes('public int SuggestionLimit { get; set; } = 6;'), 'Autocomplete default is not capped at six results');
+expect(pageModel.includes('SuggestAsync(q, User, 6'), 'Search page does not request six autocomplete results');
+expect(view.includes('CategoryLabel') && view.includes('Records'), 'Trackers is not mapped to the user-facing Records label');
+expect(view.includes('pm-gs-tab__count">@Model.Search.TotalHits'), 'All tab does not show the total result count');
+const searchContracts = read('Services', 'SearchV2', 'Models', 'SearchContracts.cs');
+const searchDiagnosticsView = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml');
+expect(adminSearchIndex.includes('ISearchV2Engine') && adminSearchIndex.includes('InspectQuery') && adminSearchIndex.includes('InspectionResults'), 'Authorised ranking inspector backend is missing');
+expect(searchDiagnosticsView.includes('Ranking inspector'), 'Search diagnostics ranking inspector UI is missing');
+expect(searchContracts.includes('MatchTier') && searchContracts.includes('MatchChannels'), 'Search results do not preserve rank tier/channel diagnostics');
+
 if (failures.length) {
   console.error(`Search V2 contract failed (${failures.length}):`);
   failures.forEach((failure) => console.error(` - ${failure}`));

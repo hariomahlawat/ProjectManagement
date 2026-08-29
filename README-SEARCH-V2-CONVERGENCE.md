@@ -75,3 +75,30 @@ Use a disposable/test database. These tests intentionally do not use EF InMemory
 ## Verification limitation
 
 The packaging environment does not contain the .NET SDK/MSBuild/C# compiler. Source contracts, JavaScript syntax, JSON/schema integrity, packaging and differential checks are executed here, but the authoritative C# compile/xUnit run must be performed on your development machine with `VERIFY-SEARCH-V2.ps1`.
+
+## 2026-08-29 relevance & result-quality hardening
+
+The current package also includes the Search V2 relevance/quality hardening pass:
+
+- `high tech`, `high-tech`, Unicode-dash variants and underscore-separated variants normalize to the same exact query representation.
+- Full search now has explicit `identifier_prefix`, `title_phrase`, `alias_prefix`, `title_token_prefix` and `title_fuzzy` channels. Every autocomplete candidate family therefore has a committed-search counterpart, while strong normalized title intent still ranks ahead of broad structured/body matches.
+- Broad/simple FTS is a lower relevance tier than title intent; narrative/English FTS is lower again, and fuzzy retrieval remains fallback-only.
+- Each rebuilt SearchEntry stores deterministic `searchTextQuality` metadata. Narrative/OCR ordering uses this factor so corrupted extracted text is demoted among comparable body matches.
+- Snippet sources are display-sanitized; very low-quality narrative windows are suppressed instead of showing OCR garbage.
+- Autocomplete is capped at six entity suggestions, followed by the existing “See all results” action.
+- Internal category key `Trackers` is preserved for URLs/filters, but the search UI displays the user-facing label **Records**.
+- The All tab now shows the total result count and legacy partial mode uses the neutral heading **Results** instead of **Top results**.
+- The results search/tabs header now sticks below the PRISM navigation bar instead of sliding underneath it while scrolling.
+- Admin > Diagnostics > Search index now includes an authorization-aware **Ranking inspector** showing rank, matched field, tier, retrieval channels and RRF score for the top ten V2 results without writing ordinary search analytics.
+
+`SearchV2Options.ProjectionVersion` is now **4** (also explicit in `appsettings.json`). The existing SearchIndexWorker detects the version mismatch and performs the normal atomic full projection rebuild; no new EF migration is required for this hardening pass.
+
+Recommended acceptance queries after the rebuild are complete:
+
+1. `high tech` — exact/normalized title phrase matches should rank ahead of loose OCR/body matches.
+2. `high-tech` and `HI–TECH` — should converge with `high tech`.
+3. `hyderabad` — autocomplete should show at most six entity suggestions plus “See all results”.
+4. A title containing `Technology` with query ending in `tech` — if suggested, it must remain discoverable after committing the same query.
+5. A partial identifier and a partial configured alias that appear in autocomplete — each must remain discoverable after commit.
+6. A deliberately misspelled title that appears through autocomplete fuzzy matching — it must remain discoverable in full search and may still offer spelling correction.
+7. Known noisy scanned PDFs — searchable, but poor OCR snippets should be suppressed/demoted rather than dominate presentation.

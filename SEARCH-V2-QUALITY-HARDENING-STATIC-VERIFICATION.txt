@@ -1,0 +1,75 @@
+PRISM Search V2 — Relevance, Consistency & Result Quality Hardening
+Static verification record
+Date: 2026-08-29
+
+Environment limitation
+----------------------
+This packaging environment does not provide dotnet/MSBuild/C# compiler or PowerShell, and outbound container networking is unavailable for NuGet/SDK installation.
+Therefore an authoritative `dotnet build` and xUnit run cannot be executed here. Those commands remain mandatory on the Windows/.NET development machine before deployment.
+
+TDD / regression evidence
+-------------------------
+The source-contract suite was extended before the corresponding production changes.
+Observed RED states included missing query normalization/quality/ranking/UX gates, then the additional autocomplete-consistency channels (identifier_prefix, alias_prefix, title_fuzzy), and finally the sticky-header offset / ranking-inspector gates. Each failed for the expected missing behavior before implementation and passed after implementation.
+
+Executed checks (final tree)
+----------------------------
+1. `node tools/test-search-v2-contract.mjs`
+   Result: PASS — Search V2 source contract passed.
+
+2. `node --check wwwroot/js/pages/search.js`
+   Result: PASS.
+
+3. `node --check tools/test-search-v2-contract.mjs`
+   Result: PASS.
+
+4. `node --check tools/search-v2-relevance-evaluator.mjs`
+   Result: PASS.
+
+5. `appsettings.json` parse
+   Result: PASS (parsed by source-contract harness).
+
+6. Stale-contract scans
+   Result: PASS.
+   - `SuggestAsync(q, User, 8` — no production occurrence.
+   - Search V2 `ProjectionVersion = 3` — no production occurrence.
+   - direct tracker tab rendering via `@facet.Value` — absent.
+   - `Html.Raw(hit.Snippet)` / `Html.Raw(hit.Title)` — absent.
+   - obsolete search sticky variable `--pm-topbar-height` — absent from search.css.
+
+Implemented hardening gates
+---------------------------
+- Unicode dash/underscore query normalization.
+- Cross-punctuation highlight terms.
+- Exact/prefix identifier consistency between suggestions and committed search.
+- `title_phrase` relevance channel.
+- Exact/prefix alias consistency between suggestions and committed search.
+- `title_token_prefix` committed-search channel using the same final-token prefix semantics as autocomplete.
+- `title_fuzzy` committed-search channel so fuzzy autocomplete candidates remain discoverable.
+- Strong title/identifier/alias intent tiered ahead of broad structured/body matching.
+- Narrative/English matches tiered below structured matches.
+- `searchTextQuality` projection metadata and narrative rank weighting.
+- Low-quality snippet suppression and display sanitation.
+- ProjectionVersion 4 atomic rebuild boundary; no new EF migration.
+- Six-result autocomplete cap plus existing “See all results”.
+- Trackers -> Records display mapping without URL/filter key changes.
+- All-result count and neutral legacy partial heading.
+- Results search/tabs sticky header clears the PRISM application header (52 px desktop / 50 px small screens fallback).
+- Admin Search Index Ranking Inspector using the real V2 ranker under the current authorization context, exposing rank, matched field, tier, channels and RRF score without ordinary search-query analytics writes.
+- Optional SearchResult MatchTier/MatchChannels diagnostics; legacy adapted results remain compatible through optional fields.
+
+Authoritative verification required on development machine
+----------------------------------------------------------
+From the project root (folder containing ProjectManagement.csproj):
+
+    npm ci
+    dotnet restore ProjectManagement.sln
+    dotnet build ProjectManagement.sln --no-restore
+    dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj --no-build
+
+Optional real PostgreSQL search primitives/integration checks:
+
+    $env:PRISM_SEARCHV2_TEST_CONNECTION = "Host=...;Database=...;Username=...;Password=..."
+    dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj --filter SearchV2PostgresIntegrationTests
+
+Then start PRISM against PostgreSQL. ProjectionVersion changed from 3 to 4, so SearchIndexWorker must complete the normal atomic full rebuild before V2 serves the new projection. Confirm Admin > Diagnostics > Search index reports the active projection as 4 / 4, then run the acceptance queries in README-SEARCH-V2-CONVERGENCE.md.

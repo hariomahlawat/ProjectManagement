@@ -6,6 +6,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.SearchV2.Models;
+using ProjectManagement.Services.SearchV2.Query;
 
 namespace ProjectManagement.Areas.Admin.Pages.Diagnostics;
 
@@ -15,15 +16,18 @@ public sealed class SearchIndexModel : PageModel
 {
     private readonly ISearchIndexStore _store;
     private readonly IAuthorizationService _authorization;
+    private readonly ISearchV2Engine _engine;
     private readonly SearchV2Options _options;
 
     public SearchIndexModel(
         ISearchIndexStore store,
         IAuthorizationService authorization,
+        ISearchV2Engine engine,
         IOptions<SearchV2Options> options)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -33,12 +37,34 @@ public sealed class SearchIndexModel : PageModel
     public int SearchSchemaVersion => _options.IndexVersion;
     public bool CanMaintain { get; private set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string? InspectQuery { get; set; }
+
+    public IReadOnlyList<SearchResult> InspectionResults { get; private set; } = Array.Empty<SearchResult>();
+    public long InspectionTotalHits { get; private set; }
+    public long InspectionLatencyMs { get; private set; }
+    public bool InspectionRequested => !string.IsNullOrWhiteSpace(InspectQuery);
+    public bool InspectionReady { get; private set; }
+
     [TempData]
     public string? StatusMessage { get; set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadAsync(cancellationToken);
+
+        if (!InspectionRequested) return;
+
+        var query = InspectQuery!.Trim();
+        var response = await _engine.SearchAsync(
+            new SearchRequest(Query: query, PageSize: 10),
+            User,
+            cancellationToken);
+
+        InspectionReady = response.IsReady;
+        InspectionResults = response.Results;
+        InspectionTotalHits = response.TotalHits;
+        InspectionLatencyMs = response.QueryTimeMilliseconds;
     }
 
     public async Task<IActionResult> OnPostRebuildAsync(CancellationToken cancellationToken)
