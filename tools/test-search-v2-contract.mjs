@@ -111,7 +111,7 @@ for (const kind of ['Name', 'Organisation', 'Location', 'Person', 'Context']) {
 }
 expect(exists('Services', 'SearchV2', 'Query', 'SearchAliasProvider.cs'), 'Database-backed search alias provider is missing');
 expect(aliasProvider.includes('FROM "SearchAliases"') && aliasProvider.includes('SearchAliasQueryExpander'), 'SearchAliases is not the runtime terminology source');
-expect(aliasProvider.includes('string.Join(" OR ", variants'), 'Compound alias expansion does not preserve mandatory non-alias terms through whole-query variants');
+expect(aliasProvider.includes('string.Join(" OR ", aliasVariants'), 'Compound alias expansion does not preserve mandatory non-alias terms through whole-query alias variants');
 expect(normalizer.includes('Runtime terminology expansion is owned by SearchAliasProvider'), 'Query normalizer still owns a second terminology catalogue');
 expect(!normalizer.includes('BuildExpansionVariants'), 'Hard-coded normalizer alias expansion is still present');
 expect(engine.includes('HasStrongLexicalChannel'), 'Did-you-mean is not gated by strong lexical matches');
@@ -191,6 +191,29 @@ expect(view.includes('@Model.Search.FilteredHits'), 'Search result heading does 
 const siteCss = read('wwwroot', 'css', 'site.css');
 expect(!siteCss.includes('/* ---------- Global Search (Google-style) ---------- */'), 'Legacy Global Search CSS block still contaminates Search V2');
 expect(!/\.pm-gs-[a-zA-Z0-9_-]+\s*\{/.test(siteCss), 'site.css still owns Search V2 selectors');
+
+
+// Search V2 query-assistance, alias-semantics and performance-closure gates.
+expect(exists('Services', 'SearchV2', 'Query', 'SearchCorrectionService.cs'), 'Dedicated Search V2 correction service is missing');
+expect(exists('Services', 'SearchV2', 'Query', 'SearchAuthorizationSql.cs'), 'Shared Search V2 authorization SQL helper is missing');
+expect(exists('Services', 'SearchV2', 'Query', 'SearchDisplayValueFormatter.cs'), 'Search display-value formatter is missing');
+const correction = read('Services', 'SearchV2', 'Query', 'SearchCorrectionService.cs');
+const di = read('Services', 'SearchV2', 'SearchV2ServiceCollectionExtensions.cs');
+expect(correction.includes('ISearchCorrectionService'), 'Correction service contract is missing');
+expect(correction.includes('SearchTermKinds.Location') && correction.includes('SearchTermKinds.Organisation') && correction.includes('SearchTermKinds.Name'), 'Correction vocabulary is not restricted to authoritative typed terms plus titles');
+expect(!correction.includes('NarrativeText') && !correction.includes('StructuredText'), 'Correction vocabulary must not ingest narrative/OCR body text');
+expect(correction.includes('DamerauLevenshteinDistance') && correction.includes('CorrectionMinConfidence'), 'Correction confidence is not multi-signal and bounded');
+expect(correction.includes('IsProtectedOriginalToken'), 'Acronym/identifier correction protection is missing');
+expect(di.includes('AddScoped<ISearchCorrectionService, SearchCorrectionService>()'), 'Correction service is not registered in DI');
+expect(aliasProvider.includes('AliasWebSearchQuery') && aliasProvider.includes('AliasExactQueries'), 'Literal and alias query variants are not separated');
+expect(engine.includes('Add(command, "aliasWebQuery", aliasWebSearchQuery)'), 'SearchEngine does not bind the separated alias query');
+expect(engine.includes(`'alias_fts'::text AS channel`), 'Dedicated alias FTS channel is missing');
+expect(engine.includes("websearch_to_tsquery('simple', @webQuery)") && engine.includes("websearch_to_tsquery('simple', @aliasWebQuery)"), 'Literal and alias FTS parameters are not independently executed');
+expect(!engine.includes('configured_alias_fts'), 'Legacy configured_alias_fts path still bypasses separated alias semantics');
+expect(engine.includes('_corrections.TryCorrectAsync') && engine.includes('autocomplete used spelling-assistance fallback'), 'Committed search/autocomplete correction fallback is not wired end-to-end');
+expect(matchEvidence.includes('alias_fts') && matchEvidence.includes('alias_title_phrase'), 'Alias-aware match evidence is incomplete');
+expect(options.includes('CorrectionCandidateTrigramThreshold') && options.includes('CorrectionMinConfidence') && options.includes('CorrectionMaxEditDistance'), 'Correction guardrails are not configurable');
+expect(options.includes('public int ProjectionVersion { get; set; } = 4;'), 'Query-assistance phase must not force a projection rebuild');
 
 
 if (failures.length) {

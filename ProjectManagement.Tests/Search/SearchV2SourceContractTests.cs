@@ -300,6 +300,29 @@ public sealed class SearchV2SourceContractTests
         Assert.DoesNotContain("bi-check2-circle", view, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void SearchV2_QueryAssistanceSeparatesLiteralAliasesAndUsesAuthorisedCorrectionVocabulary()
+    {
+        var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
+        var correction = ReadRepoFile("Services", "SearchV2", "Query", "SearchCorrectionService.cs");
+        var aliases = ReadRepoFile("Services", "SearchV2", "Query", "SearchAliasProvider.cs");
+        var di = ReadRepoFile("Services", "SearchV2", "SearchV2ServiceCollectionExtensions.cs");
+
+        Assert.Contains("ISearchCorrectionService", correction, StringComparison.Ordinal);
+        Assert.Contains("SearchTermKinds.Location", correction, StringComparison.Ordinal);
+        Assert.Contains("SearchTermKinds.Organisation", correction, StringComparison.Ordinal);
+        Assert.Contains("SearchTermKinds.Name", correction, StringComparison.Ordinal);
+        Assert.DoesNotContain("NarrativeText", correction, StringComparison.Ordinal);
+        Assert.DoesNotContain("StructuredText", correction, StringComparison.Ordinal);
+        Assert.Contains("@aliasWebQuery", engine, StringComparison.Ordinal);
+        Assert.Contains("'alias_fts'::text AS channel", engine, StringComparison.Ordinal);
+        Assert.Contains("websearch_to_tsquery('simple', @webQuery)", engine, StringComparison.Ordinal);
+        Assert.Contains("websearch_to_tsquery('simple', @aliasWebQuery)", engine, StringComparison.Ordinal);
+        Assert.Contains("AliasWebSearchQuery", aliases, StringComparison.Ordinal);
+        Assert.Contains("AddScoped<ISearchCorrectionService, SearchCorrectionService>()", di, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] parts)
     {
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", Path.Combine(parts)));

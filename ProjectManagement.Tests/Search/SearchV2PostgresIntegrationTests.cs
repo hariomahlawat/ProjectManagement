@@ -247,4 +247,46 @@ public sealed class SearchV2PostgresIntegrationTests
     }
 
 
+    [Fact]
+    public async Task PostgreSql_CorrectionShortlistCanRecoverDeletionHeavyHyderabadTypo()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                GREATEST(similarity('hyderabad', 'hydrbd'), word_similarity('hydrbd', 'hyderabad')) >= 0.18,
+                GREATEST(similarity('hyderabad', 'hyderbad'), word_similarity('hyderbad', 'hyderabad'))
+                    > GREATEST(similarity('hyderabad', 'hydrbd'), word_similarity('hydrbd', 'hyderabad'));
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+    }
+
+    [Fact]
+    public async Task PostgreSql_LiteralAndAliasFtsRemainIndependent()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString)) return;
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                NOT (to_tsvector('simple', 'Management of Hi Tech Appointments') @@ websearch_to_tsquery('simple', 'high tech')),
+                to_tsvector('simple', 'Management of Hi Tech Appointments') @@ websearch_to_tsquery('simple', '"hi tech"');
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+    }
+
+
 }

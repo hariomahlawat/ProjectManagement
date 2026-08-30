@@ -90,11 +90,15 @@ public static class SearchAliasQueryExpander
 {
     public static ExpandedSearchQuery Expand(string exact, IReadOnlyList<SearchAliasRule> rules)
     {
+        exact = NormalizeAlias(exact);
         if (string.IsNullOrWhiteSpace(exact) || rules.Count == 0)
         {
-            return new ExpandedSearchQuery(exact, Array.Empty<string>());
+            return new ExpandedSearchQuery(exact, string.Empty, Array.Empty<string>(), Array.Empty<string>());
         }
 
+        // Keep the user's literal query immutable. Alias variants are generated on a
+        // separate channel so literal FTS, ranking evidence and performance remain
+        // independently explainable.
         var variants = new List<string> { exact };
         var expansions = new List<string>();
 
@@ -102,32 +106,49 @@ public static class SearchAliasQueryExpander
                      .GroupBy(rule => NormalizeAlias(rule.NormalizedAlias), StringComparer.OrdinalIgnoreCase)
                      .OrderByDescending(group => group.Key.Length))
         {
-            if (string.IsNullOrWhiteSpace(group.Key) || !ContainsPhrase(exact, group.Key)) continue;
+            if (string.IsNullOrWhiteSpace(group.Key)) continue;
 
             var current = variants.ToArray();
             foreach (var variant in current)
             {
+                if (!ContainsPhrase(variant, group.Key)) continue;
+
                 foreach (var rule in group)
                 {
                     var expansion = CleanExpansion(rule.Expansion);
                     if (string.IsNullOrWhiteSpace(expansion)) continue;
+
                     var replaced = ReplacePhrase(variant, group.Key, QuoteForWebSearch(expansion));
                     if (!string.Equals(replaced, variant, StringComparison.OrdinalIgnoreCase))
                     {
                         variants.Add(replaced);
                         expansions.Add(expansion);
                     }
+
                     if (variants.Count >= 12) break;
                 }
+
                 if (variants.Count >= 12) break;
             }
+
             if (variants.Count >= 12) break;
         }
 
-        // Every variant preserves all non-alias terms. Joining variants with OR therefore
-        // yields: AURA ToT OR AURA "Transfer of Technology", not AURA OR ToT OR ...
+        var aliasVariants = variants
+            .Where(variant => !string.Equals(variant, exact, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var aliasExactQueries = aliasVariants
+            .Select(variant => NormalizeAlias(variant.Replace('"', ' ')))
+            .Where(variant => !string.IsNullOrWhiteSpace(variant))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         return new ExpandedSearchQuery(
-            string.Join(" OR ", variants.Distinct(StringComparer.OrdinalIgnoreCase)),
+            exact,
+            string.Join(" OR ", aliasVariants),
+            aliasExactQueries,
             expansions.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
@@ -153,4 +174,8 @@ public static class SearchAliasQueryExpander
     private static string QuoteForWebSearch(string value) => value.Contains(' ') ? $"\"{value}\"" : value;
 }
 
-public sealed record ExpandedSearchQuery(string WebSearchQuery, IReadOnlyList<string> Expansions);
+public sealed record ExpandedSearchQuery(
+    string WebSearchQuery,
+    string AliasWebSearchQuery,
+    IReadOnlyList<string> AliasExactQueries,
+    IReadOnlyList<string> Expansions);

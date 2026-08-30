@@ -64,9 +64,9 @@ public static partial class SearchMatchEvidenceResolver
             return string.Join(" + ", selected.Distinct(StringComparer.OrdinalIgnoreCase));
         }
 
-        if (ContainsChannel(channels, "alias") || ContainsChannel(channels, "alias_prefix") || ContainsChannel(channels, "configured_alias_fts"))
+        if (ContainsChannel(channels, "alias") || ContainsChannel(channels, "alias_prefix") || ContainsChannel(channels, "alias_fts"))
         {
-            return "Alias";
+            return "related terminology";
         }
 
         if (ContainsChannel(channels, "name")) return "Name";

@@ -34,8 +34,8 @@ public sealed class SearchV2QueryTests
 
         var result = SearchAliasQueryExpander.Expand(normalizedAlias, rules);
 
-        Assert.Contains(normalizedAlias, result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(expansion, result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(normalizedAlias, result.WebSearchQuery);
+        Assert.Contains(expansion, result.AliasWebSearchQuery, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(expansion, result.Expansions, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -46,9 +46,10 @@ public sealed class SearchV2QueryTests
 
         var result = SearchAliasQueryExpander.Expand("aura tot", rules);
 
-        Assert.Contains("aura tot", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("aura \"Transfer of Technology\"", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(" OR \"Transfer of Technology\"", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("aura tot", result.WebSearchQuery);
+        Assert.Contains("aura \"Transfer of Technology\"", result.AliasWebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("aura transfer of technology", result.AliasExactQueries, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain(" OR \"Transfer of Technology\"", result.AliasWebSearchQuery, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -59,6 +60,8 @@ public sealed class SearchV2QueryTests
         var result = SearchAliasQueryExpander.Expand("total simulator", rules);
 
         Assert.Equal("total simulator", result.WebSearchQuery);
+        Assert.Empty(result.AliasWebSearchQuery);
+        Assert.Empty(result.AliasExactQueries);
         Assert.Empty(result.Expansions);
     }
 
@@ -251,6 +254,106 @@ public sealed class SearchV2QueryTests
 
         Assert.Contains("hi tech", highTech.Expansions, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("high tech", hiTech.Expansions, StringComparer.OrdinalIgnoreCase);
+    }
+
+
+    [Theory]
+    [InlineData("hydrbd", "hyderabad", 0.30, 18, 5)]
+    [InlineData("hydrbad", "hyderabad", 0.38, 18, 5)]
+    [InlineData("hyderbad", "hyderabad", 0.55, 18, 5)]
+    public void CorrectionScorer_AcceptsRepresentativeHyderabadTypos(
+        string input,
+        string candidate,
+        double trigram,
+        int frequency,
+        int authority)
+    {
+        var options = new SearchV2Options();
+        var result = SearchCorrectionScorer.SelectBest(
+            input,
+            new[] { new SearchCorrectionCandidate(candidate, frequency, authority, trigram) },
+            options);
+
+        Assert.NotNull(result);
+        Assert.Equal("hyderabad", result!.Token);
+    }
+
+    [Theory]
+    [InlineData("AURA")]
+    [InlineData("ARPP")]
+    [InlineData("T90")]
+    [InlineData("985060")]
+    [InlineData("GEM2026B7803679")]
+    public void CorrectionScorer_ProtectsAcronymsAndIdentifiers(string token)
+    {
+        Assert.True(SearchCorrectionScorer.IsProtectedOriginalToken(token));
+    }
+
+    [Fact]
+    public void CorrectionScorer_PrefersAuthoritativeFrequentLocationOverSimilarLowAuthorityWord()
+    {
+        var options = new SearchV2Options();
+        var result = SearchCorrectionScorer.SelectBest(
+            "hydrbd",
+            new[]
+            {
+                new SearchCorrectionCandidate("hybrid", 1, 2, 0.48),
+                new SearchCorrectionCandidate("hyderabad", 18, 5, 0.30)
+            },
+            options);
+
+        Assert.NotNull(result);
+        Assert.Equal("hyderabad", result!.Token);
+    }
+
+    [Fact]
+    public void CorrectionScorer_RebuildsMultiTokenQueryWithoutChangingProtectedTerms()
+    {
+        var rebuilt = SearchCorrectionScorer.ApplyReplacements(
+            new[] { "iit", "hydrbad", "meeting" },
+            new Dictionary<int, string> { [1] = "hyderabad" });
+
+        Assert.Equal("iit hyderabad meeting", rebuilt);
+    }
+
+    [Fact]
+    public void AliasExpander_KeepsPrimaryWebQueryLiteralAndSeparatesAliasQuery()
+    {
+        var rules = new[] { new SearchAliasRule("High Tech", "high tech", "hi tech") };
+
+        var result = SearchAliasQueryExpander.Expand("high tech", rules);
+
+        Assert.Equal("high tech", result.WebSearchQuery);
+        Assert.Contains("hi tech", result.AliasWebSearchQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(" OR ", result.WebSearchQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    [Fact]
+    public void MatchEvidence_UsesTitleForControlledAliasTitlePhrase()
+    {
+        var query = new SearchQueryNormalizer().Normalize("high tech");
+
+        var evidence = SearchMatchEvidenceResolver.Resolve(
+            query,
+            title: "MANAGEMENT OF HI-TECH /EXTENDED TENURE APPTS",
+            structuredText: null,
+            narrativeText: "High Tech policy material",
+            metadataJson: null,
+            entityType: "DocRepoDocument",
+            channels: "alias_title_phrase,alias_fts");
+
+        Assert.Equal("Title", evidence);
+    }
+
+    [Theory]
+    [InlineData("NotStarted", "Not Started")]
+    [InlineData("InProgress", "In Progress")]
+    [InlineData("BID", "BID")]
+    [InlineData("Not Started", "Not Started")]
+    public void DisplayFormatter_HumanizesMachineStatusValues(string input, string expected)
+    {
+        Assert.Equal(expected, SearchDisplayValueFormatter.Status(input));
     }
 
 }

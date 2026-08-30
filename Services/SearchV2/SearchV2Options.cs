@@ -41,6 +41,34 @@ public sealed class SearchV2Options
     [Range(1, 20)]
     public int FuzzyFallbackStrongCandidateThreshold { get; set; } = 1;
 
+    /// <summary>Minimum natural-language token length eligible for spelling assistance.</summary>
+    [Range(3, 12)]
+    public int CorrectionMinTokenLength { get; set; } = 4;
+
+    /// <summary>Maximum tokens examined in one correction request.</summary>
+    [Range(1, 12)]
+    public int CorrectionMaxTokens { get; set; } = 6;
+
+    /// <summary>Maximum edit distance accepted after candidate retrieval.</summary>
+    [Range(1, 5)]
+    public int CorrectionMaxEditDistance { get; set; } = 3;
+
+    /// <summary>Maximum token-length difference considered during candidate retrieval.</summary>
+    [Range(1, 6)]
+    public int CorrectionMaxLengthDelta { get; set; } = 3;
+
+    /// <summary>Low pg_trgm threshold used only to build a bounded correction shortlist.</summary>
+    [Range(0.05, 0.8)]
+    public double CorrectionCandidateTrigramThreshold { get; set; } = 0.18;
+
+    /// <summary>Minimum deterministic multi-signal confidence required to offer a correction.</summary>
+    [Range(0.3, 0.95)]
+    public double CorrectionMinConfidence { get; set; } = 0.62;
+
+    /// <summary>Maximum vocabulary candidates scored per token.</summary>
+    [Range(5, 100)]
+    public int CorrectionCandidateLimit { get; set; } = 32;
+
     /// <summary>Database/search-schema generation understood by this application build.</summary>
     [Range(1, int.MaxValue)]
     public int IndexVersion { get; set; } = 2;

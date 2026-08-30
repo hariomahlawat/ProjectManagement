@@ -27,6 +27,7 @@ public sealed class SearchEngine : ISearchV2Engine
     private readonly ISearchAccessContextFactory _accessFactory;
     private readonly ISearchQueryNormalizer _normalizer;
     private readonly ISearchAliasProvider _aliases;
+    private readonly ISearchCorrectionService _corrections;
     private readonly ISearchHighlightService _highlight;
     private readonly ISearchCursorCodec _cursorCodec;
     private readonly SearchV2Options _options;
@@ -38,6 +39,7 @@ public sealed class SearchEngine : ISearchV2Engine
         ISearchAccessContextFactory accessFactory,
         ISearchQueryNormalizer normalizer,
         ISearchAliasProvider aliases,
+        ISearchCorrectionService corrections,
         ISearchHighlightService highlight,
         ISearchCursorCodec cursorCodec,
         IOptions<SearchV2Options> options,
@@ -48,6 +50,7 @@ public sealed class SearchEngine : ISearchV2Engine
         _accessFactory = accessFactory ?? throw new ArgumentNullException(nameof(accessFactory));
         _normalizer = normalizer ?? throw new ArgumentNullException(nameof(normalizer));
         _aliases = aliases ?? throw new ArgumentNullException(nameof(aliases));
+        _corrections = corrections ?? throw new ArgumentNullException(nameof(corrections));
         _highlight = highlight ?? throw new ArgumentNullException(nameof(highlight));
         _cursorCodec = cursorCodec ?? throw new ArgumentNullException(nameof(cursorCodec));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -77,6 +80,7 @@ public sealed class SearchEngine : ISearchV2Engine
             WebSearchQuery = expanded.WebSearchQuery,
             Expansions = expanded.Expansions
         };
+        var aliasWebSearchQuery = expanded.AliasWebSearchQuery;
 
         var indexHealth = await _store.GetHealthAsync(cancellationToken);
         if (!indexHealth.IsReady || indexHealth.IndexVersion != _options.ProjectionVersion)
@@ -105,7 +109,7 @@ public sealed class SearchEngine : ISearchV2Engine
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
         var exactTokenTsQuery = BuildExactTokenTsQuery(normalized.Exact);
         var prefixTsQuery = BuildPrefixTsQuery(normalized.Exact);
-        var aliasPhrases = string.Join("\u001F", normalized.Expansions
+        var aliasPhrases = string.Join("\u001F", expanded.AliasExactQueries
             .Select(_normalizer.NormalizeExact)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase));
@@ -129,6 +133,7 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, "indexVersion", _options.ProjectionVersion);
             Add(command, "exact", normalized.Exact);
             Add(command, "webQuery", normalized.WebSearchQuery);
+            Add(command, "aliasWebQuery", aliasWebSearchQuery);
             Add(command, "exactTokenTsQuery", exactTokenTsQuery);
             Add(command, "prefixTsQuery", prefixTsQuery);
             Add(command, "aliasPhrases", aliasPhrases);
@@ -188,10 +193,10 @@ public sealed class SearchEngine : ISearchV2Engine
 
             string? correctedQuery = null;
             var correctionMilliseconds = 0L;
-            if (!request.FacetsOnly && ShouldOfferCorrection(normalized, rows))
+            if (!request.FacetsOnly && string.IsNullOrWhiteSpace(request.Cursor) && ShouldOfferCorrection(normalized, rows))
             {
                 var correctionStopwatch = Stopwatch.StartNew();
-                correctedQuery = await FindCorrectionAsync(_db.Database.GetDbConnection(), normalized.Exact, access, cancellationToken);
+                correctedQuery = await _corrections.TryCorrectAsync(_db.Database.GetDbConnection(), normalized, access, cancellationToken);
                 correctionStopwatch.Stop();
                 correctionMilliseconds = correctionStopwatch.ElapsedMilliseconds;
                 if (string.Equals(correctedQuery, normalized.Exact, StringComparison.OrdinalIgnoreCase)) correctedQuery = null;
@@ -257,93 +262,34 @@ public sealed class SearchEngine : ISearchV2Engine
 
         var access = await _accessFactory.CreateAsync(user, cancellationToken);
         var take = Math.Clamp(limit ?? _options.SuggestionLimit, 3, 20);
-        var exactTokenTsQuery = BuildExactTokenTsQuery(normalized.Exact);
-        var prefixTsQuery = BuildPrefixTsQuery(normalized.Exact);
         try
         {
             await _db.Database.OpenConnectionAsync(cancellationToken);
-            await using var command = _db.Database.GetDbConnection().CreateCommand();
-            var scope = BuildScopeSql(command, access, null, null, null, null, null, null, null, null);
-            command.CommandText = $"""
-                WITH state AS (
-                    SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
-                ), authorised AS (
-                    SELECT e.*
-                    FROM "SearchEntries" e
-                    JOIN state s ON s."ActiveGeneration" = e."Generation"
-                    WHERE e."IndexVersion" = @indexVersion {scope.AuthorizationClause}
-                ), scored AS (
-                    SELECT e.*,
-                           CASE
-                               WHEN EXISTS (
-                                   SELECT 1 FROM "SearchEntryTerms" t
-                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND t."NormalizedTerm" = @exact
-                               ) THEN 0
-                               WHEN EXISTS (
-                                   SELECT 1 FROM "SearchEntryTerms" t
-                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
-                               ) THEN 1
-                               WHEN e."NormalizedTitle" = @exact THEN 2
-                               WHEN @exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery) THEN 3
-                               WHEN LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact THEN 4
-                               WHEN @prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery) THEN 5
-                               WHEN EXISTS (
-                                   SELECT 1 FROM "SearchEntryTerms" t
-                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact
-                               ) THEN 6
-                               WHEN EXISTS (
-                                   SELECT 1 FROM "SearchEntryTerms" t
-                                   WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
-                               ) THEN 7
-                               ELSE 8
-                           END AS priority,
-                           GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) AS fuzzy_score
-                    FROM authorised e
-                    WHERE e."NormalizedTitle" = @exact
-                       OR (@exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery))
-                       OR LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact
-                       OR (@prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery))
-                       OR EXISTS (
-                           SELECT 1 FROM "SearchEntryTerms" t
-                           WHERE t."SearchEntryId" = e."Id"
-                             AND t."TermType" IN ('Identifier', 'Alias')
-                             AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
-                       )
-                       OR (LENGTH(@exact) >= 4 AND e."NormalizedTitle" % @exact AND similarity(e."NormalizedTitle", @exact) >= @suggestionFuzzyThreshold)
-                ), deduplicated AS (
-                    SELECT s.*,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY s."CanonicalEntityType", s."CanonicalEntityKey"
-                               ORDER BY s.priority, s.fuzzy_score DESC, s."UpdatedAtUtc" DESC, s."Id"
-                           ) AS canonical_rank
-                    FROM scored s
-                )
-                SELECT "Title", "Subtitle", "CanonicalUrl", "SourceModule", "ResultCategory", NULLIF("IdentifierText", '') AS "IdentifierText"
-                FROM deduplicated
-                WHERE canonical_rank = 1
-                ORDER BY priority, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
-                LIMIT @take;
-                """;
-            Add(command, "indexVersion", _options.ProjectionVersion);
-            Add(command, "exact", normalized.Exact);
-            Add(command, "exactTokenTsQuery", exactTokenTsQuery);
-            Add(command, "prefixTsQuery", prefixTsQuery);
-            Add(command, "suggestionFuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.42));
-            Add(command, "take", take);
-
-            var results = new List<SearchSuggestion>(take);
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
+            var connection = _db.Database.GetDbConnection();
+            var results = await ReadSuggestionsAsync(connection, normalized.Exact, access, take, cancellationToken);
+            if (results.Count > 0)
             {
-                results.Add(new SearchSuggestion(
-                    reader.GetString(0),
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetString(3),
-                    reader.GetString(4),
-                    reader.IsDBNull(5) ? null : reader.GetString(5)));
+                return results;
             }
-            return results;
+
+            // Typo assistance is a strict fallback: normal autocomplete wins whenever it
+            // has any result. The corrected text is never written back to the user's query;
+            // it is used only to obtain useful suggestions for the empty state.
+            var correctedQuery = await _corrections.TryCorrectAsync(connection, normalized, access, cancellationToken);
+            if (string.IsNullOrWhiteSpace(correctedQuery))
+            {
+                return results;
+            }
+
+            var corrected = _normalizer.Normalize(correctedQuery);
+            if (string.IsNullOrWhiteSpace(corrected.Exact)
+                || string.Equals(corrected.Exact, normalized.Exact, StringComparison.OrdinalIgnoreCase))
+            {
+                return results;
+            }
+
+            _logger.LogDebug("Search V2 autocomplete used spelling-assistance fallback.");
+            return await ReadSuggestionsAsync(connection, corrected.Exact, access, take, cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -354,6 +300,100 @@ public sealed class SearchEngine : ISearchV2Engine
         {
             try { await _db.Database.CloseConnectionAsync(); } catch { }
         }
+    }
+
+    private async Task<IReadOnlyList<SearchSuggestion>> ReadSuggestionsAsync(
+        DbConnection connection,
+        string exact,
+        SearchAccessContext access,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var exactTokenTsQuery = BuildExactTokenTsQuery(exact);
+        var prefixTsQuery = BuildPrefixTsQuery(exact);
+        await using var command = connection.CreateCommand();
+        var scope = BuildScopeSql(command, access, null, null, null, null, null, null, null, null);
+        command.CommandText = $"""
+            WITH state AS (
+                SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
+            ), authorised AS (
+                SELECT e.*
+                FROM "SearchEntries" e
+                JOIN state s ON s."ActiveGeneration" = e."Generation"
+                WHERE e."IndexVersion" = @indexVersion {scope.AuthorizationClause}
+            ), scored AS (
+                SELECT e.*,
+                       CASE
+                           WHEN EXISTS (
+                               SELECT 1 FROM "SearchEntryTerms" t
+                               WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND t."NormalizedTerm" = @exact
+                           ) THEN 0
+                           WHEN EXISTS (
+                               SELECT 1 FROM "SearchEntryTerms" t
+                               WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Identifier' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+                           ) THEN 1
+                           WHEN e."NormalizedTitle" = @exact THEN 2
+                           WHEN @exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery) THEN 3
+                           WHEN LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact THEN 4
+                           WHEN @prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery) THEN 5
+                           WHEN EXISTS (
+                               SELECT 1 FROM "SearchEntryTerms" t
+                               WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND t."NormalizedTerm" = @exact
+                           ) THEN 6
+                           WHEN EXISTS (
+                               SELECT 1 FROM "SearchEntryTerms" t
+                               WHERE t."SearchEntryId" = e."Id" AND t."TermType" = 'Alias' AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+                           ) THEN 7
+                           ELSE 8
+                       END AS priority,
+                       GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) AS fuzzy_score
+                FROM authorised e
+                WHERE e."NormalizedTitle" = @exact
+                   OR (@exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery))
+                   OR LEFT(e."NormalizedTitle", LENGTH(@exact)) = @exact
+                   OR (@prefixTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery))
+                   OR EXISTS (
+                       SELECT 1 FROM "SearchEntryTerms" t
+                       WHERE t."SearchEntryId" = e."Id"
+                         AND t."TermType" IN ('Identifier', 'Alias')
+                         AND LEFT(t."NormalizedTerm", LENGTH(@exact)) = @exact
+                   )
+                   OR (LENGTH(@exact) >= 4 AND e."NormalizedTitle" % @exact AND similarity(e."NormalizedTitle", @exact) >= @suggestionFuzzyThreshold)
+            ), deduplicated AS (
+                SELECT s.*,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY s."CanonicalEntityType", s."CanonicalEntityKey"
+                           ORDER BY s.priority, s.fuzzy_score DESC, s."UpdatedAtUtc" DESC, s."Id"
+                       ) AS canonical_rank
+                FROM scored s
+            )
+            SELECT "Title", "Subtitle", "CanonicalUrl", "SourceModule", "ResultCategory", NULLIF("IdentifierText", '') AS "IdentifierText"
+            FROM deduplicated
+            WHERE canonical_rank = 1
+            ORDER BY priority, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
+            LIMIT @take;
+            """;
+        Add(command, "indexVersion", _options.ProjectionVersion);
+        Add(command, "exact", exact);
+        Add(command, "exactTokenTsQuery", exactTokenTsQuery);
+        Add(command, "prefixTsQuery", prefixTsQuery);
+        Add(command, "suggestionFuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.42));
+        Add(command, "take", take);
+
+        var results = new List<SearchSuggestion>(take);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new SearchSuggestion(
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5)));
+        }
+
+        return results;
     }
 
     private static string BuildExactTokenTsQuery(string exact)
@@ -411,14 +451,14 @@ public sealed class SearchEngine : ISearchV2Engine
             row.ResultCategory,
             row.Title,
             _highlight.Highlight(row.Title, query.HighlightTerms),
-            row.Subtitle,
+            SearchDisplayValueFormatter.Subtitle(row.Subtitle, row.Status),
             row.CanonicalUrl,
             snippet,
             _highlight.Highlight(snippet, query.HighlightTerms),
             matchedField,
             row.EventDateUtc,
             row.FileType,
-            row.Status,
+            SearchDisplayValueFormatter.Status(row.Status),
             row.FusionScore,
             row.GlobalRank,
             related,
@@ -438,7 +478,8 @@ public sealed class SearchEngine : ISearchV2Engine
 
     private static bool ShouldOfferCorrection(NormalizedSearchQuery query, IReadOnlyList<SearchRow> rows)
     {
-        if (query.HighlightTerms.Count != 1 || query.Exact.Length is < 4 or > 32) return false;
+        var tokenCount = query.Exact.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+        if (tokenCount == 0 || tokenCount > 6 || query.Exact.Length is < 4 or > 96) return false;
         if (rows.Count > 3) return false;
         if (rows.Any(row => HasStrongLexicalChannel(row.Channels))) return false;
         return rows.Count == 0 || rows.All(row => row.Channels.Contains("fuzzy", StringComparison.Ordinal));
@@ -458,41 +499,7 @@ public sealed class SearchEngine : ISearchV2Engine
         || channels.Contains("name", StringComparison.Ordinal)
         || channels.Contains("simple_fts", StringComparison.Ordinal)
         || channels.Contains("english_fts", StringComparison.Ordinal)
-        || channels.Contains("configured_alias_fts", StringComparison.Ordinal);
-
-    private async Task<string?> FindCorrectionAsync(
-        DbConnection connection,
-        string exact,
-        SearchAccessContext access,
-        CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        var scope = BuildScopeSql(command, access, null, null, null, null, null, null, null, null);
-        command.CommandText = $"""
-            WITH state AS (
-                SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
-            ), authorised AS (
-                SELECT e."NormalizedTitle"
-                FROM "SearchEntries" e
-                JOIN state s ON s."ActiveGeneration" = e."Generation"
-                WHERE e."IndexVersion" = @indexVersion {scope.AuthorizationClause}
-            ), vocabulary AS (
-                SELECT DISTINCT token
-                FROM authorised a,
-                     LATERAL regexp_split_to_table(a."NormalizedTitle", '\\s+') AS token
-                WHERE LENGTH(token) >= 3
-            )
-            SELECT token
-            FROM vocabulary
-            WHERE token <> @exact
-              AND similarity(token, @exact) >= 0.62
-            ORDER BY similarity(token, @exact) DESC, ABS(LENGTH(token) - LENGTH(@exact)), token
-            LIMIT 1;
-            """;
-        Add(command, "indexVersion", _options.ProjectionVersion);
-        Add(command, "exact", exact);
-        return (await command.ExecuteScalarAsync(cancellationToken)) as string;
-    }
+        || channels.Contains("alias_fts", StringComparison.Ordinal);
 
     private string BuildSearchSql(SearchSqlScope scope, bool includeDetailedFacets)
     {
@@ -627,16 +634,16 @@ public sealed class SearchEngine : ISearchV2Engine
                    'simple_fts'::text AS channel, 1.25::double precision AS weight
             FROM authorised e
             WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', @webQuery)
-        ), configured_alias_fts AS (
-            SELECT e."Id", 5 AS tier,
+        ), alias_fts AS (
+            SELECT e."Id", 6 AS tier,
                    ROW_NUMBER() OVER (
-                       ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', a."Expansion")) DESC,
+                       ORDER BY ts_rank_cd(e."SearchVectorSimple", websearch_to_tsquery('simple', @aliasWebQuery)) DESC,
                                 e."UpdatedAtUtc" DESC,
                                 e."Id") AS channel_rank,
-                   'configured_alias_fts'::text AS channel, 1.15::double precision AS weight
+                   'alias_fts'::text AS channel, 0.75::double precision AS weight
             FROM authorised e
-            JOIN "SearchAliases" a ON a."IsActive" AND a."NormalizedAlias" = @exact
-            WHERE e."SearchVectorSimple" @@ websearch_to_tsquery('simple', a."Expansion")
+            WHERE @aliasWebQuery <> ''
+              AND e."SearchVectorSimple" @@ websearch_to_tsquery('simple', @aliasWebQuery)
         ), english_fts AS (
             SELECT e."Id", 6 AS tier,
                    ROW_NUMBER() OVER (
@@ -668,7 +675,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 UNION ALL SELECT "Id" FROM title_prefix
                 UNION ALL SELECT "Id" FROM name_matches
                 UNION ALL SELECT "Id" FROM simple_fts
-                UNION ALL SELECT "Id" FROM configured_alias_fts
+                UNION ALL SELECT "Id" FROM alias_fts
                 UNION ALL SELECT "Id" FROM english_fts
             ) strong
         ), title_fuzzy AS (
@@ -703,7 +710,7 @@ public sealed class SearchEngine : ISearchV2Engine
             UNION ALL SELECT * FROM title_prefix
             UNION ALL SELECT * FROM name_matches
             UNION ALL SELECT * FROM simple_fts
-            UNION ALL SELECT * FROM configured_alias_fts
+            UNION ALL SELECT * FROM alias_fts
             UNION ALL SELECT * FROM english_fts
             UNION ALL SELECT * FROM title_fuzzy
             UNION ALL SELECT * FROM fuzzy_matches
@@ -943,41 +950,7 @@ public sealed class SearchEngine : ISearchV2Engine
         DateOnly? dateFrom,
         DateOnly? dateTo)
     {
-        var policyParts = new List<string> { "e.\"RequiredPolicy\" IS NULL" };
-        for (var index = 0; index < access.AllowedPolicies.Count; index++)
-        {
-            var name = $"allowedPolicy{index}";
-            Add(command, name, access.AllowedPolicies[index]);
-            policyParts.Add($"e.\"RequiredPolicy\" = @{name}");
-        }
-
-        var principalParts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(access.UserId))
-        {
-            Add(command, "currentUserId", access.UserId);
-            principalParts.Add("(p.\"PrincipalType\" = 'User' AND p.\"PrincipalValue\" = @currentUserId)");
-        }
-
-        for (var index = 0; index < access.Roles.Count; index++)
-        {
-            var name = $"role{index}";
-            Add(command, name, access.Roles[index]);
-            principalParts.Add($"(p.\"PrincipalType\" = 'Role' AND p.\"PrincipalValue\" = @{name})");
-        }
-
-        var principalSql = principalParts.Count == 0 ? "FALSE" : string.Join(" OR ", principalParts);
-        var ownerSql = string.IsNullOrWhiteSpace(access.UserId) ? "FALSE" : "e.\"OwnerUserId\" = @currentUserId";
-        var authorization = $"""
-            AND ({string.Join(" OR ", policyParts)})
-            AND (
-                e."VisibilityMode" = 0
-                OR (e."VisibilityMode" = 1 AND {ownerSql})
-                OR (e."VisibilityMode" = 2 AND EXISTS (
-                    SELECT 1 FROM "SearchEntryPrincipals" p
-                    WHERE p."SearchEntryId" = e."Id" AND ({principalSql})
-                ))
-            )
-            """;
+        var authorization = SearchAuthorizationSql.Build(command, access);
 
         var filters = new Dictionary<SearchFilterDimension, string?>
         {
