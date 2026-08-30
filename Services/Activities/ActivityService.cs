@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Features.MediaLibrary.Services;
@@ -73,6 +74,13 @@ public sealed class ActivityService : IActivityService
         EnsureCanManage(activity);
         await _inputValidator.ValidateAsync(input, activity, cancellationToken);
 
+        if (input.ExpectedRowVersion is { Length: > 0 } expectedRowVersion
+            && !activity.RowVersion.AsSpan().SequenceEqual(expectedRowVersion))
+        {
+            throw new ActivityConcurrencyException(
+                "This activity was updated by another user after you opened it. Reload the latest version before saving.");
+        }
+
         activity.Title = input.Title.Trim();
         activity.Description = input.Description?.Trim();
         activity.Location = input.Location?.Trim();
@@ -82,7 +90,17 @@ public sealed class ActivityService : IActivityService
         activity.LastModifiedByUserId = RequireUserId();
         activity.LastModifiedAtUtc = _clock.UtcNow;
 
-        await _activityRepository.UpdateAsync(activity, cancellationToken);
+        try
+        {
+            await _activityRepository.UpdateAsync(activity, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ActivityConcurrencyException(
+                "This activity was updated by another user while you were saving. Reload the latest version and try again.",
+                ex);
+        }
+
         await ReconcilePhotosAsync($"activity {activity.Id} metadata updated", cancellationToken);
         return activity;
     }
@@ -97,8 +115,6 @@ public sealed class ActivityService : IActivityService
 
         EnsureCanDelete();
 
-        await _attachmentManager.RemoveAllAsync(activity, cancellationToken);
-
         var userId = RequireUserId();
         var now = _clock.UtcNow;
         activity.IsDeleted = true;
@@ -107,8 +123,23 @@ public sealed class ActivityService : IActivityService
         activity.LastModifiedAtUtc = now;
         activity.LastModifiedByUserId = userId;
 
+        // Commit the soft-delete first so the record cannot remain half-active if
+        // external file cleanup later encounters an I/O problem. Attachment cleanup
+        // is deliberately best-effort after the authoritative database state is safe.
         await _activityRepository.UpdateAsync(activity, cancellationToken);
         await ReconcilePhotosAsync($"activity {activity.Id} deleted", cancellationToken);
+
+        try
+        {
+            await _attachmentManager.RemoveAllAsync(activity, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Activity {ActivityId} was deleted, but one or more attachment records could not be cleaned up immediately.",
+                activity.Id);
+        }
     }
 
     public async Task<Activity?> GetAsync(int activityId, CancellationToken cancellationToken = default)
@@ -186,11 +217,13 @@ public sealed class ActivityService : IActivityService
         EnsureCanManage(activity);
         var userId = RequireUserId();
 
-        var attachment = await _attachmentManager.AddAsync(activity, upload, userId, cancellationToken);
-
+        // Activity and attachment share the repository DbContext. Stamp the Activity before
+        // the attachment save so the attachment row and audit metadata commit together in
+        // the same SaveChanges call rather than leaving a stale Last modified timestamp.
         activity.LastModifiedByUserId = userId;
         activity.LastModifiedAtUtc = _clock.UtcNow;
-        await _activityRepository.UpdateAsync(activity, cancellationToken);
+
+        var attachment = await _attachmentManager.AddAsync(activity, upload, userId, cancellationToken);
 
         if (ActivityAttachmentClassifier.IsPhoto(attachment.OriginalFileName, attachment.ContentType))
         {
@@ -221,6 +254,11 @@ public sealed class ActivityService : IActivityService
             attachment.OriginalFileName,
             attachment.ContentType);
 
+        // The tracked Activity is saved by RemoveAsync together with the attachment
+        // deletion, keeping audit metadata and attachment state transactionally aligned.
+        activity.LastModifiedByUserId = RequireUserId();
+        activity.LastModifiedAtUtc = _clock.UtcNow;
+
         try
         {
             await _attachmentManager.RemoveAsync(attachment, cancellationToken);
@@ -230,10 +268,6 @@ public sealed class ActivityService : IActivityService
             _logger.LogWarning(ex, "Failed to remove attachment {AttachmentId} for activity {ActivityId}.", attachment.Id, activity.Id);
             throw;
         }
-
-        activity.LastModifiedByUserId = RequireUserId();
-        activity.LastModifiedAtUtc = _clock.UtcNow;
-        await _activityRepository.UpdateAsync(activity, cancellationToken);
 
         if (removedPhoto)
         {
@@ -272,7 +306,7 @@ public sealed class ActivityService : IActivityService
         var principal = _userContext.User;
         RequireUserId();
 
-        if (!IsApprover(principal))
+        if (!ActivityAuthorizationPolicy.CanDelete(principal))
         {
             throw new ActivityAuthorizationException("You are not authorised to delete this activity.");
         }
@@ -280,15 +314,8 @@ public sealed class ActivityService : IActivityService
 
     private void EnsureCanManage(Activity activity)
     {
-        var principal = _userContext.User;
         var userId = RequireUserId();
-
-        if (IsManager(principal))
-        {
-            return;
-        }
-
-        if (!string.Equals(activity.CreatedByUserId, userId, StringComparison.OrdinalIgnoreCase))
+        if (!ActivityAuthorizationPolicy.CanManage(activity, _userContext.User, userId))
         {
             throw new ActivityAuthorizationException("You are not authorised to manage this activity.");
         }
@@ -296,44 +323,11 @@ public sealed class ActivityService : IActivityService
 
     private void EnsureCanManageAttachment(Activity activity, ActivityAttachment attachment)
     {
-        var principal = _userContext.User;
         var userId = RequireUserId();
-
-        if (IsManager(principal))
-        {
-            return;
-        }
-
-        if (!string.Equals(activity.CreatedByUserId, userId, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(attachment.UploadedByUserId, userId, StringComparison.OrdinalIgnoreCase))
+        if (!ActivityAuthorizationPolicy.CanManageAttachment(activity, attachment, _userContext.User, userId))
         {
             throw new ActivityAuthorizationException("You are not authorised to manage this attachment.");
         }
     }
 
-    private static bool IsManager(ClaimsPrincipal principal)
-    {
-        foreach (var role in ActivityRoleLists.ManagerRoles)
-        {
-            if (principal.IsInRole(role))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsApprover(ClaimsPrincipal principal)
-    {
-        foreach (var role in ActivityRoleLists.DeleteApproverRoles)
-        {
-            if (principal.IsInRole(role))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

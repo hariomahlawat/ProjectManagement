@@ -2875,11 +2875,6 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ScheduledStartUtc")
                         .HasDatabaseName("IX_Activities_ScheduledStartUtc");
 
-                    b.HasIndex("ActivityTypeId", "Title")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Activities_ActivityTypeId_Title")
-                        .HasFilter("\"IsDeleted\" = FALSE");
-
                     b.ToTable("Activities", (string)null);
                 });
 

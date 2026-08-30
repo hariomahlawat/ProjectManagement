@@ -15,7 +15,7 @@ namespace ProjectManagement.Services.Activities;
 
 public sealed class ActivityAttachmentManager : IActivityAttachmentManager
 {
-    public const int MaxAttachmentsPerActivity = 10;
+    public const int MaxAttachmentsPerActivity = 50;
 
     private readonly IActivityRepository _activityRepository;
     private readonly IActivityAttachmentStorage _storage;
@@ -73,7 +73,27 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
             UploadedAtUtc = now
         };
 
-        await _activityRepository.AddAttachmentAsync(attachment, cancellationToken);
+        try
+        {
+            await _activityRepository.AddAttachmentAsync(attachment, cancellationToken);
+        }
+        catch
+        {
+            try
+            {
+                await _storage.DeleteAsync(storageResult.StorageKey, cancellationToken);
+            }
+            catch (Exception cleanupException)
+            {
+                _logger?.LogWarning(
+                    cleanupException,
+                    "Failed to roll back activity attachment file {StorageKey} after database persistence failed.",
+                    storageResult.StorageKey);
+            }
+
+            throw;
+        }
+
         activity.Attachments.Add(attachment);
 
         if (ActivityAttachmentClassifier.Classify(storageResult.FileName, upload.ContentType) == ActivityAttachmentKind.Pdf)
@@ -102,8 +122,23 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
     {
         ArgumentNullException.ThrowIfNull(attachment);
 
+        // Remove the authoritative database reference first. If physical storage is
+        // temporarily unavailable, the UI remains consistent and the leftover file is
+        // merely an orphan that can be cleaned safely later.
         await _activityRepository.RemoveAttachmentAsync(attachment, cancellationToken);
-        await _storage.DeleteAsync(attachment.StorageKey, cancellationToken);
+
+        try
+        {
+            await _storage.DeleteAsync(attachment.StorageKey, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(
+                ex,
+                "Database attachment {AttachmentId} was removed, but an orphaned activity attachment file {StorageKey} could not be deleted.",
+                attachment.Id,
+                attachment.StorageKey);
+        }
 
         if (attachment.Activity is { Attachments: { } attachments })
         {

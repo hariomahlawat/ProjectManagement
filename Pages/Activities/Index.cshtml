@@ -146,6 +146,10 @@
                         <tr>
                             <td>
                                 <a class="activities-table__title" asp-page="./Details" asp-route-id="@row.Id">@row.Title</a>
+                                @if (row.HasPendingDelete)
+                                {
+                                    <span class="activities-table__pending"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Deletion pending</span>
+                                }
                                 <div class="activities-table__brief">@(string.IsNullOrWhiteSpace(row.RemarksPreview) ? "No brief recorded." : row.RemarksPreview)</div>
                                 @if (!string.IsNullOrWhiteSpace(row.Location))
                                 {

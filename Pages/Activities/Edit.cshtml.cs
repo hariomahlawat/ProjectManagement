@@ -20,7 +20,7 @@ using ProjectManagement.Services.Activities;
 
 namespace ProjectManagement.Pages.Activities;
 
-[Authorize(Roles = "Admin,HoD,Project Officer,Project Office,TA")]
+[Authorize]
 public sealed class EditModel : PageModel
 {
     private static readonly IReadOnlyList<string> AttachmentExtensions = new[]
@@ -51,19 +51,16 @@ public sealed class EditModel : PageModel
 
     private readonly IActivityService _activityService;
     private readonly IActivityTypeService _activityTypeService;
-    private readonly IActivityAttachmentManager _activityAttachmentManager;
     private readonly IActivityAttachmentValidator _attachmentValidator;
     private readonly ILogger<EditModel> _logger;
 
     public EditModel(IActivityService activityService,
                      IActivityTypeService activityTypeService,
-                     IActivityAttachmentManager activityAttachmentManager,
                      IActivityAttachmentValidator attachmentValidator,
                      ILogger<EditModel> logger)
     {
         _activityService = activityService;
         _activityTypeService = activityTypeService;
-        _activityAttachmentManager = activityAttachmentManager;
         _attachmentValidator = attachmentValidator;
         _logger = logger;
     }
@@ -82,9 +79,15 @@ public sealed class EditModel : PageModel
 
     public int RemainingAttachmentSlots => Math.Max(0, ActivityAttachmentManager.MaxAttachmentsPerActivity - ExistingAttachmentCount);
 
-    public long MaxAttachmentSizeBytes => ActivityAttachmentValidator.MaxAttachmentSizeBytes;
+    public long MaxStandardAttachmentSizeBytes => ActivityAttachmentValidator.MaxStandardAttachmentSizeBytes;
 
-    public int MaxAttachmentSizeMegabytes => (int)Math.Ceiling(MaxAttachmentSizeBytes / (1024m * 1024m));
+    public long MaxVideoAttachmentSizeBytes => ActivityAttachmentValidator.MaxVideoAttachmentSizeBytes;
+
+    public long MaxUploadBatchSizeBytes => ActivityAttachmentValidator.MaxUploadBatchSizeBytes;
+
+    public int MaxStandardAttachmentSizeMegabytes => (int)Math.Ceiling(MaxStandardAttachmentSizeBytes / (1024m * 1024m));
+
+    public int MaxVideoAttachmentSizeMegabytes => (int)Math.Ceiling(MaxVideoAttachmentSizeBytes / (1024m * 1024m));
 
     public IReadOnlyList<string> AllowedAttachmentExtensions => AttachmentExtensions;
 
@@ -123,11 +126,6 @@ public sealed class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(int? id, CancellationToken cancellationToken)
     {
-        if (!IsManager(User))
-        {
-            return Forbid();
-        }
-
         if (id.HasValue)
         {
             var activity = await _activityService.GetAsync(id.Value, cancellationToken);
@@ -136,10 +134,21 @@ public sealed class EditModel : PageModel
                 return NotFound();
             }
 
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!ActivityAuthorizationPolicy.CanManage(activity, User, userId))
+            {
+                return Forbid();
+            }
+
             ApplyActivityToInput(activity);
         }
         else
         {
+            if (!ActivityAuthorizationPolicy.CanCreate(User))
+            {
+                return Forbid();
+            }
+
             Input = new InputModel();
             ExistingAttachmentCount = 0;
         }
@@ -150,11 +159,6 @@ public sealed class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(int? id, CancellationToken cancellationToken)
     {
-        if (!IsManager(User))
-        {
-            return Forbid();
-        }
-
         Input ??= new InputModel();
         // Section: Resolve activity identity
         if (!Input.Id.HasValue && id.HasValue)
@@ -173,12 +177,23 @@ public sealed class EditModel : PageModel
             }
 
             ExistingAttachmentCount = existing.Attachments?.Count ?? 0;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!ActivityAuthorizationPolicy.CanManage(existing, User, userId))
+            {
+                return Forbid();
+            }
         }
         else
         {
+            if (!ActivityAuthorizationPolicy.CanCreate(User))
+            {
+                return Forbid();
+            }
+
             ExistingAttachmentCount = 0;
         }
 
+        ValidateEventDate(existing);
         ValidateUploadedFiles(existing);
 
         if (!ModelState.IsValid)
@@ -187,13 +202,29 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
+        byte[]? expectedRowVersion = null;
+        if (Input.Id.HasValue && !string.IsNullOrWhiteSpace(Input.RowVersion))
+        {
+            try
+            {
+                expectedRowVersion = Convert.FromBase64String(Input.RowVersion);
+            }
+            catch (FormatException)
+            {
+                ModelState.AddModelError(string.Empty, "The activity version token is invalid. Reload the page and try again.");
+                await PopulateActivityTypesAsync(Input.ActivityTypeId, cancellationToken);
+                return Page();
+            }
+        }
+
         var input = new ActivityInput(
             Input.Title ?? string.Empty,
             Input.Description,
             Input.Location,
             Input.ActivityTypeId!.Value,
             ConvertToUtc(Input.ScheduledStart),
-            ConvertToUtc(Input.ScheduledEnd));
+            ConvertToUtc(Input.ScheduledEnd),
+            ExpectedRowVersion: expectedRowVersion);
 
         Activity activity;
         var isNew = !Input.Id.HasValue;
@@ -211,9 +242,20 @@ public sealed class EditModel : PageModel
             ExistingAttachmentCount = existing?.Attachments?.Count ?? 0;
             return Page();
         }
+        catch (ActivityConcurrencyException ex)
+        {
+            // Keep the originally posted row-version token. Advancing it here would allow
+            // the same stale form to be submitted again and overwrite the newer edit. The
+            // operator can retain the entered values for reference, but must explicitly
+            // reload the page before a subsequent save can succeed.
+            ModelState.AddModelError(string.Empty, ex.Message);
+            ExistingAttachmentCount = existing?.Attachments?.Count ?? 0;
+            await PopulateActivityTypesAsync(Input.ActivityTypeId, cancellationToken);
+            return Page();
+        }
         catch (ActivityAuthorizationException)
         {
-            TempData["Error"] = "You are not authorised to manage activities.";
+            TempData["Error"] = "You are not authorised to manage this activity.";
             return RedirectToPage("./Index");
         }
         catch (KeyNotFoundException)
@@ -274,6 +316,21 @@ public sealed class EditModel : PageModel
         ActivityTypeOptions = items;
     }
 
+    private void ValidateEventDate(Activity? existingActivity)
+    {
+        // New activities require an event date. A genuinely historical imported row that
+        // has never had one remains editable without forcing the operator to invent a date;
+        // once a date exists, it cannot be cleared. The same invariant is enforced again
+        // by ActivityInputValidator at the service boundary.
+        if (!Input.ScheduledStart.HasValue
+            && (existingActivity is null || existingActivity.ScheduledStartUtc.HasValue))
+        {
+            ModelState.AddModelError(
+                $"{nameof(Input)}.{nameof(InputModel.ScheduledStart)}",
+                "Event date is required.");
+        }
+    }
+
     private void ValidateUploadedFiles(Activity? existingActivity)
     {
         var files = Input?.Files;
@@ -298,6 +355,11 @@ public sealed class EditModel : PageModel
                 ? "Only one additional attachment can be uploaded."
                 : $"Only {remainingSlots} additional attachments can be uploaded.";
             ModelState.AddModelError(nameof(Input.Files), message);
+        }
+
+        if (files.Where(file => file is not null).Sum(file => file!.Length) > ActivityAttachmentValidator.MaxUploadBatchSizeBytes)
+        {
+            ModelState.AddModelError(nameof(Input.Files), "The selected files exceed the 200 MB upload batch limit. Upload large videos separately.");
         }
 
         foreach (var file in files)
@@ -344,12 +406,6 @@ public sealed class EditModel : PageModel
             return;
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ActivityAuthorizationException("A signed-in user is required.");
-        }
-
         foreach (var file in files)
         {
             if (file is null || file.Length <= 0)
@@ -359,7 +415,7 @@ public sealed class EditModel : PageModel
 
             using var stream = file.OpenReadStream();
             var upload = new ActivityAttachmentUpload(stream, file.FileName, file.ContentType ?? string.Empty, file.Length);
-            await _activityAttachmentManager.AddAsync(activity, upload, userId, cancellationToken);
+            await _activityService.AddAttachmentAsync(activity.Id, upload, cancellationToken);
         }
 
         ExistingAttachmentCount = activity.Attachments?.Count ?? 0;
@@ -375,23 +431,11 @@ public sealed class EditModel : PageModel
             Location = activity.Location,
             ActivityTypeId = activity.ActivityTypeId,
             ScheduledStart = ConvertToLocal(activity.ScheduledStartUtc),
-            ScheduledEnd = ConvertToLocal(activity.ScheduledEndUtc)
+            ScheduledEnd = ConvertToLocal(activity.ScheduledEndUtc),
+            RowVersion = Convert.ToBase64String(activity.RowVersion ?? Array.Empty<byte>())
         };
 
         ExistingAttachmentCount = activity.Attachments?.Count ?? 0;
-    }
-
-    private static bool IsManager(ClaimsPrincipal user)
-    {
-        foreach (var role in ActivityRoleLists.ManagerRoles)
-        {
-            if (user.IsInRole(role))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void AddErrorsToModelState(ActivityValidationException ex)
@@ -447,6 +491,8 @@ public sealed class EditModel : PageModel
     {
         public int? Id { get; set; }
 
+        public string? RowVersion { get; set; }
+
         [Required]
         [StringLength(200)]
         [Display(Name = "Activity title")]
@@ -464,7 +510,6 @@ public sealed class EditModel : PageModel
         [Display(Name = "Activity type")]
         public int? ActivityTypeId { get; set; }
 
-        [Required(ErrorMessage = "Event date is required.")]
         [Display(Name = "Event date")]
         public DateTime? ScheduledStart { get; set; }
 

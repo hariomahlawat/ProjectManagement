@@ -1,0 +1,838 @@
+.activities-details-page {
+    --activity-border: #dce3ee;
+    --activity-muted: #667085;
+    --activity-ink: #14213d;
+    --activity-soft: #f6f8fc;
+    --activity-primary: #4169e1;
+    --activity-danger: #dc3545;
+    --activity-warning-bg: #fff7dc;
+    --activity-warning-border: #f0cd68;
+    max-width: 1380px;
+    padding-top: 12px;
+    padding-bottom: 32px;
+}
+
+.activities-details-breadcrumb {
+    margin-bottom: 18px;
+    font-size: .9rem;
+}
+
+.activity-detail-hero,
+.activity-detail-card {
+    background: #fff;
+    border: 1px solid var(--activity-border);
+    border-radius: 18px;
+    box-shadow: 0 12px 34px rgba(31, 45, 73, .06);
+}
+
+.activity-detail-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 24px 26px;
+    margin-bottom: 20px;
+    border-top: 3px solid var(--activity-primary);
+}
+
+.activity-detail-hero__main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.activity-detail-hero__eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin-bottom: 10px;
+    color: var(--activity-muted);
+    font-size: .82rem;
+}
+
+.activity-detail-hero__eyebrow > span,
+.activity-detail-hero__eyebrow > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.activity-detail-hero__type {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #eaf0ff;
+    color: #2d55cb;
+    font-weight: 650;
+}
+
+.activity-detail-hero__media-link {
+    color: #335ccf;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.activity-detail-hero__media-link:hover,
+.activity-detail-hero__media-link:focus-visible {
+    text-decoration: underline;
+}
+
+.activity-detail-hero h1 {
+    margin: 0;
+    max-width: 1060px;
+    color: #0f1930;
+    font-size: clamp(1.55rem, 2vw, 2.1rem);
+    font-weight: 650;
+    line-height: 1.18;
+    letter-spacing: -.02em;
+}
+
+.activity-detail-hero__actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.activity-pending-delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 31px;
+    padding: 5px 10px;
+    border: 1px solid var(--activity-warning-border);
+    border-radius: 8px;
+    background: var(--activity-warning-bg);
+    color: #735c0f;
+    font-size: .82rem;
+    font-weight: 650;
+}
+
+.activity-detail-card {
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.activity-detail-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 17px 22px 15px;
+    border-bottom: 1px solid #e9edf4;
+}
+
+.activity-detail-card__header h2 {
+    margin: 2px 0 0;
+    color: var(--activity-ink);
+    font-size: 1.02rem;
+    font-weight: 650;
+}
+
+.activity-detail-card__header p {
+    margin: 4px 0 0;
+    color: var(--activity-muted);
+    font-size: .82rem;
+}
+
+.activity-detail-card__eyebrow {
+    color: #697891;
+    font-size: .67rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.activity-detail-card__body {
+    padding: 20px 22px 22px;
+}
+
+.activity-detail-brief {
+    color: #1f2937;
+    font-size: .94rem;
+    line-height: 1.72;
+}
+
+.activity-empty-copy {
+    color: var(--activity-muted);
+    font-style: italic;
+}
+
+.activity-detail-card__header--media {
+    align-items: flex-end;
+}
+
+.activity-media-body {
+    padding-top: 18px;
+}
+
+.activity-upload-panel {
+    margin: -2px 0 22px;
+    padding: 16px;
+    border: 1px solid #d9e2f3;
+    border-radius: 12px;
+    background: #f8faff;
+}
+
+.activity-upload-form {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.activity-media-empty {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 92px;
+    padding: 18px;
+    border: 1px dashed #ccd5e3;
+    border-radius: 14px;
+    background: #fafbfd;
+    color: var(--activity-muted);
+}
+
+.activity-media-empty > i {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 12px;
+    background: #eef2f8;
+    color: #667892;
+    font-size: 1.1rem;
+}
+
+.activity-media-empty strong,
+.activity-media-empty span {
+    display: block;
+}
+
+.activity-media-empty strong {
+    margin-bottom: 2px;
+    color: #29364b;
+    font-weight: 650;
+}
+
+.activity-media-empty span {
+    font-size: .84rem;
+}
+
+.activity-media-section + .activity-media-section {
+    margin-top: 26px;
+    padding-top: 24px;
+    border-top: 1px solid #e8edf4;
+}
+
+.activity-media-section__heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.activity-media-section__heading h3 {
+    margin: 0;
+    color: #26334a;
+    font-size: .9rem;
+    font-weight: 700;
+}
+
+.activity-media-section__heading > span {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #667085;
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.activity-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.activity-photo-card {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #dce3ed;
+    border-radius: 14px;
+    background: #fff;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.activity-photo-card:hover,
+.activity-photo-card:focus-within {
+    transform: translateY(-1px);
+    border-color: #c5d1e6;
+    box-shadow: 0 8px 20px rgba(32, 51, 86, .10);
+}
+
+.activity-photo-card__image {
+    position: relative;
+    display: block;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    background: #eef2f7;
+}
+
+.activity-photo-card__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform .22s ease;
+}
+
+.activity-photo-card__image:hover img,
+.activity-photo-card__image:focus-visible img {
+    transform: scale(1.025);
+}
+
+.activity-photo-card__image:focus-visible {
+    outline: 3px solid rgba(65, 105, 225, .28);
+    outline-offset: -3px;
+}
+
+.activity-photo-card__zoom {
+    position: absolute;
+    right: 9px;
+    bottom: 9px;
+    display: grid;
+    place-items: center;
+    width: 31px;
+    height: 31px;
+    border: 1px solid rgba(255,255,255,.36);
+    border-radius: 50%;
+    background: rgba(12, 22, 40, .72);
+    color: #fff;
+    opacity: 0;
+    transform: translateY(3px);
+    transition: opacity .18s ease, transform .18s ease;
+}
+
+.activity-photo-card__image:hover .activity-photo-card__zoom,
+.activity-photo-card__image:focus-visible .activity-photo-card__zoom {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.activity-photo-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 43px;
+    padding: 6px 7px 6px 11px;
+}
+
+.activity-photo-card__name {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: #475467;
+    font-size: .76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-photo-card__actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 2px;
+}
+
+.activity-photo-card__actions form {
+    margin: 0;
+}
+
+.activity-icon-action {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #667085;
+    text-decoration: none;
+}
+
+.activity-icon-action:hover,
+.activity-icon-action:focus-visible {
+    background: #eef2f8;
+    color: #2946a5;
+}
+
+.activity-icon-action--danger:hover,
+.activity-icon-action--danger:focus-visible {
+    background: #fff0f1;
+    color: var(--activity-danger);
+}
+
+.activity-video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 14px;
+}
+
+.activity-file-card {
+    overflow: hidden;
+    border: 1px solid #dce3ed;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.activity-video-frame {
+    background: #0b1220;
+}
+
+.activity-video-frame video {
+    width: 100%;
+    height: 100%;
+}
+
+.activity-file-card__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 11px 12px;
+}
+
+.activity-file-card__body strong,
+.activity-file-card__body span {
+    display: block;
+}
+
+.activity-file-card__body strong {
+    overflow: hidden;
+    color: #26334a;
+    font-size: .84rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-file-card__body span {
+    margin-top: 2px;
+    color: var(--activity-muted);
+    font-size: .73rem;
+}
+
+.activity-file-card__actions,
+.activity-document-row__actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+}
+
+.activity-file-card__actions form,
+.activity-document-row__actions form {
+    margin: 0;
+}
+
+.activity-document-list {
+    overflow: hidden;
+    border: 1px solid #dce3ed;
+    border-radius: 13px;
+}
+
+.activity-document-row {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+    min-height: 62px;
+    padding: 9px 11px;
+    background: #fff;
+}
+
+.activity-document-row + .activity-document-row {
+    border-top: 1px solid #e8edf4;
+}
+
+.activity-document-row__icon {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #eef3ff;
+    color: #4169e1;
+}
+
+.activity-document-row__identity {
+    min-width: 0;
+}
+
+.activity-document-row__identity > a,
+.activity-document-row__identity > strong {
+    display: block;
+    overflow: hidden;
+    color: #26334a;
+    font-size: .84rem;
+    font-weight: 650;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-document-row__identity > a:hover,
+.activity-document-row__identity > a:focus-visible {
+    color: #345bd1;
+    text-decoration: underline;
+}
+
+.activity-document-row__identity > span {
+    display: block;
+    margin-top: 2px;
+    color: var(--activity-muted);
+    font-size: .73rem;
+}
+
+.activity-admin-card {
+    box-shadow: none;
+}
+
+.activity-admin-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 30px;
+}
+
+.activity-admin-grid > div {
+    min-width: 0;
+}
+
+.activity-admin-grid dt {
+    margin: 0 0 3px;
+    color: #77839a;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.activity-admin-grid dd {
+    margin: 0;
+    color: #344054;
+    font-size: .83rem;
+}
+
+/* Shared full-screen Activity photo viewer */
+.activity-photo-viewer {
+    --viewer-bg: #070d18;
+    --viewer-panel: #0b1322;
+    --viewer-border: rgba(255,255,255,.11);
+    color: #f8fafc;
+}
+
+.activity-photo-viewer .modal-dialog,
+.activity-photo-viewer .modal-content {
+    background: var(--viewer-bg);
+}
+
+.activity-photo-viewer__content {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 100dvh;
+    border: 0;
+}
+
+.activity-photo-viewer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 0;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--viewer-border);
+    background: var(--viewer-panel);
+}
+
+.activity-photo-viewer__identity {
+    min-width: 0;
+}
+
+.activity-photo-viewer__eyebrow {
+    display: block;
+    margin-bottom: 2px;
+    color: #9db5df;
+    font-size: .67rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.activity-photo-viewer__title {
+    display: block;
+    max-width: min(78vw, 1120px);
+    overflow: hidden;
+    color: #f8fafc;
+    font-size: .88rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-photo-viewer__header-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.activity-photo-viewer__counter {
+    color: #e5edf9;
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.activity-photo-viewer__close,
+.activity-photo-viewer__nav {
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 50%;
+    background: rgba(25, 38, 59, .88);
+    color: #fff;
+    transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+
+.activity-photo-viewer__close {
+    width: 38px;
+    height: 38px;
+}
+
+.activity-photo-viewer__close:hover,
+.activity-photo-viewer__close:focus-visible,
+.activity-photo-viewer__nav:hover:not(:disabled),
+.activity-photo-viewer__nav:focus-visible:not(:disabled) {
+    border-color: rgba(255,255,255,.38);
+    background: #20304a;
+}
+
+.activity-photo-viewer__body {
+    position: relative;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) 76px;
+    align-items: center;
+    min-height: 0;
+    padding: 16px 6px;
+}
+
+.activity-photo-viewer__stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.activity-photo-viewer__image {
+    display: block;
+    max-width: min(100%, 1500px);
+    max-height: calc(100dvh - 168px);
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity .16s ease;
+}
+
+.activity-photo-viewer__image.is-ready {
+    opacity: 1;
+}
+
+.activity-photo-viewer__loading,
+.activity-photo-viewer__error {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: #9eb0ca;
+    font-size: .84rem;
+    pointer-events: none;
+}
+
+.activity-photo-viewer__loading[hidden],
+.activity-photo-viewer__error[hidden] {
+    display: none;
+}
+
+.activity-photo-viewer__error {
+    color: #f3a8af;
+}
+
+.activity-photo-viewer__nav {
+    width: 46px;
+    height: 46px;
+    justify-self: center;
+}
+
+.activity-photo-viewer__nav:disabled {
+    opacity: .28;
+}
+
+.activity-photo-viewer__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 54px;
+    padding: 10px 18px;
+    border-top: 1px solid var(--viewer-border);
+    background: var(--viewer-panel);
+}
+
+.activity-photo-viewer__file {
+    min-width: 0;
+    overflow: hidden;
+    color: #d7e2f3;
+    font-size: .78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-photo-viewer__hint {
+    flex: 0 0 auto;
+    color: #9db0cd;
+    font-size: .68rem;
+}
+
+.activity-photo-viewer__hint kbd {
+    padding: 2px 5px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 4px;
+    background: #1a263a;
+    color: #fff;
+    font-size: .65rem;
+}
+
+@media (max-width: 991.98px) {
+    .activity-detail-hero {
+        flex-direction: column;
+    }
+
+    .activity-detail-hero__actions {
+        justify-content: flex-start;
+    }
+
+    .activity-upload-form {
+        flex-direction: column;
+    }
+
+    .activity-admin-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .activity-photo-viewer__body {
+        grid-template-columns: 52px minmax(0, 1fr) 52px;
+    }
+
+    .activity-photo-viewer__nav {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .activities-details-page {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .activity-detail-hero,
+    .activity-detail-card {
+        border-radius: 14px;
+    }
+
+    .activity-detail-hero {
+        padding: 18px;
+    }
+
+    .activity-detail-card__header,
+    .activity-detail-card__body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .activity-photo-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+    }
+
+    .activity-photo-card__meta {
+        padding-left: 8px;
+    }
+
+    .activity-photo-card__name {
+        display: none;
+    }
+
+    .activity-photo-card__actions {
+        margin-left: auto;
+    }
+
+    .activity-document-row {
+        grid-template-columns: 36px minmax(0, 1fr);
+    }
+
+    .activity-document-row__actions {
+        grid-column: 1 / -1;
+        padding-left: 47px;
+    }
+
+    .activity-file-card__body {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .activity-photo-viewer__header {
+        padding: 12px;
+    }
+
+    .activity-photo-viewer__eyebrow,
+    .activity-photo-viewer__hint {
+        display: none;
+    }
+
+    .activity-photo-viewer__body {
+        grid-template-columns: 42px minmax(0, 1fr) 42px;
+        padding: 8px 0;
+    }
+
+    .activity-photo-viewer__image {
+        max-height: calc(100dvh - 126px);
+    }
+
+    .activity-photo-viewer__nav {
+        width: 36px;
+        height: 36px;
+    }
+
+    .activity-photo-viewer__footer {
+        min-height: 44px;
+        padding: 8px 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity-photo-card,
+    .activity-photo-card__image img,
+    .activity-photo-card__zoom,
+    .activity-photo-viewer__image,
+    .activity-photo-viewer__close,
+    .activity-photo-viewer__nav {
+        transition: none;
+    }
+}

@@ -14,13 +14,10 @@ public interface IActivityInputValidator
 
 internal sealed class ActivityInputValidator : IActivityInputValidator
 {
-    private readonly IActivityRepository _activityRepository;
     private readonly IActivityTypeRepository _activityTypeRepository;
 
-    public ActivityInputValidator(IActivityRepository activityRepository,
-                                  IActivityTypeRepository activityTypeRepository)
+    public ActivityInputValidator(IActivityTypeRepository activityTypeRepository)
     {
-        _activityRepository = activityRepository;
         _activityTypeRepository = activityTypeRepository;
     }
 
@@ -69,6 +66,15 @@ internal sealed class ActivityInputValidator : IActivityInputValidator
             AddError(nameof(input.ActivityTypeId), "Activity type is required.");
         }
 
+        // New records must always carry the actual event date. Historical imported
+        // records that were created without a date remain editable without forcing
+        // synthetic data; once a date exists it cannot be cleared.
+        if (!input.ScheduledStartUtc.HasValue
+            && (existing is null || existing.ScheduledStartUtc.HasValue))
+        {
+            AddError(nameof(input.ScheduledStartUtc), "Event date is required.");
+        }
+
         if (input.ScheduledStartUtc.HasValue && input.ScheduledEndUtc.HasValue &&
             input.ScheduledEndUtc.Value < input.ScheduledStartUtc.Value)
         {
@@ -95,21 +101,7 @@ internal sealed class ActivityInputValidator : IActivityInputValidator
             throw new ActivityValidationException(errors);
         }
 
-        // SECTION: Duplicate activity title validation
-        var duplicate = await _activityRepository.ExistsByTypeAndTitleAsync(
-            input.ActivityTypeId,
-            input.Title.Trim(),
-            existing?.Id,
-            cancellationToken);
-
-        if (duplicate)
-        {
-            AddError(nameof(input.Title), "An activity with this title already exists for the selected type.");
-        }
-
-        if (errors.Count > 0)
-        {
-            throw new ActivityValidationException(errors);
-        }
+        // Activity titles are descriptive, not identifiers. Repeated meeting/review
+        // titles are legitimate and are therefore intentionally not uniqueness-validated.
     }
 }

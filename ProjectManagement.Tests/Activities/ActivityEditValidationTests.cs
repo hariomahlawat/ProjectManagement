@@ -10,17 +10,20 @@ namespace ProjectManagement.Tests.Activities;
 public sealed class ActivityEditValidationTests
 {
     [Fact]
-    public void CreateInput_WithoutEventDate_IsRejected()
+    public void InputModel_WithoutEventDate_DoesNotApplyUnconditionalRequiredRule()
     {
-        // SECTION: Arrange a create payload with the event date omitted.
+        // Historical imported Activities may legitimately have no event date. Conditional
+        // create/edit enforcement therefore belongs to the PageModel and service validator,
+        // not an unconditional DataAnnotations [Required] rule on the shared input model.
         var input = CreateValidInput();
         input.ScheduledStart = null;
+        input.ScheduledEnd = null;
 
         var errors = Validate(input);
 
-        // SECTION: Assert the required event date error is returned.
-        var error = Assert.Single(errors, error => error.MemberNames.Contains(nameof(EditModel.InputModel.ScheduledStart)));
-        Assert.Equal("Event date is required.", error.ErrorMessage);
+        Assert.DoesNotContain(
+            errors,
+            error => error.MemberNames.Contains(nameof(EditModel.InputModel.ScheduledStart)));
     }
 
     [Fact]

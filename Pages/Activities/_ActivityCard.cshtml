@@ -21,6 +21,10 @@
             <div class="activity-card__heading">
                 <div class="activity-card__eyebrow">
                     <span class="activity-card__type">@Model.ActivityType</span>
+                    @if (Model.HasPendingDelete)
+                    {
+                        <span class="activity-card__pending"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Deletion pending</span>
+                    }
                     @if (!string.IsNullOrWhiteSpace(Model.Location))
                     {
                         <span class="activity-card__location">

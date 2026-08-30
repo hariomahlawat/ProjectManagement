@@ -13,7 +13,14 @@ public interface IActivityAttachmentValidator
 
 internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
 {
-    public const long MaxAttachmentSizeBytes = 25 * 1024 * 1024; // 25 MB
+    public const long MaxStandardAttachmentSizeBytes = 25 * 1024 * 1024; // 25 MB
+    public const long MaxVideoAttachmentSizeBytes = 200 * 1024 * 1024; // 200 MB
+
+    // Backward-compatible alias for callers that only need the standard limit.
+    public const long MaxUploadBatchSizeBytes = 200 * 1024 * 1024; // 200 MB transport-safe activity batch
+
+    // Backward-compatible alias for callers that only need the standard limit.
+    public const long MaxAttachmentSizeBytes = MaxStandardAttachmentSizeBytes;
 
     private static readonly string[] AllowedContentTypeList =
     {
@@ -139,9 +146,15 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         {
             AddError(nameof(upload.Length), "File must be larger than zero bytes.");
         }
-        else if (upload.Length > MaxAttachmentSizeBytes)
+        else
         {
-            AddError(nameof(upload.Length), $"File exceeds the maximum size of {MaxAttachmentSizeBytes / (1024 * 1024)} MB.");
+            var maxBytes = GetMaxAttachmentSizeBytes(upload.FileName, contentType);
+            if (upload.Length > maxBytes)
+            {
+                AddError(
+                    nameof(upload.Length),
+                    $"File exceeds the maximum size of {maxBytes / (1024 * 1024)} MB for this file type.");
+            }
         }
 
         if (errors.Count > 0)
@@ -153,6 +166,19 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         {
             upload.Content.Seek(0, SeekOrigin.Begin);
         }
+    }
+
+
+    public static long GetMaxAttachmentSizeBytes(string? fileName, string? contentType)
+    {
+        var normalizedType = NormalizeContentType(contentType);
+        var extension = string.IsNullOrWhiteSpace(fileName) ? string.Empty : Path.GetExtension(fileName);
+        var isVideo = normalizedType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)
+                      || extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase)
+                      || extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+                      || extension.Equals(".webm", StringComparison.OrdinalIgnoreCase);
+
+        return isVideo ? MaxVideoAttachmentSizeBytes : MaxStandardAttachmentSizeBytes;
     }
 
     // SECTION: Content type helpers

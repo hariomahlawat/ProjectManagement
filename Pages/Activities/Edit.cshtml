@@ -7,7 +7,8 @@
     var remainingSlots = Model.RemainingAttachmentSlots;
     var canUpload = remainingSlots > 0;
     var attachmentSummary = Model.AllowedAttachmentSummary;
-    var maxSizeMb = Model.MaxAttachmentSizeMegabytes;
+    var standardMaxMb = Model.MaxStandardAttachmentSizeMegabytes;
+    var videoMaxMb = Model.MaxVideoAttachmentSizeMegabytes;
 }
 
 <div class="container-xxl">
@@ -24,6 +25,7 @@
     <form method="post" class="needs-validation" novalidate enctype="multipart/form-data">
         <!-- SECTION: Activity identity and validation -->
         <input type="hidden" asp-for="Input.Id" />
+        <input type="hidden" asp-for="Input.RowVersion" />
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
         <!-- SECTION: Basic details -->
@@ -91,13 +93,16 @@
                                multiple
                                accept="@Model.AttachmentAcceptAttribute"
                                data-doc-file
-                               data-max-size="@Model.MaxAttachmentSizeBytes"
+                               data-activity-upload-input
+                               data-standard-max="@Model.MaxStandardAttachmentSizeBytes"
+                               data-video-max="@Model.MaxVideoAttachmentSizeBytes"
+                               data-batch-max="@Model.MaxUploadBatchSizeBytes"
                                data-max-files="@remainingSlots"
                                data-allowed="@string.Join(',', Model.AllowedAttachmentContentTypes)"
                                data-extensions="@string.Join(',', Model.AllowedAttachmentExtensions)" />
                         <span asp-validation-for="Input.Files" class="text-danger"></span>
                         <div id="activity-upload-help" class="form-text">
-                            You can upload up to @remainingSlots attachment@(remainingSlots == 1 ? string.Empty : "s") this session. Allowed types: @attachmentSummary. Maximum size: @maxSizeMb MB each.
+                            You can upload up to @remainingSlots attachment@(remainingSlots == 1 ? string.Empty : "s") this session. Allowed types: @attachmentSummary. Images/documents: @standardMaxMb MB each; videos: @videoMaxMb MB each.
                         </div>
                     </div>
                 }
@@ -147,4 +152,5 @@
     <partial name="_ValidationScriptsPartial" />
     <script src="~/js/widgets/char-count.js" asp-append-version="true" defer></script>
     <script src="~/js/projects/document-requests.js" asp-append-version="true" defer></script>
+    <script src="~/js/pages/activity-details.js" asp-append-version="true" defer></script>
 }

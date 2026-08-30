@@ -16,8 +16,6 @@ namespace ProjectManagement.Services.Activities;
 
 public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
 {
-    private static readonly string[] RequesterRoles = ActivityRoleLists.ManagerRoles;
-    private static readonly string[] ApproverRoles = ActivityRoleLists.DeleteApproverRoles;
 
     private readonly ApplicationDbContext _dbContext;
     private readonly IActivityService _activityService;
@@ -241,7 +239,7 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
 
     private void EnsureCanRequest()
     {
-        if (!IsInAnyRole(_userContext.User, RequesterRoles))
+        if (!ActivityAuthorizationPolicy.CanRequestDelete(_userContext.User))
         {
             throw new ActivityAuthorizationException("You are not authorised to request deletion for this activity.");
         }
@@ -249,7 +247,7 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
 
     private void EnsureCanApprove()
     {
-        if (!IsInAnyRole(_userContext.User, ApproverRoles))
+        if (!ActivityAuthorizationPolicy.CanDelete(_userContext.User))
         {
             throw new ActivityAuthorizationException("You are not authorised to decide activity delete requests.");
         }
@@ -264,19 +262,6 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         }
 
         return userId;
-    }
-
-    private static bool IsInAnyRole(ClaimsPrincipal principal, IReadOnlyList<string> roles)
-    {
-        foreach (var role in roles)
-        {
-            if (principal.IsInRole(role))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static ActivityDeleteNotificationContext CreateNotificationContext(ActivityDeleteRequest request)

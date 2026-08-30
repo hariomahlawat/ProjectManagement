@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
@@ -9,7 +10,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Infrastructure.Ui;
 using ProjectManagement.Models.Activities;
@@ -20,23 +24,23 @@ namespace ProjectManagement.Pages.Activities;
 [Authorize]
 public sealed class DetailsModel : PageModel
 {
-    private static readonly IReadOnlyList<string> ManagerRoles = ActivityRoleLists.ManagerRoles;
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]
     {
         "PDF", "DOC/DOCX", "XLS/XLSX", "PPT/PPTX", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
     };
 
     private readonly IActivityService _activityService;
-    private readonly IActivityAttachmentManager _activityAttachmentManager;
     private readonly ILogger<DetailsModel> _logger;
+    private readonly MediaLibraryDbContext? _mediaLibraryDb;
 
-    public DetailsModel(IActivityService activityService,
-                        IActivityAttachmentManager activityAttachmentManager,
-                        ILogger<DetailsModel> logger)
+    public DetailsModel(
+        IActivityService activityService,
+        ILogger<DetailsModel> logger,
+        MediaLibraryDbContext? mediaLibraryDb = null)
     {
         _activityService = activityService ?? throw new ArgumentNullException(nameof(activityService));
-        _activityAttachmentManager = activityAttachmentManager ?? throw new ArgumentNullException(nameof(activityAttachmentManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _mediaLibraryDb = mediaLibraryDb;
     }
 
     [BindProperty]
@@ -46,7 +50,7 @@ public sealed class DetailsModel : PageModel
 
     public IReadOnlyList<ActivityAttachmentMetadata> Attachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
 
-    public IReadOnlyList<ActivityAttachmentMetadata> PhotoAttachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
+    public IReadOnlyList<ActivityPhotoViewModel> PhotoAttachments { get; private set; } = Array.Empty<ActivityPhotoViewModel>();
 
     public IReadOnlyList<ActivityAttachmentMetadata> VideoAttachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
 
@@ -56,13 +60,21 @@ public sealed class DetailsModel : PageModel
 
     public bool CanManage { get; private set; }
 
+    public bool CanRequestDelete { get; private set; }
+
+    public bool HasPendingDelete { get; private set; }
+
     public int RemainingAttachmentSlots { get; private set; }
 
     public int MaxAttachments => ActivityAttachmentManager.MaxAttachmentsPerActivity;
 
     public string AllowedAttachmentSummary => string.Join(", ", AttachmentSummaryLabels);
 
-    public long MaxAttachmentSizeBytes => ActivityAttachmentValidator.MaxAttachmentSizeBytes;
+    public long MaxStandardAttachmentSizeBytes => ActivityAttachmentValidator.MaxStandardAttachmentSizeBytes;
+
+    public long MaxVideoAttachmentSizeBytes => ActivityAttachmentValidator.MaxVideoAttachmentSizeBytes;
+
+    public long MaxUploadBatchSizeBytes => ActivityAttachmentValidator.MaxUploadBatchSizeBytes;
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -78,15 +90,15 @@ public sealed class DetailsModel : PageModel
 
     public async Task<IActionResult> OnPostUploadAsync(int id, CancellationToken cancellationToken)
     {
-        if (!IsManager(User))
-        {
-            return Forbid();
-        }
-
         var activity = await _activityService.GetAsync(id, cancellationToken);
         if (activity is null)
         {
             return NotFound();
+        }
+
+        if (!ActivityAuthorizationPolicy.CanManage(activity, User, User.FindFirstValue(ClaimTypes.NameIdentifier)))
+        {
+            return Forbid();
         }
 
         var files = Uploads?.Where(file => file is not null && file.Length > 0).ToList() ?? new List<IFormFile>();
@@ -113,10 +125,10 @@ public sealed class DetailsModel : PageModel
             return RedirectToPage(new { id });
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId))
+        if (files.Sum(file => file.Length) > ActivityAttachmentValidator.MaxUploadBatchSizeBytes)
         {
-            return Challenge();
+            TempData.ToastError("The selected files exceed the 200 MB upload batch limit. Upload large videos separately.");
+            return RedirectToPage(new { id });
         }
 
         var uploadedCount = 0;
@@ -126,7 +138,7 @@ public sealed class DetailsModel : PageModel
             {
                 await using var stream = file.OpenReadStream();
                 var upload = new ActivityAttachmentUpload(stream, file.FileName, file.ContentType ?? string.Empty, file.Length);
-                await _activityAttachmentManager.AddAsync(activity, upload, userId, cancellationToken);
+                await _activityService.AddAttachmentAsync(activity.Id, upload, cancellationToken);
                 uploadedCount++;
             }
             catch (ActivityValidationException ex)
@@ -134,6 +146,10 @@ public sealed class DetailsModel : PageModel
                 var error = ex.Errors.SelectMany(pair => pair.Value).FirstOrDefault();
                 TempData.ToastError(error ?? "The attachment could not be uploaded.");
                 return RedirectToPage(new { id });
+            }
+            catch (ActivityAuthorizationException)
+            {
+                return Forbid();
             }
             catch (IOException ex)
             {
@@ -159,19 +175,18 @@ public sealed class DetailsModel : PageModel
 
     public async Task<IActionResult> OnPostRemoveAttachmentAsync(int id, int attachmentId, CancellationToken cancellationToken)
     {
-        if (!IsManager(User))
-        {
-            return Forbid();
-        }
-
         var activity = await _activityService.GetAsync(id, cancellationToken);
         if (activity is null)
         {
             return NotFound();
         }
 
-        var attachment = activity.Attachments?.FirstOrDefault(a => a.Id == attachmentId);
-        if (attachment is null)
+        if (!ActivityAuthorizationPolicy.CanManage(activity, User, User.FindFirstValue(ClaimTypes.NameIdentifier)))
+        {
+            return Forbid();
+        }
+
+        if (activity.Attachments?.All(a => a.Id != attachmentId) != false)
         {
             TempData.ToastError("Attachment not found.");
             return RedirectToPage(new { id });
@@ -179,8 +194,12 @@ public sealed class DetailsModel : PageModel
 
         try
         {
-            await _activityAttachmentManager.RemoveAsync(attachment, cancellationToken);
+            await _activityService.RemoveAttachmentAsync(attachmentId, cancellationToken);
             TempData["ToastMessage"] = "Attachment removed.";
+        }
+        catch (ActivityAuthorizationException)
+        {
+            return Forbid();
         }
         catch (Exception ex)
         {
@@ -194,12 +213,22 @@ public sealed class DetailsModel : PageModel
     private async Task PopulateAsync(Activity activity, CancellationToken cancellationToken)
     {
         Activity = activity;
-        CanManage = IsManager(User);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        CanManage = ActivityAuthorizationPolicy.CanManage(activity, User, userId);
+        CanRequestDelete = ActivityAuthorizationPolicy.CanRequestDelete(User);
+        HasPendingDelete = activity.DeleteRequests.Any(request => request.ApprovedAtUtc == null && request.RejectedAtUtc == null);
 
         var attachments = await _activityService.GetAttachmentMetadataAsync(activity.Id, cancellationToken);
         Attachments = attachments;
-        PhotoAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Photo).ToList();
-        VideoAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Video).ToList();
+
+        var photos = attachments
+            .Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Photo)
+            .ToList();
+        PhotoAttachments = await BuildPhotoViewModelsAsync(photos, cancellationToken);
+
+        VideoAttachments = attachments
+            .Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Video)
+            .ToList();
         DocumentAttachments = attachments
             .Where(a =>
             {
@@ -207,21 +236,104 @@ public sealed class DetailsModel : PageModel
                 return kind is ActivityAttachmentKind.Pdf or ActivityAttachmentKind.Document;
             })
             .ToList();
-        OtherAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Other).ToList();
+        OtherAttachments = attachments
+            .Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Other)
+            .ToList();
 
         RemainingAttachmentSlots = Math.Max(0, ActivityAttachmentManager.MaxAttachmentsPerActivity - attachments.Count);
     }
 
-    private static bool IsManager(ClaimsPrincipal user)
+    private async Task<IReadOnlyList<ActivityPhotoViewModel>> BuildPhotoViewModelsAsync(
+        IReadOnlyList<ActivityAttachmentMetadata> photos,
+        CancellationToken cancellationToken)
     {
-        foreach (var role in ManagerRoles)
+        if (photos.Count == 0)
         {
-            if (user.IsInRole(role))
-            {
-                return true;
-            }
+            return Array.Empty<ActivityPhotoViewModel>();
         }
 
-        return false;
+        var assets = await LoadPhotoAssetsAsync(photos.Select(photo => photo.Id), cancellationToken);
+        return photos.Select(photo =>
+        {
+            if (assets.TryGetValue(photo.Id, out var asset))
+            {
+                return new ActivityPhotoViewModel(
+                    photo,
+                    BuildMediaUrl(asset.Id, "thumb", asset.CacheVersion) ?? photo.InlineUrl,
+                    BuildMediaUrl(asset.Id, "preview", asset.CacheVersion) ?? photo.InlineUrl);
+            }
+
+            return new ActivityPhotoViewModel(photo, photo.InlineUrl, photo.InlineUrl);
+        }).ToList();
     }
+
+    private async Task<IReadOnlyDictionary<int, ActivityMediaAssetReference>> LoadPhotoAssetsAsync(
+        IEnumerable<int> attachmentIds,
+        CancellationToken cancellationToken)
+    {
+        if (_mediaLibraryDb is null)
+        {
+            return new Dictionary<int, ActivityMediaAssetReference>();
+        }
+
+        var sourceEntityIds = attachmentIds
+            .Distinct()
+            .Select(id => $"activity-photo:{id.ToString(CultureInfo.InvariantCulture)}")
+            .ToList();
+
+        try
+        {
+            var rows = await _mediaLibraryDb.Assets
+                .AsNoTracking()
+                .Where(asset => asset.Origin == MediaAssetOrigin.ActivityPhoto
+                                && !asset.IsDeleted
+                                && asset.IsAvailable
+                                && sourceEntityIds.Contains(asset.SourceEntityId))
+                .Select(asset => new { asset.Id, asset.SourceEntityId, asset.CacheVersion })
+                .ToListAsync(cancellationToken);
+
+            var result = new Dictionary<int, ActivityMediaAssetReference>();
+            foreach (var row in rows)
+            {
+                const string prefix = "activity-photo:";
+                if (row.SourceEntityId.StartsWith(prefix, StringComparison.Ordinal)
+                    && int.TryParse(row.SourceEntityId[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var attachmentId))
+                {
+                    result[attachmentId] = new ActivityMediaAssetReference(row.Id, row.CacheVersion);
+                }
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Media derivatives are an optimisation only. Activity details must remain
+            // available even if the optional media catalogue is temporarily unavailable.
+            _logger.LogDebug(ex, "Media catalogue unavailable while resolving Activity photo thumbnails.");
+            return new Dictionary<int, ActivityMediaAssetReference>();
+        }
+    }
+
+    private string? BuildMediaUrl(long assetId, string variant, int cacheVersion)
+        => Url.Page("/Photos/Media", new { id = assetId, variant, v = cacheVersion });
+
+    public sealed record ActivityPhotoViewModel(
+        ActivityAttachmentMetadata Attachment,
+        string ThumbnailUrl,
+        string PreviewUrl)
+    {
+        public int Id => Attachment.Id;
+        public string FileName => Attachment.FileName;
+        public string ContentType => Attachment.ContentType;
+        public long FileSize => Attachment.FileSize;
+        public string DownloadUrl => Attachment.DownloadUrl;
+        public string OriginalUrl => Attachment.InlineUrl;
+        public DateTimeOffset UploadedAtUtc => Attachment.UploadedAtUtc;
+    }
+
+    private sealed record ActivityMediaAssetReference(long Id, int CacheVersion);
 }

@@ -40,7 +40,8 @@ public sealed record ActivityInput(
     string? Location,
     int ActivityTypeId,
     DateTimeOffset? ScheduledStartUtc,
-    DateTimeOffset? ScheduledEndUtc);
+    DateTimeOffset? ScheduledEndUtc,
+    byte[]? ExpectedRowVersion = null);
 
 public sealed record ActivityAttachmentUpload(
     Stream Content,

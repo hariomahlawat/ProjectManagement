@@ -797,3 +797,25 @@
     border-left: 0;
   }
 }
+
+
+/* SECTION: Activity governance state */
+.activity-card__pending,
+.activities-table__pending {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    width: fit-content;
+    border: 1px solid rgba(217, 146, 22, .34);
+    border-radius: 999px;
+    padding: .18rem .48rem;
+    background: rgba(255, 193, 7, .11);
+    color: #8a5a00;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.activities-table__pending {
+    margin-top: .35rem;
+}

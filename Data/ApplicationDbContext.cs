@@ -3872,23 +3872,6 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => x.ScheduledStartUtc)
                     .HasDatabaseName("IX_Activities_ScheduledStartUtc");
 
-                var uniqueActivityTitle = entity.HasIndex(x => new { x.ActivityTypeId, x.Title })
-                    .HasDatabaseName("UX_Activities_ActivityTypeId_Title")
-                    .IsUnique();
-
-                if (Database.IsNpgsql())
-                {
-                    uniqueActivityTitle.HasFilter("\"IsDeleted\" = FALSE");
-                }
-                else if (Database.IsSqlServer())
-                {
-                    uniqueActivityTitle.HasFilter("[IsDeleted] = 0");
-                }
-                else
-                {
-                    uniqueActivityTitle.HasFilter("IsDeleted = 0");
-                }
-
                 entity.HasOne(x => x.ActivityType)
                     .WithMany(x => x.Activities)
                     .HasForeignKey(x => x.ActivityTypeId)

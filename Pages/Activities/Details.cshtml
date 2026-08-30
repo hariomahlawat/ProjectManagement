@@ -21,26 +21,14 @@
 
     string FormatUser(string? displayName, string? userId)
     {
-        if (!string.IsNullOrWhiteSpace(displayName))
-        {
-            return displayName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(userId))
-        {
-            return userId;
-        }
-
+        if (!string.IsNullOrWhiteSpace(displayName)) return displayName;
+        if (!string.IsNullOrWhiteSpace(userId)) return userId;
         return "Unknown";
     }
 
     string FormatFileSize(long bytes)
     {
-        if (bytes <= 0)
-        {
-            return "0 B";
-        }
-
+        if (bytes <= 0) return "0 B";
         var sizes = new[] { "B", "KB", "MB", "GB" };
         var order = Math.Min((int)Math.Floor(Math.Log(bytes, 1024)), sizes.Length - 1);
         var value = bytes / Math.Pow(1024, order);
@@ -49,344 +37,400 @@
 
     string ResolveDeleteRequestStatus()
     {
-        if (latestDeleteRequest is null)
-        {
-            return "No delete request";
-        }
-
+        if (latestDeleteRequest is null) return "No delete request";
         if (latestDeleteRequest.ApprovedAtUtc.HasValue)
         {
             return $"Approved on {FormatTimestamp(latestDeleteRequest.ApprovedAtUtc)} by {FormatUser(latestDeleteRequest.ApprovedByUser?.FullName, latestDeleteRequest.ApprovedByUserId)}";
         }
-
         if (latestDeleteRequest.RejectedAtUtc.HasValue)
         {
             return $"Rejected on {FormatTimestamp(latestDeleteRequest.RejectedAtUtc)} by {FormatUser(latestDeleteRequest.RejectedByUser?.FullName, latestDeleteRequest.RejectedByUserId)}";
         }
-
         return $"Pending since {FormatTimestamp(latestDeleteRequest.RequestedAtUtc)} by {FormatUser(latestDeleteRequest.RequestedByUser?.FullName, latestDeleteRequest.RequestedByUserId)}";
     }
+
+    var standardMaxMb = Model.MaxStandardAttachmentSizeBytes / (1024 * 1024);
+    var videoMaxMb = Model.MaxVideoAttachmentSizeBytes / (1024 * 1024);
 }
 
-<div class="container-xxl activities-details-page" data-module="activities-index">
-    <!-- SECTION: Breadcrumb navigation -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
+@section Styles {
+    <link rel="stylesheet" href="~/css/activities/details.css" asp-append-version="true" />
+}
+
+<div class="container-xxl activities-details-page" data-module="activity-details">
+    <nav aria-label="breadcrumb" class="activity-details-breadcrumb">
+        <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a asp-page="/Activities/Index">Activities</a></li>
             <li class="breadcrumb-item active" aria-current="page">Details</li>
         </ol>
     </nav>
 
-    <!-- SECTION: Activity header -->
-    <header class="pm-card pm-shadow mb-4">
-        <div class="pm-card-header d-flex flex-column flex-lg-row gap-3 align-items-start align-items-lg-center">
-            <div class="flex-grow-1">
-                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-                    <span class="badge text-bg-primary">@(activity.ActivityType?.Name ?? "Activity")</span>
-                    <span class="text-muted small">
-                        <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>@FormatEventDate(activity.ScheduledStartUtc)
-                    </span>
-                </div>
-                <h1 class="pm-card-title mb-2">@activity.Title</h1>
+    <header class="activity-detail-hero">
+        <div class="activity-detail-hero__main">
+            <div class="activity-detail-hero__eyebrow">
+                <span class="activity-detail-hero__type">@(activity.ActivityType?.Name ?? "Activity")</span>
+                <span><i class="bi bi-calendar3" aria-hidden="true"></i>@FormatEventDate(activity.ScheduledStartUtc)</span>
                 @if (!string.IsNullOrWhiteSpace(activity.Location))
                 {
-                    <p class="pm-card-subtitle mb-0 text-muted">
-                        <i class="bi bi-geo-alt me-1" aria-hidden="true"></i>@activity.Location
-                    </p>
+                    <span><i class="bi bi-geo-alt" aria-hidden="true"></i>@activity.Location</span>
+                }
+                @if (Model.Attachments.Count > 0)
+                {
+                    <a href="#activity-media" class="activity-detail-hero__media-link">
+                        <i class="bi bi-paperclip" aria-hidden="true"></i>@Model.Attachments.Count supporting record@(Model.Attachments.Count == 1 ? string.Empty : "s")
+                    </a>
                 }
             </div>
+            <h1>@activity.Title</h1>
+        </div>
+
+        <div class="activity-detail-hero__actions">
+            @if (Model.HasPendingDelete)
+            {
+                <span class="activity-pending-delete" title="@ResolveDeleteRequestStatus()">
+                    <i class="bi bi-hourglass-split" aria-hidden="true"></i>Deletion pending
+                </span>
+            }
             @if (Model.CanManage)
             {
-                <div class="d-flex flex-wrap gap-2">
-                    <a class="btn btn-outline-secondary btn-sm" asp-page="./Edit" asp-route-id="@activity.Id">
-                        <i class="bi bi-pencil" aria-hidden="true"></i>
-                        <span>Edit</span>
-                    </a>
-                    <form method="post"
-                          asp-page="./Index"
-                          asp-page-handler="RequestDelete"
-                          asp-route-id="@activity.Id"
-                          class="d-inline"
-                          data-activities-delete-form
-                          data-confirm="Request deletion of this activity?">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                            <i class="bi bi-trash" aria-hidden="true"></i>
-                            <span>Request delete</span>
-                        </button>
-                    </form>
-                </div>
+                <a class="btn btn-outline-secondary btn-sm" asp-page="./Edit" asp-route-id="@activity.Id">
+                    <i class="bi bi-pencil" aria-hidden="true"></i>Edit
+                </a>
+            }
+            @if (Model.CanRequestDelete && !Model.HasPendingDelete)
+            {
+                <form method="post"
+                      asp-page="./Index"
+                      asp-page-handler="RequestDelete"
+                      asp-route-id="@activity.Id"
+                      class="d-inline"
+                      data-activities-delete-form
+                      data-confirm="Request deletion of this activity?">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-trash" aria-hidden="true"></i>Request delete
+                    </button>
+                </form>
             }
         </div>
     </header>
 
-    <!-- SECTION: Remarks / brief -->
-    <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-remarks-heading">
-        <div class="pm-card-header">
-            <h2 class="h5 mb-0" id="activity-remarks-heading">Remarks / Brief</h2>
+    <section class="activity-detail-card" aria-labelledby="activity-remarks-heading">
+        <div class="activity-detail-card__header">
+            <div>
+                <span class="activity-detail-card__eyebrow">Activity record</span>
+                <h2 id="activity-remarks-heading">Remarks / Brief</h2>
+            </div>
         </div>
-        <div class="pm-card-body">
+        <div class="activity-detail-card__body activity-detail-brief">
             @if (string.IsNullOrWhiteSpace(activity.Description))
             {
-                <p class="text-muted mb-0">No remarks added.</p>
+                <p class="activity-empty-copy mb-0">No remarks or brief recorded.</p>
             }
             else
             {
-                <p class="mb-0 pm-text-prewrap">@activity.Description</p>
+                <div class="pm-text-prewrap">@activity.Description</div>
             }
         </div>
     </section>
 
-    <!-- SECTION: Media gallery -->
-    <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-media-heading">
-        <div class="pm-card-header d-flex flex-column flex-lg-row gap-3 align-items-start align-items-lg-center">
+    <section class="activity-detail-card" id="activity-media" aria-labelledby="activity-media-heading">
+        <div class="activity-detail-card__header activity-detail-card__header--media">
             <div>
-                <h2 class="h5 mb-1" id="activity-media-heading">Media gallery</h2>
-                <p class="text-muted mb-0">@Model.Attachments.Count attachment@(Model.Attachments.Count == 1 ? string.Empty : "s"). Allowed types: @Model.AllowedAttachmentSummary. Max size: @(Math.Ceiling(Model.MaxAttachmentSizeBytes / 1048576.0)) MB.</p>
+                <span class="activity-detail-card__eyebrow">Evidence &amp; attachments</span>
+                <h2 id="activity-media-heading">Media gallery</h2>
+                <p>
+                    @Model.Attachments.Count attachment@(Model.Attachments.Count == 1 ? string.Empty : "s")
+                    @if (Model.Attachments.Count > 0)
+                    {
+                        <span>· @Model.PhotoAttachments.Count photo@(Model.PhotoAttachments.Count == 1 ? string.Empty : "s")</span>
+                        @if (Model.VideoAttachments.Count > 0)
+                        {
+                            <span> · @Model.VideoAttachments.Count video@(Model.VideoAttachments.Count == 1 ? string.Empty : "s")</span>
+                        }
+                        @if (Model.DocumentAttachments.Count > 0)
+                        {
+                            <span> · @Model.DocumentAttachments.Count document@(Model.DocumentAttachments.Count == 1 ? string.Empty : "s")</span>
+                        }
+                    }
+                </p>
             </div>
             @if (Model.CanManage)
             {
-                <div class="ms-lg-auto">
-                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#activityUploadPanel" aria-expanded="false" aria-controls="activityUploadPanel">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                        Add media
-                    </button>
-                </div>
+                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#activityUploadPanel" aria-expanded="false" aria-controls="activityUploadPanel">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>Add media
+                </button>
             }
         </div>
-        <div class="pm-card-body">
+
+        <div class="activity-detail-card__body activity-media-body">
             @if (Model.CanManage)
             {
-                <!-- SECTION: Collapsed attachment upload form -->
-                <div class="collapse mb-4" id="activityUploadPanel">
-                    <form method="post" asp-page-handler="Upload" asp-route-id="@activity.Id" enctype="multipart/form-data" class="d-flex flex-column flex-sm-row gap-2">
+                <div class="collapse activity-upload-panel" id="activityUploadPanel">
+                    <form method="post" asp-page-handler="Upload" asp-route-id="@activity.Id" enctype="multipart/form-data" class="activity-upload-form">
                         @Html.AntiForgeryToken()
-                        <input type="file" name="Uploads" multiple class="form-control" accept="application/pdf,application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg,video/mp4,video/quicktime,video/webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.mp4,.mov,.webm" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null) />
-                        <button type="submit" class="btn btn-primary" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null)>
-                            <i class="bi bi-upload" aria-hidden="true"></i>
-                            <span>Upload</span>
+                        <div class="flex-grow-1">
+                            <label for="activityUploads" class="form-label fw-semibold">Add supporting files</label>
+                            <input id="activityUploads"
+                                   type="file"
+                                   name="Uploads"
+                                   multiple
+                                   class="form-control"
+                                   accept="application/pdf,application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg,video/mp4,video/quicktime,video/webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.mp4,.mov,.webm"
+                                   data-activity-upload-input
+                                   data-standard-max="@Model.MaxStandardAttachmentSizeBytes"
+                                   data-video-max="@Model.MaxVideoAttachmentSizeBytes"
+                               data-batch-max="@Model.MaxUploadBatchSizeBytes"
+                                   data-max-files="@Model.RemainingAttachmentSlots"
+                                   @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null) />
+                            <div class="form-text">
+                                Up to @Model.RemainingAttachmentSlots more files. Images/documents: @standardMaxMb MB each; videos: @videoMaxMb MB each. Maximum @Model.MaxAttachments attachments per activity.
+                            </div>
+                            <div class="text-danger small mt-1" data-activity-upload-error hidden></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary align-self-lg-end" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null)>
+                            <i class="bi bi-upload" aria-hidden="true"></i>Upload
                         </button>
                     </form>
-                    @if (Model.RemainingAttachmentSlots <= 0)
-                    {
-                        <p class="text-muted small mb-0 mt-2">This activity already has the maximum number of attachments.</p>
-                    }
-                    else
-                    {
-                        <p class="text-muted small mb-0 mt-2">You can upload @Model.RemainingAttachmentSlots more attachment@(Model.RemainingAttachmentSlots == 1 ? string.Empty : "s").</p>
-                    }
                 </div>
             }
+
             @if (Model.Attachments.Count == 0)
             {
-                <p class="text-muted mb-0">No attachments uploaded yet.</p>
+                <div class="activity-media-empty">
+                    <i class="bi bi-paperclip" aria-hidden="true"></i>
+                    <div>
+                        <strong>No supporting records yet</strong>
+                        <span>Photos, videos and documents added to this activity will appear here.</span>
+                    </div>
+                </div>
             }
             else
             {
-                <!-- SECTION: Photo attachments -->
-                <section class="mb-4" aria-labelledby="activity-photos-heading">
-                    <h3 class="h6 mb-3" id="activity-photos-heading">Photos</h3>
-                    @if (Model.PhotoAttachments.Count == 0)
-                    {
-                        <p class="text-muted mb-0">No photos uploaded.</p>
-                    }
-                    else
-                    {
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
-                            @foreach (var photo in Model.PhotoAttachments)
+                @if (Model.PhotoAttachments.Count > 0)
+                {
+                    <section class="activity-media-section" aria-labelledby="activity-photos-heading">
+                        <div class="activity-media-section__heading">
+                            <h3 id="activity-photos-heading">Photos</h3>
+                            <span>@Model.PhotoAttachments.Count</span>
+                        </div>
+                        <div class="activity-photo-grid" data-activity-photo-gallery data-activity-title="@activity.Title">
+                            @for (var index = 0; index < Model.PhotoAttachments.Count; index++)
                             {
-                                var modalId = $"photo-modal-{photo.Id}";
-                                <div class="col">
-                                    <div class="card h-100">
-                                        <button type="button" class="btn btn-link p-0 text-start" data-bs-toggle="modal" data-bs-target="#@modalId" aria-label="View photo @photo.FileName">
-                                            <img src="@photo.InlineUrl" alt="@photo.FileName" class="card-img-top" />
-                                        </button>
-                                        <div class="card-body">
-                                            <h4 class="card-title h6 mb-1">@photo.FileName</h4>
-                                            <p class="card-text text-muted small mb-2">Uploaded @FormatTimestamp(photo.UploadedAtUtc)</p>
-                                            <p class="card-text text-muted small mb-0">@FormatFileSize(photo.FileSize)</p>
-                                        </div>
-                                        <div class="card-footer bg-transparent border-0 pt-0">
-                                            <a class="btn btn-sm btn-outline-secondary" href="@photo.DownloadUrl">Download</a>
+                                var photo = Model.PhotoAttachments[index];
+                                <article class="activity-photo-card">
+                                    <a class="activity-photo-card__image"
+                                       href="@photo.PreviewUrl"
+                                       data-activity-photo-item
+                                       data-index="@index"
+                                       data-preview-url="@photo.PreviewUrl"
+                                       data-original-url="@photo.OriginalUrl"
+                                       data-file-name="@photo.FileName"
+                                       aria-label="View photo @(index + 1) of @Model.PhotoAttachments.Count: @photo.FileName">
+                                        <img src="@photo.ThumbnailUrl"
+                                             alt="@photo.FileName"
+                                             loading="lazy"
+                                             decoding="async" />
+                                        <span class="activity-photo-card__zoom" aria-hidden="true"><i class="bi bi-arrows-fullscreen"></i></span>
+                                    </a>
+                                    <div class="activity-photo-card__meta">
+                                        <span class="activity-photo-card__name" title="@photo.FileName">@photo.FileName</span>
+                                        <div class="activity-photo-card__actions">
+                                            <a href="@photo.DownloadUrl" class="activity-icon-action" title="Download @photo.FileName" aria-label="Download @photo.FileName">
+                                                <i class="bi bi-download" aria-hidden="true"></i>
+                                            </a>
                                             @if (Model.CanManage)
                                             {
-                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@photo.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@photo.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                     @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                    <button type="submit" class="activity-icon-action activity-icon-action--danger" title="Remove @photo.FileName" aria-label="Remove @photo.FileName">
+                                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    </button>
                                                 </form>
                                             }
                                         </div>
                                     </div>
-                                </div>
-
-                                <div class="modal fade" id="@modalId" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h4 class="modal-title h5 mb-0">@photo.FileName</h4>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <img src="@photo.InlineUrl" alt="@photo.FileName" class="img-fluid" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                </article>
                             }
                         </div>
-                    }
-                </section>
+                    </section>
+                }
 
-                <!-- SECTION: Video attachments -->
-                <section class="mb-4" aria-labelledby="activity-videos-heading">
-                    <h3 class="h6 mb-3" id="activity-videos-heading">Videos</h3>
-                    @if (Model.VideoAttachments.Count == 0)
-                    {
-                        <p class="text-muted mb-0">No videos uploaded.</p>
-                    }
-                    else
-                    {
-                        <div class="row row-cols-1 row-cols-md-2 g-3">
+                @if (Model.VideoAttachments.Count > 0)
+                {
+                    <section class="activity-media-section" aria-labelledby="activity-videos-heading">
+                        <div class="activity-media-section__heading">
+                            <h3 id="activity-videos-heading">Videos</h3>
+                            <span>@Model.VideoAttachments.Count</span>
+                        </div>
+                        <div class="activity-video-grid">
                             @foreach (var video in Model.VideoAttachments)
                             {
-                                <div class="col">
-                                    <div class="card h-100">
-                                        <div class="ratio ratio-16x9">
-                                            <video controls preload="metadata">
-                                                <source src="@video.InlineUrl" type="@video.ContentType" />
-                                                Your browser does not support the video tag.
-                                            </video>
+                                <article class="activity-file-card activity-file-card--video">
+                                    <div class="ratio ratio-16x9 activity-video-frame">
+                                        <video controls preload="metadata">
+                                            <source src="@video.InlineUrl" type="@video.ContentType" />
+                                            Your browser does not support the video tag.
+                                        </video>
+                                    </div>
+                                    <div class="activity-file-card__body">
+                                        <div class="min-w-0">
+                                            <strong title="@video.FileName">@video.FileName</strong>
+                                            <span>@FormatFileSize(video.FileSize) · uploaded @FormatTimestamp(video.UploadedAtUtc)</span>
                                         </div>
-                                        <div class="card-body">
-                                            <h4 class="card-title h6 mb-1">@video.FileName</h4>
-                                            <p class="card-text text-muted small mb-2">Uploaded @FormatTimestamp(video.UploadedAtUtc)</p>
-                                            <p class="card-text text-muted small mb-0">@FormatFileSize(video.FileSize)</p>
-                                        </div>
-                                        <div class="card-footer bg-transparent border-0 pt-0">
-                                            <a class="btn btn-sm btn-outline-secondary" href="@video.DownloadUrl">Download</a>
+                                        <div class="activity-file-card__actions">
+                                            <a class="btn btn-sm btn-outline-secondary" href="@video.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
                                             @if (Model.CanManage)
                                             {
-                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@video.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@video.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                                 </form>
                                             }
                                         </div>
                                     </div>
-                                </div>
+                                </article>
                             }
                         </div>
-                    }
-                </section>
+                    </section>
+                }
 
-                <!-- SECTION: Document attachments -->
-                <section class="mb-4" aria-labelledby="activity-documents-heading">
-                    <h3 class="h6 mb-3" id="activity-documents-heading">Documents</h3>
-                    @if (Model.DocumentAttachments.Count == 0)
-                    {
-                        <p class="text-muted mb-0">No documents uploaded.</p>
-                    }
-                    else
-                    {
-                        <ul class="list-group">
+                @if (Model.DocumentAttachments.Count > 0)
+                {
+                    <section class="activity-media-section" aria-labelledby="activity-documents-heading">
+                        <div class="activity-media-section__heading">
+                            <h3 id="activity-documents-heading">Documents</h3>
+                            <span>@Model.DocumentAttachments.Count</span>
+                        </div>
+                        <div class="activity-document-list">
                             @foreach (var document in Model.DocumentAttachments)
                             {
-                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                    <div class="d-flex flex-column">
-                                        <a href="@document.InlineUrl" target="_blank" rel="noopener" class="fw-semibold">
-                                            <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>@document.FileName
-                                        </a>
-                                        <span class="text-muted small">@FormatFileSize(document.FileSize)</span>
+                                <article class="activity-document-row">
+                                    <div class="activity-document-row__icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></div>
+                                    <div class="activity-document-row__identity">
+                                        <a href="@document.InlineUrl" target="_blank" rel="noopener">@document.FileName</a>
+                                        <span>@FormatFileSize(document.FileSize) · uploaded @FormatTimestamp(document.UploadedAtUtc)</span>
                                     </div>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <a class="btn btn-sm btn-outline-secondary" href="@document.DownloadUrl">Download</a>
+                                    <div class="activity-document-row__actions">
+                                        <a class="btn btn-sm btn-outline-secondary" href="@document.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
                                         @if (Model.CanManage)
                                         {
-                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@document.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@document.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>
                                         }
                                     </div>
-                                </li>
+                                </article>
                             }
-                        </ul>
-                    }
-                </section>
+                        </div>
+                    </section>
+                }
 
-                <!-- SECTION: Other file attachments -->
-                <section aria-labelledby="activity-other-files-heading">
-                    <h3 class="h6 mb-3" id="activity-other-files-heading">Other files</h3>
-                    @if (Model.OtherAttachments.Count == 0)
-                    {
-                        <p class="text-muted mb-0">No other files uploaded.</p>
-                    }
-                    else
-                    {
-                        <ul class="list-group">
+                @if (Model.OtherAttachments.Count > 0)
+                {
+                    <section class="activity-media-section" aria-labelledby="activity-other-heading">
+                        <div class="activity-media-section__heading">
+                            <h3 id="activity-other-heading">Other files</h3>
+                            <span>@Model.OtherAttachments.Count</span>
+                        </div>
+                        <div class="activity-document-list">
                             @foreach (var file in Model.OtherAttachments)
                             {
-                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                    <div>
-                                        <div class="fw-semibold">@file.FileName</div>
-                                        <div class="text-muted small">@FormatFileSize(file.FileSize)</div>
+                                <article class="activity-document-row">
+                                    <div class="activity-document-row__icon" aria-hidden="true"><i class="bi bi-file-earmark"></i></div>
+                                    <div class="activity-document-row__identity">
+                                        <strong>@file.FileName</strong>
+                                        <span>@FormatFileSize(file.FileSize) · uploaded @FormatTimestamp(file.UploadedAtUtc)</span>
                                     </div>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <a class="btn btn-sm btn-outline-secondary" href="@file.DownloadUrl">Download</a>
+                                    <div class="activity-document-row__actions">
+                                        <a class="btn btn-sm btn-outline-secondary" href="@file.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
                                         @if (Model.CanManage)
                                         {
-                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@file.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@file.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>
                                         }
                                     </div>
-                                </li>
+                                </article>
                             }
-                        </ul>
-                    }
-                </section>
+                        </div>
+                    </section>
+                }
             }
         </div>
     </section>
 
     @if (Model.CanManage)
     {
-        <!-- SECTION: Admin details -->
-        <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-admin-heading">
-        <div class="pm-card-header">
-            <h2 class="h5 mb-0" id="activity-admin-heading">Admin details</h2>
-        </div>
-        <div class="pm-card-body">
-            <dl class="row mb-0">
-                <dt class="col-sm-3">Created by</dt>
-                <dd class="col-sm-9">@FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd>
-
-                <dt class="col-sm-3">Created date</dt>
-                <dd class="col-sm-9">@FormatTimestamp(activity.CreatedAtUtc)</dd>
-
-                <dt class="col-sm-3">Last updated</dt>
-                <dd class="col-sm-9">
-                    @if (activity.LastModifiedAtUtc is { } updated)
-                    {
-                        @FormatTimestamp(updated) @:by @FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)
-                    }
-                    else
-                    {
-                        @:—
-                    }
-                </dd>
-
-                <dt class="col-sm-3">Delete request status</dt>
-                <dd class="col-sm-9">@ResolveDeleteRequestStatus()</dd>
-            </dl>
-        </div>
+        <section class="activity-detail-card activity-admin-card" aria-labelledby="activity-admin-heading">
+            <div class="activity-detail-card__header">
+                <div>
+                    <span class="activity-detail-card__eyebrow">Audit trail</span>
+                    <h2 id="activity-admin-heading">Admin details</h2>
+                </div>
+            </div>
+            <div class="activity-detail-card__body">
+                <dl class="activity-admin-grid mb-0">
+                    <div><dt>Created by</dt><dd>@FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd></div>
+                    <div><dt>Created date</dt><dd>@FormatTimestamp(activity.CreatedAtUtc)</dd></div>
+                    <div>
+                        <dt>Last updated</dt>
+                        <dd>
+                            @if (activity.LastModifiedAtUtc is { } updated)
+                            {
+                                @($"{FormatTimestamp(updated)} by {FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)}")
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </dd>
+                    </div>
+                    <div><dt>Delete request</dt><dd class="@(Model.HasPendingDelete ? "text-warning-emphasis" : null)">@ResolveDeleteRequestStatus()</dd></div>
+                </dl>
+            </div>
         </section>
     }
 </div>
+
+@if (Model.PhotoAttachments.Count > 0)
+{
+    <div class="modal fade activity-photo-viewer" id="activityPhotoViewer" tabindex="-1" aria-hidden="true" data-activity-photo-viewer>
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content activity-photo-viewer__content">
+                <header class="activity-photo-viewer__header">
+                    <div class="activity-photo-viewer__identity">
+                        <span class="activity-photo-viewer__eyebrow">Activity photo gallery</span>
+                        <strong class="activity-photo-viewer__title" data-activity-viewer-title title="@activity.Title">@activity.Title</strong>
+                    </div>
+                    <div class="activity-photo-viewer__header-actions">
+                        <span class="activity-photo-viewer__counter" data-activity-viewer-counter></span>
+                        <button type="button" class="activity-photo-viewer__close" data-bs-dismiss="modal" aria-label="Close photo viewer"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                    </div>
+                </header>
+                <div class="activity-photo-viewer__body">
+                    <button type="button" class="activity-photo-viewer__nav activity-photo-viewer__nav--previous" data-activity-viewer-previous aria-label="Previous photo"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                    <div class="activity-photo-viewer__stage" data-activity-viewer-stage>
+                        <div class="activity-photo-viewer__loading" data-activity-viewer-loading>Loading photo…</div>
+                        <div class="activity-photo-viewer__error" data-activity-viewer-error hidden>Unable to load this photo.</div>
+                        <img class="activity-photo-viewer__image" data-activity-viewer-image alt="" />
+                    </div>
+                    <button type="button" class="activity-photo-viewer__nav activity-photo-viewer__nav--next" data-activity-viewer-next aria-label="Next photo"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                </div>
+                <footer class="activity-photo-viewer__footer">
+                    <span class="activity-photo-viewer__file" data-activity-viewer-file></span>
+                    <span class="activity-photo-viewer__hint">Use <kbd>←</kbd> <kbd>→</kbd> to browse · <kbd>Esc</kbd> to close</span>
+                </footer>
+            </div>
+        </div>
+    </div>
+}
 
 @await Html.PartialAsync("_DeleteConfirmModal")
 
 @section Scripts {
     <script src="~/js/pages/activities-index.js" asp-append-version="true"></script>
+    <script src="~/js/pages/activity-details.js" asp-append-version="true" defer></script>
 }

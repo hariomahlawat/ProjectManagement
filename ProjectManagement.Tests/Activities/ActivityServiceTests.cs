@@ -35,7 +35,7 @@ public class ActivityInputValidatorTests : IDisposable
         _context = ActivityTestHelpers.CreateContext();
         _activityRepository = new ActivityRepository(_context);
         _activityTypeRepository = new ActivityTypeRepository(_context);
-        _validator = new ActivityInputValidator(_activityRepository, _activityTypeRepository);
+        _validator = new ActivityInputValidator(_activityTypeRepository);
     }
 
     [Fact]
@@ -57,13 +57,13 @@ public class ActivityInputValidatorTests : IDisposable
         _context.ActivityTypes.Add(type);
         await _context.SaveChangesAsync();
 
-        var input = new ActivityInput("Kickoff", null, null, type.Id, null, null);
+        var input = new ActivityInput("Kickoff", null, null, type.Id, DateTimeOffset.UtcNow, null);
         var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, null, CancellationToken.None));
         Assert.Contains(nameof(input.ActivityTypeId), ex.Errors.Keys);
     }
 
     [Fact]
-    public async Task ValidateAsync_ThrowsWhenDuplicateTitle()
+    public async Task ValidateAsync_AllowsDuplicateTitleForRepeatedActivities()
     {
         var type = new ActivityType
         {
@@ -74,25 +74,23 @@ public class ActivityInputValidatorTests : IDisposable
         _context.ActivityTypes.Add(type);
         await _context.SaveChangesAsync();
 
-        var activity = new Activity
+        await _activityRepository.AddAsync(new Activity
         {
             Title = "Safety Brief",
             ActivityTypeId = type.Id,
+            ScheduledStartUtc = DateTimeOffset.UtcNow.AddDays(-1),
             CreatedByUserId = "owner"
-        };
-        await _activityRepository.AddAsync(activity);
+        });
 
-        var input = new ActivityInput("Safety Brief", null, null, type.Id, null, null);
-        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, null, CancellationToken.None));
-        Assert.Contains(nameof(input.Title), ex.Errors.Keys);
+        var input = new ActivityInput("Safety Brief", null, null, type.Id, DateTimeOffset.UtcNow, null);
+        await _validator.ValidateAsync(input, null, CancellationToken.None);
     }
 
     [Theory]
     [InlineData("safety brief")]
     [InlineData("SAFETY BRIEF")]
-    public async Task ValidateAsync_ThrowsWhenCreateTitleDiffersOnlyByCase(string duplicateTitle)
+    public async Task ValidateAsync_AllowsDuplicateTitleRegardlessOfCase(string duplicateTitle)
     {
-        // SECTION: Arrange an existing activity for create duplicate validation
         var type = new ActivityType
         {
             Name = "Create Case Check",
@@ -106,48 +104,53 @@ public class ActivityInputValidatorTests : IDisposable
         {
             Title = "Safety Brief",
             ActivityTypeId = type.Id,
+            ScheduledStartUtc = DateTimeOffset.UtcNow.AddDays(-1),
             CreatedByUserId = "owner"
         });
 
-        // SECTION: Act and assert
-        var input = new ActivityInput(duplicateTitle, null, null, type.Id, null, null);
-        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, null, CancellationToken.None));
-        Assert.Contains(nameof(input.Title), ex.Errors.Keys);
+        var input = new ActivityInput(duplicateTitle, null, null, type.Id, DateTimeOffset.UtcNow, null);
+        await _validator.ValidateAsync(input, null, CancellationToken.None);
     }
 
     [Fact]
-    public async Task ValidateAsync_ThrowsWhenEditTitleDiffersOnlyByCaseFromAnotherActivity()
+    public async Task ValidateAsync_RequiresDateForNewActivity()
     {
-        // SECTION: Arrange two activities in the same type for edit duplicate validation
         var type = new ActivityType
         {
-            Name = "Edit Case Check",
+            Name = "Date Check",
             CreatedByUserId = "user",
             IsActive = true
         };
         _context.ActivityTypes.Add(type);
         await _context.SaveChangesAsync();
 
-        var existingActivity = new Activity
+        var input = new ActivityInput("New activity", null, null, type.Id, null, null);
+        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, null, CancellationToken.None));
+        Assert.Contains(nameof(input.ScheduledStartUtc), ex.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AllowsLegacyMissingDateToRemainMissing()
+    {
+        var type = new ActivityType
         {
-            Title = "Existing Brief",
-            ActivityTypeId = type.Id,
-            CreatedByUserId = "owner"
+            Name = "Legacy Date Check",
+            CreatedByUserId = "user",
+            IsActive = true
         };
-        var editedActivity = new Activity
+        _context.ActivityTypes.Add(type);
+        await _context.SaveChangesAsync();
+
+        var existing = new Activity
         {
-            Title = "Editable Brief",
+            Title = "Legacy record",
             ActivityTypeId = type.Id,
+            ScheduledStartUtc = null,
             CreatedByUserId = "owner"
         };
 
-        await _activityRepository.AddAsync(existingActivity);
-        await _activityRepository.AddAsync(editedActivity);
-
-        // SECTION: Act and assert
-        var input = new ActivityInput("existing brief", null, null, type.Id, null, null);
-        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, editedActivity, CancellationToken.None));
-        Assert.Contains(nameof(input.Title), ex.Errors.Keys);
+        var input = new ActivityInput("Legacy record", null, null, type.Id, null, null);
+        await _validator.ValidateAsync(input, existing, CancellationToken.None);
     }
 
     [Fact]
@@ -172,7 +175,7 @@ public class ActivityInputValidatorTests : IDisposable
         await _activityRepository.AddAsync(editedActivity);
 
         // SECTION: Act and assert
-        var input = new ActivityInput("editable brief", null, null, type.Id, null, null);
+        var input = new ActivityInput("editable brief", null, null, type.Id, DateTimeOffset.UtcNow, null);
         await _validator.ValidateAsync(input, editedActivity, CancellationToken.None);
     }
 
@@ -252,6 +255,47 @@ public class ActivityAttachmentValidatorTests
         _validator.Validate(upload);
     }
 
+    [Fact]
+    public void Validate_AllowsVideoUpToVideoLimit()
+    {
+        var length = ActivityAttachmentValidator.MaxVideoAttachmentSizeBytes;
+        var upload = new ActivityAttachmentUpload(
+            new MemoryStream(new byte[] { 1 }),
+            "clip.mp4",
+            "video/mp4",
+            length);
+
+        _validator.Validate(upload);
+    }
+
+    [Fact]
+    public void Validate_RejectsVideoAboveVideoLimit()
+    {
+        var length = ActivityAttachmentValidator.MaxVideoAttachmentSizeBytes + 1;
+        var upload = new ActivityAttachmentUpload(
+            new MemoryStream(new byte[] { 1 }),
+            "clip.mp4",
+            "video/mp4",
+            length);
+
+        var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
+        Assert.Contains(nameof(upload.Length), ex.Errors.Keys);
+    }
+
+    [Fact]
+    public void Validate_RejectsStandardFileAboveStandardLimit()
+    {
+        var length = ActivityAttachmentValidator.MaxStandardAttachmentSizeBytes + 1;
+        var upload = new ActivityAttachmentUpload(
+            new MemoryStream(new byte[] { 1 }),
+            "brief.pdf",
+            "application/pdf",
+            length);
+
+        var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
+        Assert.Contains(nameof(upload.Length), ex.Errors.Keys);
+    }
+
     [Theory]
     [InlineData("notes.docx", "application/octet-stream")]
     [InlineData("sheet.xlsx", "application/octet-stream")]
@@ -307,7 +351,7 @@ public class ActivityServiceTests : IDisposable
         _context = ActivityTestHelpers.CreateContext();
         _activityRepository = new ActivityRepository(_context);
         _activityTypeRepository = new ActivityTypeRepository(_context);
-        _inputValidator = new ActivityInputValidator(_activityRepository, _activityTypeRepository);
+        _inputValidator = new ActivityInputValidator(_activityTypeRepository);
         _typeValidator = new ActivityTypeValidator(_activityTypeRepository);
         _attachmentValidator = new ActivityAttachmentValidator();
         _userContext = new TestUserContext("owner");
@@ -350,10 +394,50 @@ public class ActivityServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_RejectsStaleRowVersion()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput(
+            "Concurrency Review",
+            null,
+            null,
+            type.Id,
+            DateTimeOffset.UtcNow,
+            null));
+
+        var originalVersion = created.RowVersion.ToArray();
+
+        await _service.UpdateAsync(
+            created.Id,
+            new ActivityInput(
+                "Concurrency Review - updated",
+                null,
+                null,
+                type.Id,
+                DateTimeOffset.UtcNow,
+                null,
+                ExpectedRowVersion: originalVersion));
+
+        var ex = await Assert.ThrowsAsync<ActivityConcurrencyException>(() =>
+            _service.UpdateAsync(
+                created.Id,
+                new ActivityInput(
+                    "Concurrency Review - stale",
+                    null,
+                    null,
+                    type.Id,
+                    DateTimeOffset.UtcNow,
+                    null,
+                    ExpectedRowVersion: originalVersion)));
+
+        Assert.Contains("updated by another user", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task UpdateAsync_ThrowsForUnauthorizedUser()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Workshop", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Workshop", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         var otherUser = new TestUserContext("other");
         var otherService = new ActivityService(_activityRepository,
@@ -364,14 +448,14 @@ public class ActivityServiceTests : IDisposable
             _mediaIngestion,
             NullLogger<ActivityService>.Instance);
 
-        await Assert.ThrowsAsync<ActivityAuthorizationException>(() => otherService.UpdateAsync(created.Id, new ActivityInput("Workshop", null, null, type.Id, null, null)));
+        await Assert.ThrowsAsync<ActivityAuthorizationException>(() => otherService.UpdateAsync(created.Id, new ActivityInput("Workshop", null, null, type.Id, DateTimeOffset.UtcNow, null)));
     }
 
     [Fact]
     public async Task UpdateAsync_AllowsHoDOverride()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Seminar", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Seminar", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         var hodContext = new TestUserContext("hod-user", isHoD: true);
         var hodService = new ActivityService(_activityRepository,
@@ -382,7 +466,7 @@ public class ActivityServiceTests : IDisposable
             _mediaIngestion,
             NullLogger<ActivityService>.Instance);
 
-        var updated = await hodService.UpdateAsync(created.Id, new ActivityInput("Seminar Updated", null, null, type.Id, null, null));
+        var updated = await hodService.UpdateAsync(created.Id, new ActivityInput("Seminar Updated", null, null, type.Id, DateTimeOffset.UtcNow, null));
         Assert.Equal("Seminar Updated", updated.Title);
     }
 
@@ -390,7 +474,7 @@ public class ActivityServiceTests : IDisposable
     public async Task UpdateAsync_AllowsProjectOfficeManager()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Briefing", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Briefing", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         var projectOfficeContext = new TestUserContext("po-user", isProjectOffice: true);
         var projectOfficeService = new ActivityService(_activityRepository,
@@ -401,7 +485,7 @@ public class ActivityServiceTests : IDisposable
             _mediaIngestion,
             NullLogger<ActivityService>.Instance);
 
-        var updated = await projectOfficeService.UpdateAsync(created.Id, new ActivityInput("Briefing Updated", null, null, type.Id, null, null));
+        var updated = await projectOfficeService.UpdateAsync(created.Id, new ActivityInput("Briefing Updated", null, null, type.Id, DateTimeOffset.UtcNow, null));
         Assert.Equal("Briefing Updated", updated.Title);
     }
 
@@ -409,7 +493,7 @@ public class ActivityServiceTests : IDisposable
     public async Task DeleteAsync_AllowsAdminUser()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         var adminService = CreateService(new TestUserContext("admin", isAdmin: true));
 
@@ -424,7 +508,7 @@ public class ActivityServiceTests : IDisposable
     public async Task DeleteAsync_RemovesStoredAttachments()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Archive", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Archive", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
         var upload = new ActivityAttachmentUpload(stream, "notes.pdf", "application/pdf", stream.Length);
@@ -443,7 +527,7 @@ public class ActivityServiceTests : IDisposable
     public async Task DeleteAsync_RejectsProjectOfficeUser()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         var projectOfficeService = CreateService(new TestUserContext("po-user", isProjectOffice: true));
 
@@ -457,7 +541,7 @@ public class ActivityServiceTests : IDisposable
     public async Task DeleteAsync_AllowsHoDUser()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         var hodService = CreateService(new TestUserContext("hod-user", isHoD: true));
 
@@ -471,7 +555,7 @@ public class ActivityServiceTests : IDisposable
     public async Task AddAttachmentAsync_SavesFile()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Brief", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Brief", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
         var upload = new ActivityAttachmentUpload(stream, "notes.pdf", "application/pdf", stream.Length);
@@ -484,10 +568,43 @@ public class ActivityServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAndRemoveAttachmentAsync_UpdateActivityAuditMetadata()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput(
+            "Audit metadata",
+            null,
+            null,
+            type.Id,
+            DateTimeOffset.UtcNow,
+            null));
+
+        var uploadTime = _clock.UtcNow.AddMinutes(5);
+        _clock.UtcNow = uploadTime;
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
+        var attachment = await _service.AddAttachmentAsync(
+            created.Id,
+            new ActivityAttachmentUpload(stream, "notes.pdf", "application/pdf", stream.Length));
+
+        var afterUpload = await _activityRepository.GetByIdAsync(created.Id);
+        Assert.Equal(uploadTime, afterUpload!.LastModifiedAtUtc);
+        Assert.Equal("owner", afterUpload.LastModifiedByUserId);
+
+        var removeTime = uploadTime.AddMinutes(5);
+        _clock.UtcNow = removeTime;
+        await _service.RemoveAttachmentAsync(attachment.Id);
+
+        var afterRemove = await _activityRepository.GetByIdAsync(created.Id);
+        Assert.Equal(removeTime, afterRemove!.LastModifiedAtUtc);
+        Assert.Equal("owner", afterRemove.LastModifiedByUserId);
+    }
+
+    [Fact]
     public async Task RemoveAttachmentAsync_AllowsUploader()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Drill", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Drill", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
         var upload = new ActivityAttachmentUpload(stream, "notes.pdf", "application/pdf", stream.Length);
@@ -503,7 +620,7 @@ public class ActivityServiceTests : IDisposable
     public async Task AddAttachmentAsync_EnforcesAttachmentLimit()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Briefing", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Briefing", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         for (var i = 0; i < ActivityAttachmentManager.MaxAttachmentsPerActivity; i++)
         {
@@ -523,7 +640,7 @@ public class ActivityServiceTests : IDisposable
     public async Task GetAttachmentMetadataAsync_ReturnsDownloadLink()
     {
         var type = await EnsureActivityTypeAsync();
-        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
         var upload = new ActivityAttachmentUpload(stream, "  diagram?.pdf  ", "application/pdf", stream.Length);
@@ -693,7 +810,7 @@ public class ActivityServiceTests : IDisposable
     private async Task SeedActivityWithAttachmentAsync(int activityTypeId, string title, string fileName, string contentType)
     {
         // SECTION: Activity summary test seed
-        var activity = await _service.CreateAsync(new ActivityInput(title, null, null, activityTypeId, null, null));
+        var activity = await _service.CreateAsync(new ActivityInput(title, null, null, activityTypeId, DateTimeOffset.UtcNow, null));
         _context.ActivityAttachments.Add(new ActivityAttachment
         {
             ActivityId = activity.Id,
@@ -709,7 +826,7 @@ public class ActivityServiceTests : IDisposable
     private async Task SeedActivityWithoutAttachmentAsync(int activityTypeId, string title)
     {
         // SECTION: Activity summary test seed
-        await _service.CreateAsync(new ActivityInput(title, null, null, activityTypeId, null, null));
+        await _service.CreateAsync(new ActivityInput(title, null, null, activityTypeId, DateTimeOffset.UtcNow, null));
     }
 
     public void Dispose()

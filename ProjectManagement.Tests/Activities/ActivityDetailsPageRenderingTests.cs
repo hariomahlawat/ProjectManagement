@@ -34,7 +34,7 @@ public sealed class ActivityDetailsPageRenderingTests
     private static readonly IServiceProvider Services = BuildServiceProvider();
 
     [Fact]
-    public async Task DetailsPage_PhotoTriggersTargetMatchingModalIds()
+    public async Task DetailsPage_PhotosUseOneSharedViewer()
     {
         // SECTION: Arrange activity details with multiple photo attachments.
         var activity = new Activity
@@ -56,17 +56,16 @@ public sealed class ActivityDetailsPageRenderingTests
 
         var page = new DetailsModel(
             new StubActivityService(activity, attachments),
-            new StubActivityAttachmentManager(),
             NullLogger<DetailsModel>.Instance);
 
         var html = await RenderDetailsPageAsync(page, activity.Id);
 
-        // SECTION: Assert every photo trigger targets its generated modal id.
-        Assert.Contains("data-bs-target=\"#photo-modal-123\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"photo-modal-123\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-bs-target=\"#photo-modal-456\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"photo-modal-456\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-bs-target=\"#{modalId}\"", html, StringComparison.Ordinal);
+        // SECTION: Assert photographs launch one shared, navigable viewer.
+        Assert.Contains("data-activity-photo-viewer", html, StringComparison.Ordinal);
+        Assert.Contains("data-index=\"0\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-index=\"1\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("photo-modal-123", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("photo-modal-456", html, StringComparison.Ordinal);
     }
 
 
@@ -94,7 +93,6 @@ public sealed class ActivityDetailsPageRenderingTests
 
         var page = new DetailsModel(
             new StubActivityService(activity, attachments),
-            new StubActivityAttachmentManager(),
             NullLogger<DetailsModel>.Instance);
 
         // SECTION: Act and assert media elements stream inline while actions download files.
@@ -164,14 +162,14 @@ public sealed class ActivityDetailsPageRenderingTests
 
         var page = new DetailsModel(
             new StubActivityService(activity, Array.Empty<ActivityAttachmentMetadata>()),
-            new StubActivityAttachmentManager(),
             NullLogger<DetailsModel>.Instance);
 
         // SECTION: Act and assert the details view renders date placeholders safely.
         var html = await RenderDetailsPageAsync(page, activity.Id);
 
         Assert.Contains("Legacy Missing Date", html, StringComparison.Ordinal);
-        Assert.Contains("<dd class=\"col-sm-9\">—</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<i class=\"bi bi-calendar3\"", html, StringComparison.Ordinal);
+        Assert.Contains("—", html, StringComparison.Ordinal);
     }
 
     private static async Task<string> RenderDetailsPageAsync(DetailsModel page, int activityId)

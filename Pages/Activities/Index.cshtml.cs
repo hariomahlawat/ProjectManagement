@@ -12,6 +12,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
@@ -32,13 +36,15 @@ public sealed class IndexModel : PageModel
     private readonly IActivityDeleteRequestService _deleteRequestService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
+    private readonly MediaLibraryDbContext? _mediaLibraryDb;
 
     public IndexModel(IActivityService activityService,
                       IActivityTypeService activityTypeService,
                       IActivityExportService activityExportService,
                       IActivityDeleteRequestService deleteRequestService,
                       UserManager<ApplicationUser> userManager,
-                      IProtectedFileUrlBuilder? fileUrlBuilder = null)
+                      IProtectedFileUrlBuilder? fileUrlBuilder = null,
+                      MediaLibraryDbContext? mediaLibraryDb = null)
     {
         _activityService = activityService;
         _activityTypeService = activityTypeService;
@@ -46,6 +52,7 @@ public sealed class IndexModel : PageModel
         _deleteRequestService = deleteRequestService;
         _userManager = userManager;
         _fileUrlBuilder = fileUrlBuilder ?? new ActivityIndexFallbackUrlBuilder();
+        _mediaLibraryDb = mediaLibraryDb;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -121,10 +128,15 @@ public sealed class IndexModel : PageModel
         var summaryResult = await _activityService.GetReviewSummaryAsync(request, cancellationToken);
 
         var currentUserId = _userManager.GetUserId(User) ?? string.Empty;
-        var isManager = IsManager(User);
-        var isApprover = IsApprover(User);
+        IsDeleteApprover = ActivityAuthorizationPolicy.IsDeleteApprover(User);
 
-        IsDeleteApprover = isApprover;
+        var photoAttachmentIds = result.Items
+            .SelectMany(item => item.MediaPreviews)
+            .Where(media => string.Equals(media.MediaKind, "Photo", StringComparison.OrdinalIgnoreCase))
+            .Select(media => media.AttachmentId)
+            .Distinct()
+            .ToArray();
+        var photoAssetMap = await LoadPhotoAssetMapAsync(photoAttachmentIds, cancellationToken);
 
         var rows = result.Items.Select(item =>
         {
@@ -132,8 +144,8 @@ public sealed class IndexModel : PageModel
                 ? (string.IsNullOrWhiteSpace(item.CreatedByEmail) ? item.CreatedByUserId : item.CreatedByEmail)
                 : item.CreatedByDisplayName;
 
-            var canManage = isManager || string.Equals(item.CreatedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase);
-            var canRequestDelete = isManager;
+            var canManage = ActivityAuthorizationPolicy.CanManage(item.CreatedByUserId, User, currentUserId);
+            var canRequestDelete = ActivityAuthorizationPolicy.CanRequestDelete(User);
 
             return new ActivityListRowViewModel(
                 item.Id,
@@ -157,7 +169,7 @@ public sealed class IndexModel : PageModel
                     media.ContentType,
                     media.MediaKind,
                     string.Equals(media.MediaKind, "Photo", StringComparison.OrdinalIgnoreCase)
-                        ? _fileUrlBuilder.CreateInlineUrl(media.StorageKey, media.FileName, media.ContentType)
+                        ? BuildPhotoThumbnailUrl(media, photoAssetMap)
                         : null,
                     _fileUrlBuilder.CreateDownloadUrl(media.StorageKey, media.FileName, media.ContentType),
                     media.SizeBytes)).ToList(),
@@ -219,7 +231,7 @@ public sealed class IndexModel : PageModel
 
         await BuildFilterOptionsAsync(cancellationToken);
 
-        CanCreateActivities = isManager;
+        CanCreateActivities = ActivityAuthorizationPolicy.CanCreate(User);
         CanExportActivities = result.TotalCount > 0;
 
         return Page();
@@ -396,24 +408,73 @@ public sealed class IndexModel : PageModel
             .ToList();
     }
 
-    private static bool IsManager(ClaimsPrincipal user)
+
+    private async Task<IReadOnlyDictionary<int, ActivityIndexMediaAssetReference>> LoadPhotoAssetMapAsync(
+        IReadOnlyCollection<int> attachmentIds,
+        CancellationToken cancellationToken)
     {
-        foreach (var role in ActivityRoleLists.ManagerRoles)
+        if (_mediaLibraryDb is null || attachmentIds.Count == 0)
         {
-            if (user.IsInRole(role))
+            return new Dictionary<int, ActivityIndexMediaAssetReference>();
+        }
+
+        var sourceEntityIds = attachmentIds
+            .Select(id => $"activity-photo:{id.ToString(CultureInfo.InvariantCulture)}")
+            .ToArray();
+
+        try
+        {
+            var assets = await _mediaLibraryDb.Assets
+                .AsNoTracking()
+                .Where(asset => asset.Origin == MediaAssetOrigin.ActivityPhoto
+                                && !asset.IsDeleted
+                                && asset.IsAvailable
+                                && sourceEntityIds.Contains(asset.SourceEntityId))
+                .Select(asset => new { asset.Id, asset.SourceEntityId, asset.CacheVersion })
+                .ToListAsync(cancellationToken);
+
+            var result = new Dictionary<int, ActivityIndexMediaAssetReference>();
+            foreach (var asset in assets)
             {
-                return true;
+                const string prefix = "activity-photo:";
+                if (asset.SourceEntityId.StartsWith(prefix, StringComparison.Ordinal)
+                    && int.TryParse(asset.SourceEntityId[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var attachmentId))
+                {
+                    result[attachmentId] = new ActivityIndexMediaAssetReference(asset.Id, asset.CacheVersion);
+                }
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Media derivatives are an optimisation. The Activities register remains usable
+            // even while the optional media catalogue is unavailable.
+            return new Dictionary<int, ActivityIndexMediaAssetReference>();
+        }
+    }
+
+    private string BuildPhotoThumbnailUrl(
+        ActivityMediaPreview media,
+        IReadOnlyDictionary<int, ActivityIndexMediaAssetReference> assetMap)
+    {
+        if (assetMap.TryGetValue(media.AttachmentId, out var asset))
+        {
+            var mediaUrl = Url.Page("/Photos/Media", new { id = asset.Id, variant = "thumb", v = asset.CacheVersion });
+            if (!string.IsNullOrWhiteSpace(mediaUrl))
+            {
+                return mediaUrl;
             }
         }
 
-        return false;
+        return _fileUrlBuilder.CreateInlineUrl(media.StorageKey, media.FileName, media.ContentType);
     }
 
-    private static bool IsApprover(ClaimsPrincipal user)
-    {
-        return user.IsInRole("Admin") ||
-               user.IsInRole("HoD");
-    }
+    private sealed record ActivityIndexMediaAssetReference(long Id, int CacheVersion);
 
     private static int NormalizePageSize(int requested)
     {
