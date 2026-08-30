@@ -68,7 +68,7 @@ public static class CompletedProjectPortfolioPolicy
     public static bool HasTotActionPending(CompletedProjectSummaryDto item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        return item.TotStatus is ProjectTotStatus.NotStarted or ProjectTotStatus.InProgress;
+        return !item.IsBuild && (item.TotStatus is ProjectTotStatus.NotStarted or ProjectTotStatus.InProgress);
     }
 
     public static bool IsTechnologyAssessmentPending(CompletedProjectSummaryDto item)
@@ -101,17 +101,20 @@ public static class CompletedProjectPortfolioPolicy
             Add(ref actions, "Record the proliferation decision");
         }
 
-        switch (item.TotStatus)
+        if (!item.IsBuild)
         {
-            case null:
-                Add(ref actions, "Record the ToT status");
-                break;
-            case ProjectTotStatus.NotStarted:
-                Add(ref actions, "Initiate the required ToT action");
-                break;
-            case ProjectTotStatus.InProgress:
-                Add(ref actions, "Complete the pending ToT action");
-                break;
+            switch (item.TotStatus)
+            {
+                case null:
+                    Add(ref actions, "Record the ToT status");
+                    break;
+                case ProjectTotStatus.NotStarted:
+                    Add(ref actions, "Initiate the required ToT action");
+                    break;
+                case ProjectTotStatus.InProgress:
+                    Add(ref actions, "Complete the pending ToT action");
+                    break;
+            }
         }
 
         if (actions is null)
@@ -129,7 +132,7 @@ public static class CompletedProjectPortfolioPolicy
         List<string>? fields = null;
         if (string.IsNullOrWhiteSpace(item.TechStatus)) Add(ref fields, "Technology assessment");
         if (!item.AvailableForProliferation.HasValue) Add(ref fields, "Proliferation decision");
-        if (!item.TotStatus.HasValue) Add(ref fields, "ToT status");
+        if (!item.IsBuild && !item.TotStatus.HasValue) Add(ref fields, "ToT status");
         if (!item.RdCostLakhs.HasValue) Add(ref fields, "Development cost");
 
         if (fields is null)
@@ -163,7 +166,7 @@ public static class CompletedProjectPortfolioPolicy
         var count = 0;
         if (string.IsNullOrWhiteSpace(item.TechStatus)) count++;
         if (!item.AvailableForProliferation.HasValue) count++;
-        if (!item.TotStatus.HasValue) count++;
+        if (!item.IsBuild && !item.TotStatus.HasValue) count++;
         if (!item.RdCostLakhs.HasValue) count++;
         return count;
     }
@@ -206,14 +209,19 @@ public static class CompletedProjectPortfolioPolicy
         _ => "Not assessed"
     };
 
-    public static string GetTotLabel(ProjectTotStatus? status) => status switch
+    public static string GetTotLabel(ProjectTotStatus? status, bool isBuild = false)
     {
-        ProjectTotStatus.Completed => "Completed",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.NotRequired => "Not required",
-        _ => "Not assessed"
-    };
+        if (isBuild) return "Not applicable";
+
+        return status switch
+        {
+            ProjectTotStatus.Completed => "Completed",
+            ProjectTotStatus.InProgress => "In progress",
+            ProjectTotStatus.NotStarted => "Not started",
+            ProjectTotStatus.NotRequired => "Not required",
+            _ => "Not assessed"
+        };
+    }
 
     private static void Add(ref List<string>? items, string value)
     {

@@ -7,6 +7,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Projects;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -156,10 +157,8 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // SECTION: ToT aggregation (completed projects)
             var totCompletedQuery = _db.Projects
                 .AsNoTracking()
-                .Where(p =>
-                    p.LifecycleStatus == ProjectLifecycleStatus.Completed
-                    && p.Tot != null
-                    && p.Tot.Status == ProjectTotStatus.Completed);
+                .Where(ProjectTotApplicabilityPolicy.EligibleProjectPredicate)
+                .Where(p => p.Tot != null && p.Tot.Status == ProjectTotStatus.Completed);
 
             var totByMonth = await totCompletedQuery
                 .Where(p => p.Tot!.CompletedOn.HasValue

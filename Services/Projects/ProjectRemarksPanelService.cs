@@ -81,7 +81,8 @@ public sealed class ProjectRemarksPanelService
             new(RemarkScope.General.ToString(), "General", RemarkScope.General.ToString())
         };
 
-        if (project.Tot is { Status: ProjectTotStatus.InProgress or ProjectTotStatus.Completed })
+        if (!project.IsBuild
+            && project.Tot is { Status: ProjectTotStatus.InProgress or ProjectTotStatus.Completed })
         {
             scopeOptions.Add(new ProjectRemarksPanelViewModel.RemarkScopeOption(
                 RemarkScope.TransferOfTechnology.ToString(),

@@ -45,6 +45,7 @@ public sealed class EditModel : PageModel
     public int? CompletedYear { get; private set; }
     public decimal? RecordedDevelopmentCostLakhs { get; private set; }
     public ProjectTotStatus? TotStatus { get; private set; }
+    public bool IsBuild { get; private set; }
     public bool ShowNewLppEditor { get; private set; }
 
     public IReadOnlyList<SelectListItem> DocumentOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -53,7 +54,7 @@ public sealed class EditModel : PageModel
         .ToArray();
 
     public string BackUrl => ReturnUrl ?? Url.Page("./Index") ?? "/Projects/CompletedSummary";
-    public string TotStatusLabel => CompletedProjectPortfolioPolicy.GetTotLabel(TotStatus);
+    public string TotStatusLabel => CompletedProjectPortfolioPolicy.GetTotLabel(TotStatus, IsBuild);
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -356,6 +357,7 @@ public sealed class EditModel : PageModel
         }
 
         ProjectName = project.Name;
+        IsBuild = project.IsBuild;
         CompletedYear = project.CompletedYear;
         RecordedDevelopmentCostLakhs = project.CostLakhs;
         Input.ProjectId = projectId;

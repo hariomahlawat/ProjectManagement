@@ -291,11 +291,16 @@ namespace ProjectManagement.Pages.Projects
                 CompletedYear = completedYear
             };
 
-            project.Tot = new ProjectTot
+            // Repeat Build projects are outside the Transfer of Technology universe.
+            // Repeat Build projects never receive a ToT record.
+            if (!Input.IsBuild)
             {
-                Project = project,
-                Status = totStatus
-            };
+                project.Tot = new ProjectTot
+                {
+                    Project = project,
+                    Status = totStatus
+                };
+            }
 
             _db.Projects.Add(project);
 

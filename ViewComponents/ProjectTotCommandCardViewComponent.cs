@@ -18,6 +18,22 @@ public sealed class ProjectTotCommandCardViewComponent : ViewComponent
 
     public async Task<IViewComponentResult> InvokeAsync(int projectId, bool canManage)
     {
+        var isBuild = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => project.IsBuild)
+            .SingleOrDefaultAsync();
+
+        if (isBuild)
+        {
+            return View(new ProjectTotCommandCardViewModel(
+                projectId,
+                "Not applicable",
+                "Repeat Build",
+                "neutral",
+                CanManage: false));
+        }
+
         var tot = await _db.ProjectTots
             .AsNoTracking()
             .Where(item => item.ProjectId == projectId)
@@ -36,7 +52,6 @@ public sealed class ProjectTotCommandCardViewComponent : ViewComponent
             .Where(item => item.ProjectId == projectId && item.DecisionState == ProjectTotRequestDecisionState.Pending)
             .Select(item => new { item.ProposedStatus })
             .SingleOrDefaultAsync();
-
         var model = pending is not null
             ? new ProjectTotCommandCardViewModel(
                 projectId,

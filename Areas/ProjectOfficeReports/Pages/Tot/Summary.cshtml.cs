@@ -26,7 +26,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
-            var projects = await _trackerService.GetAsync(new ProjectTotTrackerFilter(), cancellationToken);
+            var projects = await _trackerService.GetAsync(
+                new ProjectTotTrackerFilter(),
+                cancellationToken);
+
             Summary = TotSummaryViewModel.FromProjects(projects);
         }
 
@@ -177,7 +180,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
             {
                 if (total == 0)
                 {
-                    return "No completed projects have Transfer of Technology progress to report yet.";
+                    return "No ToT-applicable completed projects have Transfer of Technology progress to report yet.";
                 }
 
                 var segments = new List<string>();
@@ -215,8 +218,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                 }
 
                 var prefix = total == 1
-                    ? "There is 1 completed project"
-                    : $"Across {total} completed projects";
+                    ? "There is 1 ToT-applicable completed project"
+                    : $"Across {total} ToT-applicable completed projects";
 
                 if (segments.Count == 0)
                 {

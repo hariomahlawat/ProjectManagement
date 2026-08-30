@@ -3,8 +3,10 @@
 
 @{
     var tot = Model.TotSummary;
-    var badgeVariant = !tot.HasTotRecord
+    var badgeVariant = !tot.IsApplicable
         ? "secondary"
+        : !tot.HasTotRecord
+            ? "secondary"
         : tot.Status switch
         {
             ProjectTotStatus.Completed => "success",
@@ -19,7 +21,7 @@
         IconClass = "bi bi-diagram-3",
         Title = "Transfer of Technology",
         Subtitle = "Transfer status, milestones and sustainment position.",
-        StatusText = tot.HasTotRecord ? tot.StatusLabel : "Not recorded",
+        StatusText = !tot.IsApplicable ? "Not applicable" : tot.HasTotRecord ? tot.StatusLabel : "Not recorded",
         StatusBadgeClass = $"text-bg-{badgeVariant}",
         BodyPartialName = "_ProjectTotPanelBody",
         BodyModel = Model,

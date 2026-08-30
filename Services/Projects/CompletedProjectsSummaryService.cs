@@ -178,6 +178,7 @@ public sealed class CompletedProjectsSummaryService
                 ProjectId = p.Id,
                 Name = p.Name,
                 TechnicalCategoryName = p.TechnicalCategory?.Name,
+                IsBuild = p.IsBuild,
                 BuildType = p.IsBuild ? "Rebuild" : "New",
                 RdCostLakhs = p.CostLakhs,
                 ApproxProductionCost = cost?.ApproxProductionCost,
@@ -224,12 +225,13 @@ public sealed class CompletedProjectsSummaryService
         {
             if (totCompleted.Value)
             {
-                filtered = filtered.Where(r => r.TotStatus == ProjectTotStatus.Completed);
+                filtered = filtered.Where(r => !r.IsBuild && r.TotStatus == ProjectTotStatus.Completed);
             }
             else
             {
                 filtered = filtered.Where(r =>
-                    r.TotStatus.HasValue
+                    !r.IsBuild
+                    && r.TotStatus.HasValue
                     && r.TotStatus != ProjectTotStatus.Completed);
             }
         }
@@ -356,6 +358,7 @@ public sealed class CompletedProjectSummaryDto
     public int ProjectId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? TechnicalCategoryName { get; set; }
+    public bool IsBuild { get; set; }
     public string BuildType { get; set; } = "New";
     public decimal? RdCostLakhs { get; set; }
     // Legacy persistence naming is retained internally; presentation code should use the business term.

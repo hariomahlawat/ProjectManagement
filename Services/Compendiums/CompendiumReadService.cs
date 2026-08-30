@@ -8,6 +8,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Publications;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Compendiums;
@@ -94,6 +95,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var iprProjectSet = iprProjectIds.ToHashSet();
         var totProjectIds = await _db.ProjectTots
             .AsNoTracking()
+            .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
             .Where(item => projectIds.Contains(item.ProjectId)
                            && (item.Status == ProjectTotStatus.InProgress || item.Status == ProjectTotStatus.Completed))
             .Select(item => item.ProjectId)
@@ -1315,6 +1317,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
         var rows = await _db.ProjectTots
             .AsNoTracking()
+            .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
             .Where(item => projectIds.Contains(item.ProjectId)
                            && (item.Status == ProjectTotStatus.InProgress || item.Status == ProjectTotStatus.Completed))
             .Select(item => new { item.ProjectId, item.Status, item.CompletedOn })

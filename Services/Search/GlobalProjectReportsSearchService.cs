@@ -9,6 +9,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Search
 {
@@ -249,6 +250,7 @@ namespace ProjectManagement.Services.Search
             var tots = await _dbContext.ProjectTots
                 .Include(tot => tot.Project)
                 .AsNoTracking()
+                .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
                 .Where(tot =>
                     EF.Functions.ToTsVector("english",
                         (tot.Project != null ? tot.Project.Name : string.Empty) + " " +

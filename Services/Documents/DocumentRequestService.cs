@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services.Documents;
@@ -47,6 +48,7 @@ public sealed class DocumentRequestService : IDocumentRequestService
         if (totId.HasValue)
         {
             tot = await _db.ProjectTots
+                .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
                 .FirstOrDefaultAsync(t => t.Id == totId.Value && t.ProjectId == projectId, cancellationToken);
 
             if (tot is null)
@@ -123,6 +125,7 @@ public sealed class DocumentRequestService : IDocumentRequestService
         if (totId.HasValue)
         {
             tot = await _db.ProjectTots
+                .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
                 .FirstOrDefaultAsync(t => t.Id == totId.Value && t.ProjectId == projectId, cancellationToken);
             if (tot is null || tot.Status == ProjectTotStatus.NotRequired)
             {

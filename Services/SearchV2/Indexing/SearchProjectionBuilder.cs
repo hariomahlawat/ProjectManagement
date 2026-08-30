@@ -15,6 +15,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Query;
 
@@ -150,6 +151,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             .ToDictionary(group => group.Key, group => group.Select(row => row.Text).ToArray());
 
         var totSummaries = (await _db.ProjectTots.AsNoTracking()
+                .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
                 .Where(row => ids.Contains(row.ProjectId))
                 .Select(row => new { row.ProjectId, row.Status })
                 .ToListAsync(cancellationToken))
@@ -759,7 +761,9 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
 
     private async Task<IReadOnlyList<SearchProjection>> BuildTotsAsync(int? projectId, CancellationToken cancellationToken)
     {
-        var query = _db.ProjectTots.AsNoTracking();
+        var query = _db.ProjectTots
+            .AsNoTracking()
+            .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate);
         if (projectId.HasValue) query = query.Where(row => row.ProjectId == projectId.Value);
         var rows = await query.Select(row => new
         {

@@ -12,6 +12,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Data.Projects;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Storage;
 
@@ -202,6 +203,11 @@ public sealed class DocumentService : IDocumentService
 
         if (totId.HasValue)
         {
+            if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } applicabilityError)
+            {
+                throw new InvalidOperationException(applicabilityError);
+            }
+
             if (project.Tot is null || project.Tot.Id != totId.Value)
             {
                 throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");

@@ -139,7 +139,9 @@ namespace ProjectManagement.Services.Projects
             if (filters.TotStatus.HasValue)
             {
                 var status = filters.TotStatus.Value;
-                source = source.Where(p => p.Tot != null && p.Tot.Status == status);
+                source = source
+                    .Where(ProjectTotApplicabilityPolicy.EligibleProjectPredicate)
+                    .Where(p => p.Tot != null && p.Tot.Status == status);
             }
 
             if (!string.IsNullOrWhiteSpace(filters.LeadPoUserId))

@@ -74,7 +74,7 @@ public sealed class CompletedProjectsPortfolioOverview
             TechnologyObsoleteCount = items.Count(x => string.Equals(x.TechStatus, ProjectTechStatusCodes.Obsolete, StringComparison.OrdinalIgnoreCase)),
             TechnologyAssessmentPendingCount = items.Count(CompletedProjectPortfolioPolicy.IsTechnologyAssessmentPending),
             TotActionPendingCount = totAction.Count,
-            TotCompletedCount = items.Count(x => x.TotStatus == ProjectTotStatus.Completed),
+            TotCompletedCount = items.Count(x => !x.IsBuild && x.TotStatus == ProjectTotStatus.Completed),
             CriticalIncompleteCount = criticalIncomplete.Count,
             SupplementaryIncompleteCount = supplementaryIncomplete.Count,
             FullyCompleteCount = items.Count(x => CompletedProjectPortfolioPolicy.GetTotalMissingCount(x) == 0),

@@ -323,7 +323,7 @@ namespace ProjectManagement.Tests
             var withTot = new Project
             {
                 Name = "Project With Tot",
-                LifecycleStatus = ProjectLifecycleStatus.Active,
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
                 CreatedAt = DateTime.UtcNow,
                 CreatedByUserId = "creator"
             };
@@ -336,7 +336,7 @@ namespace ProjectManagement.Tests
             var withoutTot = new Project
             {
                 Name = "Project Without Tot",
-                LifecycleStatus = ProjectLifecycleStatus.Active,
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
                 CreatedAt = DateTime.UtcNow,
                 CreatedByUserId = "creator"
             };
@@ -355,6 +355,57 @@ namespace ProjectManagement.Tests
 
             Assert.Single(results);
             Assert.Equal(ProjectTotStatus.Completed, results[0].Tot!.Status);
+        }
+
+        [Fact]
+        public async Task TotStatus_Filter_ExcludesRepeatBuildHistoricalTot()
+        {
+            await using var context = CreateContext();
+
+            var original = new Project
+            {
+                Name = "Original",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator",
+                IsBuild = false
+            };
+            original.Tot = new ProjectTot
+            {
+                Project = original,
+                Status = ProjectTotStatus.Completed
+            };
+
+            var repeatBuild = new Project
+            {
+                Name = "Repeat build",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator",
+                IsBuild = true
+            };
+            repeatBuild.Tot = new ProjectTot
+            {
+                Project = repeatBuild,
+                Status = ProjectTotStatus.Completed
+            };
+
+            context.Projects.AddRange(original, repeatBuild);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(
+                null,
+                null,
+                Lifecycle: ProjectLifecycleFilter.All,
+                TotStatus: ProjectTotStatus.Completed);
+
+            var results = await context.Projects
+                .Include(project => project.Tot)
+                .ApplyProjectSearch(filters)
+                .ToListAsync();
+
+            var result = Assert.Single(results);
+            Assert.Equal(original.Id, result.Id);
         }
 
         [Fact]

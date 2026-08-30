@@ -93,6 +93,37 @@ public sealed class CompletedProjectPortfolioPolicyTests
         Assert.Contains(overview.TotActionProjects, x => x.ProjectId == totAction.ProjectId);
     }
 
+
+    [Fact]
+    public void RepeatBuild_TotIsNotApplicableAndDoesNotCreateActionOrCriticalGap()
+    {
+        var item = CreateCompleteItem();
+        item.IsBuild = true;
+        item.TotStatus = null;
+
+        Assert.False(CompletedProjectPortfolioPolicy.HasTotActionPending(item));
+        Assert.DoesNotContain("ToT status", CompletedProjectPortfolioPolicy.GetCriticalMissingFields(item));
+        Assert.DoesNotContain(
+            CompletedProjectPortfolioPolicy.GetActionItems(item),
+            action => action.Contains("ToT", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Not applicable", CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus, item.IsBuild));
+    }
+
+    [Fact]
+    public void Overview_DoesNotCountLegacyRepeatBuildTotAsCompleted()
+    {
+        var original = CreateCompleteItem(1, "Original", 2025, 100m);
+        var repeatBuild = CreateCompleteItem(2, "Repeat build", 2025, 100m);
+        repeatBuild.IsBuild = true;
+        repeatBuild.TotStatus = ProjectTotStatus.Completed;
+
+        var overview = CompletedProjectsPortfolioOverview.Build(
+            new[] { original, repeatBuild },
+            currentYear: 2026);
+
+        Assert.Equal(1, overview.TotCompletedCount);
+    }
+
     private static CompletedProjectSummaryDto CreateCompleteItem(
         int id = 1,
         string name = "Project",

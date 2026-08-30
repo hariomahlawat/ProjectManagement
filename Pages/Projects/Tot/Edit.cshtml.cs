@@ -147,9 +147,9 @@ public class EditModel : PageModel
             return DenyProjectAccess(project.Id);
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived || project.IsDeleted)
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } applicabilityError)
         {
-            TempData["Error"] = "Transfer of Technology can be updated only after the project is completed and while it is operationally editable.";
+            TempData["Error"] = applicabilityError;
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
 
@@ -183,9 +183,9 @@ public class EditModel : PageModel
             return DenyProjectAccess(project.Id);
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived || project.IsDeleted)
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } applicabilityError)
         {
-            TempData["Error"] = "Transfer of Technology can be updated only after the project is completed and while it is operationally editable.";
+            TempData["Error"] = applicabilityError;
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
 
@@ -252,9 +252,9 @@ public class EditModel : PageModel
             return DenyProjectAccess(project.Id);
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived || project.IsDeleted)
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } applicabilityError)
         {
-            TempData["Error"] = "Transfer of Technology can be updated only after the project is completed and while it is operationally editable.";
+            TempData["Error"] = applicabilityError;
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
 

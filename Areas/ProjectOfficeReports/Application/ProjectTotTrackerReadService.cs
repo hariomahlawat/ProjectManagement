@@ -8,6 +8,7 @@ using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
@@ -87,7 +88,7 @@ public class ProjectTotTrackerReadService
     {
         var query = _db.Projects
             .AsNoTracking()
-            .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Where(ProjectTotApplicabilityPolicy.EligibleProjectPredicate)
             .AsQueryable();
 
         if (filter.TotStatus.HasValue)
@@ -482,3 +483,4 @@ public sealed record ProjectTotTrackerRow(
     ProjectTotRemarkSummary? LatestExternalRemark,
     ProjectTotRemarkSummary? LatestInternalRemark,
     string? LeadProjectOfficer);
+

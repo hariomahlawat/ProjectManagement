@@ -74,16 +74,20 @@ public class UploadRequestModel : PageModel
 
     public IReadOnlyCollection<string> AllowedExtensions => DocumentTypeValidation.GetAllowedExtensions(_options.AllowedMimeTypes);
 
-    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
+    public bool AllowTotLinking =>
+        Project is { IsBuild: false }
+        && Project.Tot is { Status: not ProjectTotStatus.NotRequired };
 
-    public string TotStatusDisplay => Project?.Tot?.Status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => "Unknown"
-    };
+    public string TotStatusDisplay => Project?.IsBuild == true
+        ? "Not applicable"
+        : Project?.Tot?.Status switch
+        {
+            ProjectTotStatus.NotRequired => "Not required",
+            ProjectTotStatus.NotStarted => "Not started",
+            ProjectTotStatus.InProgress => "In progress",
+            ProjectTotStatus.Completed => "Completed",
+            _ => "Unknown"
+        };
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -146,8 +150,14 @@ public class UploadRequestModel : PageModel
 
         // SECTION: Transfer of Technology validation
         var tot = Project?.Tot;
-        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
-        if (Input.LinkToTot && !canLinkTot)
+        var canLinkTot = Project is { IsBuild: false }
+            && tot is not null
+            && tot.Status != ProjectTotStatus.NotRequired;
+        if (Input.LinkToTot && Project?.IsBuild == true)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not applicable to Repeat Build projects.");
+        }
+        else if (Input.LinkToTot && !canLinkTot)
         {
             ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
         }

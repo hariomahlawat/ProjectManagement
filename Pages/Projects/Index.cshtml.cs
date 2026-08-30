@@ -914,6 +914,11 @@ namespace ProjectManagement.Pages.Projects
 
         public string? FormatTotStatusShort(Project project)
         {
+            if (project.IsBuild)
+            {
+                return "ToT not applicable";
+            }
+
             if (project.Tot is not { } tot)
             {
                 return null;

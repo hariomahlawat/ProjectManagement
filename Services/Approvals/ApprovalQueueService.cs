@@ -438,6 +438,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                         join user in _db.Users.AsNoTracking() on req.SubmittedByUserId equals user.Id into userGroup
                         from user in userGroup.DefaultIfEmpty()
                         where req.DecisionState == ProjectTotRequestDecisionState.Pending
+                              && !project.IsBuild
                         select new TotRequestRow(
                             req.Id,
                             req.ProjectId,
@@ -461,7 +462,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             "Transfer of Technology status update to {0}.",
             row.ProposedStatus);
 
-        return new ApprovalQueueItemVm(
+        var item = new ApprovalQueueItemVm(
             ApprovalQueueType.TotRequest,
             row.Id.ToString(CultureInfo.InvariantCulture),
             row.ProjectId,
@@ -474,6 +475,8 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             ProjectTotRequestDecisionState.Pending.ToString(),
             null,
             Convert.ToBase64String(row.RowVersion ?? Array.Empty<byte>()));
+
+        return item;
     }
 
     // SECTION: Proliferation yearly list
@@ -901,7 +904,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             .Include(p => p.TechnicalCategory)
             .Include(p => p.SponsoringUnit)
             .Include(p => p.SponsoringLineDirectorate)
-            .FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct);
+            .FirstOrDefaultAsync(p => p.Id == request.ProjectId && !p.IsBuild, ct);
 
         if (project is null)
         {
@@ -1106,9 +1109,9 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         var project = await _db.Projects
             .AsNoTracking()
             .Include(p => p.Tot)
-            .FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct);
+            .FirstOrDefaultAsync(p => p.Id == request.ProjectId && !p.IsBuild, ct);
 
-        if (project?.Tot is null)
+        if (project is null)
         {
             return null;
         }
@@ -1130,23 +1133,23 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             Convert.ToBase64String(request.RowVersion ?? Array.Empty<byte>()));
 
         var detail = new TotRequestDetailVm(
-            project.Tot.Status,
+            project.Tot?.Status ?? ProjectTotStatus.NotStarted,
             request.ProposedStatus,
-            project.Tot.StartedOn,
-            project.Tot.StartDatePrecision,
+            project.Tot?.StartedOn,
+            project.Tot?.StartDatePrecision ?? default,
             request.ProposedStartedOn,
             request.ProposedStartDatePrecision,
-            project.Tot.CompletedOn,
-            project.Tot.CompletionDatePrecision,
+            project.Tot?.CompletedOn,
+            project.Tot?.CompletionDatePrecision ?? default,
             request.ProposedCompletedOn,
             request.ProposedCompletionDatePrecision,
-            project.Tot.MetDetails,
+            project.Tot?.MetDetails,
             request.ProposedMetDetails,
-            project.Tot.MetCompletedOn,
+            project.Tot?.MetCompletedOn,
             request.ProposedMetCompletedOn,
-            project.Tot.FirstProductionModelManufactured,
+            project.Tot?.FirstProductionModelManufactured,
             request.ProposedFirstProductionModelManufactured,
-            project.Tot.FirstProductionModelManufacturedOn,
+            project.Tot?.FirstProductionModelManufacturedOn,
             request.ProposedFirstProductionModelManufacturedOn);
 
         return new ApprovalQueueDetailVm

@@ -48,7 +48,7 @@ public sealed class ProjectTotService
             return ProjectTotUpdateResult.NotFound();
         }
 
-        if (GetEligibilityError(project) is { } eligibilityError)
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } eligibilityError)
         {
             return ProjectTotUpdateResult.ValidationFailed(eligibilityError);
         }
@@ -92,7 +92,7 @@ public sealed class ProjectTotService
             return ProjectTotRequestActionResult.NotFound();
         }
 
-        if (GetEligibilityError(project) is { } eligibilityError)
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } eligibilityError)
         {
             return ProjectTotRequestActionResult.ValidationFailed(eligibilityError);
         }
@@ -186,7 +186,7 @@ public sealed class ProjectTotService
 
         if (approve)
         {
-            if (GetEligibilityError(project) is { } eligibilityError)
+            if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } eligibilityError)
             {
                 return ProjectTotRequestActionResult.ValidationFailed(eligibilityError);
             }
@@ -225,23 +225,6 @@ public sealed class ProjectTotService
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectTotRequestActionResult.Success();
-    }
-
-    private static string? GetEligibilityError(Project project)
-    {
-        if (project.IsDeleted)
-        {
-            return "Transfer of Technology cannot be changed for a deleted project.";
-        }
-
-        if (project.IsArchived)
-        {
-            return "Transfer of Technology cannot be changed while the project is archived.";
-        }
-
-        return project.LifecycleStatus == ProjectLifecycleStatus.Completed
-            ? null
-            : "Transfer of Technology can be changed only after the project is completed.";
     }
 
     private DateOnly GetTodayInIst() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(

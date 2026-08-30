@@ -385,7 +385,7 @@
                                     <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
                                     <td class="cpw-cell-status"><span class="cpw-inline-status @TechnologyTone(item.TechStatus)">@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</span></td>
                                     <td class="cpw-cell-proliferation"><span class="cpw-inline-status @AvailabilityTone(item.AvailableForProliferation)">@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</span></td>
-                                    <td class="cpw-cell-tot"><span class="cpw-inline-status @TotTone(item.TotStatus)">@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</span></td>
+                                    <td class="cpw-cell-tot"><span class="cpw-inline-status @TotTone(item.TotStatus)">@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus, item.IsBuild)</span></td>
                                     <td class="cpw-cell-quality" title="@qualityTitle">
                                         @if (criticalMissing.Count > 0)
                                         {
@@ -498,7 +498,7 @@
                                                 title="@item.Name">
                                             <span>
                                                 <strong>@item.Name</strong>
-                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.FormatCompletion("date not recorded")) · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
+                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.FormatCompletion("date not recorded")) · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus, item.IsBuild)</small>
                                             </span>
                                             @if (item.RdCostLakhs.HasValue)
                                             {
@@ -568,7 +568,7 @@
                                 {
                                     @foreach (var item in overview.TotActionProjects)
                                     {
-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus) · Availability: @CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</small></button>
+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus, item.IsBuild) · Availability: @CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</small></button>
                                     }
                                 }
                             </div>
@@ -685,7 +685,7 @@
                     <div class="cpw-drawer-status-grid">
                         <div><span>Technology</span><strong>@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</strong></div>
                         <div><span>Availability</span><strong>@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</strong></div>
-                        <div><span>ToT</span><strong>@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</strong></div>
+                        <div><span>ToT</span><strong>@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus, item.IsBuild)</strong></div>
                     </div>
 
                     <div class="cpw-drawer-section">

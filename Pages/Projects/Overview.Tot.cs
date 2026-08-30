@@ -80,9 +80,36 @@ public partial class OverviewModel
             };
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed)
+        var applicabilityError = ProjectTotApplicabilityPolicy.GetIneligibilityReason(project);
+        if (project.IsBuild)
         {
-            return new JsonResult(new { error = "Transfer of Technology can be recorded only after the project is completed." })
+            return new JsonResult(new
+            {
+                success = true,
+                canManage = false,
+                pendingApproval = false,
+                pending = (object?)null,
+                input = new { projectId = id },
+                card = new
+                {
+                    title = "Not applicable",
+                    summary = "Repeat Build",
+                    tone = "neutral"
+                },
+                summary = new
+                {
+                    hasRecord = false,
+                    statusLabel = "Not applicable",
+                    summary = "Transfer of Technology is not applicable to Repeat Build projects.",
+                    facts = Array.Empty<object>()
+                },
+                latestRemark = (object?)null
+            });
+        }
+
+        if (applicabilityError is not null && project.LifecycleStatus != ProjectLifecycleStatus.Completed)
+        {
+            return new JsonResult(new { error = applicabilityError })
             {
                 StatusCode = StatusCodes.Status409Conflict
             };
@@ -150,15 +177,7 @@ public partial class OverviewModel
 
         var project = await _db.Projects
             .AsNoTracking()
-            .Where(item => item.Id == id && !item.IsDeleted)
-            .Select(item => new
-            {
-                item.Id,
-                item.LifecycleStatus,
-                item.IsArchived,
-                item.LeadPoUserId
-            })
-            .SingleOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(item => item.Id == id && !item.IsDeleted, ct);
 
         if (project is null)
         {
@@ -168,9 +187,9 @@ public partial class OverviewModel
             };
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed)
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } applicabilityError)
         {
-            return new JsonResult(new { error = "Transfer of Technology can be updated only after the project is completed." })
+            return new JsonResult(new { error = applicabilityError })
             {
                 StatusCode = StatusCodes.Status409Conflict
             };
@@ -259,9 +278,7 @@ public partial class OverviewModel
 
         var project = await _db.Projects
             .AsNoTracking()
-            .Where(item => item.Id == id && !item.IsDeleted)
-            .Select(item => new { item.LifecycleStatus, item.IsArchived, item.LeadPoUserId })
-            .SingleOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(item => item.Id == id && !item.IsDeleted, ct);
 
         if (project is null)
         {
@@ -271,8 +288,15 @@ public partial class OverviewModel
             };
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived ||
-            !await CanManageTotFromOverviewAsync(id, project.LeadPoUserId, project.IsArchived, ct))
+        if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } remarkApplicabilityError)
+        {
+            return new JsonResult(new { error = remarkApplicabilityError })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+
+        if (!await CanManageTotFromOverviewAsync(id, project.LeadPoUserId, project.IsArchived, ct))
         {
             return new JsonResult(new { error = "You are not authorised to add a ToT remark for this project." })
             {

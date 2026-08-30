@@ -81,6 +81,47 @@ public sealed class ProjectRemarksPanelServiceTests
         Assert.DoesNotContain(viewModel.ScopeOptions, option => option.Value == RemarkScope.TransferOfTechnology.ToString());
     }
 
+    [Fact]
+    public async Task BuildAsync_WhenRepeatBuildHasLegacyTot_ExcludesTotScopeOption()
+    {
+        await using var db = CreateContext();
+        using var userManager = CreateUserManager(db);
+        var service = new ProjectRemarksPanelService(
+            userManager,
+            new FixedClock(DateTimeOffset.UtcNow),
+            new WorkflowStageMetadataProvider());
+
+        var user = new ApplicationUser { Id = "user-repeat-build", UserName = "repeat@example.com" };
+        await userManager.CreateAsync(user);
+
+        var project = new Project
+        {
+            Id = 3,
+            Name = "Repeat build",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            IsBuild = true,
+            Tot = new ProjectTot
+            {
+                ProjectId = 3,
+                Status = ProjectTotStatus.InProgress
+            }
+        };
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, user.Id) },
+            "TestAuth"));
+
+        var viewModel = await service.BuildAsync(
+            project,
+            Array.Empty<ProjectStage>(),
+            principal,
+            CancellationToken.None);
+
+        Assert.DoesNotContain(
+            viewModel.ScopeOptions,
+            option => option.Value == RemarkScope.TransferOfTechnology.ToString());
+    }
+
     [Theory]
     [InlineData(RoleNames.Comdt, true)]
     [InlineData(RoleNames.HoD, true)]

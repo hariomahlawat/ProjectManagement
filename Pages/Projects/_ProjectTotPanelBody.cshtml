@@ -11,7 +11,7 @@
     var hasTot = tot.HasTotRecord;
     var pendingRequest = tot.PendingRequest;
     var hasPending = tot.HasPendingRequest;
-    var summaryText = hasTot
+    var summaryText = hasTot || !tot.IsApplicable
         ? tot.Summary
         : "No Transfer of Technology status has been recorded for this project.";
 
@@ -38,7 +38,13 @@
 }
 
 <!-- SECTION: ToT summary -->
-<p class="mb-0 @(hasTot ? string.Empty : "pm-summary-empty")">@summaryText</p>
+@if (!tot.IsApplicable)
+{
+    <div class="alert alert-warning py-2 mb-2" role="status">
+        <strong>Not applicable — Repeat Build.</strong>
+    </div>
+}
+<p class="mb-0 @((hasTot || !tot.IsApplicable) ? string.Empty : "pm-summary-empty")">@summaryText</p>
 
 @if (tot.Facts.Any())
 {

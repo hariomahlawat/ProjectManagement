@@ -283,7 +283,12 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            var (totSnapshot, totRequestSnapshot) = await LoadTotDataAsync(project.Id, ct);
+            TotSnapshot? totSnapshot = null;
+            TotRequestSnapshot? totRequestSnapshot = null;
+            if (!project.IsBuild)
+            {
+                (totSnapshot, totRequestSnapshot) = await LoadTotDataAsync(project.Id, ct);
+            }
 
             Project = project;
             DescriptionHtml = _markdownRenderer.ToSafeHtml(project.Description);
@@ -497,7 +502,7 @@ namespace ProjectManagement.Pages.Projects
                 IsAssignedProjectOfficer = isThisProjectsPo
             };
 
-            CanManageTot = isAdmin || isHoD || isThisProjectsPo;
+            CanManageTot = ProjectTotApplicabilityPolicy.IsApplicable(project) && (isAdmin || isHoD || isThisProjectsPo);
             CanManageProliferation = isAdmin || isHoD || isThisProjectsPo;
             CanManageJdp = isAdmin || isHoD || isThisProjectsPo || User.IsInRole(RoleNames.Comdt);
             CanManageIndustryPartners = CanManageJdp;
@@ -648,7 +653,7 @@ namespace ProjectManagement.Pages.Projects
 
             LifecycleSummary = BuildLifecycleSummary(project);
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
-            TotSummary = await BuildTotSummaryAsync(project.Id, totSnapshot, totRequestSnapshot, ct);
+            TotSummary = await BuildTotSummaryAsync(project.Id, project.IsBuild, totSnapshot, totRequestSnapshot, ct);
             MediaSummary = BuildMediaSummary();
 
             VideoPreviewItems = BuildVideoViewModels(project)
@@ -1826,10 +1831,24 @@ namespace ProjectManagement.Pages.Projects
 
         private async Task<ProjectTotSummaryViewModel> BuildTotSummaryAsync(
             int projectId,
+            bool isBuild,
             TotSnapshot? tot,
             TotRequestSnapshot? request,
             CancellationToken ct)
         {
+            if (isBuild)
+            {
+                return new ProjectTotSummaryViewModel
+                {
+                    IsApplicable = false,
+                    InapplicabilityReason = "Transfer of Technology is not applicable to Repeat Build projects.",
+                    HasTotRecord = false,
+                    Status = ProjectTotStatus.NotStarted,
+                    StatusLabel = "Not applicable",
+                    Summary = "Transfer of Technology is not applicable to Repeat Build projects."
+                };
+            }
+
             var latestExternalRemark = await _db.Remarks
                 .AsNoTracking()
                 .Where(r => r.ProjectId == projectId
@@ -1897,6 +1916,8 @@ namespace ProjectManagement.Pages.Projects
             {
                 return new ProjectTotSummaryViewModel
                 {
+                    IsApplicable = true,
+                    InapplicabilityReason = null,
                     HasTotRecord = false,
                     Status = ProjectTotStatus.NotStarted,
                     StatusLabel = "Not recorded",
@@ -1960,6 +1981,8 @@ namespace ProjectManagement.Pages.Projects
 
             return new ProjectTotSummaryViewModel
             {
+                IsApplicable = true,
+                InapplicabilityReason = null,
                 HasTotRecord = true,
                 Status = tot.Status,
                 StatusLabel = tot.Status switch

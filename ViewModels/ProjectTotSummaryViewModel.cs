@@ -10,6 +10,8 @@ public sealed class ProjectTotSummaryViewModel
 {
     public static readonly ProjectTotSummaryViewModel Empty = new();
 
+    public bool IsApplicable { get; init; } = true;
+    public string? InapplicabilityReason { get; init; }
     public bool HasTotRecord { get; init; }
     public ProjectTotStatus Status { get; init; } = ProjectTotStatus.NotStarted;
     public string StatusLabel { get; init; } = "Not started";
