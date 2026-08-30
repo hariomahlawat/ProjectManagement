@@ -91,9 +91,47 @@ public static class PresentStageHelper
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
         string? workflowVersion,
         DateOnly? referenceDate = null)
+        => ComputePresentStageAndAgeCore(
+            stages,
+            workflowStageMetadataProvider,
+            workflowVersion,
+            lifecycleStatus: null,
+            referenceDate);
+
+    /// <summary>
+    /// Resolves the display stage using the same canonical workflow expansion while preserving
+    /// lifecycle semantics for completed/cancelled projects. Active projects advance to the first
+    /// incomplete workflow stage; closed projects remain on their latest completed stage.
+    /// </summary>
+    public static PresentStageSnapshot ComputePresentStageAndAge(
+        IReadOnlyList<ProjectStageStatusSnapshot> stages,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        string? workflowVersion,
+        ProjectLifecycleStatus lifecycleStatus,
+        DateOnly? referenceDate = null)
+        => ComputePresentStageAndAgeCore(
+            stages,
+            workflowStageMetadataProvider,
+            workflowVersion,
+            lifecycleStatus,
+            referenceDate);
+
+    private static PresentStageSnapshot ComputePresentStageAndAgeCore(
+        IReadOnlyList<ProjectStageStatusSnapshot> stages,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        string? workflowVersion,
+        ProjectLifecycleStatus? lifecycleStatus,
+        DateOnly? referenceDate)
     {
         ArgumentNullException.ThrowIfNull(stages);
         ArgumentNullException.ThrowIfNull(workflowStageMetadataProvider);
+
+        if (lifecycleStatus.HasValue
+            && lifecycleStatus.Value != ProjectLifecycleStatus.Active
+            && stages.Count == 0)
+        {
+            return PresentStageSnapshot.Empty;
+        }
 
         var orderedStages = BuildWorkflowSnapshots(stages, workflowStageMetadataProvider, workflowVersion);
         if (orderedStages.Count == 0)
@@ -101,20 +139,39 @@ public static class PresentStageHelper
             return PresentStageSnapshot.Empty;
         }
 
-        var current = orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress);
-        if (current == default)
+        ProjectStageStatusSnapshot current;
+        if (lifecycleStatus.HasValue && lifecycleStatus.Value != ProjectLifecycleStatus.Active)
         {
-            current = orderedStages.FirstOrDefault(stage => stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped);
-        }
+            current = orderedStages
+                .Where(stage => stage.Status == StageStatus.Completed)
+                .OrderByDescending(stage => stage.CompletedOn ?? DateOnly.MinValue)
+                .ThenByDescending(stage => stage.SortOrder)
+                .FirstOrDefault();
 
-        if (current == default)
+            if (current == default)
+            {
+                current = orderedStages[0];
+            }
+        }
+        else
         {
-            current = orderedStages[^1];
+            current = orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress);
+            if (current == default)
+            {
+                current = orderedStages.FirstOrDefault(stage =>
+                    stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped);
+            }
+
+            if (current == default)
+            {
+                current = orderedStages[^1];
+            }
         }
 
         ProjectStageStatusSnapshot? lastCompleted = orderedStages
             .Where(stage => stage.Status == StageStatus.Completed && stage.CompletedOn.HasValue)
             .OrderByDescending(stage => stage.CompletedOn)
+            .ThenByDescending(stage => stage.SortOrder)
             .Select(stage => (ProjectStageStatusSnapshot?)stage)
             .FirstOrDefault();
 

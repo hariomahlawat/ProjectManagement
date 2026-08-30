@@ -24,6 +24,9 @@ namespace ProjectManagement.Pages.Analytics
     {
         private readonly ApplicationDbContext _db;
         private readonly IProjectAnalyticsService _projectAnalyticsService;
+        private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+        private IReadOnlyDictionary<int, ProjectCategoryHierarchyNode> _categoryHierarchy =
+            new Dictionary<int, ProjectCategoryHierarchyNode>();
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
         // SECTION: Analytics constants
@@ -41,10 +44,14 @@ namespace ProjectManagement.Pages.Analytics
             "centres of excellence"
         };
 
-        public IndexModel(ApplicationDbContext db, IProjectAnalyticsService projectAnalyticsService)
+        public IndexModel(
+            ApplicationDbContext db,
+            IProjectAnalyticsService projectAnalyticsService,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider)
         {
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
+            _workflowStageMetadataProvider = workflowStageMetadataProvider;
         }
 
         private static readonly ProjectLifecycleFilter[] LifecycleFilters =
@@ -151,11 +158,27 @@ namespace ProjectManagement.Pages.Analytics
 
         private async Task LoadAnalyticsAsync(CancellationToken cancellationToken)
         {
-            Categories = await _db.ProjectCategories
+            var categoryRows = await _db.ProjectCategories
                 .AsNoTracking()
+                .Select(c => new ProjectCategoryRow(
+                    c.Id,
+                    c.Name,
+                    c.ParentId,
+                    c.IsActive,
+                    c.SortOrder))
+                .ToListAsync(cancellationToken);
+
+            Categories = categoryRows
                 .OrderBy(c => c.Name)
                 .Select(c => new CategoryOption(c.Id, c.Name))
-                .ToListAsync(cancellationToken);
+                .ToList();
+
+            _categoryHierarchy = categoryRows.ToDictionary(
+                category => category.Id,
+                category => new ProjectCategoryHierarchyNode(
+                    category.Id,
+                    category.Name,
+                    category.ParentId));
 
             TechnicalCategories = await _db.TechnicalCategories
                 .AsNoTracking()
@@ -164,13 +187,12 @@ namespace ProjectManagement.Pages.Analytics
                 .Select(c => new TechnicalCategoryOption(c.Id, c.Name))
                 .ToListAsync(cancellationToken);
 
-            OngoingStageParentCategoryOptions = await _db.ProjectCategories
-                .AsNoTracking()
+            OngoingStageParentCategoryOptions = categoryRows
                 .Where(c => c.IsActive && c.ParentId == null)
                 .OrderBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
                 .Select(c => new AnalyticsFilterOption(c.Id, c.Name))
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             ActiveOngoingStageParentCategoryIds = OngoingStageParentCategoryIds
                 .Where(id => id > 0)
@@ -327,6 +349,7 @@ namespace ProjectManagement.Pages.Analytics
                     && coeCategoryIds.Contains(p.CategoryId.Value))
                 .Select(p => new ProjectStageSnapshot(
                     p.LifecycleStatus,
+                    p.WorkflowVersion,
                     p.ProjectStages
                         .OrderBy(s => s.SortOrder)
                         .ThenBy(s => s.StageCode)
@@ -334,6 +357,7 @@ namespace ProjectManagement.Pages.Analytics
                             s.StageCode,
                             s.Status,
                             s.SortOrder,
+                            s.ActualStart,
                             s.CompletedOn))
                         .ToList()))
                 .ToListAsync(cancellationToken);
@@ -341,10 +365,10 @@ namespace ProjectManagement.Pages.Analytics
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var project in stageSnapshots)
             {
-                var stage = DetermineCurrentStage(project);
-                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                var stage = ResolvePresentStage(project);
+                var stageCode = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
                     ? UnassignedStageCode
-                    : stage!.StageCode.Trim();
+                    : stage.CurrentStageCode.Trim();
 
                 counts.TryGetValue(stageCode, out var existing);
                 counts[stageCode] = existing + 1;
@@ -543,6 +567,7 @@ namespace ProjectManagement.Pages.Analytics
                     p.Name,
                     CategoryName = p.Category != null ? p.Category.Name : null,
                     p.LifecycleStatus,
+                    p.WorkflowVersion,
                     Stages = p.ProjectStages
                         .OrderBy(s => s.SortOrder)
                         .ThenBy(s => s.StageCode)
@@ -550,6 +575,7 @@ namespace ProjectManagement.Pages.Analytics
                             s.StageCode,
                             s.Status,
                             s.SortOrder,
+                            s.ActualStart,
                             s.CompletedOn))
                         .ToList()
                 })
@@ -563,8 +589,13 @@ namespace ProjectManagement.Pages.Analytics
             var groupedProjects = projectRows
                 .Select(row =>
                 {
-                    var stage = DetermineCurrentStage(new ProjectStageSnapshot(row.LifecycleStatus, row.Stages));
-                    var stageName = stage is null ? "—" : StageCodes.DisplayNameOf(stage.StageCode);
+                    var stage = ResolvePresentStage(new ProjectStageSnapshot(
+                        row.LifecycleStatus,
+                        row.WorkflowVersion,
+                        row.Stages));
+                    var stageName = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
+                        ? "—"
+                        : stage.CurrentStageName ?? StageCodes.DisplayNameOf(stage.CurrentStageCode);
 
                     return new
                     {
@@ -628,27 +659,19 @@ namespace ProjectManagement.Pages.Analytics
             IQueryable<Project> projectQuery,
             CancellationToken cancellationToken)
         {
-            // SECTION: Parent category aggregation
-            var parentCategoryCounts = await projectQuery
-                .Select(p => new
-                {
-                    ParentCategoryId = p.CategoryId.HasValue
-                        ? (p.Category!.ParentId ?? p.CategoryId)
-                        : (int?)null
-                })
-                .GroupBy(x => x.ParentCategoryId)
-                .Select(g => new CategoryAggregation
-                {
-                    Id = g.Key,
-                    Count = g.Count()
-                })
-                .OrderByDescending(x => x.Count)
+            // SECTION: Root category aggregation
+            var categoryIds = await projectQuery
+                .Select(project => project.CategoryId)
                 .ToListAsync(cancellationToken);
 
-            var namedCategories = await LoadCategoryNamesAsync(parentCategoryCounts, cancellationToken);
-
-            return parentCategoryCounts
-                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedCategories), item.Count))
+            return categoryIds
+                .Select(categoryId => ProjectCategoryHierarchyResolver.ResolveRoot(categoryId, _categoryHierarchy))
+                .GroupBy(root => root?.Id)
+                .Select(group => new AnalyticsCategoryCountPoint(
+                    group.FirstOrDefault()?.Name ?? "Uncategorized",
+                    group.Count()))
+                .OrderByDescending(point => point.Count)
+                .ThenBy(point => point.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             // END SECTION
         }
@@ -678,40 +701,33 @@ namespace ProjectManagement.Pages.Analytics
             IQueryable<Project> completedQuery,
             CancellationToken cancellationToken)
         {
-            var perYearByParentCategory = await completedQuery
-                .Where(p => p.CompletedYear.HasValue || p.CompletedOn.HasValue)
-                .Select(p => new
+            var rows = await completedQuery
+                .Where(project => project.CompletedYear.HasValue || project.CompletedOn.HasValue)
+                .Select(project => new
                 {
-                    Year = p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null),
-                    ParentCategoryId = p.CategoryId.HasValue
-                        ? (p.Category!.ParentId ?? p.CategoryId)
-                        : (int?)null
+                    Year = project.CompletedYear ??
+                        (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null),
+                    project.CategoryId
                 })
-                .Where(x => x.Year.HasValue)
-                .GroupBy(x => new { x.Year, x.ParentCategoryId })
-                .Select(g => new CompletedPerYearParentAggregation
-                {
-                    Year = g.Key.Year!.Value,
-                    CategoryId = g.Key.ParentCategoryId,
-                    Count = g.Count()
-                })
-                .OrderBy(x => x.Year)
-                .ThenBy(x => x.CategoryId)
+                .Where(row => row.Year.HasValue)
                 .ToListAsync(cancellationToken);
 
-            var parentCategoryNames = await LoadCategoryNamesAsync(
-                perYearByParentCategory.Select(item => new CategoryAggregation
+            return rows
+                .Select(row => new
                 {
-                    Id = item.CategoryId,
-                    Count = item.Count
-                }),
-                cancellationToken);
-
-            return perYearByParentCategory
-                .Select(item => new CompletedPerYearByParentCategoryPoint(
-                    item.Year,
-                    ResolveName(item.CategoryId, parentCategoryNames),
-                    item.Count))
+                    Year = row.Year!.Value,
+                    RootCategory = ProjectCategoryHierarchyResolver.ResolveRoot(row.CategoryId, _categoryHierarchy)
+                })
+                .GroupBy(row => new
+                {
+                    row.Year,
+                    CategoryId = row.RootCategory?.Id,
+                    CategoryName = row.RootCategory?.Name ?? "Uncategorized"
+                })
+                .Select(group => new CompletedPerYearByParentCategoryPoint(
+                    group.Key.Year,
+                    group.Key.CategoryName,
+                    group.Count()))
                 .OrderBy(point => point.Year)
                 .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -729,11 +745,7 @@ namespace ProjectManagement.Pages.Analytics
                     project.Name,
                     project.CompletedOn,
                     project.CompletedYear,
-                    ParentCategoryName = project.CategoryId.HasValue
-                        ? (project.Category!.Parent != null
-                            ? project.Category.Parent.Name
-                            : project.Category.Name)
-                        : null
+                    project.CategoryId
                 })
                 .ToListAsync(cancellationToken);
 
@@ -746,9 +758,10 @@ namespace ProjectManagement.Pages.Analytics
                         : row.Name.Trim(),
                     row.CompletedOn,
                     EffectiveYear = row.CompletedYear ?? row.CompletedOn?.Year,
-                    ParentCategoryName = string.IsNullOrWhiteSpace(row.ParentCategoryName)
-                        ? "Unassigned"
-                        : row.ParentCategoryName.Trim()
+                    ParentCategoryName = ProjectCategoryHierarchyResolver.ResolveRoot(
+                            row.CategoryId,
+                            _categoryHierarchy)?.Name
+                        ?? "Unassigned"
                 })
                 .Where(row => row.EffectiveYear.HasValue)
                 .ToList();
@@ -830,6 +843,7 @@ namespace ProjectManagement.Pages.Analytics
                 .Include(p => p.ProjectStages)
                 .Select(p => new ProjectStageSnapshot(
                     p.LifecycleStatus,
+                    p.WorkflowVersion,
                     p.ProjectStages
                         .OrderBy(s => s.SortOrder)
                         .ThenBy(s => s.StageCode)
@@ -837,6 +851,7 @@ namespace ProjectManagement.Pages.Analytics
                             s.StageCode,
                             s.Status,
                             s.SortOrder,
+                            s.ActualStart,
                             s.CompletedOn))
                         .ToList()))
                 .ToListAsync(cancellationToken);
@@ -845,10 +860,10 @@ namespace ProjectManagement.Pages.Analytics
 
             foreach (var project in stageSnapshots)
             {
-                var stage = DetermineCurrentStage(project);
-                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                var stage = ResolvePresentStage(project);
+                var stageCode = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
                     ? UnassignedStageCode
-                    : stage!.StageCode.Trim();
+                    : stage.CurrentStageCode.Trim();
 
                 counts.TryGetValue(stageCode, out var existing);
                 counts[stageCode] = existing + 1;
@@ -993,37 +1008,30 @@ namespace ProjectManagement.Pages.Analytics
             var selectedIds = selectedParentCategoryIds?
                 .Where(id => id > 0)
                 .Distinct()
-                .ToList();
+                .ToHashSet() ?? new HashSet<int>();
 
-            var projectsQuery = _db.Projects
+            var stageSnapshots = await _db.Projects
                 .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active);
-
-            if (selectedIds is { Count: > 0 })
-            {
-                projectsQuery = projectsQuery
-                    .Where(p => p.CategoryId.HasValue
-                        && selectedIds.Contains(p.Category!.ParentId ?? p.CategoryId.Value));
-            }
-
-            var stageSnapshots = await projectsQuery
-                .Include(p => p.ProjectStages)
-                .Select(p => new
+                .Where(project =>
+                    !project.IsDeleted
+                    && !project.IsArchived
+                    && project.LifecycleStatus == ProjectLifecycleStatus.Active)
+                .Select(project => new
                 {
-                    p.Id,
-                    p.Name,
-                    p.LifecycleStatus,
-                    ParentCategoryId = p.CategoryId.HasValue
-                        ? (p.Category!.ParentId ?? p.CategoryId)
-                        : (int?)null,
-                    Stages = p.ProjectStages
-                        .OrderBy(s => s.SortOrder)
-                        .ThenBy(s => s.StageCode)
-                        .Select(s => new StageSnapshot(
-                            s.StageCode,
-                            s.Status,
-                            s.SortOrder,
-                            s.CompletedOn))
+                    project.Id,
+                    project.Name,
+                    project.LifecycleStatus,
+                    project.WorkflowVersion,
+                    project.CategoryId,
+                    Stages = project.ProjectStages
+                        .OrderBy(stage => stage.SortOrder)
+                        .ThenBy(stage => stage.StageCode)
+                        .Select(stage => new StageSnapshot(
+                            stage.StageCode,
+                            stage.Status,
+                            stage.SortOrder,
+                            stage.ActualStart,
+                            stage.CompletedOn))
                         .ToList()
                 })
                 .ToListAsync(cancellationToken);
@@ -1033,32 +1041,46 @@ namespace ProjectManagement.Pages.Analytics
                 return Array.Empty<OngoingStageRow>();
             }
 
-            var categoryAggregations = stageSnapshots
-                .Select(snapshot => new CategoryAggregation { Id = snapshot.ParentCategoryId, Count = 0 })
-                .DistinctBy(x => x.Id)
-                .ToList();
-
-            var parentCategoryNames = await LoadCategoryNamesAsync(categoryAggregations, cancellationToken);
-
-            return stageSnapshots
+            var rows = stageSnapshots
                 .Select(snapshot =>
                 {
-                    var stage = DetermineCurrentStage(new ProjectStageSnapshot(snapshot.LifecycleStatus, snapshot.Stages));
-                    var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                    var rootCategory = ProjectCategoryHierarchyResolver.ResolveRoot(
+                        snapshot.CategoryId,
+                        _categoryHierarchy);
+                    var stage = ResolvePresentStage(new ProjectStageSnapshot(
+                        snapshot.LifecycleStatus,
+                        snapshot.WorkflowVersion,
+                        snapshot.Stages));
+                    var stageCode = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
                         ? UnassignedStageCode
-                        : stage!.StageCode.Trim();
+                        : stage.CurrentStageCode.Trim();
+                    var stageName = string.Equals(
+                            stageCode,
+                            UnassignedStageCode,
+                            StringComparison.OrdinalIgnoreCase)
+                        ? UnassignedStageName
+                        : stage.CurrentStageName ?? StageCodes.DisplayNameOf(stageCode);
 
                     return new OngoingStageRow(
                         ProjectId: snapshot.Id,
                         ProjectName: snapshot.Name ?? "Untitled project",
                         StageCode: stageCode,
-                        StageName: string.Equals(stageCode, UnassignedStageCode, StringComparison.OrdinalIgnoreCase)
-                            ? UnassignedStageName
-                            : StageCodes.DisplayNameOf(stageCode),
-                        ParentCategoryId: snapshot.ParentCategoryId,
-                        ParentCategoryName: ResolveName(snapshot.ParentCategoryId, parentCategoryNames));
+                        StageName: stageName,
+                        ParentCategoryId: rootCategory?.Id,
+                        ParentCategoryName: rootCategory?.Name ?? "Uncategorized");
                 })
                 .ToList();
+
+            if (selectedIds.Count > 0)
+            {
+                rows = rows
+                    .Where(row =>
+                        row.ParentCategoryId.HasValue
+                        && selectedIds.Contains(row.ParentCategoryId.Value))
+                    .ToList();
+            }
+
+            return rows;
             // END SECTION
         }
 
@@ -1207,48 +1229,22 @@ namespace ProjectManagement.Pages.Analytics
         }
         // END SECTION
 
-        private static StageSnapshot? DetermineCurrentStage(ProjectStageSnapshot project)
+        private PresentStageSnapshot ResolvePresentStage(ProjectStageSnapshot project)
         {
-            var stages = project.Stages;
-            if (stages.Count == 0)
-            {
-                return null;
-            }
+            var stages = project.Stages
+                .Select(stage => new ProjectStageStatusSnapshot(
+                    stage.StageCode,
+                    stage.Status,
+                    stage.SortOrder,
+                    stage.ActualStart,
+                    stage.CompletedOn))
+                .ToList();
 
-            if (project.Status == ProjectLifecycleStatus.Active)
-            {
-                var inProgress = stages
-                    .Where(s => s.Status == StageStatus.InProgress)
-                    .OrderBy(s => s.SortOrder)
-                    .ThenBy(s => s.StageCode)
-                    .FirstOrDefault();
-                if (inProgress != null)
-                {
-                    return inProgress;
-                }
-
-                var notStarted = stages
-                    .Where(s => s.Status == StageStatus.NotStarted)
-                    .OrderBy(s => s.SortOrder)
-                    .ThenBy(s => s.StageCode)
-                    .FirstOrDefault();
-                if (notStarted != null)
-                {
-                    return notStarted;
-                }
-            }
-
-            var completed = stages
-                .Where(s => s.Status == StageStatus.Completed)
-                .OrderByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
-                .ThenByDescending(s => s.SortOrder)
-                .FirstOrDefault();
-            if (completed != null)
-            {
-                return completed;
-            }
-
-            return stages[0];
+            return PresentStageHelper.ComputePresentStageAndAge(
+                stages,
+                _workflowStageMetadataProvider,
+                project.WorkflowVersion,
+                project.Status);
         }
 
         private static string ResolveName(int? id, IReadOnlyDictionary<int, string> lookup) =>
@@ -1260,18 +1256,20 @@ namespace ProjectManagement.Pages.Analytics
             string StageCode,
             StageStatus Status,
             int SortOrder,
+            DateOnly? ActualStart,
             DateOnly? CompletedOn);
 
         private sealed record ProjectStageSnapshot(
             ProjectLifecycleStatus Status,
+            string? WorkflowVersion,
             IReadOnlyList<StageSnapshot> Stages);
 
-        private sealed class CompletedPerYearParentAggregation
-        {
-            public int Year { get; init; }
-            public int? CategoryId { get; init; }
-            public int Count { get; init; }
-        }
+        private sealed record ProjectCategoryRow(
+            int Id,
+            string Name,
+            int? ParentId,
+            bool IsActive,
+            int SortOrder);
 
         private sealed class CategoryAggregation
         {

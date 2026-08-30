@@ -360,6 +360,18 @@ function renderEmptyState(canvas) {
 // END SECTION
 
 // SECTION: Category color mapping
+const semanticCategoryColors = Object.freeze({
+  'DCD Projects': '#3c68e8',
+  'CoE': '#52c653',
+  'Other R&D Projects': '#ef7a00'
+});
+
+const semanticCategoryOrder = Object.freeze([
+  'DCD Projects',
+  'CoE',
+  'Other R&D Projects'
+]);
+
 function buildCategoryColorMapping(stackedPoints) {
   const totals = new Map();
   const hasStackedPoints = Array.isArray(stackedPoints) && stackedPoints.length;
@@ -378,28 +390,33 @@ function buildCategoryColorMapping(stackedPoints) {
       (candidate) => candidate.toLowerCase() === normalizedLabel
     );
   });
-  const unassignedTotal = unassignedLabel ? totals.get(unassignedLabel) ?? 0 : 0;
 
   if (unassignedLabel) {
     totals.delete(unassignedLabel);
   }
 
-  const rankedCategories = Array.from(totals.entries())
+  const semanticCategories = semanticCategoryOrder.filter((name) => totals.has(name));
+  const otherCategories = Array.from(totals.entries())
+    .filter(([name]) => !semanticCategoryColors[name])
     .sort((first, second) => {
       const totalDifference = second[1] - first[1];
       return totalDifference !== 0 ? totalDifference : first[0].localeCompare(second[0]);
     })
     .map(([name]) => name);
+  const rankedCategories = [...semanticCategories, ...otherCategories];
 
   const palette = getPalette();
   const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
   const categoryColorMap = new Map();
 
   rankedCategories.forEach((name, index) => {
-    categoryColorMap.set(name, accentColors[index % accentColors.length]);
+    categoryColorMap.set(
+      name,
+      semanticCategoryColors[name] ?? accentColors[index % accentColors.length]
+    );
   });
 
-  if (unassignedLabel && unassignedTotal >= 0) {
+  if (unassignedLabel) {
     categoryColorMap.set(unassignedLabel, palette.neutral ?? '#9ca3af');
     rankedCategories.push(unassignedLabel);
   }

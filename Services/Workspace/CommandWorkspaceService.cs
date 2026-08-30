@@ -156,9 +156,14 @@ public sealed class CommandWorkspaceService
                     .ToList()))
             .ToListAsync(cancellationToken);
 
-        var categoryMap = categories.ToDictionary(category => category.Id);
+        var categoryHierarchy = categories.ToDictionary(
+            category => category.Id,
+            category => new ProjectCategoryHierarchyNode(
+                category.Id,
+                category.Name,
+                category.ParentId));
         var normalizedProjects = projectRows
-            .Select(project => NormalizeProject(project, categoryMap))
+            .Select(project => NormalizeProject(project, categoryHierarchy))
             .ToList();
 
         IEnumerable<NormalizedProject> filteredProjects = normalizedProjects;
@@ -540,7 +545,7 @@ public sealed class CommandWorkspaceService
 
     private NormalizedProject NormalizeProject(
         ProjectRow row,
-        IReadOnlyDictionary<int, CategoryRow> categories)
+        IReadOnlyDictionary<int, ProjectCategoryHierarchyNode> categories)
     {
         var stageSnapshots = row.Stages
             .Select(stage => new ProjectStageStatusSnapshot(
@@ -563,23 +568,9 @@ public sealed class CommandWorkspaceService
             : presentStage.CurrentStageName
                 ?? _workflowStageMetadataProvider.GetDisplayName(row.WorkflowVersion, stageCode);
 
-        int? parentId = null;
-        var parentName = "Uncategorised";
-        if (row.CategoryId.HasValue
-            && categories.TryGetValue(row.CategoryId.Value, out var category))
-        {
-            var cursor = category;
-            var guard = 0;
-            while (cursor.ParentId.HasValue
-                   && categories.TryGetValue(cursor.ParentId.Value, out var parent)
-                   && guard++ < 20)
-            {
-                cursor = parent;
-            }
-
-            parentId = cursor.Id;
-            parentName = cursor.Name;
-        }
+        var rootCategory = ProjectCategoryHierarchyResolver.ResolveRoot(row.CategoryId, categories);
+        var parentId = rootCategory?.Id;
+        var parentName = rootCategory?.Name ?? "Uncategorised";
 
         var officerName = string.IsNullOrWhiteSpace(row.OfficerName)
             ? "Unassigned"

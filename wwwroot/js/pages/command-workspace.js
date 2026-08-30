@@ -296,6 +296,22 @@
     }
 
 
+    const workspaceStageAxisNameOverrides = {
+        'SOW Vetting': 'SoW',
+        'Scope of Work Vetting': 'SoW',
+        'Benchmarking': 'BM',
+        'Development': 'Devp'
+    };
+
+    const getWorkspaceStageAxisLabel = (stageCode, stageName) => {
+        if (stageCode === 'UNASSIGNED') return 'Unassigned';
+        const name = String(stageName || '').trim();
+        const code = String(stageCode || '').trim();
+        if (workspaceStageAxisNameOverrides[name]) return workspaceStageAxisNameOverrides[name];
+        if (!name || name.length > 16) return code;
+        return name;
+    };
+
     const initialiseStageChart = () => {
         const canvas = document.getElementById('command-stage-chart');
         if (!canvas || !window.Chart) return;
@@ -316,13 +332,18 @@
             data: stageNames.map(([code]) => rows.find(row => row.stageCode === code && row.categoryName === category)?.count || 0),
             backgroundColor: categoryColors[category] || fallbackPalette[index % fallbackPalette.length],
             borderWidth: 0,
-            borderRadius: 3,
-            maxBarThickness: 44
+            borderRadius: 4,
+            categoryPercentage: 0.72,
+            barPercentage: 0.88,
+            maxBarThickness: 80
         }));
 
         const chart = new Chart(canvas, {
             type: 'bar',
-            data: { labels: stageNames.map(([code]) => code === 'UNASSIGNED' ? 'Unassigned' : code), datasets },
+            data: {
+                labels: stageNames.map(([code, name]) => getWorkspaceStageAxisLabel(code, name)),
+                datasets
+            },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -341,7 +362,17 @@
                     tooltip: { callbacks: { title: items => stageNames[items[0].dataIndex]?.[1] || items[0].label } }
                 },
                 scales: {
-                    x: { stacked: true, grid: { display: false }, ticks: { color: '#5f6e83', font: { size: 11 } } },
+                    x: {
+                        stacked: true,
+                        grid: { display: false },
+                        ticks: {
+                            autoSkip: false,
+                            maxRotation: 0,
+                            minRotation: 0,
+                            color: '#5f6e83',
+                            font: { size: 11 }
+                        }
+                    },
                     y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: '#5f6e83', font: { size: 11 } }, grid: { color: 'rgba(103,119,143,.15)' } }
                 }
             }

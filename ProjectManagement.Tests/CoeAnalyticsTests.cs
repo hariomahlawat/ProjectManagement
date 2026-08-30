@@ -31,7 +31,38 @@ public sealed class CoeAnalyticsTests : IDisposable
         _db = new ApplicationDbContext(options);
         _db.Database.EnsureCreated();
 
-        _pageModel = new IndexModel(_db, new SpyProjectAnalyticsService());
+        _pageModel = new IndexModel(_db, new SpyProjectAnalyticsService(), new WorkflowStageMetadataProvider());
+    }
+
+    [Fact]
+    public async Task OngoingAnalytics_UsesCanonicalFirstStageAndRecursiveRootCategoryForNewProject()
+    {
+        var dcdRoot = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        var arVr = new ProjectCategory { Name = "AR / VR", Parent = dcdRoot, SortOrder = 1 };
+        var medical = new ProjectCategory { Name = "Medical Simulation", Parent = arVr, SortOrder = 1 };
+        _db.ProjectCategories.AddRange(dcdRoot, arVr, medical);
+
+        _db.Projects.Add(new Project
+        {
+            Name = "VR CMC (Philippines 2026)",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            WorkflowVersion = ProcurementWorkflow.VersionV1,
+            Category = medical
+        });
+        await _db.SaveChangesAsync();
+
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        var stagePoint = Assert.Single(_pageModel.Ongoing!.ByStageByParentCategory);
+        Assert.Equal(StageCodes.FS, stagePoint.StageCode);
+        Assert.Equal("DCD Projects", stagePoint.CategoryName);
+        Assert.Equal(1, stagePoint.Count);
+
+        var stageBoard = Assert.Single(_pageModel.Ongoing.StageBoard);
+        Assert.Equal(StageCodes.FS, stageBoard.StageCode);
+        var category = Assert.Single(stageBoard.Categories);
+        Assert.Equal("DCD Projects", category.ParentCategoryName);
     }
 
     [Fact]

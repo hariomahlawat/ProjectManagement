@@ -90,4 +90,43 @@ public sealed class PresentStageHelperTests
         Assert.Equal(StageCodes.FS, snapshot.CurrentStageCode);
         Assert.False(snapshot.IsCurrentStageInProgress);
     }
+
+    [Fact]
+    public void ComputePresentStageAndAge_CompletedLifecycleUsesLatestCompletedStageInsteadOfVirtualNextStage()
+    {
+        var stages = new[]
+        {
+            new ProjectStageStatusSnapshot(
+                StageCodes.FS,
+                StageStatus.Completed,
+                0,
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 1, 10))
+        };
+
+        var snapshot = PresentStageHelper.ComputePresentStageAndAge(
+            stages,
+            new WorkflowStageMetadataProvider(),
+            ProcurementWorkflow.VersionV1,
+            ProjectLifecycleStatus.Completed,
+            new DateOnly(2026, 1, 15));
+
+        Assert.Equal(StageCodes.FS, snapshot.CurrentStageCode);
+        Assert.Equal(new DateOnly(2026, 1, 10), snapshot.LastCompletedDate);
+    }
+
+
+    [Fact]
+    public void ComputePresentStageAndAge_ClosedLifecycleWithoutStageRowsRemainsUnassigned()
+    {
+        var snapshot = PresentStageHelper.ComputePresentStageAndAge(
+            Array.Empty<ProjectStageStatusSnapshot>(),
+            new WorkflowStageMetadataProvider(),
+            ProcurementWorkflow.VersionV1,
+            ProjectLifecycleStatus.Completed,
+            new DateOnly(2026, 1, 15));
+
+        Assert.Null(snapshot.CurrentStageCode);
+    }
+
 }
