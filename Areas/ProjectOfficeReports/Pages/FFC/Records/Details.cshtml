@@ -14,7 +14,10 @@
         name = project.Name,
         lifecycle = project.LifecycleStatus.ToString(),
         secondary = project.SecondaryText,
-        available = project.IsAvailable
+        available = project.IsAvailable,
+        categoryId = project.CategoryId,
+        categoryName = project.CategoryName,
+        isDcd = project.IsDcdProject
     }));
 
     var projectEditorDataJson = JsonSerializer.Serialize(Model.Workspace.Projects.Select(project => new

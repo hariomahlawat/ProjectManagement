@@ -67,7 +67,18 @@ public sealed class FfcRecordWorkspaceContractTests
     public void WorkspaceScript_UsesStyledConfirmationAndReliableInteractionContracts()
     {
         var script = ReadRecord("ffc-record-workspace.js");
+        var details = ReadRecord("Details.cshtml");
+        var projectEditor = ReadRecord("_ProjectEditor.cshtml");
 
+        Assert.Contains("data-ffc-project-scope=\"dcd\"", projectEditor, StringComparison.Ordinal);
+        Assert.Contains("data-ffc-project-scope=\"all\"", projectEditor, StringComparison.Ordinal);
+        Assert.Contains("DCD Projects", projectEditor, StringComparison.Ordinal);
+        Assert.Contains("All Projects", projectEditor, StringComparison.Ordinal);
+        Assert.Contains("isDcd = project.IsDcdProject", details, StringComparison.Ordinal);
+        Assert.Contains("categoryName = project.CategoryName", details, StringComparison.Ordinal);
+        Assert.Contains("Search all project categories", script, StringComparison.Ordinal);
+        Assert.Contains("project.isDcd", script, StringComparison.Ordinal);
+        Assert.Contains(".filter(projectMatchesScope)", script, StringComparison.Ordinal);
         Assert.Contains("data-ffc-project-picker", script, StringComparison.Ordinal);
         Assert.Contains("Discard unsaved changes?", script, StringComparison.Ordinal);
         Assert.Contains("beforeunload", script, StringComparison.Ordinal);

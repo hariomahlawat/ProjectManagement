@@ -98,11 +98,14 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
         string? linkedProjectName = null;
         if (linkedProjectId.HasValue)
         {
+            // Repeat-build/remanufacture projects are valid FFC links. Only a
+            // deleted Project is unavailable for a new link; an existing deleted
+            // link remains valid so legacy records can still be maintained.
             linkedProjectName = await _db.Projects
                 .AsNoTracking()
                 .Where(project =>
                     project.Id == linkedProjectId.Value &&
-                    ((!project.IsDeleted && !project.IsBuild) ||
+                    (!project.IsDeleted ||
                      (existingLinkedProjectId.HasValue && existingLinkedProjectId.Value == project.Id)))
                 .Select(project => project.Name)
                 .SingleOrDefaultAsync(cancellationToken);

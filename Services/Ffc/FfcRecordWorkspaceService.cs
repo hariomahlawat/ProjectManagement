@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Ffc;
 
@@ -88,7 +89,10 @@ public sealed record FfcProjectOptionDto(
     string Name,
     ProjectLifecycleStatus LifecycleStatus,
     string? StageSummary,
-    bool IsAvailable)
+    bool IsAvailable,
+    int? CategoryId,
+    string? CategoryName,
+    bool IsDcdProject)
 {
     public string SecondaryText
     {
@@ -130,15 +134,20 @@ public interface IFfcRecordWorkspaceService
 
 public sealed class FfcRecordWorkspaceService : IFfcRecordWorkspaceService
 {
+    private const string DcdProjectCategoryName = "DCD Projects";
+
     private readonly ApplicationDbContext _db;
     private readonly IFfcProgressService _progressService;
+    private readonly ProjectCategoryHierarchyService _categoryHierarchy;
 
     public FfcRecordWorkspaceService(
         ApplicationDbContext db,
-        IFfcProgressService progressService)
+        IFfcProgressService progressService,
+        ProjectCategoryHierarchyService categoryHierarchy)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _progressService = progressService ?? throw new ArgumentNullException(nameof(progressService));
+        _categoryHierarchy = categoryHierarchy ?? throw new ArgumentNullException(nameof(categoryHierarchy));
     }
 
     public async Task<FfcRecordWorkspaceDto?> GetAsync(
@@ -310,17 +319,25 @@ public sealed class FfcRecordWorkspaceService : IFfcRecordWorkspaceService
             .Distinct()
             .ToArray() ?? Array.Empty<int>();
 
+        // FFC is a proliferation/country workspace. Repeat-build/remanufacture projects
+        // are valid FFC links; only deleted Projects are unavailable for a new link.
+        // A deleted Project already linked to this record is retained so the existing
+        // relationship can still be displayed and edited safely.
         var projects = await _db.Projects
             .AsNoTracking()
-            .Where(project =>
-                (!project.IsDeleted && !project.IsBuild) || includedIds.Contains(project.Id))
+            .Where(project => !project.IsDeleted || includedIds.Contains(project.Id))
             .OrderBy(project => project.Name)
             .Select(project => new ProjectOptionProjection(
                 project.Id,
                 project.Name,
                 project.LifecycleStatus,
-                !project.IsDeleted && !project.IsBuild))
+                !project.IsDeleted,
+                project.CategoryId,
+                project.Category == null ? null : project.Category.Name))
             .ToListAsync(cancellationToken);
+
+        var dcdCategoryIds = await ResolveDcdCategoryIdsAsync(cancellationToken);
+        var dcdCategoryIdSet = dcdCategoryIds.ToHashSet();
 
         var projectIds = projects.Select(project => project.Id).ToArray();
         var stageSummaries = await LoadStageSummariesAsync(projectIds, cancellationToken);
@@ -334,9 +351,31 @@ public sealed class FfcRecordWorkspaceService : IFfcRecordWorkspaceService
                     project.Name,
                     project.LifecycleStatus,
                     stageSummary,
-                    project.IsAvailable);
+                    project.IsAvailable,
+                    project.CategoryId,
+                    project.CategoryName,
+                    project.CategoryId.HasValue && dcdCategoryIdSet.Contains(project.CategoryId.Value));
             })
             .ToList();
+    }
+
+    private async Task<IReadOnlyCollection<int>> ResolveDcdCategoryIdsAsync(
+        CancellationToken cancellationToken)
+    {
+        // ProjectCategory currently has no immutable system key. Resolve the canonical
+        // root once, then use IDs for all membership checks so every present/future
+        // descendant is included recursively and category renames below the root do
+        // not affect FFC scope membership.
+        var dcdRootId = await _db.ProjectCategories
+            .AsNoTracking()
+            .Where(category => category.ParentId == null && category.Name == DcdProjectCategoryName)
+            .OrderBy(category => category.Id)
+            .Select(category => (int?)category.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return dcdRootId.HasValue
+            ? await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(dcdRootId.Value, cancellationToken)
+            : Array.Empty<int>();
     }
 
     public async Task<IReadOnlyList<FfcArchivedRecordDto>> GetArchivedRecordsAsync(
@@ -444,5 +483,7 @@ public sealed class FfcRecordWorkspaceService : IFfcRecordWorkspaceService
         int Id,
         string Name,
         ProjectLifecycleStatus LifecycleStatus,
-        bool IsAvailable);
+        bool IsAvailable,
+        int? CategoryId,
+        string? CategoryName);
 }

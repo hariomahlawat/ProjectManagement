@@ -308,7 +308,9 @@
     const projectOptions = parseJsonNode("ffc-project-options").map(project => ({
         ...project,
         available: project.available !== false,
-        search: normalise(`${project.name} ${project.lifecycle} ${project.secondary}`)
+        isDcd: project.isDcd === true,
+        categoryName: project.categoryName || "",
+        search: normalise(`${project.name} ${project.lifecycle} ${project.secondary} ${project.categoryName || ""}`)
     }));
     const projectEditorData = new Map(
         parseJsonNode("ffc-project-editor-data").map(project => [String(project.id), project]));
@@ -323,6 +325,7 @@
         results: projectForm.querySelector("[data-ffc-project-results]"),
         clear: projectForm.querySelector("[data-ffc-project-clear]"),
         selectedMeta: projectForm.querySelector("[data-ffc-project-selected-meta]"),
+        scopeButtons: [...projectForm.querySelectorAll("[data-ffc-project-scope]")],
         displayName: projectForm.querySelector("[data-ffc-project-name-input]"),
         quantity: projectForm.querySelector("[data-ffc-project-quantity]"),
         progress: projectForm.querySelector("[data-ffc-project-progress]"),
@@ -342,10 +345,44 @@
     let projectPickerActiveIndex = -1;
     let projectPickerResults = [];
     let lastSelectedProjectId = projectElements?.linkedValue.value || "";
+    let activeProjectScope = "dcd";
     let activeProjectSource = null;
     let activePosition = null;
     let sourceChangePending = false;
     let positionChangePending = false;
+
+    const defaultProjectScope = () =>
+        projectOptions.some(project => project.available && project.isDcd) ? "dcd" : "all";
+
+    const projectMatchesScope = project =>
+        activeProjectScope === "all" || project.isDcd === true;
+
+    const setProjectScope = (scope, { render = true } = {}) => {
+        if (!projectElements) return;
+        const normalizedScope = scope === "all" ? "all" : "dcd";
+        activeProjectScope = normalizedScope;
+        projectElements.scopeButtons.forEach(button => {
+            const selected = button.dataset.ffcProjectScope === normalizedScope;
+            button.classList.toggle("is-active", selected);
+            button.setAttribute("aria-checked", selected ? "true" : "false");
+        });
+
+        if (render && !projectElements.results.hidden) {
+            renderProjectResults(projectElements.search.value);
+        }
+    };
+
+    const syncProjectScopeToSelection = () => {
+        if (!projectElements) return;
+        const selected = projectOptions.find(project =>
+            String(project.id) === String(projectElements.linkedValue.value));
+        if (selected) {
+            setProjectScope(selected.isDcd ? "dcd" : "all", { render: false });
+            return;
+        }
+
+        setProjectScope(defaultProjectScope(), { render: false });
+    };
 
     const setProjectSelectionValidity = show => {
         if (!projectForm || !projectElements) return true;
@@ -392,9 +429,12 @@
     const renderProjectResults = query => {
         if (!projectElements) return;
         const term = normalise(query);
-        projectPickerResults = projectOptions
+        const matchingProjects = projectOptions
             .filter(project => project.available || String(project.id) === String(lastSelectedProjectId))
-            .filter(project => !term || project.search.includes(term))
+            .filter(project => !term || project.search.includes(term));
+
+        projectPickerResults = matchingProjects
+            .filter(projectMatchesScope)
             .slice(0, 30);
         projectPickerActiveIndex = -1;
         projectElements.search.removeAttribute("aria-activedescendant");
@@ -403,7 +443,29 @@
         if (!projectPickerResults.length) {
             const empty = document.createElement("div");
             empty.className = "ffc-project-picker__empty";
-            empty.textContent = "No matching project found.";
+
+            const message = document.createElement("div");
+            message.textContent = activeProjectScope === "dcd"
+                ? (term ? "No matching DCD Projects." : "No DCD Projects available.")
+                : "No matching project found.";
+            empty.appendChild(message);
+
+            const hasMatchesOutsideDcd = activeProjectScope === "dcd" &&
+                matchingProjects.some(project => !project.isDcd);
+            if (hasMatchesOutsideDcd) {
+                const searchAll = document.createElement("button");
+                searchAll.type = "button";
+                searchAll.className = "ffc-project-picker__search-all";
+                searchAll.textContent = "Search all project categories";
+                searchAll.addEventListener("pointerdown", event => event.preventDefault());
+                searchAll.addEventListener("click", () => {
+                    setProjectScope("all", { render: false });
+                    renderProjectResults(projectElements.search.value);
+                    projectElements.search.focus();
+                });
+                empty.appendChild(searchAll);
+            }
+
             projectElements.results.appendChild(empty);
         } else {
             projectPickerResults.forEach((project, index) => {
@@ -416,7 +478,11 @@
                 const strong = document.createElement("strong");
                 strong.textContent = project.name;
                 const small = document.createElement("small");
-                small.textContent = project.secondary || project.lifecycle || "";
+                const metadata = [
+                    project.secondary || project.lifecycle || "",
+                    activeProjectScope === "all" ? project.categoryName : ""
+                ].filter(Boolean);
+                small.textContent = metadata.join(" · ");
                 button.append(strong, small);
                 button.addEventListener("pointerdown", event => event.preventDefault());
                 button.addEventListener("click", () => setProjectSelection(project));
@@ -593,6 +659,7 @@
         projectElements.installedOn.value = "";
         const linkedRadio = projectForm.querySelector('[data-ffc-project-source="linked"]');
         if (linkedRadio) linkedRadio.checked = true;
+        setProjectScope(defaultProjectScope(), { render: false });
         setPosition("0");
         syncProjectSource();
         projectElements.title.textContent = "Add project";
@@ -622,6 +689,7 @@
         if (linked) {
             const project = projectOptions.find(option => String(option.id) === String(data.linkedProjectId));
             lastSelectedProjectId = String(data.linkedProjectId || "");
+            setProjectScope(project?.isDcd ? "dcd" : "all", { render: false });
             if (project) {
                 setProjectSelection(project, { populateName: false, clearProgressOnChange: false });
             } else {
@@ -630,6 +698,8 @@
                 projectElements.clear.hidden = !projectElements.linkedValue.value;
                 setProjectSelectionValidity(false);
             }
+        } else {
+            setProjectScope(defaultProjectScope(), { render: false });
         }
 
         setPosition(data.position || "0");
@@ -649,7 +719,9 @@
         if (!projectElements) return false;
         const term = normalise(projectElements.search.value);
         if (!term) return false;
-        const matches = projectOptions.filter(project => normalise(project.name) === term &&
+        const matches = projectOptions.filter(project =>
+            normalise(project.name) === term &&
+            projectMatchesScope(project) &&
             (project.available || String(project.id) === String(lastSelectedProjectId)));
         if (matches.length !== 1) return false;
         setProjectSelection(matches[0]);
@@ -658,6 +730,13 @@
 
     const initProjectEditor = () => {
         if (!projectForm || !projectElements) return;
+
+        projectElements.scopeButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                setProjectScope(button.dataset.ffcProjectScope);
+                projectElements.search.focus();
+            });
+        });
 
         projectElements.search.addEventListener("focus", () => renderProjectResults(projectElements.search.value));
         projectElements.search.addEventListener("click", () => renderProjectResults(projectElements.search.value));
@@ -751,6 +830,7 @@
             });
         });
 
+        syncProjectScopeToSelection();
         syncProjectSource();
         syncPositionFields();
         projectElements.clear.hidden = !projectElements.linkedValue.value;
@@ -810,6 +890,7 @@
             lastSelectedProjectId = projectElements.linkedValue.value || "";
             projectElements.search.value = selected?.name || "";
             projectElements.selectedMeta.textContent = selected?.secondary || "";
+            syncProjectScopeToSelection();
             projectElements.clear.hidden = !selected;
             closeProjectResults();
             setProjectSelectionValidity(false);

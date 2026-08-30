@@ -64,7 +64,29 @@
             </section>
 
             <section class="ffc-drawer-section" data-ffc-linked-project-section>
-                <label for="ffc-linked-project-search" class="form-label">PRISM Project</label>
+                <div class="ffc-project-picker__heading">
+                    <label for="ffc-linked-project-search" class="form-label mb-0">PRISM Project</label>
+                    <div class="ffc-project-scope"
+                         role="radiogroup"
+                         aria-label="Project search scope"
+                         data-ffc-project-scope-group>
+                        <span class="ffc-project-scope__label" aria-hidden="true">Scope</span>
+                        <button type="button"
+                                class="ffc-project-scope__option is-active"
+                                role="radio"
+                                aria-checked="true"
+                                data-ffc-project-scope="dcd">
+                            DCD Projects
+                        </button>
+                        <button type="button"
+                                class="ffc-project-scope__option"
+                                role="radio"
+                                aria-checked="false"
+                                data-ffc-project-scope="all">
+                            All Projects
+                        </button>
+                    </div>
+                </div>
                 <div class="ffc-project-picker" data-ffc-project-picker>
                     <span class="bi bi-search ffc-project-picker__icon" aria-hidden="true"></span>
                     <input id="ffc-linked-project-search"

@@ -699,6 +699,61 @@
     box-shadow: 0 0 0 2px rgba(37, 99, 235, .08);
 }
 
+/* Project picker scope */
+.ffc-project-picker__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .45rem;
+}
+
+.ffc-project-scope {
+    display: inline-flex;
+    align-items: center;
+    gap: .15rem;
+    padding: .15rem;
+    border: 1px solid var(--ffc-border);
+    border-radius: .55rem;
+    background: var(--ffc-surface-soft);
+}
+
+.ffc-project-scope__label {
+    padding: 0 .35rem;
+    color: var(--ffc-muted);
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.ffc-project-scope__option {
+    padding: .28rem .52rem;
+    border: 0;
+    border-radius: .4rem;
+    background: transparent;
+    color: var(--ffc-muted);
+    font-size: .69rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.ffc-project-scope__option:hover {
+    color: var(--ffc-text);
+}
+
+.ffc-project-scope__option.is-active {
+    background: #fff;
+    color: var(--ffc-primary);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+
+.ffc-project-scope__option:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, .35);
+    outline-offset: 1px;
+}
+
 /* Searchable selectors */
 .ffc-search-select {
     position: relative;
@@ -832,6 +887,21 @@
     color: var(--ffc-muted);
     font-size: .75rem;
     text-align: center;
+}
+
+.ffc-project-picker__search-all {
+    margin-top: .4rem;
+    padding: .2rem .35rem;
+    border: 0;
+    background: transparent;
+    color: var(--ffc-primary);
+    font-size: .72rem;
+    font-weight: 600;
+}
+
+.ffc-project-picker__search-all:hover,
+.ffc-project-picker__search-all:focus-visible {
+    text-decoration: underline;
 }
 
 /* Upload */
@@ -1188,6 +1258,11 @@ button[data-ffc-submitting-text]:disabled {
 }
 
 @media (max-width: 575.98px) {
+    .ffc-project-picker__heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
     .ffc-source-choice {
         grid-template-columns: 1fr;
     }

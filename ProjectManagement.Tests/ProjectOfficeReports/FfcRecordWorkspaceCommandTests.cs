@@ -103,6 +103,42 @@ public sealed class FfcRecordWorkspaceCommandTests
     }
 
     [Fact]
+    public async Task ProjectSave_RepeatBuildProjectCanBeLinkedToFfcRecord()
+    {
+        await using var db = CreateDbContext();
+        var record = await SeedRecordAsync(db);
+        var repeatBuild = new Project
+        {
+            Name = "VR CMC (Philippines 2026)",
+            CreatedByUserId = "admin",
+            IsBuild = true,
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        db.Projects.Add(repeatBuild);
+        await db.SaveChangesAsync();
+
+        var service = CreateProjectService(db);
+
+        var result = await service.SaveAsync(new FfcProjectSaveCommand(
+            RecordId: record.Id,
+            ProjectId: null,
+            IsLinkedProject: true,
+            DisplayName: repeatBuild.Name,
+            LinkedProjectId: repeatBuild.Id,
+            Quantity: 1,
+            Position: FfcUnitPosition.Planned,
+            DeliveredOn: null,
+            InstalledOn: null,
+            ProgressText: null,
+            RowVersion: null,
+            Actor: null));
+
+        Assert.True(result.Success, result.Message);
+        var linked = await db.FfcProjects.AsNoTracking().SingleAsync();
+        Assert.Equal(repeatBuild.Id, linked.LinkedProjectId);
+    }
+
+    [Fact]
     public async Task ProjectSave_InstalledPositionPersistsDeliveredAndInstalledFlagsTogether()
     {
         await using var db = CreateDbContext();
