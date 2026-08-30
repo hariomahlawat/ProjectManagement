@@ -60,7 +60,18 @@ else
                 <div class="visit-hero__meta">
                     <span class="visit-hero__meta-item"><i class="bi bi-geo-alt" aria-hidden="true"></i> Type: @visitTypeName</span>
                     <span class="visit-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> Team size: @visit?.Strength</span>
-                    <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> @photoCount photo@(photoCount == 1 ? string.Empty : "s") captured</span>
+                    @if (photoCount > 0)
+                    {
+                        <a href="#visit-photo-gallery" class="visit-hero__meta-item visit-hero__meta-link">
+                            <i class="bi bi-images" aria-hidden="true"></i>
+                            <span>@photoCount photo@(photoCount == 1 ? string.Empty : "s") captured</span>
+                            <span class="visit-hero__meta-link-action">View photos <i class="bi bi-arrow-down-short" aria-hidden="true"></i></span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> No photos captured</span>
+                    }
                 </div>
                 <div class="visit-hero__actions visit-hero__actions--wrap">
                     <a asp-page="Index" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
@@ -180,7 +191,7 @@ else
             </aside>
         </section>
 
-        <section class="visit-media">
+        <section class="visit-media" id="visit-photo-gallery">
             <div class="visit-media__gallery visit-media__gallery--full">
                 <div class="visit-form-card visit-form-card--gallery">
                     <div class="visit-form-card__header">
@@ -194,6 +205,78 @@ else
             </div>
         </section>
     </div>
+
+        @if (photoCount > 0)
+        {
+            <div class="modal fade visit-photo-viewer"
+                 id="visitPhotoViewer"
+                 tabindex="-1"
+                 aria-labelledby="visitPhotoViewerTitle"
+                 aria-hidden="true"
+                 data-visit-photo-viewer>
+                <div class="modal-dialog modal-fullscreen">
+                    <div class="modal-content visit-photo-viewer__content">
+                        <div class="visit-photo-viewer__header">
+                            <div class="visit-photo-viewer__identity">
+                                <span class="visit-photo-viewer__eyebrow">Visit photo gallery</span>
+                                <h2 class="visit-photo-viewer__title" id="visitPhotoViewerTitle">@visit?.VisitorName</h2>
+                            </div>
+                            <div class="visit-photo-viewer__header-actions">
+                                <span class="visit-photo-viewer__counter" data-visit-photo-viewer-counter aria-live="polite"></span>
+                                <button type="button" class="visit-photo-viewer__close" data-bs-dismiss="modal" aria-label="Close photo viewer">
+                                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="visit-photo-viewer__body">
+                            <button type="button"
+                                    class="visit-photo-viewer__nav visit-photo-viewer__nav--prev"
+                                    data-visit-photo-viewer-prev
+                                    aria-label="Previous photo">
+                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                            </button>
+
+                            <div class="visit-photo-viewer__stage" data-visit-photo-viewer-stage tabindex="-1">
+                                <div class="visit-photo-viewer__loading" data-visit-photo-viewer-loading role="status" aria-live="polite">
+                                    <span class="spinner-border" aria-hidden="true"></span>
+                                    <span>Loading photo…</span>
+                                </div>
+                                <div class="visit-photo-viewer__error" data-visit-photo-viewer-error hidden>
+                                    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                                    <span>Unable to load this photo.</span>
+                                </div>
+                                <img class="visit-photo-viewer__image"
+                                     data-visit-photo-viewer-image
+                                     alt=""
+                                     draggable="false" />
+                            </div>
+
+                            <button type="button"
+                                    class="visit-photo-viewer__nav visit-photo-viewer__nav--next"
+                                    data-visit-photo-viewer-next
+                                    aria-label="Next photo">
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </button>
+                        </div>
+
+                        <div class="visit-photo-viewer__footer">
+                            <span class="visit-photo-viewer__cover" data-visit-photo-viewer-cover hidden>
+                                <i class="bi bi-bookmark-star" aria-hidden="true"></i>
+                                Cover photo
+                            </span>
+                            <p class="visit-photo-viewer__caption" data-visit-photo-viewer-caption hidden></p>
+                            <span class="visit-photo-viewer__hint">Use <kbd>←</kbd> <kbd>→</kbd> to browse · <kbd>Esc</kbd> to close</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
 }
 
 @section Scripts {

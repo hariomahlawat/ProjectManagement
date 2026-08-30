@@ -499,6 +499,222 @@ function initVisitsCharts() {
 }
 
 // ----------------------------------------------------
+// VISIT PHOTO VIEWER
+// ----------------------------------------------------
+
+function initVisitPhotoViewer() {
+    const gallery = document.querySelector('[data-visit-gallery]');
+    const viewerEl = document.querySelector('[data-visit-photo-viewer]');
+    const bootstrap = ensureBootstrapModal();
+
+    // Progressive enhancement: without Bootstrap/JS, the existing href continues
+    // to serve the secured XL image directly.
+    if (!gallery || !viewerEl || !bootstrap) {
+        return;
+    }
+
+    const items = Array.from(gallery.querySelectorAll('[data-visit-gallery-item]'));
+    if (items.length === 0) {
+        return;
+    }
+
+    const image = viewerEl.querySelector('[data-visit-photo-viewer-image]');
+    const counter = viewerEl.querySelector('[data-visit-photo-viewer-counter]');
+    const caption = viewerEl.querySelector('[data-visit-photo-viewer-caption]');
+    const coverBadge = viewerEl.querySelector('[data-visit-photo-viewer-cover]');
+    const previousButton = viewerEl.querySelector('[data-visit-photo-viewer-prev]');
+    const nextButton = viewerEl.querySelector('[data-visit-photo-viewer-next]');
+    const stage = viewerEl.querySelector('[data-visit-photo-viewer-stage]');
+    const loading = viewerEl.querySelector('[data-visit-photo-viewer-loading]');
+    const error = viewerEl.querySelector('[data-visit-photo-viewer-error]');
+
+    if (!image || !counter || !caption || !coverBadge || !previousButton || !nextButton || !stage) {
+        return;
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(viewerEl, {
+        keyboard: true,
+        focus: true
+    });
+
+    let activeIndex = 0;
+    let loadSequence = 0;
+    let lastTrigger = null;
+    let touchStartX = null;
+
+    const readItem = index => {
+        const item = items[index];
+        if (!item) {
+            return null;
+        }
+
+        return {
+            url: item.getAttribute('data-photo-url') || item.getAttribute('href') || '',
+            caption: item.getAttribute('data-photo-caption') || '',
+            isCover: item.getAttribute('data-photo-cover') === 'true'
+        };
+    };
+
+    const setLoadingState = isLoading => {
+        viewerEl.classList.toggle('is-loading', isLoading);
+        if (loading) {
+            loading.hidden = !isLoading;
+        }
+        if (isLoading && error) {
+            error.hidden = true;
+        }
+    };
+
+    const setErrorState = hasError => {
+        viewerEl.classList.toggle('has-error', hasError);
+        if (error) {
+            error.hidden = !hasError;
+        }
+        if (hasError && loading) {
+            loading.hidden = true;
+        }
+    };
+
+    const preloadAdjacent = index => {
+        [index - 1, index + 1].forEach(adjacentIndex => {
+            const adjacent = readItem(adjacentIndex);
+            if (!adjacent?.url) {
+                return;
+            }
+
+            const preload = new Image();
+            preload.decoding = 'async';
+            preload.src = adjacent.url;
+        });
+    };
+
+    const render = index => {
+        const item = readItem(index);
+        if (!item?.url) {
+            return;
+        }
+
+        activeIndex = index;
+        const sequence = ++loadSequence;
+        const position = index + 1;
+
+        counter.textContent = `${position} of ${items.length}`;
+        previousButton.disabled = index === 0;
+        nextButton.disabled = index === items.length - 1;
+
+        coverBadge.hidden = !item.isCover;
+        caption.textContent = item.caption;
+        caption.hidden = !item.caption;
+
+        image.alt = item.caption || `Visit photo ${position} of ${items.length}`;
+        image.dataset.activeUrl = item.url;
+        image.classList.remove('is-ready');
+        setErrorState(false);
+        setLoadingState(true);
+
+        const handleLoad = () => {
+            if (sequence !== loadSequence) {
+                return;
+            }
+
+            setLoadingState(false);
+            image.classList.add('is-ready');
+            preloadAdjacent(index);
+        };
+
+        const handleError = () => {
+            if (sequence !== loadSequence) {
+                return;
+            }
+
+            setLoadingState(false);
+            setErrorState(true);
+        };
+
+        image.addEventListener('load', handleLoad, { once: true });
+        image.addEventListener('error', handleError, { once: true });
+        image.src = item.url;
+    };
+
+    const move = delta => {
+        const nextIndex = activeIndex + delta;
+        if (nextIndex < 0 || nextIndex >= items.length) {
+            return;
+        }
+
+        render(nextIndex);
+    };
+
+    const handleKeydown = event => {
+        if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            move(-1);
+        } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            move(1);
+        }
+    };
+
+    previousButton.addEventListener('click', () => move(-1));
+    nextButton.addEventListener('click', () => move(1));
+
+    stage.addEventListener('click', event => {
+        if (event.target === stage) {
+            modal.hide();
+        }
+    });
+
+    stage.addEventListener('touchstart', event => {
+        if (event.touches.length === 1) {
+            touchStartX = event.touches[0].clientX;
+        }
+    }, { passive: true });
+
+    stage.addEventListener('touchend', event => {
+        if (touchStartX === null || event.changedTouches.length === 0) {
+            touchStartX = null;
+            return;
+        }
+
+        const deltaX = event.changedTouches[0].clientX - touchStartX;
+        touchStartX = null;
+
+        if (Math.abs(deltaX) < 48) {
+            return;
+        }
+
+        move(deltaX > 0 ? -1 : 1);
+    }, { passive: true });
+
+    items.forEach((item, index) => {
+        item.addEventListener('click', event => {
+            event.preventDefault();
+            lastTrigger = item;
+            render(index);
+            modal.show();
+        });
+    });
+
+    viewerEl.addEventListener('shown.bs.modal', () => {
+        document.addEventListener('keydown', handleKeydown);
+        stage.focus({ preventScroll: true });
+    });
+
+    viewerEl.addEventListener('hidden.bs.modal', () => {
+        document.removeEventListener('keydown', handleKeydown);
+        loadSequence += 1;
+        image.removeAttribute('src');
+        image.classList.remove('is-ready');
+        setLoadingState(false);
+        setErrorState(false);
+
+        if (lastTrigger && typeof lastTrigger.focus === 'function') {
+            lastTrigger.focus({ preventScroll: true });
+        }
+    });
+}
+
+// ----------------------------------------------------
 // PHOTO UPLOAD GUARDRAILS
 // ----------------------------------------------------
 
@@ -574,6 +790,7 @@ function init() {
     initConfirmations();
     initDisableOnSubmit();
     initVisitsCharts();
+    initVisitPhotoViewer();
     initPhotoUploadInputs();
     initVisitRegisterPageSize();
 }

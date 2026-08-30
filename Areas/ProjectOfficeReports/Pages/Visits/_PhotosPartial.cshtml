@@ -12,8 +12,9 @@
 else
 {
     <div class="visit-gallery" data-visit-gallery>
-        @foreach (var photo in Model.Photos)
+        @for (var index = 0; index < Model.Photos.Count; index++)
         {
+            var photo = Model.Photos[index];
             var thumbnail = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "sm" });
             var full = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "xl" });
             var versionedThumbnail = string.IsNullOrWhiteSpace(photo.VersionStamp)
@@ -22,42 +23,67 @@ else
             var versionedFull = string.IsNullOrWhiteSpace(photo.VersionStamp)
                 ? full ?? string.Empty
                 : (full is null ? string.Empty : QueryHelpers.AddQueryString(full, "v", photo.VersionStamp));
+            var caption = photo.Caption?.Trim() ?? string.Empty;
+            var isCover = Model.CoverPhotoId == photo.Id;
+            var accessibleLabel = string.IsNullOrWhiteSpace(caption)
+                ? $"View visit photo {index + 1} of {Model.Photos.Count}"
+                : $"View visit photo {index + 1} of {Model.Photos.Count}: {caption}";
+            var altText = string.IsNullOrWhiteSpace(caption)
+                ? $"Visit photo {index + 1}"
+                : caption;
+
             <article class="visit-gallery-card">
-                <a href="@versionedFull" target="_blank" rel="noopener" class="visit-gallery-card__image">
-                    <span class="visually-hidden">Open full-size photo in new tab</span>
+                <a href="@versionedFull"
+                   class="visit-gallery-card__image"
+                   data-visit-gallery-item
+                   data-photo-id="@photo.Id"
+                   data-photo-url="@versionedFull"
+                   data-photo-index="@index"
+                   data-photo-caption="@caption"
+                   data-photo-cover="@(isCover ? "true" : "false")"
+                   aria-label="@accessibleLabel">
                     <div class="visit-gallery-card__frame">
-                        <img src="@versionedThumbnail" alt="Visit photo" />
-                        @if (Model.CoverPhotoId == photo.Id)
+                        <img src="@versionedThumbnail"
+                             alt="@altText"
+                             loading="lazy"
+                             decoding="async" />
+                        @if (isCover)
                         {
                             <span class="visit-gallery-card__badge">Cover photo</span>
                         }
+                        <span class="visit-gallery-card__zoom" aria-hidden="true">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </span>
                     </div>
                 </a>
-                <div class="visit-gallery-card__info">
-                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
-                    {
-                        <p class="visit-gallery-card__caption mb-0">@photo.Caption</p>
-                    }
-                    else
-                    {
-                        <p class="visit-gallery-card__caption visit-gallery-card__caption--muted mb-0">No caption provided</p>
-                    }
-                    @if (Model.CanManage)
-                    {
-                        <div class="visit-gallery-card__actions">
-                            <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit>
-                                <input type="hidden" name="id" value="@Model.VisitId" />
-                                <input type="hidden" name="photoId" value="@photo.Id" />
-                                <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null) data-visits-busy-label="Setting cover…">Set cover</button>
-                            </form>
-                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit data-confirm="Delete this photo?">
-                                <input type="hidden" name="id" value="@Model.VisitId" />
-                                <input type="hidden" name="photoId" value="@photo.Id" />
-                                <button type="submit" class="btn btn-sm btn-outline-danger" data-visits-busy-label="Deleting…">Delete</button>
-                            </form>
-                        </div>
-                    }
-                </div>
+                @if (!string.IsNullOrWhiteSpace(caption) || Model.CanManage)
+                {
+                    <div class="visit-gallery-card__info">
+                        @if (!string.IsNullOrWhiteSpace(caption))
+                        {
+                            <p class="visit-gallery-card__caption mb-0">@caption</p>
+                        }
+                        else if (Model.CanManage)
+                        {
+                            <p class="visit-gallery-card__caption visit-gallery-card__caption--muted mb-0">No caption provided</p>
+                        }
+                        @if (Model.CanManage)
+                        {
+                            <div class="visit-gallery-card__actions">
+                                <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit>
+                                    <input type="hidden" name="id" value="@Model.VisitId" />
+                                    <input type="hidden" name="photoId" value="@photo.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-primary" @(isCover ? "disabled" : null) data-visits-busy-label="Setting cover…">Set cover</button>
+                                </form>
+                                <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit data-confirm="Delete this photo?">
+                                    <input type="hidden" name="id" value="@Model.VisitId" />
+                                    <input type="hidden" name="photoId" value="@photo.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-visits-busy-label="Deleting…">Delete</button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                }
             </article>
         }
     </div>
