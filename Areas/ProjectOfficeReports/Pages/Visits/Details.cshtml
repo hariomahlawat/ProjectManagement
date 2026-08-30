@@ -16,6 +16,7 @@
     var visit = Model.Visit?.Visit;
     var visitTypeName = Model.Visit?.VisitType.Name;
     var photoCount = Model.PhotoGallery?.Photos.Count ?? 0;
+    var photoLabel = photoCount == 1 ? "photo" : "photos";
     var createdOn = visit?.CreatedAtUtc.ToLocalTime();
     var updatedOn = visit?.LastModifiedAtUtc?.ToLocalTime();
 }
@@ -62,10 +63,15 @@ else
                     <span class="visit-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> Team size: @visit?.Strength</span>
                     @if (photoCount > 0)
                     {
-                        <a href="#visit-photo-gallery" class="visit-hero__meta-item visit-hero__meta-link">
+                        <span class="visit-hero__meta-item visit-hero__photo-summary">
                             <i class="bi bi-images" aria-hidden="true"></i>
-                            <span>@photoCount photo@(photoCount == 1 ? string.Empty : "s") captured</span>
-                            <span class="visit-hero__meta-link-action">View photos <i class="bi bi-arrow-down-short" aria-hidden="true"></i></span>
+                            <span>@photoCount @photoLabel captured</span>
+                        </span>
+                        <a href="#visit-photo-gallery"
+                           class="visit-hero__photo-action"
+                           aria-label="View @photoCount visit @photoLabel">
+                            <span>View photos</span>
+                            <i class="bi bi-arrow-down-short" aria-hidden="true"></i>
                         </a>
                     }
                     else
@@ -219,7 +225,7 @@ else
                         <div class="visit-photo-viewer__header">
                             <div class="visit-photo-viewer__identity">
                                 <span class="visit-photo-viewer__eyebrow">Visit photo gallery</span>
-                                <h2 class="visit-photo-viewer__title" id="visitPhotoViewerTitle">@visit?.VisitorName</h2>
+                                <h2 class="visit-photo-viewer__title" id="visitPhotoViewerTitle" title="@visit?.VisitorName">@visit?.VisitorName</h2>
                             </div>
                             <div class="visit-photo-viewer__header-actions">
                                 <span class="visit-photo-viewer__counter" data-visit-photo-viewer-counter aria-live="polite"></span>

@@ -59,3 +59,17 @@ test('visit details loads isolated viewer styling with a dark presentation stage
   assert.match(css, /scroll-margin-top/);
   assert.match(css, /prefers-reduced-motion/);
 });
+
+
+test('hero photo shortcut is a distinct accessible action and long viewer titles retain full text', () => {
+  assert.match(details, /visit-hero__photo-summary/);
+  assert.match(details, /visit-hero__photo-action/);
+  assert.match(details, /href="#visit-photo-gallery"[^>]*class="visit-hero__photo-action"/);
+  assert.match(details, /aria-label="View @photoCount visit @photoLabel"/);
+  assert.match(details, /class="visit-photo-viewer__title"[^>]*title="@visit\?\.VisitorName"/);
+
+  const css = fs.readFileSync(cssPath, 'utf8');
+  assert.match(css, /\.visit-hero__photo-action/);
+  assert.match(css, /background:\s*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
+  assert.match(css, /\.visit-photo-viewer__title[\s\S]*text-overflow:\s*ellipsis/);
+});
