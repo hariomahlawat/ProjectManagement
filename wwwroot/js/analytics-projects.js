@@ -760,6 +760,7 @@ function createOngoingStageStackedChart(
         y: {
           stacked: true,
           beginAtZero: true,
+          grace: '5%',
           ticks: {
             precision: 0
           },

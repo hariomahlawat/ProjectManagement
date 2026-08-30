@@ -47,3 +47,14 @@ test('analytics assigns stable semantic colours to the three organisational proj
   assert.match(analyticsJs, /'Other R&D Projects':\s*'#ef7a00'/);
   assert.match(analyticsJs, /semanticCategoryOrder/);
 });
+
+test('workspace and analytics keep compact EAS labeling and adaptive y-axis headroom', () => {
+  const workspaceJs = read('wwwroot/js/pages/command-workspace.js');
+  const analyticsJs = read('wwwroot/js/analytics-projects.js');
+
+  assert.match(workspaceJs, /workspaceStageAxisCodeOverrides/);
+  assert.match(workspaceJs, /EAS:\s*'EAS'/);
+  assert.match(workspaceJs, /grace:\s*'5%'/);
+  assert.match(analyticsJs, /grace:\s*'5%'/);
+});
+

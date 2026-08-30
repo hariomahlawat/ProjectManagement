@@ -296,6 +296,10 @@
     }
 
 
+    const workspaceStageAxisCodeOverrides = {
+        EAS: 'EAS'
+    };
+
     const workspaceStageAxisNameOverrides = {
         'SOW Vetting': 'SoW',
         'Scope of Work Vetting': 'SoW',
@@ -304,9 +308,13 @@
     };
 
     const getWorkspaceStageAxisLabel = (stageCode, stageName) => {
-        if (stageCode === 'UNASSIGNED') return 'Unassigned';
-        const name = String(stageName || '').trim();
         const code = String(stageCode || '').trim();
+        if (code.toUpperCase() === 'UNASSIGNED') return 'Unassigned';
+
+        const codeOverride = workspaceStageAxisCodeOverrides[code.toUpperCase()];
+        if (codeOverride) return codeOverride;
+
+        const name = String(stageName || '').trim();
         if (workspaceStageAxisNameOverrides[name]) return workspaceStageAxisNameOverrides[name];
         if (!name || name.length > 16) return code;
         return name;
@@ -373,7 +381,13 @@
                             font: { size: 11 }
                         }
                     },
-                    y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: '#5f6e83', font: { size: 11 } }, grid: { color: 'rgba(103,119,143,.15)' } }
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        grace: '5%',
+                        ticks: { precision: 0, color: '#5f6e83', font: { size: 11 } },
+                        grid: { color: 'rgba(103,119,143,.15)' }
+                    }
                 }
             }
         });
