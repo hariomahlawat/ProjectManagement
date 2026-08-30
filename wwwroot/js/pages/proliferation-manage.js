@@ -211,6 +211,7 @@
     impactNote: document.querySelector('[data-impact-note]'),
     unitSuggestions: document.querySelector('#pf-unit-suggestions'),
     duplicateWarning: document.querySelector('#pf-duplicate-warning'),
+    legacyProjectWarning: document.querySelector('#pf-repeat-build-legacy-warning'),
     requiredSummary: document.querySelector('#pf-required-summary')
   };
 
@@ -251,6 +252,11 @@
     return window.confirm('You have unsaved changes. Continue without saving them?');
   }
 
+  function updateLegacyProjectWarning(project) {
+    const isLegacyRepeatBuild = project?.isRepeatBuild === true || project?.isEligibleForNewEntry === false;
+    editor.legacyProjectWarning?.classList.toggle('d-none', !isLegacyRepeatBuild);
+  }
+
   function beginNewEntry(kind, options = {}) {
     const target = kind === 'yearly' ? 'yearly' : 'granular';
     if (!confirmDiscardChanges()) {
@@ -258,10 +264,14 @@
     }
 
     const preserveContext = options.preserveContext === true;
+    const selectedProject = editorProjectPicker?.getSelected() || null;
+    const canPreserveProject = selectedProject
+      ? selectedProject.isEligibleForNewEntry !== false
+      : !editor.legacyProjectWarning || editor.legacyProjectWarning.classList.contains('d-none');
     const context = preserveContext
       ? {
-          projectId: editor.project?.value || '',
-          project: editorProjectPicker?.getSelected() || null,
+          projectId: canPreserveProject ? (editor.project?.value || '') : '',
+          project: canPreserveProject ? selectedProject : null,
           source: editor.source?.value || '',
           year: editor.year?.value || ''
         }
@@ -638,6 +648,7 @@
       endpoint: api.projects,
       minimumLength: 0,
       maxVisible: 8,
+      getExtraParams: options.getExtraParams,
       onSelected: options.onSelected,
       onCleared: options.onCleared
     });
@@ -645,7 +656,8 @@
 
   function initProjectPickers() {
     editorProjectPicker = buildProjectPicker(editor.projectSearch, editor.project, {
-      onSelected: () => {
+      onSelected: (project) => {
+        updateLegacyProjectWarning(project);
         fieldStates.project.touched = true;
         validateField('project', { display: true });
         updateSaveButtonState();
@@ -654,6 +666,7 @@
         editor.source?.focus();
       },
       onCleared: () => {
+        updateLegacyProjectWarning(null);
         fieldStates.project.touched = true;
         validateField('project', { display: true });
         updateSaveButtonState();
@@ -663,11 +676,13 @@
     });
 
     filterProjectPicker = buildProjectPicker(filterInputs.projectSearch, filterInputs.project, {
+      getExtraParams: () => ({ includeLegacy: true }),
       onSelected: project => updateFilter('projectId', String(project.id)),
       onCleared: () => updateFilter('projectId', '')
     });
 
     overridesProjectPicker = buildProjectPicker(overridesElements.projectSearch, overridesElements.project, {
+      getExtraParams: () => ({ includeLegacy: true }),
       onSelected: project => updateOverridesFilter('projectId', String(project.id)),
       onCleared: () => updateOverridesFilter('projectId', '')
     });
@@ -2027,7 +2042,11 @@
     if (overridesElements.ruleProject) {
       ensureFilterOption(overridesElements.ruleProject, row.projectId, row.projectName);
       overridesElements.ruleProject.value = String(row.projectId ?? '');
-      ruleProjectPicker?.initializeById(row.projectId, { notify: false, dispatch: false });
+      ruleProjectPicker?.initializeById(row.projectId, {
+        notify: false,
+        dispatch: false,
+        extraParams: { includeLegacy: true }
+      });
     }
     if (overridesElements.ruleSource && row.sourceValue !== null && row.sourceValue !== undefined) {
       overridesElements.ruleSource.value = String(row.sourceValue);
@@ -2657,7 +2676,12 @@
     editor.id.value = detail.id ?? '';
     editor.rowVersion.value = detail.rowVersion ?? '';
     editor.project.value = String(detail.projectId ?? '');
-    await editorProjectPicker?.initializeById(detail.projectId, { notify: false, dispatch: false });
+    const loadedProject = await editorProjectPicker?.initializeById(detail.projectId, {
+      notify: false,
+      dispatch: false,
+      extraParams: { includeLegacy: true }
+    });
+    updateLegacyProjectWarning(loadedProject);
     const resolvedSource = resolveSourceSelectValue(detail);
     editor.year.value = String(detail.year ?? defaults.year);
     if (kind === 'granular') {
@@ -2965,6 +2989,7 @@
     setSaveButtonState('idle');
     hideEditorImpact();
     hideDuplicateWarning();
+    updateLegacyProjectWarning(null);
     updateContextualActions();
     markEditorClean();
   }
@@ -3073,6 +3098,21 @@
 
   window.addEventListener('proliferation:workspacechange', (event) => {
     applyWorkspace(event.detail?.workspace || 'records');
+  });
+
+  window.addEventListener('proliferation:reviewrecord', async (event) => {
+    const id = event.detail?.id;
+    const kind = event.detail?.kind === 'yearly' ? 'yearly' : 'granular';
+    if (!id || !confirmDiscardChanges()) {
+      event.preventDefault();
+      return;
+    }
+    try {
+      await loadIntoEditor(kind, id);
+      document.querySelector('#pf-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      toast(error?.message || 'Unable to open the selected proliferation record.', 'danger');
+    }
   });
 
   window.addEventListener('hashchange', handleHashChange);

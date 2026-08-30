@@ -71,9 +71,12 @@
                                  Projects: Model.CompletedProjects,
                                  Required: true,
                                  ErrorElementId: "pf-project-error",
-                                 EligibilityText: "Search completed projects eligible for proliferation entry.",
+                                 EligibilityText: "Search completed non-repeat-build projects eligible for new proliferation entry.",
                                  RecentStorageKey: "prism-proliferation-entry-recent-projects"))" />
                     <div class="form-text text-danger small d-none" id="pf-project-error" data-field-error="project" aria-live="polite"></div>
+                    <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="pf-repeat-build-legacy-warning" role="status">
+                        <strong>Legacy repeat-build link.</strong> This historical record can be retained or edited, but new proliferation entries cannot use this project. Review whether it should be reassigned to the original project.
+                    </div>
                 </div>
 
                 <div class="row g-2">

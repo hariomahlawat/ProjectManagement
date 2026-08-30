@@ -18,6 +18,7 @@
     missingUnit: document.querySelector('#pf-quality-missing-unit'),
     invalidQuantity: document.querySelector('#pf-quality-invalid-quantity'),
     duplicates: document.querySelector('#pf-quality-duplicates'),
+    repeatBuild: document.querySelector('#pf-quality-repeat-build'),
     modal: document.querySelector('#pf-quality-correct-modal'),
     modalContext: document.querySelector('#pf-quality-correct-context'),
     currentValue: document.querySelector('#pf-quality-current-value'),
@@ -59,7 +60,8 @@
     invalid_date: 'Invalid detailed date',
     missing_unit: 'Missing receiving unit',
     invalid_quantity: 'Invalid quantity',
-    possible_duplicate: 'Possible duplicate'
+    possible_duplicate: 'Possible duplicate',
+    repeat_build_link: 'Repeat-build project link'
   };
 
   const getCsrfToken = () => {
@@ -149,6 +151,7 @@
     if (el.missingUnit) el.missingUnit.textContent = String(Number(data.missingUnitCount) || 0);
     if (el.invalidQuantity) el.invalidQuantity.textContent = String(Number(data.invalidQuantityCount) || 0);
     if (el.duplicates) el.duplicates.textContent = String(Number(data.possibleDuplicateCount) || 0);
+    if (el.repeatBuild) el.repeatBuild.textContent = String(Number(data.repeatBuildLinkCount) || 0);
 
     el.body?.replaceChildren();
     if (state.items.length === 0) {
@@ -189,6 +192,12 @@
           const button = create('button', 'Correct', 'btn btn-sm btn-primary');
           button.type = 'button';
           button.dataset.correctIssue = item.issueKey;
+          actionCell.append(button);
+        } else if (item.issueType === 'repeat_build_link') {
+          const button = create('button', 'Review record', 'btn btn-sm btn-outline-warning');
+          button.type = 'button';
+          button.dataset.reviewRecordId = item.recordId;
+          button.dataset.reviewRecordKind = item.recordKind;
           actionCell.append(button);
         } else {
           const link = create('a', 'Review records', 'btn btn-sm btn-outline-secondary');
@@ -466,6 +475,18 @@
   });
 
   el.body?.addEventListener('click', (event) => {
+    const reviewButton = event.target.closest('[data-review-record-id]');
+    if (reviewButton) {
+      window.dispatchEvent(new CustomEvent('proliferation:reviewrecord', {
+        cancelable: true,
+        detail: {
+          id: reviewButton.dataset.reviewRecordId,
+          kind: reviewButton.dataset.reviewRecordKind
+        }
+      }));
+      return;
+    }
+
     const button = event.target.closest('[data-correct-issue]');
     if (!button) return;
     configureModal(state.items.find((item) => item.issueKey === button.dataset.correctIssue));

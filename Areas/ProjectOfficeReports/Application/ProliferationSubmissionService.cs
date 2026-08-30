@@ -66,6 +66,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             {
                 return ServiceResult.Fail("Only completed projects may record proliferation data.");
             }
+            if (project.IsBuild)
+            {
+                return ServiceResult.Fail(ProliferationProjectEligibility.RepeatBuildRecordError);
+            }
 
             if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)
             {
@@ -140,6 +144,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (project is null)
             {
                 return ServiceResult.Fail("Only completed projects may record proliferation data.");
+            }
+            if (project.IsBuild)
+            {
+                return ServiceResult.Fail(ProliferationProjectEligibility.RepeatBuildRecordError);
             }
 
             string unit;
@@ -233,11 +241,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("Only completed projects may configure preferences.");
             }
 
-            var now = _clock.UtcNow.UtcDateTime;
-
             var existing = await _db.ProliferationYearPreferences
                 .FirstOrDefaultAsync(p => p.ProjectId == dto.ProjectId && p.Source == dto.Source && p.Year == dto.Year, ct);
 
+            // Existing legacy rules remain editable for historical continuity, but
+            // a repeat-build project cannot receive a new counting-rule exception.
+            if (project.IsBuild && existing is null)
+            {
+                return ServiceResult.Fail(ProliferationProjectEligibility.RepeatBuildPreferenceError);
+            }
+
+            var now = _clock.UtcNow.UtcDateTime;
             var isNew = existing is null;
 
             if (existing is null)
@@ -316,6 +330,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (project is null)
             {
                 return ServiceResult.Fail("Only completed projects may record proliferation data.");
+            }
+            if (project.IsBuild && project.Id != entity.ProjectId)
+            {
+                return ServiceResult.Fail(ProliferationProjectEligibility.RepeatBuildRecordError);
             }
 
             var remarks = Normalize(dto.Remarks, 500);
@@ -425,6 +443,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (project is null)
             {
                 return ServiceResult.Fail("Only completed projects may record proliferation data.");
+            }
+            if (project.IsBuild && project.Id != entity.ProjectId)
+            {
+                return ServiceResult.Fail(ProliferationProjectEligibility.RepeatBuildRecordError);
             }
 
             var now = _clock.UtcNow.UtcDateTime;
@@ -717,9 +739,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
         private async Task<Project?> GetCompletedProjectAsync(int projectId, CancellationToken ct)
         {
-            return await _db.Projects
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == projectId && !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed, ct);
+            return await ProliferationProjectEligibility
+                .CompletedVisibleProjects(_db.Projects.AsNoTracking())
+                .FirstOrDefaultAsync(p => p.Id == projectId, ct);
         }
 
         // SECTION: Required field validation helpers

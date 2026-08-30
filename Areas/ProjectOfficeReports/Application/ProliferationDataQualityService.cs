@@ -52,11 +52,13 @@ public sealed record ProliferationDataQualityResult(
     int MissingUnitCount,
     int InvalidQuantityCount,
     int PossibleDuplicateCount,
+    int RepeatBuildLinkCount,
     IReadOnlyList<ProliferationDataQualityIssue> Items);
 
 public sealed record ProliferationDataQualitySummary(
     int CorrectionRequiredCount,
     int PossibleDuplicateCount,
+    int RepeatBuildLinkCount,
     int InvalidDateOrYearCount,
     int MissingUnitCount,
     int InvalidQuantityCount);
@@ -103,6 +105,7 @@ public sealed class ProliferationDataQualityService
         return new ProliferationDataQualitySummary(
             correctionRequired,
             result.PossibleDuplicateCount,
+            result.RepeatBuildLinkCount,
             result.InvalidDateOrYearCount,
             result.MissingUnitCount,
             result.InvalidQuantityCount);
@@ -128,6 +131,7 @@ public sealed class ProliferationDataQualityService
                     record.ProjectId,
                     ProjectName = project.Name,
                     ProjectCode = project.CaseFileNumber,
+                    project.IsBuild,
                     record.Source,
                     record.Year,
                     Quantity = record.TotalQuantity,
@@ -147,6 +151,7 @@ public sealed class ProliferationDataQualityService
                     record.ProjectId,
                     ProjectName = project.Name,
                     ProjectCode = project.CaseFileNumber,
+                    project.IsBuild,
                     record.Source,
                     record.ProliferationDate,
                     record.UnitName,
@@ -287,6 +292,56 @@ public sealed class ProliferationDataQualityService
             }
         }
 
+        foreach (var row in yearlyRows.Where(x => x.IsBuild))
+        {
+            issues.Add(new ProliferationDataQualityIssue(
+                $"yearly:{row.Id}:repeat-build-link",
+                "repeat_build_link",
+                "medium",
+                ProliferationRecordKind.Yearly,
+                row.Id,
+                row.ProjectId,
+                row.ProjectName,
+                row.ProjectCode,
+                row.Source,
+                row.Source.ToDisplayName(),
+                row.Year,
+                null,
+                null,
+                row.Quantity,
+                row.ApprovalStatus,
+                row.LastUpdatedOnUtc,
+                EncodeRowVersion(row.RowVersion),
+                "This historical proliferation record is linked to a Repeat Build project. Review whether it should remain as a legacy record or be reassigned to the original project.",
+                false,
+                1));
+        }
+
+        foreach (var row in granularRows.Where(x => x.IsBuild))
+        {
+            issues.Add(new ProliferationDataQualityIssue(
+                $"granular:{row.Id}:repeat-build-link",
+                "repeat_build_link",
+                "medium",
+                ProliferationRecordKind.Granular,
+                row.Id,
+                row.ProjectId,
+                row.ProjectName,
+                row.ProjectCode,
+                row.Source,
+                row.Source.ToDisplayName(),
+                row.ProliferationDate.Year,
+                row.ProliferationDate,
+                row.UnitName,
+                row.Quantity,
+                row.ApprovalStatus,
+                row.LastUpdatedOnUtc,
+                EncodeRowVersion(row.RowVersion),
+                "This historical proliferation record is linked to a Repeat Build project. Review whether it should remain as a legacy record or be reassigned to the original project.",
+                false,
+                1));
+        }
+
         var yearlyDuplicates = yearlyRows
             .Where(x => x.ApprovalStatus == ApprovalStatus.Approved && x.Year >= ProliferationYearPolicy.MinimumYear)
             .GroupBy(x => new { x.ProjectId, x.Source, x.Year })
@@ -366,6 +421,7 @@ public sealed class ProliferationDataQualityService
         var missingUnitCount = scopedIssues.Count(x => x.IssueType == "missing_unit");
         var invalidQuantityCount = scopedIssues.Count(x => x.IssueType == "invalid_quantity");
         var duplicateCount = scopedIssues.Count(x => x.IssueType == "possible_duplicate");
+        var repeatBuildLinkCount = scopedIssues.Count(x => x.IssueType == "repeat_build_link");
 
         IEnumerable<ProliferationDataQualityIssue> filtered = scopedIssues;
         if (!string.IsNullOrWhiteSpace(request.IssueType))
@@ -401,6 +457,7 @@ public sealed class ProliferationDataQualityService
             missingUnitCount,
             invalidQuantityCount,
             duplicateCount,
+            repeatBuildLinkCount,
             ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList());
     }
 

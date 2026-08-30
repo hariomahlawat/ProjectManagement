@@ -262,11 +262,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             [FromQuery] int? projectCategoryId,
             [FromQuery] int? technicalCategoryId,
             [FromQuery] int take = 200,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            [FromQuery] bool includeLegacy = false)
         {
-            var projects = _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+            var projects = includeLegacy
+                ? ProliferationProjectEligibility.CompletedVisibleProjects(_db.Projects.AsNoTracking())
+                : ProliferationProjectEligibility.EligibleForNewRecords(_db.Projects.AsNoTracking());
 
             if (projectCategoryId.HasValue)
             {
@@ -284,7 +285,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     p.Name,
                     p.CaseFileNumber,
                     p.Category != null ? p.Category.Name : null,
-                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null))
+                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null,
+                    p.IsBuild))
                 .ToListAsync(ct);
 
             var term = NormalizeProjectSearchText(q);
@@ -318,6 +320,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             {
                 Total = matched.Count,
                 Returned = items.Count,
+                EligibilityDescription = includeLegacy
+                    ? "Completed projects, including legacy repeat-build projects, available for historical review."
+                    : "Completed non-repeat-build projects eligible for new proliferation entry.",
                 Items = items
             });
         }
@@ -328,20 +333,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             int id,
             [FromQuery] int? projectCategoryId,
             [FromQuery] int? technicalCategoryId,
-            CancellationToken ct)
+            CancellationToken ct,
+            [FromQuery] bool includeLegacy = false)
         {
             if (id <= 0)
             {
                 return BadRequest("A valid project id is required.");
             }
 
-            var projects = _db.Projects
-                .AsNoTracking()
-                .Where(p =>
-                    p.Id == id &&
-                    !p.IsDeleted &&
-                    !p.IsArchived &&
-                    p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+            var projects = includeLegacy
+                ? ProliferationProjectEligibility.CompletedVisibleProjects(_db.Projects.AsNoTracking())
+                : ProliferationProjectEligibility.EligibleForNewRecords(_db.Projects.AsNoTracking());
+
+            projects = projects.Where(p => p.Id == id);
 
             if (projectCategoryId.HasValue)
             {
@@ -359,7 +363,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     p.Name,
                     p.CaseFileNumber,
                     p.Category != null ? p.Category.Name : null,
-                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null))
+                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null,
+                    p.IsBuild))
                 .FirstOrDefaultAsync(ct);
 
             return project is null ? NotFound() : Ok(ToProjectLookupDto(project));
@@ -654,6 +659,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 MissingUnitCount = result.MissingUnitCount,
                 InvalidQuantityCount = result.InvalidQuantityCount,
                 PossibleDuplicateCount = result.PossibleDuplicateCount,
+                RepeatBuildLinkCount = result.RepeatBuildLinkCount,
                 Items = result.Items.Select(item => new ProliferationDataQualityIssueDto
                 {
                     IssueKey = item.IssueKey,
@@ -1357,7 +1363,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 Code = project.Code,
                 ProjectCategory = project.ProjectCategory,
                 TechnicalCategory = project.TechnicalCategory,
-                Status = "Completed"
+                Status = "Completed",
+                IsRepeatBuild = project.IsBuild,
+                IsEligibleForNewEntry = !project.IsBuild
             };
 
         private static int GetProjectSearchRank(ProjectLookupCandidate project, string normalizedTerm)
@@ -1505,7 +1513,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             string Name,
             string? Code,
             string? ProjectCategory,
-            string? TechnicalCategory);
+            string? TechnicalCategory,
+            bool IsBuild);
 
         private sealed record OverviewRowProjection(
             int ProjectId,

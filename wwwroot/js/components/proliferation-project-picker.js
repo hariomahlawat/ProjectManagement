@@ -601,7 +601,7 @@
             const sequence = ++this.requestSequence;
             this.setBusy(true);
             const params = new URLSearchParams();
-            const extra = this.getExtraParams() || {};
+            const extra = { ...(this.getExtraParams() || {}), ...(options.extraParams || {}) };
             Object.entries(extra).forEach(([key, value]) => {
                 if (value !== undefined && value !== null && String(value).trim() !== "") params.set(key, String(value));
             });

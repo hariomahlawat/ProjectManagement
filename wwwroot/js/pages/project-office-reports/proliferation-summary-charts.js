@@ -84,6 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
             suggestions,
             clearButton: clear,
             statusElement: status,
+            getExtraParams: () => ({ includeLegacy: true }),
             onSelected: () => { open.disabled = false; },
             onCleared: () => { open.disabled = true; }
         });

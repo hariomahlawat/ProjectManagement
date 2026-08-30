@@ -61,8 +61,19 @@
             <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
             <div class="pf-quality-alert__copy">
                 <strong>Data review required.</strong>
-                <span>@Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record has" : "records have") an invalid year. @(Model.DataQualityIssueCount == 1 ? "It is" : "They are") excluded from chronological analysis until corrected.</span>
-                <span class="visually-hidden">Affected years: @string.Join(", ", Model.InvalidYears). Quantities remain included in the overall total.</span>
+                <span>@Model.DataQualityIssueCount.ToString("N0") open data-quality @(Model.DataQualityIssueCount == 1 ? "item requires" : "items require") attention.</span>
+                @if (Model.DataQualityCorrectionCount > 0)
+                {
+                    <span>@Model.DataQualityCorrectionCount.ToString("N0") hard correction @(Model.DataQualityCorrectionCount == 1 ? "issue" : "issues") must be resolved.</span>
+                }
+                @if (Model.PossibleDuplicateCount > 0)
+                {
+                    <span>@Model.PossibleDuplicateCount.ToString("N0") possible @(Model.PossibleDuplicateCount == 1 ? "duplicate requires" : "duplicates require") review.</span>
+                }
+                @if (Model.RepeatBuildLinkCount > 0)
+                {
+                    <span>@Model.RepeatBuildLinkCount.ToString("N0") historical @(Model.RepeatBuildLinkCount == 1 ? "record is" : "records are") linked to Repeat Build projects and @(Model.RepeatBuildLinkCount == 1 ? "requires" : "require") project-link review.</span>
+                }
             </div>
             @if (Model.CanReviewDataQuality)
             {

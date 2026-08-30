@@ -3,7 +3,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
             <div>
                 <h3 class="card-title h5 mb-1">Data-quality review</h3>
-                <p class="card-subtitle text-muted small mb-0">Correct malformed values through an auditable workflow. Possible duplicates are listed separately for review and are never removed automatically.</p>
+                <p class="card-subtitle text-muted small mb-0">Correct malformed values through an auditable workflow. Possible duplicates and legacy repeat-build links are surfaced for review and are never removed automatically.</p>
             </div>
             <button class="btn btn-sm btn-outline-secondary" type="button" id="pf-quality-refresh">
                 <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
@@ -33,6 +33,10 @@
                 <span>Possible duplicates</span>
                 <strong id="pf-quality-duplicates">—</strong>
             </button>
+            <button type="button" class="pf-quality-stat" data-quality-filter="repeat_build_link">
+                <span>Repeat-build links</span>
+                <strong id="pf-quality-repeat-build">—</strong>
+            </button>
         </div>
 
         <div class="alert alert-info py-2 px-3 mt-3 mb-0 d-none" id="pf-quality-project-context">
@@ -48,6 +52,7 @@
                     <option value="missing_unit">Missing receiving unit</option>
                     <option value="invalid_quantity">Invalid quantity</option>
                     <option value="possible_duplicate">Possible duplicate</option>
+                    <option value="repeat_build_link">Repeat-build project link</option>
                 </select>
             </div>
             <div class="col-12 col-lg-6">

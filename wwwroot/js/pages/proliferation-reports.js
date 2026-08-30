@@ -298,7 +298,7 @@
 
     async function loadProjects() {
         try {
-            const payload = await fetchJson(`${endpoints.projects}?take=500`);
+            const payload = await fetchJson(`${endpoints.projects}?take=500&includeLegacy=true`);
             state.allProjects = Array.isArray(payload?.items) ? payload.items : [];
             elements.projectStatus.textContent = state.allProjects.length
                 ? `${state.allProjects.length} completed simulators available.`

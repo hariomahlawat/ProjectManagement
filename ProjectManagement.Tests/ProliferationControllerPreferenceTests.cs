@@ -207,6 +207,16 @@ public class ProliferationControllerPreferenceTests
                 CreatedByUserId = "creator",
                 LifecycleStatus = ProjectLifecycleStatus.Active,
                 RowVersion = Guid.NewGuid().ToByteArray()
+            },
+            new Project
+            {
+                Id = 4,
+                Name = "VR MMDS Repeat Build",
+                CaseFileNumber = "VRMMDS-RB",
+                CreatedByUserId = "creator",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsBuild = true,
+                RowVersion = Guid.NewGuid().ToByteArray()
             });
         await context.SaveChangesAsync();
 
@@ -232,6 +242,18 @@ public class ProliferationControllerPreferenceTests
         Assert.Equal("VRMMDS", payload.Items[0].Acronym);
         Assert.Equal("30102/VRMMDS/SDD/24", payload.Items[0].Code);
         Assert.DoesNotContain(payload.Items, item => item.Id == 3);
+        Assert.DoesNotContain(payload.Items, item => item.Id == 4);
+
+        var legacyResult = await controller.GetEligibleProjects(
+            "vr mmds",
+            null,
+            null,
+            200,
+            CancellationToken.None,
+            includeLegacy: true);
+        var legacyOk = Assert.IsType<OkObjectResult>(legacyResult.Result);
+        var legacyPayload = Assert.IsType<ProliferationProjectLookupResponseDto>(legacyOk.Value);
+        Assert.Contains(legacyPayload.Items, item => item.Id == 4 && item.IsRepeatBuild && !item.IsEligibleForNewEntry);
     }
 
     [Fact]

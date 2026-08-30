@@ -24,7 +24,7 @@
     },
     'data-quality': {
       title: 'Data-quality review',
-      subtitle: 'Correct malformed historical values and review possible duplicate records.'
+      subtitle: 'Correct malformed historical values and review possible duplicates or legacy repeat-build project links.'
     }
   };
 
@@ -106,16 +106,22 @@
             + (Number(data.missingUnitCount) || 0)
             + (Number(data.invalidQuantityCount) || 0);
           const duplicates = Number(data.possibleDuplicateCount) || 0;
-          qualityBadge.textContent = String(correctionsRequired);
-          qualityBadge.classList.toggle('d-none', correctionsRequired === 0);
-          qualityBadge.title = duplicates > 0
-            ? `${correctionsRequired} corrections required; ${duplicates} possible duplicates to review.`
-            : `${correctionsRequired} corrections required.`;
+          const repeatBuildLinks = Number(data.repeatBuildLinkCount) || 0;
+          const reviewItems = duplicates + repeatBuildLinks;
+          const total = correctionsRequired + reviewItems;
+          qualityBadge.textContent = String(total);
+          qualityBadge.classList.toggle('d-none', total === 0);
+          qualityBadge.classList.toggle('text-bg-danger', correctionsRequired > 0);
+          qualityBadge.classList.toggle('text-bg-warning', correctionsRequired === 0 && reviewItems > 0);
+          qualityBadge.title = `${correctionsRequired} corrections required; ${duplicates} possible duplicates; ${repeatBuildLinks} repeat-build links to review.`;
         }
       } catch { /* Non-blocking badge. */ }
     }
   };
 
+  window.addEventListener('proliferation:reviewrecord', (event) => {
+    if (!event.defaultPrevented) activate('records');
+  });
   window.addEventListener('proliferation:dataqualitychanged', refreshBadges);
   window.addEventListener('proliferation:recordchanged', refreshBadges);
   activate(initial, { updateUrl: false });

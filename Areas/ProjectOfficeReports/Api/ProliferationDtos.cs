@@ -93,6 +93,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public string? ProjectCategory { get; set; }
         public string? TechnicalCategory { get; set; }
         public string Status { get; set; } = "Completed";
+        public bool IsRepeatBuild { get; set; }
+        public bool IsEligibleForNewEntry { get; set; } = true;
         public string Display => Name;
         public string SecondaryDisplay
         {
@@ -367,6 +369,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int MissingUnitCount { get; set; }
         public int InvalidQuantityCount { get; set; }
         public int PossibleDuplicateCount { get; set; }
+        public int RepeatBuildLinkCount { get; set; }
         public IReadOnlyList<ProliferationDataQualityIssueDto> Items { get; set; }
             = Array.Empty<ProliferationDataQualityIssueDto>();
     }

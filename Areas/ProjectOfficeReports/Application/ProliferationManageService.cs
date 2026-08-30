@@ -287,12 +287,8 @@ public sealed class ProliferationManageService
     private async Task<IReadOnlyList<ProliferationCompletedProjectOption>> GetCompletedProjectsAsync(CancellationToken ct)
     {
         // SECTION: Completed projects available throughout the proliferation module
-        var projects = await _db.Projects
-            .AsNoTracking()
-            .Where(p =>
-                !p.IsDeleted &&
-                !p.IsArchived &&
-                p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+        var projects = await ProliferationProjectEligibility
+            .CompletedVisibleProjects(_db.Projects.AsNoTracking())
             .OrderBy(p => p.Name)
             .ToListAsync(ct);
 

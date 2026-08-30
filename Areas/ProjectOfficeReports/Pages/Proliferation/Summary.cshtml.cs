@@ -65,6 +65,9 @@ public sealed class SummaryModel : PageModel
     public bool CanManageRecords { get; private set; }
     public bool CanReviewDataQuality { get; private set; }
     public int DataQualityIssueCount { get; private set; }
+    public int DataQualityCorrectionCount { get; private set; }
+    public int PossibleDuplicateCount { get; private set; }
+    public int RepeatBuildLinkCount { get; private set; }
     public IReadOnlyList<int> InvalidYears { get; private set; } = Array.Empty<int>();
 
     public IReadOnlyList<TechnicalCategoryBreakdownRow> TechnicalCategoryBreakdown { get; private set; } =
@@ -89,7 +92,10 @@ public sealed class SummaryModel : PageModel
         TechnicalCategoryBreakdown = await BuildTechnicalCategoryBreakdownAsync(Summary, cancellationToken);
 
         var qualitySummary = await _dataQualityService.GetSummaryAsync(cancellationToken);
-        DataQualityIssueCount = qualitySummary.CorrectionRequiredCount + qualitySummary.PossibleDuplicateCount;
+        DataQualityCorrectionCount = qualitySummary.CorrectionRequiredCount;
+        PossibleDuplicateCount = qualitySummary.PossibleDuplicateCount;
+        RepeatBuildLinkCount = qualitySummary.RepeatBuildLinkCount;
+        DataQualityIssueCount = DataQualityCorrectionCount + PossibleDuplicateCount + RepeatBuildLinkCount;
         InvalidYears = Array.Empty<int>();
 
         var submitResult = await _authorizationService.AuthorizeAsync(
