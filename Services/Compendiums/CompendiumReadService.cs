@@ -88,6 +88,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             .AsNoTracking()
             .Where(item => item.ProjectId.HasValue
                            && projectIds.Contains(item.ProjectId.Value)
+                           && item.Project != null
+                           && !item.Project.IsBuild
                            && (item.Status == IprStatus.Filed || item.Status == IprStatus.Granted))
             .Select(item => item.ProjectId!.Value)
             .Distinct()
@@ -1281,6 +1283,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             .AsNoTracking()
             .Where(item => item.ProjectId.HasValue
                            && projectIds.Contains(item.ProjectId.Value)
+                           && item.Project != null
+                           && !item.Project.IsBuild
                            && (item.Status == IprStatus.Filed || item.Status == IprStatus.Granted))
             .Select(item => new
             {

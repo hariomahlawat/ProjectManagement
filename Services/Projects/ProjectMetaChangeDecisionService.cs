@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Application.Ipr;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -321,9 +322,14 @@ public sealed class ProjectMetaChangeDecisionService
         {
             project.ProjectTypeId = projectTypeId;
         }
+        var wasRepeatBuild = project.IsBuild;
         if (isBuild.HasValue)
         {
             project.IsBuild = isBuild.Value;
+        }
+        if (!wasRepeatBuild && project.IsBuild)
+        {
+            await IprProjectLinkMaintenance.DetachLinkedRecordsAsync(_db, project.Id, cancellationToken);
         }
         project.SponsoringUnitId = sponsoringUnitId;
         project.SponsoringLineDirectorateId = sponsoringLineDirectorateId;

@@ -219,6 +219,40 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_RejectsRepeatBuildProject()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var project = new Project
+            {
+                Name = "Repeat Build project",
+                CreatedByUserId = "test-user",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsBuild = true
+            };
+            db.Projects.Add(project);
+            await db.SaveChangesAsync();
+
+            var record = ValidRecord(clock, "IPR-REPEAT-BUILD-CREATE");
+            record.ProjectId = project.Id;
+
+            var exception = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(record));
+
+            Assert.Equal(IprValidationCode.ProjectNotAvailable, exception.Code);
+            Assert.Contains("Repeat Build", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(0, await db.IprRecords.CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task CreateAsync_RejectsUnknownProject()
     {
         await using var db = CreateDbContext();
@@ -328,6 +362,43 @@ public sealed class IprWriteServiceTests
 
             var stored = await db.IprRecords.AsNoTracking().SingleAsync(item => item.Id == created.Id);
             Assert.Null(stored.ProjectId);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsRepeatBuildProject()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var project = new Project
+            {
+                Name = "Repeat Build project",
+                CreatedByUserId = "test-user",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsBuild = true
+            };
+            db.Projects.Add(project);
+            await db.SaveChangesAsync();
+
+            var created = await service.CreateAsync(ValidRecord(clock, "IPR-REPEAT-BUILD-UPDATE"));
+            var update = ValidRecord(clock, created.IprFilingNumber);
+            update.Id = created.Id;
+            update.RowVersion = created.RowVersion;
+            update.ProjectId = project.Id;
+
+            var exception = await Assert.ThrowsAsync<IprValidationException>(() => service.UpdateAsync(update));
+
+            Assert.Equal(IprValidationCode.ProjectNotAvailable, exception.Code);
+            Assert.Contains("Repeat Build", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Null((await db.IprRecords.AsNoTracking().SingleAsync()).ProjectId);
         }
         finally
         {

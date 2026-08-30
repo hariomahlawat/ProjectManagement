@@ -56,7 +56,7 @@ public sealed partial class IndexModel
 
         var projectSnapshot = await _db.Projects
             .AsNoTracking()
-            .Where(project => !project.IsDeleted)
+            .Where(IprProjectEligibilityPolicy.EligibleProjectPredicate)
             .OrderBy(project => project.Name)
             .Select(project => new
             {

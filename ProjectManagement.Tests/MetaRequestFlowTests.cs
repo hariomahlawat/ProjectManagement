@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Tests.Fakes;
@@ -204,6 +205,17 @@ public sealed class MetaRequestFlowTests
         });
         await db.SaveChangesAsync();
 
+        await db.IprRecords.AddAsync(new IprRecord
+        {
+            IprFilingNumber = "IPR-FOXTROT",
+            Title = "Foxtrot patent",
+            Type = IprType.Patent,
+            Status = IprStatus.Filed,
+            FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            ProjectId = 6
+        });
+        await db.SaveChangesAsync();
+
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 6, 9, 0, 0, TimeSpan.Zero));
         var requestService = new ProjectMetaChangeRequestService(db, clock);
 
@@ -234,6 +246,9 @@ public sealed class MetaRequestFlowTests
         var project = await db.Projects.SingleAsync();
         Assert.Equal(101, project.ProjectTypeId);
         Assert.True(project.IsBuild);
+
+        var ipr = await db.IprRecords.SingleAsync();
+        Assert.Null(ipr.ProjectId);
     }
 
     [Fact]

@@ -351,14 +351,25 @@ public sealed class IprWriteService : IIprWriteService
 
         var exists = await _db.Projects
             .AsNoTracking()
-            .AnyAsync(project => project.Id == projectId.Value && !project.IsDeleted, cancellationToken);
+            .Where(IprProjectEligibilityPolicy.EligibleProjectPredicate)
+            .AnyAsync(project => project.Id == projectId.Value, cancellationToken);
 
-        if (!exists)
+        if (exists)
         {
-            throw new IprValidationException(
-                IprValidationCode.ProjectNotAvailable,
-                "The selected project is no longer available. Select another project.");
+            return;
         }
+
+        var isRepeatBuild = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId.Value && !project.IsDeleted)
+            .Select(project => project.IsBuild)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        throw new IprValidationException(
+            IprValidationCode.ProjectNotAvailable,
+            isRepeatBuild
+                ? "IPR cannot be linked to a Repeat Build project. Select the original project or leave the IPR record unassigned."
+                : "The selected project is no longer available. Select another project.");
     }
 
     private void ValidateStatus(IprStatus status, DateTimeOffset? filedAtUtc, DateTimeOffset? grantedAtUtc)

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Application.Ipr;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -291,6 +292,10 @@ public class EditModel : PageModel
         project.TechnicalCategoryId = selectedTechnicalCategoryId;
         project.ProjectTypeId = selectedProjectTypeId;
         project.IsBuild = Input.IsBuild;
+        if (!previousIsBuild && project.IsBuild)
+        {
+            await IprProjectLinkMaintenance.DetachLinkedRecordsAsync(_db, project.Id, cancellationToken);
+        }
         project.SponsoringUnitId = Input.SponsoringUnitId;
         project.SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId;
 

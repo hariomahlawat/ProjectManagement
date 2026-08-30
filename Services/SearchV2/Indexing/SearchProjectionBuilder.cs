@@ -159,7 +159,10 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => $"ToT {row.Status}").Distinct()));
 
         var iprSummaries = (await _db.IprRecords.AsNoTracking()
-                .Where(row => row.ProjectId.HasValue && ids.Contains(row.ProjectId.Value))
+                .Where(row => row.ProjectId.HasValue
+                              && ids.Contains(row.ProjectId.Value)
+                              && row.Project != null
+                              && !row.Project.IsBuild)
                 .Select(row => new { ProjectId = row.ProjectId!.Value, row.Status, row.Type })
                 .ToListAsync(cancellationToken))
             .GroupBy(row => row.ProjectId)
@@ -508,17 +511,21 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             record.FiledAtUtc,
             record.GrantedAtUtc,
             record.ProjectId,
-            ProjectName = record.Project != null ? record.Project.Name : null,
+            ProjectIsBuild = record.Project != null && record.Project.IsBuild,
+            ProjectName = record.Project != null && !record.Project.IsBuild ? record.Project.Name : null,
             Attachments = record.Attachments.Where(attachment => !attachment.IsArchived).Select(attachment => attachment.OriginalFileName).ToArray()
         }).ToListAsync(cancellationToken);
 
-        var projectContexts = await LoadProjectContextsAsync(rows.Where(row => row.ProjectId.HasValue).Select(row => row.ProjectId!.Value), cancellationToken);
+        var projectContexts = await LoadProjectContextsAsync(
+            rows.Where(row => row.ProjectId.HasValue && !row.ProjectIsBuild).Select(row => row.ProjectId!.Value),
+            cancellationToken);
         return rows.Select(row =>
         {
             var title = string.IsNullOrWhiteSpace(row.Title) ? row.IprFilingNumber : row.Title;
             var identifiers = Values(row.IprFilingNumber);
+            var effectiveProjectId = row.ProjectId.HasValue && !row.ProjectIsBuild ? row.ProjectId : null;
             ProjectSearchContext? projectContext = null;
-            if (row.ProjectId.HasValue) projectContexts.TryGetValue(row.ProjectId.Value, out projectContext);
+            if (effectiveProjectId.HasValue) projectContexts.TryGetValue(effectiveProjectId.Value, out projectContext);
             var contexts = Values(row.ProjectName, projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.LifecycleStatus, projectContext?.CurrentStage)
                 .Concat(row.Attachments)
                 .ToArray();
@@ -526,9 +533,9 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             return Project(
                 "IprRecord",
                 row.Id.ToString(CultureInfo.InvariantCulture),
-                row.ProjectId.HasValue ? "Project" : "IprRecord",
-                row.ProjectId?.ToString(CultureInfo.InvariantCulture) ?? row.Id.ToString(CultureInfo.InvariantCulture),
-                row.ProjectId,
+                effectiveProjectId.HasValue ? "Project" : "IprRecord",
+                effectiveProjectId?.ToString(CultureInfo.InvariantCulture) ?? row.Id.ToString(CultureInfo.InvariantCulture),
+                effectiveProjectId,
                 "IPR",
                 "Trackers",
                 title,
@@ -551,7 +558,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 new
                 {
                     iprRecordId = row.Id,
-                    projectId = row.ProjectId,
+                    projectId = effectiveProjectId,
                     currentStage = projectContext?.CurrentStage,
                     parentProjectStatus = projectContext?.LifecycleStatus,
                     matchFields = new Dictionary<string, string?>
