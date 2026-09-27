@@ -120,6 +120,21 @@ without a database, then exits) and `--backfill-forecast` (backfills stage forec
 | `lint.yml` (*Lint Views*) | push to `main`, and all PRs | `./tools/check-views.sh`. The default branch is `master`, so the push trigger never fires. |
 | `build-project-tot-v3-zip.yml` | pushes touching `ReadyToReplace/Project-Tot-Precision-and-UX-v3/**`, or manual | Obsolete. `ReadyToReplace/` no longer exists, so a manual run fails. |
 
-Current state (checked locally): `npm test` reports 21 failing tests out of 810, and
-`./tools/check-views.sh` exits 1 on inline `style="` attributes (57 in `.cshtml` files). Both break the corresponding workflows
-until they are fixed.
+## 5. Current test and CI status (verified 2026-09-27 on `master` @ `2e26b42`)
+
+Both CI workflows have been red on every recent `master` push. None of the suites is currently a
+reliable regression signal, so read failures by category rather than as a count.
+
+| Check | Result | Main causes |
+| --- | --- | --- |
+| `dotnet build -c Release` | Succeeds (8 nullable warnings) | — |
+| `dotnet test` (whole suite, Linux) | 618 failed / 2,103 passed / 2 skipped | ~112: the Development OCR path `C:/Python311/...` fails options validation off Windows. ~112: the `TsHeadline` DbFunction (`NpgsqlTsQuery`) cannot be mapped by the InMemory/SQLite providers the unit tests use. ~120: InMemory limits (`ManyServiceProvidersCreatedWarning`, `TransactionIgnoredWarning`, relational-only APIs, `ILike`). The rest are individual assertion drift, missing test content files and missing fonts/templates in the output folder. |
+| `npm test` | 22 failed / 788 passed | Test-harness drift, not product code. One ESM test file loaded as CommonJS. `notebook-editor.test.js` does not copy the new `notebook-reminder-scheduler.js` into its temp folder. Cross-realm `deepStrictEqual` against jsdom objects. Source-contract regexes that still point at code moved by later refactors (FFC export state now lives in `projects-report-controls.js`; the workspace conference link now lives in `_CommandWorkspaceRail.cshtml`). **Exception:** the brochure-alignment test (`publications-brochure-contract.test.js`) catches a real regression (see below). |
+| `npm run check:notebook-assets` | Fails on Linux | The committed `notebook-index.bundle.js.map` was built on Windows, so its embedded `sourcesContent` has CRLF line endings for six files. A Linux rebuild produces LF, and `git diff` reports the bundle as stale. |
+| `./tools/check-views.sh` | Exits 1 | 57 inline `style="` attributes. The inline `<script>` and event-handler checks never fire because of regex errors hidden by `2>/dev/null`. |
+| `PostgresMigrationIntegrationTests` | Fails | (1) The test never sets `Npgsql.EnableLegacyTimestampBehavior` (the app sets it in `Program.cs`), so seeded UTC `DateTime` literals are rejected. (2) With the switch set, a **fresh database cannot be migrated past `20260301090000_AddDocRepoExternalLinks`**, because that migration (and `20260718123000_…`, `20260801090000_…`) builds its target model from the live `ApplicationDbContextModelSnapshot`, which configures `ActionSprint.Navigation("Tasks")` before the relationship that creates it. With that block moved after the relationship, all 115 migrations apply cleanly to an empty PostgreSQL 16 database. (3) The test's `SeedLegacyProjectStageConstraintDriftAsync` inserts through the current EF model into a partially migrated schema (`column "CompletedMonth" does not exist`). |
+
+Known product regression the JS suite catches: commit `206c134` (Compendium Phase 45) rewrote
+`wwwroot/css/pages/projects-publications.css` from an older copy and dropped the
+`.brochure-alignment-*` and `.brochure-review-narrative.is-justified` rules added by `2824269`. The Brochure
+Builder markup still uses those classes.
