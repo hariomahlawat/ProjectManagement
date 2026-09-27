@@ -1,128 +1,154 @@
 # Search and OCR Architecture
 
-## 1. Overview
+This document describes how PRISM extracts text from documents (OCR), how PostgreSQL
+full-text search (FTS) is wired for the two document stores, and how global search works.
+It reflects the current code; file and type names are given instead of line numbers.
 
-This document explains how the application performs OCR and full-text search (FTS) for two distinct document types-Document Repository items and Project Documents-and how the global search layer fans out across modules, merges scores, and orders results. All behaviours, limits, and database objects are taken directly from the current codebase.
+PostgreSQL is required for every FTS and Search V2 path. The code short-circuits
+(returns no FTS results or skips vector maintenance) on other providers.
 
-## 2. DocRepo OCR + FTS Pipeline
+## 1. Components at a glance
 
-### 2.1 Data model
-- **Entities**: `Document` stores metadata (including `OcrStatus`, `OcrFailureReason`, `OcrLastTriedUtc`, and optional `SearchVector`), while OCR text lives in `DocumentText` keyed by `DocumentId`.[F:Data/DocRepo/Document.csL9-L63][F:Data/DocRepo/DocumentText.csL6-L17]
-- **Status enum**: `DocOcrStatus` values are `None`, `Pending`, `Succeeded`, and `Failed`.[F:Data/DocRepo/Document.csL9-L14]
+| Concern | Main types / files |
+| --- | --- |
+| Document Repository (DocRepo) OCR | `Hosted/DocRepoOcrWorker`, `Services/DocRepo/OcrmypdfDocumentOcrRunner`, `Services/DocRepo/DocumentOcrService` |
+| Project document OCR / text extraction | `Hosted/ProjectDocumentOcrWorker`, `Services/Projects/OcrmypdfProjectOcrRunner`, `IProjectDocumentTextExtractor` |
+| Shared OCR pipeline | `Services/Ocr/OcrmypdfSharedRunner`, `PdfPigTextExtractor`, `ProcessOcrmypdfInvoker`, `OcrTextUtilities`, `OcrTextLimiter` |
+| One-off banner-text backfill | `Hosted/OcrTextBackfillWorker`, `Services/Ocr/OcrTextBackfillService` |
+| DocRepo FTS query (repository page) | `Services/DocRepo/DocumentSearchService` |
+| Global search (user-facing) | `Areas/Common/Pages/Search/Index` -> `Services/SearchV2/Query/SearchGateway` |
+| Search V2 engine and index | `Services/SearchV2/**` (see `docs/global-search.md`) |
+| Legacy global search (fallback/shadow only) | `Services/Search/GlobalSearchService` and the `Global*SearchService` providers |
 
-### 2.2 OCR queueing
-- **When set to Pending**: External ingestion seeds new `Document` rows with `OcrStatus = Pending` during save, so every upload is queued immediately.[F:Services/DocRepo/DocRepoIngestionService.csL150-L175]
+## 2. Shared OCR pipeline
 
-### 2.3 OCR worker
-- **Eligibility**: Picks documents that are **not deleted** and have `OcrStatus == Pending`, loading existing OCR text for overwrite if needed.[F:Hosted/DocRepoOcrWorker.csL34-L39]
-- **Batching & ordering**: Processes the **oldest first** (`OrderBy CreatedAtUtc`) and caps each loop to **3 documents** via `Take(3)`.[F:Hosted/DocRepoOcrWorker.csL34-L39]
-- **Polling**: Sleeps **2 minutes** when no work is found; on unexpected errors it waits **30 seconds** before retrying.[F:Hosted/DocRepoOcrWorker.csL41-L45][F:Hosted/DocRepoOcrWorker.csL107-L110]
-- **Retry/failure handling**: Any runner failure or exception sets status to `Failed`, trims the reason to **1000 characters**, clears stored OCR text, and logs the error; success clears the failure reason and marks `Succeeded`.[F:Hosted/DocRepoOcrWorker.csL55-L98][F:Hosted/DocRepoOcrWorker.csL115-L134]
+`OcrmypdfSharedRunner.RunAsync` is used by both document stores:
 
-### 2.4 OCR runner
-- **Tool**: A shared runner extracts embedded text with PdfPig before invoking `ocrmypdf`; the first pass always uses `--skip-text`, then escalates to `--force-ocr` and `--redo-ocr` only when cleaned sidecar text remains empty.[F:Services/Ocr/PdfPigTextExtractor.csL10-L37][F:Services/Ocr/OcrmypdfSharedRunner.csL65-L145][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL12-L85]
-- **Logs**: Each run writes to a unique log file and mirrors to a stable `<docId>.log` for review.[F:Services/Ocr/OcrmypdfSharedRunner.csL100-L167]
+1. Copies the source PDF into the work area (`<WorkRoot>/<input>`), unless it is already there.
+2. **Embedded-text fast path**: `PdfPigTextExtractor` reads the PDF text layer. If it contains
+   useful text (after `OcrTextUtilities.CleanBanners` strips ocrmypdf "OCR skipped on page" /
+   "Prior OCR" banners), that text is returned and `ocrmypdf` is not run.
+3. Otherwise runs `ocrmypdf --skip-text --sidecar ...`; if the sidecar has no useful text it
+   escalates to `--force-ocr`, then `--redo-ocr`.
+4. Missing sidecar output or banner-only text is returned as a failure whose message points to
+   the log file.
+5. Each run writes a unique log file under the logs folder and mirrors it to `<documentId>.log`.
+   Temporary input/output/sidecar files are deleted in `finally`.
 
-### 2.5 Text persistence
-- **Storage**: OCR text is saved to `DocumentText.OcrText`; the helper caps stored text to **200,000 characters** before persistence.[F:Hosted/DocRepoOcrWorker.csL55-L66][F:Hosted/DocRepoOcrWorker.csL126-L134]
-- **Failure reasons**: Truncated to **1000 characters** to keep errors bounded.[F:Hosted/DocRepoOcrWorker.csL71-L88][F:Hosted/DocRepoOcrWorker.csL115-L123]
+`ProcessOcrmypdfInvoker` starts the process with `UseShellExecute=false` and waits for exit.
+There is **no per-run timeout**, and the child process is not killed on cancellation.
 
-### 2.6 FTS wiring in DB
-- **Search vector builder**: `docrepo_documents_build_search_vector(document_id, subject, received_from, office_category_id, document_category_id)` composes weighted fields-Subject (A), ReceivedFrom (A), Tag names (B), Office+Category names (C), and OCR text (D).[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL63-L100]
-- **Triggers**:
-  - `docrepo_documents_search_vector_before` (BEFORE INSERT/UPDATE on `Documents`) calls the builder.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL104-L127]
-  - `docrepo_document_tags_search_vector_after` (AFTER INSERT/UPDATE/DELETE on `DocumentTags`) rebuilds affected vectors.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL129-L163]
-  - `docrepo_document_texts_search_vector_after` (AFTER INSERT/UPDATE/DELETE on `DocRepoDocumentTexts`) refreshes vectors when OCR text changes.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL165-L199]
-- **Index**: `idx_docrepo_documents_search` is a **GIN** index on `Documents.SearchVector`.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL212-L217]
+### Executable and folders
 
-### 2.7 Search and ranking
-- **Query parser**: `websearch_to_tsquery('english', preparedQuery)` via `SearchVector.Matches` filters results.[F:Services/DocRepo/DocumentSearchService.csL37-L59]
-- **Rank function**: `RankCoverDensity` orders results before dates; projected queries surface rank as a `double?`.[F:Services/DocRepo/DocumentSearchService.csL44-L49][F:Services/DocRepo/DocumentSearchService.csL75-L101]
-- **Snippet generation**: `ts_headline` uses `<mark>`/`</mark>`, `MaxFragments=2`, `MaxWords=20` against OCR text when present.[F:Services/DocRepo/DocumentSearchService.csL79-L88]
-- **Ordering**: Primary sort by rank, then DocumentDate (when present) and CreatedAtUtc for ApplySearch; projected results sort by rank then DocumentDate.[F:Services/DocRepo/DocumentSearchService.csL44-L49][F:Services/DocRepo/DocumentSearchService.csL99-L101]
-
-## 3. Project Documents OCR + FTS Pipeline
-
-### 3.1 Data model
-- **Entities**: `ProjectDocument` carries metadata plus OCR status fields and `SearchVector`; OCR text is stored in `ProjectDocumentText` by `ProjectDocumentId`.[F:Models/ProjectDocument.csL10-L77][F:Data/Projects/ProjectDocumentText.csL6-L17]
-- **Enums**: `ProjectDocumentOcrStatus` has `None`, `Pending`, `Succeeded`, `Failed`. Published/SoftDeleted states are represented by `ProjectDocumentStatus`.[F:Models/ProjectDocument.csL10-L22]
-
-### 3.2 OCR queueing
-- **On publish**: New uploads set `OcrStatus = Pending`, clear failure metadata, and start at FileStamp 1 so every published document is enqueued.[F:Services/Documents/DocumentService.csL221-L266]
-- **On replacement**: Overwrites reset OCR fields to `Pending` and purge prior OCR text before saving.[F:Services/Documents/DocumentService.csL333-L347]
-- **Manual retry**: Admin-driven retries also set status to `Pending` and clear stored OCR text before requeueing.[F:Services/Documents/DocumentService.csL466-L489]
-
-### 3.3 OCR worker
-- **Eligibility**: Processes documents that are **Published**, **not archived**, and `OcrStatus == Pending`, loading OCR text if present.[F:Hosted/ProjectDocumentOcrWorker.csL35-L40]
-- **Batching & ordering**: Fetches up to **5 documents** ordered by **UploadedAtUtc** (oldest first).[F:Hosted/ProjectDocumentOcrWorker.csL35-L41]
-- **Polling**: Sleeps **2 minutes** when idle; unexpected errors pause the loop for **30 seconds**.[F:Hosted/ProjectDocumentOcrWorker.csL43-L46][F:Hosted/ProjectDocumentOcrWorker.csL158-L162]
-- **Failure handling**: Any failure trims the reason to **1000 characters**, nulls OCR text if it existed, sets `Failed`, and logs the warning; success stores OCR text and marks `Succeeded`. Skip-text-only banners are treated as failure with a fixed reason and trigger search-vector refresh.[F:Hosted/ProjectDocumentOcrWorker.csL55-L142][F:Hosted/ProjectDocumentOcrWorker.csL166-L184]
-
-### 3.4 OCR runner
-- **Tool and passes**: Both project and DocRepo runners rely on the shared OCR pipeline that extracts embedded text first, runs `ocrmypdf` with `--skip-text` as the default pass, and only escalates to `--force-ocr` / `--redo-ocr` if banner-free text is still missing. Logs are mirrored per document id.[F:Services/Ocr/PdfPigTextExtractor.csL10-L37][F:Services/Ocr/OcrmypdfSharedRunner.csL65-L145][F:Services/Projects/OcrmypdfProjectOcrRunner.csL13-L92]
-- **Text quality checks**: Banner text such as "OCR skipped" or "Prior OCR" is stripped before evaluating usefulness for storage.[F:Services/Ocr/OcrTextUtilities.csL10-L34]
-
-### 3.5 Text persistence
-- **Storage**: OCR text saved into `ProjectDocumentText.OcrText`; insert-or-update path ensures a row exists. Text is capped to **200,000 characters** on save.[F:Hosted/ProjectDocumentOcrWorker.csL86-L105][F:Hosted/ProjectDocumentOcrWorker.csL177-L185]
-- **Failure reason limit**: Trimmed to **1000 characters** before storage.[F:Hosted/ProjectDocumentOcrWorker.csL108-L175]
-
-### 3.6 FTS wiring in DB
-- **Search vector builder**: `project_documents_build_search_vector(document_id, title, description, stage_id, original_file_name)` weights Title (A), Description (B), OriginalFileName (C), StageCode (C), OCR text (D).[F:Migrations/20260922120000_RestoreProjectDocumentFullTextSearch.csL28-L60]
-- **Triggers**:
-  - `project_documents_search_vector_trigger` (BEFORE INSERT/UPDATE on `ProjectDocuments`).[F:Migrations/20260922120000_RestoreProjectDocumentFullTextSearch.csL64-L88]
-  - `project_document_texts_search_vector_after` (AFTER INSERT/UPDATE/DELETE on `ProjectDocumentTexts`).[F:Migrations/20260922120000_RestoreProjectDocumentFullTextSearch.csL90-L125]
-- **Index**: `idx_project_documents_search` GIN index on `ProjectDocuments.SearchVector`.[F:Migrations/20260901093000_AddProjectDocumentOcrPipeline.csL195-L199]
-- **Runtime refresh**: Worker refreshes vectors after OCR updates using the same weighted fields and stage/ocr subqueries.[F:Hosted/ProjectDocumentOcrWorker.csL187-L210]
-
-### 3.7 Search and ranking
-- **Query parser**: Uses `websearch_to_tsquery('english', query)` with `Matches` filter on `SearchVector`.[F:Services/Search/GlobalProjectDocumentSearchService.csL45-L55]
-- **Rank function**: Orders by `ts_rank_cd` (mapped via `ApplicationDbContext.TsRankCd`) then by `UploadedAtUtc`.[F:Services/Search/GlobalProjectDocumentSearchService.csL52-L56][F:Data/ApplicationDbContext.csL136-L153]
-- **Snippet generation**: `ts_headline` against OCR text with `<mark>` tags, `MaxWords=25`, `MinWords=10`, `ShortWord=3`, and `FragmentDelimiter=...`.[F:Services/Search/GlobalProjectDocumentSearchService.csL63-L69]
-- **Ordering**: Global project document search sorts by rank then upload date before limiting results.[F:Services/Search/GlobalProjectDocumentSearchService.csL52-L75]
-
-## 4. Global Search
-
-### 4.1 Orchestration
-- **Fan-out**: The global search service spawns parallel searches for Document Repository, FFC, IPR, Activities, Projects, Project Documents, and Project Reports using separate DI scopes (distinct DbContexts).[F:Services/Search/GlobalSearchService.csL33-L68]
-- **Parallelism**: All module tasks run concurrently via `Task.WhenAll`, then results are concatenated.[F:Services/Search/GlobalSearchService.csL59-L77]
-
-### 4.2 Result merging
-- **Dedup key**: Results are grouped by **URL** (case-insensitive); within each group the entry with the **highest Score** then **latest Date** is kept.[F:Services/Search/GlobalSearchService.csL84-L93]
-- **Score sources**:
-  - Document Repository: Postgres FTS rank converted to decimal (`RankCoverDensity`).[F:Services/DocRepo/GlobalDocRepoSearchService.csL55-L99][F:Services/DocRepo/DocumentSearchService.csL75-L101]
-  - Project Documents: Postgres `ts_rank_cd` converted to decimal.[F:Services/Search/GlobalProjectDocumentSearchService.csL52-L75]
-  - Projects/FFC/IPR/Activities/Reports: fixed heuristic scores (e.g., Projects `0.6m`, FFC records `0.65m`, FFC attachments `0.55m`).[F:Services/Search/GlobalProjectSearchService.csL59-L76][F:Services/Search/GlobalFfcSearchService.csL29-L83][F:Services/Search/GlobalFfcSearchService.csL96-L130]
-
-### 4.3 Final order and tie-breakers
-- After deduplication, results are globally sorted by **Score descending** then **Date descending**, preserving module-neutral ranking.[F:Services/Search/GlobalSearchService.csL84-L93]
-
-## 5. Operational Notes
-- **Worker cadence**: Both OCR workers poll every **2 minutes** when idle and process small batches (DocRepo: 3, Project Documents: 5), so latency depends on queue depth and OCR runtime.[F:Hosted/DocRepoOcrWorker.csL34-L45][F:Hosted/ProjectDocumentOcrWorker.csL35-L46]
-- **Admin visibility**: Failure reasons are capped at **1000 characters**; statuses transition Pending -> Succeeded/Failed with `OcrLastTriedUtc` updated per attempt.[F:Hosted/DocRepoOcrWorker.csL49-L98][F:Hosted/ProjectDocumentOcrWorker.csL49-L142]
-- **Executable path**: Both OCR runners allow an explicit path to `ocrmypdf` via `ProjectDocuments:Ocr:OcrExecutablePath` and `DocRepo:OcrExecutablePath`; configured paths are validated and replace reliance on the worker process `PATH`. Missing executables throw startup errors with the provided path.[F:Configuration/ProjectDocumentOcrOptions.csL15-L21][F:Services/Projects/OcrmypdfProjectOcrRunner.csL22-L112][F:Services/DocRepo/LocalDocStorageService.csL9-L29][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL13-L114]
-- **Common failures**: Shared runner flags missing sidecar output or banner-only text and records precise messages pointing to the stored log path.[F:Services/Ocr/OcrmypdfSharedRunner.csL100-L145]
-
-## 6. Limitations and Roadmap
-- **PostgreSQL required**: Both OCR/FTS pipelines and global project document search short-circuit if the provider is not PostgreSQL.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL13-L19][F:Services/Search/GlobalProjectDocumentSearchService.csL40-L55]
-- **OCR text cap**: Stored OCR is truncated to **200,000 characters**, which may drop content from very large PDFs; increasing the cap would require updating the helper methods and reviewing storage costs.[F:Hosted/DocRepoOcrWorker.csL126-L134][F:Hosted/ProjectDocumentOcrWorker.csL177-L185]
-- **Heuristic scores across modules**: Non-FTS modules use fixed decimal scores, which may not be directly comparable to FTS ranks; a future roadmap item could normalize scores or apply module weights.
-
-## 7. Developer Reference Appendix
-
-| Area | File/Path | Key elements |
+| Store | Options section | Keys |
 | --- | --- | --- |
-| DocRepo data model | `Data/DocRepo/Document.cs` | `DocOcrStatus`, `SearchVector`, metadata columns.[F:Data/DocRepo/Document.csL9-L63] |
-| DocRepo OCR text | `Data/DocRepo/DocumentText.cs` | `OcrText`, `UpdatedAtUtc`.[F:Data/DocRepo/DocumentText.csL6-L17] |
-| DocRepo queueing | `Services/DocRepo/DocRepoIngestionService.cs` | Sets `OcrStatus = Pending` on ingest.[F:Services/DocRepo/DocRepoIngestionService.csL150-L175] |
-| DocRepo worker | `Hosted/DocRepoOcrWorker.cs` | Batch size 3, 2-minute poll, cap 200,000 chars, 1000-char failure trim.[F:Hosted/DocRepoOcrWorker.csL34-L134] |
-| DocRepo runner | `Services/DocRepo/OcrmypdfDocumentOcrRunner.cs` | `ocrmypdf` multi-pass logic, log mirroring.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL57-L223] |
-| DocRepo FTS | `Migrations/20260115000000_AddDocRepoFullTextSearch.cs` | Builder function, triggers, GIN index `idx_docrepo_documents_search`.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL63-L217] |
-| Project doc model | `Models/ProjectDocument.cs`, `Data/Projects/ProjectDocumentText.cs` | OCR status enums, search vector, OCR text store.[F:Models/ProjectDocument.csL10-L77][F:Data/Projects/ProjectDocumentText.csL6-L17] |
-| Project doc queueing | `Services/Documents/DocumentService.cs` | Pending on publish/replace, retry helper clears OCR text.[F:Services/Documents/DocumentService.csL221-L347][F:Services/Documents/DocumentService.csL466-L489] |
-| Project doc worker | `Hosted/ProjectDocumentOcrWorker.cs` | Batch size 5, 2-minute poll, banner detection, caps, vector refresh.[F:Hosted/ProjectDocumentOcrWorker.csL35-L215] |
-| Project doc runner | `Services/Projects/OcrmypdfProjectOcrRunner.cs` | `ocrmypdf` multi-pass with sidecar checks and log mirroring.[F:Services/Projects/OcrmypdfProjectOcrRunner.csL57-L240][F:Services/Projects/OcrmypdfProjectOcrRunner.csL292-L340] |
-| Project doc FTS | `Migrations/20260922120000_RestoreProjectDocumentFullTextSearch.cs`; `Migrations/20260901093000_AddProjectDocumentOcrPipeline.cs`; worker refresh helper | Builder weights, triggers, `idx_project_documents_search`, runtime refresh SQL.[F:Migrations/20260922120000_RestoreProjectDocumentFullTextSearch.csL28-L136][F:Migrations/20260901093000_AddProjectDocumentOcrPipeline.csL126-L200][F:Hosted/ProjectDocumentOcrWorker.csL187-L210] |
-| DocRepo search logic | `Services/DocRepo/DocumentSearchService.cs` | `websearch_to_tsquery`, `RankCoverDensity`, `ts_headline` options.[F:Services/DocRepo/DocumentSearchService.csL37-L101] |
-| Project doc search | `Services/Search/GlobalProjectDocumentSearchService.cs` | `ts_rank_cd`, snippet options, ordering.[F:Services/Search/GlobalProjectDocumentSearchService.csL45-L105] |
-| Global search orchestrator | `Services/Search/GlobalSearchService.cs` | Parallel fan-out, dedup by URL, order by Score then Date.[F:Services/Search/GlobalSearchService.csL33-L95] |
-| Global score sources | `Services/DocRepo/GlobalDocRepoSearchService.cs`; `Services/Search/GlobalProjectDocumentSearchService.cs`; `Services/Search/GlobalProjectSearchService.cs`; `Services/Search/GlobalFfcSearchService.cs` | Rank vs fixed decimal scores across modules.[F:Services/DocRepo/GlobalDocRepoSearchService.csL55-L99][F:Services/Search/GlobalProjectDocumentSearchService.csL52-L105][F:Services/Search/GlobalProjectSearchService.csL59-L76][F:Services/Search/GlobalFfcSearchService.csL29-L130] |
+| DocRepo | `DocRepo` (`DocRepoOptions`) | `OcrExecutablePath` (optional; defaults to `ocrmypdf` on `PATH`), `OcrWorkRoot` (required when the worker is enabled), `OcrInput`, `OcrOutput`, `OcrLogs`, `EnableOcrWorker` |
+| Project documents | `ProjectDocuments:Ocr` (`ProjectDocumentOcrOptions`) | `OcrExecutablePath`, `WorkRoot` (required), `InputSubpath`, `OutputSubpath`, `LogsSubpath`, `EnableWorker` |
+
+A configured executable path that does not exist throws `InvalidOperationException` when the
+runner is constructed. The Windows/Linux host must have `ocrmypdf` (and Tesseract/Ghostscript)
+installed for scanned PDFs; PDFs with a text layer never need it.
+
+## 3. Document Repository OCR and FTS
+
+### Data model
+- `Data/DocRepo/Document` holds metadata, `OcrStatus` (`DocOcrStatus`: `None`, `Pending`,
+  `Succeeded`, `Failed`), `OcrFailureReason`, `OcrLastTriedUtc`, and the `SearchVector` tsvector.
+- OCR text is stored separately in `DocumentText` (table `DocRepoDocumentTexts`), keyed by `DocumentId`.
+
+### Queueing
+Documents are set to `Pending` on upload (`Areas/DocumentRepository/Pages/Documents/Upload`),
+on re-upload of an identical hash, from `Manage`, and on external ingestion
+(`DocRepoIngestionService.IngestExternalPdfAsync`, called by FFC, IPR, ARPP, Activities and the
+admin PDF ingestion coordinator).
+
+### Worker (`DocRepoOcrWorker`, registered when `DocRepo:EnableOcrWorker` is true, default true)
+- Picks up to **3** non-deleted `Pending` documents, oldest `CreatedAtUtc` first.
+- Idle poll: **2 minutes**. Unhandled loop error: waits **30 seconds**.
+- Success: stores text capped at **200,000 characters**, sets `Succeeded`.
+- Failure/exception: sets `Failed`, reason trimmed to **1,000 characters**, clears stored text.
+- All documents in the batch are saved with one `SaveChangesAsync` at the end of the batch.
+- There is no automatic retry of `Failed` documents.
+
+### Manual requeue
+`Areas/DocumentRepository/Pages/Admin/OCRFailures` (policy `DocRepo.DeleteApprove`) calls
+`DocumentOcrService.ReprocessAsync`, which marks the document `Pending`, saves, and then runs OCR
+**synchronously inside the HTTP request**.
+
+### FTS wiring (migration `20260115000000_AddDocRepoFullTextSearch`)
+- Function `docrepo_documents_build_search_vector(...)`: Subject (A), ReceivedFrom (A), tag names (B),
+  office and document category names (C), OCR text (D), `english` configuration.
+- Triggers: `docrepo_documents_search_vector_before` on `Documents`,
+  `docrepo_document_tags_search_vector_after` on `DocumentTags`,
+  `docrepo_document_texts_search_vector_after` on `DocRepoDocumentTexts`.
+- GIN index `idx_docrepo_documents_search`.
+
+### Repository search (`DocumentSearchService`)
+Used by the Document Repository list page. `websearch_to_tsquery('english', q)` filter,
+`ts_rank_cd` (`RankCoverDensity`) ordering, then document date and created date;
+`ts_headline` over OCR text with `<mark>` tags, `MaxFragments=2`, `MaxWords=20`.
+
+## 4. Project document OCR and FTS
+
+### Data model
+- `Models/ProjectDocument`: `OcrStatus` (`ProjectDocumentOcrStatus`: `None`, `Pending`, `Succeeded`,
+  `Failed`, `Skipped`), `OcrFailureReason`, `OcrLastTriedUtc`, `SearchVector`.
+- OCR/extracted text in `Data/Projects/ProjectDocumentText` (table `ProjectDocumentTexts`).
+
+### Queueing
+`Services/Documents/DocumentService` sets `Pending` on publish, on file replacement (and purges old
+text), and on manual retry (`Pages/Projects/Documents/RetryOcr`).
+
+### Worker (`ProjectDocumentOcrWorker`, registered when `ProjectDocuments:Ocr:EnableWorker` is true)
+- Picks up to **5** `Published`, non-archived, `Pending` documents by `UploadedAtUtc`.
+- PDFs go through the shared OCR runner; output that contains only skip banners is a failure
+  ("OCR produced only a skip message.").
+- Non-PDF Office files go through `IProjectDocumentTextExtractor` (options
+  `ProjectDocuments:TextExtraction`). If a PDF derivative is produced it is also OCRed and the
+  texts are combined. Unsupported types become `Skipped`; no extractable text becomes `Skipped`.
+- Same caps as DocRepo (200,000 text / 1,000 reason). Saves **per document**, then refreshes that
+  row's `SearchVector` with an explicit parameterised `UPDATE` (weights identical to the trigger).
+- Idle poll 2 minutes; loop error wait 30 seconds.
+
+### FTS wiring
+The current definition is installed by `20261201140000_ConsolidateProductionSchemaMaintenance`
+(earlier migrations `20260922120000_RestoreProjectDocumentFullTextSearch`,
+`20261001090000_FixProjectDocumentSearchVector` and `20261022100000_AddProjectDocumentOcrPipelineFix`
+defined intermediate versions):
+- Function `project_documents_build_search_vector(document_id, title, description, stage_id, original_file_name)`:
+  Title (A), Description (B), OriginalFileName (C), StageCode (C), OCR text (D).
+- Triggers `project_documents_search_vector_trigger` (on `ProjectDocuments`) and
+  `project_document_texts_search_vector_after` (on `ProjectDocumentTexts`).
+- GIN index `IX_ProjectDocuments_SearchVector` (older databases may have `idx_project_documents_search`).
+- At startup `ProjectDocumentSearchVectorMaintenance.ValidateAsync` only verifies that these
+  objects exist; creation and repair are migration-owned.
+
+## 5. OCR banner backfill
+
+`OcrTextBackfillWorker` runs once at startup only when `OcrBackfill:Enabled=true` (default false).
+It finds stored OCR text containing ocrmypdf banners in either store and reprocesses those
+documents through the current pipeline.
+
+## 6. Global search
+
+Global search is served by **Search V2** through `ISearchGateway`; the legacy fan-out service is
+retained only as a fallback and for shadow comparison. See `docs/global-search.md` for the full
+design (projection index, triggers, authorization, rollout flags, operations).
+
+Legacy fan-out (`GlobalSearchService`), when it runs, queries seven providers concurrently in
+separate DI scopes: Document Repository (FTS rank), FFC, IPR, Activities, Projects, Project
+documents (FTS `ts_rank_cd`), and Project Office trackers (Visits, Social media, Training, TOT,
+Proliferation). Non-FTS providers use fixed heuristic scores. Hits are de-duplicated by URL and
+ordered by score then date. `SearchGateway` removes legacy hits the user is not authorised to see
+(Document Repository, IPR, Visits, Training, TOT and Proliferation policies) before returning them.
+
+## 7. Operational notes and limitations
+- OCR latency depends on queue depth; both workers process small batches and poll every 2 minutes when idle.
+- Stored OCR text is truncated to 200,000 characters.
+- `Failed` documents are not retried automatically; use the DocRepo OCR failures page or the
+  project document Retry OCR action.
+- A hung `ocrmypdf` process blocks its worker indefinitely (no timeout).
+- If saving OCR results itself fails (for example text containing a NUL character, which
+  PostgreSQL `text` columns reject), the document stays `Pending` and is re-OCRed on every loop.
+- Search dashboards: `Services/Dashboard/SearchHealthService` reports pending/failed OCR and
+  Search V2 index health.

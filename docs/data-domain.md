@@ -1,104 +1,197 @@
 # Data and Domain
 
-This module covers the persistence layer and core domain types.
+This page describes the persistence layer and domain model as implemented in code. Where the
+code and this page disagree, the code wins: `Data/ApplicationDbContext.cs`,
+`Features/MediaLibrary/Data/MediaLibraryModelConfiguration.cs` and the two model snapshots
+are the sources of truth.
 
-## Data layer
+## Databases and contexts
 
-### `Data/ApplicationDbContext.cs`
-Derives from `IdentityDbContext<ApplicationUser>` and exposes tables for `Projects`, `TodoItems`, `Celebrations`, `AuthEvents`, `DailyLoginStats`, `AuditLogs` and now `Events` for the calendar. Indexes on `TodoItem` enforce fast lookups by owner and due date, while `Event` rows are filtered by `IsDeleted` and indexed on `StartUtc` and `EndUtc` for range queries. Identity tables (users, roles, claims, etc.) are provided by the base class.
+| Context | Location | Tables | Migrations | History table |
+| --- | --- | --- | --- | --- |
+| `ApplicationDbContext` (`IdentityDbContext<ApplicationUser, IdentityRole, string>`) | `Data/ApplicationDbContext.cs` | Identity plus every business module (146 `DbSet`s) | `Migrations/`: 115 migrations, from `20251102161908_InitialMigrations` to `20261216230000_AllowDuplicateActivityTitles` | `__EFMigrationsHistory` |
+| `MediaLibraryDbContext` | `Features/MediaLibrary/Data/` | Media catalogue (`MediaLibrarySources`, `MediaAssets`, jobs, classification, faces/people, albums, audits) | `Features/MediaLibrary/Data/Migrations/`: 13 migrations, latest `20260820103000_HardenMediaPersonUserLinkExperience` | `__EFMigrationsHistory_MediaLibrary` |
 
-### `Data/DesignTimeDbContextFactory.cs`
-Provides a design-time factory so Entity Framework tooling can create the context when running migrations. It reads configuration from `appsettings.json`, `appsettings.Development.json`, or environment variables.
+- Both contexts use **the same PostgreSQL database** (Npgsql EF Core provider 8.0.x) and the default `public` schema. Neither context sets a schema.
+- Design-time factories are `Data/ApplicationDbContextFactory.cs` and `Features/MediaLibrary/Data/MediaLibraryDbContextFactory.cs`. The application factory reads `ConnectionStrings:DefaultConnection` from `appsettings*.json` or environment variables.
+- `Program.cs` registers `ApplicationDbContext` with `PrismMediaOutboxSaveChangesInterceptor`, which writes `PrismMediaOutboxMessages` rows in the same transaction as media-producing changes. `AddMediaLibrary(...)` registers the media context.
+- `Npgsql.EnableLegacyTimestampBehavior` and `Npgsql.DisableDateTimeInfinityConversions` are switched on in `Program.cs` and in the design-time factory. As a result, `DateTime` maps to `timestamp without time zone` unless a column type is set explicitly, and `DateTimeOffset` maps to `timestamp with time zone`. Most `*Utc` columns on newer modules are `DateTimeOffset`/`timestamptz`. Older columns such as `Project.CreatedAt`, `ApplicationUser.CreatedUtc` and `DocRepoDocumentTexts.UpdatedAtUtc` are `DateTime`/`timestamp` and hold UTC by convention.
+- Migrations are applied by the startup gate. `MIGRATIONS-POLICY.md` covers the advisory lock, immutable IDs in `Migrations/immutable-migration-ids.txt` and the add-migration helper script. Many recent migrations are written by hand and have no `.Designer.cs` file, so the model snapshot is maintained by hand as well.
+- Seeding: `Data/IdentitySeeder.cs` seeds the roles and bootstrap admin. `Data/StageFlowSeeder.cs` seeds `StageTemplates` and `StageDependencyTemplates` for workflow versions V1 and V2. `Data/Seed/iso3166.json` is loaded by `Services/Startup/IsoCountrySeedData.cs` for FFC countries. `HasData` seeds the `system` service user, the default social-media event types, training types, the training rank-to-category map and activity types.
 
-### `Data/IdentitySeeder.cs`
-Seeds the initial application roles. If the configured bootstrap administrator does not yet exist, startup requires a one-time secret through `PRISM_BOOTSTRAP_ADMIN_PASSWORD` or `Security:BootstrapAdminPassword`. The account is created with `MustChangePassword` enabled; remove the bootstrap secret after successful creation. Development test users are seeded only when explicit `DevelopmentSeedUsers:*:Password` values are configured.
+### Tables outside the EF model
 
-## Domain model
+`20261216200000_AddSearchV2Foundation` creates tables, functions and triggers with raw SQL only. None of them is mapped in the EF model:
+- Tables: `SearchEntries`, `SearchEntryTerms`, `SearchEntryPrincipals`, `SearchAliases`, `SearchIndexWorkItems`, `SearchIndexState`, `SearchQueryLogs`, `SearchClickLogs`, `SearchShadowComparisons`. The migration also enables the `pg_trgm` extension and adds GIN full-text and trigram indexes.
+- Row triggers named `TR_SearchV2_*` enqueue `SearchIndexWorkItems` on insert, update or delete. They sit on `Projects`, `ProjectCapabilityStatements`, `ProjectTechnicalSpecificationItems`, `ProjectStages`, `ProjectDocuments`, `ProjectDocumentTexts`, `Documents`, `DocRepoDocumentTexts`, `FfcRecords`, `FfcProjects`, `FfcAttachments`, `IprRecords`, `IprAttachments`, `Activities`, `Visits`, `SocialMediaEvents`, `Trainings`, `TrainingProjects`, `TrainingTrainees`, `ProjectTots`, `ProliferationGranular`, `ArppIssues` and `ArppEntries`.
+- Earlier migrations add `tsvector` columns and triggers for full-text search on `Documents` (DocRepo) and `ProjectDocuments`: `docrepo_*_search_vector_*` and `project_document*_search_vector_*`.
 
-### `Models/ApplicationUser.cs`
-Extends `IdentityUser` with a `MustChangePassword` flag. New accounts are created with the flag set to `true`, forcing a password change on first login via `EnforcePasswordChangeFilter`.
+## Cross-cutting conventions
 
-### `Models/Project.cs`
-Holds the master record for a project. Beyond its name/description it stores the case file reference, creator, category, active plan version and assignment metadata for the Head of Department and Lead Project Officer. `PlanApprovedAt/ByUserId` capture the latest plan approval event and the navigation properties surface related user records for UI display. `ProjectStages` now owns the execution stages collection and the obsolete `Stages` property simply proxies to it for backward compatibility.
+### Concurrency
 
-### `Models/ProjectCategory.cs`
-Allows projects to be organised in a hierarchy. Each category exposes a `ParentId` so breadcrumb trails can be built and circular references are guarded against in the overview loader.
+| Mechanism | Where | How it works |
+| --- | --- | --- |
+| `RowVersion` (`bytea`) via `ConfigureRowVersion()` | Most mutable aggregates, including `Project`, the procurement fact tables, `ProjectDocument`/`ProjectDocumentRequest`, `ProjectTotRequest`, `Remark`, `ProjectCategory`/`TechnicalCategory`/`ProjectType`/`SponsoringUnit`/`LineDirectorate`, `Holiday`, stage checklist templates, the IPR/FFC/Visit/Social media/Training/Proliferation/Activity entities, the ARPP entities, `IndustryPartner*`, `ProjectIdea`/`ProjectIdeaComment`, `ActionTaskItem`/`ActionSprint`, brochure and compendium presets, and `ProjectBriefingDeck` | This is not a database-generated rowversion. `ApplicationDbContext.PrepareRowVersionValues()` runs from both `SaveChanges` overrides and writes a new random 16-byte value (from a `Guid`) to every `byte[]` concurrency token on each Added or Modified entry. Services enforce the check by setting `Entry(x).Property(p => p.RowVersion).OriginalValue` to the value the client submitted, then handling `DbUpdateConcurrencyException`. |
+| PostgreSQL `xmin` | `TodoItem` only | `Property<uint>("xmin").IsRowVersion()` |
+| Integer `Version` tokens | `ProjectPhoto.Version`, `ProjectVideo.Version`, `Project.CoverPhotoVersion`, `Project.FeaturedVideoVersion` | Application-incremented `IsConcurrencyToken()` |
+| `Guid Version` tokens | `NotebookItem`, `NotebookSystemItemPreference` | `IsConcurrencyToken()` |
+| Media library tokens | `MediaAsset.EditorialConcurrencyToken` and `ClassificationConcurrencyToken`, `MediaFace`, `MediaPerson`, `MediaPersonFace`, `MediaPersonUserLink`, `MediaFaceReviewDecision` and `MediaAlbum` (`ConcurrencyToken`) | `IsConcurrencyToken()` |
 
-### `Models/Execution/ProjectStage.cs`
-Represents each procurement or delivery milestone for a project. Rows track planned, forecast and actual dates, completion status, auto-completion metadata and whether the stage still needs backfilling. The `StageCodes` helper enumerates canonical codes (FS, IPA, SOW, …, PAYMENT) and exposes human readable display names.
+### Soft delete, archive and retention
 
-### `Models/ProjectFacts.cs`
-Defines fact tables that capture procurement milestones. IPA, AON, benchmark, L1 and PNC costs, along with the supply-order date and SOW sponsoring units, derive from a shared `ProjectFactBase` that records who captured the fact and when. Each fact table carries a concurrency token so editors get reliable conflict detection when procurement numbers evolve.
+Only one global query filter exists: `Event` has `HasQueryFilter(x => !x.IsDeleted)`. Every other soft-delete flag must be filtered explicitly in queries. A call to `IgnoreQueryFilters()` on `Projects` has no effect.
 
-### `Models/TodoItem.cs`
-Represents a personal task owned by a user. Each item records a title, due date (stored in UTC), priority, pin state, order index and timestamps for creation, updates, completion and soft deletion. PostgreSQL's `xmin` concurrency token is used to detect conflicting edits. Items marked completed are soft-deleted by setting `DeletedUtc`; a background worker purges entries older than the configured retention period.
+| Entity | Soft-delete / archive fields | Hard delete / retention |
+| --- | --- | --- |
+| `Project` | `IsArchived`, `ArchivedAt`, `ArchivedByUserId`; `IsDeleted`, `DeletedAt`, `DeletedByUserId`, `DeleteReason`, `DeleteMethod` (`"Trash"`), `DeleteApprovedByUserId` | Handled by `ProjectModerationService` and `ProjectRetentionWorker`. See [archive-trash-plan.md](archive-trash-plan.md). |
+| `ProjectDocument` | `Status` (`Published`/`SoftDeleted`) together with `IsArchived`, `ArchivedAtUtc`, `ArchivedByUserId` | `DocumentService.HardDeleteAsync` |
+| `Document` (DocRepo) | `IsDeleted`, `DeletedAtUtc`, `DeletedByUserId`, `DeleteReason`; `IsActive` | Purged from the DocRepo admin Trash page (`Areas/DocumentRepository/Pages/Admin/Trash`) |
+| `Remark`, `ProjectComment`, `ProjectIdea` (+ `Comment`/`Note`/`Document`), `Activity`, `ActionTaskItem`/`ActionSprint`/`ActionTaskUpdate`/`ActionTaskAttachment`, `FfcRecord`, `Event` | `IsDeleted` (plus deleted-by/at metadata on most) | No purge |
+| `IprAttachment` | `IsArchived`, `ArchivedAtUtc`, `ArchivedByUserId` | none |
+| `NotebookItem` | `DeletedAtUtc` (trash), `ArchivedAtUtc` | `Hosted/NotebookTrashRetentionWorker.cs` |
+| `TodoItem` | `DeletedUtc` | `Services/TodoPurgeWorker.cs` (`ExecuteDeleteAsync` after `RetentionDays`) |
+| `Celebration` | `DeletedUtc` (index filtered on `DeletedUtc IS NULL`) | none |
+| `ApplicationUser` | `IsDisabled`; `PendingDeletion` with undo state | `UserPurgeWorker` hard-deletes users after the undo window via `UserManager.DeleteAsync` |
+| `MediaLibrarySource`, `MediaAsset` | `IsDeleted`, `IsArchived` (asset), `IsAvailable`/`AvailabilityStatus` | Media library workers |
 
-### `Models/Celebration.cs`
-Stores birthdays and anniversaries with minimal fields for annual recurrence. Each row tracks the event type, name(s), day and month, optional year, creator metadata and soft-delete timestamp. Indexes on `(EventType, Month, Day)` enable fast upcoming lookups and a filtered index on `DeletedUtc` hides removed entries. Leap day events are rendered on 28 February in non-leap years.
+Other retention workers: `Hosted/AuditRetentionWorker.cs` (opt-in through `Audit:Retention:Enabled`), `Services/Usage/UserActivityRetentionWorker.cs` (30–1095 days) and `Services/Notifications/NotificationRetentionService.cs`.
 
-### `Models/AuthEvent.cs`
-Records successful authentication events. Each row stores the user ID, timestamp (UTC), IP address and user agent for audit and analytics. Indexed by event name and time for efficient querying.
+### Delete behaviour worth knowing
 
-### `Models/DailyLoginStat.cs`
-Holds pre-aggregated daily login counts generated by `LoginAggregationWorker`. Aggregation reduces load on the primary `AuthEvents` table for long-range reporting.
+- Deleting a `Project` row cascades to its stages, plan versions (and `StagePlans` and approval logs), photos, videos, documents and document requests, remarks, comments, ToT and ToT requests, procurement facts, the LPP/production-cost/tech-status rows, capability statements, specification items, schedule settings and durations, `ProjectAudits`, `ProjectMetaChangeRequests`, `TrainingProjects`, `IndustryPartnerProjects` and `UserProjectMutes`.
+- The same delete sets `ProjectId` to NULL on `IprRecords`, `FfcProjects.LinkedProjectId`, `ArppEntries`, `ArppPublishedEntries`, `BrochurePresetProjects` and `CompendiumPresetProjects`.
+- `ProjectBriefingDeckItems.ProjectId` is **Restrict**: a project that belongs to any briefing deck cannot be deleted until the deck item is removed.
+- `ProliferationYearly`, `ProliferationGranular`, `ProliferationYearPreference`, `StageChangeRequests`, `StageShiftLogs`, `PlanRealignmentAudits` and `Notifications`/`NotificationDispatches` carry a `ProjectId` with **no foreign key**. `MediaAssets.ProjectId` also has no foreign key, because it lives in the other context.
+- User foreign keys are mostly `Restrict` or `SetNull`. The exceptions are by convention or explicit `Cascade`: `PlanVersions.CreatedByUserId`, `ProjectComments.CreatedByUserId`, `ProjectCommentAttachments.UploadedByUserId`, the comment and remark mention tables, and the notebook tables (`NotebookItems.OwnerId`, tags, preferences, collaborators).
 
-### `Models/Event.cs`
-Represents a calendar event visible to all signed-in users. Each row stores a title, optional Markdown description, category, location, UTC start/end times (exclusive end), an `IsAllDay` flag and creator/updater metadata. Soft deletion hides events without removing them from the database. Categories are restricted to **Visit**, **Insp**, **Conference** and **Other**; legacy values like "Training" or "TownHall" are mapped by `CategoryParser` and unrecognised strings fall back to `Other`.
+## Entity groups by module
 
-### `Models/ProjectVideo.cs`
-Stores uploaded project walkthrough videos. Metadata includes the storage key, original filename, MIME type, optional duration, title, description, ordinal ordering, featured flag, and poster frame references. Videos live beneath the upload root resolved by `IUploadRootProvider`, and posters share the same deterministic folder hierarchy. (see Models/ProjectVideo.cs lines 1-38) (see Services/Projects/ProjectVideoService.cs lines 82-420)
+### Identity and users
 
-### `Models/AuditLog.cs`
-Captures structured audit entries with timestamps, action names, user metadata, IP addresses and optional payloads. Sensitive fields are scrubbed by `AuditService` before persistence.
+| Entity | Notes |
+| --- | --- |
+| `ApplicationUser` (`Models/ApplicationUser.cs`) | Extends `IdentityUser` with `MustChangePassword`, `FullName`, `Rank`, `LastLoginUtc`, `LoginCount`, `CreatedUtc`, `AccountKind` (`UserAccountKind`: Human=1, Service=2, Test=3; check constraint `CK_AspNetUsers_AccountKind`), `IsDisabled`/`DisabledUtc`/`DisabledByUserId`, `PendingDeletion`/`DeletionRequestedUtc`/`DeletionRequestedByUserId`/`DeletionPreviousStateJson`, `DefaultUserRoleId`, `ShowCelebrationsInCalendar` and `ComdtOfficerWorkloadOrderJson`. A `system` service user is seeded. |
 
-### Transfer of Technology tracker (`Models/ProjectTot*.cs`)
-`ProjectTot` holds the authoritative ToT status for a project, capturing milestones (start/completion dates, MET progression, first-production manufacture) and the last approver metadata. `ProjectTotRequest` stores pending updates with proposed values, submitter/decider metadata, and a concurrency token so approvals reject stale decisions. Both entities underpin the ToT tracker in the Project Office Reports area and are surfaced through dedicated read services. (see Models/ProjectTot.cs lines 1-37) (see Models/ProjectTotRequest.cs lines 1-38)
+### Projects core
 
-### Timeline planning and scheduling (`Models/Plans`, `Models/Scheduling`)
-Timeline expectations are stored as `PlanVersion` rows. Each project maintains at most one open version (status **Draft** or **PendingApproval**) and a history of approved versions.
+| Entity | Notes |
+| --- | --- |
+| `Project` | `Name` (100), `Description`, `ProjectBrief`, `CaseFileNumber` (unique when not null: `UX_Projects_CaseFileNumber`), `LifecycleStatus` (`ProjectLifecycleStatus`: Active, Completed, Cancelled; stored as string), `IsLegacy`, `IsBuild` (repeat build), completion date fields `CompletedOn`/`CompletedYear`/`CompletedMonth` with three check constraints, `CancelledOn`/`CancelReason`, `CostLakhs`, `ArmService`, `YearOfDevelopment` |
+| | Foreign keys: `CategoryId`, `TechnicalCategoryId`, `ProjectTypeId`, `SponsoringUnitId`, `SponsoringLineDirectorateId` (all Restrict); `HodUserId`, `LeadPoUserId`, `PlanApprovedByUserId`; `CoverPhotoId`, `FeaturedVideoId` (SetNull). Also `ActivePlanVersionNo`, `WorkflowVersion`, plus the archive and trash fields, `RowVersion`, and indexes `IX_Projects_IsDeleted_IsArchived` and the filtered `IX_Projects_IsDeleted_Filtered`. |
+| `ProjectCategory`, `TechnicalCategory` | Self-referencing hierarchies (`ParentId`, Restrict), unique `(ParentId, Name)` |
+| `ProjectType`, `SponsoringUnit`, `LineDirectorate` | Lookups with `IsActive` and `SortOrder` |
+| `ProjectCapabilityStatement`, `ProjectTechnicalSpecificationItem` | Ordered child lists, unique `(ProjectId, DisplayOrder)`, `DisplayOrder >= 1` |
+| `ProjectMetaChangeRequest` | Pending edits to name, description, case file number, category or build flag. One pending request per project (filtered unique index). Snapshots `Original*` values, including `OriginalRowVersion`. |
+| `ProjectAudit` | Moderation audit (`Archive`, `RestoreArchive`, `Trash`, `RestoreTrash`) with metadata JSON. Cascades on project delete. |
+| `ProjectLegacyImport` | One row per imported (category, technical category) pair |
+| Procurement facts (`Models/ProjectFacts.cs`) | `ProjectIpaFact`, `ProjectAonFact`, `ProjectBenchmarkFact`, `ProjectCommercialFact` (L1), `ProjectPncFact` (all `decimal(18,2)` with `>= 0` checks), `ProjectSowFact`, `ProjectSupplyOrderFact`. Each has a `RowVersion` and cascades with the project. |
+| Completed-project data (`Models/Projects`) | `ProjectProductionCostFact` (PK = `ProjectId`), `ProjectLppRecord` (optional link to a `ProjectDocument`), `ProjectTechStatus` (PK = `ProjectId`; `TechStatus` is `Current`, `Outdated` or `Obsolete`) |
 
-* **Draft** rows are editable by the assigned Project Officer (PO) or an administrator. Edits are captured in `StagePlan` children and persisted without affecting the live `ProjectStages` table.
-* When a PO selects *Save & request approval*, `PlanApprovalService.SubmitAsync` validates the stage data and transitions the record to **PendingApproval**, stamping `SubmittedByUserId`/`SubmittedOn`. The draft becomes read-only until the Head of Department (HoD) acts.
-* HoDs review diffs via `PlanCompareService.GetDraftVsCurrentAsync`, with UI highlights showing the left/right comparison. Approving publishes `StagePlan` dates into `ProjectStages`, records an immutable snapshot (`ProjectPlanSnapshot` + rows), updates `Project.PlanApprovedAt/ByUserId` and marks the version **Approved**.
-* Rejecting moves the status back to **Draft**, captures optional feedback in `RejectionNote` and stamps `RejectedByUserId`/`RejectedOn`. The PO immediately regains edit access.
-* The new `RejectedByUserId` column is a nullable foreign key to `AspNetUsers`; the previous `Reason` column has been renamed to `RejectionNote`.
-* Backfill guards are enforced both in the UI and server (`PlanApprovalService.ApproveLatestDraftAsync`) to prevent approval while earlier stages require completion.
+### Stages, plans and timeline
 
-`PlanEditorStateVm` gathers the metadata (status, submission/rejection timestamps, lock state) consumed by Razor components so that locking, banners and validation messaging stay consistent across edit and review experiences.
+| Entity | Notes |
+| --- | --- |
+| `StageTemplate`, `StageDependencyTemplate` | Stage catalogue for each workflow version (`Version`, `Code`), seeded by `StageFlowSeeder` |
+| `ProjectStage` (`Models/Execution`) | One row per `(ProjectId, StageCode)`, unique. `Status` (`StageStatus`: NotStarted, InProgress, Completed, Skipped, Blocked); planned, forecast and actual dates; `RequiresBackfill`; `AutoCompletedFromCode`. Check constraint `CK_ProjectStages_CompletedHasDate`. |
+| `StageChangeRequest`, `StageChangeLog` | Stage status and date change requests: one pending request per `(ProjectId, StageCode)`; `DecisionStatus` is `Pending`, `Approved`, `Rejected` or `Superseded`. The log's `Action` is limited by a check constraint. |
+| `PlanVersion`, `StagePlan`, `PlanApprovalLog` | Timeline plan drafts and approvals. `Status` (`PlanVersionStatus`: Draft, PendingApproval, Approved); unique `(ProjectId, VersionNo)`; at most one Draft per `(ProjectId, OwnerUserId)`. Also stores schedule options (`AnchorStageCode`, `TransitionRule`, `SkipWeekends`, `PncApplicable`) and rejection metadata (`RejectedByUserId`, `RejectionNote`). |
+| `ProjectPlanSnapshot`, `ProjectPlanSnapshotRow` | Immutable snapshot of the dates taken when a plan is approved |
+| `PlanRealignmentAudit`, `StageShiftLog` | Realignment and shift history (no project foreign key) |
+| `ProjectScheduleSettings` (PK = `ProjectId`), `ProjectPlanDuration` | Inputs for the duration-based scheduler |
+| `StageChecklistTemplate`, `StageChecklistItemTemplate`, `StageChecklistAudit` | Process checklist designer. Versioned per stage code, with row versions and an audit log whose payload is `jsonb`. |
+| `Status`, `Workflow`, `WorkflowStatus` | Legacy workflow lookup tables |
 
-`ProjectScheduleSettings` lets teams compute draft schedules from durations by storing anchors, working-day preferences and stage chaining policies, while `ProjectPlanDuration` keeps the per-stage duration catalog that powers the bulk duration editor.
+### Documents, photos and videos (project)
 
-### `Models/ProjectComment.cs`
-Supports threaded discussions around a project or a specific stage. Comments enforce minimum/maximum lengths, carry typed categorisation (Update, Risk, Blocker, Decision, Info), allow pinning and track soft deletion. Attachments and mentions are separate tables linked back to the owning comment with foreign keys and capture uploader metadata plus sanitised filenames for storage.
+| Entity | Notes |
+| --- | --- |
+| `ProjectDocument` | `StorageKey`, `OriginalFileName`, `ContentType`, `FileSize`, `FileStamp`, `Status`, archive fields, OCR fields (`OcrStatus`: None, Pending, Succeeded, Failed, Skipped), a `SearchVector` (`tsvector`), and optional links to `StageId`, `TotId`, `RequestId` and `DocRepoDocumentId` |
+| `ProjectDocumentRequest` | Upload, Replace or Delete workflow (`Status`: Draft, Submitted, Approved, Rejected, Cancelled). At most one pending request per document. |
+| `ProjectDocumentText` (`Data/Projects`) | OCR text, one row per document |
+| `ProjectPhoto` | Derivative set under a `StorageKey`; unique `(ProjectId, Ordinal)`; at most one `IsCover` per project; optional `TotId`; integer `Version` |
+| `ProjectVideo` | Video and poster storage keys, `Ordinal`, integer `Version` |
 
-### Remarks (`Models/Remarks/Remark.cs`)
-Structured project remarks capture author role, scope (general vs. ToT), typed body text, optional stage references, and event dates. Soft deletion preserves history while hiding entries. Each remark carries a concurrency token, audit trail (`RemarkAudit`) with immutable snapshots, and mentions that link to `ApplicationUser` records for @mention rendering. Role names normalise across admin vocabularies to keep analytics consistent. (see Models/Remarks/Remark.cs lines 1-160)
+### Remarks and comments
 
-### Notifications (`Models/Notifications/*`)
-* **`Notification`** – materialised rows that power the user-facing notification centre. Metadata columns (`Module`, `EventType`, `ScopeType`, `ScopeId`, `Route`, `Title`, `Summary`) come from the original dispatch envelope and timestamps track when a user sees or reads the item. (see Models/Notifications/Notification.cs lines 5-40)
-* **`NotificationDispatch`** – queue table processed by `NotificationDispatcher`. It stores the serialised payload, retry counters, dispatch timestamps, and optional error text so failed deliveries can be diagnosed. (see Models/Notifications/NotificationDispatch.cs lines 5-44)
-* **`UserNotificationPreference`** – per-kind opt-in/out switches evaluated before persisting new notifications. (see Models/Notifications/UserNotificationPreference.cs lines 3-10)
-* **`UserProjectMute`** – association table that hides notifications for specific projects when the user has muted them through the API. (see Models/Notifications/UserProjectMute.cs lines 3-8)
+| Entity | Notes |
+| --- | --- |
+| `Remark`, `RemarkMention`, `RemarkAudit` | `Type` (Internal, External, Conference), `Scope` (General, TransferOfTechnology), `AuthorRole` (`RemarkActorRole`), `EventDate`, stage reference, soft delete, and a `jsonb` audit snapshot |
+| `ProjectComment`, `ProjectCommentAttachment`, `ProjectCommentMention` | Threaded comments (`ParentCommentId`, cascade), `Type` (Update, Risk, Blocker, Decision, Info), `Pinned`, `IsDeleted` |
 
-### Project documents (`Models/ProjectDocument*.cs`)
-* **`ProjectDocument`** – published artefacts with metadata (title, description, stage link, storage key, MIME type, file stamp, archival state) and a `RowVersion` concurrency token to prevent conflicting edits. (see Models/ProjectDocument.cs lines 13-78)
-* **`ProjectDocumentRequest`** – workflow table that tracks document uploads/replacements/deletions before publication. Includes request type, reviewer metadata, temporary storage keys, and audit notes for approvals or rejections. (see Models/ProjectDocumentRequest.cs lines 23-85)
+### Project Office Reports and related modules
 
-### Process templates (`Models/Stages/StageChecklistTemplate.cs`)
-Stage templates drive the process designer UI and REST APIs:
-* **`StageChecklistTemplate`** – versioned container per stage code with optimistic concurrency and audit trails. (see Models/Stages/StageChecklistTemplate.cs lines 8-29)
-* **`StageChecklistItemTemplate`** – ordered checklist items with per-item row versions and editor metadata. (see Models/Stages/StageChecklistTemplate.cs lines 32-52)
-* **`StageChecklistAudit`** – immutable log of checklist edits, including payload snapshots and timestamps for compliance reporting. (see Models/Stages/StageChecklistTemplate.cs lines 55-76)
+| Module | Entities | Notes |
+| --- | --- | --- |
+| Transfer of Technology | `ProjectTot` (1:1 with project), `ProjectTotRequest` (1:1 pending request) | `ProjectTotStatus`: NotRequired, NotStarted, InProgress, Completed. Date precision fields. Request `DecisionState`: Pending, Approved, Rejected. |
+| IPR | `IprRecord`, `IprAttachment` (`Infrastructure/Data`) | `IprType`: Patent, Copyright. `IprStatus`: FilingUnderProcess, Filed, Granted, Rejected, Withdrawn. Unique `(IprFilingNumber, Type)`; optional project link (SetNull). |
+| Visits | `VisitType`, `Visit`, `VisitPhoto` | Optional cover photo (`ClientSetNull`) |
+| Social media | `SocialMediaEventType`, `SocialMediaPlatform`, `SocialMediaEvent`, `SocialMediaEventPhoto` | At most one cover photo per event |
+| Training | `TrainingType`, `Training`, `TrainingCounters` (1:1), `TrainingProject` (M:N with allocation share), `TrainingTrainee`, `TrainingDeleteRequest`, `TrainingRankCategoryMap` | `TrainingCounterSource`: Legacy, Roster |
+| Proliferation | `ProliferationYearly`, `ProliferationGranular`, `ProliferationYearPreference` | `ProliferationSource`: Sdd, Abw515. `YearPreferenceMode`: Auto, UseYearly, UseGranular, UseYearlyAndGranular. No foreign key to `Projects`. |
+| FFC | `FfcCountry`, `FfcRecord` (unique active `(CountryId, Year)`), `FfcProject` (optional `LinkedProjectId`), `FfcAttachment` (`Kind`: PDF or PHOTO, stored upper-case) | Check constraints tie dates to their yes/no flags |
+| ARPP / PPP register | `ArppIssue`, `ArppEntry`, `ArppAttachment` (one PDF per issue), `ArppCfaOption`, `ArppFundOption`, `ArppDfpdsSchedule`, `ArppPublishedIssue`/`ArppPublishedEntry` (published snapshot) | `ArppIssueKind`: Original=1, Addendum=2. `ArppCategory`: New, CommittedLiability, CarryForward, Delisted. Extensive check constraints. |
+| Activities | `ActivityType`, `Activity`, `ActivityAttachment`, `ActivityDeleteRequest` | At most one pending delete request per activity |
+| Industry partners | `IndustryPartner`, `IndustryPartnerContact` (phone or email required), `IndustryPartnerAttachment`, `IndustryPartnerProject` (M:N) | Unique normalized name, or name plus location |
 
-### Intellectual property registry (`Infrastructure/Data/Ipr*.cs`)
-`IprRecord` maintains filing metadata (number, title, notes, status lifecycle, filing/grant dates, optional project linkage) with a unique constraint on filing number + type and a row-version token for concurrency. `IprAttachment` stores uploaded evidence per record and references uploader/archiver identity for audit trails. Attachments are persisted under `ipr-attachments/{recordId}` via `IprAttachmentStorage`. (see Infrastructure/Data/IprRecord.cs lines 1-44) (see Infrastructure/Data/IprAttachment.cs lines 1-37)
+### Project ideas
 
-### Project office reports domain (`Areas/ProjectOfficeReports/Domain/*`)
-- **Visits** – `Visit`, `VisitType`, and `VisitPhoto` model dignitary visits with active/inactive types, attendee counts, remarks, and derivative photo metadata (caption, storage key, width/height, version stamp). (see Areas/ProjectOfficeReports/Domain/Visit.cs lines 1-112) (see Areas/ProjectOfficeReports/Domain/VisitPhoto.cs lines 1-120)
-- **Social media** – `SocialMediaEvent`, `SocialMediaEventType`, `SocialMediaPlatform`, and `SocialMediaEventPhoto` capture campaign briefs, linked platforms, cover photos, and moderation details. (see Areas/ProjectOfficeReports/Domain/SocialMediaEvent.cs lines 1-166)
-- **Transfer of Technology snapshots** – `ProjectTotSummary` view models and related enums power the ToT tracker cards. (see Areas/ProjectOfficeReports/Proliferation/ViewModels/ProjectTotSummaryViewModel.cs lines 1-80)
-- **Proliferation tracker** – `ProliferationYearly`, `ProliferationSubmission`, `ProliferationSource`, and preferences hold per-year submissions, approval states, and reference data for origin/destination tracking. (see Areas/ProjectOfficeReports/Domain/ProliferationYearly.cs lines 1-120)
+`ProjectIdea` (status is `Active`, `OnHold` or `Archived`; assigned PO and HoD; soft delete with reason), plus `ProjectIdeaComment` (typed, `RowVersion`), `ProjectIdeaNote` and `ProjectIdeaDocument`. Children cascade with the idea.
 
-### Navigation (`Models/Navigation/NavigationItem.cs`)
-Represents hierarchical navigation entries rendered in the shell. Items contain display text, Razor Page routes (with optional area), required roles, and child menus. The role-based navigation provider materialises collections per user session. (see Models/Navigation/NavigationItem.cs lines 1-33) (see Services/Navigation/RoleBasedNavigationProvider.cs lines 16-130)
+### Action tracker
 
+`ActionTaskItem` (optional `SprintId`, Restrict; `DueDate` is `date`), `ActionSprint` (`ActionSprintStatus`: Planned, Active, Closed), `ActionTaskUpdate`, `ActionTaskAttachment`, `ActionTaskAuditLog` and `ActionSprintAuditLog`. All carry soft-delete flags where relevant.
+
+### Notebook and to-do
+
+| Entity | Notes |
+| --- | --- |
+| `NotebookItem` | Types: Note, Sticky, Checklist, Reminder, Idea, Draft. Statuses: Active, Completed, Archived. Owner cascade, `Guid Version`, `LegacyTodoItemId` for migrated to-dos, idempotent `ClientRequestId`. |
+| `NotebookChecklistItem`, `NotebookTag`, `NotebookItemTag`, `NotebookAttachment`, `NotebookItemCollaborator`, `NotebookSystemItemPreference`, `NotebookSystemItemTag`, `NotebookMigrationState` | Notebook children and preferences |
+| `TodoItem` | Legacy personal to-dos (`TodoPriority`, `TodoStatus`), `xmin` concurrency |
+
+### Publications and briefings
+
+| Entity | Notes |
+| --- | --- |
+| `BrochurePreset`, `BrochurePresetProject` | Shared capability brochure presets (`Models/Publications/BrochurePreset.cs`) |
+| `CompendiumPreset`, `CompendiumPresetSection`, `CompendiumPresetProject`, `CompendiumPresetCoverImage`, `CompendiumPresetPhotoPreference` | Simulators compendium presets. Project links use SetNull and keep `ProjectNameSnapshot`. |
+| `ProjectBriefingDeck`, `ProjectBriefingDeckItem` | Briefing decks with enum-valued layout and presentation settings stored as strings, and `SelectionRulesJson` (`jsonb`). Items restrict project deletion. |
+
+### Calendar, celebrations and holidays
+
+| Entity | Notes |
+| --- | --- |
+| `Event` | Calendar events. `EventCategory`: Visit, Insp, Conference, Other. The only entity with a global soft-delete query filter. |
+| `Celebration` | Birthdays and anniversaries (`CelebrationType`) |
+| `Holiday` | `HolidayType`: Gazetted=1, Restricted=2. Gazetted holidays must be observed (check constraint). Records observance changes. |
+
+### Notifications, audit and analytics
+
+| Entity | Notes |
+| --- | --- |
+| `NotificationDispatch` | Outbound queue: payload, attempts, lock token and expiry, dead-letter timestamp |
+| `Notification` | Per-recipient rows. Unique `(RecipientUserId, Fingerprint)` and `SourceDispatchId` when not null. |
+| `UserNotificationPreference`, `UserProjectMute` | Composite-key preferences and per-project mutes |
+| `AuditLog` | Global audit trail (`Level`, `Action`, `UserId`, `Ip`, `TimeUtc`). Project purges are recorded here as `Projects.Purge`. |
+| `AuthEvent`, `DailyLoginStat` | Login events and daily aggregates |
+| `UserActivityBucket`, `UserActivityDailySummary` | Usage analytics buckets and daily summaries (keyed by IST date) |
+| `DocRepoAudit` | Document repository audit (`DetailsJson` is `jsonb`; no foreign key, so rows survive a purge) |
+
+### Document repository (`Data/DocRepo`)
+
+`Document` (unique `Sha256`, `StoragePath`, `OfficeCategoryId`/`DocumentCategoryId`, `DocumentDate`, `IsAots`, `IsExternal`, OCR status (`DocOcrStatus`), `tsvector` `SearchVector`, soft delete), `DocumentText` (table `DocRepoDocumentTexts`), `Tag`/`DocumentTag`, `OfficeCategory`, `DocumentCategory`, `DocumentDeleteRequest`, `DocRepoExternalLink` (`SourceModule`/`SourceItemId`), `DocRepoFavourite` and `DocRepoAotsView`.
+
+### Media library (`Features/MediaLibrary`)
+
+A separate context in the same database. `MediaLibrarySource` (`SourceType`: Prism or FileSystem) produces `MediaAsset` rows (`Origin`: ProjectPhoto, ProjectVideo, VisitPhoto, SocialMediaEventPhoto, ExternalFile, ActivityPhoto; `Kind`: Photo or Video; unique `(SourceId, SourceEntityId)`).
+
+Other tables are `MediaProcessingJob`, classification runs and audits, face intelligence (`MediaFace`, `MediaFaceEmbedding`, `MediaPerson`, `MediaPersonFace`, `MediaPersonUserLink`, `MediaFaceReviewDecision`, `MediaIdentityAudit`; dormant unless the People feature is enabled), albums (`MediaAlbum`, `MediaAlbumItem`) and `MediaCurationAudit`.
+
+PRISM-side changes reach the catalogue through `PrismMediaOutboxMessages` in `ApplicationDbContext`.
+
+## File storage
+
+See [storage-hardening.md](storage-hardening.md) and [storage-migration-plan.md](storage-migration-plan.md) for the upload root, storage keys and download endpoints. In short:
+- Project and office-report files are stored under the upload root (`IUploadRootProvider`) with relative storage keys.
+- DocRepo PDFs are stored under `DocRepo:RootPath` by `LocalDocStorageService`, at `yyyy/MM/{guid}.pdf`.

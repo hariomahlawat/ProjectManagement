@@ -1,43 +1,24 @@
-# ToT Module Critical Bug Fix Tasks
+# ToT module critical issues
 
-This document tracks the tasks required to address the three critical issues identified during the ToT module review. Each task lists the implementation work, validation requirements, and references to keep in mind for code quality and regression prevention.
+Status of the three issues raised in the earlier ToT module review, checked against the code on 2026-09-27. The ToT tracker page is `Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml.cs`. Earlier versions of this note gave the path as `Areas/Projects/...`, which is wrong.
 
-## 1. Allow the tracker to degrade gracefully when ToT request metadata columns are unavailable
+## 1. Tracker degrades gracefully when ToT request metadata columns are missing — **Fixed**
 
-**Goal:** Ensure `ProjectTotTrackerReadService` can recover from column-mismatch errors by avoiding optional request metadata when the fallback query path is used.
+- `ProjectTotTrackerReadService.GetAsync` tries up to three snapshot queries in turn: full columns, then without request-detail columns, then without ToT-detail columns. `TryLoadSnapshotsAsync` catches `PostgresException` with `SqlState == PostgresErrorCodes.UndefinedColumn`.
+- `BuildProjectSnapshotQuery` projects `TotRequest.RowVersion` only when `includeRequestDetailColumns` is true, and `null` otherwise.
+- Test evidence: `ProjectManagement.Tests/ProjectTotTrackerReadServiceTests.cs` overrides `ShouldSimulateUndefinedColumn` and asserts that `RequestRowVersion` is null on the fallback path.
 
-**Implementation Tasks**
-- Update `ProjectTotTrackerReadService.BuildProjectSnapshotQuery` so the fallback projection omits `TotRequest.RowVersion` when `includeRequestDetailColumns` is `false`, returning a nullable slot instead of referencing the missing column.
-- Audit callers (notably `Areas/Projects/Pages/Tot/Index.cshtml.cs`) to handle a `null` `RequestRowVersion` by hiding approval-only UI and surfacing a non-blocking status message if the metadata is unavailable.
-- Add or update integration/unit coverage in `ProjectTotTrackerReadServiceTests` that simulates an `UndefinedColumn` error from the initial query, verifies the fallback path succeeds, and asserts that existing columns continue to load as expected.
+## 2. Zero-length request row versions block approval — **Fixed**
 
-**Quality Considerations**
-- Preserve existing query performance by reusing compiled SQL where possible.
-- Ensure null-handling paths are covered by tests to avoid regressions in the Razor page model.
+- `IndexModel` sets `DecideInput.RowVersion` only when `RequestRowVersion is { Length: > 0 }`. Empty tokens are left out.
+- `OnPostDecideAsync` checks whether the `DecideInput.RowVersion` form field is present at all ("no request selected"). An empty value is sent as a `null` expected row version.
+- `ProjectTotService.DecideRequestAsync` compares row versions only when `expectedRowVersion is not null`. `ProjectTotRequest.RowVersion` is also an EF concurrency token (`ApplicationDbContext.ConfigureRowVersion`), so concurrent saves are still detected at `SaveChangesAsync`. However, a `DbUpdateConcurrencyException` there is not caught and would surface as a server error.
 
-## 2. Handle zero-length ToT request row versions during approval
+## 3. Chronological validation of MET and first-production dates — **Fixed**
 
-**Goal:** Prevent the approval workflow from rejecting requests whose stored row version value is present but empty.
+- `ProjectTotService.ValidateRequest` rejects MET completion or first-production-model dates earlier than the ToT start date, and later than the ToT completion date when one is given. Messages include "MET completion date cannot be earlier than the ToT start date." and "First production model date cannot be later than the ToT completion date."
+- Test evidence: `ProjectManagement.Tests/ProjectTotServiceTests.cs`.
 
-**Implementation Tasks**
-- Normalize zero-length `RequestRowVersion` byte arrays to `null` within `Index.cshtml.cs` before converting to Base64 so that unusable concurrency tokens are omitted from the form payload.
-- Adjust the decide handler to distinguish between “no request selected” and “request with missing concurrency token,” allowing legitimate approvals to proceed when a proper token is available.
-- Extend the page model tests to cover approvals on records with empty row versions and confirm the workflow no longer returns the false validation error.
+## Related current rule: Repeat Build projects
 
-**Quality Considerations**
-- Maintain defensive checks to avoid double-post approvals or concurrency conflicts.
-- Use descriptive validation messages so stakeholders understand why a request cannot be approved when the token is absent.
-
-## 3. Enforce chronological validation for ToT milestones
-
-**Goal:** Ensure milestone dates follow a chronological order relative to the ToT start and completion dates.
-
-**Implementation Tasks**
-- Update `ProjectTotService.ValidateRequest` to reject MET completion or first-production dates that fall before the ToT start date, and to reject MET/first-production dates that fall after the ToT completion date when it is provided.
-- Provide targeted validation messages explaining the chronological rule so users can correct their submissions quickly.
-- Add unit tests in `ProjectTotServiceTests` that cover MET/first-production dates occurring before the start or after the completion date and confirm the validation errors are triggered.
-
-**Quality Considerations**
-- Keep validation logic centralized to maintain consistency between API and UI workflows.
-- Localize new validation messages and ensure they follow existing message formatting conventions.
-
+ToT applies only to projects that are not deleted, not archived, not Repeat Build (`Project.IsBuild`) and have `LifecycleStatus == Completed` (`ProjectTotApplicabilityPolicy`). `ProjectTotService` enforces this rule on submit, on direct update and on approval. Rejection is not blocked. The tracker (`ProjectTotTrackerReadService`) and exports list only eligible projects. See `docs/ProjectOfficeReports_Directions.md` for the complete Repeat Build rules and the gaps that remain open.

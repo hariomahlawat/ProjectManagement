@@ -3,13 +3,40 @@ info:
   title: Project Management Remarks API
   version: "1.0.0"
   description: |
-    REST endpoints for creating, listing, updating, deleting and auditing project remarks.
+    Minimal-API endpoints for creating, listing, updating, soft-deleting and auditing project remarks.
+    Source of truth: `Features/Remarks/RemarkApi.cs` (`RemarkApi.MapRemarkApi`) and
+    `Services/Remarks/RemarkService.cs`. All routes require an authenticated user; `projectId` and
+    `remarkId` are integer route constraints. Enums are serialised as strings
+    (`JsonStringEnumConverter`; integer values are also accepted on input).
+
+    Actor resolution (`RemarkApi.BuildActorContextAsync`): the caller's Identity roles are mapped
+    to `RemarkActorRole` values. `ProjectOfficer` is kept only when the caller is the project's
+    `LeadPoUserId`. For the read endpoints (list, audit) a caller with no mapped role falls back to
+    a read-only viewer context, because every authenticated user may view projects
+    (`ProjectAccessGuard.CanViewProject`). When `actorRole` is omitted the default is chosen in the
+    order Commandant, HeadOfDepartment, Mco, ProjectOfficer, Ta, ProjectOffice, MainOffice,
+    Administrator.
+
+    Permission rules (`RemarkService`): External remarks require HoD, Comdt or Admin (or the
+    FFC-only `Ito` actor). Conference remarks can be created, edited and deleted only by HoD or
+    Comdt. Other remarks can be edited or deleted by HoD, Comdt or Admin at any time, and by the
+    author within 3 hours of creation. Event dates may not be in the future (IST calendar date).
+    The service does not check Repeat Build status for `TransferOfTechnology` scope; that rule is
+    enforced only in the UI scope picker (`ProjectRemarksPanelService`).
+
+    Note: these JSON endpoints do not validate an antiforgery token server-side. The client sends
+    `X-CSRF-TOKEN`, but `RemarkApi` never calls `IAntiforgery.ValidateRequestAsync`. The
+    `SameSite=Strict` auth cookie is the effective CSRF mitigation.
 servers:
   - url: https://example.local
 paths:
   /api/projects/{projectId}/remarks:
     post:
       summary: Create a remark
+      description: >-
+        For Conference remarks the supplied stage is ignored and the project's present stage
+        (or "Completed") is recorded. For other types `stageRef` is optional; when supplied it must
+        be a workflow stage code and, if the project has stage rows, one of the project's stages.
       operationId: createRemark
       parameters:
         - $ref: '#/components/parameters/ProjectId'
@@ -43,16 +70,23 @@ paths:
           schema:
             $ref: '#/components/schemas/RemarkType'
           description: Filter by remark type.
+        - name: scope
+          in: query
+          schema:
+            type: string
+          description: >-
+            Filter by remark scope. Accepts `General`, `TransferOfTechnology`, `ToT` (alias)
+            or `all` (no filter).
         - name: role
           in: query
           schema:
             $ref: '#/components/schemas/RemarkActorRole'
-          description: Filter by author role.
+          description: Filter by author role (Identity role names such as `HoD` or `Comdt` are also accepted).
         - name: stageRef
           in: query
           schema:
             type: string
-          description: Filter by stage reference code.
+          description: Filter by stage code; must be a stage of the project's workflow version, otherwise 400.
         - name: mine
           in: query
           schema:
@@ -74,7 +108,7 @@ paths:
           in: query
           schema:
             type: boolean
-          description: Include soft-deleted remarks (Admin only). Defaults to false.
+          description: Include soft-deleted remarks. Honoured only for Administrators and ignored for other roles. Defaults to false.
         - name: page
           in: query
           schema:
@@ -89,15 +123,15 @@ paths:
             minimum: 1
             maximum: 200
             default: 20
-          description: Number of items per page (defaults to 20).
+          description: Number of items per page (defaults to 20; values above 200 are clamped to 200).
         - name: actorRole
           in: query
           schema:
             $ref: '#/components/schemas/RemarkActorRole'
-          description: Explicit acting role for the caller.
+          description: Explicit acting role for the caller; must be one of the caller's mapped roles (403 otherwise).
       responses:
         '200':
-          description: Paged remarks
+          description: Paged remarks, newest first (by `createdAtUtc`)
           content:
             application/json:
               schema:
@@ -171,7 +205,7 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/RemarkActorRole'
-          description: Acting role for the caller (must include Admin).
+          description: Acting role for the caller. The caller's role set must include Administrator, otherwise 403.
       responses:
         '200':
           description: Audit trail
@@ -214,7 +248,11 @@ components:
     Unauthorized:
       description: Authentication required
     Forbidden:
-      description: Caller is not authorised
+      description: >-
+        Caller is not authorised (ProblemDetails). Known drift: the service messages
+        "External remarks require an authorised command or FFC role." and
+        "Only Comdt or HoD may add conference remarks." are not mapped in
+        `RemarkApi.MapServiceException`, so these denials currently return 400, not 403.
     NotFound:
       description: Resource not found
     Conflict:
@@ -222,7 +260,11 @@ components:
   schemas:
     RemarkType:
       type: string
-      enum: [Internal, External]
+      enum: [Internal, External, Conference]
+    RemarkScope:
+      type: string
+      enum: [General, TransferOfTechnology]
+      default: General
     RemarkActorRole:
       type: string
       enum:
@@ -234,9 +276,23 @@ components:
         - Mco
         - ProjectOffice
         - MainOffice
+        - Ito
+      description: >-
+        `Ito` can appear in responses (FFC linked-project progress remarks) but is not accepted
+        from API callers, because `RemarkActorRoleExtensions.TryParse` does not map it.
+    Mention:
+      type: object
+      required: [userId, displayName, initials]
+      properties:
+        userId:
+          type: string
+        displayName:
+          type: string
+        initials:
+          type: string
     Remark:
       type: object
-      required: [id, projectId, type, authorRole, authorUserId, body, eventDate, createdAtUtc, isDeleted, rowVersion]
+      required: [id, projectId, type, scope, authorRole, authorUserId, authorDisplayName, authorInitials, body, eventDate, createdAtUtc, isDeleted, rowVersion, mentions]
       properties:
         id:
           type: integer
@@ -244,12 +300,20 @@ components:
           type: integer
         type:
           $ref: '#/components/schemas/RemarkType'
+        scope:
+          $ref: '#/components/schemas/RemarkScope'
         authorRole:
           $ref: '#/components/schemas/RemarkActorRole'
         authorUserId:
           type: string
+        authorDisplayName:
+          type: string
+          description: Full name, user name, e-mail or user id (first available).
+        authorInitials:
+          type: string
         body:
           type: string
+          description: Sanitised HTML; mentions are stored as placeholders.
         eventDate:
           type: string
           format: date
@@ -278,9 +342,16 @@ components:
         deletedByRole:
           $ref: '#/components/schemas/RemarkActorRole'
           nullable: true
+        deletedByDisplayName:
+          type: string
+          nullable: true
         rowVersion:
           type: string
-          description: Base64 encoded concurrency token.
+          description: Base64 encoded concurrency token (empty string when absent).
+        mentions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mention'
     RemarkList:
       type: object
       required: [total, page, pageSize, items]
@@ -318,10 +389,12 @@ components:
           $ref: '#/components/schemas/RemarkAuditSnapshot'
     RemarkAuditSnapshot:
       type: object
-      required: [type, authorRole, authorUserId, body, eventDate, createdAtUtc, isDeleted]
+      required: [type, scope, authorRole, authorUserId, body, eventDate, createdAtUtc, isDeleted]
       properties:
         type:
           $ref: '#/components/schemas/RemarkType'
+        scope:
+          $ref: '#/components/schemas/RemarkScope'
         authorRole:
           $ref: '#/components/schemas/RemarkActorRole'
         authorUserId:
@@ -362,6 +435,8 @@ components:
       properties:
         type:
           $ref: '#/components/schemas/RemarkType'
+        scope:
+          $ref: '#/components/schemas/RemarkScope'
         body:
           type: string
         eventDate:
@@ -383,6 +458,9 @@ components:
       type: object
       required: [body, eventDate, rowVersion]
       properties:
+        scope:
+          $ref: '#/components/schemas/RemarkScope'
+          description: Defaults to General when omitted.
         body:
           type: string
         eventDate:

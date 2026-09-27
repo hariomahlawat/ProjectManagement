@@ -1,13 +1,27 @@
 # Notebook PostgreSQL deployment policy
 
-## SECTION: UUID generation extension policy
+## UUID generation extension (`pgcrypto`)
 
-Notebook version repair migrations use PostgreSQL `gen_random_uuid()` and therefore execute `CREATE EXTENSION IF NOT EXISTS pgcrypto;` before repairing missing `NotebookItems.Version` values.
+Migrations `20261125231000_AddNotebookItemVersion` and `20261125232000_RepairMissingNotebookItemVersion`
+run `CREATE EXTENSION IF NOT EXISTS pgcrypto;` and use `gen_random_uuid()` to back-fill
+`NotebookItems.Version`.
 
-The deployment policy is **Policy B — migration user authorised**:
+Policy: **the migration role is authorised to create extensions**.
 
-- The database role that runs Entity Framework migrations must be allowed to create the `pgcrypto` extension, or the extension must already be installed by a DBA before migrations run.
-- Runtime application roles do not require extension-creation privileges.
-- Offline deployments must include this privilege check in the database preparation checklist before applying Notebook migrations.
+- Migrations are applied automatically and mandatorily at application startup, so the database
+  role used by the application connection must be allowed to create `pgcrypto`, **or** a DBA must
+  install `pgcrypto` in the target database before the first start of this version.
+- Once the extension exists, `CREATE EXTENSION IF NOT EXISTS` is a no-op and no extension privilege
+  is needed.
+- Offline deployments must include this check in the database preparation checklist.
 
-If a target environment cannot grant extension creation to the migration role, a DBA must provision `pgcrypto` manually before migration execution while retaining the migration command as an idempotent safeguard.
+(PostgreSQL 13+ also provides `gen_random_uuid()` in core; the extension statement is still
+executed, so the privilege or pre-installation is still required.)
+
+## Startup schema check
+
+`Program.EnsureNotebookVersionSchemaAsync` stops startup if `AddNotebookModule` and
+`AddNotebookItemVersion` are missing or out of order, or if `NotebookItems.Version` is not a
+non-null `uuid` column.
+
+See `docs/notebook.md` for the feature architecture.
