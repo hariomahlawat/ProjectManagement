@@ -1,112 +1,111 @@
-# Project Management Suite — User guide
+# PRISM ERP: user guide
 
-This guide walks each persona through the major areas of the suite. Every section highlights key actions, guardrails, and configuration touchpoints so operators can reason about what happens behind the scenes.
+A guide to what each kind of user can do in PRISM and where to find it. Your menus show only what your role can use. If a link is missing, you probably do not have the role for it; ask an Administrator.
 
-## 1. Personas and access
+## 1. Signing in and your account
 
-| Persona | Core responsibilities | Modules with edit rights | View-only access |
-| --- | --- | --- | --- |
-| **Administrators** | Tenant configuration, user lifecycle, process governance | Admin centre (users, categories, lookups, analytics), Projects, Calendar, Celebrations, Tasks, Process designer, Notifications, Project office reports | All modules |
-| **Heads of Department (HoD)** | Approve project plans, manage departmental calendar, maintain process checklists | Projects (stage approvals, plan review), Calendar, Process designer, Holidays, Project office reports | Tasks, Celebrations, Notifications |
-| **Project Officers (PO)** | Prepare project data, update procurement facts, draft plans | Projects (facts, plans, comments, photos, videos), Tasks | Calendar (read/write own events), Celebrations, Project office reports (read) |
-| **Project Office** | Maintain visit logs, ToT status, social media campaigns, proliferation data, IPR registry | Project office reports (Visits, Social Media, ToT, Proliferation, IPR), Tasks | Projects (read), Calendar (read), Celebrations (read) |
-| **Commandant (Comdt)** | Review high-level governance dashboards and IPR filings | — | Project office reports (read), Projects (read), Dashboard |
-| **Materiel Control Officer (MCO)** | Monitor readiness trackers and approve process updates | Process designer | Project office reports (read), Projects (read), Dashboard |
-| **Teaching Assistants (TA)** | Maintain celebrations and shared calendar logistics | Celebrations, Calendar, Tasks | Projects (read), Notifications |
-| **Staff** | Manage personal tasks, follow announcements | Tasks, Dashboard widgets | Calendar (read), Celebrations (read), Notifications |
+- Sign in at the PRISM home page with your username and password. After five failed attempts your account is locked for a while.
+- If an Administrator has reset your password, you must choose a new one before you can continue.
+- Where you land after sign-in:
+  - Commandant and HoD land on the **Dashboard**.
+  - Project Officers land on **My Workspace**.
+  - Everyone else lands on the **Dashboard**.
+- **Profile** (in the account menu) lets you use your Photos portrait or your initials as your avatar, report a photo that has been matched to you by mistake, and change your password.
 
-Role membership is managed under **Admin → Users** with guardrails that prevent disabling or demoting the last active Administrator. (see Areas/Admin/Pages/Users/Index.cshtml.cs lines 14-87) (see Services/UserManagementService.cs lines 20-210)
+## 2. Roles at a glance
 
-## 2. Dashboard
+| Role | Typical work in PRISM |
+| --- | --- |
+| **Admin** | User accounts and roles, master data, recovery (trash and restore), audit logs, system health, maintenance, holidays, media administration. |
+| **Comdt** | Command workspace, officer conference reviews, briefing decks, ideas, FFC records, ARPP verification, ERP usage. |
+| **HoD** | Command workspace, approvals in the Decision Centre, project creation and assignment, plan and stage decisions, conference reviews, briefing decks, holidays, activity types, media and people administration. |
+| **Project Officer** | My Workspace, your assigned projects (stages, timeline, documents, photos, videos, ToT), task management, activities, ideas assigned to you. |
+| **Project Office** | Visits, social media, training, ARPP/PPP, proliferation submissions, IPR register, document uploads, completed-project summaries. |
+| **MCO** | Procurement process checklist, task management, document metadata. |
+| **TA** | Calendar events, birthdays and anniversaries, task management, activities, document metadata. |
+| **ITO** | FFC records, shared publication presets, task management, document metadata. |
+| **Main Office / MC Cell / IT Cell clerks** | Document repository uploads. Main Office clerks also maintain birthdays and anniversaries and can view the training tracker. |
 
-After signing in, everyone lands on **Dashboard → Overview**:
+Everyone who is signed in can view the Dashboard, Calendar, Notebook, Photos, projects, the ideation board, the industry directory, the document repository, FFC, visits, ToT, proliferation and IPR information.
 
-- **My Tasks widget** – Shows the top 20 open tasks grouped into _Overdue_, _Today_, and _Upcoming_. Quick-add tokens (`today`, `tomorrow`, `mon`, `next mon`, `!high`, `!low`) set due dates and priority while removing the tokens from the title. (see Pages/Dashboard/Index.cshtml.cs lines 18-92) (see Helpers/TodoQuickParser.cs lines 8-57) Undo banners appear when completing or deleting items and can be re-opened within the page session.
-- **Upcoming events drawer** – A floating **View upcoming events** card sticks to the dashboard's right margin and opens a right-side panel that lists the next ten calendar or celebration entries within 30 days, formatted in IST. All users can click through to the full calendar; editors can jump straight into the event drawer. (see Pages/Dashboard/Index.cshtml.cs lines 60-104)
+## 3. Everyday tools (all users)
 
-## 3. Tasks hub
+- **Dashboard**: your notebook and to-dos, upcoming events, your projects, the project pulse and summary tiles.
+- **Notebook**: personal notes and reminders. The Commandant and HoDs also see the shared conference digest here.
+- **My Tasks** (`/Tasks`): a personal to-do list with Today, Upcoming and Completed tabs, pinning, snoozing, reordering and bulk actions.
+- **Calendar**: month, week and list views of events, holidays and celebrations. Admin, HoD, Comdt, TA, MCO, Project Officers and Project Office can add and edit events.
+- **Notifications**: the bell icon and the Notification Centre.
+- **Search**: global search across PRISM, with filters and suggestions.
+- **Photos**: the media library, with albums, "My photos" and people. You can create and manage your own albums. Admin, HoD and Comdt can manage any album. Admin and HoD confirm who appears in photos (People review).
 
-Navigate to **Tasks** for the full task board.
+## 4. My Workspace
 
-- **Tabs & filters** – `Tab` query string selects _All_, _Today_, _Upcoming_, or _Completed_ while search (`?q=...`) performs case-insensitive title matches using PostgreSQL `ILIKE`. Pagination keeps 50 items per page. (see Pages/Tasks/Index.cshtml.cs lines 32-85)
-- **Grouping** – Tasks are grouped client-side into Overdue/Today/Upcoming using Indian Standard Time to avoid timezone drift. (see Pages/Tasks/Index.cshtml.cs lines 86-145)
-- **Actions** – Inline checkboxes toggle completion, the overflow menu exposes pin, snooze (`today_pm`, `tom_am`, `next_mon`, `clear`), edit, and delete commands. Drag handles allow reordering open tasks; the server persists the new order and protects against mismatched IDs. (see Pages/Tasks/Index.cshtml.cs lines 146-206)
-- **Quick parser edge cases** – Tokens are case-insensitive and only consumed once per word. If the parser strips every token, the saved title is empty so the UI prompts for a meaningful description. (see Helpers/TodoQuickParser.cs lines 20-52)
+- **Project Officers** get a personal workspace with these views: overview, actions, projects, tasks, ideas, conference points, follow-ups, documents and activity.
+- **Commandant and HoD** get a command workspace with these views: officers, portfolio, adoption, usage pattern and my activity. From here they can open:
+  - **Conference review**: record directions for an officer and turn them into tasks or ideas.
+  - **Briefing decks**: build project briefing presentations.
+  - **ERP usage**: detailed usage figures (also open to Admin).
 
-## 4. Calendar workspace
+## 5. Projects
 
-Open **Calendar** for shared scheduling.
+- **Projects repository, Ongoing, Completed summary**: browse and export. Only HoDs can edit external remarks on the Ongoing board. Admin, HoD and Project Office can edit completed-project technology and proliferation details.
+- **Create project**: Admin and HoD.
+- **Project overview** is the single page for a project. What you can do there depends on your role:
+  - The assigned **Project Officer** proposes stage updates, drafts and submits the timeline plan, records actual dates, updates procurement facts, requests changes to project details, raises document upload, replace and delete requests, uploads photos and videos, and maintains ToT details.
+  - **HoD / Admin** approve or reject plans, stage changes, detail changes and document requests; reassign HoD/PO; edit the project brief and description; and complete, endorse, cancel or reactivate projects.
+- **Process**: the procurement process and its checklists. MCO and HoD edit checklists. Admin and HoD edit stage purposes.
+- **ARPP / PPP library**: published ARPP issues for everyone. **Reports** (ARPP FY update, FFC projects update) are for ARPP viewers (Admin, HoD, Comdt, Project Office, MCO, Project Officers).
+- **Publications**: capability brochure and simulators compendium generators. Only the Commandant, HoDs and ITO can save shared presets and change the compendium cover and structure.
+- **Analytics**: portfolio charts.
+- **Industry directory**: everyone can view it and add contacts. Most operational roles can add organisations. Owners, plus Admin, HoD and Comdt, can edit. Admin and HoD can delete.
 
-- **Views** – Month, week, and list modes with category pills for Visit/Insp/Conference/Other. Filtering happens client-side so switching categories is instant. (see wwwroot/js/calendar.js lines 1-80)
-- **Editing rights** – Admin, HoD, and TA roles can create, drag, resize, or delete events via the FullCalendar UI and minimal APIs. Everyone else sees read-only drawers with Markdown-rendered descriptions. (see Pages/Calendar/Index.cshtml.cs lines 11-18) (see Program.cs lines 360-498)
-- **Recurrence** – Weekly and monthly recurrence rules are generated by the page script; the API clamps ranges greater than 400 days to prevent runaway queries. (see wwwroot/js/calendar.js lines 37-120) (see Program.cs lines 361-400)
-- **Undo** – Moving or deleting an event triggers a toast with an Undo button that replays the previous payload through the API. (see wwwroot/js/calendar.js lines 89-150)
-- **Holidays** – Dates configured under **Admin → Settings → Holidays** sync into the calendar via `/calendar/events/holidays`, shading affected cells with the `.pm-holiday` styling (rose gradient background and a pill around the day number) so teams can spot office closures while planning. (see Program.cs lines 492-534) (see wwwroot/css/calendar.css lines 42-76)
-- **Access control** – Minimal APIs require authentication, check roles on mutating verbs, and return `403` when unauthorized. Deleted events remain soft-deleted until an admin restores them under **Admin → Calendar → Deleted**. (see Program.cs lines 360-498)
+## 6. Decision Centre (Admin, HoD)
 
-## 5. Celebrations registry
+One queue for stage changes, project detail changes, plan approvals, document requests, ToT requests, proliferation entries, and activity, training and repository-document deletions. It is linked as **Pending approvals** in the Projects menu.
 
-**Celebrations** keeps birthdays and anniversaries visible to the team.
+## 7. Task management, activities and ideas
 
-- **Filtering** – Filter pills (`all`, `birthday`, `anniversary`) and window presets (`today`, `7`, `15`, `30`, `all`) trim the list. Search spans names and spouse names for joint entries. (see Pages/Celebrations/Index.cshtml.cs lines 22-48)
-- **Next occurrence** – Dates are calculated in IST with leap-day handling (Feb 29 shifts to Feb 28 on non-leap years). Each row shows days away to help plan logistics. (see Pages/Celebrations/Index.cshtml.cs lines 49-70) (see Helpers/CelebrationHelpers.cs lines 10-33)
-- **Permissions** – Admin and TA roles can soft-delete entries; everyone else has read-only access. (see Pages/Celebrations/Index.cshtml.cs lines 19-22)
+- **Task Management**: an overview, my tasks, a planning board with sprints, the full register and reports. It is available to Comdt, HoD, Project Officers, MCO, TA and ITO; Administrators do not have it.
+- **Activities** (institutional/miscellaneous): Admin, HoD, Project Officers, Project Office and TA can record activities. The person who created an activity can edit it. Deletions go to the Decision Centre.
+- **Project Ideas** (ideation board): everyone can read ideas and comment on them.
+  - Admin, HoD and Comdt create, archive, restore and delete ideas.
+  - The assigned Project Officer, HoDs and the Commandant edit ideas.
+  - The Commandant and HoDs add conference comments.
 
-## 6. Projects workspace
+## 8. Document repository
 
-Projects consolidate procurement, planning, documents, comments, and photos.
+- Everyone can search, read and download documents and mark favourites. Unread AOTS documents are counted on the **Documents** tab.
+- **Upload** and deactivate documents: Project Office, the Main Office, MC Cell and IT Cell clerks, Admin and HoD.
+- **Edit metadata**: Admin, HoD, TA, ITO and MCO.
+- Deletion requests are approved by Admin or HoD. Categories and permanent purge are Admin only.
 
-- **Overview page** – Loads project details, category breadcrumbs, procurement facts, timeline status, plan editor state, and assignment lists in a single round trip. Off-canvas panels reuse this data for edits. (see Pages/Projects/Overview.cshtml.cs lines 59-140)
-- **Role assignments** – Admins and HoDs can change the HoD/PO pairing with optimistic concurrency; audit entries capture before/after values. (see Pages/Projects/AssignRoles.cshtml.cs lines 16-116)
-- **Procurement facts** – Captured via `ProjectFactsService`, which enforces stage backfill rules and writes structured audits. Updates immediately reflect on the overview tiles. (see Services/Projects/ProjectFactsService.cs lines 27-200)
-- **Documents** – Upload, replace, or delete requests stage PDFs through the document workspace; Admins, HoDs, and the assigned PO queue a `ProjectDocumentRequest` and wait for moderation before anything publishes. Reviewers work from **Projects → Documents → Approvals**, approving or rejecting with audit trails while document notifications alert stakeholders when the library changes. (see Pages/Projects/Documents/UploadRequest.cshtml.cs lines 25-167) (see Pages/Projects/Documents/ReplaceRequest.cshtml.cs lines 23-183) (see Pages/Projects/Documents/DeleteRequest.cshtml.cs lines 19-137) (see Pages/Projects/Documents/Approvals/Review.cshtml.cs lines 20-178) (see Services/Documents/DocumentNotificationService.cs lines 15-196)
-- **Timeline planning** – POs draft plans while HoDs approve or reject. Drafts are locked while pending approval and snapshots are stored for history. See [docs/timeline.md](../timeline.md) for detailed state transitions. (see Services/Stages/PlanReadService.cs lines 41-212) (see Services/Stages/PlanApprovalService.cs lines 17-200)
-- **Comments & photos** – Threaded comments support attachments and mentions with storage handled by `ProjectCommentService`. Photo management enforces size/MIME rules and generates derivatives on upload. (see Services/ProjectCommentService.cs lines 22-238) (see Services/Projects/ProjectPhotoService.cs lines 82-420)
-- **Video gallery** – Admin/HoD/PO roles upload MP4/WebM/Ogg walkthroughs, pick featured clips, and stream/poster assets through secure Razor Pages backed by `ProjectVideoService`. Posters inherit the upload root and are regenerated when the featured video changes. (see Pages/Projects/Videos/Index.cshtml.cs lines 16-180) (see Services/Projects/ProjectVideoService.cs lines 82-575)
+## 9. Project office reports
 
-For a step-by-step storyboard, refer to [docs/projects-module.md](../projects-module.md).
+- **Visits to SDD** and **Social media**: everyone can view. Admin, HoD and Project Office record and edit entries and photos. Admin maintains visit types. Admin and HoD maintain social media types and platforms.
+- **Training tracker**: viewed by most roles; managed by Admin, HoD and Project Office. Use the **Legacy record** switch to enter totals without a roster. Deletions are approved by Admin or HoD.
+- **ToT tracker**: everyone can view. Admin, HoD, Project Office and Project Officers submit updates. Admin and HoD decide.
+- **Proliferation**: everyone can view the overview, records and reports. Admin, HoD and Project Office submit entries. Admin and HoD approve.
+- **IPR register** (also reachable as "Patent"): everyone can view. Admin, HoD and Project Office add and edit records and attachments.
+- **FFC**: everyone can view the map, country board, tables and footprint. Admin, HoD, Comdt and ITO manage records, projects, attachments and countries. Admin, HoD and Comdt can edit remarks and progress inline in the detailed table.
+- **ARPP / PPP administration**: ARPP viewers open issues. Admin, HoD and Project Office create, edit and reconcile. Admin, HoD and Comdt verify. Admin and HoD unlock.
+- **Progress review**: Admin, HoD, Project Office and Comdt.
 
-## 7. Project office reports
+## 10. Celebrations and holidays
 
-The **Project office reports** area centralises operational trackers for support teams.
+- **Celebrations** (birthdays and anniversaries): Admin, TA and Main Office clerks. Open it from the Calendar page header.
+- **Holidays**: Admin and HoD maintain gazetted and restricted holidays, and decide whether a restricted holiday is observed by the office. Holidays shade the calendar and are used in schedule calculations.
 
-- **Visits tracker** – Admin, HoD, and Project Office roles record dignitary visits with type/date filters, attendee counts, remarks, and photo galleries. Export buttons produce Excel handovers for leadership briefings. (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml.cs lines 20-210)
-- **Social media tracker** – Capture event briefs, associated platforms, and supporting photos. Editors can toggle event/ platform activity, set cover photos, and download Excel/PDF packs for press kits. (see Areas/ProjectOfficeReports/Pages/SocialMedia/Index.cshtml.cs lines 19-240)
-- **ToT tracker** – Monitor transfer-of-technology progress per completed project. Filters cover ToT status, request state, pending submissions, date ranges, and keyword search. Submit and approve modals feed `ProjectTotService` with concurrency tokens, while exports deliver Excel summaries. (see Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml.cs lines 24-220)
-- **Proliferation tracker** – Yearly intake with submission/approval workflow, source/destination breakdowns, and PDF/Excel exports for board reviews. Preferences let administrators set the active year and default tables. (see Areas/ProjectOfficeReports/Pages/Proliferation/Index.cshtml.cs lines 23-220)
-- **IPR tracker** – Role-gated registry for filings, grants, and attachments. Dashboards surface KPI counts, inline filters persist via query strings, and attachment uploads honour `IprAttachmentOptions`. CSV/Excel exports feed compliance reporting. (see Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs lines 24-220) (see Application/Ipr/IprReadService.cs lines 12-140)
+## 11. Administration (Admin)
 
-## 8. Notifications
+The **Admin** entry in the account menu and the drawer's Administration group lead to:
+- Users (create, edit, disable, enable, reset, delete with undo)
+- Access governance
+- Login activity, system health and the search index
+- Audit logs
+- The recovery centre (project trash, archived projects, document recycle bin, deleted calendar events)
+- Master data (categories, technical categories, project types, sponsoring units, line directorates, ARPP reference data) and configuration integrity
+- Activity types
+- The maintenance centre (PDF ingestion, legacy project import)
+- The admin guide
 
-Click the bell icon or visit **Notifications** to manage alerts.
-
-- **List view** – The page fetches the latest notifications, groups project IDs into filter options, and displays unread counts. Soft mutes per project and mark read/unread actions call the REST API and update the SignalR hub so other sessions stay in sync. (see Pages/Notifications/Index.cshtml.cs lines 17-70) (see Services/Notifications/UserNotificationService.cs lines 23-220)
-- **Real-time updates** – The `NotificationDispatcher` hosted service processes dispatch queues and broadcasts new notifications over `/hubs/notifications`, respecting per-user preferences and project access. (see Services/Notifications/NotificationDispatcher.cs lines 20-200) (see Services/Notifications/NotificationPreferenceService.cs lines 19-160)
-- **Retention** – Notifications older than the configured retention window (default 30 days) or beyond the per-user cap are pruned automatically. (see appsettings.json lines 32-37) (see Services/Notifications/NotificationRetentionService.cs lines 20-147)
-
-## 9. Admin centre
-
-Administrators manage governance tasks under the **Admin** area.
-
-- **Users** – Search, filter by role or status, export CSV, and trigger lifecycle actions (enable/disable, reset password). Service guards block operations that would leave zero active admins. (see Areas/Admin/Pages/Users/Index.cshtml.cs lines 14-87) (see Services/UserLifecycleService.cs lines 13-150)
-- **Analytics** – Login scatter chart and odd-hour report are generated by `LoginAnalyticsService`, with nightly aggregation handled by `LoginAggregationWorker`. Use the filters to adjust time range and role focus. (see Services/LoginAnalyticsService.cs lines 19-200) (see Services/LoginAggregationWorker.cs lines 13-110)
-- **Categories & lookups** – Project category tree editing, lookup management, and document catalogue live under Admin → Categories/Lookups. Changes write to the audit log so historical context is preserved. (see Areas/Admin/Pages/Categories/Edit.cshtml.cs lines 15-120) (see Services/AuditService.cs lines 16-120)
-- **Calendar recycle bin** – Restore accidentally deleted events from **Admin → Calendar → Deleted**; the list pulls from `Events` flagged with `IsDeleted = true`. (see Areas/Admin/Pages/Calendar/Deleted.cshtml.cs lines 13-104)
-
-## 10. Process designer & holidays
-
-- **Process** – The Process page shows the current stage template version and last updated timestamp. HoD and MCO roles can launch the checklist editor via the REST API; others consume the published flow for reference. (see Pages/Process/Index.cshtml.cs lines 15-64)
-- **Holidays** – Admin and HoD roles manage the shared holiday list that feeds into scheduling engines and task snooze presets. Entries are stored as `DateOnly` values in `Models/Scheduling/Holiday`. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
-
-## 11. Keeping data safe
-
-- **Uploads** – All photos and documents land beneath the upload root resolved by `UploadRootProvider`. Configure `PM_UPLOAD_ROOT` to move storage off the web root in production. (see Services/Storage/UploadRootProvider.cs lines 17-100)
-- **Audit trail** – `AuditService` records create/update/delete events for tasks, projects, documents, and user lifecycle operations. Review logs under Admin → Logs when investigating issues. (see Services/AuditService.cs lines 16-120)
-- **Background workers** – Purge workers clean up stale todo items and deleted accounts based on the `Todo:RetentionDays` and `UserLifecycle` settings. Monitor logs for warnings that indicate stalled jobs. (see Services/TodoPurgeWorker.cs lines 14-108) (see Services/UserPurgeWorker.cs lines 18-120)
-
-## 12. Reference exports
-
-- **Analytics dashboard** – `/Analytics/Index` visualises the data returned by `ProjectAnalyticsService`, with category/lifecycle filters matching the REST parameters. Download buttons emit CSV snapshots for each card. (see wwwroot/js/analytics-projects.js lines 10-220)
-- **Project office Excel/PDF packs** – Visit, Social Media, Proliferation, ToT, and IPR modules all surface export actions that call their respective services under `Areas/ProjectOfficeReports/Application/*` or `Application/Ipr`. Use these when assembling monthly governance decks.
-
-Use this guide in tandem with the technical documentation to onboard new teammates and to sanity-check behaviours before rolling out changes.
+HoDs who are not Administrators see only **Activity types** from this group, but they can also open Holidays and the media administration pages (linked from Photos).

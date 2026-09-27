@@ -1,184 +1,156 @@
-# Offline Deployment and Production Readiness for Windows Server 2022 (IIS)
+# Offline Deployment on Windows Server 2022 (IIS)
 
-These notes capture the production hardening and offline deployment standard for **ProjectManagement** when running on **Windows Server 2022** in an air-gapped or LAN-only environment using a **self-contained .NET 8 publish**. Follow this guide to avoid post-deployment surprises and to keep updates routine and safe.
+This is the deployment standard for **PRISM** (`ProjectManagement`) on Windows Server 2022 with IIS,
+in an air-gapped or LAN-only network. It describes the current build. Where this page and the code
+disagree, the code is authoritative. Key sources: `ProjectManagement.csproj`, `web.config`,
+`Program.cs`, `Infrastructure/DatabaseStartupMigrator.cs`, `Infrastructure/StartupFailureReporter.cs`,
+`ops/publish/create-publish-folder.ps1`.
 
-## A. Production readiness checklist
+## 1. Prerequisites
 
-### A1. Configuration hygiene
+### Build machine (internet-connected)
 
-- Maintain three appsettings files:
-  - `appsettings.json` (base)
-  - `appsettings.Development.json` (no secrets)
-  - `appsettings.Production.json` (offline server values)
-- Production values must override all server-specific settings: database host, storage paths, OCR paths, external URLs, upload limits, scheduled intervals, and search/OCR tuning.
-- No hard-coded environment values: connection strings, file paths, and feature flags must come from configuration binding (`IOptions<>` or `builder.Configuration`).
-- Keep hierarchical key naming intact so overrides via environment variables (double underscore) remain possible.
-- Ensure production defaults cover:
-  - `ConnectionStrings:DefaultConnection`
-  - Document repository root path (outside site root)
-  - OCR worker settings, temp paths, and queue sizes
-  - Search settings (language, ranking weights)
-  - Upload size limits and allowed extensions
-  - Hosted service intervals
+| Item | Requirement | Why |
+| --- | --- | --- |
+| .NET SDK | 8.0.x | `TargetFramework` is `net8.0`. The local tool `dotnet-ef` 8.0.19 is pinned in `.config/dotnet-tools.json`. |
+| Node.js + npm | Node 22 is the version CI uses | The `BuildNotebookAssets` target in `ProjectManagement.csproj` runs `npm run build:notebook` (esbuild) before every `Build`/`Publish`. The build stops with *"Notebook frontend dependencies are missing. Run 'npm ci'..."* when `node_modules/esbuild` is absent. |
+| LibMan | Not needed | The files listed in `libman.json` are already committed under `wwwroot/lib`. |
 
-### A2. IIS hosting requirements
+Node is used only at build time. The server does not need Node.
 
-- Even with a self-contained publish, IIS requires **ASP.NET Core Module v2 (ANCM)** provided by the **.NET 8 Hosting Bundle** to process `<aspNetCore>` in `web.config`.
-- Publish output must include a clean `web.config` like:
+### Server
 
-  ```xml
-  <configuration>
-    <location path="." inheritInChildApplications="false">
-      <system.webServer>
-        <handlers>
-          <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
-        </handlers>
-        <aspNetCore processPath=".\ProjectManagement.exe"
-                    hostingModel="OutOfProcess"
-                    stdoutLogEnabled="false"
-                    stdoutLogFile=".\logs\stdout" />
-      </system.webServer>
-    </location>
-  </configuration>
-  ```
+| Item | Requirement |
+| --- | --- |
+| IIS | Web Server role. Add the **.NET 8 Hosting Bundle** (ASP.NET Core Module V2). `web.config` uses `modules="AspNetCoreModuleV2"` and `hostingModel="inprocess"`, so the module is needed even for a self-contained publish. If you install IIS after the Hosting Bundle, repair the Hosting Bundle. |
+| HTTPS certificate | **Required.** Outside Development, the auth and antiforgery cookies are `__Host-PMAuth` / `__Host-PMAntiforgery` with `CookieSecurePolicy.Always`. The app also calls `UseHttpsRedirection()` and `UseHsts()`. Login does not work over plain HTTP. |
+| PostgreSQL | 16.x. CI runs `postgres:16`, and the ops scripts default to `C:\Program Files\PostgreSQL\16\bin`. The migrations run `CREATE EXTENSION IF NOT EXISTS pg_trgm` and `pgcrypto`. On PostgreSQL 13+ both are trusted extensions, so a database-owner role can create them. The media-library features do **not** need pgvector (`ops/media-library/verify-pgvector.sql`). |
+| OCR | `ocrmypdf` and its runtime dependencies (Tesseract, Ghostscript). The app runs it through `Services/Ocr/OcrmypdfSharedRunner.cs` with `--skip-text` / `--force-ocr` / `--redo-ocr --sidecar`. Configure the path with `ProjectDocuments:Ocr:OcrExecutablePath` and `DocRepo:OcrExecutablePath`. If a path is empty, the app runs `ocrmypdf` from `PATH`. If `ProjectDocuments:Ocr:OcrExecutablePath` is set but the file does not exist, **startup fails** (`ProjectDocumentOcrOptionsValidator` with `ValidateOnStart`). The committed `appsettings.Production.json` points to `C:/Python311/Scripts/ocrmypdf.exe`. |
+| PDF fonts | Nothing to install. The DM Sans and Alatsi publication fonts are committed under `wwwroot/fonts/publications/` and published with the app. SkiaSharp native assets for Windows come from NuGet (`SkiaSharp.NativeAssets.Win32`). |
+| Face-recognition ONNX models | Needed only when `MediaLibrary:People:Enabled=true`. The approved models are committed in `App_Data/media-models/` (`face_detection_yunet_2026may.onnx`, `face_recognition_sface_2021dec.onnx`). The build does **not** publish `.onnx` files, so copy them by hand to `MediaLibrary:People:ModelRoot`. The file name and SHA-256 must match `MediaLibrary:People:Detector/Embedder` in configuration. |
 
-- Ensure `processPath` exactly matches the executable name.
-- If the Hosting Bundle was installed before IIS, re-run or repair the installer after IIS is enabled.
+## 2. Publish
 
-### A3. Database and migrations discipline
-
-- Do **not** auto-apply migrations in production. Apply reviewed SQL scripts instead.
-- Deliver with each release:
-  - `migration.sql` generated via `dotnet ef migrations script -i -o migration.sql`.
-  - A short migration impact note summarizing schema changes and any data-destructive operations.
-- Avoid drops/renames without data-copy strategy and explicit approval.
-
-### A4. File storage separation
-
-- Keep all persistent files outside the site root, e.g.:
-  - `D:\PMData\Uploads`
-  - `D:\PMData\Documents`
-  - `D:\PMData\OcrCache`
-  - `D:\PMData\Logs`
-- Point appsettings to these external paths so IIS site folder contains only binaries and static assets.
-- Refactor any module still writing inside the site root.
-
-### A5. Logging and diagnostics
-
-- Use offline-friendly logging to disk; ensure external log folder is writable by the IIS app pool identity.
-- Keep stdout logging disabled by default; document how to toggle it quickly for troubleshooting.
-- Provide a `/health` endpoint that checks:
-  - Database connectivity
-  - OCR tool availability
-  - Storage path access
-  - Search/index readiness
-
-### A6. External dependency audit
-
-- For air-gapped servers, every runtime dependency must be pre-installed or shipped with the app. List and validate:
-  - Tesseract OCR runtime and language packs (exact folder path)
-  - PDF/OCR helpers (e.g., ocrmypdf, poppler, ghostscript) if used
-  - Native libraries for image/video
-  - NuGet packages with outbound calls
-- Produce a dependency map with version, installer location, and a test command.
-
-#### Compendium PDF runtime contract
-
-- The Compendium is fully offline. Its pagination and final compositor both use the six DM Sans
-  faces under `wwwroot\fonts\publications\dm-sans`; no web-font or CDN fallback is permitted.
-- The release must include the self-contained win-x64 runtime, SkiaSharp native library, QuestPDF,
-  PdfPig and the publication fonts. Validate the exact deployed folder before attaching it to IIS:
-
-  ```powershell
-  .\ProjectManagement.exe --compendium-offline-self-test
-  ```
-
-- A successful command returns one JSON line with `"status":"ok"`. It does not start the web
-  host, connect to PostgreSQL, or use the network.
-- Set `PRISM_PUBLICATION_FONTS_DIR` only when publication fonts are deliberately stored outside the
-  site. The value points to the offline publication-font root containing `dm-sans`.
-- Set `PRISM_COMPENDIUM_DIAGNOSTICS_DIR` to a durable writable folder such as
-  `D:\PMData\Logs\Compendium`. Grant Modify permission to the application-pool identity. Failed PDF
-  requests append a JSONL record correlated by the same reference shown to the publisher.
-
-### A7. Security and LAN-only posture
-
-- Remove or guard any code path that reaches public URLs, update feeds, telemetry, analytics, or CDN assets.
-- Serve all static assets locally (no CDN).
-- Confirm production authentication/roles do not rely on external identity providers.
-
-## B. Release package contents (per update)
-
-Include a versioned folder containing:
-
-1. `/publish/` self-contained output (`win-x64`, `net8.0`)
-2. `migration.sql` (if schema changed)
-3. `ReleaseNotes.md` with version, date, functional changes, config key deltas, migration impact summary, and rollback notes
-4. `DeploymentChecklist.md` referencing the deployment steps below
-
-## C. Offline deployment guide (Windows Server 2022 + IIS)
-
-### C1. One-time server preparation
-
-1. Install IIS role/features: Web Server (IIS), Application Development (ASP.NET, .NET Extensibility, ISAPI Extensions/Filters), and security options such as Windows Authentication as needed.
-2. Install the **.NET 8 Hosting Bundle** offline, then restart IIS (required for ANCM v2).
-3. Install PostgreSQL offline on a LAN host, configuring `listen_addresses` and `pg_hba.conf` for the subnet.
-4. Create external data folders: `D:\PMData\Uploads`, `D:\PMData\Documents`, `D:\PMData\OcrCache`, `D:\PMData\Logs` with NTFS permissions: `IIS_IUSRS` read/write on data folders, read/execute on site root.
-
-### C2. Publish command (dev machine)
+Run on the build machine, from the repository root:
 
 ```powershell
-dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:PublishTrimmed=false -o .\publish
-```
-
-The repository publish script performs the same self-contained publish plus font, native-runtime
-and Compendium PDF self-test validation:
-
-```powershell
+npm ci
+dotnet tool restore
+dotnet restore
+dotnet test -c Release        # optional here; CI also runs it
 .\ops\publish\create-publish-folder.ps1
 ```
 
-### C3. IIS site setup
+`create-publish-folder.ps1` does the following:
 
-1. Copy publish folder to `D:\Sites\ProjectManagement\current`.
-2. Create App Pool `ProjectManagementPool` with **No Managed Code**, Integrated pipeline.
-3. Create Site `ProjectManagement` pointing to `D:\Sites\ProjectManagement\current`; bind `http` on the chosen port (e.g., 8080).
-4. Open firewall inbound TCP port (e.g., 8080) for Domain/Private profiles.
-5. Set IIS environment variable: `ASPNETCORE_ENVIRONMENT = Production`.
+- runs `npm ci --ignore-scripts` if esbuild is missing
+- checks every `appsettings*.json`
+- runs `dotnet publish -c Release --runtime win-x64 --self-contained true /p:UseAppHost=true` into `artifacts/publish/ProjectManagement`
+- checks the required published files, the self-contained runtime DLLs, the DM Sans fonts, `libSkiaSharp.dll` and the `web.config` request limit
+- runs `ProjectManagement.exe --compendium-offline-self-test`
 
-### C4. First deployment flow
+> **Known defect:** the script requires exactly **62** IDs in `Migrations/immutable-migration-ids.txt`
+> ending in `20261201160000_FinalizeProjectStageCompletionConstraint`. The manifest now has 115 IDs,
+> so the script always stops at that check until the check is updated.
+> Until then, publish by hand with the same settings:
 
-1. Run `ProjectManagement.exe --compendium-offline-self-test` from the final deployed directory.
-2. Verify database connectivity.
-3. Apply `migration.sql` if present using `psql -h <db-ip> -U pm_user -d ProjectManagement -f migration.sql`.
-4. Browse locally: `http://localhost:8080/`.
-5. Browse from LAN: `http://<server-ip>:8080/`.
-6. Hit `/health` and confirm green.
-7. Generate a Compendium Preview PDF, verify its page count, then test the reviewed final download.
+```powershell
+dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained true /p:UseAppHost=true -o .\artifacts\publish\ProjectManagement
+.\ops\publish\test-compendium-offline-payload.ps1 -PublishRoot .\artifacts\publish\ProjectManagement
+```
 
-## D. Offline update and rollback SOP
+`ops/publish/create-publish-folder.sh` produces a framework-dependent build (`UseAppHost=false`,
+output `./publish`) with no `ProjectManagement.exe`. That build does not match `web.config` and is
+not the IIS artifact.
 
-### D1. Update steps
+The publish output must contain `Migrations/immutable-migration-ids.txt` and
+`Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt`. They are copied by the csproj
+and are also embedded in the DLL as a fallback.
 
-1. Take a database backup.
-2. Place `app_offline.htm` into `current` for graceful stop.
-3. Apply `migration.sql` (after review) if included.
-4. Replace `current` binaries with new publish output.
-5. Remove `app_offline.htm`.
-6. Smoke test: homepage, login/roles, document upload + OCR status, global search for known doc, `/health`.
+## 3. Configuration
 
-### D2. Rollback steps
+Configuration comes from `appsettings.json`, then `appsettings.Production.json`, then environment
+variables (`Section__Key`). The committed `appsettings.Production.json` contains
+`Username=postgres;Password=postgres` and `F:/ProjectManagementData/...` paths. Override them for your server.
 
-1. Place `app_offline.htm` to stop the app.
-2. Restore previous publish folder (kept under `releases\previous`).
-3. Remove `app_offline.htm`.
-4. If rollback crosses a migration boundary, restore DB backup or run reverse migration plan.
+| Setting | Purpose |
+| --- | --- |
+| `ASPNETCORE_ENVIRONMENT` | Leave unset or set to `Production`. `web.config` sets no environment variables. |
+| `ConnectionStrings__DefaultConnection` | PostgreSQL connection. Use a dedicated database-owner role. A warning is logged when the user is `postgres` outside Development. |
+| `DP_KEYS_DIR` | Data-protection key ring. **Set it explicitly** to a durable folder and back it up. If it is unset outside Development, the app uses `/var/pm/keys` (on Windows, `\var\pm\keys` on the current drive). Losing the keys signs everyone out and invalidates antiforgery tokens. |
+| `PM_UPLOAD_ROOT` or `ProjectPhotos:StorageRoot` | Upload root (`Services/Storage/UploadRootProvider.cs`). The environment variable wins. The default is `/var/pm/uploads`. |
+| `DocRepo:RootPath` | Document repository files. A relative path is resolved against the content root. DocRepo OCR scratch space is `DocRepo:OcrWorkRoot`, which is resolved under the upload root when relative. |
+| `ProjectDocuments:Ocr:WorkRoot` | Project-document OCR working folder. |
+| `MediaLibrary:CacheRoot`, `MediaLibrary:People:ModelRoot` | Media derivative cache and ONNX model folder. A relative path is resolved against the content root. |
+| `Storage:DataRoot` | Used **only** by `StartupFailureReporter`, which writes `startup-diagnostics/startup-failure-*.log` there, or under the content root if the value is missing or not absolute. No other root is derived from it. |
+| `PRISM_COMPENDIUM_DIAGNOSTICS_DIR` | Optional durable folder for JSONL records of failed Compendium PDF generation. |
+| `PRISM_PUBLICATION_FONTS_DIR` | Optional external publication-font root that contains `dm-sans/`. Set it only if the fonts are kept outside the site. |
+| `Database:RunSeedersOnStartup` | Default `false`. Set it to `true` for the **first start on an empty database** only (see §5). |
+| `PRISM_BOOTSTRAP_ADMIN_PASSWORD` or `Security:BootstrapAdminPassword` | One-time password for the bootstrap admin (user name from `Security:BootstrapAdminUserName`, default `admin`). It is required when seeders run and that user does not exist. The account is created with `MustChangePassword`. Remove the secret afterwards. |
 
-## E. Ownership and immediate actions
+`Database:ApplyMigrationsOnStartup` is ignored. Migrations always run, and a warning is logged if it is `false`.
 
-1. Configuration audit: ensure all server-dependent values live in `appsettings.Production.json`.
-2. Persistent storage audit: confirm no module writes inside the IIS site root.
-3. Dependency map: produce full offline dependency list for OCR and document processing.
-4. Migration discipline: enforce scripted migrations and impact notes.
-5. Health endpoint: implement and document.
-6. Deployment docs: keep this SOP under `/docs/deployment/offline-ws2022.md`.
+Keep every data folder outside the site folder. Grant the app-pool identity Modify rights on each
+data root and on `DP_KEYS_DIR`.
+
+## 4. IIS site
+
+1. Copy the publish output to, for example, `D:\Sites\PRISM\current`.
+2. Create an app pool with **No Managed Code**. The app runs in process in `w3wp.exe`.
+3. Create the site, add an **HTTPS** binding with the server certificate, and open the firewall port.
+4. Set environment variables for the site/app pool (for example with `appcmd` or Configuration Editor → `system.webServer/aspNetCore/environmentVariables`).
+5. `web.config` limits request bodies to 256 MiB (`maxAllowedContentLength=268435456`). Keep this value when you edit `web.config`.
+6. For troubleshooting, set `stdoutLogEnabled="true"` temporarily. Logs go to `.\logs\stdout*`, so the identity needs write access to `logs`.
+
+## 5. First start and migrations
+
+Startup (see `Program.cs`, the "Database startup policy" section, and `DatabaseStartupMigrator`) works as follows:
+
+1. The app checks the EF migrations in the assembly against the immutable manifest. It stops if either
+   list has an ID the other lacks, if IDs are duplicated, or if the database history has IDs this build does not know.
+2. It takes the PostgreSQL advisory lock `PRISM_ERP_EF_MIGRATIONS` (waits up to 10 minutes) and applies all
+   pending `ApplicationDbContext` migrations. The command timeout is 600 s.
+3. It validates the application schema (stage constraint, Notebook, DocRepo favourites, document search vectors).
+   **Any failure here ends the process**, and a diagnostic is written by `StartupFailureReporter`.
+4. If `MediaLibrary:Enabled` is true (the default), it then migrates and validates `MediaLibraryDbContext`
+   (history table `__EFMigrationsHistory_MediaLibrary`) with its own lock. **A media failure is not fatal.**
+   A critical log and a diagnostic file are written, the core ERP starts, and Photos/media workers stay unavailable.
+5. When `Database:RunSeedersOnStartup=true`, the ISO country, StageFlow and Identity seeders run.
+
+For a fresh database: start once with `Database__RunSeedersOnStartup=true` and
+`PRISM_BOOTSTRAP_ADMIN_PASSWORD`, log in as `admin`, change the password, then remove both settings
+and recycle the pool.
+
+The first start after an upgrade can take several minutes while migrations run. Take a database
+backup before every upgrade (see `docs/disaster-recovery.md`).
+
+## 6. Verification
+
+1. On the server, in the deployed folder, run `.\ProjectManagement.exe --compendium-offline-self-test`.
+   It runs before the web host is built (no database, no network) and prints one JSON line with
+   `"status":"ok"`, or exits non-zero.
+2. Start the site. In the logs, look for `Migration preflight passed for ApplicationDbContext`,
+   `ApplicationDbContext migrations are closed and the critical application schema is validated.` and the
+   `Using database ... media startup healthy=True` line.
+3. If startup failed, read `<Storage:DataRoot>\startup-diagnostics\startup-failure-*.log`.
+4. Run `PRODUCTION-STARTUP-DIAGNOSTIC.sql` / `PRODUCTION-MIGRATION-INVENTORY.sql` (both read-only) against the database to check migration history.
+5. Log in over HTTPS and open **Admin → System health** (`/Admin/Diagnostics/DbHealth`). It checks the database,
+   upload/DocRepo storage, the data-protection key folder, capacity and background services.
+   The app has **no** anonymous `/health` or `/health/ready` endpoint.
+6. Smoke test: upload a document and confirm OCR completes, run a global search, and generate a Compendium PDF.
+
+## 7. Update and rollback
+
+**Update**
+
+1. Back up the database (`ops/backup-db.ps1`) and the current site folder.
+2. Put `app_offline.htm` in the site folder, or stop the app pool.
+3. Replace the **whole** publish output. Never copy individual source files.
+4. Remove `app_offline.htm` and start the pool. Migrations run on first start.
+5. Repeat the checks in §6.
+
+**Rollback**
+
+EF migrations only move forward, and the app refuses to start against a database whose history
+contains migrations the older build does not know. To roll back across a migration boundary,
+restore the pre-upgrade database dump **and** the previous publish folder together.

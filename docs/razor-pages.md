@@ -1,87 +1,229 @@
-# Razor Pages
+# Razor Pages catalogue
 
-This module summarises the UI components exposed to end users.
+Catalogue of every routable Razor Page in PRISM, grouped by feature area. For each page it gives the route, what the page is for, its main handlers, and the authorization that actually gates it. Where this document and the code disagree, the code wins.
 
-## Login
-* `Areas/Identity/Pages/Account/Login.cshtml` – form that collects a username and password; uses built-in tag helpers for validation.
-* `Areas/Identity/Pages/Account/Login.cshtml.cs` – authenticates the user with `SignInManager`, handles disabled accounts and lockouts, and records events via `ILogger`.
+## How authorization is applied
 
-## Logout
-* `Areas/Identity/Pages/Account/Logout.cshtml` – simple confirmation page after logout.
-* `Areas/Identity/Pages/Account/Logout.cshtml.cs` – signs the user out and clears the session.
+- **There is no global fallback policy.** `Program.cs` calls `AddAuthorization` without a `FallbackPolicy`, so a page is only protected if it has an `[Authorize]` attribute (on the page model, or `@attribute [Authorize]` in the `.cshtml`) or is covered by a Razor Pages convention. Every page has an explicit `[Authorize...]` attribute except the anonymous ones listed below.
+- **Conventions** (the `AddRazorPages` options in `Program.cs`):
+  - `AuthorizeFolder("/Dashboard")` and `AuthorizeFolder("/Projects/Publications")` require an authenticated user.
+  - `AuthorizeAreaFolder("Admin", "/")` requires an authenticated user for the whole Admin area. Each page then adds its own capability policy.
+  - `AuthorizeAreaFolder("ProjectOfficeReports", "/Visits", ViewVisits)` and `(..., "/Training", ViewTrainingTracker)`.
+  - `AuthorizeAreaPage` puts `ManageVisits` on `/Visits/New` and `/Visits/Edit`, and `ManageSocialMediaEvents` on `/SocialMedia/Create`, `/SocialMedia/Edit` and `/SocialMedia/Delete`.
+  - `AddPageRoute` adds `/ProjectOfficeReports/Patent` and `/ProjectOfficeReports/Patent/Manage` as aliases for the IPR pages.
+  - `AllowAnonymousToPage("/Index")`, `AllowAnonymousToPage("/Privacy")` (no `/Privacy` page exists) and `AllowAnonymousToAreaPage("Identity", "/Account/Login")`.
+- **Anonymous pages**: `/` (`Pages/Index`, public landing page; signed-in users are redirected by `DefaultLandingPageResolver`), `/Identity/Account/Login`, `/Identity/Account/AccessDenied`, `/Error`, and `/Developer`.
+- **MVC filter**: `EnforcePasswordChangeFilter` is added globally, so a user flagged `MustChangePassword` is sent to Change Password first.
+- **Antiforgery**: Razor Pages validate the antiforgery token on every POST by default. Only `Pages/Error` uses `[IgnoreAntiforgeryToken]`.
+- **Where policies are defined**: `Configuration/Policies.cs` (`Policies.*`), `Configuration/AdminPolicies.cs` with `Services/Admin/AdminCapabilityCatalog.cs` (Admin capabilities), and `Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs`. Role names are in `Configuration/RoleNames.cs`.
+- **Page access vs action access**: many pages are open to any signed-in user but check permissions inside each handler (for example with `ProjectAccessGuard`, `ActivityAuthorizationPolicy`, `ProjectIdeaPermissionService`, `ProjectOfficeReportsPolicies.CanManageFfc`, or `IAuthorizationService`). Those pages are marked "Authenticated (+ handler checks)".
 
-## Account management
-* `Areas/Identity/Pages/Account/Manage/Index.cshtml` – entry point for signed-in users to manage their account, including password changes.
+### Policy → role quick reference
 
-## Change Password
-* `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml` – form for updating the current user's password.
-* `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml.cs` – validates the old password, updates it, clears the `MustChangePassword` flag and refreshes the sign-in cookie. After a successful mandatory password change, the role-based landing resolver redirects Project Officers to the canonical `/Workspace` route and command roles to the dashboard.
+| Policy | Roles |
+| --- | --- |
+| `Project.Create` | Admin, HoD |
+| `ERP.Usage.View` | Admin, Comdt, HoD |
+| `Calendar.ManageEvents` | Admin, HoD, TA, Comdt, MCO, Project Officer, Project Office |
+| `Calendar.ManageCelebrations` / `ManageBirthdays` / `ManageAnniversaries` | Admin, TA, Main Office clerk |
+| `Checklist.Edit` / `Checklist.PurposeEdit` | MCO, HoD / Admin, HoD |
+| `ActionTracker.Access` | Comdt, HoD, Project Officer, MCO, TA, ITO (Admin is **not** included) |
+| `ProjectBriefingDecks.Manage`, `ConferenceRemarks.Manage` | Comdt, HoD |
+| `IndustryPartners.View` / `Contact.Add` | Any authenticated user |
+| `IndustryPartners.Create` | Admin, HoD, Comdt, Project Officer, Project Office, MCO, TA, ITO |
+| `IndustryPartners.EditAny` / `Contact.ManageAny` / `Delete` | Admin, HoD, Comdt / Admin, HoD, Comdt / Admin, HoD |
+| `DocRepo.View` | Any authenticated user |
+| `DocRepo.Upload`, `DocRepo.SoftDelete` | Project Office, Main Office clerk, MC Cell clerk, IT Cell clerk, Admin, HoD |
+| `DocRepo.EditMetadata` | Admin, TA, ITO, MCO, HoD |
+| `DocRepo.DeleteApprove` | Admin, HoD |
+| `DocRepo.ManageCategories`, `DocRepo.Purge` | Admin |
+| `Ipr.View` / `Ipr.Edit` | Any authenticated user / Admin, HoD, Project Office |
+| Shared publication presets (`Policies.Publications.CanManageSharedPublications`) | Comdt, HoD, ITO |
+| Admin capabilities: `Admin.Access`, `Users.Manage`, `AccessGovernance.View`, `Security.View`, `Logs.View`, `Recovery.Manage`, `MasterData.Manage`, `MasterData.Integrity.Manage`, `Ingestion.Manage` | Admin |
+| Admin capabilities: `ActivityTypes.Manage`, `Holidays.Manage`, `Media.*` | Admin, HoD |
+| PO Reports: `ViewVisits`, `ViewTotTracker`, `ViewProliferationTracker` | Any authenticated user |
+| PO Reports: `ManageVisits`, `ManageSocialMediaEvents`, `SubmitProliferationTracker`, `ManageProliferationPreferences`, `ManageArpp`, `ManageTrainingTracker` | Admin, HoD, Project Office |
+| PO Reports: `ManageTotTracker` | Admin, HoD, Project Office, Project Officer |
+| PO Reports: `ApproveTotTracker`, `ApproveProliferationTracker`, `ApproveTrainingTracker`, `UnlockArpp` | Admin, HoD |
+| PO Reports: `ViewTrainingTracker` | Admin, HoD, Project Office, Project Officer, Comdt, MCO, TA, Main Office clerk |
+| PO Reports: `ViewProgressReview` | Admin, HoD, Project Office, Comdt |
+| PO Reports: `ViewArpp` | Admin, HoD, Comdt, Project Office, MCO, Project Officer |
+| PO Reports: `VerifyArpp` | Admin, HoD, Comdt |
+| PO Reports: `ManageFfc` / `InlineEditFfc` | Admin, HoD, Comdt, ITO / Admin, HoD, Comdt |
 
-## Dashboard
-* `Pages/Dashboard/Index.cshtml` – landing page after sign-in. It shows an attention band when tasks are overdue or due today, renders the **My Tasks** widget inline, and pins a floating **Upcoming events** launcher in the right margin that opens the drawer on the page edge alongside placeholder content for future widgets.
-* `Pages/Shared/_TodoWidget.cshtml` – partial responsible for listing, adding, pinning, completing, snoozing, priority changes and deleting tasks. It uses a compact single-line layout with truncated titles, priority dots, due-date chips and a quiet overflow menu triggered by a circular icon-only button. Badge counters on the header show **Overdue** (due time before now) and **Due today** (remaining tasks before midnight IST) counts using exclusive buckets so items never appear in both. Bootstrap's caret is suppressed and the dropdown is initialised by `wwwroot/js/todo.js` to render in the document body with fixed positioning and auto-flip logic to avoid clipping near the right edge. Menus carry a `.todo-menu` class so they retain a high z-index even after being moved to `<body>`, and the script ensures only one dropdown stays open at a time. It also wires up a shared confirmation modal for completion and deletion actions and is loaded conditionally via `wwwroot/js/init.js`. The widget is rendered only on the dashboard's right column and opens to the left by default using `dropstart`.
-* `Pages/Dashboard/_UpcomingEventsWidget.cshtml` – lists the next five calendar entries within the coming month and links to the full calendar. The markup is optimised for the drawer body so it can sit inside the right-hand pull-out panel.
+"Project Office" also matches the legacy alias `ProjectOffice`, and "Main Office clerk" (`Main_Office_Clerk`) also matches `Main Office`, wherever the role arrays list both.
 
-## Tasks
-* `Pages/Tasks/Index.cshtml` – full management interface with filter tabs, search and page size selection. Tasks are shown in a grouped list (Overdue / Today / Upcoming / Completed) with priority dots, due-date chips and calm overflow menus triggered by icon-only circular buttons. Grouping and chip labels use Indian Standard Time via `TimeZoneHelper`, marking an item **Overdue** when its due moment has passed and **Today** only when it is still in the future but due before midnight IST. Rows support inline edits, drag-and-drop reordering and collapsible note fields. `wwwroot/js/tasks-page.js` wires up row action visibility, drag reordering and done checkbox auto-submit while respecting anti-forgery tokens and CSP rules (no inline scripts). The same `todo.js` script handles dropdown placement, ensures only one menu is open at a time and preserves z-index with the `.todo-menu` class, and it is brought in dynamically through `init.js` only when the list is present. Completing a task surfaces a small success banner with an Undo action, and the Completed tab offers a **Clear all completed** button with a confirmation prompt. The quick-add box accepts tokens like `tomorrow`, `today`, `mon`, `next mon`, `!high` and `!low` to set due dates and priority while stripping them from the final title.
+---
 
-## Admin analytics
-* `Areas/Admin/Pages/Analytics/Logins.cshtml` – scatter chart rendered with Chart.js (loaded as a global script) showing login times over a selectable window with an office-hours band, percentile lines (median and P90 only when data exists), weekend highlighting and per-user filter. Dataset decimation keeps rendering fast on large ranges. Tooltips and the odd-logins table show friendly user names (falling back to email or "(deleted)"), CSV export includes both name and ID, and points link to their audit log entries.
+## Public, identity and shell
 
-## Calendar
-* `Pages/Calendar/Index.cshtml` – FullCalendar-based interface offering month, week and list views. Events load from `/calendar/events` and show details in an offcanvas panel with Markdown rendering and a quick “Add to My Tasks” action. Users in the Admin, TA or HOD roles can create, drag, resize, edit and delete events through a separate offcanvas form.
-  * Compact category pills sit in the top bar between view switches and navigation. Each pill shows a coloured dot and live event count, and a legend below the calendar repeats these counts.
-  * Clicking a pill filters existing DOM nodes client-side; “All” restores every event without refetching.
-  * Prev/next buttons and a dynamic title show the current range.
-  * View buttons retain an active state and small screens automatically switch to a list view.
-  * Business hours highlight 08:00–18:00 Monday–Saturday and Sundays get a light tint; an empty message appears when no events are visible.
-  * Admin-configured holidays fetched from `/calendar/events/holidays` mark matching cells with the `.pm-holiday` class, tinting the grid with a rose gradient and wrapping the day number in a pill so non-working days stand out.
-  * Categories include Visit, Insp, Conference and Other; legacy strings such as "Training" or "TownHall" are mapped to the nearest canonical value and unknown strings default to Other.
-  * Local times are respected when editing; all-day events use date-only inputs. Clicking an event pre-fills the form and shows a Delete option, while **New Event** clears any stale data.
-  * Saving or moving an event surfaces a toast with an Undo action, and non-editors see a read-only offcanvas with Markdown details and an **Add to My Tasks** button.
-  * Print styles hide chrome so month grids can be printed cleanly.
-  * FullCalendar's global bundle injects its own styles at runtime, so no separate CSS links are required.
-  * `calendar.js` detects which FullCalendar plugins are present and only registers those, allowing either the single bundle or individual plugin globals. Load Bootstrap's bundle, then FullCalendar, then the page script.
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/` (`Pages/Index`) | Public landing page. Signed-in users are redirected to `/Dashboard` (Comdt/HoD, others) or `/Workspace` (Project Officer). | `OnGetAsync` | Anonymous |
+| `/Developer` | Credits and contact card with the app version (`App:Version`). Linked from the layout footer as "System information". | `OnGet` | Anonymous (no attribute) |
+| `/Error` | Error page. | `OnGet` | Anonymous, `[IgnoreAntiforgeryToken]` |
+| `/Identity/Account/Login` | Username/password sign-in. Honours only local `returnUrl` values and otherwise uses the role landing page. | `OnPostAsync` | Anonymous |
+| `/Identity/Account/Logout` | Sign-out confirmation. Signing out happens on POST only. | `OnPostAsync` | No attribute, `[AutoValidateAntiforgeryToken]` |
+| `/Identity/Account/AccessDenied` | 403 page. | `OnGet` | Anonymous |
+| `/Identity/Account/Manage` | Account settings: choose a Photos portrait or initials as your avatar, or report a wrong photo identity. | `OnPostUsePhotosPortraitAsync`, `OnPostUseInitialsAsync`, `OnPostReportPhotoIdentityAsync` | Authenticated |
+| `/Identity/Account/Manage/ChangePassword` | Change password. Clears `MustChangePassword` and redirects to the role landing page. | `OnPostAsync` | Authenticated |
+| `/Common/Search` | Global search, with facets, suggestions and click telemetry. | `OnGetFacetsAsync`, `OnGetSuggestionsAsync`, `OnPostClickAsync` | Authenticated |
 
-* `Areas/Admin/Pages/Calendar/Deleted.cshtml` – admin-only table listing soft-deleted events with a Restore action.
+**Layout and navigation** (`Pages/Shared/_Layout.cshtml`):
+- **Top tabs**, shown to every signed-in user: Dashboard, My Workspace, Calendar, Notebook, Photos, Projects (`/Projects/Ongoing`), FFC (`/ProjectOfficeReports/FFC/MapTableDetailed`), Documents (with the AOTS unread badge) and Search.
+- **Navigation drawer**: `NavigationDrawerViewComponent` renders `Services/Navigation/RoleBasedNavigationProvider`. It trims each item by `RequiredRoles` and/or `AuthorizationPolicy`, and adds the Administration branch (`AdminNavigationCatalog.BuildAdminPanel`) for Admins only. HoDs who are not Admins get only the "Activity types" admin item.
+- **Project module sub-navigation**: `ProjectModuleNavDefinition`, rendered by `ModuleSubNavViewComponent`.
+- **Admin sidebar**: `AdminSidebarViewComponent`.
+- **Other view components**: `NotificationBell`, `PendingApprovalsBadge`, `AotsUnreadBadge`, `ProjectTotCommandCard`, and `TrainingApprovalsBadge` (in the ProjectOfficeReports area).
 
-## Notifications centre
-* `Pages/Notifications/Index.cshtml` – lists the most recent 50 notifications (lazy-loaded via `/api/notifications`). Cards show module, title, summary, timestamps, and a badge when muted. A project filter menu appears when items reference projects, and the header displays the unread count from `/api/notifications/count`.
-* `Pages/Notifications/Index.cshtml.cs` – builds the view model by calling `UserNotificationService` to fetch items, calculate unread counts, and populate project filter options. It also wires in the hub URL for SignalR live updates and exposes API endpoints for mark-read/mark-unread/mute actions. (see Pages/Notifications/Index.cshtml.cs lines 17-70) (see Services/Notifications/UserNotificationService.cs lines 23-220)
+## Dashboard and workspace
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Dashboard` | Home page: notebook/to-do widget, upcoming events, my projects, Project Pulse, ops signals, FFC map, search health, and activity and idea summaries. | `OnGetAsync` | Authenticated (folder convention + `[Authorize]`) |
+| `/Workspace` | Role workspace. **Command mode** (Comdt/HoD) has these views: officers, portfolio, adoption, usage-pattern, my-activity. **Project Officer mode** has these views: overview, actions, projects, tasks, ideas, conference, follow-ups, documents, activity. Users with none of those roles are redirected to `/Dashboard`. | `OnGetDirectionHistoryAsync`, `OnPostSaveOfficerOrderAsync` (Comdt/HoD only) | Authenticated (+ handler checks) |
+| `/Workspace/Conference/{officerUserId?}` | Officer conference review: record directions, and turn them into tasks or ideas. | `OnPostAddAsync`, `OnPostCreateTaskAsync`, `OnPostCreateIdeaAsync` | `ConferenceRemarks.Manage` |
+| `/Workspace/BriefingDecks/{deckId?}` | Project briefing deck builder (decks, institutional profile, role charter, FFC footprint, extra slides, project membership and order, export). | `OnPostCreateAsync`, `OnPostDuplicateAsync`, `OnPostDeleteAsync`, `OnPostSave*`, `OnPostReorder*` and others | `ProjectBriefingDecks.Manage` |
+| `/Tasks` | Personal to-do list (tabs: all, today, upcoming, completed). | `OnPostAdd/Toggle/Undo/Edit/Snooze/Reorder/Pin/Delete/ClearCompleted`, bulk done/delete/pin | Authenticated (items are scoped to their owner) |
+| `/Notebook`, `/Notebook/Edit/{id?}` | Personal notebook with reminders and the shared conference digest (Comdt/HoD view). Writes go through `api/notebook/*` (`Controllers/Api/NotebookController`). | `OnGet*` only | Authenticated |
+| `/Notifications` | Notification centre. Reads and updates go through `/api/notifications` and the SignalR hub. | `OnGetAsync` | Authenticated |
+
+## Calendar and celebrations
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Calendar` | FullCalendar view of events, holidays and celebrations. Event create, edit and delete go through the `/calendar/events` minimal APIs in `Program.cs`, which require `Calendar.ManageEvents`. The page computes `CanEdit`, `CanManageBirthdays` and `CanManageAnniversaries`. | `OnGetAsync` | Authenticated |
+| `/Celebrations`, `/Celebrations/Edit/{id?}` | Birthday and anniversary registry: list, soft-delete, create and edit. Linked from Calendar for managers. | `OnPostDeleteAsync`, `OnPostAsync` | `Calendar.ManageCelebrations` (the whole page, not only edits) |
+| `/Settings/Holidays` (+ `Create`, `Edit/{id}`, `Delete/{id}`, `Observe/{id}`, `WithdrawObservance/{id}`) | Gazetted and restricted holidays, and declaring or withdrawing office observance of a restricted holiday. | `OnPostAsync` on each sub-page | `Admin.Holidays.Manage` (Admin, HoD) |
 
 ## Projects
-* `Pages/Projects/Index.cshtml` – searchable list of projects ordered by creation time. Supports case-file filtering (ILike match) and surfaces category, HoD and PO assignments next to each entry.
-* `Pages/Projects/Create.cshtml` – multi-section form for registering new projects. It lets authors pick a top-level and sub-category, assign HoD/PO roles from pre-filtered lists, capture a unique case file number and optionally seed the last completed stage for in-flight work, with validation against canonical stage codes.
-* `Pages/Projects/Overview.cshtml` – the command centre that loads procurement facts, timeline status, plan editor state, assignment options and category breadcrumbs in a single page model. Offcanvas panels reuse this data to edit procurement facts, timeline drafts or project roles, and the procurement panel now only auto-opens when the navigation includes `oc=procurement`, keeping stage-driven refreshes from surfacing stale forms.
-* `Pages/Projects/Procurement/Edit.cshtml` – processes procurement edits from the overview offcanvas. It enforces stage completion before accepting IPA/AON/BM/L1/PNC numbers or supply-order dates, wraps writes in a transaction and redirects back to the overview with `oc=procurement` so the editor is reopened only when requested.
-* `Pages/Projects/Documents/UploadRequest.cshtml` – Admin/HoD/PO form for staging a new PDF. Streams the file through `DocumentService.SaveTempAsync`, validates MIME/size against `ProjectDocumentOptions`, links to a stage, and raises a `ProjectDocumentRequest` for moderation, deleting the temp file if validation fails. (see Pages/Projects/Documents/UploadRequest.cshtml.cs lines 25-167) (see Services/Documents/DocumentService.cs lines 19-420)
-* `Pages/Projects/Documents/ReplaceRequest.cshtml` – Similar to upload but targets an existing document; ensures no other request is pending, optionally renames the document, and records a replace request awaiting review. (see Pages/Projects/Documents/ReplaceRequest.cshtml.cs lines 23-183)
-* `Pages/Projects/Documents/DeleteRequest.cshtml` – Captures a reason and queues a delete request, blocking duplicates until moderators act. (see Pages/Projects/Documents/DeleteRequest.cshtml.cs lines 19-137) (see Services/Documents/DocumentRequestService.cs lines 122-165)
-* `Pages/Projects/Documents/Approvals/Index.cshtml` – HoD/Admin queue showing pending document requests for a project with action labels, file metadata, and IST timestamps; rejects access unless the viewer is the assigned HoD or an Admin. (see Pages/Projects/Documents/Approvals/Index.cshtml.cs lines 19-139)
-* `Pages/Projects/Documents/Approvals/Review.cshtml` – Decision surface for approving or rejecting requests with concurrency tokens, reviewer notes, and audit-backed calls into `DocumentDecisionService`. Success redirects with flash messaging while unexpected errors return to the page with validation feedback. (see Pages/Projects/Documents/Approvals/Review.cshtml.cs lines 20-178) (see Services/Documents/DocumentDecisionService.cs lines 11-188)
-* `Pages/Projects/AssignRoles.cshtml` – dedicated handler for updating HoD/PO assignments with concurrency checks on the project row version and full audit logging.
-* `Pages/Projects/Timeline/EditPlan.cshtml` – Project Officer/HoD/Admin editor for draft timelines. Supports both exact date entry and auto-generation from durations, prevents edits while a draft is awaiting approval and records audit events describing the chosen action (save vs. submit).
-* `Pages/Projects/Timeline/Review.cshtml` – HoD approval workflow. Blocks approvals while procurement backfill is outstanding, captures rejection notes, raises validation errors from `PlanApprovalService` and redirects back to the overview with flash messaging.
-* `Pages/Projects/Videos/Index.cshtml` – gallery for project walkthrough videos with featured-video badges, inline metadata editing, and download links; upload and poster actions drive through `ProjectVideoService`. (see Pages/Projects/Videos/Index.cshtml.cs lines 16-180)
-* `Pages/Projects/Videos/Upload.cshtml` – gated to Admin/HoD/PO roles, validates video content types/size, writes through `ProjectVideoService`, and redirects back to the gallery with success toasts. (see Pages/Projects/Videos/Upload.cshtml.cs lines 19-140)
-* `Pages/Projects/Videos/Stream.cshtml` / `Poster.cshtml` – stream video files and poster frames with proper caching and access checks so only authorised viewers fetch assets. (see Pages/Projects/Videos/Stream.cshtml.cs lines 15-120)
 
-## Process designer
-* `Pages/Process/Index.cshtml` – presents the currently active stage template version, last-updated timestamp, and a call-to-action to open the checklist editor. Only users with the HoD or MCO role see edit affordances; everyone else can view the version and audit timestamp. (see Pages/Process/Index.cshtml.cs lines 15-64)
-* `/api/processes/{version}/...` endpoints surfaced on the same page power the flow diagrams and checklist management tools described in [docs/timeline.md](timeline.md).
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Projects` | Projects repository with filters and a live search endpoint. | `OnGetLiveAsync` | Authenticated |
+| `/Projects/Create` | Register a project (with a name check). | `OnGetCheckNameAsync`, `OnPostAsync` | `Project.Create` |
+| `/Projects/Overview/{id}` | Project command page: stages, procurement, timeline, content (brief, capabilities, specifications, description), JDPs, ToT, proliferation, and lifecycle actions. The page model is split across the partial files `Overview.Content.cs`, `Overview.MultiJdp.cs` and `Overview.Tot.cs`. | `OnPostCompleteAsync`, `OnPostEndorseAsync`, `OnPostCancelAsync`, `OnPostReactivateAsync` (Admin/HoD), `OnPostProliferationAsync`, `OnPostSaveProject*` (Admin/HoD), `OnPostAddProjectJdpAsync`/`OnPostRemoveProjectJdpAsync`, `OnPostTotAsync`/`OnPostTotRemarkAsync` | Authenticated (+ handler checks) |
+| `/Projects/AssignRoles/{id}` | Change the HoD/PO assignment. | `OnPostAsync` | Admin, HoD |
+| `/Projects/Meta/Request/{id}` · `Meta/Edit/{id}` · `Meta/Decide/{id}` | PO requests a change to project details · Admin/HoD edits directly · Admin/HoD decides a request. | `OnPostAsync` (Edit also `OnPostPreview`) | Project Officer · Admin, HoD · Admin, HoD |
+| `/Projects/Procurement/Edit/{id}` | Procurement facts editor (posted from the overview panel). | `OnPostAsync` | Admin, HoD, Project Officer |
+| `/Projects/Stages/RequestChange` · `DecideChange` · `ApplyChange` · `BackfillApply` | Stage update proposals (POST only; GET returns 404) · decision · direct apply · backfill. | `OnPostAsync` | Project Officer · Admin, HoD · **HoD only** · Admin, HoD, Project Officer |
+| `/Projects/Timeline/EditPlan/{id}` · `EditActuals/{id}` · `Review/{id}` · `Historical/{id}` | Draft plan (save, submit, validate, delete draft) · record actual dates · approve or reject a plan · enter historical dates. | `OnPostAsync`, `OnGetValidateAsync`, `OnPostDeleteDraftAsync` | Admin, HoD, Project Officer · same · Admin, HoD · Admin, HoD |
+| `/Projects/{id}/Documents` · `/Projects/Documents/Preview` | Project document library and inline preview. | `OnGetAsync` | Authenticated (+ project access guard) |
+| `/Projects/Documents/UploadRequest` · `ReplaceRequest` · `DeleteRequest` · `RetryOcr` | Raise moderated document requests, or retry OCR. | `OnPostAsync` | Admin, HoD, Project Officer |
+| `/Projects/Documents/Approvals` · `Approvals/Review` | Pending document requests for a project, and the approve/reject decision. | `OnPostApproveAsync`, `OnPostRejectAsync` | Admin, HoD |
+| `/Projects/{id}/Photos` (+ `Upload`, `Reorder`, `{photoId}/Edit`, `{photoId}/View/{size?}`, `{photoId}/Download/{size?}`) | Project photo gallery. | Index: `OnPostReorderAsync`, `OnPostRemoveAsync` (with a media-manage check). Upload/Reorder/Edit: `OnPostAsync` | Gallery/View/Download: Authenticated (+ `ProjectAccessGuard`). Upload/Reorder/Edit: Admin, HoD, Project Officer |
+| `/Projects/{id}/Videos` (+ `Upload`, `{videoId}/Stream`, `{videoId}/Poster`) | Project videos. | Index: `OnPostRemoveAsync`, `OnPostSetFeaturedAsync` (with `CanManageProjectMedia`). Upload: `OnPostAsync` | Index/Stream/Poster: Authenticated (+ guard). Upload: Admin, HoD, Project Officer |
+| `/Projects/Remarks/{projectId}` | Project remarks view. Data comes through `MapRemarkApi`. | `OnGetAsync` | Authenticated |
+| `/Projects/Tot/Edit/{id}` | Edit the project's Transfer of Technology details and remarks. | `OnPostAsync`, `OnPostAddRemarkAsync` | Authenticated (+ Admin/HoD/assigned-PO check) |
+| `/Projects/Ongoing` | Ongoing projects board and export. Only HoD can edit external remarks inline. | `OnGetExportAsync` | Authenticated |
+| `/Projects/CompletedSummary` · `CompletedSummary/Edit/{id}` | Completed projects summary and export · edit technology and proliferation details. | `OnGetExportAsync` · `OnPostAsync` | Authenticated · Admin, HoD, Project Office |
+| `/Projects/Arpp` (+ `History`, `Print`) | Read-only library of **published** ARPP/PPP issues, with Excel export and attachment download. | `OnGetAttachmentAsync`, `OnGetExcelAsync` | Authenticated |
+| `/Projects/Reports` · `Reports/ArppFyUpdate` · `Reports/FfcProjectsUpdate` | Project report catalogue · ARPP FY update · FFC projects update (Word, PDF and Excel exports). | `OnGetWordAsync`, `OnGetPdfAsync`, `OnGetExcelAsync` | `ViewArpp` (all three pages) |
+| `/Projects/Publications` | Publications hub. | — | Authenticated (folder convention) |
+| `/Projects/Publications/Brochure` | Capability brochure builder (presets, preflight, preview, generate). | `OnPostSavePreset/RenamePreset/DuplicatePreset/DeletePresetAsync`, `OnPostPreflightAsync`, `OnPostPreviewAsync`, `OnPostGenerateAsync` | Authenticated. Shared presets are limited to Comdt, HoD, ITO |
+| `/Projects/Publications/Compendium` (+ `Cover`, `Structure`) | Simulators compendium: review, preview, generate, cover editor, structure editor. | `OnPostPreflight/Review/Preview/GenerateAsync`, preset handlers, `OnPostSaveAsync` | Authenticated. Saving shared presets, cover and structure is limited to Comdt, HoD, ITO |
+| `/Projects/Compendium` | Legacy entry. GET redirects to `/Projects/Publications/Compendium`. The drawer item "Proliferation compendium" still points here. | `OnPostGenerateAsync` | Authenticated |
+| `/Process` | Procurement process (stage template) viewer. Checklist editing goes through `/api/processes/...` minimal APIs. | `OnGetAsync` (computes `CanEditChecklist` and `CanEditPurpose`) | Authenticated (edits need `Checklist.Edit` / `Checklist.PurposeEdit`) |
+| `/Analytics` | Portfolio analytics (data from `MapProjectAnalyticsApi`). | `OnGetAsync` | Authenticated |
+| `/IndustryPartners` | Industry directory: partners, contacts, attachments, project links, duplicate suggestions. | `OnPostCreatePartner/UpdatePartner/DeletePartnerAsync`, `OnPostAdd/Update/DeleteContactAsync`, `OnPostUpload/DeleteAttachmentAsync`, `OnGetDownloadAttachmentAsync`, `OnPostLink/UnlinkProjectAsync` | `IndustryPartners.View` (+ per-action policies: Create, EditAny or owner, Delete, Contact.*) |
 
-## Project office reports
-* `Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml` – lists dignitary visits with filters (type, date range, keyword), photo counts, and export button. Cards link to visit details and editing is limited to Admin/HoD/ProjectOffice roles. (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml.cs lines 20-210)
-* `Areas/ProjectOfficeReports/Pages/Visits/Edit.cshtml` / `New.cshtml` – capture visit metadata and manage gallery uploads, including cover selection and derivative previews via `VisitPhotoService`. (see Areas/ProjectOfficeReports/Pages/Visits/Edit.cshtml.cs lines 17-200)
-* `Areas/ProjectOfficeReports/Pages/VisitTypes/Index.cshtml` – admin-only grid for activating/deactivating visit types with concurrency-safe edits and usage guards. (see Areas/ProjectOfficeReports/Pages/VisitTypes/Index.cshtml.cs lines 15-160)
-* `Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml` – Transfer-of-Technology tracker featuring cards/list view toggle, status/request-state filters, pending-only view, ToT-only filter, remark drawer, and submit/approve modals that honour `ProjectOfficeReportsPolicies`. Exports produce Excel snapshots via `ProjectTotExportService`. (see Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml.cs lines 24-220)
-* `Areas/ProjectOfficeReports/Pages/SocialMedia/Index.cshtml` – manages social media events with type/platform filters, inline active indicators, photo galleries, and Excel/PDF exports. Photo modals integrate with `SocialMediaEventPhotoService` to set covers and delete uploads. (see Areas/ProjectOfficeReports/Pages/SocialMedia/Index.cshtml.cs lines 19-240)
-* `Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/Index.cshtml` – admin surface for maintaining social media event types and platforms with toggleable activity flags. (see Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/Index.cshtml.cs lines 16-180)
-* `Areas/ProjectOfficeReports/Pages/Proliferation/Index.cshtml` – yearly proliferation tracker with submission workflow, approval queue, filters by origin/destination, and PDF/Excel exports. (see Areas/ProjectOfficeReports/Pages/Proliferation/Index.cshtml.cs lines 23-220)
-* `Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml` – IPR tracker grid featuring KPI summary, filters (type, status, project, year), inline edit/delete/attachment modals, and export button. Access is controlled by `Policies.Ipr.View`/`Edit`. (see Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs lines 24-220)
-* `Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml` – focused form for creating or editing a single IPR record with file upload management and concurrency validation. (see Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs lines 16-200)
+## Decision Centre (approvals)
 
-## Settings
-* `Pages/Settings/Holidays/Index.cshtml` – Admin and HoD roles can review the holiday calendar that seeds scheduling calculations. Entries are ordered chronologically and stored in `Models/Scheduling/Holiday` for use by the plan generator and snooze presets. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Approvals/Pending` | Central approval queue. Types: StageChange, ProjectMeta, PlanApproval, DocRequest, TotRequest, ProliferationYearly, ProliferationGranular, ActivityDelete, TrainingDelete, RepositoryDocumentDelete. | `OnGetAsync` | Admin, HoD |
+| `/Approvals/Pending/{type}/{id}` | Approval review. | `OnGetAsync` | Admin, HoD |
+| `/Approvals/Pending/decide` | Decision POST. | `OnPostAsync` | Admin, HoD |
 
-* `Pages/Projects/Stages/RequestChange.cshtml` – assigned Project Officers use the **Update stage** workflow to submit one or many stage proposals. Existing pending proposals on predecessor stages are included in projected validation, so later-stage work is not blocked merely because an earlier update is awaiting HoD approval. Re-submitting a stage supersedes only that stage's previous pending proposal; other pending updates remain active and visible.
+These compatibility routes redirect to the Decision Centre: `/Activities/Approvals` (Admin, HoD), `/ProjectOfficeReports/Training/Approvals` (`ApproveTrainingTracker`) and `/DocumentRepository/Admin/DeleteRequests` (`DocRepo.DeleteApprove`).
+
+## Task management, activities and ideas
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/ActionTasks` | Task management views: overview (command centre), my tasks, planning board with sprints, register, reports. Tasks can be created, assigned, submitted, returned, closed and moved between sprint and backlog. | `OnPostCreate*`, `OnPostCreate/Update/Activate/Close*SprintAsync`, `OnPostSubmit/ReturnForAction/Close/UpdateStatusAsync`, `OnPostReassign/ChangePriority/ChangeTaskDateAsync`, remark handlers | `ActionTracker.Access` |
+| `/ActionTasks/Details/{id}` | Single task: remarks, status, dates, reassignment, sprint moves. | Same family of handlers | `ActionTracker.Access` |
+| `/Activities` | Institutional ("miscellaneous") activities list and export. | `OnPostRequestDeleteAsync`, `OnPostExportAsync` | Authenticated (+ `ActivityAuthorizationPolicy`) |
+| `/Activities/Edit/{id?}`, `/Activities/Details/{id}` | Create or edit an activity; details and attachments. | `OnPostAsync`; `OnPostUploadAsync`, `OnPostRemoveAttachmentAsync` | Authenticated. Create: Admin, HoD, Project Officer, Project Office, TA. Edit: those roles or the creator. Delete approval: Admin, HoD (via the Decision Centre) |
+| `/ProjectIdeas` · `Create` · `Details/{id}` · `Edit/{id}` · `Deleted` | Ideation board. Any signed-in user can view ideas and comment on them. Details handlers: comments, notes, documents (preview and download), archive, restore, delete. | `OnPostCommentAsync`, `OnPostNoteAsync`, `OnPostUploadAsync`, `OnPostArchive/Restore/DeleteAsync`; `OnPostRestoreAsync` on Deleted | Authenticated (+ `ProjectIdeaPermissionService`): create, archive, restore, delete and the deleted list are limited to Admin, HoD, Comdt. Edit: assigned PO, HoD or Comdt. Conference comments: Comdt, HoD |
+
+## Photos (media library)
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Photos` | Media library with timeline, albums, "My photos" and person discovery. The page model is split into `Index.cshtml.cs` and `Index.People.cs`. | `OnGetRevisionAsync`, `OnGetPersonDiscoveryStatusAsync`, `OnPostConfirm/RejectPersonCandidate(s)Async` (with a person-review check) | Authenticated |
+| `/Photos/Albums/Actions` | POST-only album commands. The album service enforces the owner or a privileged actor (Admin, HoD, Comdt). | `OnPostCreate/Update/Archive/Restore/AddItems/RemoveItems/SetCover/Reorder/UpdateCaptionAsync` | Authenticated |
+| `/Photos/Media/{id}/{variant?}`, `/Photos/Download` | Stream a derivative; bulk download (POST). | `OnGetAsync`, `OnPostAsync` | Authenticated |
+| `/Photos/People`, `/Photos/People/Portrait/{id}` | People directory and portraits. | `OnGetAsync` | Authenticated |
+| `/Photos/People/Details/{id}`, `/Photos/People/Review`, `/Photos/FaceThumbnail` | Identity management: link or unlink a user, merge, references, suppress faces; review face clusters. | Many `OnPost*` | Admin, HoD |
+| `/Admin/MediaSources` | Media source configuration, scans, catalogue sync, retries, availability reconciliation. | `OnPostSave/Test/Scan/SetState/Disconnect/Retry*/Reconcile*/Recheck*Async` | `Admin.Media.View` (Admin, HoD) |
+| `/Admin/MediaIntelligence`, `/Admin/MediaIntelligence/Classifications` | Media processing queue, identity candidate refresh, classification review. | `OnPostQueueAsync`, `OnPostRefresh*`, `OnPostSet/SetBatch/ApproveFace/RevokeFace/Reset/ReclassifyStaleAsync` | Admin, HoD |
+
+The media admin pages live in the root `Pages/Admin/` folder, not in the Admin area, so the Admin area convention does not apply to them. They are reached from links on the Photos pages, not from the drawer.
+
+## ERP usage
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Usage` | ERP adoption and usage analytics, with export. Linked from the Admin drawer and from the command workspace. | `OnGetExportAsync` | `ERP.Usage.View` (Admin, Comdt, HoD) |
+
+## Document repository area (`/DocumentRepository`)
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Documents` | Repository search and browse, with favourites. | `OnPostToggleFavouriteAsync` | `DocRepo.View` |
+| `/Documents/View`, `/Documents/Reader/{id}`, `/Documents/Download` | Viewer, reader (marks AOTS documents as read), download. | `OnGetAsync` | `DocRepo.View` |
+| `/Documents/Upload` | Upload a PDF. | `OnPostAsync` | `DocRepo.Upload` |
+| `/Documents/Manage/{id}` | Activate or deactivate a document, request deletion, retry OCR. | `OnPostDeactivate/Activate/RequestDelete/RetryOcrAsync` | `DocRepo.SoftDelete` |
+| `/Documents/Edit/{id}`, `/Documents/AotsViews/{id}` | Edit metadata; see who has viewed an AOTS document. | `OnPostAsync` | `DocRepo.EditMetadata` |
+| `/Admin/OCRFailures/OcrFailures`, `/Admin/MissingFiles` | Requeue failed OCR; list documents whose files are missing. | `OnPostRequeueAsync`, `OnPostRequeueAllAsync` | `DocRepo.DeleteApprove` |
+| `/Admin/DocumentCategories`, `/Admin/OfficeCategories` | Category maintenance. | `OnPostCreate/Update/ToggleAsync` | `DocRepo.ManageCategories` |
+| `/Admin/Trash` | Restore or purge deleted documents. | `OnPostRestoreAsync`, `OnPostPurgeAsync` | `DocRepo.Purge` |
+| `/Admin/DeleteRequests` | Redirects to the Decision Centre. | `OnGet` | `DocRepo.DeleteApprove` |
+
+## Project office reports area (`/ProjectOfficeReports`)
+
+This area has no `Index` page. The drawer group header is rendered as plain text because its link cannot be resolved.
+
+| Route | Purpose | Main handlers | Access |
+| --- | --- | --- | --- |
+| `/Visits`, `/Visits/All`, `/Visits/Details/{id}`, `/Visits/ViewPhoto/...` | Visits to SDD: dashboard, full list, details, photos, Excel/PDF export. | `OnPostDeleteAsync` (manager check), `OnPostExportAsync`, `OnPostExportPdfAsync` | `ViewVisits` (authenticated) |
+| `/Visits/New`, `/Visits/Edit/{id}` | Record or edit a visit and manage its photos (upload, delete, set cover). | `OnPostAsync`, `OnPostUpload/DeletePhoto/SetCoverAsync` | `ManageVisits` |
+| `/VisitTypes` (+ `New`, `Edit/{id}`) | Visit type master data. | `OnPostToggleAsync`, `OnPostDeleteAsync`, `OnPostAsync` | Admin |
+| `/SocialMedia`, `/SocialMedia/Details/{id}`, `/SocialMedia/ViewPhoto/...` | Social media activities with Excel/PDF export. | `OnPostExportAsync`, `OnPostExportPdfAsync` | Authenticated |
+| `/SocialMedia/Create`, `Edit/{id}`, `Delete/{id}` | Manage activities and their photos. | `OnPostAsync`, `OnPostUpload/DeletePhoto/SetCoverAsync` | `ManageSocialMediaEvents` |
+| `/Admin/SocialMediaTypes` (+ `New`, `Edit`, `Platforms/*`) | Event types and platforms. | Toggle, delete and save handlers | Admin, HoD |
+| `/Tot`, `/Tot/Summary` | Transfer of Technology tracker (submit, decide, export) and summary (yearly). | `OnPostSubmitAsync` (`ManageTotTracker`), `OnPostDecideAsync` (`ApproveTotTracker`), `OnPostExportAsync`, `OnGetYearlyAsync` | `ViewTotTracker` (authenticated) |
+| `/Ipr` (alias `/Patent`), `/Ipr/Download`, `/Ipr/Manage` (alias `/Patent/Manage`) | IPR register: records, attachments, summary, export. `Manage` redirects to the Index create/edit mode. Record and attachment handlers are in the partial files `Index.RecordCommands.cs` and `Index.AttachmentCommands.cs`. | `OnPostCreate/Edit/DeleteAsync`, `OnPostAttachAsync`, `OnPostRemoveAttachmentAsync` (each checks `Ipr.Edit`), `OnGetSummaryAsync`, `OnGetExportAsync` | `Ipr.View`. Manage: `Ipr.Edit` |
+| `/Proliferation/Summary`, `/Proliferation`, `/Proliferation/Project/{id}`, `/Proliferation/Reports` | Proliferation overview (with exports), records, per-project view, reports. Writes go through `api/proliferation` controllers. | `OnGetExportProjectsAsync`, `OnGetExportYearBreakdownAsync` | `ViewProliferationTracker` (authenticated) |
+| `/Proliferation/Manage` | Submission workspace. | `OnGetAsync` | `SubmitProliferationTracker` |
+| `/Training`, `/Training/Records`, `/Training/View` | Training tracker, records list, details, export. | `OnPostExportAsync` | `ViewTrainingTracker` (folder convention + attribute) |
+| `/Training/Manage/{id?}` | Create or edit training, including the **Legacy record** toggle (totals without a roster), and request deletion. | `OnPostSaveAsync`, `OnPostRequestDeleteAsync` | `ManageTrainingTracker` |
+| `/ProgressReview` | Progress review report. | `OnGetAsync` | `ViewProgressReview` |
+| `/FFC`, `/FFC/Map`, `/FFC/MapBoard`, `/FFC/MapTable`, `/FFC/Footprint`, `/FFC/Attachments/View` | FFC proposals: world map, country board, tables, footprint PowerPoint export, attachment viewer. | `OnGetDataAsync`, `OnPostExportPowerPointAsync` | Authenticated |
+| `/FFC/MapTableDetailed` | Detailed FFC table with Word/Excel export and inline remarks and progress editing. | `OnPostUpdateOverallRemarksAsync`, `OnPostUpdateProgressAsync` (`CanInlineEditFfc`), `OnPostExportWordAsync`, `OnGetExport*` | Authenticated (+ handler checks) |
+| `/FFC/Records/Details/{id}` | Record workspace: record, projects, attachments, archive. | `OnPostUpdateRecord/SaveProject/DeleteProject/UploadAttachment/DeleteAttachment/ArchiveAsync` (each checks `CanManageFfc`) | Authenticated (+ handler checks) |
+| `/FFC/Records/Projects/Manage`, `/FFC/Records/Attachments/Upload` | Project rows and attachments for a record. | Create, update and delete handlers (each checks `CanManageFfc`) | Authenticated (+ handler checks) |
+| `/FFC/Records/Create`, `/FFC/Records/Manage`, `/FFC/Records/Archived`, `/FFC/Countries/Manage` | Create and manage records, restore archived ones, activate or deactivate countries. | `OnPostAsync`, `OnPostCreate/UpdateAsync`, `OnPostRestoreAsync`, `OnPostToggleActiveAsync` | `ManageFfc` |
+| `/ARPP`, `/ARPP/Details`, `/ARPP/Print`, `/ARPP/ProjectHistory` | ARPP/PPP administration: issue list, issue details (PDF upload and delete, verify, unlock), print, project history. | `OnPostUploadPdfAsync`, `OnPostDeletePdfAsync`, `OnPostVerifyAsync`, `OnPostUnlockAsync`, `OnGetExcelAsync` | `ViewArpp` (verify: `VerifyArpp`; unlock: `UnlockArpp`) |
+| `/ARPP/Create`, `/ARPP/Manage`, `/ARPP/Reconcile` | Create, edit and reconcile ARPP issues. | `OnPostAsync`, `OnGetSuggestionAsync` | `ManageArpp` |
+| `/Projects/LegacyImport` | Legacy project import (preview, commit, cancel, template). | `OnPostPreview/Commit/CancelAsync`, `OnGetTemplate` | `Admin.Ingestion.Manage` |
+
+## Admin area (`/Admin`)
+
+The folder convention requires an authenticated user. Every page adds an `AdminPolicies.*` capability, defined in `AdminCapabilityCatalog`.
+
+| Route | Purpose | Main handlers | Policy (roles) |
+| --- | --- | --- | --- |
+| `/Admin`, `/Admin/Help` | Administration overview and guide. | — | `Access` (Admin) |
+| `/Admin/Users` (+ `Create`, `Details`, `Edit`, `Disable`, `Enable`, `Reset`, `Delete` with undo) | User lifecycle and role assignment; CSV export. | `OnPostAsync`, `OnPostUndoAsync`, `OnGetExportAsync` | `Users.Manage` (Admin) |
+| `/Admin/AccessGovernance` | Privileged users, role holdings, policy coverage; export. | `OnGetExportAsync` | `AccessGovernance.View` (Admin) |
+| `/Admin/Analytics` (redirects to `Logins`), `/Admin/Analytics/Logins`, `/Admin/Diagnostics/DbHealth`, `/Admin/Diagnostics/SearchIndex` | Login activity (CSV), system health, search index rebuild and retry. | `OnGetExportCsvAsync`, `OnPostRebuild/RetryAll/RetryAsync` | `Security.View` (Admin) |
+| `/Admin/Logs` | Audit logs (CSV). | `OnGetExportCsvAsync` | `Logs.View` (Admin) |
+| `/Admin/Recovery`, `/Admin/Projects/Trash`, `/Admin/Projects/Archived`, `/Admin/Documents/Recycle`, `/Admin/Calendar/Deleted` | Recovery centre; project trash (execute purge); restore archived projects; document recycle bin; restore deleted events. | `OnPostExecuteAsync`, `OnPostRestoreAsync` | `Recovery.Manage` (Admin) |
+| `/Admin/MasterData`, `/Admin/Categories/*`, `/Admin/TechnicalCategories/*`, `/Admin/Lookups/{ProjectTypes,SponsoringUnits,LineDirectorates}/*`, `/Admin/MasterData/ArppReferences` | Master data: taxonomies and lookups (create, edit, toggle, move, deactivate, delete), ARPP reference values. | `OnPostAsync`, `OnPostToggleAsync`, `OnPostMoveAsync`, `OnPostSaveAsync`, `OnPostSetActiveAsync` | `MasterData.Manage` (Admin) |
+| `/Admin/MasterData/Integrity` | Configuration integrity; normalise ordering. | `OnPostNormaliseOrderAsync` | `MasterData.Integrity.Manage` (Admin) |
+| `/Admin/ActivityTypes` (+ `Create`, `Edit`) | Activity type maintenance. | `OnPostToggleAsync`, `OnPostAsync` | `ActivityTypes.Manage` (Admin, HoD) |
+| `/Admin/Maintenance`, `/Admin/Documents/IngestExternalPdfs` | Maintenance centre; external PDF ingestion (with failure report). | `OnPostRunAsync`, `OnGetFailureReport` | `Ingestion.Manage` (Admin) |
+
+The Admin drawer (`AdminNavigationCatalog`) also links `/Usage`, `/Settings/Holidays`, `/Celebrations` and `/ProjectOfficeReports/Projects/LegacyImport`, each gated by its own policy.

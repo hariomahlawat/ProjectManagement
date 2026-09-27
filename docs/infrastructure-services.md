@@ -1,108 +1,134 @@
-# Infrastructure and Services
+# Infrastructure and cross-cutting services
 
-This module documents cross-cutting infrastructure and service abstractions.
+This page covers the helpers and services that many modules share: startup, storage, security, time, email, audit, users, background workers and notifications. Domain services (projects, documents, IPR, Project Office Reports and so on) are listed briefly at the end. Configuration keys are described in [configuration-reference.md](configuration-reference.md).
 
-## Infrastructure
+## Startup and database gate (`Infrastructure/`)
 
-### `Infrastructure/EnforcePasswordChangeFilter.cs`
-An `IAsyncPageFilter` applied globally. After authentication, it checks `ApplicationUser.MustChangePassword` and redirects to `/Identity/Account/Manage/ChangePassword` until the password is updated. Login, logout and the change-password page itself are exempt from the check.
+| Type | Purpose |
+| --- | --- |
+| `DatabaseStartupMigrator` | Runs the startup gate for each EF Core context (`ApplyDeploymentBoundaryAsync`). It applies all pending migrations, which is mandatory: `Database:ApplyMigrationsOnStartup` is ignored. It then runs a validation callback before the app accepts traffic. |
+| `MigrationLineageManifest` | Loads `Migrations/immutable-migration-ids.txt` (and the Media Library equivalent) from disk or from the embedded resource. The migrator uses it to detect migration lineage drift. |
+| `ApplicationDatabaseSchemaValidator` | Physical schema checks for `ApplicationDbContext` after migration. `Program.cs` also calls `ProjectDocumentSearchVectorMaintenance.ValidateAsync` and some notebook/DocRepo schema checks. |
+| `StartupFailureReporter` | Best-effort writer that saves a startup exception to `{Storage:DataRoot or ContentRoot}/startup-diagnostics/startup-failure-*.log`. It never swallows the original exception. |
+| `UploadRequestLimitResolver` | Derives the request-body limit for Kestrel, IIS and multipart forms from the largest configured upload limit, plus 8 MiB, with a floor of 32 MiB. |
+| `RelationalTransactionScope` | Composable EF Core transaction. The outermost scope owns the transaction; nested scopes use savepoints. `RegisterAfterCommit` callbacks run only after the root commit. |
+| `EnforcePasswordChangeFilter` | Global `IAsyncPageFilter` (added through `AddMvcOptions`). An authenticated user with `ApplicationUser.MustChangePassword` is redirected to `/Identity/Account/Manage/ChangePassword`. Login, logout, the change-password page, `/css` and `/js` are exempt. |
+| `IdentityPasswordPolicy` | Describes the configured `PasswordOptions` and suggests a length for generated passwords. |
+| `IstClock` / `TimeFmt` | IST helpers. `IstClock.TimeZone` comes from `Utilities/TimeZoneHelper.GetIst()`, which calls `TZConvert.GetTimeZoneInfo("Asia/Kolkata")` and works on Windows and Linux. Provides `ToIst(...)` and the day-boundary helpers `StartOfDayIstToUtc` / `ExclusiveEndOfDayIstToUtc`. `TimeFmt.ToIst` formats nullable dates. The zone is fixed and has no configuration key. |
+| `SafeCsv` | CSV escaping (including formula-injection safety) and UTF-8-with-BOM output. |
+| `Usage/ErpUsageMiddleware` | Pipeline middleware (`app.UseMiddleware<ErpUsageMiddleware>()`) that records ERP activity through `IUserActivityRecorder` (`ErpUsage` options). |
+| `Ui/TempDataToastExtensions` | TempData toast helpers for Razor Pages. |
+| `Activities/ActivityRepository`, `ActivityTypeRepository` | Activity persistence (`IActivityRepository`). |
 
-### Project photo storage
-`ProjectPhotoService` reads its limits from `ProjectPhotoOptions`: max upload size, minimum dimensions, allowed MIME types, the derivative presets that define width, height and quality per size key, and the `StorageRoot` that points to the uploads directory. (see Services/Projects/ProjectPhotoOptions.cs lines 6-36)  `ProjectPhotoOptionsSetup` fills in a default beneath the ASP.NET Core web/content root (typically `wwwroot/uploads`) so development installs work without extra provisioning, but production operators can override it through configuration or the `PM_UPLOAD_ROOT` environment variable. (see Services/Projects/ProjectPhotoOptionsSetup.cs lines 1-38)  `UploadRootProvider` centralises those precedence rules, normalises the chosen directory, creates it if necessary, and exposes the resolved path to any upload-capable service so project photos and attachments always share the same root. (see Services/Storage/UploadRootProvider.cs lines 1-33)  `ProjectPhotoService` then builds deterministic paths under `projects/{projectId}` for every derivative it writes. (see Services/Projects/ProjectPhotoService.cs lines 495-536)  Operators should ensure the chosen location grants the application user write permissions, keep the `projects` sub-folder seeded (the services create it on demand), and provision enough space for all configured derivatives. (see Services/Projects/ProjectPhotoService.cs lines 458-512)  If an antivirus engine is available, register an `IVirusScanner` implementation so each upload stream is scanned before processing; otherwise the optional dependency can be left null. (see Services/Projects/ProjectPhotoService.cs lines 44-55) (see Services/Projects/ProjectPhotoService.cs lines 375-405)  When rotating configuration, keep the size keys stable so existing derivatives continue to resolve—changes to width/quality only affect images created after the update.
+Command-line entry points in `Program.cs`:
+- `--compendium-offline-self-test` runs `Utilities/Reporting/CompendiumOfflineSelfTest` before the host is built.
+- `--backfill-forecast` runs `Services/Scheduling/ForecastBackfillService` after the migration gate, then exits.
 
-## Services
+## Time
 
-### `Services/IAuditService` and `AuditService`
-Centralised logger that records structured audit entries (timestamp, action, user details, IP and optional data) while scrubbing sensitive fields and skipping noisy Todo events.
+- `Services/IClock` with `SystemClock` (singleton `IClock`) is the injectable UTC clock.
+- `Infrastructure/IstClock` and `Utilities/TimeZoneHelper` handle every IST conversion. `TodoService` uses `IstClock.TimeZone`: a date-only due date becomes 23:59:59.9999999 IST before conversion to UTC.
 
-### `Services/IUserManagementService.cs`
-Defines an abstraction for managing users and roles:
-* Query users and roles
-* Create users with an initial role
-* Update a user's role
-* Toggle activation/lockout
-* Enforce that at least one administrator remains active. Operations that would disable, delete or remove the Admin role from the last active admin are rejected, and users cannot disable their own account.
-* Reset passwords (marking the user for a forced change)
-* Delete users
+## Storage (`Services/Storage/`, `Services/Security/`)
 
-### `Services/UserManagementService.cs`
-Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManager<IdentityRole>`. It encapsulates all identity operations used by the administration UI or other features. Developers can extend this service to add new user-related behaviours such as emailing users after role changes or integrating external identity providers.
+| Type | Purpose |
+| --- | --- |
+| `IUploadRootProvider` / `UploadRootProvider` (singleton) | Resolves the shared upload root. Order: env `PM_UPLOAD_ROOT`, then `ProjectPhotos:StorageRoot`. When empty, `Services/Projects/ProjectPhotoOptionsSetup` fills in `{WebRoot}/uploads`, which is normally `wwwroot/uploads`; `/var/pm/uploads` is used only if the value is still empty. It expands environment variables and `~`, creates the directory, and falls back to `%LOCALAPPDATA%/ProjectManagement/uploads` or `{ContentRoot}/uploads` if creation fails. It exposes `RootPath`, `ProjectsRootPath`, `GetProjectRoot`, `GetProjectPhotosRoot`, `GetProjectDocumentsRoot`, `GetProjectCommentsRoot`, `GetProjectVideosRoot` and `GetSocialMediaRoot(prefix, eventId)`. The social-media prefix must contain `{eventId}`. |
+| `IUploadPathResolver` / `UploadPathResolver` | Converts between storage keys and absolute paths under the upload root (`ToAbsolute`, `ToRelative`). |
+| `IProtectedFileUrlBuilder` / `ProtectedFileUrlBuilder` (scoped) | Builds signed `/files` download and inline URLs. Tokens are bound to the current user when `FileDownload:BindTokensToUser` is set. |
+| `IFileAccessTokenService` / `FileAccessTokenService` | Data Protection–protected tokens (purpose `FileAccessTokenService`, lifetime `FileDownload:TokenLifetimeMinutes`). `Controllers/FilesController` (`/files`) serves them. Tokens become invalid if the Data Protection key ring (`DP_KEYS_DIR`) is lost. |
+| `FileSystemQuarantine` | Moves files or directories aside before a delete (`StageFile`, `StageDirectory`), with `Restore` and `FinalizeDeletion`, so a failed database transaction can roll the file operation back. |
+| `Services/DocRepo/LocalDocStorageService` (`IDocStorage`) | Document Repository storage under `DocRepo:RootPath` (relative paths resolve against ContentRoot). Files are saved as `{yyyy}/{MM}/{guid}.pdf`. |
+| `Services/DocRepo/NoopFileScanner` (`IFileScanner`) | The DocRepo scan hook. It does no scanning. |
+| `Services/IVirusScanner` | Optional interface accepted by `DocumentService`, `ProjectPhotoService` and `ProjectVideoService`. **No implementation is registered.** If `ProjectDocuments:EnableVirusScan=true`, `DocumentService` throws on every upload. |
+| `Utilities/FileNameSanitizer` | Makes user-supplied file names safe. |
 
-### `Services/IUserLifecycleService` and `UserLifecycleService`
-Coordinates disabling, enabling and scheduled hard deletes for accounts. Protects against removing the last active admin and logs every operation through `IAuditService`.
+The IPR, FFC and ARPP attachment stores (`Application/Ipr/IprAttachmentStorage`, `Application/Ffc/FfcAttachmentStorage`, `Services/Arpp/FileSystemArppAttachmentStorage`) all resolve beneath the upload root unless an explicit `StorageRoot` is configured.
 
-### Email senders
-* `Services/NoOpEmailSender.cs` – a dummy implementation used when SMTP settings are absent (common on private networks).
-* `Services/SmtpEmailSender.cs` – sends HTML email via SMTP using configuration values (`Email:Smtp:Host`, `Port`, `Username`, `Password`, `Email:From`).
+**Data Protection** (`Program.cs`): keys persist to `DP_KEYS_DIR`. When it is not set, they go to `%LOCALAPPDATA%/PRISM-ERP/DataProtectionKeys` in Development and `/var/pm/keys` otherwise. The application name is `ProjectManagement_SDD`. Losing the keys signs everyone out and invalidates outstanding file tokens.
 
-### `Services/ITodoService` and `TodoService`
-`ITodoService` abstracts operations on personal To-Do items such as creation, completion, pinning, snoozing, reordering and bulk operations. `TodoService` implements the interface using `ApplicationDbContext` for persistence and `IAuditService` for logging. Time calculations are normalised to Indian Standard Time using `TimeZoneHelper` (backed by `TimeZoneConverter`) to ensure consistent due date handling; date-only inputs are coerced to 23:59:59 IST before conversion to UTC. PostgreSQL's `xmin` system column is used to detect concurrent edits.
+## Email
 
-### `Services/TodoPurgeWorker`
-Background worker that permanently deletes soft-deleted to-do items after a retention period. The retention window is configured via `Todo:RetentionDays` in `appsettings.json` (defaults to 7 days) and the worker safely handles cancellation tokens.
+`Program.cs` registers `Services/SmtpEmailSender` (transient) when `Email:Smtp:Host` is non-empty, otherwise `Services/NoOpEmailSender` (singleton). Both implement ASP.NET Core Identity UI's `IEmailSender`.
 
-### `Services/UserPurgeWorker`
-Periodic background service that permanently deletes accounts once their deletion undo window has elapsed.
+- `SmtpEmailSender` reads `Email:*` directly from `IConfiguration`. It always sets `EnableSsl = true`, uses port 25 if the configured port does not parse, and falls back to `Username` and then `no-reply@example.com` for the From address.
+- **No application code resolves `IEmailSender` today**, so no mail is sent even when SMTP is configured. Notifications go through SignalR and the database only.
 
-### Project domain services
+## Audit, users and identity (`Services/`)
 
-#### `Services/Projects/ProjectFactsService.cs`
-Central coordinator for procurement facts. Each operation validates inputs, creates or updates the relevant fact row, clears stage backfill flags and records an audit entry describing the change. Monetary facts share an internal helper so concurrency tokens and timestamps stay consistent across cost types.
+| Type | Purpose |
+| --- | --- |
+| `IAuditService` / `AuditService` | Writes `AuditLogs` entries (action, user, IP, data). Values whose keys look sensitive are scrubbed, and `Todo.*` actions are skipped. |
+| `IUserContext` / `HttpUserContext` | Current user id and principal, taken from `IHttpContextAccessor`. |
+| `Helpers/ClientIp` | Client IP from `HttpContext.Connection.RemoteIpAddress`. Because forwarded headers are trusted from any source (`KnownNetworks` and `KnownProxies` are cleared), a client can supply this value through `X-Forwarded-For`. |
+| `IUserManagementService` / `UserManagementService` | User and role administration over `UserManager` and `RoleManager`. It prevents removing, disabling or demoting the last active Admin and prevents a user disabling their own account. Password resets set `MustChangePassword`. |
+| `IUserLifecycleService` / `UserLifecycleService` | Disable, enable, and schedule hard deletes using `UserLifecycle:HardDeleteWindowHours` and `UndoWindowMinutes`. |
+| `LoginAnalyticsService` | Data for the admin login scatter chart (percentiles, off-hours and weekend flags). |
+| `Data/IdentitySeeder` | Runs only when `Database:RunSeedersOnStartup=true`. It creates the roles in `RoleNames.AssignableRoles` and a bootstrap Admin whose password comes from `Security:BootstrapAdminPassword` or `PRISM_BOOTSTRAP_ADMIN_PASSWORD`. In Development it can also create test users. |
+| `Services/Admin/AdminWorkerStatusRegistry` (`IAdminWorkerStatusRegistry`) | Workers register here and report heartbeats, which the admin health pages display. |
+| `Services/Admin/AdminSystemHealthService` | Admin health checks: upload root, DP key directory, database, runtime. Its "startup migrations enabled/disabled" text reflects the ignored `Database:ApplyMigrationsOnStartup` value. |
+| `Utilities/ConnectionStringHasher` | SHA-256 hex of the connection string, attached to stage and plan decision diagnostics so the raw string is never logged. |
 
-#### `Services/Projects/ProjectFactsReadService.cs`
-Simple guard that checks whether a project has captured the required fact for a given stage code. The timeline and plan approval flows use it to block progression when mandatory data is missing.
+## Background workers (hosted services)
 
-#### `Services/Projects/ProjectProcurementReadService.cs`
-Aggregates the latest procurement numbers per project by querying each fact table and returning a compact `ProcurementAtAGlanceVm`. Results are ordered by creation time so users always see the most recent value, even if history exists.
+Registered in `Program.cs` unless noted otherwise.
 
-#### `Services/Projects/ProjectTimelineReadService.cs`
-Builds the read model for the overview timeline, stitching together `ProjectStages`, open plan versions and approval metadata. It flags outstanding backfill requirements, exposes the number of completed stages and provides the friendly names displayed in the UI.
+| Worker | Schedule / condition | Configuration |
+| --- | --- | --- |
+| `Services/UserPurgeWorker` | Every minute | `UserLifecycle` |
+| `Services/TodoPurgeWorker` | Periodic | `Todo:RetentionDays` |
+| `Services/LoginAggregationWorker` | Every 24 h; aggregates `DailyLoginStats` | none |
+| `Services/Usage/UserActivityRetentionWorker` | Periodic | `ErpUsage:RetentionDays` |
+| `Services/Projects/ProjectRetentionWorker` | Every 24 h | `Projects:Retention` |
+| `Services/Projects/ProjectContentAuditQueue` | In-process queue (also exposed as `IProjectContentAuditQueue`) | none |
+| `Services/Notifications/NotificationDispatcher` | Continuous | none |
+| `Services/Notifications/NotificationRetentionService` | `SweepInterval` | `Notifications:Retention` |
+| `Hosted/AuditRetentionWorker` | Does nothing unless `Audit:Retention:Enabled` | `Audit:Retention` |
+| `Hosted/NotebookTrashRetentionWorker` | `SweepInterval` | `Notebook:Trash` |
+| `Hosted/DocRepoOcrWorker` | Registered if `DocRepo:EnableOcrWorker` (default true) | `DocRepo` |
+| `Hosted/ProjectDocumentOcrWorker` | Registered if `ProjectDocuments:Ocr:EnableWorker` (default true) | `ProjectDocuments:Ocr` |
+| `Hosted/OcrTextBackfillWorker` | Registered if `OcrBackfill:Enabled` (default false) | `OcrBackfill` |
+| `SearchV2/Indexing/SearchIndexWorker`, `SearchTelemetryRetentionWorker` | Registered by `AddSearchV2` | `Search:V2` |
+| `PublicationFontWarmupHostedService`, `PublicationRuntimeValidationHostedService` | Registered by `AddProjectPublications` | fonts (`PRISM_PUBLICATION_FONTS_DIR`) |
+| Media Library workers (`PrismMediaOutboxWorker`, `MediaSourceScannerWorker`, `MediaProcessingWorker`, `MediaAvailabilityReconciliationWorker`, `FaceAnalysisQueueWorker`, `FaceCandidateRefreshWorker`, `FaceIdentityGroupingRefreshWorker`) | Registered conditionally by `AddMediaLibrary` | `MediaLibrary` (see the configuration reference) |
 
-#### `Services/ProjectCommentService.cs`
-Handles threaded project conversations, including file uploads. It validates stage ownership, enforces attachment type/size limits, stores metadata for each file on disk and writes audit logs for create/edit/delete actions. File names are sanitised and stored beneath the shared upload root resolved by `IUploadRootProvider`, keeping comment attachments alongside project photos on the same volume. (see Services/ProjectCommentService.cs lines 31-48) (see Services/Storage/IUploadRootProvider.cs lines 1-5)
+The OCR runners (`OcrmypdfDocumentOcrRunner`, `OcrmypdfProjectOcrRunner`, `Services/Ocr/OcrmypdfSharedRunner`) shell out to `ocrmypdf`, either on PATH or at the configured `OcrExecutablePath`. They attempt skip-text, then force-ocr, then redo-ocr.
 
-### Remark services (`Services/Remarks/*`)
-`RemarkService` provides create/read/update/delete operations for structured project remarks, enforcing role-based authorisation, scope filters, concurrency checks, and audit logging. Mentions are resolved through `MentionResolver` helpers and persisted alongside remark rows. `RemarkNotificationService` pushes SignalR and email notifications for noteworthy events, while `RemarkMetrics` aggregates counts for dashboards and policy enforcement. The REST endpoints under `Features/Remarks/RemarkApi.cs` orchestrate these services for the `/api/projects/{id}/remarks` routes. (see Services/Remarks/RemarkService.cs lines 21-320) (see Services/Remarks/RemarkNotificationService.cs lines 14-140)
+## Notifications (`Services/Notifications/`, `Hubs/`)
 
-### `Services/LoginAnalyticsService`
-Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, joins them to user records to supply friendly names (falling back to email or "(deleted)"), applies working-hour rules and returns points annotated with reasons for anomalies.
+| Type | Purpose |
+| --- | --- |
+| `NotificationPublisher` | Normalises metadata and writes `NotificationDispatch` rows. |
+| `NotificationDispatcher` | Hosted worker. It batches undispatched rows, applies preferences, deduplicates by fingerprint, persists `Notification` rows and pushes them over SignalR. |
+| `NotificationRetentionService` | Deletes notifications and dispatches past the configured age or per-user cap. Also deletes completed and dead-letter dispatches. |
+| `NotificationPreferenceService` | Per-kind and per-project allow/deny checks and mutes. |
+| `RoleNotificationService` | Resolves role members for broadcast notifications. |
+| `UserNotificationService` | List, count, mark read/unread and mute, with project-access guards. |
+| `Hubs/NotificationsHub` | SignalR hub at `/hubs/notifications`. Unauthenticated API and hub calls get 401/403 instead of a login redirect (`IsApiOrRealtimeRequest`). |
 
-### `Services/Analytics/ProjectAnalyticsService`
-Backs the `/api/analytics/projects/*` minimal APIs with pre-aggregated category share, stage distribution, lifecycle, slip bucket, monthly completions, and overdue project datasets. Filters normalise lifecycle enums, optional category IDs, and IST-aware month ranges while excluding archived or trashed projects. Responses power the six-card analytics dashboard and reuse `ProjectLifecycleFilter` constants so the UI and service stay aligned. (see Services/Analytics/ProjectAnalyticsService.cs lines 20-220) (see Features/Analytics/ProjectAnalyticsApi.cs lines 16-120)
+`Services/Remarks/RemarkNotificationService` publishes remark events through this pipeline. It does not send email.
 
-### `Services/LoginAggregationWorker`
-Nightly background service that aggregates the previous day's successful logins into `DailyLoginStats` to keep reporting queries fast.
+## Navigation and rendering
 
-### Notification services
-* **`NotificationPublisher`** – normalises metadata, serialises payload envelopes, and writes `NotificationDispatch` rows while trimming overly long inputs and guarding against invalid project identifiers. (see Services/Notifications/NotificationPublisher.cs lines 16-198)
-* **`NotificationDispatcher`** – hosted worker that batches undispatched rows, honours per-kind preferences, deduplicates via fingerprints, persists `Notification` records, and pushes updates through the SignalR hub with exponential backoff on errors. (see Services/Notifications/NotificationDispatcher.cs lines 20-200)
-* **`NotificationRetentionService`** – deletes notifications and dispatches beyond the configured age or per-user cap to keep tables manageable. (see Services/Notifications/NotificationRetentionService.cs lines 20-147)
-* **`NotificationPreferenceService`** – centralises allow/deny checks for notification kinds, project mutes, and role-wide subscriptions so publishers can remain stateless. (see Services/Notifications/NotificationPreferenceService.cs lines 19-160)
-* **`RoleNotificationService`** – helper that resolves role memberships for broadcast notifications without duplicating Identity queries. (see Services/Notifications/RoleNotificationService.cs lines 14-116)
-* **`UserNotificationService`** – application-facing API that lists, counts, marks read/unread, and mutes notifications with project access guards to prevent leaking data across teams. (see Services/Notifications/UserNotificationService.cs lines 17-220)
+- `Services/Navigation/RoleBasedNavigationProvider`: role-aware navigation tree.
+- `Services/Navigation/UrlBuilder` (`IUrlBuilder`): URL helper.
+- `Services/Text/MarkdownRenderer` (`IMarkdownRenderer`): Markdown rendering (used by `Pages/Projects/Overview`).
 
-### Navigation
-`RoleBasedNavigationProvider` builds the shell navigation tree per authenticated user. It fetches the current user, loads role memberships, and emits `NavigationItem` hierarchies that conditionally expose Project Office Reports trackers (Visits, ToT, Social Media, Proliferation, IPR) and admin tools. Anonymous users receive an empty list so public endpoints can stay lean. (see Services/Navigation/RoleBasedNavigationProvider.cs lines 16-152) (see Models/Navigation/NavigationItem.cs lines 1-33)
+## Logging
 
-### Document workflow services
-* **`DocumentService`** – core file pipeline that validates PDF uploads, enforces size/MIME rules, optionally scans for viruses, moves files between temp and permanent storage, records audits, and notifies stakeholders after publication. (see Services/Documents/DocumentService.cs lines 19-420)
-* **`DocumentRequestService`** – orchestrates request lifecycles (create, edit, submit, cancel) and persists temporary files before review. (see Services/Documents/DocumentRequestService.cs lines 12-179)
-* **`DocumentDecisionService`** – handles approvals or rejections, including publishing replacements, archiving old versions, emitting audit events, and issuing notifications. (see Services/Documents/DocumentDecisionService.cs lines 11-188)
-* **`DocumentNotificationService`** – resolves HoD/PO recipients, honours notification preferences, and pushes document activity into the notification pipeline with rich payloads and deduplicated fingerprints. (see Services/Documents/DocumentNotificationService.cs lines 15-196)
-* **`DocumentPreviewTokenService`** – issues short-lived tokens used to authorise inline PDF previews without exposing the underlying storage path. (see Services/Documents/DocumentPreviewTokenService.cs lines 10-124)
+Logging is configured in two places:
+- **`Program.cs`** adds a console provider and code-level filters: EF `Database.Command` and `Model.Validation` at Warning, `ProjectManagement.Services.TodoService` at None, `TodoPurgeWorker` at Warning.
+- **`appsettings.json`** repeats these filters.
 
-### `Services/Projects/ProjectVideoService`
-Manages the project video gallery: streaming endpoints, poster frame uploads, featured-video selection, and metadata edits. Videos and posters are stored beneath the upload root via `IUploadRootProvider`, with deterministic folder structures per project. The service enforces content-type/size rules from `ProjectVideos` options, rotates featured flags atomically, and cleans up disk artefacts when videos or posters are removed. (see Services/Projects/ProjectVideoService.cs lines 82-575) (see Services/Storage/UploadRootProvider.cs lines 80-110)
+`AuditService` also skips `Todo.*` actions. `Program.cs` logs at startup where the Data Protection keys are stored, the database startup policy, the latest applied migration of each context, and a warning when a non-Development environment connects as `postgres`.
 
-### IPR services (`Application/Ipr/*`)
-`IprReadService` and `IprWriteService` expose search, KPI, export, create/update/delete, and attachment pipelines for intellectual property records. They enforce unique filing numbers per type, validate status transitions, handle concurrency via row versions, and stream evidence to disk using `IprAttachmentStorage` (which writes under `ipr-attachments/{iprId}` with safe filenames). `IprExportService` produces Excel workbooks for offline review, while configuration-driven limits (`IprAttachmentOptions`) guard file size and MIME types. (see Application/Ipr/IprReadService.cs lines 12-140) (see Application/Ipr/IprWriteService.cs lines 19-220) (see Application/Ipr/IprAttachmentStorage.cs lines 13-120)
+## Domain services (pointers)
 
-### Project office report services (`Areas/ProjectOfficeReports/Application/*`)
-- **VisitService & VisitPhotoService** – CRUD, filtering, and export flows for dignitary visits with photo upload, derivative management, and cover selection. Storage rules mirror project photos but use `project-office-reports/visits` prefixes. (see Areas/ProjectOfficeReports/Application/VisitService.cs lines 15-260) (see Areas/ProjectOfficeReports/Application/VisitPhotoService.cs lines 20-420)
-- **SocialMediaEventService & SocialMediaEventPhotoService** – Capture campaign briefs, manage active/inactive event types and platforms, generate Excel/PDF exports, and moderate photos (including cover selection). (see Areas/ProjectOfficeReports/Application/SocialMediaEventService.cs lines 15-260) (see Areas/ProjectOfficeReports/Application/SocialMediaEventPhotoService.cs lines 18-360)
-- **ProjectTotTrackerReadService** – Generates resilient ToT summaries, gracefully degrading when legacy databases miss optional columns. It layers filters for status, request state, date ranges, and search, then joins remarks for context. (see Areas/ProjectOfficeReports/Application/ProjectTotTrackerReadService.cs lines 19-200)
-- **Proliferation services** – `ProliferationOverviewService`, `ProliferationManageService`, and `ProliferationSubmissionService` manage yearly submissions, approvals, source catalogues, and preference defaults for proliferation tracking. (see Areas/ProjectOfficeReports/Application/ProliferationOverviewService.cs lines 16-180)
-- **Export helpers** – Dedicated Excel/PDF builders (`VisitExportService`, `SocialMediaExportService`, `ProjectTotExportService`, `ProliferationExportService`) wrap workbook builders under `Utilities/Reporting` for consistent file naming and metadata. (see Areas/ProjectOfficeReports/Application/VisitExportService.cs lines 14-140)
+These are documented in their module docs. All the types listed here exist:
 
-### Logging
-`appsettings.json` and `Program.cs` configure logging filters to keep output concise: verbose Entity Framework messages and routine To-Do service logs are suppressed, while the `TodoPurgeWorker` logs only warnings or higher. Additionally, `AuditService` skips writing `Todo.*` actions to the `AuditLogs` table.
+- **Projects:** `ProjectFactsService`, `ProjectFactsReadService`, `ProjectProcurementReadService`, `ProjectTimelineReadService`, `ProjectCommentService`, `ProjectPhotoService`, `ProjectVideoService`, `Services/Scheduling/ForecastBackfillService`.
+- **Documents:** `DocumentService`, `DocumentRequestService`, `DocumentDecisionService`, `DocumentNotificationService`, `DocumentPreviewTokenService`.
+- **Remarks:** `RemarkService`, `RemarkNotificationService`, `RemarkMetrics`.
+- **Analytics:** `Services/Analytics/ProjectAnalyticsService`.
+- **IPR:** `Application/Ipr/IprReadService`, `IprWriteService`, `IprAttachmentStorage`; `Areas/ProjectOfficeReports/Application/IprExportService`.
+- **Project Office Reports:** `VisitService`, `VisitPhotoService`, `SocialMediaEventService`, `SocialMediaEventPhotoService`, `ProjectTotTrackerReadService`, the `Proliferation*Service` classes, and the `*ExportService` classes under `Areas/ProjectOfficeReports/Application/`.
