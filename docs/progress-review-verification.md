@@ -1,28 +1,23 @@
 # Progress Review implementation verification
 
-This note records the actual status of the Progress Review pipeline in the `(23).zip` tree. It can be used to respond to the internal review that flagged missing artifacts.
+Status of the Progress Review pipeline, checked against the code on 2026-09-27.
 
-## Interface and record types
+## Access and page
+- Page: `Areas/ProjectOfficeReports/Pages/ProgressReview/Index.cshtml(.cs)`, protected by `[Authorize(Policy = ProjectOfficeReportsPolicies.ViewProgressReview)]`. The policy allows Admin, HoD, Project Office (`Project Office`/`ProjectOffice`) and Comdt (`ProjectOfficeReportsPolicies.ProgressReviewViewerRoles`).
+- `IndexModel.OnGetAsync` is the only handler. Export is done in the browser: `wwwroot/js/pages/project-office-reports/progress-review.js` sets default from/to dates and wires `[data-action="export-pdf"]` and `[data-action="print"]` to `window.print()`. There is no copy-link button and no inline script.
 
-* `Services/Reports/ProgressReview/IProgressReviewService.cs` already defines `ProgressReviewVm`, `RangeVm`, the nested section view models, and `IProgressReviewService`. There are no placeholder ellipses in this file. The Razor page compiles against these types because they include `FrontRunners`, `WorkInProgress`, `NonMovers`, `Visits`, `SocialMedia`, `Tot`, `Ipr`, `Training`, `Proliferation`, `Ffc`, `Misc`, and aggregate totals.
+## Interface and records
+`Services/Reports/ProgressReview/IProgressReviewService.cs` defines `IProgressReviewService` and `ProgressReviewVm(Range, Projects, Visits, SocialMedia, Tot, Ipr, Training, Proliferation, Ffc, FfcDetailedIncompleteGroups, Misc, Totals)`, plus the nested section records. `ProjectSectionVm` contains `FrontRunners`, `WorkInProgress` and `NonMovers`, among others.
 
-## Service implementation
+## Service loaders (`Services/Reports/ProgressReview/ProgressReviewService.cs`)
+- Projects: `LoadStageChangeRowsAsync`, `LoadFrontRunnerProjectsAsync`, `LoadProjectRemarksOnlyAsync`, `LoadProjectNonMoversAsync`, `LoadResolvedProjectStagesAsync` (feeds the movement board).
+- Visits and social media: `LoadVisitsAsync`, `LoadSocialMediaAsync`.
+- ToT: `LoadTotStageChanges`, which uses stage-change rows for stage code `TOT` rather than `ProjectTot`, and `LoadTotRemarksAsync`.
+- IPR: `LoadIprStatusChangesAsync`, `LoadIprRemarksAsync`.
+- Training: `LoadTrainingBlockAsync`.
+- Proliferation: `LoadProliferationAsync`.
+- FFC: `LoadFfcAsync`, `AppendFfcRow`.
+- Miscellaneous activities: `LoadMiscActivitiesAsync`.
 
-* `Services/Reports/ProgressReview/ProgressReviewService.cs` contains implementations for every loader referenced by `GetAsync`. The methods include:
-  * project buckets (`LoadStageChangeRowsAsync`, `LoadFrontRunnerProjectsAsync`, `LoadProjectRemarksOnlyAsync`, `LoadProjectNonMoversAsync`)
-  * visits (`LoadVisitsAsync`)
-  * social media (`LoadSocialMediaAsync`)
-  * transfer of technology (`LoadTotStageChanges`, `LoadTotRemarksAsync`)
-  * IPR (`LoadIprStatusChangesAsync`, `LoadIprRemarksAsync`)
-  * training (`LoadTrainingBlockAsync`)
-  * proliferation (`LoadProliferationAsync`)
-  * FFC (`LoadFfcAsync` and `AppendFfcRow`)
-  * miscellaneous activities (`LoadMiscActivitiesAsync`).
-* The "front runners" logic leverages `StageChangeLogs` joined with `Projects` and derives the change date from the stage timestamps, so the data source is present even though there is no separate "stage hop" entity.
-
-## Razor view and script
-
-* `Areas/ProjectOfficeReports/Pages/ProgressReview/Index.cshtml` expects the properties that already exist on `ProgressReviewVm`. Because the server-side types match the markup, the page compiles.
-* `wwwroot/js/pages/project-office-reports/progress-review.js` is a fully defined module (no ellipses). It initializes default dates, wires the copy-link button, and uses `window.print()` for the export action without using inline script tags.
-
-These findings show that the review comments about missing interfaces, missing loaders, and JavaScript parse errors do not match the current repository state.
+## Known inconsistency
+`LoadTotRemarksAsync` keeps only remarks whose project has `LifecycleStatus == Active`. ToT is applicable only to **Completed** projects (`ProjectTotApplicabilityPolicy`), and every ToT remark path (tracker submit/decide, `OverviewModel` ToT remark handler) requires eligibility. As a result, ToT remarks recorded through the supported flows are normally excluded from the review. The query also does not exclude Repeat Build projects.

@@ -1,121 +1,81 @@
-# Project Archiving and Trash Management Plan
+# Project Archive and Trash
 
-## Roles and Permissions
-- **Head of Department (HoD)**
-  - Archive or restore any project from archive.
-  - Move any project to Trash.
-  - Cannot view the Trash tab, restore from Trash, or permanently delete projects.
-- **Administrator**
-  - Archive or restore any project from archive.
-  - Move any project to Trash.
-  - Access the Trash tab, list trashed projects, restore from Trash, and permanently delete.
-- **All Other Users**
-  - No archive or delete permissions.
+**Status: Implemented, with deviations from the original plan.** This page now describes
+current behaviour. The original plan's items that were never built are listed at the end.
 
-## Data Model Changes
-- Extend the `Projects` table with the following columns:
-  - `IsArchived` (`bit`, default `false`)
-  - `ArchivedAt` (`datetimeoffset`, nullable)
-  - `ArchivedByUserId` (`nvarchar`, nullable)
-  - `IsDeleted` (`bit`, default `false`)
-  - `DeletedAt` (`datetimeoffset`, nullable)
-  - `DeletedByUserId` (`nvarchar`, nullable)
-  - `DeleteReason` (`nvarchar(512)`, nullable)
-  - `DeleteMethod` (`nvarchar(32)`, nullable) – values: `"Trash"` or `"Purge"`
-  - `DeleteApprovedByUserId` (`nvarchar`, nullable)
-- Indexing:
-  - Composite index on `(IsDeleted, IsArchived)` for primary listings.
-  - Filtered index on `IsDeleted = 1` to accelerate Trash queries.
+Main code:
+- `Services/Projects/ProjectModerationService.cs`
+- `Services/Projects/ProjectRetentionWorker.cs`
+- `Configuration/ProjectRetentionOptions.cs`
+- the `/api/projects/{id}/…` endpoints in `Program.cs`
+- `Areas/Admin/Pages/Projects/Trash.cshtml(.cs)` and `wwwroot/js/admin/project-trash.js`
+- `Services/Admin/Recovery/*` and `Areas/Admin/Pages/Recovery`
+- `Pages/Projects/_ProjectModerationActions.cshtml`
 
-## Query Behaviour
-- **Default listings, counts, KPIs:** `WHERE IsDeleted = 0 AND IsArchived = 0`.
-- **Archived filter:** include `IsArchived = 1 AND IsDeleted = 0`.
-- **Trash view (Admin only):** `WHERE IsDeleted = 1`.
-- **Search:** exclude `IsDeleted = 1` by default; optionally include archived when "Include archived" is selected.
+## Data model (`Projects` table)
 
-## UI Requirements
-- Project card and header kebab actions (Ongoing/Completed/Cancelled states):
-  - `Archive` (toggle to `Restore from Archive` when archived)
-  - `Move to Trash` (requires reason via modal)
-- Trash tab (Admin only):
-  - Each row exposes `Restore` and `Permanently delete` actions.
-- Confirmation dialogs:
-  - Move to Trash modal requires a reason textarea.
-  - Permanently delete modal requires typing the project name and a checked "Also remove uploaded files and search indices" option by default.
-- Visual indicators:
-  - Display an `Archived` badge on applicable cards.
-  - Hide trashed items from non-Admin views.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `IsArchived` | boolean, default false | |
+| `ArchivedAt` | `timestamptz` (`DateTimeOffset?`) | |
+| `ArchivedByUserId` | varchar(450) | |
+| `IsDeleted` | boolean, default false | Means "in Trash" |
+| `DeletedAt` | `timestamptz` | Start of the retention clock |
+| `DeletedByUserId` | varchar(450) | |
+| `DeleteReason` | varchar(512) | Required when moving to Trash |
+| `DeleteMethod` | varchar(32) | Always `"Trash"` today |
+| `DeleteApprovedByUserId` | varchar(450) | Reset to null; not used |
 
-## Endpoints and Service Methods
-- `POST /projects/{id}/archive`
-- `POST /projects/{id}/restore-archive`
-- `POST /projects/{id}/trash` (payload: `{ reason }`)
-- `POST /projects/{id}/restore-trash` (Admin only)
-- `POST /projects/{id}/purge` (Admin only)
-- `GET /projects?filter=archived` (HoD/Admin)
-- `GET /projects?filter=trash` (Admin only)
-- Apply existing role constants and policy handlers for authorization.
+Indexes: `IX_Projects_IsDeleted_IsArchived` on `(IsDeleted, IsArchived)`, and the filtered index `IX_Projects_IsDeleted_Filtered` (`"IsDeleted" = TRUE`).
 
-## Domain Rules and Validations
-- HoD and Admin can move any project to Trash regardless of lifecycle state.
-- Only Admin can restore from Trash or purge.
-- Archiving is lifecycle-independent; archived projects are read-only until restored.
-- Moving to Trash sets `IsDeleted = 1`, timestamps, user IDs, `DeleteReason`, and `DeleteMethod = "Trash"`.
-- Purging first writes an audit record, then removes database rows and physical assets.
+There is **no global query filter** on `Project`. Every listing must exclude trashed or archived projects explicitly:
+- `ProjectSearchQueryExtensions.ApplyProjectSearch` (`Services/Projects/ProjectSearchFilters.cs`) always adds `!IsDeleted`, and adds `!IsArchived` unless `IncludeArchived` is set.
+- Dashboards, analytics, workspace, publications and briefing services each filter on their own.
 
-## Retention and Purge Job
-- Daily scheduled job:
-  - Select projects where `IsDeleted = 1` and `DeletedAt <= now - 30 days`.
-  - Invoke the same purge routine used by the Admin endpoint.
-- Purge routine must:
-  - Remove dependent records (remarks, tasks, documents, links, timeline entries, search index documents) with correct ordering or cascading.
-  - Delete file blobs and cached thumbnails.
-  - Write an immutable audit log summarizing deleted children and file keys.
-  - Remove the project row last.
+## Actions and authorisation
 
-## Analytics, Search, and KPIs
-- Update aggregate queries to exclude archived and trashed projects by default.
-- Advanced search exposes "Include archived" toggle; trashed projects never appear outside Admin Trash view.
-- Exclude trashed projects from global typeahead.
+| Action | Endpoint / UI | Who | Behaviour |
+| --- | --- | --- | --- |
+| Archive | `POST /api/projects/{id}/archive` | Admin or HoD (`IsProjectArchiveActor` in `Program.cs`) | Rejected with 409 if the project is in Trash. Idempotent. Writes a `ProjectAudit` row with `Action = "Archive"`. |
+| Restore from archive | `POST /api/projects/{id}/restore-archive` | Admin or HoD | `ProjectAudit` `RestoreArchive` |
+| Move to Trash | `POST /api/projects/{id}/trash` with body `{ reason }` | Admin or HoD | Reason is required, at most 512 characters. Sets `IsDeleted`, `DeletedAt`, `DeletedByUserId`, `DeleteReason` and `DeleteMethod = "Trash"`. `ProjectAudit` `Trash`. Works in any lifecycle state. |
+| Restore from Trash | `POST /api/projects/{id}/restore-trash`, or Admin › Project trash | `AdminPolicies.RecoveryManage` | Clears the delete fields. `ProjectAudit` `RestoreTrash`. |
+| Purge | `POST /api/projects/{id}/purge` with body `{ removeAssets }`, or Admin › Project trash | `AdminPolicies.RecoveryManage` | See below |
 
-## Audit Logging
-- Record actions in `ProjectAudit`:
-  - `ProjectId`, `Action` (`Archive`, `RestoreArchive`, `Trash`, `RestoreTrash`, `Purge`)
-  - `PerformedByUserId`, `PerformedAt`
-  - `Reason` when supplied.
-  - For purge actions, include counts of deleted child entities and file key digests.
+The project page shows the archive, restore and trash buttons through `_ProjectModerationActions.cshtml`. The page renders them only when the viewer can assign roles; the server-side check is the Admin/HoD role test above. Archived projects show an "Archived" badge in `_ProjectCommandHeader.cshtml`.
 
-## Testing Strategy
-- **Unit Tests**
-  - Archive toggles and permissions.
-  - Trash flow validates required reason.
-  - Admin-only restore and purge enforcement.
-  - Default listings exclude archived and trashed.
-- **Integration Tests**
-  - Retention job purges after 30 days.
-  - Purge removes children and files without orphans.
-  - Search and KPIs ignore archived/trashed entries.
-  - Audit entries are emitted for each action.
-- **UI Tests**
-  - Verify role-based action visibility and Trash tab access.
-  - Validate modal confirmations (reason, project name typing, checkbox state).
-  - Ensure accessibility with focus trap and keyboard support.
+The Admin Project trash page (`Areas/Admin/Pages/Projects/Trash`) adds two safeguards that the API does not have:
+- Permanent deletion is refused until the retention period has elapsed (`PurgeScheduledUtc`).
+- The operator must type the exact project name. The page also writes an admin audit entry, `ProjectPurgeAuthorised`, before it calls `PurgeAsync`.
 
-## Migration and Rollout Steps
-1. Deploy database migration introducing new fields and indexes.
-2. Implement global repository filters for archived/trashed states.
-3. Add archive/trash endpoints and connect UI actions.
-4. Build the Admin-only Trash tab with restore and purge actions.
-5. Introduce retention job and shared purge routine.
-6. Update analytics and search queries.
-7. Backfill:
-   - Trash obvious junk with reason "Backfill cleanup".
-   - Archive long-inactive projects.
-8. Optionally gate UI updates behind feature flags for gradual rollout.
+## Purge
 
-## Operational Safeguards
-- Perform backups of project data and file storage before enabling purge.
-- Add metrics and alerting:
-  - Track trashed project counts by age.
-  - Produce daily purge reports with project IDs and counts.
-- Provide an Admin-only "Export project" option (ZIP with JSON + files) from Trash to support audits before purge.
+`ProjectModerationService.PurgeCoreAsync` runs inside a single relational transaction:
+1. If `removeAssets` is set, it moves the project upload folder (`{uploadRoot}/{ProjectDocuments:ProjectsSubpath}/{projectId}`) into quarantine with `Services/Storage/FileSystemQuarantine`.
+2. It explicitly removes photos, videos, documents, comments, remarks, ToT, stages, plan snapshots and their rows, plan versions, stage plans, approval logs, `StageChangeLogs` and `ProjectMetaChangeRequests`, then the `Projects` row. Other dependants go through database foreign keys:
+   - Cascade: facts, ToT requests, document requests, `ProjectAudits`, `TrainingProjects`, `IndustryPartnerProjects`, and so on.
+   - SetNull: IPR, FFC, ARPP, brochure and compendium links.
+3. It writes a global `AuditLog` entry, `Projects.Purge`, with the reason and metadata (asset disposition and quarantine reference). The per-project `ProjectAudits` rows are removed by the cascade.
+4. It commits. On failure it rolls back and restores the quarantined folder. After a successful commit it finalises deletion of the quarantine. If that clean-up fails, it logs and audits `Projects.PurgeAssetCleanupPending`.
+
+Known limits:
+- `ProjectBriefingDeckItems.ProjectId` is `Restrict`. Purging a project that is still in a briefing deck fails, and the transaction rolls back.
+- Rows with no foreign key survive as orphans: `ProliferationYearly`/`Granular`/`YearPreference`, `StageChangeRequests`, `StageShiftLogs`, `PlanRealignmentAudits` and `Notifications`.
+
+## Retention job
+
+`ProjectRetentionWorker` is a `BackgroundService` that runs every 24 hours. It calls `PurgeExpiredAsync(cutoff, RemoveAssetsOnPurge)` for projects where `IsDeleted` is true and `DeletedAt <= now - TrashRetentionDays`. Candidates are purged one at a time with actor `system`; a failure is logged and the worker moves on to the next project. Its status appears in the admin worker registry as "Project trash retention".
+
+Options live in the `Projects:Retention` configuration section (`ProjectRetentionOptions`); no appsettings file sets them today:
+
+| Option | Default |
+| --- | --- |
+| `TrashRetentionDays` | 30 |
+| `RemoveAssetsOnPurge` | true |
+
+## Not implemented (from the original plan)
+
+- Archived projects are **not** read-only. No central write guard exists; archiving only hides the project from default listings.
+- There is no "Export project" ZIP from Trash, no daily purge report or metrics, and no feature flag for the rollout.
+- `DeleteMethod = "Purge"` and `DeleteApprovedByUserId` are never set.
+- Trashed projects are not hidden everywhere. For example, `Pages/Projects/Overview.cshtml.cs` loads a project by id without checking `IsDeleted`, and `ApprovalQueueService` lists pending stage requests without checking the project's trash or archive state.

@@ -1,107 +1,64 @@
-# FFC Proposals Module Architecture
+# FFC (Friendly Foreign Countries) module architecture
 
-## 1. Purpose and High-Level Responsibilities
-The FFC Proposals area under `Areas/ProjectOfficeReports/FFC` lets authorised staff track project-unit delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
+Checked against the code on 2026-09-27. Code is authoritative. Pages are under `Areas/ProjectOfficeReports/Pages/FFC`, application services under `Services/Ffc`, and attachment storage under `Application/Ffc`. The navigation item is **"FFC simulators"** (`RoleBasedNavigationProvider`), which links to `/ProjectOfficeReports/FFC/Index`.
 
-- Persisting per-country/year records, linked projects (with per-project quantities), and attachments.
-- Surfacing milestone progress cards, filters, and search integration.
-- Managing master data (countries, records, projects, files) under Admin/HoD roles.
-- Publishing geospatial rollups for dashboards, maps, and tabular exports based on project-unit counts.
-- Feeding other modules (global search, progress review reports, dashboards) with the same project-level data set.
+## 1. Responsibilities
+- Store one record per country and year (`FfcRecord`), its linked project rows (`FfcProject`, each with a quantity and delivery/installation flags), and attachments (`FfcAttachment`).
+- Offer a portfolio index, a record workspace, maps, a board, a detailed table with Word and Excel exports, a footprint view with PowerPoint export, and a dashboard widget.
+- Feed global search (`Services/Search/GlobalFfcSearchService`) and the Progress Review report (`ProgressReviewService.LoadFfcAsync`).
 
-## 2. Data Model & Persistence Layer
-### 2.1 Entities
-- **`FfcCountry`** - ISO-3166-based country with `IsActive` flag, timestamps, and navigation to records.
-- **`FfcRecord`** - Primary milestone record keyed by `CountryId`+`Year`, holding IPA/GSL milestones, overall remarks, soft-delete flag, and relationships to `FfcCountry`, `FfcProject`, and `FfcAttachment`. Delivery/installation progress is derived from child `FfcProject` rows, while legacy record-level flags remain only for historical backfill.
-- **`FfcProject`** - Per-record linked project stub capturing `Name`, optional remarks, optional link to a core `Project` entity for lifecycle rollups, `Quantity`, and per-project delivery/installation flags & dates.
-- **`FfcAttachment`** - Metadata for PDF/photo uploads (path, MIME, checksum, caption, uploader) grouped by record, with `FfcAttachmentKind` describing the type.
+## 2. Data model (`Areas/ProjectOfficeReports/Domain`)
+- **`FfcCountry`**: name, ISO code and `IsActive`. Inactive countries are hidden from new-record pickers, but a country already on a record stays selectable (`FfcRecordWorkspaceService.GetCountryOptionsAsync`).
+- **`FfcRecord`**: `CountryId` + `Year` (`short`); IPA and GSL flags, dates and remarks; legacy record-level delivery/installation fields; `OverallRemarks`; `IsDeleted` (archive flag); audit timestamps; `RowVersion`.
+- **`FfcProject`**: `Name`, `Remarks`, optional `LinkedProjectId` pointing to a core `Project`, `Quantity` (default 1), `IsDelivered`/`DeliveredOn`, `IsInstalled`/`InstalledOn`, `RowVersion`. Delivery and installation progress is derived from these rows. `FfcProjectBucketHelper` classifies each row as Installed, Delivered or Planned.
+- **`FfcAttachment`**: file metadata grouped by record, typed by `FfcAttachmentKind`.
+- EF configuration lives in `ApplicationDbContext`. Projects and attachments cascade with their record; countries are restricted.
 
-### 2.2 Entity Framework Configuration
-`ApplicationDbContext` exposes `DbSet`s for the four entities and configures table names, indexes, cascading rules, timestamps, and check constraints (dates require corresponding "Yes" flags, attachment size >=0). Projects/attachments cascade delete with their record; countries are restricted to protect history. Attachments store `Kind` via a value converter and track `UploadedAt`. Countries enforce unique names/ISO codes.
+## 3. Authorisation (`ProjectOfficeReportsPolicies`)
+| Capability | Rule |
+| --- | --- |
+| View index, maps, board, detailed table, footprint, record details, attachment viewer | Any authenticated user (`[Authorize]`) |
+| Manage records, projects, attachments, countries, archive and restore (`ManageFfc` / `CanManageFfc`) | Admin, HoD, Comdt, ITO (`FfcManagerRoles`) |
+| Inline edits in the detailed table (overall remarks, progress) (`InlineEditFfc` / `CanInlineEditFfc`) | Admin, HoD, Comdt (`FfcInlineEditorRoles`); ITO is excluded by design |
 
-### 2.3 Storage & File Handling
-`FfcAttachmentStorage` enforces Admin/HoD roles, allowed MIME types (PDF/JPEG/PNG/WEBP), max file size, malware scanning via `IFileSecurityValidator`, and persists the file into a configurable upload root before inserting the DB row. Deletion removes both row and disk file; storage paths can be absolute or relative based on `FfcAttachmentOptions`.
+Pages with a policy attribute: `Records/Create`, `Records/Manage`, `Records/Archived` and `Countries/Manage` require `ManageFfc`. `Records/Details`, `Records/Projects/Manage` and `Records/Attachments/Upload` use `[Authorize]`, and each mutating handler calls `CanManageFfc(User)`.
 
-## 3. Security, Navigation & Routing
-- Razor Pages under `/ProjectOfficeReports/FFC` are decorated with `[Authorize]`, with admin-specific pages (`Records/Manage`, `Countries/Manage`) restricted to the `Admin` or `HoD` roles, while listing pages require any authenticated user.
-- Left-hand navigation includes a "FFC Proposals" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
-- `UrlBuilder` centralises deep links (record edit, attachment view) so services like global search can point users to the correct page with `editId` pre-selected.
+**Known defect:** `FfcAttachmentStorage.SaveAsync` and `DeleteAsync` (`Application/Ffc/FfcAttachmentStorage.cs`) still allow only Admin and HoD (`IsAdminOrHod`). Comdt and ITO pass the page checks but their uploads and deletes are rejected with the storage authorisation error.
 
-## 4. Backend Features by Area
-### 4.1 Shared List Model
-`FfcRecordListPageModel` powers both the public index and admin manage page. It handles filter/query parsing, milestone filter enums, pagination, dynamic sorting, and provides helper methods to build consistent route dictionaries and toggle sort icons. Queries always include countries, linked projects (with optional linked project entity), and attachments; filtering occurs through scalar filters, milestone filters, and text search. Results are paged at 10 items per request with `AsSplitQuery` for EF efficiency.
+## 4. Services (`Services/Ffc`)
+- `FfcPortfolioService`: portfolio summary and paging for the index (page size 25; filters for query, year, country and IPA/GSL/delivery/installation state).
+- `FfcRecordWorkspaceService`: record workspace DTOs, country options, archived records, and project picker options.
+  - **Project linking:** Repeat Build projects **may** be linked. Only deleted projects are excluded from new links, and a deleted project already linked to the record is kept.
+  - Every option carries an `IsDcd` flag. `ResolveDcdCategoryIdsAsync` finds the root category named "DCD Projects" and all of its descendants recursively (`ProjectCategoryHierarchyService`).
+  - The picker UI (`Records/Partials/_ProjectEditor.cshtml`, `wwwroot/js/pages/project-office-reports/ffc/ffc-record-workspace.js`) defaults to DCD scope and offers a "DCD Projects | All Projects" switch.
+- `FfcRecordCommandService`, `FfcProjectCommandService`, `FfcAttachmentCommandService`: create, update, archive and restore records, project rows and attachments, with audit.
+- `FfcProgressService`: current progress per FFC project. For a linked project, progress is the latest **External** project remark, written and edited through `IRemarkService`. The actor may be `RemarkActorRole.Ito`, which this path alone supplies. For an unlinked row, progress is stored in `FfcProject.Remarks`.
+- `FfcFootprintService` and `Presentation/*` (`FfcPowerPointExportService`, `FfcSlideComposer`, `FfcPresentationMapRenderer`): the footprint page and its PowerPoint export (`Footprint` → `OnPostExportPowerPointAsync`).
+- `Exports/*`: `FfcDetailedTableExportService`, `FfcDetailedWordDocumentBuilder` (Open XML `.docx`) and `FfcDetailedExcelWorkbookBuilder`, titled "FFC Projects Update".
 
-### 4.2 Public Index Page
-`IndexModel` inherits the base list page to expose the read-only experience. On `OnGetAsync` it:
-1. Detects whether the user can manage records to show management actions.
-2. Loads year/country/milestone options from active data.
-3. Loads records (filtering out `IsDeleted`).
-4. Calls `LoadProjectRollupMetadataAsync`, which pulls linked project lifecycle statuses, stage history, and latest external remarks to decorate the cards with live project context.
-The Razor partial `_FfcRecordCard` renders each record's milestones, remarks, top three linked projects (with lifecycle badges and stage summaries), attachment counts, and management buttons. It now uses consistent counters (“Projects”, “Project units”, “Attachments”) with tooltips and neutral zero-state messaging per record. It also creates a modal gallery for attachments with inline preview links.
+## 5. Pages
+| Page | Purpose |
+| --- | --- |
+| `Index` | Portfolio list built with `FfcPortfolioService`, with management actions for managers. |
+| `Records/Create` | New country-year record. |
+| `Records/Details` | Record workspace: update record, save or delete linked projects, upload or delete attachments, archive (soft delete via `IsDeleted`). |
+| `Records/Archived` | Lists archived records; `OnPostRestoreAsync` restores one. |
+| `Records/Manage` | Legacy list-plus-form management page (`FfcRecordListPageModel`). |
+| `Records/Projects/Manage`, `Records/Attachments/Upload` | Legacy child CRUD pages. |
+| `Countries/Manage` | Country master data. |
+| `Attachments/View` | Streams an attachment. Returns not-found when the parent record is missing or archived. |
+| `Map` | Leaflet map; the `Data` handler returns rollups from `FfcCountryRollupDataSource`. |
+| `MapBoard` | Screenshot-friendly country board. |
+| `MapTable` | Redirects to `MapBoard`. |
+| `MapTableDetailed` | Project-level table. `OnGetExportExcelAsync`, `OnPostExportWordAsync`; inline `OnPostUpdateOverallRemarksAsync` / `OnPostUpdateProgressAsync` (JSON bodies, `InlineEditFfc`). |
+| `Footprint` | Footprint summary, country cards and PowerPoint export drawer. |
 
-### 4.3 Record CRUD (Admin)
-The admin `Records/Manage` page combines the list view with a form sidebar. It binds an `InputModel` covering country/year, IPA, and GSL fields (delivery/installation are now summarised from child projects), tracks `RowVersion` for concurrency, and validates business rules (active country, year range, milestone date dependencies). Create/update handlers map between form and entity, save changes, and emit audit logs via `IAuditService`. Concurrency conflicts reload the latest data and display a friendly error. Listing filters persist via `BuildRoute` so returning to the same filter context is seamless.
+## 6. Rollups and dashboard widget
+- `FfcCountryRollupDataSource.LoadAsync` groups `FfcProject` rows by country, multiplies by `Quantity`, and returns ISO3-keyed Installed, Delivered and Planned unit counts. The map, board and dashboard widget all use it.
+- Dashboard (`Pages/Dashboard/Index.cshtml.cs`) builds `FfcSimulatorMapVm`, rendered by `Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml` and `wwwroot/js/widgets/ffc-simulator-map.js`. See `docs/ffc-widget-spec.md`.
 
-### 4.4 Linked Projects Management
-`Records/Projects/Manage` provides CRUD over the child `FfcProject` rows. It enforces Admin/HoD roles, ensures the parent record exists, validates required names and quantities, captures delivery/installation flags with optional dates, optionally links to an existing project, and writes audit logs for create/update/delete. The page also preloads selectable projects and displays the current list (including linked `Project` metadata and per-project quantities).
-
-### 4.5 Attachment Management & Delivery
-`Records/Attachments/Upload` lists attachments, enforces Admin/HoD roles, and uses `IFfcAttachmentStorage` to persist validated uploads. Successful PDF uploads also flow into the document repository (`IDocRepoIngestionService`) for cross-module search. Users can delete attachments, which removes both the DB row and the file via the storage service. The `/FFC/Attachments/View` page streams files inline with HTTP range support while ensuring the parent record still exists and isn't deleted.
-
-### 4.6 Country Master Data
-`Countries/Manage` is a paged, sortable list of `FfcCountry` records with quick search and toggle actions. Only Admin/HoD can change activation state, and changes write audit logs. Sorting supports name/ISO/status columns, and filter state persists through helper route builders.
-
-### 4.7 Map, Tables, and Board Endpoints
-All geographic views rely on `FfcCountryRollupDataSource`, which aggregates per-project quantities per active country by grouping `FfcProject` rows (linked or stand-alone). It classifies each row as Installed/Delivered/Planned based on per-project flags, multiplies counts by `Quantity`, and returns ISO3-coded DTOs that represent total project units rather than project counts.
-
-- `/FFC/Map` serves the Leaflet map and exposes a JSON handler returning the rollup DTOs. Popups show ISO3 codes, status totals, and deep links into the detailed table filtered by country/year.
-- `/FFC/MapTableDetailed` expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), per-project quantities, and latest external remarks. It buckets rows (Installed/Delivered/Planned), preserves complete progress and overall-status narratives, and renders linked country-year headers server-side. The page provides a compact export menu for a native editable Word report and a filterable Excel register. Both exports use the formal title **FFC Projects Update** and share one detailed-table export context.
-- `/FFC/MapBoard` is a fullscreen board built entirely from the rollup JSON. It supports server-provided sort defaults, “Sort by” UI (total units or country name), screenshot/full-width toggles, and PNG export.
-
-> **Note:** The former `/FFC/MapTable` country summary view now redirects to the board because the map, detailed table, and board cover the required use cases.
-
-### 4.8 Dashboard Widget Integration
-The home dashboard loads `FfcCountryRollupDataSource`, filters for countries with any completed work, and builds a `FfcSimulatorMapVm` summarising totals. The `_Widget` partial renders totals, the interactive mini-map, and the top countries strip, delegating front-end behaviour to `wwwroot/js/widgets/ffc-simulator-map.js`.
-
-### 4.9 Global Search & Reports
-- `GlobalFfcSearchService` queries both records and PDF attachments using `ILike`, returning `GlobalSearchHit`s that link into record management or attachment viewers via `IUrlBuilder`. This makes FFC content discoverable from the global search box.
-- The progress review report service pulls all non-deleted records, emits milestone rows per lifecycle event, and merges them with other proliferation/misc sections for the leadership review deck.
-
-## 5. Front-End Views & Components
-- **Index view** (`Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml`) composes toolbar actions (map, detailed table, board, management pages) and renders `ffc-record-card` tiles using `_FfcRecordCard` plus `ViewData` dictionaries for rollup metadata.
-- **Manage pages** reuse `_RecordForm` for the edit/create experience; the offcanvas/table layout mirrors the standard admin pattern.
-- **Country board** replaces the legacy country table and emphasises a clean, screenshot-friendly card grid without extra toolbar chrome.
-- **Attachment modal** inside `_FfcRecordCard` displays both images and document lists, reusing the viewer endpoint for inline previews.
-
-## 6. Client-Side Modules
-### 6.1 Leaflet Map (`ffc-map.js` + `ffc-map-init.js`)
-`ffc-map.js` defines a `window.FfcMap` namespace that:
-- Builds color scales and popups, wires zoom controls, and caches country aggregates by ISO3.
-- Fetches GeoJSON + rollup data, paints the map with Leaflet layers, attaches tooltips, and links popups to the detailed table with country/year parameters.
-- Remembers "full-width" UI preferences in `localStorage` and exposes an `init` entrypoint used by `ffc-map-init.js` to bootstrap the map based on data attributes rendered by the Razor view.
-
-### 6.2 Map Board (`ffc-map-board.js`)
-Fetches `/FFC/Map?handler=Data` (or a custom data URL provided by the Razor view), renders responsive cards sorted by total project units, and keeps the experience intentionally minimal—no auxiliary toolbars or client-side sort toggles—so the board is always presentation-ready.
-
-### 6.3 Detailed Table (`ffc-map-table-detailed.js`)
-The detailed table is rendered server-side so links, permissions and inline-edit contracts remain authoritative. The page controller measures long narrative cells and exposes `Show full progress` / `Show full status` only when content overflows; inline saves notify the controller to recalculate the affected preview. Desktop table headers remain sticky below the 52 px global bar and 46 px module sub-navigation, while narrow screens use horizontal scrolling without an inner vertical scroll region. A dedicated landscape print stylesheet expands all narrative text and repeats the table header.
-
-The Word export is generated with Open XML as a native `.docx`: A4 landscape, portfolio summary, editable seven-column table, repeating header row, country-year separator rows, vertically merged overall-status cells, optional authorised handling marking, PRISM footer, and live PAGE/NUMPAGES fields. The Excel export retains country/ISO/year as real data columns, full narratives, numeric cost and quantity cells, frozen panes, auto-filter and landscape print setup.
-
-### 6.4 Dashboard Widget Script (`ffc-simulator-map.js`)
-Uses Leaflet to plot the condensed world map inside the dashboard widget. It parses serialized country data, builds proportional pins, colours features based on completion ratios, and exposes chip interactions + tooltips for accessibility. GeoJSON bounds can be provided to focus on specific regions.
-
-## 7. Downstream Connections
-- **Projects module** - Linked projects surface lifecycle status, stages, and external remarks, so changing stage schemas or remark types will affect rollup summaries built in `IndexModel` and `MapTableDetailed`.
-- **Document repository** - PDF uploads trigger ingestion, meaning file naming/content-type rules must remain compatible with `IDocRepoIngestionService`.
-- **Global search** - Any schema change (new fields) should consider extending `GlobalFfcSearchService` so the new data stays discoverable.
-- **Dashboards & reports** - `FfcCountryRollupDataSource` feeds the dashboard widget and all map/table endpoints, so altering its logic impacts every aggregate view simultaneously. Likewise, the progress review service reads raw records for printable reports.
-
-## 8. Extension & Maintenance Guidance
-1. **Preserve shared abstractions** - Extend `FfcRecordListPageModel` when introducing new list-based pages so paging/filtering stays consistent. Add new filters via extra query-bound properties and update `HasActiveFilters` and `BuildRoute` accordingly.
-2. **Respect audit/logging pattern** - CRUD pages log to `IAuditService`. When adding new mutations (e.g., batch operations), emit before/after dictionaries similar to existing code to keep compliance trails intact.
-3. **Coordinate with map data source** - Any additional completion bucket (e.g., "Awaiting funding") should be computed in `FfcCountryRollupDataSource` and then consumed by widget, map, tables, and board in lock-step to avoid inconsistent counts.
-4. **Client-side CSP compliance** - All scripts live under `wwwroot/js/...`; Razor views only reference bundled files (no inline `<script>` blocks), maintaining CSP compliance per the repository conventions.
-5. **Testing & Authorisation** - Existing integration tests (see `ProjectManagement.Tests/ProjectOfficeReports/...`) assert that non-admins can't access manage pages; mirror those patterns when adding routes to avoid regressions.
-
-With this overview, a new developer should be able to trace a data point (record -> linked project -> map aggregate -> dashboard widget), understand which layers must be updated for new milestones or UI, and extend the module without breaking connected features.
+## 7. Maintenance guidance
+- Add new completion buckets in `FfcProjectBucketHelper` / `FfcCountryRollupDataSource`, so the map, board, widget and exports stay consistent.
+- New mutations should go through the `Ffc*CommandService` classes and emit audit events, as the existing ones do.
+- Keep any new role gate aligned across three places: `FfcManagerRoles`, the page or handler checks, and `FfcAttachmentStorage`. The last one is currently out of step (see §3).
+- CSP: scripts are served from `wwwroot/js/...` only; no inline scripts.
