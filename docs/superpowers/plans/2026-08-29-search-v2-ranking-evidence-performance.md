@@ -1,5 +1,7 @@
 # PRISM Global Search V2 Ranking Precision, Evidence & Performance Hardening Implementation Plan
 
+> **Status (verified against code, 2026-09-27):** Implemented (checkboxes below were not updated): exact-token/alias channels, match evidence, canonical boost, fuzzy fallback gating, lazy facets.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Improve Search V2 lexical precision, explainability, filter-state UX and common-query performance without changing the converged Search V2 architecture.

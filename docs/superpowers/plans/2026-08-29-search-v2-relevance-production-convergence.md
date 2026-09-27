@@ -1,5 +1,7 @@
 # Search V2 Relevance & Production Convergence Implementation Plan
 
+> **Status (verified against code, 2026-09-27):** Implemented (checkboxes below were not updated): `SearchCorrectionService`, generation-bound cursors (`SearchCursorCodec`), `tools/test-search-v2-contract.mjs`, `tools/search-v2-relevance-evaluator.mjs`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Converge the implemented PRISM Search V2 into a trustworthy production-ready search experience by correcting query semantics, autocomplete/correction relevance, facets/navigation, result attribution, pagination stability, and operational/relevance verification infrastructure.

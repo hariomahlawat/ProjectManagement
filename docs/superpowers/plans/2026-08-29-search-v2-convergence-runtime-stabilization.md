@@ -1,5 +1,7 @@
 # Search V2 Convergence & Runtime Stabilization Implementation Plan
 
+> **Status (verified against code, 2026-09-27):** Implemented (checkboxes below were not updated): single-statement V2 query, split counts, typed fallback status, CSS consolidation.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make committed PRISM searches reliably serve Search V2, expose safe fallback diagnostics, keep All/category counts semantically correct, and remove stale Search CSS collisions.

@@ -1,5 +1,7 @@
 # Search V2.2 Production Assurance Implementation Plan
 
+> **Status (verified against code, 2026-09-27):** Implemented (checkboxes below were not updated): see the matching spec's status line.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make Search V2 projection freshness automatic, ranking semantics correct, facets truthful, operations recoverable, and relevance/security/performance measurable.

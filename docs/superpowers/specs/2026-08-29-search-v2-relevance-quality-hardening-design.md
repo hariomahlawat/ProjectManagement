@@ -1,5 +1,7 @@
 # Search V2 Relevance, Consistency & Result Quality Hardening Design
 
+> **Status (verified against code, 2026-09-27):** Implemented in current code: dash/underscore normalisation in `SearchQueryNormalizer`, `SearchTextQuality` in projection metadata, `Trackers` displayed as `Records`, six-suggestion limit.
+
 ## Goal
 Make PRISM Search V2 rank strong lexical intent ahead of loose body matches, keep autocomplete and committed search semantically consistent, normalize punctuation variants, suppress poor OCR presentation/ranking, and finish the small search-results UX corrections without introducing a new search platform.
 

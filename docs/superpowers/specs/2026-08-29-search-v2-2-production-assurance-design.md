@@ -1,5 +1,7 @@
 # Search V2.2 — Relevance, Faceting & Production Assurance Design
 
+> **Status (verified against code, 2026-09-27):** Implemented in current code: `SearchV2Options.ProjectionVersion` (4) drives atomic rebuilds, typed `SearchEntryTerms`, DB-backed `SearchAliases`, disjunctive facets, rebuild/retry on `Areas/Admin/Pages/Diagnostics/SearchIndex`, relevance tooling in `tools/`.
+
 ## Goal
 Converge the current Search V2 implementation without changing its product architecture: make projection freshness automatic, ranking semantics explicit, facets truthful under active filters, project context cross-source, aliases single-source-of-truth, operations recoverable, and quality measurable against real PostgreSQL and PRISM relevance data.
 

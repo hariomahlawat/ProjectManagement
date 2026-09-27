@@ -1,5 +1,7 @@
 # PRISM Global Search V2 — Ranking Precision, Match Evidence & Performance Hardening Design
 
+> **Status (verified against code, 2026-09-27):** Implemented in current code: high tech/hi tech aliases (`SearchAliasProvider`), `SearchMatchEvidence`, `CanonicalEntityBoost`, `FuzzyFallbackStrongCandidateThreshold`, lazily loaded detailed facets (`OnGetFacetsAsync`).
+
 ## Goal
 Preserve the converged Search V2 architecture while improving lexical precision, trustworthy match evidence/highlighting, filter-state clarity, and common-query latency.
 

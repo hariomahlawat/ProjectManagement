@@ -1,5 +1,7 @@
 # PRISM Global Search — V2 Convergence, Runtime Stabilization & Acceptance Design
 
+> **Status (verified against code, 2026-09-27):** Implemented in current code: `SearchEngine.BuildSearchSql` is a single statement, `TotalHits`/`FilteredHits` and `SearchV2ExecutionStatus` fallback diagnostics exist, `.pm-gs-*` styles live only in `wwwroot/css/pages/search.css`.
+
 ## Goal
 Make autocomplete and committed search converge on the same Search V2 pipeline, retain Legacy only as an observable resilience fallback, keep global category counts stable while filtering, and isolate the Search V2 page from obsolete global-search CSS.
 

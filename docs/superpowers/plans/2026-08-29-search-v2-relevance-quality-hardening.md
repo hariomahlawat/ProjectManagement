@@ -1,5 +1,7 @@
 # Search V2 Relevance & Quality Hardening Implementation Plan
 
+> **Status (verified against code, 2026-09-27):** Implemented: title phrase/token channels, `SearchTextQuality`, `Records` display label, six-suggestion limit.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Harden PRISM Search V2 so normalized title intent wins over loose OCR/body matches, every autocomplete candidate family remains discoverable after commit, snippets are clean, ranking is inspectable by authorized administrators, and the remaining search UX issues are closed.
