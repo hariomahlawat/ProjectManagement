@@ -1,77 +1,151 @@
 # Project Office Reports module
 
-The Project Office Reports area bundles multiple operational trackers under a single navigation node so support teams can manage evidence, approvals, and exports without bouncing between bespoke tools. Every sub-module shares the same patterns: Razor Pages with role-gated handlers, services under `Areas/ProjectOfficeReports/Application`, and persistent storage rooted beneath the shared upload directory resolved by `IUploadRootProvider`.
+Checked against the code on 2026-09-27. Code is authoritative. The area `Areas/ProjectOfficeReports` groups the Project Office trackers: Visits, Social Media, ToT, Proliferation, IPR, Training, FFC, ARPP and Progress Review. The layout is as follows:
+- Razor Pages: `Areas/ProjectOfficeReports/Pages/*`
+- Application services: `Areas/ProjectOfficeReports/Application`, plus `Application/Ipr`, `Application/Ffc`, `Services/Ffc`, `Services/Arpp` and `Services/Reports/ProgressReview`
+- Domain entities: `Areas/ProjectOfficeReports/Domain`
+- Proliferation JSON API: `Areas/ProjectOfficeReports/Api`
+
+Uploads are stored under the upload root (`IUploadRootProvider`).
 
 ## Access policies
 
-`ProjectOfficeReportsPolicies` defines granular policies for each tracker:
+Policy names are in `ProjectOfficeReportsPolicies` and `Policies.Ipr`; they are registered in `Program.cs`. "Project Office" means both role spellings `Project Office` and `ProjectOffice`.
 
-| Policy | Roles |
+| Policy | Allowed |
 | --- | --- |
-| `ViewVisits` / `ManageVisits` | Admin, HoD, Project Office |
-| `ManageSocialMediaEvents` | Admin, HoD, Project Office |
-| `ViewTotTracker` / `ManageTotTracker` / `ApproveTotTracker` | Admin, HoD, Project Office |
-| `ViewProliferationTracker` / `SubmitProliferationTracker` / `ApproveProliferationTracker` | Admin, HoD, Project Office |
-| `ManageProliferationPreferences` | Admin |
-| `Policies.Ipr.View` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`), Comdt, MCO |
-| `Policies.Ipr.Edit` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`) |
+| `ViewVisits` | Any authenticated user |
+| `ManageVisits`, `ManageSocialMediaEvents` | Admin, HoD, Project Office (`ProjectOfficeManagerRoles`) |
+| `ViewTotTracker` | Any authenticated user |
+| `ManageTotTracker` (submit) | Admin, HoD, Project Office, Project Officer |
+| `ApproveTotTracker` | Admin, HoD |
+| `ViewProliferationTracker` | Any authenticated user |
+| `SubmitProliferationTracker` | Admin, HoD, Project Office |
+| `ApproveProliferationTracker` | Admin, HoD |
+| `ManageProliferationPreferences` | Admin, HoD, Project Office. Setting a year preference itself needs `ApproveProliferationTracker`. |
+| `ViewTrainingTracker` | Admin, HoD, Project Office, Project Officer, Comdt, MCO, TA, Main Office |
+| `ManageTrainingTracker` | Admin, HoD, Project Office |
+| `ApproveTrainingTracker` | Admin, HoD |
+| `ViewProgressReview` | Admin, HoD, Project Office, Comdt |
+| `ViewArpp` | Admin, HoD, Comdt, Project Office, MCO, Project Officer |
+| `ManageArpp` | Admin, HoD, Project Office |
+| `VerifyArpp` | Admin, HoD, Comdt |
+| `UnlockArpp` | Admin, HoD |
+| `ManageFfc` | Admin, HoD, Comdt, ITO |
+| `InlineEditFfc` | Admin, HoD, Comdt |
+| `Policies.Ipr.View` | Any authenticated user |
+| `Policies.Ipr.Edit` | Admin, HoD, Project Office |
 
-> **Deployment note:** The identity provider must emit `role` claims matching the strings above (`Admin`, `HoD`, `Project Office`/`ProjectOffice`, `Comdt`, `MCO`). Without these claims, users will receive `403 Forbidden` responses when accessing the IPR tracker.
+Other page-level role gates:
+- `VisitTypes/*`: `[Authorize(Roles = "Admin")]`
+- `Admin/SocialMediaTypes/*` (event types and platforms): `[Authorize(Roles = "Admin,HoD")]`
+- `Projects/LegacyImport`: `AdminPolicies.IngestionManage`
 
-Navigation is generated dynamically by `RoleBasedNavigationProvider`, which hides trackers the user cannot access. (see Services/Navigation/RoleBasedNavigationProvider.cs lines 16-152)
+The navigation menu (`RoleBasedNavigationProvider`) hides entries the user cannot open.
 
-## Visits tracker
+## Repeat Build rules (`Project.IsBuild`)
 
-- **Domain** – `Visit`, `VisitType`, and `VisitPhoto` live under `Areas/ProjectOfficeReports/Domain`. Photos carry derivative metadata (width/height, caption, version stamp) so responsive galleries and exports stay consistent. (see Areas/ProjectOfficeReports/Domain/Visit.cs lines 1-112)
-- **Services** – `VisitService` handles CRUD, filtering, and exports; `VisitPhotoService` validates images using `VisitPhotoOptions`, generates derivatives, enforces max file sizes, and stores assets beneath `project-office-reports/visits/{visitId}`. (see Areas/ProjectOfficeReports/Application/VisitService.cs lines 15-260)
-- **Pages** –
-  - `Visits/Index.cshtml` lists visits with filters (type, date range, keyword), photo counts, and Excel export action. (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml.cs lines 20-210)
-  - `Visits/New.cshtml` & `Visits/Edit.cshtml` present the form plus gallery management (cover toggle, delete) via asynchronous modals. (see Areas/ProjectOfficeReports/Pages/Visits/Edit.cshtml.cs lines 17-200)
-  - `VisitTypes/Index.cshtml` lets admins activate/deactivate visit types with concurrency-safe edits and usage checks before deletion. (see Areas/ProjectOfficeReports/Pages/VisitTypes/Index.cshtml.cs lines 15-160)
-- **Exports** – `VisitExportService` writes Excel workbooks using `VisitExcelWorkbookBuilder` for consistent formatting. (see Areas/ProjectOfficeReports/Application/VisitExportService.cs lines 14-140)
+| Tracker | Rule | Enforced in |
+| --- | --- | --- |
+| ToT | Not applicable. Only non-deleted, non-archived, **Completed**, non-Repeat-Build projects are ToT projects. | `ProjectTotApplicabilityPolicy` (`EligibleProjectPredicate`, `EligibleTotPredicate`, `GetIneligibilityReason`), used by `ProjectTotService` (submit, update, approve), `ProjectTotTrackerReadService`, `DocumentRequestService`/`DocumentService`, `OpsSignalsService`, `CompendiumReadService`, search indexing, and the overview ToT handlers |
+| Proliferation | New yearly and granular records, and new year-preference rules, are refused for Repeat Build projects. Existing records may still be edited if the project is unchanged, and existing preferences stay editable. Project pickers list only eligible projects. | `ProliferationProjectEligibility`, `ProliferationSubmissionService`, `ProliferationController` (`projects`, `projects/{id}`) |
+| Proliferation data quality | Historical rows linked to Repeat Builds are counted as `RepeatBuildLinkCount` and shown on the Summary page. | `ProliferationDataQualityService`, `Proliferation/Summary` |
+| IPR | Cannot be linked to a Repeat Build project (create **and** update). The project picker excludes Repeat Builds. Switching a project to Repeat Build unlinks its IPR records. | `IprProjectEligibilityPolicy`, `IprWriteService.EnsureProjectAvailableAsync`, `Ipr/Index.SelectLists`, `IprProjectLinkMaintenance` (called from `Pages/Projects/Meta/Edit` and `ProjectMetaChangeDecisionService`) |
+| FFC | Repeat Build projects **may** be linked. Only deleted projects are excluded from new links. | `FfcRecordWorkspaceService.GetProjectOptionsAsync` |
 
-## Social media tracker
+One-off data clean-ups: migration `20261216210000_RemoveTotDataFromRepeatBuildProjects` deleted ToT rows, requests, ToT document requests and ToT remarks for existing Repeat Builds. Migration `20261216220000_UnlinkIprFromRepeatBuildProjects` unlinked their IPR records.
 
-- **Domain** – `SocialMediaEvent`, `SocialMediaEventType`, `SocialMediaPlatform`, and `SocialMediaEventPhoto` track campaign metadata, platform associations, and galleries. (see Areas/ProjectOfficeReports/Domain/SocialMediaEvent.cs lines 1-166)
-- **Services** – `SocialMediaEventService` handles search, detail retrieval, and exports (Excel/PDF). `SocialMediaEventPhotoService` enforces image options from `SocialMediaPhotoOptions`, generates derivatives, and manages cover selection. (see Areas/ProjectOfficeReports/Application/SocialMediaEventService.cs lines 15-260)
-- **Pages** –
-  - `SocialMedia/Index.cshtml` lists events with filters by type/platform/date, inline status badges, gallery management modals, and export actions. (see Areas/ProjectOfficeReports/Pages/SocialMedia/Index.cshtml.cs lines 19-240)
-  - `Admin/SocialMediaTypes/Index.cshtml` lets admins curate event types and platforms, toggling activity and editing display names. (see Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/Index.cshtml.cs lines 16-180)
-- **Exports** – `SocialMediaExportService` (Excel) and `SocialMediaEventPhotoService.ExportForPdfAsync` (PDF) provide ready-to-share digests. Workbook builders live in `Utilities/Reporting`. (see Areas/ProjectOfficeReports/Application/SocialMediaExportService.cs lines 15-120)
+**Gaps:**
+- Switching a project to Repeat Build later does not clean up ToT data. A pending `ProjectTotRequest` is then hidden from both the tracker and the approvals queue, so it cannot be decided.
+- `RemarkService` accepts `TransferOfTechnology`-scoped remarks for Repeat Builds through the remarks API. Only the UI scope picker hides the option.
+- `ProgressReviewService.LoadTotRemarksAsync` does not exclude Repeat Builds, and it filters on `Active` rather than `Completed` projects.
 
-## Transfer-of-Technology (ToT) tracker
+## Visits
+- **Domain:** `Visit`, `VisitType`, `VisitPhoto` (`Areas/ProjectOfficeReports/Domain`).
+- **Services:**
+  - `VisitService`: CRUD, search and export rows.
+  - `VisitTypeService`.
+  - `VisitPhotoService`, configured by `VisitPhotoOptions`:
+    - JPEG, PNG or WebP only; 20 MB per file; 20 files and 100 MB per batch; minimum 720×540.
+    - Derivatives `xl`/`md`/`sm`/`xs`.
+    - Storage prefix `project-office-reports/visits`.
+  - `VisitExportService`: Excel via `VisitExcelWorkbookBuilder`, PDF via `VisitPdfReportBuilder`, with audit (`VisitExported`).
+- **Pages:**
+  - `Visits/Index`: filters (type, date range, visitor/remarks), Excel and PDF export for any authenticated user, and delete for managers.
+  - `Visits/All`.
+  - `Visits/Details`: in-page photo gallery viewer with previous/next, keyboard (← → Esc), swipe, counter, and cover indicator. Only the active XL image is loaded, and neighbours are preloaded (`wwwroot/js/pages/project-office-reports/visits.js`). `ViewPhoto` remains the fallback when JavaScript is off. Delete is available for managers.
+  - `Visits/New` and `Visits/Edit` (`ManageVisits`): form plus gallery management (upload, caption, cover, delete).
+  - `Visits/ViewPhoto`: authenticated photo stream.
+  - `VisitTypes/*`: Admin only.
+- See `docs/VisitExcelExportPlan.md` for export details.
 
-- **Domain** – `ProjectTot` and `ProjectTotRequest` extend the core project model; tracker snapshots map onto `ProjectTotTrackerRow`. (see Models/ProjectTot.cs lines 1-37)
-- **Services** – `ProjectTotTrackerReadService` builds resilient snapshots, retrying with narrower column sets when legacy databases lack recent schema additions. `ProjectTotExportService` generates Excel digests. `ProjectTotService` writes request decisions with concurrency protection. (see Areas/ProjectOfficeReports/Application/ProjectTotTrackerReadService.cs lines 19-200)
-- **Page** – `Tot/Index.cshtml` offers cards/list view toggles, filters for ToT status/request state/pending requests/date ranges, remark drawers via `IRemarkService`, submit/approve modals, and export functionality. Authorization ensures only submitters/approvers see the correct modals. (see Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml.cs lines 24-260)
+## Social media
+- **Domain:** `SocialMediaEvent`, `SocialMediaEventType`, `SocialMediaPlatform`, `SocialMediaEventPhoto`.
+- **Services:**
+  - `SocialMediaEventService`, `SocialMediaEventTypeService`, `SocialMediaPlatformService`.
+  - `SocialMediaEventPhotoService`, configured by `SocialMediaPhotoOptions`: 10 MB per file; derivatives `story` 1080×1920, `feed` 1200×1200 and `thumb` 600×600; storage prefix `org/social/{eventId}`.
+  - `SocialMediaExportService`: Excel via `SocialMediaExcelWorkbookBuilder`, PDF via `SocialMediaPdfReportBuilder`.
+- **Pages:**
+  - `SocialMedia/Index`: filters and export, open to any authenticated user.
+  - `Details`, `ViewPhoto`: authenticated.
+  - `Create`, `Edit`, `Delete`: `ManageSocialMediaEvents`.
+  - `Admin/SocialMediaTypes/*` and `Admin/SocialMediaTypes/Platforms/*`: Admin and HoD.
 
-## Proliferation tracker
+## Transfer of Technology (ToT)
+- **Domain:** `ProjectTot` and `ProjectTotRequest` (one request row per project, with `DecisionState` Pending, Approved or Rejected; `RowVersion` is an EF concurrency token).
+- **Services:**
+  - `ProjectTotTrackerReadService`: eligible projects only. It falls back to narrower column sets on `UndefinedColumn`.
+  - `ProjectTotService`: `SubmitRequestAsync` allows one pending request per project. `DecideRequestAsync` is for Admin/HoD; approval re-checks applicability and re-validates, rejection is always allowed. Dates are validated against the IST "today" and chronology (MET and first-production dates must fall between the start and completion dates).
+  - `ProjectTotExportService` → `ProjectTotExcelWorkbookBuilder`.
+- **Pages:** `Tot/Index` is a list/detail workspace with filters (status, request state, only pending, requires ToT, MET completed), a submit modal (submitters who are not approvers), a HoD decision card (approvers), a latest-request modal and export. `Tot/Summary` summarises "ToT-applicable projects". Pending ToT requests also appear in the central approvals queue (`ApprovalQueueService`).
+- **Known issue:** `Tot/Index` records submit and decision context as a ToT remark. For a user whose top remark role is Project Office, `ResolveRemarkType` picks `External`, which `RemarkService` rejects. The ToT change saves, but the toast reports that the remark failed.
+- See `docs/manual-tests/tot-tracker-view-modes.md` and `docs/bugs/tot-module-issues.md`.
 
-- **Domain** – `ProliferationYearly`, `ProliferationSubmission`, `ProliferationSource`, and preference entities capture yearly rollups, submission status, and reference data. (see Areas/ProjectOfficeReports/Domain/ProliferationYearly.cs lines 1-120)
-- **Services** – `ProliferationOverviewService` aggregates summaries, `ProliferationManageService` mutates submissions with audit history, `ProliferationSubmissionService` handles approval decisions, and `ProliferationSummaryReadService` feeds dashboards. (see Areas/ProjectOfficeReports/Application/ProliferationOverviewService.cs lines 16-180)
-- **Pages** – `Proliferation/Index.cshtml` provides filterable grids, submission/approval modals, and export buttons; partials render year pickers and approval queues. Preferences pages let admins set active years and defaults. (see Areas/ProjectOfficeReports/Pages/Proliferation/Index.cshtml.cs lines 23-220)
-- **Exports** – Excel and PDF exports reuse `ProliferationExportService` and reporting builders to guarantee consistent layout. (see Areas/ProjectOfficeReports/Application/ProliferationExportService.cs lines 14-160)
+## Proliferation
+- **Domain:** `ProliferationYearly`, `ProliferationGranular`, `ProliferationYearPreference`, `ProliferationSource` (SDD and 515 ABW), `ApprovalStatus`, `ProliferationYearPolicy`.
+- **Services:**
+  - `ProliferationSubmissionService`: create, update, decide and delete.
+    - Only completed projects qualify.
+    - Admin/HoD entries are approved immediately; other submitters' entries are Pending.
+    - An update by a non-approver sets the record back to Pending.
+    - Approved records can be deleted only by Admin or HoD.
+    - Rejection needs a reason.
+    - Optimistic concurrency uses `RowVersion`.
+  - Read side: `ProliferationOverviewService`, `ProliferationTrackerReadService`, `ProliferationSummaryReadService`, `ProliferationAggregateReadService`, `ProliferationProjectReadService`.
+  - Reports: `ProliferationReportsService`, `ProliferationAnalysisService`.
+  - Quality: `ProliferationDataQualityService`, `ProliferationChronologyQualityService`.
+  - Exports: `ProliferationExportService`, `ProliferationCardExportService` and the `Proliferation*ExcelWorkbookBuilder` classes.
+- **API** (`api/proliferation`, `ProliferationController`, `[AutoValidateAntiforgeryToken]`): every action has a policy. Reads use `ViewProliferationTracker`, writes and single-record reads use `SubmitProliferationTracker`, and decisions, data-quality correction and year preference use `ApproveProliferationTracker`. The analysis controller (`api/proliferation/reports/analysis`) uses `ValidateAntiForgeryToken`; the reports controller (`api/proliferation/reports`) is read-only.
+- **Pages:** `Proliferation/Index`, `Manage` (Submit policy), `Project`, `Reports`, `Summary`.
 
-## Intellectual property (IPR) tracker
+## Intellectual property (IPR)
+- **Domain:** `IprRecord` and `IprAttachment` (`Infrastructure/Data`). `IprType` is Patent or Copyright. `IprStatus` has FilingUnderProcess, Filed, Granted, Rejected and Withdrawn, but the page maps input to Filed or Granted only.
+- **Services:**
+  - `IprReadService`.
+  - `IprWriteService`: unique filing number per type; filed date required and not in the future (IST); protection date required when Granted, not in the future and not before filing; project eligibility.
+  - `IprAttachmentStorage`, configured by `IprAttachmentOptions`: PDF only, 20 MB by default, folder `ipr-attachments`.
+  - `IprExportService` → `IprExcelWorkbookBuilder`.
+- **Pages:** `Ipr/Index` (dashboard, filters, create/edit/delete, attachments; split into partial classes `Index.*.cs`) and `Ipr/Download` use `Ipr.View`. `Ipr/Manage` uses `Ipr.Edit`. Alias routes `/ProjectOfficeReports/Patent` and `/Patent/Manage` also work.
 
-- **Domain** – `IprRecord` and `IprAttachment` persist filing details, lifecycle status, grant metadata, optional project links, and attachment information with unique constraints and row-version concurrency. (see Infrastructure/Data/IprRecord.cs lines 1-44)
-- **Services** – `IprReadService` handles search/KPIs/export, `IprWriteService` creates/updates/deletes records with validation on status transitions and unique filing numbers, `IprAttachmentStorage` streams attachment files to disk, and `IprExportService` generates Excel reports. (see Application/Ipr/IprWriteService.cs lines 19-220)
-- **Pages** –
-  - `Ipr/Index.cshtml` renders the main dashboard with filters (type, status, project, year), KPI header, inline forms for create/edit/delete, attachment management, and export endpoints. (see Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs lines 24-260)
-  - `Ipr/Manage.cshtml` provides a focused create/edit form with validation summary and attachment list for accessibility scenarios. (see Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs lines 16-200)
-  - `Ipr/Download.cshtml` streams attachments with authorization checks, ensuring only permitted roles access evidence. (see Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs lines 17-120)
-- **Configuration** – `IprAttachmentOptions` controls max file size and MIME types (default 20 MB PDF). Options are bound in `Program.cs`. (see Configuration/IprAttachmentOptions.cs lines 6-13)
+## Training
+- **Domain:** `Training`, `TrainingType`, `TrainingCategory`, `TrainingTrainee`, `TrainingProject`, `TrainingCounters`, `TrainingDeleteRequest`.
+- **Services:** `TrainingTrackerReadService`, `TrainingWriteService`, `TrainingExportService` (`TrainingExcelWorkbookBuilder`), `Services/ProjectOfficeReports/Training/TrainingNotificationService`.
+- **Pages:** `Training/Index` (with export), `Records` and `View` use the View policy. `Manage` (save, request delete) uses the Manage policy. `Approvals` (decide delete requests) uses the Approve policy.
 
-## Shared exports and reporting
+## FFC
+See `docs/ffc-module-architecture.md` and `docs/ffc-widget-spec.md`.
 
-- Excel workbooks live under `Utilities/Reporting` (`VisitExcelWorkbookBuilder`, `SocialMediaExcelWorkbookBuilder`, `ProjectTotExcelWorkbookBuilder`, `ProliferationExcelWorkbookBuilder`, `IprExcelWorkbookBuilder`). Each builder standardises headers, formatting, and summary rows. (see Utilities/Reporting/IprExcelWorkbookBuilder.cs lines 1-120)
-- PDF builders for visit/social media photo packs ensure layouts stay on-brand while pulling assets from the upload root. (see Utilities/Reporting/VisitPdfReportBuilder.cs lines 1-160)
-- Services return `ExportFile` DTOs with content-type/file-name metadata so Razor Pages can respond via `File()` helpers without duplicating naming logic.
+## ARPP
+- **Services:** `Services/Arpp`: `ArppCommandService`, `ArppReadService`, `ArppLibraryService`, `ArppReconciliationService`, `ArppAttachmentService` (with `FileSystemArppAttachmentStorage`), `ArppExportService` (`ArppExcelWorkbookBuilder`) and `ArppIpaStageSynchronizer`. When a published ARPP includes a project, the synchroniser completes that project's IPA stage on the first HQ-issued document date.
+- **Pages:**
+  - `ARPP/Index`, `Details`, `Print`, `ProjectHistory`: `ViewArpp`.
+  - `Create`, `Manage`, `Reconcile`: `ManageArpp`.
+  - On `Details`, PDF upload and delete need `ManageArpp`, **Verify** needs `VerifyArpp`, and **Unlock** needs `UnlockArpp` plus a mandatory reason.
 
-## Operational notes
+## Progress review
+See `docs/progress-review-verification.md`.
 
-- All upload-capable services depend on `UploadRootProvider`; ensure `PM_UPLOAD_ROOT` (or `ProjectOfficeReports:*:StoragePrefix`) points to a writable, backed-up volume. (see Services/Storage/UploadRootProvider.cs lines 17-110)
-- Long-running exports run synchronously today; if reports grow significantly, wrap workbook generation in background jobs and stream results via a notification when ready.
-- Keep `ProjectOfficeReportsPolicies` in sync with navigation and documentation so new roles immediately see the correct trackers.
-
-Use this guide when extending a tracker or introducing a new one—mirror the existing service patterns, enforce role-specific policies, and update the exports table so operators know where to find supporting files.
+## Shared notes
+- Upload-capable services resolve paths through `IUploadRootProvider` (the `PM_UPLOAD_ROOT` environment variable or configuration). Point it at a writable, backed-up volume.
+- Exports run synchronously inside the request.
+- When you add a role or tracker, update `ProjectOfficeReportsPolicies`, the `Program.cs` policy registration, the page attributes, any service-level role checks (for example `FfcAttachmentStorage`) and this table together.

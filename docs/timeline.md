@@ -1,58 +1,49 @@
-# Timeline Pipeline — Current (Hardened)
+# Timeline pipeline
+
+Checked against the code on 2026-09-27. Main types: `PlanDraftService`, `PlanApprovalService`, `PlanGenerationService`, `PlanCalculator` (`Services/Plans`, `Services/Stages`); `PlanReadService`, `PlanCompareService`, `PlanSnapshotService`, `ProjectTimelineReadService`, `StageActualsUpdateService`; pages under `Pages/Projects/Timeline`.
 
 ## Roles
-- **Project Officer (PO)**: may edit only assigned projects; maintains their own private Draft; **Save** keeps their personal draft; **Save & request approval** → PendingApproval (if none already pending).
-- **HoD**: can create a private Draft, review plan submissions, approve or reject plans, and directly apply a stage transition to any project. Direct completion without a completion date is an authorised override that advances the workflow and creates mandatory backfill.
-- **Admin**: read-only for approvals; can view all.
-- **Viewer**: read-only.
+| Role | Plans | Actual dates |
+| --- | --- | --- |
+| **Project Officer** | Edits drafts only for projects where they are `LeadPoUserId` (`Timeline/EditPlan`). Can **Save** a private draft or **Save & request approval**. | Assigned PO may edit actuals (`Timeline/EditActuals`). |
+| **HoD** | May create a private draft, and review, approve or reject submissions for any project (`Timeline/Review`, `[Authorize(Roles = "Admin,HoD")]`). Direct stage application is covered in `docs/projects-module.md`. | Any HoD. |
+| **Admin** | Same approve/reject rights as HoD (`PlanApprovalService.EnsureCanDecide` → `ApprovalAuthorization.CanApproveProjectChanges`). Admin is **not** read-only. | Yes. |
+| **Others** | Read-only. | — |
 
-## States
-- **Draft** → stored in `PlanVersions` + `StagePlans` (not visible on Overview timeline). Multiple Drafts can exist per project, but each is owned by a single user (`OwnerUserId`).
-- **PendingApproval** → the submitting user’s draft is locked while everyone else may continue editing their own drafts; submission buttons are disabled for other users until the pending plan is resolved.
-- **Approved** → StagePlans published to `ProjectStages`; snapshot saved; project stamped with PlanApprovedAt/By.
-- **Rejected** → we record RejectedOn/By/Note; status changed back to Draft.
+`Timeline/Historical` (backfilling historical stage records) is limited to Admin and HoD.
+
+## States (`PlanVersionStatus`)
+- **Draft**: stored in `PlanVersions` and `StagePlans` and not shown on the overview timeline. Each user has at most one Draft per project, enforced by a unique filtered index on `(ProjectId, OwnerUserId)` where `Status = 'Draft'`.
+- **PendingApproval**: set by `PlanApprovalService.SubmitAsync`. The submission is refused when any plan for the project is already pending. This is a read-then-write check with no database constraint, so two simultaneous submissions could both succeed.
+- **Approved**: `StagePlans` are published into `ProjectStages`, a snapshot is saved, and the project is stamped with the approver and time.
+- **Rejected**: `RejectedOn`, `RejectedBy` and the note are recorded, and the plan returns to Draft (`SubmittedByUserId` is cleared).
 
 ## Pages
-- **Overview**: chips for “Your draft saved”, “Draft pending approval”, “Backfill required”, “Approved on …”; actions:
-  - **HoD**: “Review & approve” (always available when anything is pending)
-  - **Admin/assigned PO/HoD**: “Edit timeline”; if a personal draft exists a “Your draft saved → Continue editing” chip opens the editor directly.
-- Stage rows display planned/actual dates, auto-completion badges and backfill flags sourced from `ProjectTimelineReadService`.
-- **Edit timeline**:
-  - The default view focuses on the current and future stages. Completed and skipped stages are collapsed under **Show completed and skipped stages** because historical planned dates do not affect record completeness.
-  - **Durations**: Calculate → writes to Draft StagePlans and shows a preview of the resulting exact dates beneath each input.
-  - **Exact**: direct edits to Draft StagePlans. The current-stage planned completion is operationally important; future-stage dates are optional.
-  - **Save** keeps your private draft; **Save & request** is blocked with a warning while another submission is PendingApproval
-  - Durations honour `ProjectScheduleSettings` (anchor date, weekend/holiday policy, next-stage start rules) and populate `ProjectPlanDuration` rows for future reuse.
-- **Review** (HoD):
-  - Diff = PendingApproval plan vs Current; union of stage codes; highlight changes; includes latest approval audit entries
-  - **Approve** blocks self-approval; HoD must review another user’s submission (unless rule changed)
-  - **Reject** returns to Draft with optional note
-  - Approvals invoke `PlanApprovalService`, which publishes `StagePlan` data into `ProjectStages`, records a snapshot and stamps the project with the approving HoD and timestamp.
-
-## Security
-- No inline scripts.
-- Server-side role checks on all POSTs.
-- Antiforgery tokens on forms.
+- **Overview** shows chips for "Your draft saved", "Draft pending approval", "Backfill required" and "Approved on …". HoD and Admin get **Review & approve** while something is pending. The assigned PO, HoD and Admin get **Edit timeline**. Stage rows show planned and actual dates, auto-completion badges and backfill flags (`ProjectTimelineReadService`).
+- **Edit timeline** (`EditPlan`):
+  - Completed and skipped stages are collapsed by default.
+  - **Durations** mode calculates exact dates from `ProjectScheduleSettings` (anchor, weekend/holiday policy, next-stage start rule) and stores `ProjectPlanDuration` rows.
+  - **Exact** mode edits `StagePlans` directly. The current stage's planned completion matters operationally; future dates are optional.
+  - **Save & request** is blocked while another plan is pending (`PlanDraftLockedException` / "Another submission is already pending approval.").
+- **Review** (`Timeline/Review`): shows the pending plan against the current plan (`PlanCompareService`). **Approve** refuses self-approval ("You cannot approve your own plan submission."). **Reject** returns the plan to Draft with an optional note.
 
 ## Workflow-version consistency
+Stage order and dependencies come from `IProjectStageWorkflowPolicy` for the project's `WorkflowVersion`:
+- **SDD-1.0:** FS → IPA → SOW → AON → BID → {TEC, BM} → COB → {PNC, EAS} → SO → DEVP → ATP → PAYMENT → TOT
+- **SDD-2.0:** FS → SOW → IPA → AON → (then the same as SDD-1.0)
 
-Every stage service resolves order and dependencies through `IProjectStageWorkflowPolicy` using the project’s `WorkflowVersion`:
+The graph comes from `StageDependencyTemplates`, falling back to `ProjectStageWorkflowPolicy.BuildFallbackDependencies`. Validation, direct application, decisions, predecessor cascade, auto-start, plan generation and date suggestions (`StageDateSuggestionResolver`) all use it.
 
-- **SDD-1.0:** FS → IPA → SOW → AON → …
-- **SDD-2.0:** FS → SOW → IPA → AON → …
-
-The same policy controls validation, direct application, approval decisions, predecessor cascade, auto-start and stage materialisation. Plan generation uses the same workflow metadata and does not fall back to the static SDD-1.0 order for known stages.
-
-## Actual-date and backfill rules
-
-- **Completed stage:** completion date is authoritative. Actual start is optional; when absent, duration is inferred from the preceding applicable stage’s completion date plus one day.
-- **Current in-progress stage:** actual start and planned completion are operationally important.
+## Actual dates and backfill
+- **Completed stage:** the completion date is authoritative. Actual start is optional; when it is missing, duration is inferred from the preceding applicable stage's completion plus one day.
+- **Current stage:** the actual start and planned completion are what matter.
 - **Future stage:** planned dates are optional.
-- **Skipped stage:** dates are not required.
-- **Authorised completion override:** any HoD may complete a stage without a completion date. The workflow advances, the stage counts as operationally completed, and mandatory backfill remains until the completion date and any mandatory stage facts are recorded.
+- **Skipped stage:** no dates are required.
+- **Authorised completion override:** a HoD may complete a stage without a date. The workflow advances, and mandatory backfill stays until the date and any mandatory facts are recorded.
+- **Timeline → Edit actual dates** (`EditActuals` → `StageActualsUpdateService`) changes dates directly and audits them, **without HoD approval**, for Admin, any HoD or the assigned PO. Stage status is not changed.
 
-Actual dates can be corrected directly from **Timeline → Edit actual dates**. The editor avoids artificial status transitions and preserves the stage audit trail through the actuals-update workflow.
+## PO projected lifecycle
+The assigned PO can submit and revise updates for several stages while earlier updates await approval (`StageRequestService`). The update modal shows the projected lifecycle, distinguishing existing pending updates, new updates and the current revision. A pending start that is later revised to completion is recovered from the superseded request history and applied when the completion is approved. Official progress reflects approved stage records only.
 
-## Project Officer projected lifecycle
-
-The assigned Project Officer can submit and revise updates for multiple stages while earlier updates await HoD approval. The update modal renders the complete projected lifecycle, distinguishing existing pending updates, new updates and the current revision. If a stage start is already pending and the officer later records completion, that proposed start is retained without adding database columns; it is recovered from the superseded request history and applied when the completion is approved. Official lifecycle progress remains based on approved stage records.
+## Security
+- Server-side role and assignment checks on every POST; antiforgery on forms (`[AutoValidateAntiforgeryToken]` on the timeline page models); no inline scripts.
