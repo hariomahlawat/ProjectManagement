@@ -1006,7 +1006,10 @@ var app = builder.Build();
 
 app.Logger.LogInformation(
     "Data-protection keys will persist to {Directory}.",
-    keysDir);
+    app.Services.GetRequiredService<IOptions<KeyManagementOptions>>().Value.XmlRepository
+        is FileSystemXmlRepository keyRepository
+        ? keyRepository.Directory.FullName
+        : "(non-filesystem repository)");
 
 if (!app.Environment.IsDevelopment()
     && string.Equals(csb.Username, "postgres", StringComparison.OrdinalIgnoreCase))
