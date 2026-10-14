@@ -1,7 +1,6 @@
-PRISM V5 PRODUCTION DEPLOYMENT CHECKLIST
-=======================================
+# PRISM production deployment checklist
 
-PRE-DEPLOYMENT
+## Pre-deployment
 [ ] Database backup completed and restore procedure verified.
 [ ] Current deployed source/publish output backed up.
 [ ] DP_KEYS_DIR is absolute, durable, writable and backed up.
@@ -13,20 +12,20 @@ PRE-DEPLOYMENT
 [ ] dotnet test -c Release completed with no failures.
 [ ] dotnet publish -c Release completed.
 
-DEPLOYMENT
+## Deployment
 [ ] IIS application pool stopped.
 [ ] Complete publish output deployed atomically; source files were not copied into publish folder.
 [ ] App pool identity retains access to upload roots, data-protection keys and required storage.
 [ ] IIS application pool started.
 
-STARTUP VERIFICATION
+## Startup verification
 [ ] Logs show ApplicationDbContext migration boundary completed.
 [ ] Logs show MediaLibraryDbContext migration boundary completed.
 [ ] No unknown migration-history IDs are reported.
 [ ] Application and media schema readiness checks pass.
 [ ] /health/ready reports ready.
 
-NOTIFICATION VERIFICATION
+## Notification verification
 [ ] Bell loads for normal user.
 [ ] Opening bell records seen state.
 [ ] Mark read/unread works.

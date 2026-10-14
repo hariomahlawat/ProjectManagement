@@ -11,7 +11,8 @@ function Require-Command([string]$Name) {
     }
 }
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent $toolsDir
 Set-Location $root
 
 Write-Host "PRISM Search V2.2 production-assurance verification" -ForegroundColor Cyan

@@ -50,7 +50,7 @@ when necessary, updates the generated metadata, and appends the immutable manife
 5. `dotnet test -c Release`
 6. Run the guarded PostgreSQL migration-chain test or rely on the
    `Production Database Migration Gate` CI workflow.
-7. Compare production history using `PRODUCTION-MIGRATION-INVENTORY.sql`.
+7. Compare production history using `ops/database/production-migration-inventory.sql`.
 8. Deploy a complete Release publish; never copy source files into the IIS publish folder.
 
 Database downgrades are unsupported. Do not delete rows from either EF migration-history

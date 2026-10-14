@@ -1,5 +1,4 @@
-PRISM PUBLICATION FONTS — READY-TO-PASTE SETUP
-================================================
+# Publication fonts for offline deployment
 
 IMPORTANT
 ---------

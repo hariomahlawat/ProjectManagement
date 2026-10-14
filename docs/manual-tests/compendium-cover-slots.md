@@ -1,4 +1,4 @@
-# Phase 42 acceptance tests
+# Compendium cover-slot acceptance tests
 
 Use a Triptych cover with three usable photographs initially shown as `A / B / C`.
 

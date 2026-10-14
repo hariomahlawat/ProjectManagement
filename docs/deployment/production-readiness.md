@@ -1,4 +1,4 @@
-# PRISM Production Readiness v4.1
+# PRISM production readiness
 
 ## Purpose
 
@@ -69,7 +69,7 @@ The test refuses to reset or use a non-empty database.
 ## Production deployment
 
 1. Back up PostgreSQL and the current IIS application directory.
-2. Run `PRODUCTION-MIGRATION-INVENTORY.sql` against the exact production database.
+2. Run `ops/database/production-migration-inventory.sql` against the exact production database.
 3. Compare both history lists with the immutable manifests in source.
 4. Commit and push every migration and manifest file.
 5. Create a complete Release publish.
@@ -77,7 +77,7 @@ The test refuses to reset or use a non-empty database.
 7. Replace the complete published output. Do not deploy source `.cs` files individually.
 8. Remove `app_offline.htm` and start the pool.
 9. Review startup logs. Do not admit traffic until both migration sets report completion.
-10. Re-run `PRODUCTION-MIGRATION-INVENTORY.sql` and exercise Photos, Media Intelligence and
+10. Re-run `ops/database/production-migration-inventory.sql` and exercise Photos, Media Intelligence and
     direct stage completion.
 
 ## Audit retention
@@ -101,7 +101,7 @@ or:
 ./tools/Add-PrismMigration.ps1 -Name DescribeTheChange -Context MediaLibraryDbContext
 ```
 
-See `MIGRATIONS-POLICY.md`.
+See `docs/engineering/migrations.md`.
 
 ## Required production environment settings
 
