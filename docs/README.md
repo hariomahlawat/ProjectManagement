@@ -1,6 +1,6 @@
 # PRISM ERP documentation
 
-Use this index to navigate current engineering guidance. The repository also contains older implementation notes; those are useful historical evidence but may not describe the present code.
+Use this index to navigate current engineering guidance. Historical package notes and patch-delivery instructions have been removed from the repository root; Git history remains the archive for those materials.
 
 ## Start here
 
@@ -10,12 +10,19 @@ Use this index to navigate current engineering guidance. The repository also con
 | [Current state](current-state.md) | Code-derived map of the present application and major domains. |
 | [Engineering invariants](engineering-invariants.md) | Correctness, security, workflow, persistence and architecture constraints. |
 | [Build and test](build-and-test.md) | Current restore/build/test commands and migration validation. |
-| [Housekeeping policy](housekeeping.md) | How historical patch/readme/validation material should be classified and cleaned up. |
-| [Housekeeping inventory](housekeeping-inventory.md) | Current root-clutter inventory, first-pass deletions, live dependencies and next cleanup candidates. |
+| [Migration policy](engineering/migrations.md) | Immutable EF migration lineage, creation and deployment rules. |
+| [Production readiness](deployment/production-readiness.md) | Current production startup/deployment contract. |
+| [Production checklist](deployment/production-checklist.md) | Operator checklist for offline/LAN deployment. |
+| [Offline WS2022 deployment](deployment/offline-ws2022.md) | Air-gapped Windows Server deployment guidance. |
+| [Publication fonts](deployment/publication-fonts.md) | Preparing and validating publication fonts for offline deployment. |
+| [Media Library external folders](media-library/external-folders.md) | LAN/NAS filesystem source architecture and failure behavior. |
+| [Media Library operator guide](media-library/operator-guide.md) | Adding and operating optional LAN/NAS media sources. |
+| [Housekeeping policy](housekeeping.md) | Rules for keeping durable guidance separate from delivery residue. |
+| [Housekeeping inventory](housekeeping-inventory.md) | Record of the repository-root cleanup and retained exceptions. |
 
 ## Detailed references
 
-The following documents contain useful subsystem detail, but they predate the current documentation reset. Validate material claims against current code before relying on them for architectural changes.
+The following documents contain useful subsystem detail. Some predate the current documentation reset, so validate material claims against current code before making architectural changes.
 
 | Guide | Scope |
 | --- | --- |
@@ -32,6 +39,18 @@ The following documents contain useful subsystem detail, but they predate the cu
 | [Action Tracker development note](action-tracker-development-note.md) | Action Tracker implementation detail. |
 | [User guide](user-guide/README.md) | Operator-facing guidance. |
 | [Manual tests](manual-tests/README.md) | Repeatable manual QA scripts. |
+| [Compendium cover-slot tests](manual-tests/compendium-cover-slots.md) | Manual acceptance scenarios for publication cover-slot stability. |
+
+## Operational assets
+
+Durable operator scripts and queries live outside the repository root:
+
+- `ops/database/production-migration-inventory.sql`
+- `ops/database/production-startup-diagnostic.sql`
+- `tools/Add-PrismMigration.ps1`
+- `tools/Verify-SearchV2.ps1`
+- `tools/Install-PrismPublicationFonts.ps1`
+- `tools/Test-PrismPublicationFonts.ps1`
 
 ## Documentation maintenance rules
 
@@ -41,7 +60,7 @@ When changing behavior:
 2. state important authorization, concurrency, transactional and audit invariants;
 3. document configuration keys that operators must provide or understand;
 4. prefer references to stable symbols/paths over fragile line-number citations;
-5. do not create a new root-level phase README, patch-application guide or validation transcript as the long-term documentation for a feature;
+5. do not create a new root-level phase README, patch-application guide or validation transcript as long-term documentation;
 6. when documentation conflicts with current executable code, fix the documentation unless the code itself is the defect.
 
 Historical cleanup is tracked by the policy in [housekeeping.md](housekeeping.md).
