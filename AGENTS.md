@@ -2,6 +2,20 @@
 
 This repository contains PRISM ERP, an ASP.NET Core application. Treat the executable implementation as the primary source of truth.
 
+## Deployment constraint: offline local LAN
+
+PRISM is deployed as an **offline application on a local LAN**. Production runtime must not depend on public Internet connectivity.
+
+Engineering consequences:
+
+- Do not introduce runtime dependencies on public CDNs, cloud APIs, SaaS services, external identity providers, remote fonts, public telemetry endpoints, or Internet-hosted assets unless an explicit deployment change has been approved.
+- Browser assets required in production should be shipped with the application or served from approved LAN infrastructure.
+- Features must fail safely when Internet access is absent; "works only when online" is a production defect unless the feature is explicitly optional.
+- Package restore/download activity is a build/development concern and must not be confused with production runtime connectivity.
+- Prefer deterministic, locally deployable dependencies and document any native/runtime prerequisites that must be included in the deployment package.
+- LAN-only deployment does not relax authentication, authorization, audit, upload/download validation, CSRF protection, secrets handling, or resource-level access control.
+- Do not assume a cloud secret store, cloud queue, cloud object store, cloud monitoring platform, or externally reachable callback URL exists.
+
 ## Source-of-truth order
 
 When sources disagree, use this order:
@@ -74,6 +88,7 @@ Changes in these areas require focused tests and careful review:
 - Database migrations and startup database behavior
 - Search/SearchV2 convergence
 - Report/export generation
+- Any new network dependency or externally hosted production asset
 
 ## Documentation rules
 
