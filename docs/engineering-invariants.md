@@ -53,9 +53,18 @@ These invariants are intended to constrain maintenance and Codex-assisted change
 29. New cross-cutting abstractions must reduce duplication across real call sites, not merely add another layer.
 30. Parallel implementations (`Legacy`, `V2`, `New`) require a documented convergence/removal path.
 
+## Offline/LAN deployment
+
+31. Production runtime must remain functional without public Internet connectivity.
+32. Do not introduce required public CDN, cloud API, SaaS, external identity, remote-font, public telemetry or Internet callback dependencies without an explicitly approved architecture/deployment change.
+33. Required browser/runtime assets must be deployable locally or from approved LAN infrastructure.
+34. Offline deployment does not weaken application security requirements; the LAN must not be treated as implicitly trusted.
+35. Runtime failure caused solely by unavailable public Internet access is a defect for any non-optional production feature.
+36. Deployment packages must document and include required native/runtime dependencies that cannot be restored from the Internet at runtime.
+
 ## Change discipline
 
-31. Prefer small, independently testable changes.
-32. For risky fixes, add a regression test that demonstrates the failure mode before or with the fix.
-33. Update durable documentation when a change invalidates it.
-34. Do not use historical patch/readme bundles as instructions without first validating them against current code.
+37. Prefer small, independently testable changes.
+38. For risky fixes, add a regression test that demonstrates the failure mode before or with the fix.
+39. Update durable documentation when a change invalidates it.
+40. Do not use historical patch/readme bundles as instructions without first validating them against current code.
