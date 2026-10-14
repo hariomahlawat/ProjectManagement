@@ -1,44 +1,51 @@
 # PRISM repository housekeeping inventory
 
-This inventory records the state of the repository root after the first conservative cleanup pass.
+This inventory records the repository-root cleanup performed before broader Codex-assisted maintenance.
 
 ## Current root shape
 
-After the initial deletions, the root still contains approximately:
+After the first two cleanup passes, the root contains:
 
-- 314 entries before the final two obsolete package-instruction deletions in this branch
-- 280 files and 34 directories at that point
-- 69 `.patch` files
-- 109 README-like files
-- 114 phase-named files
-- 18 validation/verification-style files
-- 14 manifest/changed-file/package-list style files
-- 15 apply/replace/ready-to-paste style files
+- 146 entries
+- 116 files
+- 30 directories
+- 0 root `.patch` files
+- 48 README-like files
+- 20 phase-named files
+- 8 validation/verification-style files
+- 0 APPLY/REPLACE/READY-TO-PASTE style root files
 
-The exact counts will change as cleanup proceeds; the important point is that historical delivery material still dominates the root.
+The root is substantially cleaner, but a third pass is still warranted for remaining one-off hotfix/module READMEs and historical validation material.
 
-## Deleted in the first cleanup pass
+## First cleanup pass
 
-These files were removed because they were self-contained delivery artifacts or an accidental probe, had no live code/build/CI references, and contained no unique executable source:
+The first pass removed clearly isolated delivery metadata/transcripts and an accidental probe, including:
 
 - `_tmp_probe_should_not_exist.txt`
-- `CHANGE-SUMMARY.txt`
-- `CHANGED-FILES.md`
-- `FILE-MANIFEST.md`
-- `FILE-MANIFEST.txt`
-- `PACKAGE-FILES.txt`
-- `REPLACE_THESE_FILES.txt`
-- `SOURCE-FILES.txt`
-- `STATIC-VALIDATION.txt`
-- `TEST-RESULTS.txt`
-- `VALIDATION-node-tests.txt`
-- `VALIDATION.txt`
-- `APPLY-README.txt`
-- `COPY INTO PROJECT ROOT.txt`
+- generic changed-file/file/package/source manifests
+- generic static validation and test-result transcripts
+- obsolete copy/apply instructions
 
-These were historical delivery metadata/transcripts. Their associated source changes remain in Git history and current source where applicable.
+No application runtime source, migrations, configuration or deployment logic was changed.
 
-## Explicitly retained because they are still wired or referenced
+## Second cleanup pass
+
+The second pass removed historical delivery clusters whose source changes are already preserved by Git history/current code:
+
+- Phase 6–14 changed-file and validation-result pairs
+- Publications Phase 29–35 delivery READMEs/manifests
+- Phase 16–24 and 39–40 delivery READMEs
+- early `README_PHASE*` delivery notes
+- all root `*.patch` bundles
+- FFC phase `README_FIRST` delivery files
+- obsolete root APPLY/REPLACE/READY-TO-PASTE instructions
+- the historical `_PATCH/` patch bundle directory
+- the historical `_PACKAGE/` delivery bundle directory
+- Phase 34/35 visual-proof directories
+
+Git history is the archive for these materials. They are no longer allowed to compete with current engineering instructions in the repository root.
+
+## Explicitly retained because it is still operationally wired
 
 ### `ReadyToReplace/`
 
@@ -49,52 +56,42 @@ Current evidence:
 - `ProjectManagement.csproj` explicitly excludes `ReadyToReplace/**` from application source/content discovery.
 - `.github/workflows/build-project-tot-v3-zip.yml` actively reads from `ReadyToReplace/Project-Tot-Precision-and-UX-v3/**`, runs its package builder and commits a generated ZIP.
 
-This is distribution material, not application source, but it is still operationally wired.
+This is distribution material rather than application source, but it is still consumed by current automation. Removing it requires first retiring or redesigning that workflow.
 
-### `SHA256SUMS.txt`
+## Remaining historical/reference material requiring a third pass
 
-Retain for now because multiple historical package manifests/readmes reference it.
+The root still contains several classes that should be reviewed individually or by subsystem:
 
-### `STATIC-VERIFICATION.txt` and `VERIFICATION.txt`
+1. **One-off module/hotfix READMEs**
+   - build/compile/migration fix notes
+   - IPR refinement notes
+   - Search V2 implementation/convergence notes
+   - Admin phase notes
+   - media/publications/workspace hardening notes
 
-Retain for now because current repository documents under the Search V2 historical plan/package material reference them.
+   Where the guidance is still durable, merge it into `docs/`; otherwise rely on Git history and remove it.
 
-### `VALIDATION-static.txt`
+2. **Remaining validation/verification artifacts**
+   - `SEARCH-V2-2-STATIC-VERIFICATION.txt`
+   - `SEARCH-V2-QUALITY-HARDENING-STATIC-VERIFICATION.txt`
+   - `STATIC-VERIFICATION.txt`
+   - `VALIDATION-RESULTS.txt`
+   - `VALIDATION-static.txt`
+   - `VALIDATION.md`
+   - `VERIFICATION.txt`
+   - `PRODUCTION-VERIFICATION.sql`
 
-Retain for now because the FFC ITO role-governance package documentation references it.
+   SQL that is genuinely part of production operations should move under `ops/` or `docs/deployment/`; reproducible validation transcripts should be removed.
 
-### `MANIFEST.txt` and `REPLACEMENT-MANIFEST.txt`
+3. **Remaining generic/historical manifests**
+   - `MANIFEST.txt`
+   - `SHA256SUMS.txt`
+   - search-specific manifests and static-verification files
 
-Retain for now because multiple phase-package README files reference them.
-
-## Next cleanup candidates
-
-The next pass should examine these classes as groups rather than deleting isolated files:
-
-1. **Phase validation transcripts**
-   - `PHASE*-VALIDATION-RESULTS.txt`
-   - `PHASE32_VALIDATION_RESULTS.txt`
-   - generic `VALIDATION-RESULTS.txt`
-
-2. **Historical patch bundles**
-   - root `*.patch`
-   - `_PATCH/`
-
-3. **Historical replacement/package bundles**
-   - `_PACKAGE/`
-   - remaining `README-APPLY*`, `README-REPLACE*`, `READY-TO-PASTE.md`
-   - remaining changed-file and package manifests
-
-4. **Visual proof directories**
-   - `Phase34-Visual-Proof/`
-   - `Phase35-Visual-Proof/`
-
-5. **Historical phase READMEs**
-   - `README_PHASE*`
-   - `README-PHASE*`
-   - subsystem-specific phase completion notes
-
-The preferred outcome is either deletion when Git history is sufficient, or relocation under `docs/archive/` when the material still has enduring diagnostic or historical value.
+4. **Operational root scripts/SQL**
+   - verify whether each root `.sql` and `.ps1` file is an active operator entry point;
+   - move active operational assets under `ops/`;
+   - remove historical delivery-only scripts.
 
 ## Rules for subsequent cleanup
 
@@ -104,11 +101,12 @@ Before deleting or moving a historical artifact:
 2. check `.github/workflows`, `ProjectManagement.csproj`, build scripts, `ops/` and `tools/`;
 3. verify the artifact is not the only copy of a migration, script, template, configuration example or deployment instruction still in use;
 4. prefer Git history over retaining reproducible test transcripts and patch payloads;
-5. keep behavioral code changes out of housekeeping PRs.
+5. move durable operational knowledge into `docs/` or `ops/` rather than leaving one-off instructions in the root;
+6. keep behavioral application changes out of housekeeping PRs.
 
 ## Desired end state
 
-The repository root should eventually contain only:
+The repository root should contain only:
 
 - core solution/project/build files;
 - current configuration templates;
