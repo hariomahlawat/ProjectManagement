@@ -9,6 +9,17 @@ This document records the repository's current build and validation path.
 - npm
 - PostgreSQL 16 for migration integration tests
 
+## Offline production versus connected build
+
+Production PRISM runs on an offline LAN. Development/CI restore commands below may require access to NuGet/npm registries, but deployed application behavior must not require those registries or other public Internet services.
+
+For release readiness, distinguish two questions:
+
+1. **Can the source be restored/built in the approved build environment?**
+2. **Can the published application start and execute its required features with public Internet access unavailable?**
+
+The second question is a production requirement. Where practical, release validation should include an offline-runtime smoke test using only the LAN/local dependencies that will exist at the deployment site.
+
 ## Restore
 
 From the repository root:
