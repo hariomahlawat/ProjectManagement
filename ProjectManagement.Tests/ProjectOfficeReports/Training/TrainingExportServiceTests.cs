@@ -41,8 +41,9 @@ public sealed class TrainingExportServiceTests
 
         using var workbook = new XLWorkbook(new MemoryStream(file.Content));
         var trainings = workbook.Worksheet("Trainings");
-        Assert.Equal(seed.TrainingAId.ToString(), trainings.Cell(2, 2).GetString());
-        Assert.True(trainings.Cell(3, 2).IsEmpty());
+        Assert.Equal("Project Alpha", CellUnderHeader(trainings, 2, "Projects").GetString());
+        Assert.Equal("Simulator", CellUnderHeader(trainings, 2, "Training type").GetString());
+        Assert.True(CellUnderHeader(trainings, 3, "Projects").IsEmpty());
         Assert.Equal("Project Alpha", workbook.Worksheet("Summary").Cell("F7").GetString());
 
         var entry = Assert.Single(audit.Entries);
@@ -74,9 +75,9 @@ public sealed class TrainingExportServiceTests
         var trainings = workbook.Worksheet("Trainings");
         var roster = workbook.Worksheet("Roster");
 
-        Assert.Equal(2, trainings.Cell(2, 12).GetValue<int>()); // complete event total
-        Assert.Equal("Officer", roster.Cell(2, 10).GetString());
-        Assert.True(roster.Cell(3, 10).IsEmpty());
+        Assert.Equal(2, CellUnderHeader(trainings, 2, "Total trainees").GetValue<int>()); // complete event total
+        Assert.Equal("Officer", CellUnderHeader(roster, 2, "Trainee category").GetString());
+        Assert.True(CellUnderHeader(roster, 3, "Trainee category").IsEmpty());
     }
 
     [Fact]
@@ -95,9 +96,10 @@ public sealed class TrainingExportServiceTests
         using var workbook = new XLWorkbook(new MemoryStream(result.File!.Content));
         var trainings = workbook.Worksheet("Trainings");
 
-        Assert.Equal(seed.TrainingAId.ToString(), trainings.Cell(2, 2).GetString());
-        Assert.Equal(new DateTime(2024, 4, 10), trainings.Cell(2, 4).GetDateTime());
-        Assert.Equal(new DateTime(2024, 3, 10), trainings.Cell(3, 4).GetDateTime());
+        Assert.Equal("Project Alpha", CellUnderHeader(trainings, 2, "Projects").GetString());
+        Assert.Equal("Simulator", CellUnderHeader(trainings, 2, "Training type").GetString());
+        Assert.Equal(new DateTime(2024, 4, 10), CellUnderHeader(trainings, 2, "Start date").GetDateTime());
+        Assert.Equal(new DateTime(2024, 3, 10), CellUnderHeader(trainings, 3, "Start date").GetDateTime());
     }
 
     [Fact]
@@ -180,6 +182,13 @@ public sealed class TrainingExportServiceTests
 
         Assert.False(result.Success);
         Assert.Contains(result.Errors, error => error.Contains("Select a trainee category", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IXLCell CellUnderHeader(IXLWorksheet worksheet, int row, string header)
+    {
+        var column = Assert.Single(worksheet.Row(1).CellsUsed(), cell => cell.GetString() == header)
+            .Address.ColumnNumber;
+        return worksheet.Cell(row, column);
     }
 
     private static TrainingExportService CreateService(

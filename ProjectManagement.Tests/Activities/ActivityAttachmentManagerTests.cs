@@ -59,7 +59,8 @@ public class ActivityAttachmentManagerTests : IDisposable
 
         Assert.True(_storage.SaveCalled);
         Assert.Equal(FakeStorage.StorageKey, attachment.StorageKey);
-        Assert.Equal(FakeStorage.FileName, attachment.OriginalFileName);
+        Assert.Equal(ActivityAttachmentValidator.SanitizeFileName(upload.FileName), attachment.OriginalFileName);
+        Assert.Single(activity.Attachments);
         Assert.Equal(_clock.UtcNow, attachment.UploadedAtUtc);
 
         var stored = await _repository.GetAttachmentByIdAsync(attachment.Id, CancellationToken.None);
@@ -88,7 +89,7 @@ public class ActivityAttachmentManagerTests : IDisposable
     {
         var activity = await CreateActivityAsync();
         await using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
-        var upload = new ActivityAttachmentUpload(stream, " diagram.pdf ", "application/pdf", stream.Length);
+        var upload = new ActivityAttachmentUpload(stream, "diagram.pdf", "application/pdf", stream.Length);
         await _manager.AddAsync(activity, upload, "user-1", CancellationToken.None);
 
         var metadata = _manager.CreateMetadata(activity);
@@ -131,7 +132,6 @@ public class ActivityAttachmentManagerTests : IDisposable
     private sealed class FakeStorage : IActivityAttachmentStorage
     {
         public const string StorageKey = "activities/1/fake-key";
-        public const string FileName = "fake.pdf";
 
         public bool SaveCalled { get; private set; }
         public bool DeleteCalled { get; private set; }
@@ -156,7 +156,7 @@ public class ActivityAttachmentManagerTests : IDisposable
                 upload.Content.CopyTo(fileStream);
             }
 
-            return Task.FromResult(new ActivityAttachmentStorageResult(StorageKey, FileName, upload.Length));
+            return Task.FromResult(new ActivityAttachmentStorageResult(StorageKey, ActivityAttachmentValidator.SanitizeFileName(upload.FileName), upload.Length));
         }
 
         public Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default)

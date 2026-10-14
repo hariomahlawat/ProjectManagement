@@ -157,8 +157,7 @@ public sealed class ProjectBriefingPresentationIntegrityTests
         };
 
     private static byte[] TinyPng()
-        => Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1ZsAAAAASUVORK5CYII=");
+        => TestImageFactory.TinyPng();
 
     private sealed class TestEnvironment : IWebHostEnvironment
     {

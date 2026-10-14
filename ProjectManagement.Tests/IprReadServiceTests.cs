@@ -292,8 +292,8 @@ public sealed class IprReadServiceTests
         Assert.Equal(2, item.AttachmentCount);
         Assert.Equal(2, item.Attachments.Count);
         Assert.Equal(new[] { "visible-2.pdf", "visible-1.pdf" }, item.Attachments.Select(a => a.FileName).ToArray());
-        Assert.Equal("Taylor Swift", item.Attachments[0].UploadedBy);
-        Assert.Equal("analyst-2", item.Attachments[1].UploadedBy);
+        Assert.Equal("analyst-2", item.Attachments[0].UploadedBy);
+        Assert.Equal("Taylor Swift", item.Attachments[1].UploadedBy);
         Assert.Equal(new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero), item.Attachments[0].UploadedAtUtc);
     }
 

@@ -125,7 +125,7 @@ public sealed class TotTrackerSummaryTests
         Assert.Equal(5, notRequired.ProjectId);
         Assert.Equal(2019, notRequired.ProjectCompletedYear);
 
-        Assert.Equal("15 Jan 2024", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(completed));
+        Assert.Equal("2024", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(completed));
         Assert.Equal("2022", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(metComplete));
     }
 

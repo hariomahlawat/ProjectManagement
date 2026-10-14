@@ -54,7 +54,7 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("ServeV2Users", options, StringComparison.Ordinal);
         Assert.Contains("ServeV2Roles", options, StringComparison.Ordinal);
         Assert.Contains("if (_options.ShadowMode && v2Response is { IsReady: true } && legacyResults is not null)", gateway, StringComparison.Ordinal);
-        Assert.Contains("var runV2 = _options.Enabled && (serveV2ToUser || _options.ShadowMode);", gateway, StringComparison.Ordinal);
+        Assert.Contains("var runV2 = _options.Enabled && (serveV2ToUser || (!request.FacetsOnly && _options.ShadowMode));", gateway, StringComparison.Ordinal);
         Assert.Contains("!ShouldServeV2(user)", gateway, StringComparison.Ordinal);
         Assert.Contains("WorkItemLeaseMinutes", options, StringComparison.Ordinal);
         Assert.Contains("_options.WorkItemLeaseMinutes", worker, StringComparison.Ordinal);
@@ -266,7 +266,8 @@ public sealed class SearchV2SourceContractTests
 
         Assert.Contains("Search V2 escaped its engine boundary", gateway, StringComparison.Ordinal);
         Assert.Contains("Legacy-Fallback", gateway, StringComparison.Ordinal);
-        Assert.Contains("FellBackToLegacy", gateway, StringComparison.Ordinal);
+        Assert.Contains("var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };", gateway, StringComparison.Ordinal);
+        Assert.Contains("fellBackToLegacy,\n            v2Status,\n            v2Response?.DiagnosticId", gateway.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("_environment.IsDevelopment()", pageModel, StringComparison.Ordinal);
         Assert.Contains("ShowEngineDiagnostics", view, StringComparison.Ordinal);
         Assert.Contains("V2DiagnosticId", view, StringComparison.Ordinal);

@@ -60,6 +60,7 @@ public sealed class CompendiumPublicationTests
     public void PdfBuilder_GeneratesPdfWhenPhotoIsMissing()
     {
         using var root = new TemporaryDirectory();
+        CopyPublicationFonts(root.Path);
         var environment = new TestWebHostEnvironment(root.Path);
         var fontService = new PublicationFontService(
             environment,
@@ -102,6 +103,26 @@ public sealed class CompendiumPublicationTests
 
         Assert.True(bytes.Length > 1000);
         Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(bytes.Take(4).ToArray()));
+    }
+
+    private static void CopyPublicationFonts(string contentRoot)
+    {
+        var repository = new DirectoryInfo(AppContext.BaseDirectory);
+        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "ProjectManagement.csproj")))
+        {
+            repository = repository.Parent;
+        }
+
+        Assert.NotNull(repository);
+        var source = PublicationFontContract.InspectDmSans(repository!.FullName);
+        Assert.True(source.IsAvailable, "The bundled DM Sans fonts must be present for PDF generation tests.");
+
+        var destination = Path.Combine(contentRoot, "Resources", "Publications", "Fonts", "dm-sans");
+        Directory.CreateDirectory(destination);
+        foreach (var file in PublicationFontContract.RequiredDmSansFiles)
+        {
+            File.Copy(Path.Combine(source.DirectoryPath!, file), Path.Combine(destination, file));
+        }
     }
 
     private sealed class TestWebHostEnvironment : IWebHostEnvironment

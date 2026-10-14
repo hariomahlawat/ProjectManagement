@@ -21,7 +21,7 @@ public class VisitPdfReportBuilderTests
                     12,
                     3,
                     "Highlights from the visit.",
-                    new byte[] { 0x01, 0x02, 0x03 })
+                    TestImageFactory.TinyPng())
             },
             GeneratedAtUtc: DateTimeOffset.UtcNow,
             StartDate: null,

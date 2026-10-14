@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Storage;
 
@@ -114,7 +115,14 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         // SECTION: Validate all uploaded files before persisting update
         ValidateAttachmentCollection(files);
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        // These methods own physical files and publish notifications after committing.
+        // Preserve their independent transaction boundary rather than joining an outer transaction.
+        if (_context.Database.IsRelational() && _context.Database.CurrentTransaction is not null)
+        {
+            throw new InvalidOperationException("Task updates cannot run inside an existing transaction.");
+        }
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_context.Database, cancellationToken);
         var committedFiles = new List<string>();
 
         try
@@ -190,7 +198,14 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         ValidateAttachmentCollection(files);
         ValidateAtomicStatusChange(task, requestedStatus, userId, role, body);
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        // These methods own physical files and publish notifications after committing.
+        // Preserve their independent transaction boundary rather than joining an outer transaction.
+        if (_context.Database.IsRelational() && _context.Database.CurrentTransaction is not null)
+        {
+            throw new InvalidOperationException("Task updates cannot run inside an existing transaction.");
+        }
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_context.Database, cancellationToken);
         var committedFiles = new List<string>();
 
         try

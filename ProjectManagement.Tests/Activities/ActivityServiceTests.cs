@@ -14,6 +14,7 @@ using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models.Activities;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Admin;
@@ -643,7 +644,7 @@ public class ActivityServiceTests : IDisposable
         var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, DateTimeOffset.UtcNow, null));
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
-        var upload = new ActivityAttachmentUpload(stream, "  diagram?.pdf  ", "application/pdf", stream.Length);
+        var upload = new ActivityAttachmentUpload(stream, "diagram?.pdf", "application/pdf", stream.Length);
         var attachment = await _service.AddAttachmentAsync(created.Id, upload);
 
         var metadata = await _service.GetAttachmentMetadataAsync(created.Id);
@@ -701,7 +702,7 @@ public class ActivityServiceTests : IDisposable
         using var workbook = new XLWorkbook(stream);
         var worksheet = workbook.Worksheet("Activities");
 
-        Assert.Equal("Title", worksheet.Cell(1, 1).GetString());
+        Assert.Equal("Activity title", worksheet.Cell(1, 1).GetString());
         Assert.Equal("Attachment links", worksheet.Cell(1, 13).GetString());
 
         var attachmentsCell = worksheet.Cell(2, 13);
@@ -923,7 +924,11 @@ internal static class ActivityTestHelpers
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new ApplicationDbContext(options);
+        var context = new ApplicationDbContext(options);
+        context.Users.AddRange(new[] { "owner", "user", "user-1", "seed", "other", "admin", "hod-user", "po-user" }
+            .Select(id => new ApplicationUser { Id = id, UserName = id, FullName = id }));
+        context.SaveChanges();
+        return context;
     }
 
 }

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -25,8 +26,17 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
-public sealed class ProjectPhotoServiceTests
+[Collection("Upload root environment")]
+public sealed class ProjectPhotoServiceTests : IDisposable
 {
+    private readonly string? _previousUploadRoot = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT");
+
+    public ProjectPhotoServiceTests()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", null);
+
+    public void Dispose()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", _previousUploadRoot);
+
     [Fact]
     public async Task AddAsync_ThrowsWhenFileTooLarge()
     {
@@ -76,7 +86,7 @@ public sealed class ProjectPhotoServiceTests
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.AddAsync(5, stream, "sample.bmp", "image/bmp", "auditor", false, null, CancellationToken.None));
 
-            Assert.Contains("not allowed", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Use a JPEG, PNG or WebP image.", ex.Message);
         }
         finally
         {
@@ -269,11 +279,12 @@ public sealed class ProjectPhotoServiceTests
             Assert.EndsWith(".png", derivativeBeforeFallback, StringComparison.OrdinalIgnoreCase);
             Assert.EndsWith(".webp", derivativeBeforeWebp, StringComparison.OrdinalIgnoreCase);
 
+            var previousVersion = photo.Version;
             var updatedCrop = new ProjectPhotoCrop(0, 0, 800, 600);
             var updated = await service.UpdateCropAsync(17, photo.Id, updatedCrop, "creator", CancellationToken.None);
 
             Assert.NotNull(updated);
-            Assert.Equal(2, updated!.Version);
+            Assert.Equal(previousVersion + 1, updated!.Version);
             Assert.Equal(800, updated.Width);
             Assert.Equal(600, updated.Height);
             Assert.Equal("image/png", updated.ContentType);
@@ -317,6 +328,9 @@ public sealed class ProjectPhotoServiceTests
             Assert.Equal(second.Id, refreshedProject.CoverPhotoId);
             Assert.Equal(second.Version, refreshedProject.CoverPhotoVersion);
             Assert.Equal(1, coverCount);
+            var storedPhotos = await db.ProjectPhotos.AsNoTracking().Where(p => p.ProjectId == 23).ToListAsync();
+            Assert.False(Assert.Single(storedPhotos, p => p.Id == first.Id).IsCover);
+            Assert.True(Assert.Single(storedPhotos, p => p.Id == second.Id).IsCover);
         }
         finally
         {
@@ -529,6 +543,10 @@ public sealed class ProjectPhotoServiceTests
             var project = await db.Projects.SingleAsync(p => p.Id == 31);
             Assert.Null(project.CoverPhotoId);
             Assert.Equal(0, project.CoverPhotoVersion);
+            var storedProject = await db.Projects.AsNoTracking().SingleAsync(p => p.Id == 31);
+            Assert.Null(storedProject.CoverPhotoId);
+            Assert.Equal(0, storedProject.CoverPhotoVersion);
+            Assert.Empty(await db.ProjectPhotos.AsNoTracking().Where(p => p.ProjectId == 31).ToListAsync());
         }
         finally
         {
@@ -566,6 +584,12 @@ public sealed class ProjectPhotoServiceTests
             Assert.Equal(refreshedSecond.Id, project.CoverPhotoId);
             Assert.Equal(refreshedSecond.Version, project.CoverPhotoVersion);
             Assert.Equal(2, refreshedSecond.Version);
+            var storedSecond = await db.ProjectPhotos.AsNoTracking().SingleAsync(p => p.Id == second.Id);
+            var storedProject = await db.Projects.AsNoTracking().SingleAsync(p => p.Id == 41);
+            Assert.True(storedSecond.IsCover);
+            Assert.Equal(storedSecond.Id, storedProject.CoverPhotoId);
+            Assert.Equal(storedSecond.Version, storedProject.CoverPhotoVersion);
+            Assert.Equal(1, await db.ProjectPhotos.CountAsync(p => p.ProjectId == 41 && p.IsCover));
         }
         finally
         {
@@ -576,14 +600,30 @@ public sealed class ProjectPhotoServiceTests
 
     private static ApplicationDbContext CreateContext()
     {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(connection, contextOwnsConnection: true)
             .Options;
-        return new ApplicationDbContext(options);
+        var db = new ApplicationDbContext(options);
+        try
+        {
+            db.Database.EnsureCreated();
+            return db;
+        }
+        catch
+        {
+            db.Dispose();
+            throw;
+        }
     }
 
     private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId)
     {
+        foreach (var userId in new[] { "creator", "owner", "auditor", "user-1" })
+        {
+            db.Users.Add(new ApplicationUser { Id = userId, UserName = userId, FullName = userId });
+        }
         db.Projects.Add(new Project
         {
             Id = projectId,

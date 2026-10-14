@@ -145,7 +145,7 @@ public sealed class ConferenceRemarkCommandServiceTests
             LifecycleStatus = ProjectLifecycleStatus.Completed,
             CompletedOn = new DateOnly(2026, 7, 10),
             CompletedYear = 2026,
-            CompletedMonth = 7
+            CompletedMonth = null
         };
         scope.Db.Projects.Add(project);
         await scope.Db.SaveChangesAsync();

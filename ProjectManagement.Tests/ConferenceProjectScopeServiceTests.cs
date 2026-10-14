@@ -142,11 +142,11 @@ public sealed class ConferenceProjectScopeServiceTests
         var recent = Project("Recent project", command.Id, officer.Id, ProjectLifecycleStatus.Completed);
         recent.CompletedOn = new DateOnly(2026, 7, 20);
         recent.CompletedYear = 2026;
-        recent.CompletedMonth = 7;
+        recent.CompletedMonth = null;
         var expired = Project("Expired project", command.Id, officer.Id, ProjectLifecycleStatus.Completed);
         expired.CompletedOn = new DateOnly(2026, 4, 1);
         expired.CompletedYear = 2026;
-        expired.CompletedMonth = 4;
+        expired.CompletedMonth = null;
         db.Projects.AddRange(active, recent, expired);
         await db.SaveChangesAsync();
 

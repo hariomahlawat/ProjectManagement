@@ -249,7 +249,9 @@ test('recently completed project rows carry semantic state and restrained visual
 
 
 test('project officer workspace exposes conference review as a first-class read-only view', () => {
-    assert.match(projectOfficerWorkspace, /asp-route-view="conference"/);
+    assert.match(projectOfficerWorkspace, /PartialAsync\("_CommandWorkspaceRail", Model\.NavigationRail\)/);
+    const rail = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_CommandWorkspaceRail.cshtml'), 'utf8');
+    assert.match(rail, /asp-route-mode="project-officer"[\s\S]{0,100}asp-route-view="conference"/);
     assert.match(projectOfficerWorkspace, /_ProjectOfficerConference/);
     assert.match(projectOfficerConferenceView, /data-oc-readonly="true"/);
     assert.match(projectOfficerConferenceView, /CanManageConference = false/);

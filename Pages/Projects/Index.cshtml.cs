@@ -281,7 +281,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.ProjectType)
                 .AsQueryable();
 
-            query = query.ApplyProjectOrdering(filters, Sort, Dir);
+            query = query.ApplyProjectOrdering(filters, Sort, Dir, _db.Database.IsNpgsql());
 
             // Section: Normalize paging values
             var isAll = PageSize == AllPageSizeValue;
@@ -553,7 +553,7 @@ namespace ProjectManagement.Pages.Projects
         {
             var query = _db.Projects
                 .AsNoTracking()
-                .ApplyProjectSearch(filters);
+                .ApplyProjectSearch(filters, _db.Database.IsNpgsql());
 
             if (!string.IsNullOrWhiteSpace(filters.SlipBucket))
             {

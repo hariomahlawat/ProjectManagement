@@ -199,9 +199,7 @@ namespace ProjectManagement.Services.Projects
 
                 if (coverWillChange)
                 {
-                    await _db.ProjectPhotos
-                        .Where(p => p.ProjectId == projectId && p.Id != photo.Id && p.IsCover)
-                        .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+                    await ClearOtherCoverFlagsAsync(projectId, photo.Id, cancellationToken);
                     photo.IsCover = true;
                     project.CoverPhotoId = photo.Id;
                 }
@@ -281,10 +279,13 @@ namespace ProjectManagement.Services.Projects
 
             await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
+            // Deletion clears the cover foreign key through relationship fixup; retain its prior state.
+            var project = photo.Project;
+            var wasCover = project?.CoverPhotoId == photo.Id;
             _db.ProjectPhotos.Remove(photo);
             await _db.SaveChangesAsync(cancellationToken);
 
-            if (photo.Project?.CoverPhotoId == photo.Id)
+            if (wasCover && project is not null)
             {
                 var replacement = await _db.ProjectPhotos
                     .Where(p => p.ProjectId == projectId)
@@ -294,21 +295,19 @@ namespace ProjectManagement.Services.Projects
 
                 if (replacement != null)
                 {
-                    await _db.ProjectPhotos
-                        .Where(p => p.ProjectId == projectId && p.Id != replacement.Id && p.IsCover)
-                        .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+                    await ClearOtherCoverFlagsAsync(projectId, replacement.Id, cancellationToken);
 
                     replacement.IsCover = true;
                     replacement.Version += 1;
                     replacement.UpdatedUtc = _clock.UtcNow.UtcDateTime;
 
-                    photo.Project.CoverPhotoId = replacement.Id;
-                    photo.Project.CoverPhotoVersion = replacement.Version;
+                    project.CoverPhotoId = replacement.Id;
+                    project.CoverPhotoVersion = replacement.Version;
                 }
                 else
                 {
-                    photo.Project.CoverPhotoId = null;
-                    photo.Project.CoverPhotoVersion = 0;
+                    project.CoverPhotoId = null;
+                    project.CoverPhotoVersion = 0;
                 }
 
                 await _db.SaveChangesAsync(cancellationToken);
@@ -321,6 +320,25 @@ namespace ProjectManagement.Services.Projects
             await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoRemoved(projectId, photo.Id, userId).WriteAsync(_audit), "remove", projectId, photo.Id);
 
             return true;
+        }
+
+        private async Task ClearOtherCoverFlagsAsync(int projectId, int coverPhotoId, CancellationToken cancellationToken)
+        {
+            // Clear database flags first to preserve the unique-cover constraint inside the caller's transaction.
+            await _db.ProjectPhotos
+                .Where(p => p.ProjectId == projectId && p.Id != coverPhotoId && p.IsCover)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+
+            // ExecuteUpdate bypasses tracking. Synchronize only this property, preserving other pending edits.
+            foreach (var entry in _db.ChangeTracker.Entries<ProjectPhoto>()
+                .Where(entry => entry.Entity.ProjectId == projectId && entry.Entity.Id != coverPhotoId
+                    && entry.State != EntityState.Deleted && entry.State != EntityState.Added).ToArray())
+            {
+                var coverFlag = entry.Property(p => p.IsCover);
+                coverFlag.CurrentValue = false;
+                coverFlag.OriginalValue = false;
+                coverFlag.IsModified = false;
+            }
         }
 
         public async Task ReorderAsync(int projectId, IReadOnlyList<int> orderedPhotoIds, string userId, CancellationToken cancellationToken)
@@ -681,9 +699,7 @@ namespace ProjectManagement.Services.Projects
 
                 if (shouldSetCover)
                 {
-                    await _db.ProjectPhotos
-                        .Where(p => p.ProjectId == projectId && p.Id != photo.Id && p.IsCover)
-                        .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+                    await ClearOtherCoverFlagsAsync(projectId, photo.Id, cancellationToken);
 
                     var coverUpdatedAt = _clock.UtcNow.UtcDateTime;
                     photo.IsCover = true;

@@ -64,7 +64,7 @@ namespace ProjectManagement.Services.Projects
                         ? 2
                         : 3;
 
-        public static IQueryable<Project> ApplyProjectSearch(this IQueryable<Project> source, ProjectSearchFilters filters)
+        public static IQueryable<Project> ApplyProjectSearch(this IQueryable<Project> source, ProjectSearchFilters filters, bool usePostgreSql = false)
         {
             if (filters is null)
             {
@@ -79,25 +79,51 @@ namespace ProjectManagement.Services.Projects
                 var like = $"%{term}%";
                 var normalized = term.ToLowerInvariant();
 
-                source = source.Where(p =>
-                    EF.Functions.ILike(p.Name, like) ||
-                    p.Name.ToLower().Contains(normalized) ||
-                    (p.ProjectBrief != null &&
-                        (EF.Functions.ILike(p.ProjectBrief!, like) || p.ProjectBrief!.ToLower().Contains(normalized))) ||
-                    (p.CaseFileNumber != null &&
-                        (EF.Functions.ILike(p.CaseFileNumber!, like) || p.CaseFileNumber!.ToLower().Contains(normalized))) ||
-                    (p.Category != null &&
-                        (EF.Functions.ILike(p.Category.Name, like) || p.Category.Name.ToLower().Contains(normalized))) ||
-                    (p.HodUser != null &&
-                        ((p.HodUser.FullName != null &&
-                            (EF.Functions.ILike(p.HodUser.FullName!, like) || p.HodUser.FullName!.ToLower().Contains(normalized))) ||
-                         (p.HodUser.UserName != null &&
-                            (EF.Functions.ILike(p.HodUser.UserName!, like) || p.HodUser.UserName!.ToLower().Contains(normalized))))) ||
-                    (p.LeadPoUser != null &&
-                        ((p.LeadPoUser.FullName != null &&
-                            (EF.Functions.ILike(p.LeadPoUser.FullName!, like) || p.LeadPoUser.FullName!.ToLower().Contains(normalized))) ||
-                         (p.LeadPoUser.UserName != null &&
-                            (EF.Functions.ILike(p.LeadPoUser.UserName!, like) || p.LeadPoUser.UserName!.ToLower().Contains(normalized))))));
+                // Select the provider expression before composing the query. ILike cannot
+                // serve as a fallback inside a query on SQLite or InMemory.
+                if (usePostgreSql)
+                {
+                    source = source.Where(p =>
+                        EF.Functions.ILike(p.Name, like) ||
+                        p.Name.ToLower().Contains(normalized) ||
+                        (p.ProjectBrief != null &&
+                            (EF.Functions.ILike(p.ProjectBrief!, like) || p.ProjectBrief!.ToLower().Contains(normalized))) ||
+                        (p.CaseFileNumber != null &&
+                            (EF.Functions.ILike(p.CaseFileNumber!, like) || p.CaseFileNumber!.ToLower().Contains(normalized))) ||
+                        (p.Category != null &&
+                            (EF.Functions.ILike(p.Category.Name, like) || p.Category.Name.ToLower().Contains(normalized))) ||
+                        (p.HodUser != null &&
+                            ((p.HodUser.FullName != null &&
+                                (EF.Functions.ILike(p.HodUser.FullName!, like) || p.HodUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.HodUser.UserName != null &&
+                                (EF.Functions.ILike(p.HodUser.UserName!, like) || p.HodUser.UserName!.ToLower().Contains(normalized))))) ||
+                        (p.LeadPoUser != null &&
+                            ((p.LeadPoUser.FullName != null &&
+                                (EF.Functions.ILike(p.LeadPoUser.FullName!, like) || p.LeadPoUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.LeadPoUser.UserName != null &&
+                                (EF.Functions.ILike(p.LeadPoUser.UserName!, like) || p.LeadPoUser.UserName!.ToLower().Contains(normalized))))));
+                }
+                else
+                {
+                    source = source.Where(p =>
+                        p.Name.ToLower().Contains(normalized) ||
+                        (p.ProjectBrief != null &&
+                            (p.ProjectBrief!.ToLower().Contains(normalized))) ||
+                        (p.CaseFileNumber != null &&
+                            (p.CaseFileNumber!.ToLower().Contains(normalized))) ||
+                        (p.Category != null &&
+                            (p.Category.Name.ToLower().Contains(normalized))) ||
+                        (p.HodUser != null &&
+                            ((p.HodUser.FullName != null &&
+                                (p.HodUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.HodUser.UserName != null &&
+                                (p.HodUser.UserName!.ToLower().Contains(normalized))))) ||
+                        (p.LeadPoUser != null &&
+                            ((p.LeadPoUser.FullName != null &&
+                                (p.LeadPoUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.LeadPoUser.UserName != null &&
+                                (p.LeadPoUser.UserName!.ToLower().Contains(normalized))))));
+                }
             }
 
             var resolvedCategoryIds = filters.CategoryIds;
@@ -187,7 +213,8 @@ namespace ProjectManagement.Services.Projects
             this IQueryable<Project> source,
             ProjectSearchFilters filters,
             ProjectRepositorySort sort = ProjectRepositorySort.Operational,
-            ProjectSortDirection direction = ProjectSortDirection.Asc)
+            ProjectSortDirection direction = ProjectSortDirection.Asc,
+            bool usePostgreSql = false)
         {
             if (filters is null)
             {
@@ -201,7 +228,7 @@ namespace ProjectManagement.Services.Projects
 
             if (!string.IsNullOrWhiteSpace(filters.Query))
             {
-                return ApplyOperationalTieBreakers(ApplySearchRelevanceOrdering(source, filters));
+                return ApplyOperationalTieBreakers(ApplySearchRelevanceOrdering(source, filters, usePostgreSql));
             }
 
             return ApplyOperationalOrdering(source);
@@ -209,11 +236,39 @@ namespace ProjectManagement.Services.Projects
 
         private static IOrderedQueryable<Project> ApplySearchRelevanceOrdering(
             IQueryable<Project> source,
-            ProjectSearchFilters filters)
+            ProjectSearchFilters filters,
+            bool usePostgreSql)
         {
             var term = filters.Query!.Trim();
             var like = $"%{term}%";
             var normalized = term.ToLowerInvariant();
+
+            if (!usePostgreSql)
+            {
+                return source
+                    .OrderByDescending(p => p.CaseFileNumber != null && p.CaseFileNumber!.ToLower() == normalized)
+                    .ThenByDescending(p =>
+                        (p.Name != null &&
+                            (p.Name.ToLower().Contains(normalized))) ||
+                        (p.ProjectBrief != null &&
+                            (p.ProjectBrief!.ToLower().Contains(normalized))))
+                    .ThenByDescending(p =>
+                        p.CaseFileNumber != null &&
+                        (p.CaseFileNumber!.ToLower().Contains(normalized)))
+                    .ThenByDescending(p =>
+                        (p.Category != null &&
+                            (p.Category.Name.ToLower().Contains(normalized))) ||
+                        (p.HodUser != null &&
+                            ((p.HodUser.FullName != null &&
+                                (p.HodUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.HodUser.UserName != null &&
+                                (p.HodUser.UserName!.ToLower().Contains(normalized))))) ||
+                        (p.LeadPoUser != null &&
+                            ((p.LeadPoUser.FullName != null &&
+                                (p.LeadPoUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.LeadPoUser.UserName != null &&
+                                (p.LeadPoUser.UserName!.ToLower().Contains(normalized))))));
+            }
 
             return source
                 .OrderByDescending(p => p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber!, term))

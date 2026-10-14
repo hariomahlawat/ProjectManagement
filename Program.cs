@@ -2350,7 +2350,7 @@ stageChecklistApi.MapPost("/reorder", async (
         ? 0
         : checklist.Items.Max(i => i.Sequence);
 
-    await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+    await using var transaction = await RelationalTransactionScope.CreateAsync(db.Database, cancellationToken);
 
     try
     {

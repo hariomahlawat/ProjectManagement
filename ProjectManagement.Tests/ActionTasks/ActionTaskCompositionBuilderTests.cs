@@ -87,11 +87,22 @@ public class ActionTaskCompositionBuilderTests
         Assert.Equal("Execute", state.PlanningTab);
         Assert.Equal("Default", state.PlanningView);
         Assert.Equal("Execute", state.DefaultPlanningTab);
-        Assert.False(state.ShouldPreserveTaskFilters);
+        Assert.True(state.ShouldPreserveTaskFilters);
         Assert.Equal("Planning", routeValues[nameof(ActionTaskRouteState.ViewMode)]);
         Assert.False(routeValues.ContainsKey(nameof(ActionTaskRouteState.PlanningTab)));
         Assert.False(routeValues.ContainsKey(nameof(ActionTaskRouteState.PlanningView)));
-        Assert.False(routeValues.ContainsKey(nameof(ActionTaskRouteState.FilterStatus)));
+        Assert.Equal("Blocked", routeValues[nameof(ActionTaskRouteState.FilterStatus)]);
+        Assert.Equal(42, routeValues[nameof(ActionTaskRouteState.TaskId)]);
+        Assert.Equal(7, routeValues[nameof(ActionTaskRouteState.SelectedSprintId)]);
+
+        var unfilteredRequest = request with
+        {
+            FilterState = new ActionTaskFilterRouteState(null, null, null, null, null, null, null)
+        };
+        var unfilteredState = helper.BuildRouteState(unfilteredRequest);
+        Assert.False(unfilteredState.ShouldPreserveTaskFilters);
+        Assert.False(helper.BuildTaskWorkspaceRouteValues(unfilteredState, 42, 7)
+            .ContainsKey(nameof(ActionTaskRouteState.FilterStatus)));
     }
 
     // SECTION: Shared Action Tracker task fixture keeps builder tests focused on composition rules.

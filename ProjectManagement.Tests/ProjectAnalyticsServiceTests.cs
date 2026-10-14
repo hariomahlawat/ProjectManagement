@@ -166,7 +166,7 @@ public class ProjectAnalyticsServiceTests : IDisposable
                     SortOrder = 1,
                     Status = StageStatus.Completed,
                     PlannedDue = today.AddDays(-20),
-                    CompletedOn = today.AddDays(-14)
+                    CompletedOn = today.AddDays(-20)
                 },
                 new ProjectStage
                 {

@@ -105,6 +105,22 @@ public sealed class CompendiumPhase31_1PaginationTests
         Assert.Equal(1, CompendiumDossierPaginationPlanner.ResolveTechnicalSpecificationColumns(oneVeryLongItem));
     }
 
+    [Theory]
+    [InlineData(60f)]
+    [InlineData(160f)]
+    public void PhysicalMeasurement_AccountsForOversizedTokenAtStartAndAfterShortWord(float widthPoints)
+    {
+        var token = new string('W', 100);
+        var measurement = new CompendiumDossierTextMeasurementService.Session();
+        var first = measurement.MeasureAtFontSize(token, widthPoints, 8.75f, 1.22f);
+        var later = measurement.MeasureAtFontSize("Lead " + token, widthPoints, 8.75f, 1.22f);
+        var ordinary = measurement.MeasureAtFontSize("Lead", widthPoints, 8.75f, 1.22f);
+
+        Assert.True(first.LineCount > 1, "An oversized initial token must reserve its physical line pressure.");
+        Assert.Equal(first.LineCount + 1, later.LineCount);
+        Assert.Equal(1, ordinary.LineCount);
+    }
+
     [Fact]
     public void ProgrammeInformation_FourModulesUseReadableTwoByTwoGrid()
     {

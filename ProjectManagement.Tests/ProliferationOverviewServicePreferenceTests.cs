@@ -72,7 +72,7 @@ public class ProliferationOverviewServicePreferenceTests
             ProjectId = 1,
             Source = ProliferationSource.Abw515,
             Year = 2024,
-            Mode = YearPreferenceMode.UseYearlyAndGranular,
+            Mode = YearPreferenceMode.UseYearly,
             SetByUserId = user1.Id,
             SetOnUtc = DateTime.UtcNow
         };
@@ -146,7 +146,7 @@ public class ProliferationOverviewServicePreferenceTests
         Assert.True(autoOverride.HasYearly);
         Assert.True(autoOverride.HasApprovedGranular);
         Assert.True(autoOverride.HasApprovedYearly);
-        Assert.Equal(15, autoOverride.EffectiveTotal);
+        Assert.Equal(5, autoOverride.EffectiveTotal);
         Assert.Equal("Alice Example", autoOverride.SetByDisplayName);
 
         var filtered = await service.GetPreferenceOverridesAsync(

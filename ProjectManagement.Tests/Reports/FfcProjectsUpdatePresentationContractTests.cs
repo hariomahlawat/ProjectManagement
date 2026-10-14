@@ -64,7 +64,7 @@ public sealed class FfcProjectsUpdatePresentationContractTests
             "projects-reports-ffc.js");
 
         Assert.Contains("form.addEventListener(\"submit\"", script, StringComparison.Ordinal);
-        Assert.Contains("syncHiddenSelection();", script, StringComparison.Ordinal);
+        Assert.Contains("form.addEventListener(\"submit\", syncHiddenSelection);", script, StringComparison.Ordinal);
         Assert.DoesNotContain("form.submit();", script, StringComparison.Ordinal);
     }
 
@@ -258,16 +258,19 @@ public sealed class FfcProjectsUpdatePresentationContractTests
             "FfcProjectsUpdate.cshtml");
         Assert.Contains("data-ffc-export", page, StringComparison.Ordinal);
         Assert.Contains("data-ffc-update-required", page, StringComparison.Ordinal);
+        Assert.Contains("data-report-controls", page, StringComparison.Ordinal);
+        Assert.Contains("data-report-export", page, StringComparison.Ordinal);
+        Assert.Contains("projects-report-controls.js", page, StringComparison.Ordinal);
 
         var script = ReadRepoFile(
             "wwwroot",
             "js",
             "pages",
-            "projects-reports-ffc.js");
+            "projects-report-controls.js");
 
-        Assert.Contains("const appliedState = Object.freeze", script, StringComparison.Ordinal);
+        Assert.Contains("const appliedSignature = signature();", script, StringComparison.Ordinal);
         Assert.Contains("const hasPendingChanges", script, StringComparison.Ordinal);
-        Assert.Contains("updatePendingState();", script, StringComparison.Ordinal);
+        Assert.Contains("refresh();", script, StringComparison.Ordinal);
         Assert.Contains("setExportDisabled(link, disabled)", script, StringComparison.Ordinal);
         Assert.Contains("event.preventDefault();", script, StringComparison.Ordinal);
     }

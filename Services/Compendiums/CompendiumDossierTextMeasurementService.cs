@@ -407,6 +407,14 @@ public static class CompendiumDossierTextMeasurementService
 
         var lineCount = 1;
         var line = words[0];
+        // The initial token has the same physical wrapping pressure as later tokens.
+        // A specification consisting of one long identifier must not appear to fit on one line.
+        var firstWordWidth = MeasureTextWidth(line, paint, letterSpacingPoints);
+        if (firstWordWidth > widthPoints)
+        {
+            lineCount += Math.Max(0, (int)Math.Ceiling(firstWordWidth / widthPoints) - 1);
+        }
+
         for (var index = 1; index < words.Length; index++)
         {
             var word = words[index];

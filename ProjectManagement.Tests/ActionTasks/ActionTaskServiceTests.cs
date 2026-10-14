@@ -9,6 +9,8 @@ namespace ProjectManagement.Tests.ActionTasks;
 
 public class ActionTaskServiceTests
 {
+    private static readonly InMemoryDatabaseRoot SharedDatabaseRoot = new();
+
     [Fact]
     public async Task CreateAndNoOpUpdateAndInvalidTransition_AreHandled()
     {
@@ -334,7 +336,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         var databaseName = Guid.NewGuid().ToString();
-        var databaseRoot = new InMemoryDatabaseRoot();
+        var databaseRoot = SharedDatabaseRoot;
         await using var staleDb = CreateDb(databaseName, databaseRoot);
         var task = await SeedTaskAsync(staleDb, ActionTaskStatuses.Assigned, "assignee");
         var staleRowVersion = task.RowVersion.ToArray();
@@ -610,7 +612,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         var databaseName = Guid.NewGuid().ToString();
-        var databaseRoot = new InMemoryDatabaseRoot();
+        var databaseRoot = SharedDatabaseRoot;
         await using var staleDb = CreateDb(databaseName, databaseRoot);
         var task = await SeedTaskAsync(staleDb, ActionTaskStatuses.Assigned, "assignee");
         var staleRowVersion = task.RowVersion.ToArray();
@@ -825,7 +827,7 @@ public class ActionTaskServiceTests
         => new(db, new ActionTaskPermissionService(), clock ?? new TestActionTrackerClock());
 
     private static ApplicationDbContext CreateDb()
-        => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
+        => CreateDb(Guid.NewGuid().ToString(), SharedDatabaseRoot);
 
     private static ApplicationDbContext CreateDb(string databaseName, InMemoryDatabaseRoot databaseRoot)
     {

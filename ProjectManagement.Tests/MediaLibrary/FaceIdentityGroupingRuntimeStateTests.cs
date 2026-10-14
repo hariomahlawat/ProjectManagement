@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Tests.MediaLibrary;
@@ -87,16 +88,50 @@ public sealed class FaceIdentityGroupingRuntimeStateTests
     }
 
     [Fact]
-    public async Task Invalidate_wakes_a_worker_waiting_for_the_next_refresh_request()
+    public async Task Invalidate_completes_wait_without_running_the_callers_context()
     {
-        var state = new FaceIdentityGroupingRuntimeState();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var wait = state.WaitForRefreshRequestAsync(TimeSpan.FromMinutes(1), timeout.Token);
+        var previous = SynchronizationContext.Current;
+        var callerContext = new QueuedContext();
+        try
+        {
+            var state = new FaceIdentityGroupingRuntimeState();
+            SynchronizationContext.SetSynchronizationContext(callerContext);
+            var wait = state.WaitForRefreshRequestAsync(TimeSpan.FromMinutes(1), CancellationToken.None);
+            Assert.False(wait.IsCompleted);
+            SynchronizationContext.SetSynchronizationContext(previous);
 
-        state.Invalidate();
+            state.Invalidate();
 
-        await wait.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.True(state.GetSnapshot().IsRefreshPending);
+            // The old async wrapper posts completion back to callerContext.
+            // Observe that post without draining it, rather than relying on a wall-clock deadline.
+            await Task.WhenAny(wait, callerContext.Posted);
+            Assert.True(wait.IsCompletedSuccessfully);
+            await wait;
+            Assert.True(state.GetSnapshot().IsRefreshPending);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+            callerContext.Drain();
+        }
+    }
+
+    private sealed class QueuedContext : SynchronizationContext
+    {
+        private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new();
+        private readonly TaskCompletionSource _posted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Posted => _posted.Task;
+
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _queue.Enqueue((callback, state));
+            _posted.TrySetResult();
+        }
+
+        public void Drain()
+        {
+            while (_queue.TryDequeue(out var item)) item.Callback(item.State);
+        }
     }
 
     private static FaceIdentityGroupingResult EmptyResult()

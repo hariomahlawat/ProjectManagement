@@ -364,7 +364,7 @@ public sealed class HistoricalStageRecordServiceTests
                 {
                     SourceEntryId = 1,
                     SortOrder = 1,
-                    SerialNumber = "33",
+                    SerialNumber = null,
                     ProjectReference = "Legacy history test",
                     ProjectId = projectId,
                     Category = ArppCategory.Delisted,

@@ -191,7 +191,7 @@ public sealed class RemarkServiceTests
         project.LifecycleStatus = ProjectLifecycleStatus.Completed;
         project.CompletedOn = new DateOnly(2024, 9, 25);
         project.CompletedYear = 2024;
-        project.CompletedMonth = 9;
+        project.CompletedMonth = null;
         await db.SaveChangesAsync();
 
         var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out _);
@@ -303,7 +303,7 @@ public sealed class RemarkServiceTests
         await SeedStageAsync(db, 12, StageCodes.FS);
         var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 10, 9, 0, 0), out _, out var metrics);
         var actor = new RemarkActorContext("user-3", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
-        var request = new CreateRemarkRequest(12, actor, RemarkType.External, RemarkScope.General, "Hello", new DateOnly(2024, 9, 9), StageCodes.IPA, null, null);
+        var request = new CreateRemarkRequest(12, actor, RemarkType.Internal, RemarkScope.General, "Hello", new DateOnly(2024, 9, 9), StageCodes.IPA, null, null);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(request, CancellationToken.None));
         Assert.Equal(RemarkService.StageNotInProjectMessage, ex.Message);
@@ -533,7 +533,10 @@ public sealed class RemarkServiceTests
 
         var staleVersion = remark.RowVersion.ToArray();
 
-        await service.SoftDeleteRemarkAsync(remark.Id, new SoftDeleteRemarkRequest(actor, null, remark.RowVersion), CancellationToken.None);
+        await service.EditRemarkAsync(remark.Id,
+            new EditRemarkRequest(actor, "Edited concurrently", RemarkScope.General,
+                new DateOnly(2024, 8, 31), StageCodes.FS, null, null, remark.RowVersion),
+            CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SoftDeleteRemarkAsync(remark.Id, new SoftDeleteRemarkRequest(actor, null, staleVersion), CancellationToken.None));

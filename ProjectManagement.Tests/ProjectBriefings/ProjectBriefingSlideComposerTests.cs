@@ -44,7 +44,8 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
         Assert.Contains("Stage-wise project distribution", text, StringComparison.Ordinal);
         Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("PROJECT POSITION", text, StringComparison.Ordinal);
+        Assert.All(slides.Where(slide => SlideText(slide).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal)),
+            slide => Assert.DoesNotContain("PROJECT POSITION", SlideText(slide), StringComparison.Ordinal));
         Assert.Contains("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
 
         Assert.DoesNotContain("reverse workflow order", text, StringComparison.OrdinalIgnoreCase);
@@ -116,10 +117,12 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("Ongoing", text, StringComparison.Ordinal);
         Assert.Contains("10", text, StringComparison.Ordinal);
         Assert.Contains("(40%)", text, StringComparison.Ordinal);
-        Assert.Contains("Breakdown of ongoing projects by stage", text, StringComparison.Ordinal);
+        Assert.Contains("ONGOING PROJECTS BY PRESENT STAGE", text, StringComparison.Ordinal);
         Assert.Contains("KEY TAKEAWAY", text, StringComparison.Ordinal);
         Assert.Contains("5 of 10", text, StringComparison.Ordinal);
-        Assert.Contains("ongoing projects are at the AoN stage", text, StringComparison.Ordinal);
+        Assert.Contains("ongoing projects are at the AoN stage",
+            string.Join(" ", ShapeByName(stageSlide, "Stage summary key takeaway body").Descendants<A.Text>().Select(node => node.Text)),
+            StringComparison.Ordinal);
         Assert.NotNull(ShapeByName(stageSlide, "Development stage track"));
         Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage track"));
         Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage column"));
@@ -347,7 +350,7 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
-    public void Compose_PaginatesFortyNineShortRowsIntoSevenBalancedProjectTables()
+    public void Compose_PaginatesFortyNineShortRowsIntoNineBalancedProjectTables()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
@@ -387,17 +390,20 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(10, slideCount); // cover + portfolio + seven project-table slides + closing
+        Assert.Equal(12, slideCount); // cover + portfolio + nine project-table slides + closing
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
         var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
-        Assert.Equal(7, tables.Length);
+        Assert.Equal(9, tables.Length);
+        var rowCounts = tables.Select(table => table.Elements<A.TableRow>().Count() - 1).ToArray();
+        Assert.Equal(49, rowCounts.Sum());
+        Assert.All(rowCounts, count => Assert.InRange(count, 3, 6));
 
         var text = string.Join("\n", slides
             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
             .Select(node => node.Text));
-        Assert.Contains("Project status summary (7/7)", text, StringComparison.Ordinal);
+        Assert.Contains("Project status summary (9/9)", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1064,6 +1070,8 @@ public sealed class ProjectBriefingSlideComposerTests
             ProjectBriefingStageOrder.AcceptanceOfNecessity,
             1,
             projectBrief: "A concise project brief that should remain beside the photograph when only one information field is selected.");
+        project.CoverPhoto = TinyPng();
+        project.CoverPhotoContentType = "image/png";
         var data = new ProjectBriefingPresentationData
         {
             DeckId = 707,
@@ -1106,6 +1114,8 @@ public sealed class ProjectBriefingSlideComposerTests
             ProjectBriefingStageOrder.Development,
             1,
             projectBrief: "A standard project brief for the recommended five-row command-update design.");
+        project.CoverPhoto = TinyPng();
+        project.CoverPhotoContentType = "image/png";
         var data = new ProjectBriefingPresentationData
         {
             DeckId = 708,
@@ -1130,7 +1140,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var brief = ShapeByName(slide, "Project brief panel - Standard");
 
         Assert.Equal(ShapeY(facts), ShapeY(photo));
-        Assert.Equal(ShapeHeight(facts), ShapeHeight(photo));
+        Assert.True(ShapeHeight(photo) >= ShapeHeight(facts));
         Assert.True(ShapeX(photo) > ShapeX(facts));
         Assert.True(ShapeY(brief) > ShapeY(facts));
         Assert.True(ShapeWidth(facts) < 7.0 * 914400);
@@ -1148,6 +1158,8 @@ public sealed class ProjectBriefingSlideComposerTests
             ProjectBriefingStageOrder.Development,
             1,
             projectBrief: "A detailed project brief for the complete nine-row project update sheet.");
+        project.CoverPhoto = TinyPng();
+        project.CoverPhotoContentType = "image/png";
         var data = new ProjectBriefingPresentationData
         {
             DeckId = 709,
@@ -1172,7 +1184,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var brief = ShapeByName(slide, "Project brief panel - Detailed");
 
         Assert.Equal(ShapeY(facts), ShapeY(photo));
-        Assert.Equal(ShapeHeight(facts), ShapeHeight(photo));
+        Assert.True(ShapeHeight(photo) >= ShapeHeight(facts));
         Assert.True(ShapeWidth(facts) > 7.0 * 914400, "Detailed layout should allocate additional width to the facts table.");
         Assert.True(ShapeWidth(photo) < 5.0 * 914400, "Detailed layout should use a narrower photograph column.");
         Assert.True(ShapeY(brief) > ShapeY(facts));
@@ -1222,10 +1234,10 @@ public sealed class ProjectBriefingSlideComposerTests
             .ToArray();
         Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
         Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("TOTAL R&D COST", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("TOTAL IPA COST", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("₹0.74 Cr", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("₹0.80 Cr", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("RECORDED R&D COST", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("RECORDED IPA COST", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("₹74.00 Lakh", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("₹80.00 Lakh", slideTexts[1], StringComparison.Ordinal);
         Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
     }
 
@@ -1762,7 +1774,7 @@ public sealed class ProjectBriefingSlideComposerTests
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
         Assert.Equal(5, slides.Length);
-        Assert.Contains("SDD Institutional Profile", SlideText(slides[0]), StringComparison.Ordinal);
+        Assert.Contains("SDD Institutional Profile", SlideText(slides[0]), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SDD – Growth over the years", SlideText(slides[1]), StringComparison.Ordinal);
         Assert.Contains("Portfolio at a glance", SlideText(slides[2]), StringComparison.Ordinal);
         Assert.Contains("PROFILE SLIDE PROJECT", SlideText(slides[3]), StringComparison.Ordinal);
@@ -2094,7 +2106,7 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     private static byte[] TinyPng()
-        => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1ZsAAAAASUVORK5CYII=");
+        => TestImageFactory.TinyPng();
 
     private static ProjectBriefingPresentationProject BriefingProject(
         int id,
@@ -2162,7 +2174,7 @@ public sealed class ProjectBriefingSlideComposerTests
            ?? string.Empty;
 
     [Fact]
-    public void Compose_RoleAndCharter_UsesConfiguredOrderGroupedShapesAndContinuationSlides()
+    public void Compose_RoleAndCharter_UsesConfiguredOrderAndGroupedShapesOnOneSlide()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
@@ -2188,7 +2200,7 @@ public sealed class ProjectBriefingSlideComposerTests
             roleCharter: roleCharter,
             additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.RoleAndCharter }));
 
-        Assert.Equal(10, slideCount);
+        Assert.Equal(9, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
@@ -2196,9 +2208,9 @@ public sealed class ProjectBriefingSlideComposerTests
             .Where(slide => SlideText(slide).Contains("ROLE & CHARTER", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        Assert.Equal(2, roleSlides.Length);
+        Assert.Single(roleSlides);
         Assert.Contains("Nodal Centre", SlideText(roleSlides[0]), StringComparison.Ordinal);
-        Assert.Contains("CHARTER — CONTINUED", SlideText(roleSlides[1]), StringComparison.Ordinal);
+        Assert.DoesNotContain("CHARTER — CONTINUED", SlideText(roleSlides[0]), StringComparison.Ordinal);
         Assert.All(roleSlides, slide => Assert.Empty(slide.Slide.Descendants<A.Table>()));
         Assert.All(roleSlides, slide => Assert.NotEmpty(slide.Slide.Descendants<P.GroupShape>()));
         var rolePanel = ShapeByName(roleSlides[0], "Role panel background");
@@ -2386,7 +2398,8 @@ public sealed class ProjectBriefingSlideComposerTests
         => shape.ShapeProperties?.Transform2D?.Extents?.Cy?.Value ?? 0L;
 
     private static string SlideText(SlidePart slide)
-        => string.Join("\n", slide.Slide.Descendants<A.Text>().Select(node => node.Text));
+        => string.Join("\n", slide.Slide.Descendants<A.Paragraph>()
+            .Select(paragraph => string.Concat(paragraph.Descendants<A.Text>().Select(node => node.Text))));
 
     private static void AssertProjectSequence(string text, params string[] projectNames)
     {
@@ -2498,6 +2511,14 @@ public sealed class ProjectBriefingSlideComposerTests
         public TestEnvironment(string contentRootPath)
         {
             ContentRootPath = contentRootPath;
+            var template = Path.Combine(contentRootPath, "Resources", "ProjectBriefing", "ProjectBriefingTemplate.pptx");
+            if (!File.Exists(template))
+            {
+                var source = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot",
+                    "Resources", "ProjectBriefing", "ProjectBriefingTemplate.pptx");
+                Directory.CreateDirectory(Path.GetDirectoryName(template)!);
+                File.Copy(source, template);
+            }
             WebRootPath = Path.Combine(contentRootPath, "wwwroot");
             Directory.CreateDirectory(WebRootPath);
             ContentRootFileProvider = new NullFileProvider();

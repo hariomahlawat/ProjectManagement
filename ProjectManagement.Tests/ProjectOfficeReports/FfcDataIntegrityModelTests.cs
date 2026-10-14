@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using Xunit;
@@ -22,7 +23,7 @@ public sealed class FfcDataIntegrityModelTests
         Assert.True(activeRecordIndex.IsUnique);
         Assert.Equal("\"IsDeleted\" = FALSE", activeRecordIndex.GetFilter());
 
-        var projectType = db.Model.FindEntityType(typeof(FfcProject));
+        var projectType = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(FfcProject));
         Assert.NotNull(projectType);
         var linkedProjectIndex = Assert.Single(projectType!.GetIndexes().Where(index =>
             index.GetDatabaseName() == "UX_FfcProjects_Record_LinkedProject"));
@@ -39,7 +40,7 @@ public sealed class FfcDataIntegrityModelTests
     public void Model_EnforcesDeliveryInstallationConsistency()
     {
         using var db = CreateDbContext();
-        var projectType = db.Model.FindEntityType(typeof(FfcProject));
+        var projectType = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(FfcProject));
         Assert.NotNull(projectType);
 
         var constraints = projectType!.GetCheckConstraints()

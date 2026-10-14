@@ -133,6 +133,27 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Equal(manifest[^1], migrations[^1]);
     }
 
+    [Fact]
+    public void EveryMigrationTargetModel_CanBeConstructed()
+    {
+        using var context = CreateMetadataContext();
+        var assembly = context.GetService<IMigrationsAssembly>();
+        foreach (var entry in assembly.Migrations)
+        {
+            var migration = assembly.CreateMigration(entry.Value, context.Database.ProviderName!);
+            Assert.NotNull(migration.TargetModel);
+        }
+    }
+
+    [Fact]
+    public void InitialMigration_GeneratesPostgresSeedSql()
+    {
+        using var context = CreateMetadataContext();
+        var sql = context.GetService<IMigrator>().GenerateScript(
+            Migration.InitialDatabase, "20251102161908_InitialMigrations");
+        Assert.Contains("INSERT INTO \"AspNetUsers\"", sql);
+    }
+
     private static string[] ReadApplicationManifest()
     {
         var manifestPath = Path.Combine(

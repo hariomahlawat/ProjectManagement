@@ -135,27 +135,21 @@ public sealed class PostgresMigrationIntegrationTests
     private static async Task SeedLegacyProjectStageConstraintDriftAsync(
         ApplicationDbContext applicationDb)
     {
-        var project = new Project
-        {
-            Name = "Legacy constraint drift project",
-            CreatedByUserId = "migration-test",
-            WorkflowVersion = "v1",
-            RowVersion = Array.Empty<byte>()
-        };
-        applicationDb.Projects.Add(project);
-        await applicationDb.SaveChangesAsync();
-
-        applicationDb.ProjectStages.Add(new ProjectStage
-        {
-            ProjectId = project.Id,
-            StageCode = "TEC",
-            SortOrder = 1,
-            Status = StageStatus.Completed,
-            ActualStart = null,
-            CompletedOn = new DateOnly(2026, 6, 23),
-            RequiresBackfill = false
-        });
-        await applicationDb.SaveChangesAsync();
+        // This fixture deliberately targets an older migration boundary. The
+        // current entity model includes columns introduced after that boundary.
+        await applicationDb.Database.OpenConnectionAsync();
+        await using var command = applicationDb.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            INSERT INTO "Projects" ("Name", "CreatedAt", "CreatedByUserId", "RowVersion", "WorkflowVersion")
+            VALUES ('Legacy constraint drift project', TIMESTAMP '2026-06-23 00:00:00', 'system', '\x'::bytea, 'v1')
+            RETURNING "Id";
+            """;
+        var projectId = Convert.ToInt32(await command.ExecuteScalarAsync());
+        await applicationDb.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO "ProjectStages" ("ProjectId", "StageCode", "SortOrder", "Status", "CompletedOn", "RequiresBackfill")
+            VALUES ({0}, 'TEC', 1, 'Completed', DATE '2026-06-23', FALSE);
+            """, projectId);
 
         await applicationDb.Database.ExecuteSqlRawAsync(
             """
@@ -179,9 +173,9 @@ public sealed class PostgresMigrationIntegrationTests
                         AND "ActualStart" IS NOT NULL
                     )
                     OR "RequiresBackfill" IS TRUE
-                );
+                ) NOT VALID;
             """,
-            project.Id);
+            projectId);
 
         applicationDb.ChangeTracker.Clear();
     }

@@ -224,11 +224,12 @@ public class StageChecklistApiTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UsePrismTestInfrastructure("stagechecklistapi");
+            var databaseName = $"checklists-{Guid.NewGuid()}";
 
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
-                services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase($"checklists-{Guid.NewGuid()}"));
+                services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
             });
 
             builder.ConfigureTestServices(services =>

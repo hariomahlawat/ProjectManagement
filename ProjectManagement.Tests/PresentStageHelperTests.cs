@@ -73,7 +73,7 @@ public sealed class PresentStageHelperTests
             ProcurementWorkflow.VersionV1,
             new DateOnly(2026, 1, 15));
 
-        Assert.Equal(StageCodes.SOW, snapshot.CurrentStageCode);
+        Assert.Equal(StageCodes.IPA, snapshot.CurrentStageCode);
         Assert.False(snapshot.IsCurrentStageInProgress);
         Assert.Equal(new DateOnly(2026, 1, 10), snapshot.LastCompletedDate);
     }

@@ -163,7 +163,8 @@ namespace ProjectManagement.Tests
             using var stream = new MemoryStream(contentBytes);
             using var workbook = new XLWorkbook(stream);
             var sheet = workbook.Worksheet("Report");
-            var headerRow = FindHeaderRow(sheet, "Project", "");
+            var headerRow = Assert.Single(sheet.RowsUsed(), row =>
+                row.Cell(1).GetString() == "Project" && row.Cell(2).GetString() == "Quantity").RowNumber();
             Assert.True(headerRow > 0);
             Assert.Equal("Project", sheet.Cell(headerRow, 1).GetString());
             Assert.Equal("Quantity", sheet.Cell(headerRow, 2).GetString());

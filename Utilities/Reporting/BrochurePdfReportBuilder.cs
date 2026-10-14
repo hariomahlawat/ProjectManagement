@@ -227,7 +227,10 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             page.Size(PageSizes.A4);
             page.Margin(0);
             page.PageColor(Forest950);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor("#FFFFFF"));
+            // Preserve individual character mappings for PDF text extraction and page verification.
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily)
+                .DisableFontFeature(FontFeatures.StandardLigatures)
+                .DisableFontFeature(FontFeatures.ContextualLigatures).FontColor("#FFFFFF"));
 
             page.Content().Layers(layers =>
             {
@@ -363,7 +366,9 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             page.Size(PageSizes.A4);
             page.Margin(0);
             page.PageColor(Forest950);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor("#FFFFFF"));
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily)
+                .DisableFontFeature(FontFeatures.StandardLigatures)
+                .DisableFontFeature(FontFeatures.ContextualLigatures).FontColor("#FFFFFF"));
 
             page.Content().Layers(layers =>
             {
@@ -860,7 +865,9 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         page.MarginTop(22);
         page.MarginBottom(20);
         page.PageColor(WarmWhite);
-        page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontSize(9.75f).FontColor(Ink));
+        page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily)
+                .DisableFontFeature(FontFeatures.StandardLigatures)
+                .DisableFontFeature(FontFeatures.ContextualLigatures).FontSize(9.75f).FontColor(Ink));
 
         page.Header().Height(34).Row(row =>
         {
@@ -1369,7 +1376,9 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             page.Size(PageSizes.A4);
             page.Margin(0);
             page.PageColor(Forest950);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor("#FFFFFF"));
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily)
+                .DisableFontFeature(FontFeatures.StandardLigatures)
+                .DisableFontFeature(FontFeatures.ContextualLigatures).FontColor("#FFFFFF"));
 
             page.Content().Layers(layers =>
             {

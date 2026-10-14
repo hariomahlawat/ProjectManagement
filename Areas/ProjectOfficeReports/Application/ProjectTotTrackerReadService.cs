@@ -146,10 +146,20 @@ public class ProjectTotTrackerReadService
             var term = filter.SearchTerm.Trim();
             if (!string.IsNullOrEmpty(term))
             {
-                var pattern = $"%{EscapeLikePattern(term)}%";
-                query = query.Where(p =>
-                    EF.Functions.ILike(p.Name, pattern, "\\")
-                    || (p.SponsoringUnit != null && EF.Functions.ILike(p.SponsoringUnit.Name, pattern, "\\")));
+                if (_db.Database.IsNpgsql())
+                {
+                    var pattern = $"%{EscapeLikePattern(term)}%";
+                    query = query.Where(p =>
+                        EF.Functions.ILike(p.Name, pattern, "\\")
+                        || (p.SponsoringUnit != null && EF.Functions.ILike(p.SponsoringUnit.Name, pattern, "\\")));
+                }
+                else
+                {
+                    var normalized = term.ToLowerInvariant();
+                    query = query.Where(p =>
+                        p.Name.ToLower().Contains(normalized)
+                        || (p.SponsoringUnit != null && p.SponsoringUnit.Name.ToLower().Contains(normalized)));
+                }
             }
         }
 

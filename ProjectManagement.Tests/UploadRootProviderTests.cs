@@ -11,8 +11,17 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
-public sealed class UploadRootProviderTests
+[Collection("Upload root environment")]
+public sealed class UploadRootProviderTests : IDisposable
 {
+    private readonly string? _previousUploadRoot = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT");
+
+    public UploadRootProviderTests()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", null);
+
+    public void Dispose()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", _previousUploadRoot);
+
     [Fact]
     public void UsesFallbackWhenPrimaryCreationFails()
     {

@@ -28,7 +28,8 @@ public sealed class BrochureLayoutPlannerTests
         var pages = BrochureLayoutPlanner.Plan(projects);
 
         Assert.Equal(2, pages.Count);
-        Assert.Equal(new[] { 3, 2 }, pages.Select(page => page.Items.Count));
+        // Both 3+2 and 2+3 avoid an orphan; editorial scoring can choose either order.
+        Assert.Equal(new[] { 2, 3 }, pages.Select(page => page.Items.Count).OrderBy(count => count));
         Assert.DoesNotContain(pages, page => page.Items.Count == 1);
         Assert.Equal(Enumerable.Range(1, 5), pages.SelectMany(page => page.Items).Select(item => item.Project.ProjectId));
     }

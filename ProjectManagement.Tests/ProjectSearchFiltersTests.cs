@@ -44,20 +44,20 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
-        public async Task Query_By_Description_Finds_Project()
+        public async Task Query_By_ProjectBrief_Finds_Project()
         {
             await using var context = CreateContext();
             var project = new Project
             {
                 Name = "Harbour Works",
-                Description = "Coastal bridge reinforcement",
+                ProjectBrief = "Coastal bridge reinforcement",
                 CreatedByUserId = "creator",
                 CreatedAt = DateTime.UtcNow
             };
             var other = new Project
             {
                 Name = "Airport Terminal",
-                Description = "Expansion of terminal facilities",
+                ProjectBrief = "Expansion of terminal facilities",
                 CreatedByUserId = "creator",
                 CreatedAt = DateTime.UtcNow
             };

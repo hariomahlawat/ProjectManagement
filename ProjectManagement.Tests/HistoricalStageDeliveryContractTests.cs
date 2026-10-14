@@ -45,24 +45,21 @@ public sealed class HistoricalStageDeliveryContractTests
     }
 
     [Theory]
-    [InlineData("Pages/Projects/Timeline/Historical.cshtml")]
-    [InlineData("Pages/Projects/Timeline/Historical.cshtml.cs")]
-    [InlineData("Pages/Projects/Timeline/_HistoricalStageForm.cshtml")]
-    [InlineData("Services/Stages/HistoricalStageRecordService.cs")]
-    [InlineData("ViewModels/HistoricalStageEditorVm.cs")]
-    [InlineData("wwwroot/js/projects/historical-stage-editor.js")]
-    [InlineData("wwwroot/js/projects/cover-photo-fallback.js")]
-    [InlineData("ProjectManagement.Tests/HistoricalStageRecordServiceTests.cs")]
-    [InlineData("ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs")]
-    [InlineData("ProjectManagement.Tests/ProjectPhotoPageTests.cs")]
-    public void ReplacementManifest_IncludesHistoricalStageDeliveryContract(string requiredPath)
+    [InlineData("Pages/Projects/Timeline/Historical.cshtml", "Authorize(Roles = \"Admin,HoD\")")]
+    [InlineData("Pages/Projects/Timeline/Historical.cshtml.cs", "public sealed class HistoricalModel")]
+    [InlineData("Pages/Projects/Timeline/_HistoricalStageForm.cshtml", "data-historical-stage-form")]
+    [InlineData("Services/Stages/HistoricalStageRecordService.cs", "public sealed class HistoricalStageRecordService")]
+    [InlineData("ViewModels/HistoricalStageEditorVm.cs", "public sealed class HistoricalStageEditorVm")]
+    [InlineData("wwwroot/js/projects/historical-stage-editor.js", "data-historical-stage-outcome")]
+    [InlineData("wwwroot/js/projects/cover-photo-fallback.js", "data-project-cover-fallback")]
+    [InlineData("ProjectManagement.Tests/HistoricalStageRecordServiceTests.cs", "public sealed class HistoricalStageRecordServiceTests")]
+    [InlineData("ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs", "public sealed class ProjectOverviewLifecycleTests")]
+    [InlineData("ProjectManagement.Tests/ProjectPhotoPageTests.cs", "public sealed class ProjectPhotoPageTests")]
+    public void HistoricalStageDelivery_FilesRetainTheirExpectedContracts(string requiredPath, string contract)
     {
-        var manifest = ReadRepoFile("REPLACEMENT-MANIFEST.txt");
-        var entries = manifest.Split(
-            new[] { '\r', '\n' },
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        Assert.Contains(requiredPath, entries);
+        // REPLACEMENT-MANIFEST describes the latest publication package, not the
+        // historical-stage feature. Validate this feature against the checkout.
+        Assert.Contains(contract, ReadRepoFile(requiredPath.Split('/')), StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] relativePath)

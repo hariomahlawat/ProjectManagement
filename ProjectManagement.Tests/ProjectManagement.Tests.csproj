@@ -40,6 +40,33 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\MapTableDetailed.cshtml"
+          Link="TestData\Ffc\MapTableDetailed.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\MapTableDetailed.cshtml.cs"
+          Link="TestData\Ffc\MapTableDetailed.cshtml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\css\project-office-reports\ffc-detailed-table.css"
+          Link="TestData\Ffc\ffc-detailed-table.css"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\css\project-office-reports\ffc-detailed-table.print.css"
+          Link="TestData\Ffc\ffc-detailed-table.print.css"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\pages\project-office-reports\ffc\ffc-map-table-detailed.js"
+          Link="TestData\Ffc\ffc-map-table-detailed.js"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\ProjectBriefings\ProjectBriefingInstitutionalProfileService.cs"
+          Link="TestData\ProjectBriefing\ProjectBriefingInstitutionalProfileService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\ProjectBriefings\ProjectBriefingDeckConfigurationCodec.cs"
+          Link="TestData\ProjectBriefing\ProjectBriefingDeckConfigurationCodec.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingUpdateSheetPlanner.cs"
+          Link="TestData\ProjectBriefing\ProjectBriefingUpdateSheetPlanner.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.ExecutiveSummary.cs"
+          Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.ExecutiveSummary.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Update="TestData\MediaClassification\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

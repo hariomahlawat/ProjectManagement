@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,8 +49,17 @@ using static ProjectManagement.Pages.Projects.Photos.UploadModel;
 
 namespace ProjectManagement.Tests;
 
-public sealed class ProjectPhotoPageTests
+[Collection("Upload root environment")]
+public sealed class ProjectPhotoPageTests : IDisposable
 {
+    private readonly string? _previousUploadRoot = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT");
+
+    public ProjectPhotoPageTests()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", null);
+
+    public void Dispose()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", _previousUploadRoot);
+
     [Fact]
     public async Task Index_AllowsAdmins()
     {
@@ -151,6 +161,9 @@ public sealed class ProjectPhotoPageTests
             await photoService.RemoveAsync(6, added.Id, "creator", CancellationToken.None);
             db.ChangeTracker.Clear();
 
+            // Razor creates a fresh PageModel for each request.
+            overview = CreateOverviewPage(db, clock);
+            ConfigurePageContext(overview);
             var secondResult = await overview.OnGetAsync(6, CancellationToken.None);
             Assert.IsType<PageResult>(secondResult);
             Assert.Empty(overview.Photos);
@@ -464,14 +477,31 @@ public sealed class ProjectPhotoPageTests
 
     private static ApplicationDbContext CreateContext()
     {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(connection, contextOwnsConnection: true)
             .Options;
-        return new ApplicationDbContext(options);
+        var db = new ApplicationDbContext(options);
+        try
+        {
+            db.Database.EnsureCreated();
+            return db;
+        }
+        catch
+        {
+            db.Dispose();
+            throw;
+        }
     }
 
     private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId, string? hodUserId = null, string? leadPoUserId = null)
     {
+        foreach (var id in new[] { "creator", hodUserId, leadPoUserId }.Where(id => id != null).Distinct())
+        {
+            if (!await db.Users.AnyAsync(user => user.Id == id))
+                db.Users.Add(new ApplicationUser { Id = id!, UserName = id, FullName = id!, Rank = "Test" });
+        }
         db.Projects.Add(new Project
         {
             Id = projectId,

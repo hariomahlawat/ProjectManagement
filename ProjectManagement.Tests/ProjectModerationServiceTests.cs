@@ -275,6 +275,9 @@ public sealed class ProjectModerationServiceTests
 
         var context = new ApplicationDbContext(options);
         await context.Database.EnsureCreatedAsync();
+        context.Users.AddRange(new[] { "creator", "actor", "moderator", "admin" }
+            .Select(id => new ApplicationUser { Id = id, UserName = id }));
+        await context.SaveChangesAsync();
         return context;
     }
 

@@ -65,7 +65,7 @@ public class StageDirectApplyServiceTests
     [Fact]
     public async Task ApplyAsync_WithMissingPredecessorsWithoutForce_ThrowsValidation()
     {
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 7, 15, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 6, 15), includeCompletedPredecessor: false);
 
@@ -100,7 +100,7 @@ public class StageDirectApplyServiceTests
     [Fact]
     public async Task ApplyAsync_WithForceBackfill_CompletesPredecessorsAndTarget()
     {
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 8, 15, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 8, 25, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
 
         db.Projects.Add(new Project
@@ -184,7 +184,7 @@ public class StageDirectApplyServiceTests
     }
 
     [Fact]
-    public async Task ApplyAsync_WhenCompletedOnBeforeStart_ClampsAndWarns()
+    public async Task ApplyAsync_WhenCompletedOnBeforeStart_RejectsWithoutChangingStage()
     {
         var clock = FakeClock.ForIstDate(2024, 11, 1);
         await using var db = CreateContext();
@@ -195,7 +195,7 @@ public class StageDirectApplyServiceTests
         var stageRules = new StageRulesService(db, workflowPolicy);
         var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
-        var result = await service.ApplyAsync(
+        var exception = await Assert.ThrowsAsync<StageDirectApplyValidationException>(() => service.ApplyAsync(
             projectId: 1,
             stageCode: StageCodes.IPA,
             status: StageStatus.Completed.ToString(),
@@ -203,21 +203,19 @@ public class StageDirectApplyServiceTests
             note: null,
             hodUserId: "hod-1",
             forceBackfillPredecessors: false,
-            CancellationToken.None);
+            CancellationToken.None));
 
-        Assert.Equal(new DateOnly(2024, 10, 10), result.CompletedOn);
-        Assert.False(result.RequiresBackfill);
-        Assert.Contains(result.Warnings, w => w.Contains("clamped", StringComparison.OrdinalIgnoreCase));
-
+        Assert.Contains(exception.Details, error => error.Contains("before the selected start date", StringComparison.OrdinalIgnoreCase));
         var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.IPA);
-        Assert.Equal(new DateOnly(2024, 10, 10), stage.CompletedOn);
-        Assert.False(stage.RequiresBackfill);
+        Assert.Equal(StageStatus.InProgress, stage.Status);
+        Assert.Null(stage.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
 
     [Fact]
     public async Task ApplyAsync_AllowsAnyHodActor_WhenAnotherHodIsAssignedToProject()
     {
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 9, 10, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
@@ -492,6 +490,11 @@ public class StageDirectApplyServiceTests
 
         await using var db = new ApplicationDbContext(options);
         await db.Database.EnsureCreatedAsync();
+
+        db.Users.AddRange(
+            new ApplicationUser { Id = "creator", UserName = "creator" },
+            new ApplicationUser { Id = "hod-1", UserName = "hod-1" });
+        await db.SaveChangesAsync();
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 10, 9, 30, 0, TimeSpan.Zero));
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 5, 1));

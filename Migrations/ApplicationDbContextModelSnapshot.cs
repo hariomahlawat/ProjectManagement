@@ -8710,13 +8710,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Sprint");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Models.ActionSprint", b =>
-                {
-                    b.Navigation("AuditLogs");
-
-                    b.Navigation("Tasks");
-                });
-
             modelBuilder.Entity("ProjectManagement.Models.ActionTaskAuditLog", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ActionTaskItem", "Task")
@@ -8736,6 +8729,13 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Sprint");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ActionSprint", b =>
+                {
+                    b.Navigation("AuditLogs");
+
+                    b.Navigation("Tasks");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ActionTaskUpdate", b =>

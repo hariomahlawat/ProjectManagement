@@ -45,6 +45,16 @@ function createBriefDom(fetchImpl, initialValue = 'Initial brief') {
     });
 
     dom.window.fetch = fetchImpl;
+    // Keep reload recovery under test control instead of racing the host scheduler.
+    const setTimeout = dom.window.setTimeout.bind(dom.window);
+    dom.runReloadRecovery = null;
+    dom.window.setTimeout = (callback, delay, ...args) => {
+        if (delay === 10) {
+            dom.runReloadRecovery = callback;
+            return 0;
+        }
+        return setTimeout(callback, delay, ...args);
+    };
     appendScript(dom.window.document);
     return dom;
 }
@@ -94,7 +104,7 @@ test('successful save requests a real reload and recovers controls if unload doe
     await wait();
 
     assert.equal(requestCount, 1);
-    assert.deepEqual(reloadDetail, {
+    assert.deepEqual({ ...reloadDetail }, {
         section: 'brief',
         message: 'Project brief saved.'
     });
@@ -103,7 +113,7 @@ test('successful save requests a real reload and recovers controls if unload doe
     assert.equal(label.textContent, 'Saving…');
     assert.equal(textarea.disabled, true);
 
-    await wait(20);
+    dom.runReloadRecovery();
 
     assert.equal(form.dataset.submitting, 'false');
     assert.equal(label.textContent, 'Save brief');
@@ -133,8 +143,10 @@ test('pageshow restores a confirmed save that was suspended during pagehide', as
 
     await wait();
     await wait();
+    window.dispatchEvent(new window.Event('pageshow'));
+    assert.equal(form.dataset.submitting, 'true', 'initial pageshow must not recover a pending reload');
     window.dispatchEvent(new window.Event('pagehide'));
-    await wait(20);
+    dom.runReloadRecovery();
 
     assert.equal(form.dataset.submitting, 'true');
 

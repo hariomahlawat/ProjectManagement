@@ -1,5 +1,6 @@
 using System.Linq;
 using ProjectManagement.Services.Navigation.ModuleNav;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -41,7 +42,7 @@ public sealed class ProjectModuleNavDefinitionTests
     }
 
     [Fact]
-    public void Build_PlacesArppReaderAfterProcessAndBeforeAnalytics()
+    public void Build_PlacesArppReaderAfterProcessAndReportsBeforeAnalytics()
     {
         var tabs = ProjectModuleNavDefinition.Build()
             .Where(item => !item.IsAction)
@@ -49,11 +50,14 @@ public sealed class ProjectModuleNavDefinitionTests
 
         var processIndex = tabs.FindIndex(item => item.Page == "/Process/Index");
         var arppIndex = tabs.FindIndex(item => item.Page == "/Projects/Arpp/Index");
+        var reportsIndex = tabs.FindIndex(item => item.Page == "/Projects/Reports/Index");
         var analyticsIndex = tabs.FindIndex(item => item.Page == "/Analytics/Index");
 
         Assert.True(processIndex >= 0);
         Assert.Equal(processIndex + 1, arppIndex);
-        Assert.Equal(arppIndex + 1, analyticsIndex);
+        Assert.Equal(arppIndex + 1, reportsIndex);
+        Assert.Equal(reportsIndex + 1, analyticsIndex);
+        Assert.Equal(ProjectOfficeReportsPolicies.ViewArpp, tabs[reportsIndex].AuthorizationPolicy);
     }
 
     [Fact]

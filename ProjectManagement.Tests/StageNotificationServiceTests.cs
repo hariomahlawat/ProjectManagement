@@ -27,7 +27,7 @@ public sealed class StageNotificationServiceTests
         Assert.Single(publisher.Events);
         var evt = publisher.Events[0];
         Assert.Equal(NotificationKind.StageStatusChanged, evt.Kind);
-        Assert.Equal(new[] { "po-3", "hod-3" }, evt.Recipients.OrderBy(x => x));
+        Assert.Equal(new[] { "hod-3", "po-3" }, evt.Recipients.OrderBy(x => x));
         Assert.Equal("Stages", evt.Module);
         Assert.Equal("StageStatusChanged", evt.EventType);
         Assert.Equal("Stage", evt.ScopeType);

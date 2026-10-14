@@ -83,7 +83,8 @@ public sealed class NotebookMigrationTests
         while (!string.IsNullOrWhiteSpace(current))
         {
             var migrations = Path.Combine(current, "Migrations");
-            if (Directory.Exists(migrations))
+            if (File.Exists(Path.Combine(current, "ProjectManagement.csproj"))
+                && Directory.Exists(migrations))
             {
                 return migrations;
             }

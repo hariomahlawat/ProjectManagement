@@ -16,6 +16,8 @@ public sealed class NotebookColourTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var clock = new TestClock { UtcNowValue = new DateTimeOffset(2026, 6, 22, 10, 0, 0, TimeSpan.Zero) };
         var item = new NotebookItem
         {
@@ -69,6 +71,8 @@ public sealed class NotebookColourTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var clock = new TestClock { UtcNowValue = DateTimeOffset.UtcNow };
         var item = new NotebookItem
         {
@@ -100,6 +104,8 @@ public sealed class NotebookColourTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var clock = new TestClock { UtcNowValue = DateTimeOffset.UtcNow };
         var item = new NotebookItem
         {

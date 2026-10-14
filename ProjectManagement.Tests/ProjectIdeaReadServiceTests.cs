@@ -291,6 +291,10 @@ public class ProjectIdeaReadServiceTests
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"project-ideas-{Guid.NewGuid():N}")
             .Options;
-        return new ApplicationDbContext(options);
+        var db = new ApplicationDbContext(options);
+        // Required creator navigations are included by board reads; seed real principals.
+        db.Users.AddRange(new[] { "user-1", "user-2", "user-3", "other", "other-user", "creator" }
+            .Select(id => new ApplicationUser { Id = id, UserName = id }));
+        return db;
     }
 }

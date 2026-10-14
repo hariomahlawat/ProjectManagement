@@ -114,7 +114,7 @@ public sealed class CompendiumPhase37_7CoverIdentityTests
         var preset = new CompendiumPreset();
         var design = new CompendiumCoverDesignConfiguration();
 
-        Assert.Equal(12, preset.SettingsSchemaVersion);
+        Assert.Equal(13, preset.SettingsSchemaVersion);
         Assert.Equal("InstitutionalGreen", preset.PublicationTheme);
         Assert.Equal("Solid", preset.CoverBackgroundTreatment);
         Assert.Equal(CompendiumPublicationTheme.InstitutionalGreen, design.PublicationTheme);

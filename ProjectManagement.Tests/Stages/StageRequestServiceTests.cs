@@ -255,7 +255,7 @@ public class StageRequestServiceTests
             "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.Contains(result.Errors, error => error.Contains("note is required", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Errors, error => error.Contains("Add a note", StringComparison.OrdinalIgnoreCase));
         Assert.Empty(await db.StageChangeRequests.ToListAsync());
     }
 
@@ -629,7 +629,7 @@ public class StageRequestServiceTests
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
         Assert.Contains(result.Errors, error =>
-            error.Contains("pending Bidding/Tendering", StringComparison.OrdinalIgnoreCase)
+            error.Contains("pending Bidding/ Tendering", StringComparison.OrdinalIgnoreCase)
             && error.Contains("05 Feb 2025", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(2, await db.StageChangeRequests.CountAsync(request => request.DecisionStatus == "Pending"));
         Assert.Empty(await db.StageChangeRequests.Where(request => request.DecisionStatus == "Superseded").ToListAsync());

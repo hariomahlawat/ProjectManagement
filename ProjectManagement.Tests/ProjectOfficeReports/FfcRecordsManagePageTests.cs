@@ -84,7 +84,7 @@ public sealed class FfcRecordsManagePageTests
         var result = await page.OnPostCreateAsync();
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Null(redirect.PageName);
+        Assert.Equal("./Manage", redirect.PageName);
         var stored = await db.FfcRecords.AsNoTracking().SingleAsync();
         Assert.Equal(country.Id, stored.CountryId);
         Assert.Equal((short)2025, stored.Year);
@@ -129,7 +129,7 @@ public sealed class FfcRecordsManagePageTests
         var result = await page.OnPostUpdateAsync();
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Null(redirect.PageName);
+        Assert.Equal("./Manage", redirect.PageName);
         Assert.True(page.ModelState.IsValid);
 
         var updated = await db.FfcRecords.FindAsync(record.Id);
@@ -320,8 +320,9 @@ public sealed class FfcRecordsManagePageTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                var databaseName = $"ffc-records-manage-{Guid.NewGuid()}";
                 services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase($"ffc-records-manage-{Guid.NewGuid()}"));
+                    options.UseInMemoryDatabase(databaseName));
             });
 
             builder.ConfigureTestServices(services =>
@@ -330,6 +331,7 @@ public sealed class FfcRecordsManagePageTests
                     {
                         options.DefaultAuthenticateScheme = "Test";
                         options.DefaultChallengeScheme = "Test";
+                        options.DefaultForbidScheme = Microsoft.AspNetCore.Identity.IdentityConstants.ApplicationScheme;
                         options.DefaultScheme = "Test";
                     })
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });

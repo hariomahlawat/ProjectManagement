@@ -39,6 +39,8 @@ public static class PrismTestWebHostBuilderExtensions
                     databaseNamePrefix,
                     Guid.NewGuid().ToString("N")),
                 ["Database:RunSeedersOnStartup"] = "false",
+                // Endpoint fixtures use InMemory; the unrelated index worker needs a relational store.
+                ["Search:V2:Enabled"] = "false",
                 ["Audit:Retention:Enabled"] = "false",
                 ["MediaLibrary:Enabled"] = "false",
                 ["MediaLibrary:AutoMigrate"] = "false",

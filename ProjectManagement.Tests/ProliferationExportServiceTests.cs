@@ -186,29 +186,25 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal(70, firstDataRow.Cell(7).GetValue<int>());
         Assert.Equal(70, firstDataRow.Cell(8).GetValue<int>());
         Assert.Equal("Approved", firstDataRow.Cell(9).GetString());
-        Assert.Equal("UseGranular", firstDataRow.Cell(10).GetString());
+        Assert.Equal("UseYearlyAndGranular", firstDataRow.Cell(10).GetString());
 
-        var secondDataRow = worksheet.Row(3);
-        Assert.Equal("Yearly", secondDataRow.Cell(4).GetString());
-        Assert.Equal(120, secondDataRow.Cell(7).GetValue<int>());
-        Assert.Equal(70, secondDataRow.Cell(8).GetValue<int>());
-        Assert.Equal("UseYearlyAndGranular", secondDataRow.Cell(10).GetString());
+        Assert.True(worksheet.Cell(3, 4).IsEmpty()); // the yearly row does not match the unit search
 
-        Assert.Equal("Export generated", worksheet.Cell(5, 1).GetString());
-        Assert.Equal("Requested by", worksheet.Cell(6, 1).GetString());
-        Assert.Equal("user-9", worksheet.Cell(6, 2).GetString());
-        Assert.Equal("Years", worksheet.Cell(7, 1).GetString());
-        Assert.Equal("2024", worksheet.Cell(7, 2).GetString());
-        Assert.Equal("Date range", worksheet.Cell(8, 1).GetString());
-        Assert.Equal("(not set)", worksheet.Cell(8, 2).GetString());
-        Assert.Equal("Source", worksheet.Cell(9, 1).GetString());
-        Assert.Equal("SDD", worksheet.Cell(9, 2).GetString());
-        Assert.Equal("Project category", worksheet.Cell(10, 1).GetString());
-        Assert.Equal("Readiness", worksheet.Cell(10, 2).GetString());
-        Assert.Equal("Technical category", worksheet.Cell(11, 1).GetString());
-        Assert.Equal("Simulation", worksheet.Cell(11, 2).GetString());
-        Assert.Equal("Search", worksheet.Cell(12, 1).GetString());
-        Assert.Equal("Alpha", worksheet.Cell(12, 2).GetString());
+        Assert.Equal("Export generated", worksheet.Cell(4, 1).GetString());
+        Assert.Equal("Requested by", worksheet.Cell(5, 1).GetString());
+        Assert.Equal("user-9", worksheet.Cell(5, 2).GetString());
+        Assert.Equal("Years", worksheet.Cell(6, 1).GetString());
+        Assert.Equal("2024", worksheet.Cell(6, 2).GetString());
+        Assert.Equal("Date range", worksheet.Cell(7, 1).GetString());
+        Assert.Equal("(not set)", worksheet.Cell(7, 2).GetString());
+        Assert.Equal("Source", worksheet.Cell(8, 1).GetString());
+        Assert.Equal("SDD", worksheet.Cell(8, 2).GetString());
+        Assert.Equal("Project category", worksheet.Cell(9, 1).GetString());
+        Assert.Equal("Readiness", worksheet.Cell(9, 2).GetString());
+        Assert.Equal("Technical category", worksheet.Cell(10, 1).GetString());
+        Assert.Equal("Simulation", worksheet.Cell(10, 2).GetString());
+        Assert.Equal("Search", worksheet.Cell(11, 1).GetString());
+        Assert.Equal("Alpha", worksheet.Cell(11, 2).GetString());
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal("ProjectOfficeReports.Proliferation.ExportGenerated", entry.Action);
@@ -221,7 +217,7 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal("7", entry.Data["TechnicalCategoryId"]);
         Assert.Equal("Simulation", entry.Data["TechnicalCategoryName"]);
         Assert.Equal("Alpha", entry.Data["SearchTerm"]);
-        Assert.Equal("2", entry.Data["RowCount"]);
+        Assert.Equal("1", entry.Data["RowCount"]);
         Assert.Equal(file.FileName, entry.Data["FileName"]);
     }
 

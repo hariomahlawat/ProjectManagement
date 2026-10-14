@@ -20,7 +20,7 @@ public sealed class SocialMediaPdfReportBuilderTests
                     "Instagram",
                     4,
                     "Highlights from the launch.",
-                    new byte[] { 0x01, 0x02, 0x03 })
+                    TestImageFactory.TinyPng())
             },
             GeneratedAtUtc: DateTimeOffset.UtcNow,
             StartDate: null,

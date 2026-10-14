@@ -9,6 +9,8 @@ namespace ProjectManagement.Tests.ActionTasks;
 
 public class ActionSprintServiceTests
 {
+    private static readonly InMemoryDatabaseRoot SharedDatabaseRoot = new();
+
     [Fact]
     public async Task CreateSprintAsync_WithPlanningAuthority_CreatesPlannedSprint()
     {
@@ -182,7 +184,7 @@ public class ActionSprintServiceTests
     {
         // SECTION: Arrange
         var databaseName = Guid.NewGuid().ToString();
-        var databaseRoot = new InMemoryDatabaseRoot();
+        var databaseRoot = SharedDatabaseRoot;
         byte[] staleRowVersion;
         int sprintId;
 
@@ -464,7 +466,7 @@ public class ActionSprintServiceTests
 
 
     [Fact]
-    public async Task MoveTaskToBacklogAsync_FromSubmittedTask_ResetsStatusToBacklog()
+    public async Task MoveTaskToBacklogAsync_FromSubmittedTask_RequiresReturnForAction()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -478,7 +480,20 @@ public class ActionSprintServiceTests
         task.SubmittedOn = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        // SECTION: Act
+        var submittedOn = task.SubmittedOn;
+        var auditCount = await db.ActionTaskAuditLogs.CountAsync();
+        var rejection = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MoveTaskToBacklogRemoveAssigneeAsync(task.Id, "planner", RoleNames.HoD));
+        Assert.Contains("awaiting closure", rejection.Message);
+        var unchanged = await db.ActionTasks.AsNoTracking().SingleAsync(item => item.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.Submitted, unchanged.Status);
+        Assert.Equal(sprint.Id, unchanged.SprintId);
+        Assert.Equal("assignee", unchanged.AssignedToUserId);
+        Assert.Equal(submittedOn, unchanged.SubmittedOn);
+        Assert.Equal(auditCount, await db.ActionTaskAuditLogs.CountAsync());
+
+        var taskService = new ActionTaskService(db, new ActionTaskPermissionService(), new TestActionTrackerClock());
+        await taskService.ReturnTaskForActionAsync(task.Id, task.RowVersion, "Further action required", "planner", RoleNames.HoD);
         var backlogTask = await service.MoveTaskToBacklogRemoveAssigneeAsync(task.Id, "planner", RoleNames.HoD);
 
         // SECTION: Assert
@@ -532,7 +547,7 @@ public class ActionSprintServiceTests
 
 
     [Fact]
-    public async Task AssignOutsideSprintTaskToSprintAsync_SubmittedOutsideSprintTask_RetainsStatusAndSubmittedOn()
+    public async Task AssignOutsideSprintTaskToSprintAsync_SubmittedOutsideSprintTask_RequiresReturnForAction()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -543,15 +558,27 @@ public class ActionSprintServiceTests
         task.SubmittedOn = submittedOn;
         await db.SaveChangesAsync();
 
-        // SECTION: Act
+        var auditCount = await db.ActionTaskAuditLogs.CountAsync();
+        var rejection = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AssignOutsideSprintTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD));
+        Assert.Contains("awaiting closure", rejection.Message);
+        var unchanged = await db.ActionTasks.AsNoTracking().SingleAsync(item => item.Id == task.Id);
+        Assert.Null(unchanged.SprintId);
+        Assert.Equal("assignee", unchanged.AssignedToUserId);
+        Assert.Equal(ActionTaskStatuses.Submitted, unchanged.Status);
+        Assert.Equal(submittedOn, unchanged.SubmittedOn);
+        Assert.Equal(auditCount, await db.ActionTaskAuditLogs.CountAsync());
+
+        var taskService = new ActionTaskService(db, new ActionTaskPermissionService(), new TestActionTrackerClock());
+        await taskService.ReturnTaskForActionAsync(task.Id, task.RowVersion, "Further action required", "planner", RoleNames.HoD);
         var sprintTask = await service.AssignOutsideSprintTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         Assert.Equal(sprint.Id, sprintTask.SprintId);
         Assert.Equal("assignee", sprintTask.AssignedToUserId);
         Assert.Equal(RoleNames.Ta, sprintTask.AssignedToRole);
-        Assert.Equal(ActionTaskStatuses.Submitted, sprintTask.Status);
-        Assert.Equal(submittedOn, sprintTask.SubmittedOn);
+        Assert.Equal(ActionTaskStatuses.InProgress, sprintTask.Status);
+        Assert.Null(sprintTask.SubmittedOn);
     }
 
     [Fact]
@@ -738,7 +765,7 @@ public class ActionSprintServiceTests
         => new(db, new ActionTaskPermissionService(), new ActionSprintWorkflowPolicy(), new TestActionTrackerClock());
 
     private static ApplicationDbContext CreateDb()
-        => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
+        => CreateDb(Guid.NewGuid().ToString(), SharedDatabaseRoot);
 
     private static ApplicationDbContext CreateDb(string databaseName, InMemoryDatabaseRoot databaseRoot)
     {

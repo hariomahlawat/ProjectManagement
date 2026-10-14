@@ -21,8 +21,11 @@
     });
 
     window.addEventListener('pageshow', () => {
+        const wasUnloading = pageIsUnloading;
         pageIsUnloading = false;
-        savedReloadRecoveries.forEach((_context, form) => recoverSavedForm(form));
+        if (wasUnloading) {
+            savedReloadRecoveries.forEach((_context, form) => recoverSavedForm(form));
+        }
     });
 
     const parsePositiveInt = (value, fallback) => {

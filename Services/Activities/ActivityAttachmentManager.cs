@@ -94,7 +94,11 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
             throw;
         }
 
-        activity.Attachments.Add(attachment);
+        // EF relationship fixup may already have added this instance during persistence.
+        if (!activity.Attachments.Contains(attachment))
+        {
+            activity.Attachments.Add(attachment);
+        }
 
         if (ActivityAttachmentClassifier.Classify(storageResult.FileName, upload.ContentType) == ActivityAttachmentKind.Pdf)
         {

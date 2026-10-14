@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -18,8 +19,17 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
-public sealed class ProjectVideoServiceTests
+[Collection("Upload root environment")]
+public sealed class ProjectVideoServiceTests : IDisposable
 {
+    private readonly string? _previousUploadRoot = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT");
+
+    public ProjectVideoServiceTests()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", null);
+
+    public void Dispose()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", _previousUploadRoot);
+
     [Fact]
     public async Task AddAsync_ThrowsWhenFileTooLarge()
     {
@@ -83,6 +93,11 @@ public sealed class ProjectVideoServiceTests
             Assert.Equal(video.Id, project.FeaturedVideoId);
             Assert.Equal(video.Version, project.FeaturedVideoVersion);
             Assert.True(project.Videos.Single().IsFeatured);
+            var storedProject = await db.Projects.AsNoTracking().Include(p => p.Videos).SingleAsync(p => p.Id == 17);
+            var storedVideo = Assert.Single(storedProject.Videos);
+            Assert.True(storedVideo.IsFeatured);
+            Assert.Equal(storedVideo.Id, storedProject.FeaturedVideoId);
+            Assert.Equal(storedVideo.Version, storedProject.FeaturedVideoVersion);
         }
         finally
         {
@@ -94,12 +109,14 @@ public sealed class ProjectVideoServiceTests
     [Fact]
     public async Task AddAsync_RollsBackWhenProjectUpdateConflicts()
     {
-        var databaseName = Guid.NewGuid().ToString("N");
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName)
+            .UseSqlite(connection)
             .Options;
 
         await using var db = new ConcurrencyFailingDbContext(options);
+        await db.Database.EnsureCreatedAsync();
         await SeedProjectAsync(db, 53);
 
         var projectRoot = CreateTempRoot();
@@ -184,6 +201,9 @@ public sealed class ProjectVideoServiceTests
             Assert.Equal(second.Id, project.FeaturedVideoId);
             Assert.False(project.Videos.Single(v => v.Id == first.Id).IsFeatured);
             Assert.True(project.Videos.Single(v => v.Id == second.Id).IsFeatured);
+            var storedVideos = await db.ProjectVideos.AsNoTracking().Where(v => v.ProjectId == 23).ToListAsync();
+            Assert.Equal(second.Id, Assert.Single(storedVideos, v => v.IsFeatured).Id);
+            Assert.False(Assert.Single(storedVideos, v => v.Id == first.Id).IsFeatured);
         }
         finally
         {
@@ -226,6 +246,10 @@ public sealed class ProjectVideoServiceTests
             var project = await db.Projects.SingleAsync(p => p.Id == 31);
             Assert.Null(project.FeaturedVideoId);
             Assert.Equal(0, project.FeaturedVideoVersion);
+            var storedProject = await db.Projects.AsNoTracking().SingleAsync(p => p.Id == 31);
+            Assert.Null(storedProject.FeaturedVideoId);
+            Assert.Equal(0, storedProject.FeaturedVideoVersion);
+            Assert.Empty(await db.ProjectVideos.AsNoTracking().Where(v => v.ProjectId == 31).ToListAsync());
         }
         finally
         {
@@ -312,10 +336,22 @@ public sealed class ProjectVideoServiceTests
 
     private static ApplicationDbContext CreateContext()
     {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(connection, contextOwnsConnection: true)
             .Options;
-        return new ApplicationDbContext(options);
+        var db = new ApplicationDbContext(options);
+        try
+        {
+            db.Database.EnsureCreated();
+            return db;
+        }
+        catch
+        {
+            db.Dispose();
+            throw;
+        }
     }
 
     private sealed class ConcurrencyFailingDbContext : ApplicationDbContext
@@ -346,6 +382,10 @@ public sealed class ProjectVideoServiceTests
 
     private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId)
     {
+        foreach (var userId in new[] { "creator", "owner", "user-1" })
+        {
+            db.Users.Add(new ApplicationUser { Id = userId, UserName = userId, FullName = userId });
+        }
         db.Projects.Add(new Project
         {
             Id = projectId,

@@ -16,6 +16,8 @@ public sealed class NotebookReorderTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var now = new DateTimeOffset(2026, 6, 23, 10, 0, 0, TimeSpan.Zero);
         var first = CreateItem("owner", "First", now, 1000);
         var second = CreateItem("owner", "Second", now, 2000);
@@ -45,6 +47,8 @@ public sealed class NotebookReorderTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var now = new DateTimeOffset(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
         var items = Enumerable.Range(0, 120)
             .Select(index => CreateItem("owner", $"Note {index + 1}", now.AddMinutes(-index), index * NotebookLimits.SortOrderStep))
@@ -77,6 +81,8 @@ public sealed class NotebookReorderTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var now = new DateTimeOffset(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
         var service = CreateService(db, now);
 
@@ -108,6 +114,8 @@ public sealed class NotebookReorderTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var now = DateTimeOffset.UtcNow;
         var first = CreateItem("owner", "First", now, 1000);
         var second = CreateItem("owner", "Second", now, 2000);
@@ -128,6 +136,8 @@ public sealed class NotebookReorderTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var now = DateTimeOffset.UtcNow;
         var item = CreateItem("owner", "First", now, 1000);
         db.NotebookItems.Add(item);

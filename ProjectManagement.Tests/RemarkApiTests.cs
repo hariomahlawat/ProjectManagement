@@ -7,6 +7,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -48,7 +49,7 @@ public class RemarkApiTests
         {
             foreach (var role in Enum.GetValues<RemarkActorRole>())
             {
-                if (role == RemarkActorRole.Unknown)
+                if (role is RemarkActorRole.Unknown or RemarkActorRole.Ito)
                 {
                     continue;
                 }
@@ -143,14 +144,14 @@ public class RemarkApiTests
         Assert.NotNull(created);
         Assert.Contains("remark-mention", created!.Body, StringComparison.Ordinal);
         Assert.Single(created.Mentions);
-        Assert.Equal("mention-user", created.Mentions[0].Id);
+        Assert.Equal("mention-user", created.Mentions[0].UserId);
         Assert.Equal(RemarkScope.General, created.Scope);
 
         var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks", SerializerOptions);
         Assert.NotNull(list);
         Assert.Single(list!.Items);
         Assert.Single(list.Items[0].Mentions);
-        Assert.Equal("mention-user", list.Items[0].Mentions[0].Id);
+        Assert.Equal("mention-user", list.Items[0].Mentions[0].UserId);
         Assert.Equal("Mention Target", list.Items[0].Mentions[0].DisplayName);
         Assert.Equal(RemarkScope.General, list.Items[0].Scope);
     }
@@ -428,6 +429,29 @@ public class RemarkApiTests
         Assert.Equal(RemarkService.PermissionDeniedMessage, problem!.Title);
     }
 
+    [Fact]
+    public async Task CreateRemarkAsync_ItoCannotAuthorGenericProjectRemarks()
+    {
+        using var factory = new RemarkApiFactory();
+        using var client = await CreateClientForUserAsync(factory, "ito-user", "ITO User", "Ito");
+        await SeedProjectAsync(factory, 799, leadPoUserId: "ito-user");
+
+        var response = await client.PostAsJsonAsync("/api/projects/799/remarks", new
+        {
+            type = RemarkType.Internal,
+            scope = RemarkScope.General,
+            body = "Generic project remark",
+            eventDate = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            stageRef = StageCodes.FS,
+            actorRole = "Ito"
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.False(await db.Remarks.AnyAsync(remark => remark.ProjectId == 799));
+    }
+
     [Theory]
     [MemberData(nameof(CanonicalActorRoles))]
     public async Task RemarkLifecycle_Succeeds_WithCanonicalActorRoleIdentifiers(string canonicalRole)
@@ -606,7 +630,8 @@ public class RemarkApiTests
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     private static Task<HttpClient> CreateClientForUserAsync(RemarkApiFactory factory, string userId, string fullName, params string[] roles)
@@ -781,7 +806,7 @@ public class RemarkApiTests
 
     private sealed record RemarkMentionDto
     {
-        public string Id { get; init; } = string.Empty;
+        public string UserId { get; init; } = string.Empty;
         public string DisplayName { get; init; } = string.Empty;
         public string Initials { get; init; } = string.Empty;
     }
@@ -804,11 +829,12 @@ public class RemarkApiTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UsePrismTestInfrastructure("remarkapi");
+            var databaseName = $"remarks-{Guid.NewGuid()}";
 
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
-                services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase($"remarks-{Guid.NewGuid()}"));
+                services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
             });
 
             builder.ConfigureTestServices(services =>

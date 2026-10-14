@@ -88,13 +88,14 @@ public sealed class FaceIdentityGroupingRuntimeState : IFaceIdentityGroupingRunt
         }
     }
 
-    public async Task WaitForRefreshRequestAsync(
+    public Task WaitForRefreshRequestAsync(
         TimeSpan maximumDelay,
         CancellationToken cancellationToken)
     {
         var boundedDelay = maximumDelay <= TimeSpan.Zero
             ? TimeSpan.FromSeconds(1)
             : maximumDelay;
-        await _refreshSignal.WaitAsync(boundedDelay, cancellationToken);
+        // Return the signal task itself so completion does not wait for the caller's context.
+        return _refreshSignal.WaitAsync(boundedDelay, cancellationToken);
     }
 }

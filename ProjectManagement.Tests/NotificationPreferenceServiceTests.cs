@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services.Notifications;
 
@@ -115,6 +116,20 @@ public class NotificationPreferenceServiceTests
 
         var db = new ApplicationDbContext(options);
         await db.Database.EnsureCreatedAsync();
+        db.Users.AddRange(
+            new ApplicationUser { Id = "user-1", UserName = "user-1" },
+            new ApplicationUser { Id = "user-2", UserName = "user-2" },
+            new ApplicationUser { Id = "user-3", UserName = "user-3" },
+            new ApplicationUser { Id = "user-4", UserName = "user-4" },
+            new ApplicationUser { Id = "user-5", UserName = "user-5" });
+        db.Projects.Add(new Project
+        {
+            Id = 5,
+            Name = "Notification preference project",
+            CreatedByUserId = "user-1",
+            LeadPoUserId = "user-1"
+        });
+        await db.SaveChangesAsync();
 
         return new SqliteScope(db, connection);
     }

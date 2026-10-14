@@ -57,7 +57,7 @@ public sealed class ErpUsageQueryServiceTests
         Assert.Equal(5, row.ApproximateActiveMinutes);
         Assert.Equal(1, row.OperationalActionCount);
         Assert.Equal(0, row.AdministrativeActionCount);
-        Assert.Equal("Occasional user", row.Posture);
+        Assert.Equal("Use recorded", row.Posture);
         Assert.False(result.RegularClassificationAvailable);
         Assert.False(result.SevenDayReviewAvailable);
         Assert.False(result.ThirtyDayReviewAvailable);

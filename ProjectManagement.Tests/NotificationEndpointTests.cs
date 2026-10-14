@@ -6,6 +6,7 @@ using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -376,7 +377,7 @@ public sealed class NotificationEndpointTests
                     new Claim(ClaimTypes.NameIdentifier, userId),
                     new Claim(ClaimTypes.Name, "Notification Test User"),
                 },
-                Scheme.Name);
+                IdentityConstants.ApplicationScheme);
             var principal = new ClaimsPrincipal(identity);
             return Task.FromResult(
                 AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name)));

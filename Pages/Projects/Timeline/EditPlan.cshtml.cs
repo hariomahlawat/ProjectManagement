@@ -22,6 +22,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
@@ -300,9 +301,10 @@ public class EditPlanModel : PageModel
         {
             await _db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation(
-                "Exact timeline saved for Project {ProjectId}. Conn: {Conn}",
+                "Exact timeline saved for Project {ProjectId}. ConnHash: {ConnHash}",
                 id,
-                _db.Database.GetConnectionString());
+                ConnectionStringHasher.Hash(
+                    _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null));
 
             var data = new Dictionary<string, string?>
             {
@@ -513,9 +515,10 @@ public class EditPlanModel : PageModel
 
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation(
-            "Durations saved for Project {ProjectId}. Conn: {Conn}",
+            "Durations saved for Project {ProjectId}. ConnHash: {ConnHash}",
             id,
-            _db.Database.GetConnectionString());
+            ConnectionStringHasher.Hash(
+                _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null));
 
         if (canDirectApply)
         {

@@ -41,7 +41,7 @@ test('directCards only includes direct board children while keeping selectors el
   const helpers = loadHelpers(dom.window.document);
   const board = dom.window.document.querySelector('#b');
 
-  assert.deepEqual(helpers.directCards(board).map((card) => card.id), ['direct']);
+  assert.deepEqual(Array.from(helpers.directCards(board), (card) => card.id), ['direct']);
 });
 
 test('serialiseBoard excludes shared read-only cards from an owner reorder payload', () => {
@@ -293,7 +293,7 @@ test('dropping at the reorderable end keeps shared read-only cards outside the o
 
   assert.equal(helpers.movePlaceholder(board, placeholder, 2, null, { x: 0, y: 0 }), true);
   assert.deepEqual([...board.children].map((node) => node.id), ['a', 'b', 'placeholder', 'shared']);
-  assert.deepEqual(helpers.directCards(board).map((card) => card.id), ['a', 'b']);
+  assert.deepEqual(Array.from(helpers.directCards(board), (card) => card.id), ['a', 'b']);
 });
 
 test('drag engine no longer depends on native HTML drag events', () => {

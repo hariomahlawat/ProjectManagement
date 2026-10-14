@@ -1,3 +1,4 @@
+using ProjectManagement.Tests.Fakes;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
@@ -9,7 +10,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_ComputesActiveSprintDashboardMetricsAndClosureReview()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var activeSprint = new ActionSprint { Id = 7, Name = "Active Ops", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(14) };
         var nextSprint = new ActionSprint { Id = 8, Name = "Next Ops", Status = ActionSprintStatus.Planned, StartDate = today.AddDays(15), EndDate = today.AddDays(30) };
         var olderSprint = new ActionSprint { Id = 9, Name = "Older Ops", Status = ActionSprintStatus.Planned, StartDate = today.AddDays(-15), EndDate = today.AddDays(-1) };
@@ -57,7 +58,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_AppliesReportsFiltersAcrossAnalyticalSections()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 21, Name = "Filtered Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var otherSprint = new ActionSprint { Id = 22, Name = "Other Sprint", Status = ActionSprintStatus.Planned, StartDate = today.AddDays(8), EndDate = today.AddDays(14) };
         var tasks = new[]
@@ -92,7 +93,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_RegisterOpenScopeExcludesClosedBeforeFilters()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 41, Name = "Register Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
@@ -117,7 +118,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_RegisterAllScopeIncludesClosedAndAllowsClosedStatusFilter()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 42, Name = "Register Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
@@ -141,7 +142,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_ReportBacklogSprintFilter_RendersBacklogAgeingOnly()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 31, Name = "Sprint Scope", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
@@ -173,12 +174,12 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_ReportsResponsibleWorkload_UsesAssignedBucketsAndSortsByRisk()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 61, Name = "Execution Sprint", Status = ActionSprintStatus.Active, StartDate = today.AddDays(-2), EndDate = today.AddDays(5) };
         var tasks = new[]
         {
             NewTask(61, null, ActionTaskStatuses.Backlog, today.AddDays(3), assignedToUserId: string.Empty, assignedOn: today.AddDays(-1)),
-            NewTask(62, null, ActionTaskStatuses.Assigned, today.AddDays(-1), assignedToUserId: "one"),
+            NewTask(62, null, ActionTaskStatuses.Assigned, today.AddDays(-1), assignedToUserId: "one", assignedOn: today.AddDays(-4)),
             NewTask(63, null, ActionTaskStatuses.InProgress, today.AddDays(2), assignedToUserId: "one"),
             NewTask(64, sprint.Id, ActionTaskStatuses.Blocked, today.AddDays(-2), assignedToUserId: "two"),
             NewTask(65, sprint.Id, ActionTaskStatuses.Submitted, today.AddDays(-3), assignedToUserId: "two"),
@@ -203,6 +204,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.All(model.Reports.ResponsiblePersonWorkloads, item => Assert.Equal(2, item.Open));
         Assert.DoesNotContain(model.Reports.ResponsiblePersonWorkloads, item => item.ResponsiblePerson == "Unassigned");
         Assert.Equal(1, model.Reports.AssignedTaskAgeingBuckets.Single(x => x.Name == "0-3 days assigned").Count);
+        Assert.Equal(3, model.Reports.AssignedTaskAgeingBuckets.Single(x => x.Name == "4-7 days assigned").Count);
         Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "0-3 days in backlog").Count);
         Assert.Equal(0, model.Reports.OverdueAgeingBuckets.Single(x => x.Name == "8+ days overdue").Count);
     }
@@ -211,7 +213,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_ReportsInvalidStates_RenderOnlyWhenPresent()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 71, Name = "Invalid Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var validTasks = new[]
         {
@@ -243,7 +245,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_RegisterBucketFilter_ReturnsMatchingBuckets()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 41, Name = "Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
@@ -274,7 +276,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_RegisterSearch_MatchesTitleAndAtNumber()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 51, Name = "Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
@@ -302,7 +304,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_SelectedSprintIncludesInvalidSprintLinkedTasksForClosureReview()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 81, Name = "Active Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
@@ -328,7 +330,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_SprintPerformanceCountsOnlyTasksClosedAfterDueDateAsLate()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 91, Name = "Closed Sprint", Status = ActionSprintStatus.Closed, StartDate = today.AddDays(-14), EndDate = today.AddDays(-1), ClosedAtUtc = today.AddDays(5) };
         var closedOnTime = NewTask(91, sprint.Id, ActionTaskStatuses.Closed, today.AddDays(-5));
         closedOnTime.ClosedOn = today.AddDays(-5);
@@ -353,7 +355,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void BuildReadModel_SprintPerformanceSeparatesActiveOverdueFromClosedLate()
     {
         // SECTION: Arrange
-        var today = DateTime.UtcNow.Date;
+        var today = FixedActionTrackerClock.DefaultUtcNow.Date;
         var sprint = new ActionSprint { Id = 92, Name = "Active Sprint", Status = ActionSprintStatus.Active, StartDate = today.AddDays(-7), EndDate = today.AddDays(7) };
         var overdueOpen = NewTask(93, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(-2));
         var futureOpen = NewTask(94, sprint.Id, ActionTaskStatuses.InProgress, today.AddDays(2));
@@ -378,7 +380,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     public void ResolveBucket_WhenSprintExistsWithoutResponsiblePerson_ReturnsInvalid()
     {
         // SECTION: Arrange
-        var task = NewTask(99, 7, ActionTaskStatuses.Assigned, DateTime.UtcNow.Date, assignedToUserId: string.Empty);
+        var task = NewTask(99, 7, ActionTaskStatuses.Assigned, FixedActionTrackerClock.DefaultUtcNow.Date, assignedToUserId: string.Empty);
 
         // SECTION: Act
         var bucket = ActionTaskCategorization.ResolveBucket(task);
@@ -390,7 +392,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
 
     private static ActionTaskQueryService CreateQueryService()
     {
-        var clock = new SystemActionTrackerClock();
+        var clock = new FixedActionTrackerClock();
         return new ActionTaskQueryService(clock, new ActionTaskReportBuilder(clock));
     }
 

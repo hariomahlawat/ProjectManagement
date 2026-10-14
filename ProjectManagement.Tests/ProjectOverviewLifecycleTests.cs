@@ -53,7 +53,7 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(0, overview.MediaSummary.PhotoCount);
         Assert.Equal(0, overview.DocumentSummary.PublishedCount);
         Assert.False(overview.TotSummary.HasTotRecord);
-        Assert.Equal("Not tracked", overview.TotSummary.StatusLabel);
+        Assert.Equal("Not recorded", overview.TotSummary.StatusLabel);
         Assert.Equal(0, overview.RemarkSummary.TotalCount);
     }
 
@@ -79,8 +79,8 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(2, overview.MediaSummary.PhotoCount);
         Assert.True(overview.MediaSummary.HasAdditionalPhotos);
         Assert.Equal(1, overview.DocumentSummary.PublishedCount);
-        Assert.Equal(1, overview.RemarkSummary.TotalCount);
-        Assert.Equal(RemarkType.Internal, overview.RemarkSummary.LastRemarkType);
+        Assert.Equal(2, overview.RemarkSummary.TotalCount);
+        Assert.Equal(RemarkType.External, overview.RemarkSummary.LastRemarkType);
         Assert.Equal(ProjectTotStatus.Completed, overview.TotSummary.Status);
         Assert.Contains("Transfer of Technology completed", overview.TotSummary.Summary, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(overview.TotSummary.LatestRemark);
@@ -230,7 +230,7 @@ public sealed class ProjectOverviewLifecycleTests
             Reason = "Scope reduced"
         };
 
-        var user = CreateUser("hod-5");
+        var user = CreateUser("hod-5", "HoD");
         ConfigurePageContext(overview, user);
 
         var result = await overview.OnPostCancelAsync(5, CancellationToken.None);
@@ -282,6 +282,11 @@ public sealed class ProjectOverviewLifecycleTests
 
     private static async Task SeedCompletedProjectAsync(ApplicationDbContext db, int projectId)
     {
+        db.Users.AddRange(
+            new ApplicationUser { Id = "creator", UserName = "creator" },
+            new ApplicationUser { Id = "uploader", UserName = "uploader" },
+            new ApplicationUser { Id = "author", UserName = "author" });
+
         var project = new Project
         {
             Id = projectId,
@@ -351,7 +356,7 @@ public sealed class ProjectOverviewLifecycleTests
             Type = RemarkType.Internal,
             Body = "Final walkthrough completed.",
             EventDate = new DateOnly(2024, 4, 5),
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = new DateTime(2024, 4, 5, 8, 0, 0, DateTimeKind.Utc)
         });
 
         db.Remarks.Add(new Remark
@@ -363,7 +368,7 @@ public sealed class ProjectOverviewLifecycleTests
             Scope = RemarkScope.TransferOfTechnology,
             Body = "Knowledge handover with partner completed.",
             EventDate = new DateOnly(2024, 3, 20),
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = new DateTime(2024, 4, 6, 8, 0, 0, DateTimeKind.Utc)
         });
 
         db.ProjectTots.Add(new ProjectTot

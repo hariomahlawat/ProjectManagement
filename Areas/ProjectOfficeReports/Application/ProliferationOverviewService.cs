@@ -220,25 +220,44 @@ public sealed class ProliferationOverviewService
                         where !project.IsDeleted && !project.IsArchived
                         join user in _db.Users.AsNoTracking() on pref.SetByUserId equals user.Id into userJoin
                         from user in userJoin.DefaultIfEmpty()
-                        select new PreferenceProjection(
-                            pref,
-                            project.Name,
-                            project.CaseFileNumber,
-                            user != null ? user.FullName : null,
-                            user != null ? user.UserName : null);
+                        select new
+                        {
+                            Preference = pref,
+                            ProjectName = project.Name,
+                            ProjectCode = project.CaseFileNumber,
+                            SetByFullName = user != null ? user.FullName : null,
+                            SetByUserName = user != null ? user.UserName : null
+                        };
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var trimmed = request.Search.Trim();
-            var like = $"%{trimmed}%";
-            baseQuery = baseQuery.Where(x =>
-                EF.Functions.ILike(x.ProjectName, like) ||
-                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like)) ||
-                (x.SetByFullName != null && EF.Functions.ILike(x.SetByFullName, like)) ||
-                (x.SetByUserName != null && EF.Functions.ILike(x.SetByUserName, like)));
+            if (_db.Database.IsNpgsql())
+            {
+                var like = $"%{trimmed}%";
+                baseQuery = baseQuery.Where(x =>
+                    EF.Functions.ILike(x.ProjectName, like) ||
+                    (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like)) ||
+                    (x.SetByFullName != null && EF.Functions.ILike(x.SetByFullName, like)) ||
+                    (x.SetByUserName != null && EF.Functions.ILike(x.SetByUserName, like)));
+            }
+            else
+            {
+                var normalized = trimmed.ToLowerInvariant();
+                baseQuery = baseQuery.Where(x =>
+                    x.ProjectName.ToLower().Contains(normalized) ||
+                    (x.ProjectCode != null && x.ProjectCode.ToLower().Contains(normalized)) ||
+                    (x.SetByFullName != null && x.SetByFullName.ToLower().Contains(normalized)) ||
+                    (x.SetByUserName != null && x.SetByUserName.ToLower().Contains(normalized)));
+            }
         }
 
-        var projections = await baseQuery.ToListAsync(cancellationToken);
+        // Apply filters to a translatable projection before constructing the
+        // result record; EF cannot push predicates through record constructors.
+        var projections = await baseQuery
+            .Select(x => new PreferenceProjection(
+                x.Preference, x.ProjectName, x.ProjectCode, x.SetByFullName, x.SetByUserName))
+            .ToListAsync(cancellationToken);
 
         if (projections.Count == 0)
         {

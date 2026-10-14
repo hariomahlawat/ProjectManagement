@@ -118,8 +118,9 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
             var result = await page.OnPostUploadAsync(socialEvent.Id, CancellationToken.None);
 
-            Assert.IsType<PageResult>(result);
-            Assert.Equal("1 photo uploaded.", page.TempData["ToastMessage"]);
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal(socialEvent.Id, redirect.RouteValues?["id"]);
+            Assert.Equal("1 photograph uploaded.", page.TempData["ToastMessage"]);
             Assert.False(page.TempData.ContainsKey("ToastError"));
             Assert.Equal(!withEditValidationErrors, page.ModelState.IsValid);
 
@@ -137,6 +138,7 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             var photoFolder = Path.Combine(tempRoot, photo.StorageKey.Replace('/', Path.DirectorySeparatorChar));
             Assert.True(File.Exists(Path.Combine(photoFolder, "feed.jpg")));
 
+            Assert.IsType<PageResult>(await page.OnGetAsync(socialEvent.Id, CancellationToken.None));
             Assert.Equal(1, page.PhotoGallery.Photos.Count);
         }
         finally
@@ -220,8 +222,9 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
             var result = await page.OnPostUploadAsync(socialEvent.Id, CancellationToken.None);
 
-            Assert.IsType<PageResult>(result);
-            Assert.Equal("1 photo uploaded.", page.TempData["ToastMessage"]);
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal(socialEvent.Id, redirect.RouteValues?["id"]);
+            Assert.Equal("1 photograph uploaded.", page.TempData["ToastMessage"]);
             Assert.False(page.TempData.ContainsKey("ToastError"));
 
             var persistedEvent = await db.SocialMediaEvents.Include(x => x.Photos).SingleAsync(x => x.Id == socialEvent.Id);
@@ -329,8 +332,9 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
             var result = await page.OnPostUploadAsync(socialEvent.Id, CancellationToken.None);
 
-            Assert.IsType<PageResult>(result);
-            Assert.Equal("2 photos uploaded.", page.TempData["ToastMessage"]);
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal(socialEvent.Id, redirect.RouteValues?["id"]);
+            Assert.Equal("2 photographs uploaded.", page.TempData["ToastMessage"]);
             Assert.False(page.TempData.ContainsKey("ToastError"));
             Assert.True(page.ModelState.IsValid);
 
@@ -347,6 +351,7 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             Assert.True(File.Exists(Path.Combine(firstFolder, "feed.jpg")));
             Assert.True(File.Exists(Path.Combine(secondFolder, "feed.jpg")));
 
+            Assert.IsType<PageResult>(await page.OnGetAsync(socialEvent.Id, CancellationToken.None));
             Assert.Equal(2, page.PhotoGallery.Photos.Count);
         }
         finally
@@ -600,11 +605,14 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             ConfigurePageContext(page, CreatePrincipal("deleter", "Admin"));
             page.RowVersion = rowVersion;
 
+            // InMemory has no database cascade; track the dependents so EF applies relationship deletion.
+            await db.SocialMediaEventPhotos.LoadAsync();
+
             var result = await page.OnPostAsync(socialEvent.Id, CancellationToken.None);
 
             var redirect = Assert.IsType<RedirectToPageResult>(result);
             Assert.Equal("Index", redirect.PageName);
-            Assert.Equal("Social media event deleted.", page.TempData["ToastMessage"]);
+            Assert.Equal("Social media activity deleted.", page.TempData["ToastMessage"]);
 
             Assert.False(await db.SocialMediaEvents.AnyAsync());
             Assert.False(await db.SocialMediaEventPhotos.AnyAsync());

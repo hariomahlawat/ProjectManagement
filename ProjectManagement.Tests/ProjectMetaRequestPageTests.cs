@@ -47,7 +47,8 @@ public sealed class ProjectMetaRequestPageTests
         {
             ProjectId = 100,
             Name = "Alpha",
-            Description = new string('R', ProjectFieldLimits.DescriptionMaxLength)
+            Description = new string('R', ProjectFieldLimits.DescriptionMaxLength),
+            Reason = "Update project description."
         };
 
         ApplyDataAnnotationsModelValidation(page.Input, "Input", page.ModelState);
@@ -60,7 +61,8 @@ public sealed class ProjectMetaRequestPageTests
         var payload = JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(request.Payload);
         Assert.NotNull(payload);
         Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, payload!.Description!.Length);
-        Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, request.OriginalDescription!.Length);
+        Assert.Equal("Initial", request.OriginalDescription);
+        Assert.Equal("Update project description.", request.RequestNote);
     }
 
     [Fact]
@@ -84,7 +86,8 @@ public sealed class ProjectMetaRequestPageTests
         {
             ProjectId = 101,
             Name = "Beta",
-            Description = new string('R', ProjectFieldLimits.DescriptionMaxLength + 1)
+            Description = new string('R', ProjectFieldLimits.DescriptionMaxLength + 1),
+            Reason = "Update project description."
         };
 
         ApplyDataAnnotationsModelValidation(page.Input, "Input", page.ModelState);

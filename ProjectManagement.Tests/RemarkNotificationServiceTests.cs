@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
@@ -141,10 +142,10 @@ public class RemarkNotificationServiceTests
         await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
 
         Assert.Single(publisher.Events);
-        dynamic payload = publisher.Events[0].Payload;
-        Assert.Equal(remark.Id, (int)payload.RemarkId);
-        Assert.Equal("Project Four", (string)payload.ProjectName);
-        Assert.Equal("Field Stage", (string)payload.Stage);
+        var payload = JsonSerializer.SerializeToElement(publisher.Events[0].Payload);
+        Assert.Equal(remark.Id, payload.GetProperty("RemarkId").GetInt32());
+        Assert.Equal("Project Four", payload.GetProperty("ProjectName").GetString());
+        Assert.Equal("Field Stage", payload.GetProperty("Stage").GetString());
 
         var metadata = publisher.Events[0];
         Assert.Equal("Remarks", metadata.Module);
@@ -153,7 +154,7 @@ public class RemarkNotificationServiceTests
         Assert.Equal(remark.Id.ToString(), metadata.ScopeId);
         Assert.Equal($"/projects/remarks/{project.ProjectId}?remarkId={remark.Id}", metadata.Route);
 
-        string preview = payload.Preview;
+        string preview = payload.GetProperty("Preview").GetString()!;
         Assert.Equal(121, preview.Length);
         Assert.EndsWith("…", preview, StringComparison.Ordinal);
         Assert.Equal(new string('A', 120), preview[..120]);
@@ -276,7 +277,7 @@ public class RemarkNotificationServiceTests
 
     private static void SeedUsers(ApplicationDbContext db)
     {
-        if (db.Users.Any())
+        if (db.Users.Any(user => user.Id == "po-1"))
         {
             return;
         }

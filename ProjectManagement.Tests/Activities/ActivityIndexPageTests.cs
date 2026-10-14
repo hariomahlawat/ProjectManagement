@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -353,12 +354,27 @@ public sealed class ActivityIndexPageTests
         var pageMarkup = ReadRepoFile("Pages", "Activities", "Index.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("asp-for=\"ActivityTypeId\" class=\"form-select\" asp-items=\"Model.ActivityTypeOptions\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
-        Assert.Contains("asp-for=\"MediaFilter\" class=\"form-select\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
-        Assert.Contains("asp-for=\"FromDate\" class=\"form-control\" type=\"date\" aria-label=\"From date\"", pageMarkup, StringComparison.Ordinal);
-        Assert.Contains("asp-for=\"ToDate\" class=\"form-control\" type=\"date\" aria-label=\"To date\"", pageMarkup, StringComparison.Ordinal);
-        Assert.DoesNotContain("asp-for=\"FromDate\" class=\"form-control\" type=\"date\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
-        Assert.DoesNotContain("asp-for=\"ToDate\" class=\"form-control\" type=\"date\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
+        string Element(string field) => Regex.Match(pageMarkup,
+            $"<(?:input|select)\\b[^>]*asp-for=\"{field}\"[^>]*>").Value;
+
+        foreach (var field in new[] { "ActivityTypeId", "SortBy" })
+        {
+            var element = Element(field);
+            Assert.NotEmpty(element);
+            Assert.Contains("data-activities-autosubmit", element, StringComparison.Ordinal);
+        }
+
+        foreach (var field in new[] { "FromDate", "ToDate", "MediaFilter" })
+        {
+            var element = Element(field);
+            Assert.NotEmpty(element);
+            Assert.DoesNotContain("data-activities-autosubmit", element, StringComparison.Ordinal);
+            if (field != "MediaFilter")
+            {
+                Assert.Contains("type=\"date\"", element, StringComparison.Ordinal);
+            }
+        }
+        Assert.Contains("Apply filters", pageMarkup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -369,7 +385,7 @@ public sealed class ActivityIndexPageTests
 
         // SECTION: Assert
         Assert.Contains("querySelectorAll('[data-activities-autosubmit]')", script, StringComparison.Ordinal);
-        Assert.Contains("input.addEventListener('change', submitFiltersFromFirstPage)", script, StringComparison.Ordinal);
+        Assert.Contains("input.addEventListener('change', submitFromFirstPage)", script, StringComparison.Ordinal);
         Assert.DoesNotContain("input[name=\"FromDate\"]", script, StringComparison.Ordinal);
         Assert.DoesNotContain("input[name=\"ToDate\"]", script, StringComparison.Ordinal);
     }

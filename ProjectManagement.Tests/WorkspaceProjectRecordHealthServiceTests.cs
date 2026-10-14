@@ -133,7 +133,10 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
 
         Assert.Contains(health.GapDetails, gap => gap.Code == "AON_COST" && gap.FieldLabel == "AoN Cost");
         Assert.DoesNotContain(health.GapDetails, gap => gap.Code == "BENCHMARK_COST"); // BM is not completed yet.
-        Assert.Equal(63, health.HealthPercent);
+        // BID and TEC have no persisted rows. The canonical current stage is BID,
+        // so BM planning dates do not earn the 15 current-stage timeline points.
+        Assert.Contains(health.GapDetails, gap => gap.Code == "CURRENT_STAGE_PDC" && gap.FieldLabel == "BID — PDC");
+        Assert.Equal(48, health.HealthPercent);
     }
 
     [Fact]

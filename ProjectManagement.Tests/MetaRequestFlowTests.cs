@@ -91,8 +91,9 @@ public sealed class MetaRequestFlowTests
 
         var approvalHeader = audit.Entries.Single(e => e.Action == "Projects.MetaChangeApproved");
         Assert.Equal("false", approvalHeader.Data.TryGetValue("DriftDetected", out var detected) ? detected : null);
-        Assert.Equal("50", approvalHeader.Data.TryGetValue("TechnicalCategoryIdBefore", out var techBefore) ? techBefore : null);
-        Assert.Equal("50", approvalHeader.Data.TryGetValue("TechnicalCategoryIdAfter", out var techAfter) ? techAfter : null);
+        var diff = audit.Entries.Single(e => e.Action == "Projects.MetaChangedViaApproval");
+        Assert.Equal("50", diff.Data.TryGetValue("TechnicalCategoryIdBefore", out var techBefore) ? techBefore : null);
+        Assert.Equal("50", diff.Data.TryGetValue("TechnicalCategoryIdAfter", out var techAfter) ? techAfter : null);
     }
 
     [Fact]
@@ -170,8 +171,9 @@ public sealed class MetaRequestFlowTests
         Assert.Contains("Name", driftFields.Split(',', StringSplitOptions.RemoveEmptyEntries));
         Assert.Contains("ProjectRecord", driftFields.Split(',', StringSplitOptions.RemoveEmptyEntries));
         Assert.Contains(ProjectMetaChangeDriftFields.TechnicalCategory, driftFields.Split(',', StringSplitOptions.RemoveEmptyEntries));
-        Assert.Equal("61", header.Data.TryGetValue("TechnicalCategoryIdBefore", out var driftBefore) ? driftBefore : null);
-        Assert.Equal("60", header.Data.TryGetValue("TechnicalCategoryIdAfter", out var driftAfter) ? driftAfter : null);
+        var diff = audit.Entries.Single(e => e.Action == "Projects.MetaChangedViaApproval");
+        Assert.Equal("61", diff.Data.TryGetValue("TechnicalCategoryIdBefore", out var driftBefore) ? driftBefore : null);
+        Assert.Equal("60", diff.Data.TryGetValue("TechnicalCategoryIdAfter", out var driftAfter) ? driftAfter : null);
     }
 
     [Fact]

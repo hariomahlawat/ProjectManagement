@@ -166,11 +166,12 @@ public sealed class UserMentionApiTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UsePrismTestInfrastructure("usermentionapi");
+            var databaseName = $"mentions-{Guid.NewGuid()}";
 
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
-                services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase($"mentions-{Guid.NewGuid()}"));
+                services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
             });
 
             builder.ConfigureTestServices(services =>

@@ -44,17 +44,18 @@ public class RoleBasedNavigationProviderTests
         var provider = CreateProvider(userManager, httpContextAccessor);
         var navigation = await provider.GetNavigationAsync();
 
-        var adminPanel = navigation.Single(item => item.Text == "Admin Panel");
+        var adminPanel = navigation.Single(item => item.Text == "Administration");
         var children = adminPanel.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Project trash");
-        Assert.Contains(children, c => c.Text == "Recycle bin");
+        Assert.Contains(children, c => c.Text == "Document recycle bin");
         Assert.Contains(children, c => c.Text == "Deleted events");
         Assert.Contains(children, c => c.Text == "Activity types" && c.Page == "/ActivityTypes/Index");
 
         var archivedProjects = children.Single(c => c.Text == "Archived projects");
-        Assert.True(archivedProjects.RouteValues?.ContainsKey("IncludeArchived"));
-        Assert.Equal(true, archivedProjects.RouteValues?["IncludeArchived"]);
+        Assert.Equal("Admin", archivedProjects.Area);
+        Assert.Equal("/Projects/Archived", archivedProjects.Page);
+        Assert.Equal(AdminPolicies.RecoveryManage, archivedProjects.AuthorizationPolicy);
     }
 
     [Fact]

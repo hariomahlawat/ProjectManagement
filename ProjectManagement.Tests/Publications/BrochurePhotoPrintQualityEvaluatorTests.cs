@@ -71,17 +71,24 @@ public sealed class BrochurePhotoPrintQualityEvaluatorTests
     }
 
     [Fact]
-    public void DigitalComfortable_UsesScreenFirstEffectiveDpiFloor()
+    public void DigitalComfortable_UsesScreenFirstEffectiveDpiFloorForFullWidthFeature()
     {
         var assessment = BrochurePhotoPrintQualityEvaluator.Assess(
+            1280,
+            1280,
+            BrochurePublicationProfile.DigitalComfortable,
+            BrochurePhotoPrintPlacement.ProjectFeature);
+        var soft = BrochurePhotoPrintQualityEvaluator.Assess(
             1024,
             1024,
             BrochurePublicationProfile.DigitalComfortable,
             BrochurePhotoPrintPlacement.ProjectFeature);
 
         Assert.Equal(BrochurePhotoPrintQualityEvaluator.DigitalComfortableRecommendedDpi, assessment.RecommendedDpi);
-        Assert.True(assessment.EffectiveDpi > 190d);
+        Assert.InRange(assessment.EffectiveDpi, 184d, 185d);
         Assert.True(assessment.MeetsRecommendation);
+        Assert.InRange(soft.EffectiveDpi, 147d, 148d);
+        Assert.False(soft.MeetsRecommendation);
     }
     [Fact]
     public void DigitalComfortable_EditorialSplit_EvaluatesAgainstActualLargerSplitFrame()

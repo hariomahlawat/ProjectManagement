@@ -11,8 +11,11 @@ public sealed class FfcDetailedTableContractTests
     {
         var markup = ReadTestData("_DetailedTablePartial.cshtml");
 
+        var headerStart = markup.IndexOf("<thead>", StringComparison.Ordinal);
+        var headerEnd = markup.IndexOf("</thead>", headerStart, StringComparison.Ordinal);
+        Assert.True(headerStart >= 0 && headerEnd > headerStart);
         AssertAppearsInOrder(
-            markup,
+            markup[headerStart..headerEnd],
             "S. No.",
             "Project",
             "Cost (₹ lakh)",

@@ -402,7 +402,8 @@ namespace ProjectManagement.Pages.Projects
                 .Take(2)
                 .ToList();
 
-            var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
+            var connectionHash = ConnectionStringHasher.Hash(
+                _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null);
 
             var workflowVersion = project.WorkflowVersion;
             var orderedStageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);

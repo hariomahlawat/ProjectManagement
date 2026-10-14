@@ -486,7 +486,7 @@ public sealed class OfficerConferenceReadServiceTests
             result!.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
         var placeholder = Assert.Single(projectItem.ProgressEntries);
         Assert.Equal("Project Officer", placeholder.Label);
-        Assert.Equal("No remark by the Project Officer after the direction.", placeholder.EmptyText);
+        Assert.Equal("Progress update awaited. No Project Officer remark has been recorded since the direction was issued.", placeholder.EmptyText);
         Assert.Null(placeholder.Body);
     }
 
@@ -659,7 +659,7 @@ public sealed class OfficerConferenceReadServiceTests
             result!.Sections.Single(section => section.Kind == ConferenceItemKind.ActionTask).Items);
         var placeholder = Assert.Single(taskItem.ProgressEntries);
         Assert.Equal("Task Assignee", placeholder.Label);
-        Assert.Equal("No update by the task assignee after the direction.", placeholder.EmptyText);
+        Assert.Equal("Progress update awaited. No task-assignee update has been recorded since the direction was issued.", placeholder.EmptyText);
         Assert.Null(placeholder.Body);
     }
 
@@ -687,7 +687,7 @@ public sealed class OfficerConferenceReadServiceTests
             LifecycleStatus = ProjectLifecycleStatus.Completed,
             CompletedOn = new DateOnly(2026, 7, 25),
             CompletedYear = 2026,
-            CompletedMonth = 7
+            CompletedMonth = null
         };
         db.Projects.Add(project);
         await db.SaveChangesAsync();
@@ -839,7 +839,7 @@ public sealed class OfficerConferenceReadServiceTests
             LifecycleStatus = ProjectLifecycleStatus.Completed,
             CompletedOn = new DateOnly(2026, 7, 25),
             CompletedYear = 2026,
-            CompletedMonth = 7
+            CompletedMonth = null
         };
         var idea = new ProjectIdea
         {

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Xml.Linq;
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -105,7 +106,12 @@ public sealed class FfcDetailedTableExportTests
         using var reader = new StreamReader(sheetEntry.Open());
         var sheetXml = reader.ReadToEnd();
         Assert.Contains("autoFilter", sheetXml, StringComparison.Ordinal);
-        Assert.Contains("state=\"frozen\"", sheetXml, StringComparison.Ordinal);
+        XNamespace spreadsheet = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        var pane = Assert.Single(XDocument.Parse(sheetXml).Descendants(spreadsheet + "pane"));
+        Assert.Contains((string?)pane.Attribute("state"), new[] { "frozen", "frozenSplit" });
+        Assert.Equal("3", (string?)pane.Attribute("xSplit"));
+        Assert.Equal("9", (string?)pane.Attribute("ySplit"));
+        Assert.Equal("D10", (string?)pane.Attribute("topLeftCell"));
         Assert.Contains("orientation=\"landscape\"", sheetXml, StringComparison.Ordinal);
     }
 

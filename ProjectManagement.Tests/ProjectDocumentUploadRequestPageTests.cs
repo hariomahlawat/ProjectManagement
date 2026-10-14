@@ -98,6 +98,8 @@ public sealed class ProjectDocumentUploadRequestPageTests
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
         await SeedProjectAsync(db, 2, leadPoUserId: "po-2");
+        // Ensure stage selection is enabled for the target project before testing a foreign stage.
+        await SeedStageAsync(db, 1, 10, StageCodes.FS, sortOrder: 1);
         await SeedStageAsync(db, 2, 20, StageCodes.DEVP, sortOrder: 1);
 
         var userContext = new FakeUserContext("po-1", "Project Officer");

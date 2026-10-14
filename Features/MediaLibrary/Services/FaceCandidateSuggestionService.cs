@@ -116,8 +116,10 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
         var dimension = _options.Embedder.EmbeddingDimension;
+        // Scalar IDs do not materialize assets. A tracking annotation in this subquery
+        // would also change tracking for the outer face query during EF normalization.
         var visibleAssetIds = _visibility
-            .Apply(_db.Assets.AsNoTracking())
+            .Apply(_db.Assets)
             .Select(asset => asset.Id);
         return FaceCandidateRefreshQueueService.BuildQueueableFacesQuery(
                 _db,
@@ -126,6 +128,8 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
                 dimension,
                 _options.CandidateMinimumFaceQuality,
                 visibleAssetIds)
+            // The visibility subquery is read-only; candidate state updates require tracked faces.
+            .AsTracking()
             .Include(face => face.Embeddings.Where(embedding =>
                 embedding.InvalidatedAtUtc == null
                 && embedding.ModelKey == modelKey

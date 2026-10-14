@@ -266,6 +266,7 @@ public sealed class NotebookChecklistPersistenceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1", FullName = "Notebook Owner" });
         var clock = new TestClock { UtcNowValue = new DateTimeOffset(2026, 6, 22, 10, 0, 0, TimeSpan.Zero) };
         var ownerId = "owner-1";
         var item = new NotebookItem

@@ -11,13 +11,15 @@ public sealed class ProjectBriefingRemainingIssuesContractTests
     {
         var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
         var dataService = Read("ProjectBriefingDataService.cs");
+        var planner = Read("ProjectBriefingUpdateSheetPlanner.cs");
 
         Assert.Contains("BRIEF OF THE PROJECT — CONTINUED", composer, StringComparison.Ordinal);
         Assert.Contains("allowAutoFit: false", composer, StringComparison.Ordinal);
-        Assert.Contains("new UpdateSheetBriefTypography(12.0", composer, StringComparison.Ordinal);
+        Assert.Contains("new(12.0, 14.4, 4.0)", planner, StringComparison.Ordinal);
+        Assert.Contains("BriefPages", composer, StringComparison.Ordinal);
         Assert.Contains("PrepareUpdateSheetPhoto", composer, StringComparison.Ordinal);
         Assert.Contains(".Crop(crop)", composer, StringComparison.Ordinal);
-        Assert.Contains("EstimateProjectUpdateSheetSlides", dataService, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingUpdateSheetPlanner.EstimateSlideCount", dataService, StringComparison.Ordinal);
     }
 
     private static string Read(string fileName)

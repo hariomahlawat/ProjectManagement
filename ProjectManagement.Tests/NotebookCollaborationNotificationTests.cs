@@ -121,14 +121,20 @@ public sealed class NotebookCollaborationNotificationTests
         Assert.False(edited.CanManageLifecycle);
         Assert.False(edited.CanManageMetadata);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.CompleteAsync(
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.CompleteAsync(
             fixture.Collaborator.Id, fixture.Item.Id, true, edited.Version));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.UpdateAsync(
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.UpdateAsync(
             fixture.Collaborator.Id,
             fixture.Item.Id,
             new NotebookUpdateInput { Title = "Attempted metadata change", ColorKey = "green" },
             edited.Version));
+
+        var unchanged = await fixture.Service.GetDetailAsync(fixture.Owner.Id, fixture.Item.Id);
+        Assert.Equal("Collaborative update", unchanged!.Title);
+        Assert.Equal(edited.Version, unchanged.Version);
+        Assert.Equal(NotebookItemStatus.Active, unchanged.Status);
+        Assert.Equal(edited.ColorKey, unchanged.ColorKey);
     }
 
     [Fact]

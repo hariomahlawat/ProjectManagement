@@ -16,6 +16,8 @@ public sealed class NotebookDateClassificationTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
 
         // 08 Aug 2026 12:00 IST. The IST day starts at 07 Aug 18:30 UTC.
         var now = new DateTimeOffset(2026, 8, 8, 6, 30, 0, TimeSpan.Zero);

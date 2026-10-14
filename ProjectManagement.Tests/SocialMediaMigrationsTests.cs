@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using ProjectManagement.Data;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using Xunit;
@@ -16,7 +17,7 @@ public sealed class SocialMediaMigrationsTests
             .Options;
 
         using var context = new ApplicationDbContext(options);
-        var entityType = context.Model.FindEntityType(typeof(SocialMediaEventType));
+        var entityType = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(SocialMediaEventType));
         Assert.NotNull(entityType);
 
         var seedRows = entityType!.GetSeedData()

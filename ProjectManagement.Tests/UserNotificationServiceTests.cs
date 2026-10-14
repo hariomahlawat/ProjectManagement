@@ -280,7 +280,7 @@ public sealed class UserNotificationServiceTests
             document =>
             {
                 Assert.Equal("Document published", document.Title);
-                Assert.Equal("Noting sheets – 1", document.Summary);
+                Assert.Equal("Noting sheets – 1 · 127133026/2/2026", document.Summary);
                 Assert.NotNull(document.SummaryTooltip);
             });
     }
@@ -524,7 +524,7 @@ public sealed class UserNotificationServiceTests
             document =>
             {
                 Assert.Equal("Document published", document.Title);
-                Assert.Equal("Noting sheets – 1", document.Summary);
+                Assert.Equal("Noting sheets – 1 · 127133026/2/2026", document.Summary);
             });
     }
 

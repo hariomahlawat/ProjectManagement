@@ -1,3 +1,4 @@
+using ProjectManagement.Tests.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -103,7 +104,7 @@ public sealed class TrainingIndexPageTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ManageColumn_RenderedOnlyForManagers(bool canManage)
+    public async Task ManageAction_RenderedOnlyForManagers(bool canManage)
     {
         var html = await RenderIndexPageAsync(canManage);
 
@@ -114,7 +115,8 @@ public sealed class TrainingIndexPageTests
         }
         else
         {
-            Assert.DoesNotContain("<th scope=\"col\" class=\"text-end\">Actions</th>", html, StringComparison.Ordinal);
+            Assert.Contains("<th scope=\"col\" class=\"text-end\">Actions</th>", html, StringComparison.Ordinal);
+            Assert.Contains(">View<", html, StringComparison.Ordinal);
             Assert.DoesNotContain(">Manage<", html, StringComparison.Ordinal);
         }
     }
@@ -140,15 +142,17 @@ public sealed class TrainingIndexPageTests
         var pageDescriptor = new PageActionDescriptor
         {
             AreaName = "ProjectOfficeReports",
-            ViewEnginePath = "/Areas/ProjectOfficeReports/Pages/Training/Index.cshtml",
+            ViewEnginePath = "/Training/Index",
             RelativePath = "/Areas/ProjectOfficeReports/Pages/Training/Index.cshtml"
         };
 
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
         var routeData = new RouteData();
+        routeData.Values["page"] = "/Training/Index";
         routeData.Values["area"] = "ProjectOfficeReports";
 
         var actionContext = new ActionContext(httpContext, routeData, pageDescriptor);
-        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Areas/ProjectOfficeReports/Pages/Training/Index.cshtml", isMainPage: true);
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Areas/ProjectOfficeReports/Pages/Training/Index.cshtml", isMainPage: false);
 
         if (!viewResult.Success)
         {
@@ -172,6 +176,10 @@ public sealed class TrainingIndexPageTests
 
         model.PageContext = pageContext;
         model.TempData = tempData;
+        if (viewResult.View is RazorView razorView && razorView.RazorPage is Page razorPage)
+        {
+            razorPage.PageContext = pageContext;
+        }
 
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
@@ -263,6 +271,7 @@ public sealed class TrainingIndexPageTests
         services.AddRouting();
         services.AddRazorPages();
         services.AddControllersWithViews();
+        RazorPageTestRouting.AddPageEndpoints(services);
 
         return services.BuildServiceProvider();
     }

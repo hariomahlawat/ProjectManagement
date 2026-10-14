@@ -36,6 +36,7 @@ public sealed class StageActualsUpdateServiceTests
 
         db.Projects.Add(new Project
         {
+            Id = 1,
             Name = "Actuals Test Project",
             CreatedByUserId = "user-1",
             WorkflowVersion = PlanConstants.DefaultStageTemplateVersion
@@ -253,6 +254,7 @@ public sealed class StageActualsUpdateServiceTests
 
         db.Projects.Add(new Project
         {
+            Id = 1,
             Name = "Actuals Test Project",
             CreatedByUserId = "user-1",
             WorkflowVersion = PlanConstants.DefaultStageTemplateVersion
@@ -563,6 +565,7 @@ public sealed class StageActualsUpdateServiceTests
 
         db.Projects.Add(new Project
         {
+            Id = 1,
             Name = "Actuals Test Project",
             CreatedByUserId = "user-1",
             WorkflowVersion = PlanConstants.DefaultStageTemplateVersion

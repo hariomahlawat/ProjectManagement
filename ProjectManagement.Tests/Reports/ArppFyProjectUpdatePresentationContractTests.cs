@@ -47,7 +47,8 @@ public sealed class ArppFyProjectUpdatePresentationContractTests
         Assert.Contains("formal-report-arpp", css, StringComparison.Ordinal);
         Assert.Contains("overflow-wrap: anywhere", css, StringComparison.Ordinal);
         Assert.Contains(".report-toolbar__listing", css, StringComparison.Ordinal);
-        Assert.Contains("--reports-sticky-top: 106px", css, StringComparison.Ordinal);
+        Assert.Contains("--reports-nav-stack: 98px;", css, StringComparison.Ordinal);
+        Assert.Contains("--reports-sticky-top: calc(var(--reports-nav-stack) + 8px);", css, StringComparison.Ordinal);
         Assert.DoesNotContain("max-width: 760px", css, StringComparison.Ordinal);
         Assert.DoesNotContain("max-height: 260px", css, StringComparison.Ordinal);
     }
@@ -75,7 +76,8 @@ public sealed class ArppFyProjectUpdatePresentationContractTests
                 "Reports",
                 "ArppFyProjectUpdate",
                 builder);
-            Assert.Contains("resolvedOptions.ResolveListingDate(row)", source, StringComparison.Ordinal);
+            var optionsInScope = builder == "ArppFyProjectUpdateWordBuilder.cs" ? "options" : "resolvedOptions";
+            Assert.Contains($"{optionsInScope}.ResolveListingDate(row)", source, StringComparison.Ordinal);
         }
     }
 

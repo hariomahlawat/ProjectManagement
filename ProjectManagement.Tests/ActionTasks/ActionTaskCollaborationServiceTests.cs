@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -470,6 +471,85 @@ public class ActionTaskCollaborationServiceTests
     }
 
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FileOwningUpdate_RejectsAmbientTransactionWithoutSideEffects(bool changeStatus)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "action-task-ambient-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            await using var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+            await using var db = new ApplicationDbContext(options);
+            await db.Database.EnsureCreatedAsync();
+            db.Users.AddRange(
+                new ApplicationUser { Id = "creator", UserName = "creator", FullName = "Creator" },
+                new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Owner" });
+            await db.SaveChangesAsync();
+            var task = await SeedTaskAsync(db, "owner");
+            var notifications = new RecordingNotifications();
+            var service = new ActionTaskCollaborationService(
+                db, new ActionTaskPermissionService(), new TestUploadRootProvider(root),
+                new PassFileSecurityValidator(), new StubUrlBuilder(), new TestActionTrackerClock(), notifications);
+            await using var outer = await db.Database.BeginTransactionAsync();
+            task.Description = "Outer transaction work";
+            await db.SaveChangesAsync();
+            var files = new[] { BuildFile("progress.txt", "text/plain", 16) };
+
+            var exception = await Record.ExceptionAsync(async () =>
+            {
+                if (changeStatus)
+                    await service.AddUpdateAndMaybeChangeStatusAsync(task.Id, "Work started", ActionTaskStatuses.InProgress,
+                        "owner", RoleNames.Ta, files, task.RowVersion);
+                else
+                    await service.AddUpdateAsync(task.Id, "Progress report", ActionTaskUpdateTypes.Progress,
+                        "owner", RoleNames.Ta, files);
+            });
+
+            Assert.IsType<InvalidOperationException>(exception);
+            Assert.Contains("existing transaction", exception!.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Same(outer, db.Database.CurrentTransaction);
+            Assert.Equal("Outer transaction work", (await db.ActionTasks.AsNoTracking().SingleAsync(t => t.Id == task.Id)).Description);
+            Assert.Equal(ActionTaskStatuses.Assigned, task.Status);
+            Assert.Empty(await db.ActionTaskUpdates.ToListAsync());
+            Assert.Empty(await db.ActionTaskAttachments.ToListAsync());
+            Assert.Empty(await db.ActionTaskAuditLogs.ToListAsync());
+            Assert.Empty(Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories));
+            Assert.Equal(0, notifications.Calls);
+
+            await outer.RollbackAsync();
+            db.ChangeTracker.Clear();
+            Assert.Equal("Desc", (await db.ActionTasks.SingleAsync(t => t.Id == task.Id)).Description);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class RecordingNotifications : IActionTaskNotificationService
+    {
+        public int Calls { get; private set; }
+        private Task RecordCall() { Calls++; return Task.CompletedTask; }
+        public Task NotifyTaskAssignedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyTaskReassignedAsync(ActionTaskItem task, string? previousAssigneeUserId, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyTaskDetailsUpdatedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyConferenceDirectionEditedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyConferenceDirectionDeletedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyStatusChangedAsync(ActionTaskItem task, string previousStatus, string newStatus, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyTaskBlockedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifySubmittedForClosureAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyTaskClosedAsync(ActionTaskItem task, string actorUserId, bool closedByCommandAuthority, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyDueDateChangedAsync(ActionTaskItem task, DateTime oldDate, DateTime newDate, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyMovedToBacklogAsync(ActionTaskItem task, string? previousAssigneeUserId, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyRemovedFromSprintAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+        public Task NotifyAddedToSprintAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default) => RecordCall();
+    }
+
     private static ActionTaskCollaborationService CreateService(ApplicationDbContext db)
         => new(db, new ActionTaskPermissionService(), new TestUploadRootProvider(), new PassFileSecurityValidator(), new StubUrlBuilder(), new TestActionTrackerClock());
 
@@ -520,7 +600,8 @@ public class ActionTaskCollaborationServiceTests
 
     private sealed class TestUploadRootProvider : IUploadRootProvider
     {
-        public string RootPath => Path.GetTempPath();
+        public TestUploadRootProvider(string? rootPath = null) => RootPath = rootPath ?? Path.GetTempPath();
+        public string RootPath { get; }
         public string GetProjectRoot(int projectId) => RootPath;
         public string GetProjectPhotosRoot(int projectId) => RootPath;
         public string GetProjectDocumentsRoot(int projectId) => RootPath;

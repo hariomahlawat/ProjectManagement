@@ -85,6 +85,7 @@ public sealed class ProjectTotServiceTests
         await using var db = new ApplicationDbContext(options);
         await db.Database.EnsureCreatedAsync();
 
+        db.Users.Add(new ApplicationUser { Id = "actor", UserName = "actor" });
         db.Projects.Add(new Project
         {
             Id = 41,

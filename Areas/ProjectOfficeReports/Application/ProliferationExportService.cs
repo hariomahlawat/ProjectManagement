@@ -239,17 +239,34 @@ public sealed class ProliferationExportService : IProliferationExportService
 
         if (!string.IsNullOrEmpty(filters.Search))
         {
-            var like = $"%{EscapeLikePattern(filters.Search)}%";
-            yearlyBase = yearlyBase.Where(x =>
-                EF.Functions.ILike(x.Project.Name, like, "\\") ||
-                (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like, "\\")) ||
-                (x.Yearly.Remarks != null && EF.Functions.ILike(x.Yearly.Remarks, like, "\\")));
+            if (_db.Database.IsNpgsql())
+            {
+                var like = $"%{EscapeLikePattern(filters.Search)}%";
+                yearlyBase = yearlyBase.Where(x =>
+                    EF.Functions.ILike(x.Project.Name, like, "\\") ||
+                    (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like, "\\")) ||
+                    (x.Yearly.Remarks != null && EF.Functions.ILike(x.Yearly.Remarks, like, "\\")));
 
-            granularBase = granularBase.Where(x =>
-                EF.Functions.ILike(x.Project.Name, like, "\\") ||
-                (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like, "\\")) ||
-                EF.Functions.ILike(x.Granular.UnitName, like, "\\") ||
-                (x.Granular.Remarks != null && EF.Functions.ILike(x.Granular.Remarks, like, "\\")));
+                granularBase = granularBase.Where(x =>
+                    EF.Functions.ILike(x.Project.Name, like, "\\") ||
+                    (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like, "\\")) ||
+                    EF.Functions.ILike(x.Granular.UnitName, like, "\\") ||
+                    (x.Granular.Remarks != null && EF.Functions.ILike(x.Granular.Remarks, like, "\\")));
+            }
+            else
+            {
+                var normalized = filters.Search.ToLowerInvariant();
+                yearlyBase = yearlyBase.Where(x =>
+                    x.Project.Name.ToLower().Contains(normalized) ||
+                    (x.Project.CaseFileNumber != null && x.Project.CaseFileNumber.ToLower().Contains(normalized)) ||
+                    (x.Yearly.Remarks != null && x.Yearly.Remarks.ToLower().Contains(normalized)));
+
+                granularBase = granularBase.Where(x =>
+                    x.Project.Name.ToLower().Contains(normalized) ||
+                    (x.Project.CaseFileNumber != null && x.Project.CaseFileNumber.ToLower().Contains(normalized)) ||
+                    x.Granular.UnitName.ToLower().Contains(normalized) ||
+                    (x.Granular.Remarks != null && x.Granular.Remarks.ToLower().Contains(normalized)));
+            }
         }
 
         var yearlyRowsQuery = yearlyBase.Select(x => new

@@ -105,6 +105,8 @@ public sealed class NotebookReminderValidationTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1", FullName = "Notebook Owner" });
+        db.SaveChanges();
         var clock = new TestClock(new DateTimeOffset(2026, 7, 18, 2, 30, 0, TimeSpan.Zero));
         var service = new NotebookService(db, new NoOpAuditService(), clock, NullLogger<NotebookService>.Instance);
         return new Fixture(db, service, clock);

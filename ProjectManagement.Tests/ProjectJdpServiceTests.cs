@@ -28,6 +28,31 @@ public sealed class ProjectJdpServiceTests
     }
 
     [Fact]
+    public async Task GetProjectJdpProfile_SelectsEarliestLinkByUtcInstant()
+    {
+        await using var fixture = await JdpFixture.CreateAsync();
+        await fixture.SeedAsync();
+
+        var alphaLink = await fixture.Context.IndustryPartnerProjects.SingleAsync(link =>
+            link.ProjectId == 1 && link.IndustryPartnerId == 10);
+        alphaLink.LinkedUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.FromHours(5.5));
+        fixture.Context.IndustryPartnerProjects.Add(new IndustryPartnerProject
+        {
+            IndustryPartnerId = 20,
+            ProjectId = 1,
+            LinkedByUserId = "seed",
+            LinkedUtc = new DateTimeOffset(2025, 12, 31, 23, 0, 0, TimeSpan.Zero),
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var profile = await fixture.Service.GetProjectJdpProfileAsync(1);
+
+        Assert.Equal("Alpha Systems", profile.PartnerName);
+    }
+
+    [Fact]
     public async Task LinkProject_AllowsASecondDifferentJdpForSameProject()
     {
         await using var fixture = await JdpFixture.CreateAsync();

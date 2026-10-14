@@ -18,6 +18,7 @@ async function loadEditorModule() {
   fs.writeFileSync(path.join(tempDir, 'notebook-label-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-label-picker.js'), 'utf8').replace("./notebook-api.js", './notebook-api.mjs'));
   fs.writeFileSync(path.join(tempDir, 'notebook-confirm-dialog.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-confirm-dialog.js'), 'utf8'));
   fs.writeFileSync(path.join(tempDir, 'notebook-textarea-autosize.js'), fs.readFileSync(path.resolve(__dirname, 'notebook-textarea-autosize.js'), 'utf8'));
+  fs.copyFileSync(path.resolve(__dirname, 'notebook-reminder-scheduler.js'), path.join(tempDir, 'notebook-reminder-scheduler.js'));
   const source = fs.readFileSync(path.resolve(__dirname, 'notebook-editor.js'), 'utf8')
     .replace("./notebook-api.js", './notebook-api.mjs')
     .replace("./notebook-autosave.js", './notebook-autosave.mjs')

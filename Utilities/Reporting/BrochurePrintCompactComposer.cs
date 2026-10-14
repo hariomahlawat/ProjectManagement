@@ -1,4 +1,5 @@
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using ProjectManagement.Services.Publications;
 
@@ -62,7 +63,10 @@ internal static class BrochurePrintCompactComposer
             page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
             page.Margin(0);
             page.PageColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? Forest800 : Paper);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily));
+            // Preserve individual character mappings for PDF text extraction and page verification.
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily)
+                .DisableFontFeature(FontFeatures.StandardLigatures)
+                .DisableFontFeature(FontFeatures.ContextualLigatures));
 
             page.Content().Column(column =>
             {
@@ -451,7 +455,9 @@ internal static class BrochurePrintCompactComposer
                 : BrochurePrintLayoutMetrics.ProjectMarginTopWithHandlingPoints);
             page.MarginBottom(BrochurePrintLayoutMetrics.ProjectMarginBottomPoints);
             page.PageColor(Paper);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor(Ink));
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily)
+                .DisableFontFeature(FontFeatures.StandardLigatures)
+                .DisableFontFeature(FontFeatures.ContextualLigatures).FontColor(Ink));
 
             if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))
             {

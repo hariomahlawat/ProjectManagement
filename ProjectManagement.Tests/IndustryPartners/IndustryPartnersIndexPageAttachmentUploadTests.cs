@@ -39,7 +39,7 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
 
         var files = new FormFileCollection { formFile };
         var form = new FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>(), files);
-        page.HttpContext.Features.Set<IFormFeature>(new FormFeature(form));
+        page.Request.Form = form;
 
         // SECTION: Act
         var result = await page.OnPostUploadAttachmentAsync(partnerId: 42, CancellationToken.None);

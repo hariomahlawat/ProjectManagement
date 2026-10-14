@@ -1,3 +1,4 @@
+using ProjectManagement.Tests.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -183,7 +184,16 @@ public sealed class ActivityDetailsPageRenderingTests
             new Claim(ClaimTypes.NameIdentifier, "owner")
         }, "Test"));
 
-        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/Activities/Details";
+        var descriptor = new PageActionDescriptor
+        {
+            ViewEnginePath = "/Activities/Details",
+            RelativePath = "/Pages/Activities/Details.cshtml"
+        };
+        descriptor.RouteValues["page"] = "/Activities/Details";
+        var actionContext = new ActionContext(httpContext, routeData, descriptor);
         page.PageContext = new PageContext(actionContext);
         page.TempData = new TempDataDictionary(httpContext, provider.GetRequiredService<ITempDataProvider>());
 
@@ -191,7 +201,7 @@ public sealed class ActivityDetailsPageRenderingTests
         Assert.IsType<PageResult>(result);
 
         var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
-        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/Activities/Details.cshtml", isMainPage: true);
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/Activities/Details.cshtml", isMainPage: false);
         if (!viewResult.Success)
         {
             throw new InvalidOperationException("Unable to locate Activities details page view.");
@@ -202,7 +212,12 @@ public sealed class ActivityDetailsPageRenderingTests
         {
             Model = page
         };
+        page.PageContext.ViewData = viewData;
         var viewContext = new ViewContext(actionContext, viewResult.View, viewData, page.TempData, writer, new HtmlHelperOptions());
+        if (viewResult.View is RazorView razorView && razorView.RazorPage is Page razorPage)
+        {
+            razorPage.PageContext = page.PageContext;
+        }
 
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
@@ -215,7 +230,16 @@ public sealed class ActivityDetailsPageRenderingTests
         using var scope = Services.CreateScope();
         var provider = scope.ServiceProvider;
         var httpContext = new DefaultHttpContext { RequestServices = provider };
-        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/Activities/Details";
+        var descriptor = new PageActionDescriptor
+        {
+            ViewEnginePath = "/Activities/Details",
+            RelativePath = "/Pages/Activities/Details.cshtml"
+        };
+        descriptor.RouteValues["page"] = "/Activities/Details";
+        var actionContext = new ActionContext(httpContext, routeData, descriptor);
 
         var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
         var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/Activities/_ActivityCard.cshtml", isMainPage: false);
@@ -261,6 +285,7 @@ public sealed class ActivityDetailsPageRenderingTests
         services.AddRouting();
         services.AddRazorPages();
         services.AddControllersWithViews();
+        RazorPageTestRouting.AddPageEndpoints(services);
         return services.BuildServiceProvider();
     }
 

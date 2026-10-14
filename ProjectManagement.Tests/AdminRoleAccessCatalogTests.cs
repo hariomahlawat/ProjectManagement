@@ -53,8 +53,10 @@ public sealed class AdminRoleAccessCatalogTests
 
         var items = catalog.ForRoles(new[] { customRole }, new[] { customRole });
 
-        Assert.NotEmpty(items);
-        Assert.All(items, item => Assert.StartsWith("core-", item.Key));
+        Assert.Equal(
+            new[] { "core-workspaces", "documents-view", "industry-view-contact", "reports-common-view", "reports-ipr-view" },
+            items.Select(item => item.Key).OrderBy(key => key, StringComparer.Ordinal));
+        Assert.All(items, item => Assert.Equal(new[] { customRole }, item.PermittedRoles));
     }
 
     private static IReadOnlyList<AdminRoleAccessItem> ItemsFor(string roleName)

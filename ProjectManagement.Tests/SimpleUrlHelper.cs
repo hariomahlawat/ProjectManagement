@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 
@@ -33,7 +35,15 @@ internal sealed class SimpleUrlHelper : IUrlHelper
 
     public string? Link(string? routeName, object? values) => throw new NotImplementedException();
 
-    public string? RouteUrl(UrlRouteContext routeContext) => throw new NotImplementedException();
+    public string? RouteUrl(UrlRouteContext routeContext)
+    {
+        var values = new RouteValueDictionary(routeContext.Values);
+        var page = values.TryGetValue("page", out var pageValue) ? pageValue?.ToString() : "/";
+        var query = string.Join("&", values
+            .Where(value => value.Key != "page" && value.Value is not null)
+            .Select(value => $"{Uri.EscapeDataString(value.Key)}={Uri.EscapeDataString(value.Value!.ToString()!)}"));
+        return string.IsNullOrEmpty(query) ? page : $"{page}?{query}";
+    }
 
     public string? RouteUrl(string? routeName, object? values, string? protocol, string? host, string? fragment)
         => throw new NotImplementedException();

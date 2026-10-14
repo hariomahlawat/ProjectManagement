@@ -1,3 +1,5 @@
+using ProjectManagement.Tests.Fakes;
+using ProjectManagement.Tests.Infrastructure;
 using System.Security.Claims;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.FileProviders;
@@ -92,7 +94,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task CreateModal_RendersBacklogItemAndDirectTaskModeLabels()
+    public async Task CreateModal_RendersBacklogItemAndAssignedTaskModeLabels()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
@@ -105,7 +107,7 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Contains(@"data-at-create-mode-button=""backlog"">Backlog Item</button>", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-create-mode-button=""direct"">Direct Task</button>", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-create-mode-button=""direct"">Assigned Task</button>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -122,7 +124,7 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Equal(1, CountOccurrences(html, @">Backlog Item</button>"));
-        Assert.Contains(@">Save Backlog Item</button>", html, StringComparison.Ordinal);
+        Assert.Contains(@">Save to backlog</button>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(@">Create Backlog Item</button>", html, StringComparison.Ordinal);
     }
 
@@ -249,6 +251,8 @@ public class ActionTaskPageTests
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
+        var mine = await setup.Db.ActionTasks.SingleAsync();
+        mine.DueDate = new FixedActionTrackerClock().IstToday;
         setup.Db.ActionTasks.Add(NewTask("Closed personal task", ActionTaskStatuses.Closed));
         var otherUserTask = NewTask("Other user task", ActionTaskStatuses.Assigned);
         otherUserTask.AssignedToUserId = "user-2";
@@ -267,15 +271,15 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.DoesNotContain("Assigned to me", html, StringComparison.Ordinal);
-        Assert.Contains("Needs Action", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"My tasks\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Tasks in Active Sprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Action Required", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Current Work", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
-        Assert.Contains("Other Assigned Work", html, StringComparison.Ordinal);
-        Assert.Contains("Open assigned tasks not already shown above.", html, StringComparison.Ordinal);
-        Assert.Contains("Start Work", html, StringComparison.Ordinal);
-        Assert.Contains("Details", html, StringComparison.Ordinal);
+        Assert.Contains("<h3>Needs attention", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"My task summary\"", html, StringComparison.Ordinal);
+        Assert.Contains("Start work", html, StringComparison.Ordinal);
+        Assert.Contains("full workspace", html, StringComparison.Ordinal);
         Assert.Contains("Mine", html, StringComparison.Ordinal);
         Assert.DoesNotContain("All My Tasks", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Closed personal task", html, StringComparison.Ordinal);
@@ -285,8 +289,13 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("Return to Backlog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Reassign", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Close Task", html, StringComparison.Ordinal);
-        Assert.Single(page.MyWorkAllMyTasksDisplays);
-        Assert.DoesNotContain(page.MyWorkAllMyTasksDisplays, item => string.Equals(item.Task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
+        var visibleTasks = page.MyWorkActionRequiredDisplays
+            .Concat(page.MyWorkCurrentWorkDisplays)
+            .Concat(page.MyWorkSubmittedAwaitingClosureDisplays)
+            .Concat(page.MyWorkAllMyTasksDisplays)
+            .ToArray();
+        Assert.Equal("Mine", Assert.Single(visibleTasks).Task.Title);
+        Assert.DoesNotContain(visibleTasks, item => string.Equals(item.Task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -297,7 +306,7 @@ public class ActionTaskPageTests
         var overlappingTask = await setup.Db.ActionTasks.SingleAsync();
         overlappingTask.Title = "Overdue in progress";
         overlappingTask.Status = ActionTaskStatuses.InProgress;
-        overlappingTask.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        overlappingTask.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-1);
         setup.Db.ActionTasks.Add(NewTask("Later in progress", ActionTaskStatuses.InProgress));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
@@ -330,8 +339,8 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("0 open assigned tasks", html, StringComparison.Ordinal);
-        Assert.Contains("No open tasks assigned to you.", html, StringComparison.Ordinal);
+        Assert.Contains("<strong>0</strong> open", html, StringComparison.Ordinal);
+        Assert.Contains("You have no open tasks.", html, StringComparison.Ordinal);
         Assert.Contains("New assigned work will appear here.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("at-mywork-kpis", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Action Required", html, StringComparison.Ordinal);
@@ -350,13 +359,13 @@ public class ActionTaskPageTests
         var assigned = await setup.Db.ActionTasks.SingleAsync();
         assigned.Title = "Assigned future";
         assigned.Status = ActionTaskStatuses.Assigned;
-        assigned.DueDate = DateTime.UtcNow.Date.AddDays(5);
+        assigned.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(5);
         setup.Db.ActionTasks.Add(NewTask("Blocked task", ActionTaskStatuses.Blocked));
         var overdueTask = NewTask("Overdue task", ActionTaskStatuses.Assigned);
-        overdueTask.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        overdueTask.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-1);
         setup.Db.ActionTasks.Add(overdueTask);
         var dueTodayTask = NewTask("Due today task", ActionTaskStatuses.Assigned);
-        dueTodayTask.DueDate = DateTime.UtcNow.Date;
+        dueTodayTask.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date;
         setup.Db.ActionTasks.Add(dueTodayTask);
         setup.Db.ActionTasks.Add(NewTask("In progress task", ActionTaskStatuses.InProgress));
         setup.Db.ActionTasks.Add(NewTask("Submitted task", ActionTaskStatuses.Submitted));
@@ -399,7 +408,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains($"taskId={task.Id}", html, StringComparison.Ordinal);
         Assert.Contains("viewMode=MyWork", html, StringComparison.Ordinal);
-        Assert.Contains($"Open task AT-{task.Id} details", html, StringComparison.Ordinal);
+        Assert.Contains($"Open task AT-{task.Id} full workspace", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -540,8 +549,8 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains("data-at-register-scope-option=\"Open\"", html, StringComparison.Ordinal);
         Assert.Contains("data-at-register-scope-option=\"All\"", html, StringComparison.Ordinal);
-        Assert.Contains("aria-pressed=\"true\">Open Tasks", html, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Bucket</th>", html, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"true\">Open", html, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Work group</th>", html, StringComparison.Ordinal);
         Assert.Contains("Due / Target Date", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\" class=\"at-register-sprint-heading\">Sprint</th>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Closed</option>", html, StringComparison.Ordinal);
@@ -572,20 +581,20 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskRegister.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("at-register-active-filters", html, StringComparison.Ordinal);
-        Assert.Contains("Status: Assigned", html, StringComparison.Ordinal);
-        Assert.Contains("Priority: Normal", html, StringComparison.Ordinal);
-        Assert.Contains("Responsible Person: User One", html, StringComparison.Ordinal);
-        Assert.Contains($"Due: {taskDueDate:dd MMM yyyy}", html, StringComparison.Ordinal);
-        Assert.Contains("Search: Mine", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"at-filter-disclosure\" open>", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"Assigned\" selected", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"Normal\" selected", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"User One\"", html, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{taskDueDate:yyyy-MM-dd}\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"Mine\"", html, StringComparison.Ordinal);
         Assert.Contains("FilterStatus=Assigned", html, StringComparison.Ordinal);
         Assert.Contains("FilterPriority=Normal", html, StringComparison.Ordinal);
         Assert.Contains("FilterAssigneeUserId=user-1", html, StringComparison.Ordinal);
         Assert.Contains($"FilterDueDate={taskDueDate:yyyy-MM-dd}", html, StringComparison.Ordinal);
         Assert.Contains("FilterSearch=Mine", html, StringComparison.Ordinal);
         Assert.Contains("SortBy=id", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"at-sort-link is-active\"", html, StringComparison.Ordinal);
-        Assert.Contains("aria-sort=\"descending\"", html, StringComparison.Ordinal);
+        Assert.Contains("class='at-sort-link is-active'", html, StringComparison.Ordinal);
+        Assert.Contains("aria-sort='descending'", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -617,7 +626,7 @@ public class ActionTaskPageTests
             Title = "Late task",
             Description = "Should be rejected",
             AssignedToUserId = "user-1",
-            DueDate = DateTime.UtcNow.Date.AddDays(-1),
+            DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-1),
             Priority = "Normal"
         };
 
@@ -685,7 +694,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Equal("Badge Sprint", page.GetSprintBadgeText(sprintTask));
         Assert.Equal("Backlog", page.GetSprintBadgeText(backlogTask));
-        Assert.Equal("Outside Sprint", page.GetSprintBadgeText(nonSprintTask));
+        Assert.Equal("Assigned, not in sprint", page.GetSprintBadgeText(nonSprintTask));
         Assert.Equal("Closed", page.GetSprintBadgeText(closedTask));
         Assert.Contains("at-scope-badge-sprint", page.GetSprintBadgeClass(sprintTask), StringComparison.Ordinal);
         Assert.Contains("at-scope-badge-backlog", page.GetSprintBadgeClass(backlogTask), StringComparison.Ordinal);
@@ -772,8 +781,8 @@ public class ActionTaskPageTests
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Command Sprint",
-            StartDate = DateTime.UtcNow.Date,
-            EndDate = DateTime.UtcNow.Date.AddDays(14),
+            StartDate = FixedActionTrackerClock.DefaultUtcNow.Date,
+            EndDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(14),
             Goal = "Command focus"
         };
 
@@ -796,8 +805,8 @@ public class ActionTaskPageTests
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Unauthorized Sprint",
-            StartDate = DateTime.UtcNow.Date,
-            EndDate = DateTime.UtcNow.Date.AddDays(14)
+            StartDate = FixedActionTrackerClock.DefaultUtcNow.Date,
+            EndDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(14)
         };
 
         // SECTION: Act
@@ -820,8 +829,8 @@ public class ActionTaskPageTests
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Invalid Sprint",
-            StartDate = DateTime.UtcNow.Date.AddDays(5),
-            EndDate = DateTime.UtcNow.Date
+            StartDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(5),
+            EndDate = FixedActionTrackerClock.DefaultUtcNow.Date
         };
 
         // SECTION: Act
@@ -975,7 +984,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task SprintClosureReviewPartial_RendersCreateNextSprintFormOutsideClosureDispositionForm()
+    public async Task SprintClosureReviewPartial_UsesHandlerButtonWithoutNestedForms()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.Comdt);
@@ -990,14 +999,12 @@ public class ActionTaskPageTests
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_SprintClosureReview.cshtml");
 
-        // SECTION: Assert
-        var createFormStart = html.IndexOf("at-sprint-command-form", StringComparison.Ordinal);
-        var closureFormStart = html.IndexOf("at-closure-form", StringComparison.Ordinal);
-        var closureFormEnd = html.IndexOf("</form>", closureFormStart, StringComparison.Ordinal);
-        Assert.Contains("handler=CreateNextSprint", html, StringComparison.Ordinal);
-        Assert.True(createFormStart >= 0, "Create next sprint form should render.");
-        Assert.True(closureFormStart >= 0, "Closure disposition form should render.");
-        Assert.True(createFormStart < closureFormStart || createFormStart > closureFormEnd, "Create next sprint form must not be nested inside the closure disposition form.");
+        // SECTION: Assert current presentation while preserving the behavior contract.
+        Assert.Equal(1, CountOccurrences(html, "<form "));
+        Assert.Contains("handler=CloseSprint", html, StringComparison.Ordinal);
+        Assert.Contains("formnovalidate formaction=\"/ActionTasks?handler=CreateNextSprint\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"NextSprintInput.Name\"", html, StringComparison.Ordinal);
+
     }
 
 
@@ -1016,9 +1023,9 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Null(page.SelectedSprint);
         Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
-        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Assigned Tasks Outside Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Assigned work not included in any sprint.", html, StringComparison.Ordinal);
+        Assert.Contains("Create sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned, not in sprint", html, StringComparison.Ordinal);
+        Assert.Contains("assigned tasks not in sprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create " + "Planning " + "Window", html, StringComparison.Ordinal);
         Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
@@ -1033,6 +1040,7 @@ public class ActionTaskPageTests
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "Planning";
+        page.PlanningTab = "Plan";
         page.SelectedSprintId = sprint.Id;
         await page.OnGetAsync();
 
@@ -1040,8 +1048,8 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskSprints.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Edit Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Create sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Edit sprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Create</summary>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Edit</summary>", html, StringComparison.Ordinal);
     }
@@ -1064,16 +1072,17 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.NotNull(page.SelectedSprint);
-        Assert.Contains("Execution Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Selected Sprint Board task board", html, StringComparison.Ordinal);
-        Assert.Contains("Sprint Board", html, StringComparison.Ordinal);
+        Assert.Contains($"SelectedSprintId={sprint.Id}", html, StringComparison.Ordinal);
+        Assert.Contains(sprint.EndDate.ToString("dd MMM yyyy"), html, StringComparison.Ordinal);
+        Assert.Contains("Current sprint board", html, StringComparison.Ordinal);
+        Assert.Contains("Sprint board", html, StringComparison.Ordinal);
         Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-grid", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-section", html, StringComparison.Ordinal);
         Assert.Contains($"<h2>{ActionTaskStatuses.Assigned}</h2>", html, StringComparison.Ordinal);
         Assert.Contains($"<h2>{ActionTaskStatuses.InProgress}</h2>", html, StringComparison.Ordinal);
         Assert.Contains($"<h2>{ActionTaskStatuses.Blocked}</h2>", html, StringComparison.Ordinal);
-        Assert.Contains($"<h2>{ActionTaskStatuses.Submitted}</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2>Awaiting Closure</h2>", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"<h2>{ActionTaskStatuses.Closed}</h2>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Execution Attention", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Due / Exceptions and Kanban", html, StringComparison.Ordinal);
@@ -1098,9 +1107,9 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningTabs.cshtml");
 
         // SECTION: Assert
-        Assert.Contains(">Plan</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">Execute</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">Close</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Plan sprint</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Board</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Review closure</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Views</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Kanban", html, StringComparison.Ordinal);
     }
@@ -1130,7 +1139,7 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("Open Sprint", html, StringComparison.Ordinal);
         Assert.Contains("<details class=\"at-planning-backlog-filter-shell\">", html, StringComparison.Ordinal);
         Assert.Contains("<details class=\"at-planning-outside-sprint at-planning-plan-card\">", html, StringComparison.Ordinal);
-        Assert.Contains("assigned tasks outside sprint", html, StringComparison.Ordinal);
+        Assert.Contains("assigned tasks not in sprint", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1155,7 +1164,7 @@ public class ActionTaskPageTests
         urgent.AssignedToUserId = string.Empty;
         urgent.AssignedToRole = string.Empty;
         urgent.Priority = "High";
-        urgent.DueDate = DateTime.UtcNow.Date.AddDays(3);
+        urgent.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(3);
         setup.Db.ActionTasks.Add(urgent);
         await setup.Db.SaveChangesAsync();
         await compactPage.OnGetAsync();
@@ -1190,8 +1199,8 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Contains("<details class=\"at-backlog-add-disclosure at-inline-action\">", html, StringComparison.Ordinal);
-        Assert.Contains(">Add to Sprint</summary>", html, StringComparison.Ordinal);
-        Assert.Contains("Responsible person", html, StringComparison.Ordinal);
+        Assert.Contains(">Add to selected sprint</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned to", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Pull from Backlog", html, StringComparison.Ordinal);
     }
 
@@ -1228,17 +1237,18 @@ public class ActionTaskPageTests
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_SprintClosureReview.cshtml");
 
-        // SECTION: Assert
-        Assert.Contains("Choose one disposition for each unfinished task. Return to Backlog removes the responsible person.", html, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(html, "Return to Backlog removes the responsible person"));
-        Assert.Contains("<span>Carry Forward</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Keep Outside Sprint</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Return to Backlog</span>", html, StringComparison.Ordinal);
+        // SECTION: Assert current presentation while preserving the behavior contract.
+        Assert.Equal(1, CountOccurrences(html, "aria-label=\"Disposition guidance\""));
+        Assert.Contains("<strong>Carry forward</strong> Move to the selected next sprint and keep the assignee.", html, StringComparison.Ordinal);
+        Assert.Contains("<strong>Keep assigned</strong> Remove from this sprint but keep the assignee and due date.", html, StringComparison.Ordinal);
+        Assert.Contains("<strong>Backlog</strong> Remove the sprint and assignee for replanning.", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"carry\">Carry forward", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"outside\">Keep assigned", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"backlog\">Return to backlog", html, StringComparison.Ordinal);
         Assert.Contains("Closure remarks", html, StringComparison.Ordinal);
-        Assert.Contains("Summarise command decision and disposition rationale.", html, StringComparison.Ordinal);
-        Assert.Contains("Close Sprint with Review", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Keep Assigned Outside Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Record the closure decision and any follow-up required.", html, StringComparison.Ordinal);
+        Assert.Contains("Close sprint</button>", html, StringComparison.Ordinal);
+
     }
 
     [Fact]
@@ -1274,7 +1284,7 @@ public class ActionTaskPageTests
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var task = await setup.Db.ActionTasks.SingleAsync();
         task.Status = ActionTaskStatuses.Closed;
-        task.ClosedOn = DateTime.UtcNow;
+        task.ClosedOn = FixedActionTrackerClock.DefaultUtcNow;
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.TaskId = task.Id;
@@ -1324,16 +1334,16 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
-        var kpiStart = html.IndexOf("at-command-kpis", StringComparison.Ordinal);
-        var kpiEnd = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
+        var kpiStart = html.IndexOf("at-overview-headline", StringComparison.Ordinal);
+        var kpiEnd = html.IndexOf("at-sprint-glance", StringComparison.Ordinal);
         var kpis = html[kpiStart..kpiEnd];
 
         // SECTION: Assert
         Assert.Contains("Overdue", kpis, StringComparison.Ordinal);
         Assert.Contains("Blocked", kpis, StringComparison.Ordinal);
-        Assert.Contains("Pending Closure", kpis, StringComparison.Ordinal);
-        Assert.Contains("Critical Open", kpis, StringComparison.Ordinal);
-        Assert.Contains("Open Tasks", kpis, StringComparison.Ordinal);
+        Assert.Contains("Awaiting closure", kpis, StringComparison.Ordinal);
+        Assert.Contains("Critical", kpis, StringComparison.Ordinal);
+        Assert.Contains("open tasks", kpis, StringComparison.Ordinal);
         Assert.DoesNotContain("Carry Forward", kpis, StringComparison.Ordinal);
         Assert.DoesNotContain("Backlog", kpis, StringComparison.Ordinal);
         Assert.DoesNotContain("Sprint Tasks", kpis, StringComparison.Ordinal);
@@ -1351,13 +1361,13 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
-        var sprintStart = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
-        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var sprintStart = html.IndexOf("at-sprint-glance", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Needs attention", StringComparison.Ordinal);
         var activeSprint = html[sprintStart..attentionStart];
 
         // SECTION: Assert
-        Assert.Contains("No active sprint is currently set.", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("Activate a planned sprint from Sprint Board", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("No active sprint", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Plan a sprint", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("Total in active sprint", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("Completed", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("In progress", activeSprint, StringComparison.Ordinal);
@@ -1378,14 +1388,14 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
-        var sprintStart = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
-        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var sprintStart = html.IndexOf("at-sprint-glance", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Needs attention", StringComparison.Ordinal);
         var activeSprint = html[sprintStart..attentionStart];
 
         // SECTION: Assert
-        Assert.Contains("<h2>Active Sprint</h2>", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("Health Sprint", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("1 tasks", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"at-label\">Active sprint</span>", activeSprint, StringComparison.Ordinal);
+        Assert.Contains($"SelectedSprintId={sprint.Id}", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("<strong>1</strong> tasks", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("Active Sprint Exceptions", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("No active sprint exceptions.", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("Active Sprint Health", activeSprint, StringComparison.Ordinal);
@@ -1397,7 +1407,7 @@ public class ActionTaskPageTests
 
 
     [Fact]
-    public async Task DashboardPartial_ActiveSprintExceptions_RenderActiveDetailsOutsideGlobalAttentionCap()
+    public async Task DashboardPartial_ActiveSprintSummary_PreservesMetricsOutsideGlobalAttentionCap()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -1405,14 +1415,14 @@ public class ActionTaskPageTests
         for (var i = 0; i < 6; i++)
         {
             var globalOverdue = NewTask($"Global overdue {i + 1}", ActionTaskStatuses.Assigned);
-            globalOverdue.DueDate = DateTime.UtcNow.Date.AddDays(-10 - i);
+            globalOverdue.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-10 - i);
             setup.Db.ActionTasks.Add(globalOverdue);
         }
 
         var activeOverdue = NewTask("Active sprint overdue visible", ActionTaskStatuses.Assigned, sprint.Id);
-        activeOverdue.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        activeOverdue.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-1);
         var activeBlocked = NewTask("Active sprint blocked visible", ActionTaskStatuses.Blocked, sprint.Id);
-        activeBlocked.DueDate = DateTime.UtcNow.Date.AddDays(1);
+        activeBlocked.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(1);
         setup.Db.ActionTasks.AddRange(activeOverdue, activeBlocked);
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
@@ -1421,16 +1431,18 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
-        var sprintStart = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
-        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var sprintStart = html.IndexOf("at-sprint-glance", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Needs attention", StringComparison.Ordinal);
         var activeSprint = html[sprintStart..attentionStart];
 
-        // SECTION: Assert
-        Assert.Contains("Active Sprint Exceptions (2)", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("Active sprint overdue visible", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("Active sprint blocked visible", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("Overdue", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("Blocked", activeSprint, StringComparison.Ordinal);
+        // SECTION: Assert current presentation while preserving the behavior contract.
+        Assert.Equal(1, page.ActiveSprintMetrics.OverdueTasks);
+        Assert.Equal(1, page.ActiveSprintMetrics.BlockedTasks);
+        Assert.Contains("<strong>1</strong> overdue", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("<strong>1</strong> blocked", activeSprint, StringComparison.Ordinal);
+        Assert.Contains($"SelectedSprintId={sprint.Id}", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Active sprint blocked visible", html, StringComparison.Ordinal);
+
     }
 
     [Fact]
@@ -1441,9 +1453,9 @@ public class ActionTaskPageTests
         var pendingClosure = NewTask("Pending closure item", ActionTaskStatuses.Submitted);
         var blocked = NewTask("Blocked critical overdue item", ActionTaskStatuses.Blocked);
         blocked.Priority = "Critical";
-        blocked.DueDate = DateTime.UtcNow.Date.AddDays(-2);
+        blocked.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-2);
         var overdue = NewTask("Overdue item", ActionTaskStatuses.Assigned);
-        overdue.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        overdue.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-1);
         var critical = NewTask("Critical open item", ActionTaskStatuses.Assigned);
         critical.Priority = "Critical";
         setup.Db.ActionTasks.AddRange(pendingClosure, blocked, overdue, critical);
@@ -1454,16 +1466,16 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
-        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
-        var attentionEnd = html.IndexOf("Recent Activity", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Needs attention", StringComparison.Ordinal);
+        var attentionEnd = html.IndexOf("Recent activity", StringComparison.Ordinal);
         var attention = attentionEnd >= 0 ? html[attentionStart..attentionEnd] : html[attentionStart..];
 
         // SECTION: Assert
-        Assert.Contains("Pending Closure Tasks", attention, StringComparison.Ordinal);
-        Assert.Contains("Blocked Tasks", attention, StringComparison.Ordinal);
-        Assert.Contains("Overdue Tasks", attention, StringComparison.Ordinal);
-        Assert.Contains("Critical Open Tasks", attention, StringComparison.Ordinal);
-        Assert.DoesNotContain("No command attention items.", attention, StringComparison.Ordinal);
+        Assert.Contains("Awaiting closure", attention, StringComparison.Ordinal);
+        Assert.Contains("Blocked", attention, StringComparison.Ordinal);
+        Assert.Contains("Overdue", attention, StringComparison.Ordinal);
+        Assert.Contains("Critical", attention, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nothing needs command attention.", attention, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(attention, "Blocked critical overdue item"));
         Assert.DoesNotContain("Remove from Sprint", attention, StringComparison.Ordinal);
         Assert.DoesNotContain("Return to Backlog", attention, StringComparison.Ordinal);
@@ -1482,12 +1494,12 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("No command attention items.", html, StringComparison.Ordinal);
+        Assert.Contains("Nothing needs command attention.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Critical Open Tasks", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Overdue Tasks", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Blocked Tasks", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Pending Closure Tasks", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Recent Activity", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recent activity", html, StringComparison.Ordinal);
     }
 
 
@@ -1539,8 +1551,8 @@ public class ActionTaskPageTests
         matching.SprintId = sprint.Id;
         matching.Priority = "High";
         matching.Status = ActionTaskStatuses.Blocked;
-        matching.AssignedOn = DateTime.UtcNow.Date.AddDays(-9);
-        matching.DueDate = DateTime.UtcNow.Date.AddDays(1);
+        matching.AssignedOn = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(-9);
+        matching.DueDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(1);
         setup.Db.ActionTasks.Add(NewTask("Outside report scope", ActionTaskStatuses.Assigned));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
@@ -1548,8 +1560,8 @@ public class ActionTaskPageTests
         page.ReportBucket = "Sprint";
         page.ReportSprintId = sprint.Id;
         page.ReportAssigneeUserId = "user-1";
-        page.ReportFromDate = DateTime.UtcNow.Date;
-        page.ReportToDate = DateTime.UtcNow.Date.AddDays(2);
+        page.ReportFromDate = FixedActionTrackerClock.DefaultUtcNow.Date;
+        page.ReportToDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(2);
         page.ReportStatus = ActionTaskStatuses.Blocked;
         page.ReportPriority = "High";
 
@@ -1602,7 +1614,7 @@ public class ActionTaskPageTests
         submittedTask.Status = ActionTaskStatuses.Submitted;
         submittedTask.SprintId = sprint.Id;
         submittedTask.AssignedToUserId = "user-1";
-        submittedTask.SubmittedOn = DateTime.UtcNow.Date;
+        submittedTask.SubmittedOn = FixedActionTrackerClock.DefaultUtcNow.Date;
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "Reports";
@@ -1627,8 +1639,8 @@ public class ActionTaskPageTests
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Audited Sprint",
-            StartDate = DateTime.UtcNow.Date,
-            EndDate = DateTime.UtcNow.Date.AddDays(14)
+            StartDate = FixedActionTrackerClock.DefaultUtcNow.Date,
+            EndDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(14)
         };
         await page.OnPostCreateSprintAsync();
         var sprint = await setup.Db.ActionSprints.SingleAsync(s => s.Name == "Audited Sprint");
@@ -1644,11 +1656,10 @@ public class ActionTaskPageTests
     }
 
     [Theory]
-    [InlineData("CommandCentre", "Command Centre")]
-    [InlineData("Planning", "Sprint Board")]
-    [InlineData("MyWork", "My Work")]
-    [InlineData("Register", "Register")]
-    [InlineData("Reports", "Reports")]
+    [InlineData("CommandCentre", "Overview")]
+    [InlineData("Planning", "Board")]
+    [InlineData("MyWork", "My Tasks")]
+    [InlineData("Register", "All Tasks")]
     public void WorkspaceNavigation_UsesCanonicalLabelsAndRoutes(string viewMode, string expectedLabel)
     {
         // SECTION: Arrange
@@ -1657,6 +1668,15 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains($"title=\"{expectedLabel}\"", pageMarkup, StringComparison.Ordinal);
         Assert.Contains($"asp-route-viewMode=\"{viewMode}\"", pageMarkup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReportsNavigation_TogglesBetweenReportsAndOverview()
+    {
+        var pageMarkup = File.ReadAllText(Path.Combine(GetContentRoot(), "Pages", "ActionTasks", "Index.cshtml"));
+
+        Assert.Contains("asp-route-viewMode=\"@(Model.IsReportsView ? \"CommandCentre\" : \"Reports\")\"", pageMarkup, StringComparison.Ordinal);
+        Assert.Contains("@(Model.IsReportsView ? \"Back to overview\" : \"Reports\")", pageMarkup, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -1730,9 +1750,14 @@ public class ActionTaskPageTests
             RequestServices = scopedProvider,
             User = page.PageContext.HttpContext.User
         };
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
         var routeData = new RouteData();
         routeData.Values["page"] = "/ActionTasks/Index";
-        var actionDescriptor = new ActionDescriptor();
+        var actionDescriptor = new PageActionDescriptor
+        {
+            ViewEnginePath = "/ActionTasks/Index",
+            RelativePath = "/Pages/ActionTasks/Index.cshtml"
+        };
         actionDescriptor.RouteValues["page"] = "/ActionTasks/Index";
         var actionContext = new ActionContext(httpContext, routeData, actionDescriptor);
         var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: viewPath, isMainPage: false);
@@ -1746,7 +1771,10 @@ public class ActionTaskPageTests
             Model = page
         };
         var tempData = new TempDataDictionary(httpContext, tempDataProvider);
-        var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());
+        var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions())
+        {
+            ExecutingFilePath = "/Pages/ActionTasks/Index.cshtml"
+        };
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
     }
@@ -1781,6 +1809,7 @@ public class ActionTaskPageTests
         services.AddRouting();
         services.AddRazorPages();
         services.AddControllersWithViews();
+        RazorPageTestRouting.AddPageEndpoints(services);
         return services.BuildServiceProvider();
     }
 
@@ -1798,17 +1827,20 @@ public class ActionTaskPageTests
         db.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = RoleNames.Ta });
         db.ActionTasks.Add(new ActionTaskItem
         {
-            Title = "Mine", Description = "d", CreatedByUserId = "creator", AssignedToUserId = "user-1", CreatedByRole = RoleNames.HoD, AssignedToRole = RoleNames.Ta, DueDate = DateTime.UtcNow.AddDays(1), Priority = "Normal", AssignedOn = DateTime.UtcNow, Status = ActionTaskStatuses.Assigned
+            Title = "Mine", Description = "d", CreatedByUserId = "creator", AssignedToUserId = "user-1", CreatedByRole = RoleNames.HoD, AssignedToRole = RoleNames.Ta, DueDate = FixedActionTrackerClock.DefaultUtcNow.AddDays(1), Priority = "Normal", AssignedOn = FixedActionTrackerClock.DefaultUtcNow, Status = ActionTaskStatuses.Assigned
         });
         await db.SaveChangesAsync();
 
-        var sp = new ServiceCollection().BuildServiceProvider();
+        var mvcServices = new ServiceCollection();
+        mvcServices.AddLogging();
+        mvcServices.AddControllersWithViews();
+        var sp = mvcServices.BuildServiceProvider();
         var userManager = new UserManager<ApplicationUser>(new UserStore<ApplicationUser>(db), Options.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(), Array.Empty<IUserValidator<ApplicationUser>>(), Array.Empty<IPasswordValidator<ApplicationUser>>(), new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), sp, NullLogger<UserManager<ApplicationUser>>.Instance);
 
         // SECTION: Action task page services
         var permission = new ActionTaskPermissionService();
         var collab = new StubCollabService();
-        var clock = new SystemActionTrackerClock();
+        var clock = new FixedActionTrackerClock();
         var service = new ActionTaskService(db, permission, clock);
         var queryService = new ActionTaskQueryService(clock, new ActionTaskReportBuilder(clock));
         var workflowPolicy = new ActionTaskWorkflowPolicy(permission);
@@ -1820,6 +1852,7 @@ public class ActionTaskPageTests
 
         var httpContext = new DefaultHttpContext
         {
+            RequestServices = sp,
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "user-1"),
@@ -1828,6 +1861,7 @@ public class ActionTaskPageTests
         };
 
         page.PageContext = new PageContext(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()));
+        page.MetadataProvider = sp.GetRequiredService<IModelMetadataProvider>();
         page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
         return (page, db, collab);
     }
@@ -1840,12 +1874,12 @@ public class ActionTaskPageTests
         {
             Name = name,
             Goal = $"Goal for {name}",
-            StartDate = DateTime.UtcNow.Date.AddDays(startOffsetDays),
-            EndDate = DateTime.UtcNow.Date.AddDays(startOffsetDays + 7),
+            StartDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(startOffsetDays),
+            EndDate = FixedActionTrackerClock.DefaultUtcNow.Date.AddDays(startOffsetDays + 7),
             Status = status,
             CreatedByUserId = "creator",
             CreatedByRole = RoleNames.HoD,
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = FixedActionTrackerClock.DefaultUtcNow,
             RowVersion = Guid.NewGuid().ToByteArray()
         };
         db.ActionSprints.Add(sprint);
@@ -1863,9 +1897,9 @@ public class ActionTaskPageTests
             AssignedToUserId = "user-1",
             CreatedByRole = RoleNames.HoD,
             AssignedToRole = RoleNames.Ta,
-            DueDate = DateTime.UtcNow.AddDays(2),
+            DueDate = FixedActionTrackerClock.DefaultUtcNow.AddDays(2),
             Priority = "Normal",
-            AssignedOn = DateTime.UtcNow,
+            AssignedOn = FixedActionTrackerClock.DefaultUtcNow,
             Status = status,
             SprintId = sprintId
         };
@@ -1931,7 +1965,7 @@ public class ActionTaskPageTests
                 Body = string.IsNullOrWhiteSpace(body) ? "Status updated." : body.Trim(),
                 UpdateType = ActionTaskUpdateTypes.Progress,
                 CreatedByUserId = userId,
-                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = FixedActionTrackerClock.DefaultUtcNow,
                 IsDeleted = false
             });
         }

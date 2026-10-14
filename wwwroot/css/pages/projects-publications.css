@@ -692,6 +692,15 @@
 .brochure-review-copy__heading span { color: #75867f; font-size: .57rem; }
 .brochure-review-narrative { max-height: 190px; overflow-y: auto; padding: .58rem .62rem; border: 1px solid #e0e8e5; border-radius: 7px; background: #fcfdfd; color: #344b42; font-size: .67rem; line-height: 1.52; white-space: pre-wrap; scrollbar-width: thin; }
 .brochure-review-narrative.is-missing { border-color: #efd0cb; background: #fff8f7; color: #97483f; }
+.brochure-review-narrative.is-justified { text-align: justify; text-align-last: left; }
+.brochure-alignment-fieldset { margin: 1rem 0; padding: 0; border: 0; }
+.brochure-alignment-fieldset legend { font-size: .8rem; font-weight: 700; }
+.brochure-alignment-options { display: flex; flex-wrap: wrap; gap: .6rem; }
+.brochure-alignment-option { display: flex; flex: 1 1 220px; align-items: start; gap: .5rem; padding: .65rem; border: 1px solid #dce6e2; border-radius: 7px; cursor: pointer; }
+.brochure-alignment-option:has(input:checked) { border-color: #39745b; background: #f5f9f7; }
+.brochure-alignment-option:focus-within { outline: 2px solid #39745b; outline-offset: 2px; }
+.brochure-alignment-option strong, .brochure-alignment-option small { display: block; }
+.brochure-alignment-option small, .brochure-alignment-note { color: #697a74; font-size: .7rem; }
 .brochure-review-card__footer { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .62rem .78rem; border-top: 1px solid #e5ece9; background: #fafcfb; }
 .brochure-review-navigation { display: inline-flex; gap: .35rem; }
 

@@ -135,7 +135,10 @@ namespace ProjectManagement.Services.Projects
             };
 
             _db.ProjectVideos.Add(video);
-            project.Videos.Add(video);
+            if (!project.Videos.Contains(video))
+            {
+                project.Videos.Add(video);
+            }
 
             if (shouldFeature)
             {
@@ -347,13 +350,16 @@ namespace ProjectManagement.Services.Projects
                 return false;
             }
 
+            // Relationship fixup clears the featured foreign key when the video is removed.
+            var project = video.Project;
+            var wasFeatured = project.FeaturedVideoId == video.Id;
             _db.ProjectVideos.Remove(video);
-            video.Project.Videos.Remove(video);
+            project.Videos.Remove(video);
 
-            if (video.Project.FeaturedVideoId == video.Id)
+            if (wasFeatured)
             {
-                video.Project.FeaturedVideoId = null;
-                video.Project.FeaturedVideoVersion = 0;
+                project.FeaturedVideoId = null;
+                project.FeaturedVideoVersion = 0;
             }
 
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

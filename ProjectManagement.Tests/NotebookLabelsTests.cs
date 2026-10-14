@@ -92,6 +92,8 @@ public sealed class NotebookLabelsTests
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new ApplicationDbContext(options);
+        db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1", FullName = "Notebook Owner" });
+        await db.SaveChangesAsync();
         var clock = new TestClock { UtcNowValue = DateTimeOffset.UtcNow };
         var item = new NotebookItem { OwnerId = "owner-1", Title = "Note", Type = NotebookItemType.Note, Status = NotebookItemStatus.Active, CreatedAtUtc = clock.UtcNow, UpdatedAtUtc = clock.UtcNow, Version = Guid.NewGuid() };
         db.NotebookItems.Add(item); await db.SaveChangesAsync();

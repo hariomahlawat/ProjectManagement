@@ -13,13 +13,22 @@ namespace ProjectManagement.Tests.Activities;
 
 public class ActivityRepositoryTests
 {
-    private static ApplicationDbContext CreateContext()
+    private static ApplicationDbContext CreateContext(bool seedCreator = true)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
-        return new ApplicationDbContext(options);
+        var context = new ApplicationDbContext(options);
+        context.Users.AddRange(new ApplicationUser { Id = "system", UserName = "system", FullName = "System" },
+            new ApplicationUser { Id = "seed", UserName = "seed", FullName = "Seed" },
+            new ApplicationUser { Id = "owner", UserName = "owner", FullName = "Owner" });
+        if (seedCreator)
+        {
+            context.Users.Add(new ApplicationUser { Id = "user-1", UserName = "creator", FullName = "Creator" });
+        }
+        context.SaveChanges();
+        return context;
     }
 
     [Fact]
@@ -140,7 +149,7 @@ public class ActivityRepositoryTests
     [Fact]
     public async Task ListByTypeAsync_FiltersDeletedAndOrdersBySchedule()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(seedCreator: false);
         var repository = new ActivityRepository(context);
 
         var type = new ActivityType
@@ -218,7 +227,7 @@ public class ActivityRepositoryTests
     [Fact]
     public async Task GetByIdAsync_IncludesUserNavigationProperties()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(seedCreator: false);
         var repository = new ActivityRepository(context);
 
         var type = new ActivityType
@@ -328,7 +337,7 @@ public class ActivityRepositoryTests
     [Fact]
     public async Task ListAsync_FiltersAndSortsCorrectly()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(seedCreator: false);
         var repository = new ActivityRepository(context);
 
         var creator = new ApplicationUser

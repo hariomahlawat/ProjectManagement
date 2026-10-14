@@ -87,11 +87,12 @@ public sealed class StageDecisionServiceTests
     [Fact]
     public async Task ApproveAsync_AllowsCaseInsensitiveHodMatch()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 9, 0, 0, TimeSpan.Zero));
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 10, 9, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedProjectAsync(
             db,
             "HOD-CASE",
+            (StageCodes.FS, StageStatus.Completed),
             (StageCodes.IPA, StageStatus.NotStarted));
 
         var request = await SeedRequestAsync(
@@ -284,7 +285,7 @@ public sealed class StageDecisionServiceTests
     }
 
     [Fact]
-    public async Task ApproveAsync_AddsPredecessorWarning()
+    public async Task ApproveAsync_RejectsMissingRequiredPredecessor()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 4, 15, 7, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -311,19 +312,14 @@ public sealed class StageDecisionServiceTests
             isHoD: true,
             cancellationToken: CancellationToken.None);
 
-        Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
-        Assert.Contains(result.Warnings, w => w.Contains(StageCodes.IPA));
-        Assert.NotNull(result.Stage);
-        Assert.Equal(StageStatus.InProgress, result.Stage!.Status);
-        Assert.Equal(new DateOnly(2024, 4, 14), result.Stage!.ActualStart);
-        Assert.Null(result.Stage!.CompletedOn);
-
+        Assert.Equal(StageDecisionOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains(StageCodes.IPA, result.Error);
         var persistedRequest = await db.StageChangeRequests.SingleAsync(r => r.Id == request.Id);
-        Assert.Contains(StageCodes.IPA, persistedRequest.DecisionNote);
-
+        Assert.Equal("Pending", persistedRequest.DecisionStatus);
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.SOW);
-        Assert.Equal(StageStatus.InProgress, stage.Status);
-        Assert.Equal(new DateOnly(2024, 4, 14), stage.ActualStart);
+        Assert.Equal(StageStatus.NotStarted, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
     }
 
     private static async Task SeedProjectAsync(

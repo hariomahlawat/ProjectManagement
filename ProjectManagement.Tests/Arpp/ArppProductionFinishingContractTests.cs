@@ -29,7 +29,8 @@ public sealed class ArppProductionFinishingContractTests
 
         Assert.Contains("placeholder=\"Find row or project\"", markup, StringComparison.Ordinal);
         Assert.Contains("arpp-workspace-v2__issues-toggle", markup, StringComparison.Ordinal);
-        Assert.Contains("Show or hide the row navigator", markup, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Hide row navigator\"", markup, StringComparison.Ordinal);
+        Assert.Contains("isVisible ? \"Hide row navigator\" : \"Show row navigator\"", script, StringComparison.Ordinal);
         Assert.Contains(".arpp-workspace-v2.is-navigator-collapsed", css, StringComparison.Ordinal);
         Assert.Contains(".arpp-workspace-v2__table .arpp-actions-cell", css, StringComparison.Ordinal);
         Assert.Contains("position: sticky;", ExtractRule(css, ".arpp-workspace-v2__table .arpp-col-actions,"), StringComparison.Ordinal);

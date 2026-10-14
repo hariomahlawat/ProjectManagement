@@ -323,7 +323,7 @@ public class StageProgressServiceTests
     }
 
     [Fact]
-    public async Task UpdateStageStatusAsync_DoesNotAutoCompleteOptionalStages()
+    public async Task UpdateStageStatusAsync_LeavesOptionalStagesOutsideDependencyClosureUnchanged()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -336,6 +336,7 @@ public class StageProgressServiceTests
             (StageCodes.BM, StageStatus.NotStarted),
             (StageCodes.COB, StageStatus.NotStarted),
             (StageCodes.PNC, StageStatus.NotStarted),
+            (StageCodes.EAS, StageStatus.NotStarted),
             (StageCodes.SO, StageStatus.NotStarted));
 
         db.StageTemplates.Add(new StageTemplate
@@ -362,7 +363,7 @@ public class StageProgressServiceTests
         await service.UpdateStageStatusAsync(1, StageCodes.SO, StageStatus.Completed, completedOn, "tester");
 
         var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
-        Assert.Equal(StageStatus.Skipped, pnc.Status);
+        Assert.Equal(StageStatus.NotStarted, pnc.Status);
         Assert.False(pnc.IsAutoCompleted);
 
         var cob = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB);

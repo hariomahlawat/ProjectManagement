@@ -48,7 +48,7 @@ public sealed class ProjectRepositoryPresentationContractTests
         var query = ReadRepoFile("Services", "Projects", "ProjectSearchFilters.cs");
         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
 
-        Assert.Contains("query.ApplyProjectOrdering(filters, Sort, Dir)", model, StringComparison.Ordinal);
+        Assert.Contains("query.ApplyProjectOrdering(filters, Sort, Dir, _db.Database.IsNpgsql())", model, StringComparison.Ordinal);
         Assert.Contains("OperationalLifecycleRank", query, StringComparison.Ordinal);
         Assert.Contains("asp-all-route-data=\"Model.BuildSortRoute(ProjectRepositorySort.Project)\"", results, StringComparison.Ordinal);
         Assert.Contains("The order is applied to the complete filtered result before pagination.", results, StringComparison.Ordinal);

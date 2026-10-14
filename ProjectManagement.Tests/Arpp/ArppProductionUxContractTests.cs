@@ -12,7 +12,7 @@ public sealed class ArppProductionUxContractTests
         Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("ViewData[\"UseFullWidth\"]", markup, StringComparison.Ordinal);
         Assert.Contains("data-arpp-commandbar", markup, StringComparison.Ordinal);
-        Assert.Contains("data-arpp-fullscreen-toggle", markup, StringComparison.Ordinal);
+        Assert.Contains("data-arpp-navigator-toggle", markup, StringComparison.Ordinal);
         Assert.Contains("data-arpp-jump-input", markup, StringComparison.Ordinal);
         Assert.Contains("data-arpp-validation-navigator", markup, StringComparison.Ordinal);
         Assert.Contains("data-arpp-table-scrollbar", markup, StringComparison.Ordinal);
@@ -22,15 +22,15 @@ public sealed class ArppProductionUxContractTests
     }
 
     [Fact]
-    public void ManageWorkspaceScript_ProvidesNavigationValidationAndFullscreenControls()
+    public void ManageWorkspaceScript_ProvidesNavigationValidationAndViewportLifecycle()
     {
         var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
 
         Assert.Contains("syncTableScrollbars", script, StringComparison.Ordinal);
-        Assert.Contains("updateStickyMetrics", script, StringComparison.Ordinal);
+        Assert.Contains("updateScrollEdgeState", script, StringComparison.Ordinal);
         Assert.Contains("updateValidationNavigator", script, StringComparison.Ordinal);
         Assert.Contains("jumpToMatch", script, StringComparison.Ordinal);
-        Assert.Contains("arpp-workspace-fullscreen", script, StringComparison.Ordinal);
+        Assert.Contains("arpp-workspace-active", script, StringComparison.Ordinal);
         Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
         Assert.Contains("event.key.toLocaleLowerCase", script, StringComparison.Ordinal);
         Assert.Contains("form.requestSubmit", script, StringComparison.Ordinal);
@@ -48,15 +48,17 @@ public sealed class ArppProductionUxContractTests
     }
 
     [Fact]
-    public void WorkspaceCss_ReducesFrozenWidthAndSupportsFullscreenMode()
+    public void WorkspaceCss_UsesFullViewportAndSupportsWideTableNavigation()
     {
         var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
 
-        Assert.Contains(".arpp-entry-table {\n    min-width: 82rem;", css, StringComparison.Ordinal);
-        Assert.Contains(".arpp-sticky-left--issued", css, StringComparison.Ordinal);
-        Assert.Contains("body.arpp-workspace-fullscreen [data-arpp-workspace]", css, StringComparison.Ordinal);
-        Assert.Contains(".arpp-table-scrollbar", css, StringComparison.Ordinal);
-        Assert.Contains(".arpp-validation-navigator", css, StringComparison.Ordinal);
+        Assert.Contains(".arpp-workspace-v2__table {\n    min-width: 83rem;", css, StringComparison.Ordinal);
+        Assert.Contains(".arpp-workspace-v2__table .arpp-col-issued", css, StringComparison.Ordinal);
+        Assert.Contains("height: 100dvh;", css, StringComparison.Ordinal);
+        Assert.Contains("position: fixed;", css, StringComparison.Ordinal);
+        Assert.Contains("body.arpp-workspace-active", css, StringComparison.Ordinal);
+        Assert.Contains(".arpp-workspace-v2__top-scrollbar", css, StringComparison.Ordinal);
+        Assert.Contains(".arpp-workspace-v2__issue-list", css, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -27,6 +27,7 @@ using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Tests.Fakes;
+using ProjectManagement.Utilities.PartialDates;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -59,7 +60,9 @@ public sealed class TotIndexPageTests
                 DecisionState = ProjectTotRequestDecisionState.Pending,
                 ProposedStatus = ProjectTotStatus.Completed,
                 ProposedStartedOn = new DateOnly(2024, 4, 1),
+                ProposedStartDatePrecision = PartialDatePrecision.Day,
                 ProposedCompletedOn = new DateOnly(2024, 5, 15),
+                ProposedCompletionDatePrecision = PartialDatePrecision.Day,
                 ProposedMetDetails = "MET delivered",
                 ProposedMetCompletedOn = new DateOnly(2024, 5, 10),
                 ProposedFirstProductionModelManufactured = true,
@@ -88,7 +91,7 @@ public sealed class TotIndexPageTests
             remarkService,
             NullLogger<IndexModel>.Instance);
 
-        ConfigurePageContext(page, CreatePrincipal("approver", "Approver"));
+        ConfigurePageContext(page, CreatePrincipal("approver", "HoD"));
 
         page.DecideInput = new IndexModel.DecideRequestInput
         {
@@ -107,7 +110,7 @@ public sealed class TotIndexPageTests
         };
 
         page.Request.ContentType = "application/x-www-form-urlencoded";
-        page.HttpContext.Features.Set<IFormFeature>(new FormFeature(new FormCollection(formValues)));
+        page.Request.Form = new FormCollection(formValues);
 
         var result = await page.OnPostDecideAsync(CancellationToken.None);
 

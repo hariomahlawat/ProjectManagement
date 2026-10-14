@@ -21,8 +21,17 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
-public sealed class DocumentServicesTests
+[Collection("Upload root environment")]
+public sealed class DocumentServicesTests : IDisposable
 {
+    private readonly string? _previousUploadRoot = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT");
+
+    public DocumentServicesTests()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", null);
+
+    public void Dispose()
+        => Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", _previousUploadRoot);
+
     [Fact]
     public async Task SaveTempAsync_RejectsNonPdf()
     {
@@ -424,6 +433,7 @@ public sealed class DocumentServicesTests
         {
             Id = projectId,
             Name = $"Project {projectId}",
+            LifecycleStatus = totStatus.HasValue ? ProjectLifecycleStatus.Completed : ProjectLifecycleStatus.Active,
             CreatedByUserId = "creator",
             RowVersion = new byte[] { 1 }
         });

@@ -73,7 +73,7 @@ public sealed class FfcCountriesManagePageTests
         var result = await page.OnPostToggleActiveAsync(country.Id);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Null(redirect.PageName);
+        Assert.Equal("./Manage", redirect.PageName);
 
         var updated = await db.FfcCountries.AsNoTracking().SingleAsync();
         Assert.False(updated.IsActive);
@@ -196,8 +196,9 @@ public sealed class FfcCountriesManagePageTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                var databaseName = $"ffc-countries-manage-{Guid.NewGuid()}";
                 services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase($"ffc-countries-manage-{Guid.NewGuid()}"));
+                    options.UseInMemoryDatabase(databaseName));
             });
 
             builder.ConfigureTestServices(services =>
@@ -206,6 +207,7 @@ public sealed class FfcCountriesManagePageTests
                     {
                         options.DefaultAuthenticateScheme = "Test";
                         options.DefaultChallengeScheme = "Test";
+                        options.DefaultForbidScheme = Microsoft.AspNetCore.Identity.IdentityConstants.ApplicationScheme;
                         options.DefaultScheme = "Test";
                     })
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });

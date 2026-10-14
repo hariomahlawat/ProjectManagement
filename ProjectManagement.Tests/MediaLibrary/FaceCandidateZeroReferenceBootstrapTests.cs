@@ -26,7 +26,7 @@ public sealed class FaceCandidateZeroReferenceBootstrapTests
         var processed = await service.RefreshUnassignedAsync(10, CancellationToken.None);
 
         Assert.Equal(1, processed);
-        var face = await db.Faces.SingleAsync(item => item.Id == faceId);
+        var face = await db.Faces.AsNoTracking().SingleAsync(item => item.Id == faceId);
         Assert.Equal(FaceCandidateSearchStatus.Ready, face.CandidateSearchStatus);
         Assert.NotNull(face.CandidateSearchCompletedAtUtc);
         Assert.Empty(await db.FaceReviewDecisions.ToListAsync());

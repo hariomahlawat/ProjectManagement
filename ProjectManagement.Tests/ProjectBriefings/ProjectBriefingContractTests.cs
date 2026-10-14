@@ -154,6 +154,7 @@ public sealed class ProjectBriefingContractTests
         var page = Read("Index.cshtml");
         var resolver = Read("ProjectBriefingUpdateSheetFactsResolver.cs");
         var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
+        var planner = Read("ProjectBriefingUpdateSheetPlanner.cs");
 
         Assert.Contains("Project Update Sheets", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectUpdateSheet\"", page, StringComparison.Ordinal);
@@ -176,17 +177,17 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("ArppPublishedEntries", resolver, StringComparison.Ordinal);
 
         Assert.Contains("RenderProjectUpdateSheet", composer, StringComparison.Ordinal);
-        Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
-        Assert.Contains("UpdateSheetStatus(project.ExternalStatus)", composer, StringComparison.Ordinal);
+        Assert.Contains("source.CostRd.DisplayValue", planner, StringComparison.Ordinal);
+        Assert.Contains("NormalizeStatus(source.ExternalStatus)", planner, StringComparison.Ordinal);
         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
         Assert.Contains("AddProjectSlideHeader", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectSlideHeaderVariant.ProjectUpdateSheet", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("UpdateSheetAccent", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectUpdateLabelFill", composer, StringComparison.Ordinal);
-        Assert.Contains("SO Date:", composer, StringComparison.Ordinal);
-        Assert.Contains("Firm:", composer, StringComparison.Ordinal);
-        Assert.Contains("string.Join(\"\\n\"", composer, StringComparison.Ordinal);
+        Assert.Contains("SO Date:", planner, StringComparison.Ordinal);
+        Assert.Contains("Firm:", planner, StringComparison.Ordinal);
+        Assert.Contains("string.Join(\"\\n\"", planner, StringComparison.Ordinal);
         Assert.DoesNotContain("B5122B", composer, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -196,12 +197,12 @@ public sealed class ProjectBriefingContractTests
     public void ProjectUpdateSheet_PortfolioSummaryShowsSeparateRdAndAuthoritativeIpaTotals()
     {
         var dataSource = Read("ProjectBriefingDataService.cs");
-        var composer = Read("ProjectBriefingSlideComposer.cs");
+        var composer = Read("ProjectBriefingSlideComposer.ExecutiveSummary.cs");
 
         Assert.Contains("TotalIpaCostInRupees", dataSource, StringComparison.Ordinal);
         Assert.Contains("IpaCostRecordedCount", dataSource, StringComparison.Ordinal);
-        Assert.Contains("TOTAL R&D COST", composer, StringComparison.Ordinal);
-        Assert.Contains("TOTAL IPA COST", composer, StringComparison.Ordinal);
+        Assert.Contains("RECORDED R&D COST", composer, StringComparison.Ordinal);
+        Assert.Contains("RECORDED IPA COST", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingLayout.ProjectUpdateSheet", composer, StringComparison.Ordinal);
     }
 
@@ -214,6 +215,7 @@ public sealed class ProjectBriefingContractTests
         var dataSource = Read("ProjectBriefingDataService.cs");
         var service = Read("ProjectBriefingDeckService.cs");
         var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
+        var planner = Read("ProjectBriefingUpdateSheetPlanner.cs");
 
         Assert.Contains("name=\"PresentationTheme\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"UpdateSheetRows\"", page, StringComparison.Ordinal);
@@ -228,15 +230,15 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithPresentationOptions", service, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithSelectionRules", service, StringComparison.Ordinal);
         Assert.Contains("SelectionRulesJson", dataSource, StringComparison.Ordinal);
-        Assert.Contains("ResolveProjectUpdateRows", composer, StringComparison.Ordinal);
-        Assert.Contains("ProjectUpdateSheetLayoutVariant.Compact", composer, StringComparison.Ordinal);
-        Assert.Contains("ProjectUpdateSheetLayoutVariant.Standard", composer, StringComparison.Ordinal);
-        Assert.Contains("ProjectUpdateSheetLayoutVariant.Detailed", composer, StringComparison.Ordinal);
-        Assert.Contains("Math.Clamp", composer, StringComparison.Ordinal);
-        Assert.Contains("Completion Status", composer, StringComparison.Ordinal);
-        Assert.Contains("Project completed", composer, StringComparison.Ordinal);
-        Assert.Contains("StageCodes.DEVP", composer, StringComparison.Ordinal);
-        Assert.Contains("ProjectBriefingNarrativeTypography.ResolveUpdateSheetBrief", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingUpdateSheetPlanner.ResolveRows", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingUpdateSheetLayoutVariant.Compact", planner, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingUpdateSheetLayoutVariant.Standard", planner, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingUpdateSheetLayoutVariant.Detailed", planner, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp", planner, StringComparison.Ordinal);
+        Assert.Contains("Completion Status", planner, StringComparison.Ordinal);
+        Assert.Contains("Project completed", planner, StringComparison.Ordinal);
+        Assert.Contains("StageCodes.DEVP", planner, StringComparison.Ordinal);
+        Assert.Contains("BriefTypographyProfiles", planner, StringComparison.Ordinal);
         Assert.DoesNotContain("Name of Project", composer, StringComparison.Ordinal);
     }
 
@@ -293,8 +295,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("OngoingStageSummary", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectLifecycleStatus.Active", dataSource, StringComparison.Ordinal);
         Assert.Contains("CancelledCount", dataSource, StringComparison.Ordinal);
-        Assert.Contains("Breakdown of ongoing projects by stage", stageComposer, StringComparison.Ordinal);
-        Assert.Contains("Key takeaway:", stageComposer, StringComparison.Ordinal);
+        Assert.Contains("ONGOING PROJECTS BY PRESENT STAGE", stageComposer, StringComparison.Ordinal);
+        Assert.Contains("KEY TAKEAWAY", stageComposer, StringComparison.Ordinal);
         Assert.Contains("AddEllipse", composer, StringComparison.Ordinal);
         Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
         Assert.Contains("StandardSlideOptions.IncludeStageDistributionTable", composer, StringComparison.Ordinal);
@@ -314,7 +316,10 @@ public sealed class ProjectBriefingContractTests
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
         Assert.Contains("PRESENT STATUS", composer, StringComparison.Ordinal);
-        Assert.DoesNotContain("PROJECT POSITION", composer, StringComparison.Ordinal);
+        var detailStart = composer.IndexOf("private static void RenderProjectDetail(", StringComparison.Ordinal);
+        var detailEnd = composer.IndexOf("private static void RenderCapabilityContinuation(", detailStart, StringComparison.Ordinal);
+        Assert.True(detailStart >= 0 && detailEnd > detailStart);
+        Assert.DoesNotContain("PROJECT POSITION", composer[detailStart..detailEnd], StringComparison.Ordinal);
         Assert.Contains("CAPABILITY OVERVIEW", composer, StringComparison.Ordinal);
         Assert.Contains("const double rightWidth = 7.48", composer, StringComparison.Ordinal);
         Assert.Contains("CalculateDetailedLayout", composer, StringComparison.Ordinal);
@@ -402,12 +407,15 @@ public sealed class ProjectBriefingContractTests
     public void AudienceDeck_RemovesBuilderReadinessAndUsesFullCapabilityPagination()
     {
         var composer = Read("ProjectBriefingSlideComposer.cs");
+        var executive = Read("ProjectBriefingSlideComposer.ExecutiveSummary.cs");
         var dataSource = Read("ProjectBriefingDataService.cs");
 
         Assert.DoesNotContain("STATUS MISSING", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("DATA READINESS", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("PowerPoint-ready photo", composer, StringComparison.Ordinal);
-        Assert.Contains("Available for {recorded} of {total} selected projects", composer, StringComparison.Ordinal);
+        Assert.Contains("DATA COVERAGE", executive, StringComparison.Ordinal);
+        Assert.Contains("metric.Recorded.ToString(CultureInfo.InvariantCulture)", executive, StringComparison.Ordinal);
+        Assert.Contains("totalProjects.ToString(CultureInfo.InvariantCulture)", executive, StringComparison.Ordinal);
         Assert.Contains("CapabilityContinuationSlides", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingCapabilityPaginator", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingTextNormalizer.NormalizeFull", dataSource, StringComparison.Ordinal);
@@ -478,8 +486,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("row.dataset.stageCode === stage", script, StringComparison.Ordinal);
         Assert.Contains("sameStage", script, StringComparison.Ordinal);
         Assert.Contains("Projects remain grouped by maturity", script, StringComparison.Ordinal);
-        Assert.Contains("NativeTableHorizontalMargin = .11", composer, StringComparison.Ordinal);
-        Assert.Contains("NativeTableVerticalMargin = .04", composer, StringComparison.Ordinal);
+        Assert.Contains("double LeftMargin = .05", composer, StringComparison.Ordinal);
+        Assert.Contains("double TopMargin = .025", composer, StringComparison.Ordinal);
+        Assert.Contains("Emu(cell.LeftMargin)", composer, StringComparison.Ordinal);
+        Assert.Contains("Emu(cell.TopMargin)", composer, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -499,6 +509,7 @@ public sealed class ProjectBriefingContractTests
     {
         var page = Read("Index.cshtml");
         var profileEditor = Read("_InstitutionalProfileEditor.cshtml");
+        var additionalSlideCatalog = Read("ProjectBriefingAdditionalSlideCatalog.cs");
         var pageModel = Read("Index.cshtml.cs");
         var deckService = Read("ProjectBriefingDeckService.cs");
         var script = Read("project-briefing-decks.js");
@@ -508,7 +519,8 @@ public sealed class ProjectBriefingContractTests
         var dataSource = Read("ProjectBriefingDataService.cs");
 
         Assert.Contains("Additional slides", page, StringComparison.Ordinal);
-        Assert.Contains("SDD Institutional Profile", page, StringComparison.Ordinal);
+        Assert.Contains("SDD Institutional Profile", additionalSlideCatalog, StringComparison.Ordinal);
+        Assert.Contains("@AdditionalSlideDisplayName(slideType)", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-profile-drawer", profileEditor, StringComparison.Ordinal);
         Assert.Contains("InstitutionalModules", profileEditor, StringComparison.Ordinal);
         Assert.Contains("data-pbd-institutional-history-editor", profileEditor, StringComparison.Ordinal);
@@ -531,9 +543,17 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("profileInitialState", script, StringComparison.Ordinal);
         Assert.Contains("OnPostSaveInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("OnPostToggleInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
-        Assert.Contains("preservedProfile", pageModel, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions", pageModel, StringComparison.Ordinal);
+        Assert.Contains("AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder", pageModel, StringComparison.Ordinal);
         Assert.Contains("UpdateInstitutionalProfileAsync", deckService, StringComparison.Ordinal);
-        Assert.Contains("WithInstitutionalProfileOptions", deckService, StringComparison.Ordinal);
+        var profileUpdateStart = deckService.IndexOf("public async Task UpdateInstitutionalProfileAsync(", StringComparison.Ordinal);
+        var profileUpdateEnd = deckService.IndexOf("public async Task UpdateRoleCharterAsync(", profileUpdateStart, StringComparison.Ordinal);
+        Assert.True(profileUpdateStart >= 0 && profileUpdateEnd > profileUpdateStart);
+        var profileUpdate = deckService[profileUpdateStart..profileUpdateEnd];
+        Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides", profileUpdate, StringComparison.Ordinal);
+        Assert.Contains("normalized,", profileUpdate, StringComparison.Ordinal);
+        Assert.Contains("configuration.RoleCharterOptions", profileUpdate, StringComparison.Ordinal);
+        Assert.Contains("configuration.FfcGlobalFootprintOptions", profileUpdate, StringComparison.Ordinal);
         Assert.True(
             page.IndexOf("Content used by this presentation", StringComparison.Ordinal)
             < page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)

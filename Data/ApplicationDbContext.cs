@@ -197,14 +197,18 @@ namespace ProjectManagement.Data
 
             var systemUserCreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            // SECTION: Database function mappings
-            builder
-                .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsHeadline))!)
-                .HasName("ts_headline");
+            // PostgreSQL search functions use provider-specific parameter types.
+            // Other relational providers must not try to map those types.
+            if (Database.IsNpgsql())
+            {
+                builder
+                    .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsHeadline))!)
+                    .HasName("ts_headline");
 
-            builder
-                .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsRankCd))!)
-                .HasName("ts_rank_cd");
+                builder
+                    .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsRankCd))!)
+                    .HasName("ts_rank_cd");
+            }
 
             builder.Entity<ApplicationUser>()
                 .Property(x => x.ComdtOfficerWorkloadOrderJson)
@@ -2596,6 +2600,48 @@ namespace ProjectManagement.Data
                 {
                     tb.HasCheckConstraint(checkName, $"\"{amountColumn}\" >= 0");
                 });
+            }
+
+            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+            {
+                // SQLite uses the SQL-standard trim function for the same
+                // nonblank constraints that PostgreSQL expresses with btrim.
+                // SQLite cannot order DateTimeOffset directly. Store instants in
+                // UTC DateTime form so relational ordering and expiry comparisons
+                // retain their chronological meaning regardless of input offset.
+                var offsetConverter = new ValueConverter<DateTimeOffset, DateTime>(
+                    value => value.UtcDateTime,
+                    value => new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc)));
+                var nullableOffsetConverter = new ValueConverter<DateTimeOffset?, DateTime?>(
+                    value => value.HasValue ? value.Value.UtcDateTime : (DateTime?)null,
+                    value => value.HasValue
+                        ? new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+                        : (DateTimeOffset?)null);
+
+                foreach (var entityType in builder.Model.GetEntityTypes())
+                {
+                    foreach (var property in entityType.GetProperties())
+                    {
+                        if (property.GetValueConverter() is null)
+                        {
+                            if (property.ClrType == typeof(DateTimeOffset))
+                                property.SetValueConverter(offsetConverter);
+                            else if (property.ClrType == typeof(DateTimeOffset?))
+                                property.SetValueConverter(nullableOffsetConverter);
+                        }
+
+                        if (property.GetDefaultValueSql() == "now() at time zone 'utc'")
+                        {
+                            property.SetDefaultValueSql("CURRENT_TIMESTAMP");
+                        }
+                    }
+
+                    foreach (var constraint in entityType.GetCheckConstraints().ToArray())
+                    {
+                        builder.Entity(entityType.Name).ToTable(table => table.HasCheckConstraint(
+                            constraint.ModelName, constraint.Sql.Replace("btrim(", "trim(", StringComparison.Ordinal)));
+                    }
+                }
             }
 
             if (!Database.IsNpgsql())

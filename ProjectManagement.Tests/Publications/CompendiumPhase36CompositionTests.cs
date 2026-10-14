@@ -53,7 +53,8 @@ public sealed class CompendiumPhase36CompositionTests
     public void FlowBelowImage_PrefersParagraphThenSentenceBoundaries()
     {
         var firstParagraph = "First sentence remains intact. Second sentence also remains intact. Third sentence completes the opening paragraph.";
-        var secondParagraph = "This second paragraph must remain available for the full-width region below the image. It must never be cut in the middle of a word.";
+        var secondParagraph = string.Join(" ", Enumerable.Repeat(
+            "This second paragraph must remain available for the full-width region below the image. It must never be cut in the middle of a word.", 12));
         var narrative = firstParagraph + "\n\n" + secondParagraph;
 
         var plan = CompendiumDossierNarrativeFlowPlanner.Resolve(
@@ -70,6 +71,11 @@ public sealed class CompendiumPhase36CompositionTests
         Assert.NotEmpty(plan.BelowImageSegment);
         Assert.Contains("second paragraph", plan.BelowImageSegment, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("paragrap\n", plan.BelowImageSegment, StringComparison.OrdinalIgnoreCase);
+        var renderedText = string.Join(" ", new[] { plan.SideSegment, plan.BelowImageSegment }
+            .Concat(plan.ContinuationSegments));
+        Assert.Equal(
+            System.Text.RegularExpressions.Regex.Replace(narrative, @"\s+", " ").Trim(),
+            System.Text.RegularExpressions.Regex.Replace(renderedText, @"\s+", " ").Trim());
     }
 
     [Fact]
@@ -103,15 +109,14 @@ public sealed class CompendiumPhase36CompositionTests
     }
 
     [Fact]
-    public void LowResolutionPhotography_IsNotExpandedBeyondPreferredFrame()
+    public void AutomaticLowResolutionPhotography_IsConstrainedToPrintSafeFrame()
     {
         var narrative = string.Join(" ", Enumerable.Repeat(
             "Compact narrative leaves substantial residual page space for editorial balancing.",
             4));
-        var preferred = CompendiumDossierPaginationPlanner.PreferredImageHeight(CompendiumDossierLayout.VisualHero, 1);
 
         var decision = CompendiumDossierPaginationPlanner.Resolve(
-            CompendiumDossierLayout.VisualHero,
+            CompendiumDossierLayout.Automatic,
             CompendiumDossierLayout.VisualHero,
             1,
             narrative,
@@ -120,6 +125,9 @@ public sealed class CompendiumPhase36CompositionTests
             "Image fidelity test",
             primaryImageEffectiveDpi: 120);
 
-        Assert.True(decision.PrimaryImageHeightPoints <= preferred + .1f);
+        Assert.Contains(decision.Layout, new[] { CompendiumDossierLayout.Balanced, CompendiumDossierLayout.Technical });
+        var preferred = CompendiumDossierPaginationPlanner.PreferredImageHeight(decision.Layout, 1);
+        var safeMaximum = CompendiumImageQualityPolicy.MaximumAutomaticImageHeight(decision.Layout, preferred, 120);
+        Assert.True(decision.PrimaryImageHeightPoints <= safeMaximum + .1f);
     }
 }

@@ -266,7 +266,8 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
 
         var metadataRow = rows.Count + 3;
         Assert.Equal("Export generated", worksheet.Cell(metadataRow, 1).GetString());
-        Assert.Equal("2024-03-01 17:30 IST", worksheet.Cell(metadataRow, 2).GetString());
+        Assert.Equal(new DateTime(2024, 3, 1, 17, 30, 0), worksheet.Cell(metadataRow, 2).GetDateTime());
+        Assert.Contains("IST", worksheet.Cell(metadataRow, 2).Style.DateFormat.Format);
         Assert.Equal("Completed", worksheet.Cell(metadataRow + 1, 2).GetString());
         Assert.Equal("Only pending approvals", worksheet.Cell(metadataRow + 2, 2).GetString());
         Assert.Equal("2024-01-01", worksheet.Cell(metadataRow + 3, 2).GetString());

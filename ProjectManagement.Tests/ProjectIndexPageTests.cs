@@ -391,7 +391,13 @@ namespace ProjectManagement.Tests
         {
             var categories = new ProjectCategoryHierarchyService(context);
             var analytics = new ProjectAnalyticsService(context, new TestClock(), categories, new WorkflowStageMetadataProvider());
-            return new IndexModel(context, analytics, categories, new WorkflowStageMetadataProvider());
+            return new IndexModel(context, analytics, categories, new WorkflowStageMetadataProvider())
+            {
+                PageContext = new Microsoft.AspNetCore.Mvc.RazorPages.PageContext
+                {
+                    HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext()
+                }
+            };
         }
 
         private static ApplicationDbContext CreateContext()

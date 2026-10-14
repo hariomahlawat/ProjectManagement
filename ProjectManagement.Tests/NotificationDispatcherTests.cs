@@ -34,7 +34,9 @@ public sealed class NotificationDispatcherTests
             .Options;
 
         var hub = new RecordingHubContext();
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 1, 12, 0, 0, TimeSpan.Zero));
         var services = new ServiceCollection();
+        services.AddSingleton<IClock>(clock);
         services.AddSingleton<IOptions<IdentityOptions>>(Options.Create(new IdentityOptions()));
         services.AddSingleton<ILogger<UserManager<ApplicationUser>>>(NullLogger<UserManager<ApplicationUser>>.Instance);
         services.AddLogging();
@@ -80,7 +82,6 @@ public sealed class NotificationDispatcherTests
         }
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
-        var clock = new FixedClock(new DateTimeOffset(2024, 10, 1, 12, 0, 0, TimeSpan.Zero));
         var dispatcher = new NotificationDispatcher(scopeFactory, clock, NullLogger<NotificationDispatcher>.Instance);
 
         var processBatch = typeof(NotificationDispatcher)

@@ -1,3 +1,4 @@
+using ProjectManagement.Tests.Infrastructure;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -291,8 +292,8 @@ public class ProjectTimelineUiTests
         Assert.Contains("Completion submitted", html, StringComparison.Ordinal);
         Assert.Contains("Proposed completion", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Planned completion missing", html, StringComparison.Ordinal);
-        Assert.Contains("Review update", html, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(html, "Review update"));
+        Assert.Contains("Edit submission", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "Edit submission"));
     }
 
 
@@ -328,7 +329,14 @@ public class ProjectTimelineUiTests
             User = BuildPrincipal(isHoD ? new[] { "HoD" } : Array.Empty<string>())
         };
 
-        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/Projects/Overview";
+        var actionContext = new ActionContext(httpContext, routeData, new PageActionDescriptor
+        {
+            ViewEnginePath = "/Projects/Overview",
+            RelativePath = "/Pages/Projects/Overview.cshtml"
+        });
         var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/Shared/_ProjectTimeline.cshtml", isMainPage: false);
 
         if (!viewResult.Success)
@@ -405,6 +413,7 @@ public class ProjectTimelineUiTests
         });
         services.AddRazorPages();
         services.AddControllersWithViews();
+        RazorPageTestRouting.AddPageEndpoints(services);
 
         return services.BuildServiceProvider();
     }

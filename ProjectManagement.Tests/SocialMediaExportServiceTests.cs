@@ -126,7 +126,7 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal(8, lastColumn!.ColumnNumber());
         var lastRow = worksheet.LastRowUsed();
         Assert.NotNull(lastRow);
-        Assert.Equal(2, lastRow!.RowNumber());
+        Assert.Equal(7, lastRow!.RowNumber());
 
         Assert.Equal(1, worksheet.Cell(2, 1).GetValue<int>());
         Assert.Equal(new DateTime(2024, 4, 18), worksheet.Cell(2, 2).GetDateTime().Date);
@@ -137,10 +137,13 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal("Yes", worksheet.Cell(2, 7).GetString());
         Assert.Equal("Student innovations highlighted.", worksheet.Cell(2, 8).GetString());
 
-        Assert.Equal("Export generated", worksheet.Cell(5, 1).GetString());
-        Assert.Equal("2024-04-01", worksheet.Cell(6, 2).GetString());
-        Assert.Equal("2024-04-30", worksheet.Cell(7, 2).GetString());
-        Assert.Equal("Instagram", worksheet.Cell(8, 2).GetString());
+        Assert.True(worksheet.Cell(3, 1).IsEmpty());
+        Assert.Equal("Export generated", worksheet.Cell(4, 1).GetString());
+        Assert.Equal(new DateTime(2024, 5, 1, 14, 0, 0), worksheet.Cell(4, 2).GetDateTime());
+        Assert.Contains("IST", worksheet.Cell(4, 2).Style.DateFormat.Format);
+        Assert.Equal("2024-04-01", worksheet.Cell(5, 2).GetString());
+        Assert.Equal("2024-04-30", worksheet.Cell(6, 2).GetString());
+        Assert.Equal("instagram", worksheet.Cell(7, 2).GetString());
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal("ProjectOfficeReports.SocialMediaEventExported", entry.Action);
@@ -149,7 +152,7 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal(eventType.Id.ToString(), entry.Data["SocialMediaEventTypeId"]);
         Assert.Equal("innovation", entry.Data["Query"]);
         Assert.Equal(platform.Id.ToString(), entry.Data["PlatformId"]);
-        Assert.Equal("Instagram", entry.Data["Platform"]);
+        Assert.Equal("instagram", entry.Data["Platform"]);
         Assert.Equal("true", entry.Data["OnlyActiveEventTypes"]);
     }
 

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models.ProjectIdeas;
+using ProjectManagement.Models;
 using ProjectManagement.Services.ProjectIdeas;
 
 namespace ProjectManagement.Tests;
@@ -347,6 +348,9 @@ public sealed class ProjectIdeaCommandServiceTests
 
         await using var firstDb = new ApplicationDbContext(options);
         await firstDb.Database.EnsureCreatedAsync();
+        firstDb.Users.AddRange(
+            new ApplicationUser { Id = "creator", UserName = "creator" },
+            new ApplicationUser { Id = "hod-1", UserName = "hod-1" });
         var seeded = new ProjectIdea
         {
             Title = "Concurrent idea",

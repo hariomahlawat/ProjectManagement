@@ -28,14 +28,17 @@ public sealed class ArppPppIdentifierContractTests
         var manageMarkup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
         var manageScript = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
         var currentPosition = ReadRepoFile("Pages", "Projects", "Arpp", "_CurrentPositionTable.cshtml");
-        var briefing = ReadRepoFile("Services", "ProjectBriefings", "Presentation", "ProjectBriefingSlideComposer.UpdateSheet.cs");
+        var briefing = ReadRepoFile("Services", "ProjectBriefings", "Presentation", "ProjectBriefingUpdateSheetPlanner.cs");
 
         Assert.Contains("PPP no.", manageMarkup, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Serial No. and PPP No. do not apply", manageMarkup, StringComparison.Ordinal);
+        Assert.Contains("data-arpp-issued-identifier data-arpp-identifier-kind=\"serial\"", manageMarkup, StringComparison.Ordinal);
+        Assert.Contains("data-arpp-issued-identifier data-arpp-identifier-kind=\"ppp\"", manageMarkup, StringComparison.Ordinal);
+        Assert.Contains("if (delisted) input.value = \"\"", manageScript, StringComparison.Ordinal);
+        Assert.Contains("? \"Not applicable\"", manageScript, StringComparison.Ordinal);
         Assert.Contains("input.required = !delisted", manageScript, StringComparison.Ordinal);
         Assert.Contains("input.readOnly = delisted", manageScript, StringComparison.Ordinal);
         Assert.Contains("showIssuedIdentifiers", currentPosition, StringComparison.Ordinal);
-        Assert.Contains("ArppPppNumberApplicable", briefing, StringComparison.Ordinal);
+        Assert.Contains("source.ArppPppNumberApplicable ? DisplayOrNotRecorded(source.ArppReference) : string.Empty", briefing, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] segments)

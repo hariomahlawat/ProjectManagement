@@ -309,6 +309,7 @@ public class ProliferationControllerPreferenceTests
             Source = ProliferationSource.Sdd,
             Year = 2024,
             TotalQuantity = 120,
+            SubmittedByUserId = "submitter",
             ApprovalStatus = ApprovalStatus.Approved,
             CreatedOnUtc = now,
             LastUpdatedOnUtc = now,

@@ -62,14 +62,12 @@ public sealed class ProjectCommandHeaderAssetTests
     [InlineData("wwwroot/css/pages/project-portfolio.css")]
     [InlineData("ProjectManagement.Tests/ProjectCommandHeaderAssetTests.cs")]
     [InlineData("ProjectManagement.Tests/ProjectOverviewPresentationContractTests.cs")]
-    public void ReplacementManifest_IncludesHeaderDeliveryContract(string requiredPath)
+    public void Repository_DeliversHeaderSurfaceAndItsContractChecks(string requiredPath)
     {
-        var manifest = ReadRepoFile("REPLACEMENT-MANIFEST.txt");
-        var entries = manifest.Split(
-            new[] { '\r', '\n' },
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        Assert.Contains(requiredPath, entries);
+        // Replacement manifests describe the latest release package, which can be
+        // unrelated to this previously delivered header. Its assets and regression
+        // contracts must remain available in the repository across later releases.
+        Assert.False(string.IsNullOrWhiteSpace(ReadRepoFile(requiredPath.Split('/'))));
     }
 
     [Fact]
