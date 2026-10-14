@@ -6,14 +6,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ProjectManagement.Data;
 using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Hosted;
 
 namespace ProjectManagement.Tests.Infrastructure;
 
 /// <summary>
 /// Isolates WebApplicationFactory tests from developer and production PostgreSQL databases.
 /// Both PRISM DbContexts are replaced because production startup treats them as one migration
-/// boundary. Media hosted workers are removed so unit/API tests cannot touch the filesystem,
-/// queues or catalogue in the background.
+/// boundary. Media and OCR hosted workers are removed so unit/API tests cannot touch the
+/// filesystem, queues or catalogue or depend on deployment OCR executables in the background.
 /// </summary>
 public static class PrismTestWebHostBuilderExtensions
 {
@@ -39,6 +40,15 @@ public static class PrismTestWebHostBuilderExtensions
                     databaseNamePrefix,
                     Guid.NewGuid().ToString("N")),
                 ["Database:RunSeedersOnStartup"] = "false",
+                // Endpoint tests do not run OCR. Do not inherit the LAN deployment's
+                // Windows executable paths; production option validation remains enabled.
+                ["ProjectDocuments:Ocr:WorkRoot"] = Path.Combine(
+                    Path.GetTempPath(), "PRISM-ERP-Tests", applicationDatabaseName, "project-ocr"),
+                ["ProjectDocuments:Ocr:OcrExecutablePath"] = string.Empty,
+                ["ProjectDocuments:Ocr:EnableWorker"] = "false",
+                ["DocRepo:OcrExecutablePath"] = string.Empty,
+                ["DocRepo:EnableOcrWorker"] = "false",
+                ["OcrBackfill:Enabled"] = "false",
                 // Endpoint fixtures use InMemory; the unrelated index worker needs a relational store.
                 ["Search:V2:Enabled"] = "false",
                 ["Audit:Retention:Enabled"] = "false",
@@ -64,15 +74,18 @@ public static class PrismTestWebHostBuilderExtensions
             services.AddDbContext<MediaLibraryDbContext>(options =>
                 options.UseInMemoryDatabase(mediaDatabaseName));
 
-            var mediaHostedServices = services
+            var isolatedHostedServices = services
                 .Where(descriptor =>
                     descriptor.ServiceType == typeof(IHostedService)
-                    && descriptor.ImplementationType?.Namespace?.StartsWith(
+                    && (descriptor.ImplementationType == typeof(ProjectDocumentOcrWorker)
+                        || descriptor.ImplementationType == typeof(DocRepoOcrWorker)
+                        || descriptor.ImplementationType == typeof(OcrTextBackfillWorker)
+                        || descriptor.ImplementationType?.Namespace?.StartsWith(
                         "ProjectManagement.Features.MediaLibrary.Hosted",
-                        StringComparison.Ordinal) == true)
+                        StringComparison.Ordinal) == true))
                 .ToArray();
 
-            foreach (var descriptor in mediaHostedServices)
+            foreach (var descriptor in isolatedHostedServices)
             {
                 services.Remove(descriptor);
             }
