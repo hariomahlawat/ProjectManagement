@@ -4,46 +4,47 @@ This inventory records the repository-root cleanup performed before broader Code
 
 ## Current root shape
 
-After the first two cleanup passes, the root contains:
+After three cleanup passes, the repository root contains:
 
-- 146 entries
-- 116 files
+- 47 entries
+- 17 files
 - 30 directories
-- 0 root `.patch` files
-- 48 README-like files
-- 20 phase-named files
-- 8 validation/verification-style files
-- 0 APPLY/REPLACE/READY-TO-PASTE style root files
+- only two root Markdown/text documents: `README.md` and `AGENTS.md`
+- no root `.patch`, `.sql` or `.ps1` delivery/verification files
+- no root APPLY/REPLACE/READY-TO-PASTE instruction files
 
-The root is substantially cleaner, but a third pass is still warranted for remaining one-off hotfix/module READMEs and historical validation material.
+The root is now reserved for current project entry points, build/configuration files and primary source/tooling directories.
 
-## First cleanup pass
+## What was removed
 
-The first pass removed clearly isolated delivery metadata/transcripts and an accidental probe, including:
+The cleanup removed historical delivery material whose implementation is already preserved by Git history/current source, including:
 
-- `_tmp_probe_should_not_exist.txt`
-- generic changed-file/file/package/source manifests
-- generic static validation and test-result transcripts
-- obsolete copy/apply instructions
+- phase READMEs and completion notes;
+- changed-file/package/source manifests;
+- validation and static-verification transcripts;
+- root patch bundles;
+- obsolete APPLY/REPLACE/READY-TO-PASTE instructions;
+- `_PATCH/` and `_PACKAGE/` delivery directories;
+- old visual-proof directories;
+- one-off module/hotfix notes for Admin, IPR, Notebook, Search V2, Media Library, Publications, workflow and reporting;
+- obsolete root verification scripts and phase preflight SQL;
+- an obsolete Phase 7 hotfix helper under `tools/` that referenced already-removed delivery material.
 
-No application runtime source, migrations, configuration or deployment logic was changed.
+Git history remains the archive for these materials.
 
-## Second cleanup pass
+## Durable material preserved and relocated
 
-The second pass removed historical delivery clusters whose source changes are already preserved by Git history/current code:
+Material that still has current engineering or operational value was moved into stable locations:
 
-- Phase 6–14 changed-file and validation-result pairs
-- Publications Phase 29–35 delivery READMEs/manifests
-- Phase 16–24 and 39–40 delivery READMEs
-- early `README_PHASE*` delivery notes
-- all root `*.patch` bundles
-- FFC phase `README_FIRST` delivery files
-- obsolete root APPLY/REPLACE/READY-TO-PASTE instructions
-- the historical `_PATCH/` patch bundle directory
-- the historical `_PACKAGE/` delivery bundle directory
-- Phase 34/35 visual-proof directories
-
-Git history is the archive for these materials. They are no longer allowed to compete with current engineering instructions in the repository root.
+- migration policy → `docs/engineering/migrations.md`
+- production readiness → `docs/deployment/production-readiness.md`
+- production deployment checklist → `docs/deployment/production-checklist.md`
+- publication-font offline guidance → `docs/deployment/publication-fonts.md`
+- production migration inventory query → `ops/database/production-migration-inventory.sql`
+- production startup diagnostic query → `ops/database/production-startup-diagnostic.sql`
+- Media Library LAN/NAS guidance → `docs/media-library/`
+- Search V2 verification helper → `tools/Verify-SearchV2.ps1`
+- Compendium cover-slot acceptance checks → `docs/manual-tests/compendium-cover-slots.md`
 
 ## Explicitly retained because it is still operationally wired
 
@@ -58,61 +59,8 @@ Current evidence:
 
 This is distribution material rather than application source, but it is still consumed by current automation. Removing it requires first retiring or redesigning that workflow.
 
-## Remaining historical/reference material requiring a third pass
+## Ongoing rule
 
-The root still contains several classes that should be reviewed individually or by subsystem:
+New phase/hotfix delivery documents must not be added to the repository root. Durable guidance belongs under `docs/`, operator assets under `ops/`, reusable engineering scripts under `tools/`, and ephemeral delivery evidence belongs in Git/CI rather than committed transcripts.
 
-1. **One-off module/hotfix READMEs**
-   - build/compile/migration fix notes
-   - IPR refinement notes
-   - Search V2 implementation/convergence notes
-   - Admin phase notes
-   - media/publications/workspace hardening notes
-
-   Where the guidance is still durable, merge it into `docs/`; otherwise rely on Git history and remove it.
-
-2. **Remaining validation/verification artifacts**
-   - `SEARCH-V2-2-STATIC-VERIFICATION.txt`
-   - `SEARCH-V2-QUALITY-HARDENING-STATIC-VERIFICATION.txt`
-   - `STATIC-VERIFICATION.txt`
-   - `VALIDATION-RESULTS.txt`
-   - `VALIDATION-static.txt`
-   - `VALIDATION.md`
-   - `VERIFICATION.txt`
-   - `PRODUCTION-VERIFICATION.sql`
-
-   SQL that is genuinely part of production operations should move under `ops/` or `docs/deployment/`; reproducible validation transcripts should be removed.
-
-3. **Remaining generic/historical manifests**
-   - `MANIFEST.txt`
-   - `SHA256SUMS.txt`
-   - search-specific manifests and static-verification files
-
-4. **Operational root scripts/SQL**
-   - verify whether each root `.sql` and `.ps1` file is an active operator entry point;
-   - move active operational assets under `ops/`;
-   - remove historical delivery-only scripts.
-
-## Rules for subsequent cleanup
-
-Before deleting or moving a historical artifact:
-
-1. search the current repository for references to its exact path/name;
-2. check `.github/workflows`, `ProjectManagement.csproj`, build scripts, `ops/` and `tools/`;
-3. verify the artifact is not the only copy of a migration, script, template, configuration example or deployment instruction still in use;
-4. prefer Git history over retaining reproducible test transcripts and patch payloads;
-5. move durable operational knowledge into `docs/` or `ops/` rather than leaving one-off instructions in the root;
-6. keep behavioral application changes out of housekeeping PRs.
-
-## Desired end state
-
-The repository root should contain only:
-
-- core solution/project/build files;
-- current configuration templates;
-- current deployment entry points;
-- top-level source/test/tooling directories;
-- `README.md` and `AGENTS.md`;
-- a very small number of intentionally retained operational files.
-
-Historical implementation material should not compete with current instructions for developer or Codex attention.
+Housekeeping changes should remain separate from behavioral application changes.
