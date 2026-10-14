@@ -1,26 +1,46 @@
-# Documentation index
+# PRISM ERP documentation
 
-Use these guides to navigate the codebase and extend the platform safely. Each document focuses on a particular slice of the system so teams can update them independently.
+Use this index to navigate current engineering guidance. The repository also contains older implementation notes; those are useful historical evidence but may not describe the present code.
+
+## Start here
+
+| Document | Purpose |
+| --- | --- |
+| [../AGENTS.md](../AGENTS.md) | Rules and guardrails for Codex and other code agents. |
+| [Current state](current-state.md) | Code-derived map of the present application and major domains. |
+| [Engineering invariants](engineering-invariants.md) | Correctness, security, workflow, persistence and architecture constraints. |
+| [Build and test](build-and-test.md) | Current restore/build/test commands and migration validation. |
+| [Housekeeping policy](housekeeping.md) | How historical patch/readme/validation material should be classified and cleaned up. |
+
+## Detailed references
+
+The following documents contain useful subsystem detail, but they predate the current documentation reset. Validate material claims against current code before relying on them for architectural changes.
 
 | Guide | Scope |
 | --- | --- |
-| [Architecture and Configuration](architecture.md) | High-level layering, request pipeline, authentication/authorization policies, background services, and startup configuration. |
-| [Data and Domain](data-domain.md) | Entity relationships, key domain models (tasks, celebrations, projects, notifications), and how persistence concerns are organised. |
-| [Infrastructure and Services](infrastructure-services.md) | Cross-cutting helpers, hosted workers, and service abstractions available to page models and APIs. |
-| [Razor Pages Catalogue](razor-pages.md) | Feature-by-feature walkthrough of the UI layer, including available actions, filters, and role checks. |
-| [Configuration Reference](configuration-reference.md) | Exhaustive list of configuration keys, defaults, and environment overrides. |
-| [Projects Module Storyboard](projects-module.md) | Narrative guide to the procurement-heavy projects workspace, including personas, lifecycle, and guardrails. |
-| [Project Office Reports Playbook](ProjectOfficeReports_Directions.md) | End-to-end reference for Visits, Social Media, Proliferation, ToT, and IPR trackers: policies, services, Razor Pages, storage rules, and export pipelines. |
-| [Timeline Pipeline](timeline.md) | Deep dive into plan versions, approvals, and checklist integration for the project timeline editor. |
-| [Extending the Platform](extending.md) | Patterns and guardrails for adding roles, properties, services, or Razor Pages without breaking conventions. |
-| [Action Tracker Development Note](action-tracker-development-note.md) | Action Tracker implementation note for UTC persistence, Indian Standard Time display, central clock/formatter usage, review areas, acceptance criteria, and tests. |
-| [Storyboard User Guide](user-guide/README.md) | Persona-oriented walkthrough for operators and project teams covering dashboard, tasks, calendar, celebrations, projects, admin, and notifications. |
-| [Manual Tests](manual-tests/README.md) | Repeatable QA scripts for accessibility and regression checks (kept in sync with UI updates). |
+| [Architecture and configuration](architecture.md) | Earlier high-level wiring, request pipeline, authorization and startup description. |
+| [Data and domain](data-domain.md) | Earlier entity/domain overview. |
+| [Infrastructure and services](infrastructure-services.md) | Cross-cutting helpers, workers and service abstractions. |
+| [Razor Pages catalogue](razor-pages.md) | UI/page inventory and role checks. |
+| [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
+| [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
+| [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
+| [Timeline pipeline](timeline.md) | Plan versions, approvals and checklist integration. |
+| [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
+| [Extending the platform](extending.md) | Older extension patterns and conventions. |
+| [Action Tracker development note](action-tracker-development-note.md) | Action Tracker implementation detail. |
+| [User guide](user-guide/README.md) | Operator-facing guidance. |
+| [Manual tests](manual-tests/README.md) | Repeatable manual QA scripts. |
 
-When modifying a module, update the relevant guide with:
+## Documentation maintenance rules
 
-1. **Feature summary** – describe the intent and main flows.
-2. **Edge cases** – call out validation, concurrency, or audit behaviours that future maintainers must preserve.
-3. **Configuration touchpoints** – mention any new appsettings or environment flags introduced.
+When changing behavior:
 
-Keeping these documents current ensures onboarding engineers can reason about the code without spelunking through every service.
+1. update a durable document only when it describes the affected behavior;
+2. state important authorization, concurrency, transactional and audit invariants;
+3. document configuration keys that operators must provide or understand;
+4. prefer references to stable symbols/paths over fragile line-number citations;
+5. do not create a new root-level phase README, patch-application guide or validation transcript as the long-term documentation for a feature;
+6. when documentation conflicts with current executable code, fix the documentation unless the code itself is the defect.
+
+Historical cleanup is tracked by the policy in [housekeeping.md](housekeeping.md).
