@@ -17,6 +17,16 @@ PRISM ERP is a .NET 8 ASP.NET Core modular monolith. The primary web application
 
 The primary composition root is `Program.cs`. The primary persistence model is `Data/ApplicationDbContext.cs`.
 
+## Deployment model
+
+PRISM's production environment is an **offline local-area network (LAN)**. The application must remain operational without public Internet access.
+
+This is an architectural constraint, not merely an operations preference. Production features and browser rendering must not silently depend on public CDNs, Internet-hosted fonts/assets, cloud APIs, SaaS identity, external telemetry, cloud storage, or public callbacks. Any deliberate exception requires explicit deployment approval and an offline-safe fallback or clearly optional behavior.
+
+Build machines may need package feeds during restore, but the deployed runtime should be self-contained with respect to external network services. Local/LAN services such as PostgreSQL, file shares, reverse proxies or other explicitly provisioned infrastructure remain valid dependencies when documented.
+
+The LAN boundary is not a trust boundary: authentication, authorization, antiforgery, resource access checks, auditability and secure file handling remain mandatory.
+
 ## Major functional domains visible in current code
 
 The current EF model and service registrations show these broad domains:
