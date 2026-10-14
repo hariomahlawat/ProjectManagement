@@ -1,5 +1,7 @@
 # Repository housekeeping policy
 
+See [housekeeping-inventory.md](housekeeping-inventory.md) for the current root inventory, deletions already made, retained live dependencies and next cleanup candidates.
+
 PRISM has accumulated a large amount of historical delivery material in the repository root. The root currently contains hundreds of entries, including phase READMEs, patch files, changed-file manifests, replacement instructions, validation transcripts and temporary packaging material.
 
 This material can be useful as historical evidence, but its current placement makes navigation harder for developers and code agents and creates a risk that obsolete instructions are mistaken for current guidance.
