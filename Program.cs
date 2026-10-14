@@ -4,6 +4,8 @@ using Markdig;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -133,24 +135,29 @@ builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Model.Validation", LogL
 builder.Logging.AddFilter("ProjectManagement.Services.TodoService", LogLevel.None);
 builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel.Warning);
 
-var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
-if (string.IsNullOrWhiteSpace(keysDir))
-{
-    // Preserve the repository used by the currently deployed production build so
-    // existing authentication and antiforgery keys remain readable after upgrade.
-    keysDir = builder.Environment.IsDevelopment()
-        ? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PRISM-ERP",
-            "DataProtectionKeys")
-        : "/var/pm/keys";
-}
-
-Directory.CreateDirectory(keysDir);
-
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
     .SetApplicationName("ProjectManagement_SDD");
+builder.Services.AddOptions<KeyManagementOptions>()
+    .Configure<IConfiguration, ILoggerFactory>((options, configuration, loggerFactory) =>
+    {
+        // Resolve after host configuration is composed, including per-test overrides.
+        // The default configuration providers still include the DP_KEYS_DIR environment variable.
+        var keysDir = configuration["DP_KEYS_DIR"];
+        if (string.IsNullOrWhiteSpace(keysDir))
+        {
+            // Preserve deployed key locations so existing cookies remain readable.
+            keysDir = builder.Environment.IsDevelopment()
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "PRISM-ERP",
+                    "DataProtectionKeys")
+                : "/var/pm/keys";
+        }
+
+        Directory.CreateDirectory(keysDir);
+        options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(keysDir), loggerFactory);
+    })
+    .ValidateOnStart();
 
 builder.Services.AddMetrics();
 

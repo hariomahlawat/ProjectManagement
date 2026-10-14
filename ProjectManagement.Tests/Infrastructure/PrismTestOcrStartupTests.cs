@@ -1,4 +1,10 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +45,30 @@ public sealed class PrismTestOcrStartupTests
         Assert.True(Path.IsPathFullyQualified(options.WorkRoot));
 
         var configuration = factory.Services.GetRequiredService<IConfiguration>();
+        var repository = Assert.IsType<FileSystemXmlRepository>(factory.Services
+            .GetRequiredService<IOptions<KeyManagementOptions>>().Value.XmlRepository);
+        Assert.Equal(Path.GetFullPath(configuration["DP_KEYS_DIR"]!), repository.Directory.FullName);
+        Assert.StartsWith(
+            Path.GetFullPath(Path.Combine(Path.GetTempPath(), "PRISM-ERP-Tests")) + Path.DirectorySeparatorChar,
+            repository.Directory.FullName,
+            StringComparison.Ordinal);
+        Assert.True(repository.Directory.Exists);
+
+        // Exercise the real persistent key repository, not just the configured path.
+        var protector = factory.Services.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("PrismTestOcrStartupTests");
+        var protectedValue = protector.Protect("test-host-key-persistence");
+        Assert.Equal("test-host-key-persistence", protector.Unprotect(protectedValue));
+        Assert.NotEmpty(repository.Directory.GetFiles("key-*.xml"));
+
+        if (environment == "Production")
+        {
+            var cookie = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+                .Get(IdentityConstants.ApplicationScheme);
+            Assert.Equal("__Host-PMAuth", cookie.Cookie.Name);
+            Assert.Equal(CookieSecurePolicy.Always, cookie.Cookie.SecurePolicy);
+        }
+
         Assert.False(configuration.GetValue<bool>("DocRepo:EnableOcrWorker"));
         Assert.True(string.IsNullOrWhiteSpace(configuration["DocRepo:OcrExecutablePath"]));
         Assert.False(configuration.GetValue<bool>("OcrBackfill:Enabled"));
