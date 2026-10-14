@@ -11,6 +11,7 @@ Use this index to navigate current engineering guidance. The repository also con
 | [Engineering invariants](engineering-invariants.md) | Correctness, security, workflow, persistence and architecture constraints. |
 | [Build and test](build-and-test.md) | Current restore/build/test commands and migration validation. |
 | [Housekeeping policy](housekeeping.md) | How historical patch/readme/validation material should be classified and cleaned up. |
+| [Housekeeping inventory](housekeeping-inventory.md) | Current root-clutter inventory, first-pass deletions, live dependencies and next cleanup candidates. |
 
 ## Detailed references
 
