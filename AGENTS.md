@@ -16,6 +16,17 @@ Engineering consequences:
 - LAN-only deployment does not relax authentication, authorization, audit, upload/download validation, CSRF protection, secrets handling, or resource-level access control.
 - Do not assume a cloud secret store, cloud queue, cloud object store, cloud monitoring platform, or externally reachable callback URL exists.
 
+## Active production and change continuity
+
+PRISM ERP is already deployed and running in production. Production continuity is a first-class constraint for every change.
+
+- Treat existing deployed behavior and configuration as compatibility constraints until verified otherwise. Repository defaults and documentation are not proof of actual deployed configuration; never claim production state has been verified unless it has actually been inspected.
+- Prefer additive, backward-compatible, reversible changes. Preserve current routes, configuration keys, persisted-data contracts and operator-script interfaces unless a deliberate transition plan exists.
+- Do not introduce startup-fail or fail-closed behavior merely because it is theoretically safer unless the deployed prerequisite has been verified. When immediate enforcement could interrupt production, separate preparation and observability from enforcement, and plan the transition.
+- High-risk changes must include deployment impact, a rollback path and regression coverage. Database changes must preserve migration lineage and compatibility with live data.
+- Assume rolling or overlapping process and worker execution unless the deployment procedure explicitly guarantees a full outage. Design changes to remain compatible during that overlap; follow the deployment SOP's outage procedure when applicable.
+- Security and integrity fixes remain necessary. Design production continuity into their remediation rather than trading it away; these guardrails do not relax authentication, authorization or data-integrity requirements.
+
 ## Source-of-truth order
 
 When sources disagree, use this order:
