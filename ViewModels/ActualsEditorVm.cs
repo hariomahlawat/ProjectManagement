@@ -65,5 +65,8 @@ public sealed class ActualsEditRowInput
 
     public DateOnly? ActualStart { get; set; }
 
+    // Additive intent: older callers that omit this flag retain blank-as-preserve semantics.
+    public bool ClearActualStart { get; set; }
+
     public DateOnly? CompletedOn { get; set; }
 }

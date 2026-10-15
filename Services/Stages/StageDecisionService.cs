@@ -30,9 +30,6 @@ public sealed class StageDecisionService
     private const string RejectedLogAction = "Rejected";
     private const string AppliedLogAction = "Applied";
 
-    private const string CompletionClampedWarning =
-        "Completion date was earlier than the actual start date and has been adjusted to match the start date.";
-
     // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -274,8 +271,7 @@ public sealed class StageDecisionService
 
             if (carriedForwardStart.HasValue && request.RequestedDate.Value < carriedForwardStart.Value)
             {
-                effectiveDate = carriedForwardStart;
-                warnings.Add(CompletionClampedWarning);
+                return StageDecisionResult.ValidationFailed("Completion date cannot be before the recorded or proposed start date. Revise the request; no dates were changed.");
             }
         }
 
@@ -336,7 +332,8 @@ public sealed class StageDecisionService
                 requestedStatus == StageStatus.Completed ? request.RequestedStartDate : null,
                 preserveBlankStartOnCompletion: requestedStatus == StageStatus.Completed,
                 userId: decisionUserId,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken,
+                recordHistory: false);
         }
         catch (InvalidOperationException ex)
         {

@@ -151,6 +151,10 @@
     const startValue = startInput instanceof HTMLInputElement ? startInput.value : '';
     const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
     const isChanged = startValue !== original.start || completedValue !== original.completed;
+    const clearStartInput = row.querySelector('[data-clear-start]');
+    if (clearStartInput instanceof HTMLInputElement) {
+      clearStartInput.value = original.start && !startValue ? 'true' : 'false';
+    }
 
     if (!isChanged) {
       setRowError(row, '');
@@ -191,6 +195,12 @@
           error = 'Skipped stages cannot record actual dates.';
           break;
         case 'inprogress':
+          if (!startValue) {
+            error = 'Actual start is required while the stage is InProgress; transition the stage before clearing it.';
+          } else if (completedValue) {
+            error = 'Use the stage-transition workflow to complete this stage; completion cannot be recorded here while InProgress.';
+          }
+          break;
         case 'completed':
           break;
         default:

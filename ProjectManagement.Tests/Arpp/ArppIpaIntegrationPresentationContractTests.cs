@@ -96,7 +96,8 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         var actuals = ReadRepoFile("Pages", "Projects", "Timeline", "_EditActualsForm.cshtml");
         var historical = ReadRepoFile("Pages", "Projects", "Timeline", "_HistoricalStageForm.cshtml");
 
-        Assert.Contains("canEditStart && !row.IsArppManaged", actuals, StringComparison.Ordinal);
+        Assert.Contains("canEditStart && row.Status == StageStatus.Completed && !row.IsArppManaged", actuals, StringComparison.Ordinal);
+        Assert.Contains("ClearActualStart", actuals, StringComparison.Ordinal);
         Assert.Contains("Leave blank when the actual start is not documented", actuals, StringComparison.Ordinal);
         Assert.Contains("Controlled by @row.ArppSourceLabel", actuals, StringComparison.Ordinal);
 

@@ -553,6 +553,7 @@
     const actorCanOverride = modalEl.getAttribute('data-authorised-override') === 'true';
     let activeStatus = '';
     let activeDirectCompletion = false;
+    let activeReopenStart = false;
 
     function updateSubmitButton(status) {
       if (!submitButton) return;
@@ -609,24 +610,29 @@
     function applyDateState(status, { resetValue = false } = {}) {
       if (!dateInput) return false;
       const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status)
+        || (status === 'Reopen' && activeReopenStart)
         || (status === 'Completed' && !actorCanOverride);
       dateInput.required = requiresDate;
 
       if (dateLabel) {
-        dateLabel.textContent = status === 'InProgress'
+        dateLabel.textContent = status === 'InProgress' || (status === 'Reopen' && activeReopenStart)
           ? 'Started on'
           : status === 'Completed'
             ? 'Completed on'
             : status === 'Reopen'
-              ? 'Reopened on'
+              ? 'Reset to not started'
               : 'Effective date';
       }
 
       if (resetValue) {
-        dateInput.value = requiresDate ? todayIso() : '';
+        dateInput.value = status === 'Reopen' ? '' : (requiresDate ? todayIso() : '');
       }
       if (dateHint) {
-        dateHint.textContent = status === 'Completed' && actorCanOverride
+        dateHint.textContent = status === 'Reopen'
+          ? activeReopenStart
+            ? 'Review or enter the actual start. A suggested date becomes recorded only when you apply this change; same-day commencement is permitted.'
+            : 'This resets the stage to not started and clears its actual dates.'
+          : status === 'Completed' && actorCanOverride
           ? 'Optional for an authorised override; omitting it creates mandatory backfill.'
           : requiresDate
             ? 'Required'
@@ -673,8 +679,10 @@
       const defaultDate = trigger.getAttribute('data-default-date') || '';
       const defaultStartDate = trigger.getAttribute('data-default-start-date') || '';
       const earliestStartDate = trigger.getAttribute('data-earliest-start') || '';
+      const actualToday = trigger.getAttribute('data-actual-today') || todayIso();
       const startSource = trigger.getAttribute('data-start-source') || '';
       activeStatus = status;
+      activeReopenStart = status === 'Reopen' && trigger.getAttribute('data-reopen-start') === 'true';
       activeDirectCompletion = trigger.getAttribute('data-direct-completion') === 'true';
 
       if (projectInput) projectInput.value = projectId;
@@ -711,8 +719,11 @@
 
       const requiresDate = applyDateState(status, { resetValue: true });
       if (dateInput) {
-        dateInput.value = defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
-        dateInput.min = status === 'InProgress' || status === 'Completed' ? earliestStartDate : '';
+        dateInput.disabled = status === 'Reopen' && !activeReopenStart;
+        dateInput.value = status === 'Reopen' ? (activeReopenStart ? defaultDate : '')
+          : defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
+        dateInput.min = status === 'InProgress' || status === 'Completed' || activeReopenStart ? earliestStartDate : '';
+        dateInput.max = status === 'InProgress' || status === 'Completed' || activeReopenStart ? actualToday : '';
       }
       configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion);
       updateNoDateWarning(status);
@@ -750,6 +761,10 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (activeReopenStart && dateInput && !dateInput.checkValidity()) {
+        dateInput.reportValidity();
+        return;
+      }
       if (!projectInput || !stageInput || !statusInput || !tokenInput) {
         return;
       }
@@ -929,6 +944,8 @@
         currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
         actualStart: button.getAttribute('data-actual-start') || '',
         suggestedStart: button.getAttribute('data-suggested-start') || '',
+        reopenSuggestedStart: button.getAttribute('data-reopen-suggested-start') || '',
+        actualToday: button.getAttribute('data-actual-today') || '',
         earliestStart: button.getAttribute('data-earliest-start') || '',
         startSource: button.getAttribute('data-start-source') || '',
         pendingStatus: button.getAttribute('data-pending-status') || '',
@@ -1023,15 +1040,17 @@
     function setDateState(row, status, { resetValue = false, preferredValue = '' } = {}) {
       const stageSelect = row.querySelector('[data-stage-request-stage]');
       const stage = stageOptionFor(stageSelect?.value || '');
+      const isReopenStart = status === 'InProgress' && ['Completed', 'Skipped', 'Blocked'].includes(stage?.currentStatus);
+      const suggestedDate = isReopenStart ? (stage?.actualStart || stage?.reopenSuggestedStart || '') : (stage?.suggestedStart || '');
       const dateInput = row.querySelector('[data-stage-request-date]');
       const label = row.querySelector('[data-stage-request-date-label]');
       const hint = row.querySelector('[data-stage-request-date-hint]');
       const config = dateConfiguration(status);
       if (label) label.textContent = config.label;
       if (hint) {
-        if (status === 'InProgress' && stage?.suggestedStart && !preferredValue) {
+        if (status === 'InProgress' && suggestedDate && !preferredValue) {
           hint.textContent = stage.startSource && stage.earliestStart
-            ? `Suggested: ${formatDate(stage.suggestedStart)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
+            ? `Suggested: ${formatDate(suggestedDate)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
             : stage.startSource
               ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
               : 'Suggested from the preceding workflow stage. You may edit it.';
@@ -1042,11 +1061,12 @@
       if (dateInput) {
         dateInput.required = config.required;
         dateInput.min = status === 'InProgress' || status === 'Completed' ? (stage?.earliestStart || '') : '';
+        dateInput.max = isReopenStart ? (stage?.actualToday || todayIso()) : '';
         if (preferredValue) {
           dateInput.value = preferredValue;
         } else if (resetValue) {
           dateInput.value = status === 'InProgress'
-            ? (stage?.suggestedStart || todayIso())
+            ? (isReopenStart ? suggestedDate : (stage?.suggestedStart || todayIso()))
             : (config.required ? todayIso() : '');
         }
       }

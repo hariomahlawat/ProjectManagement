@@ -240,6 +240,14 @@ public sealed class HistoricalStageRecordService
                 continue;
             }
 
+            // Enforce the required start on new or changed ceased InProgress
+            // records without rewriting or blocking untouched incomplete history.
+            if (proposedStatus == StageStatus.InProgress && !proposedStart.HasValue)
+            {
+                errors.Add($"{definition.Name}: Actual start is required for an InProgress stage. Record when work began before saving the ceased outcome.");
+                continue;
+            }
+
             changes.Add(new HistoricalStageChange(
                 stage,
                 definition,
@@ -247,6 +255,11 @@ public sealed class HistoricalStageRecordService
                 proposedStart,
                 proposedCompleted,
                 proposedBackfill));
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new HistoricalStageRecordValidationException(errors);
         }
 
         if (changes.Count == 0)

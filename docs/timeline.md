@@ -196,7 +196,7 @@ Every stage service resolves order and dependencies through `IProjectStageWorkfl
 - **SDD-1.0:** FS → IPA → SOW → AON → …
 - **SDD-2.0:** FS → SOW → IPA → AON → …
 
-The same policy controls validation, direct application, approval decisions, predecessor cascade, auto-start and stage materialisation. Plan generation uses the same workflow metadata and does not fall back to the static SDD-1.0 order for known stages.
+The same policy controls validation, direct application, approval decisions, predecessor cascade, start suggestions and stage materialisation. Plan generation uses the same workflow metadata and does not fall back to the static SDD-1.0 order for known stages.
 
 ### Actual-date editing and backfill
 

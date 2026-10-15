@@ -9,6 +9,8 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Scheduling;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Arpp;
@@ -28,13 +30,15 @@ public sealed class ProjectTimelineReadService
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly IOfficeCalendarService _officeCalendar;
 
     public ProjectTimelineReadService(
         ApplicationDbContext db,
         IClock clock,
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
         IProjectStageWorkflowPolicy workflowPolicy,
-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
+        IOfficeCalendarService? officeCalendar = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -42,6 +46,7 @@ public sealed class ProjectTimelineReadService
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _officeCalendar = officeCalendar ?? new OfficeCalendarService(db);
     }
 
     public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
@@ -247,6 +252,9 @@ public sealed class ProjectTimelineReadService
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         var items = new List<TimelineItemVm>();
+        var scheduleSettings = await _db.ProjectScheduleSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(settings => settings.ProjectId == projectId, ct);
         var index = 0;
         foreach (var stage in workflowStages)
         {
@@ -264,6 +272,17 @@ public sealed class ProjectTimelineReadService
                                 string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
 
             var startSuggestion = StageDateSuggestionResolver.Resolve(workflow, rows, code);
+            // Reopen assistance is separate from normal timeline inference. It is
+            // based only on a fully determined recorded graph boundary and is
+            // never persisted merely because the timeline was read.
+            DateOnly? reopenSuggestedStart = null;
+            if (!isArppManaged
+                && !actualStart.HasValue
+                && status is StageStatus.Completed or StageStatus.Skipped or StageStatus.Blocked
+                && startSuggestion.EarliestAllowedStartDate is DateOnly boundary)
+            {
+                reopenSuggestedStart = await GetReopenSuggestedStartAsync(boundary, scheduleSettings, ct);
+            }
 
             DateOnly? effectiveActualStart = actualStart;
             var isActualStartInferred = false;
@@ -302,6 +321,7 @@ public sealed class ProjectTimelineReadService
                 IsActualStartInferred = isActualStartInferred,
                 CompletedOn = actualEnd,
                 SuggestedStartDate = startSuggestion.SuggestedStartDate,
+                ReopenSuggestedStartDate = reopenSuggestedStart,
                 EarliestAllowedStartDate = startSuggestion.EarliestAllowedStartDate,
                 SuggestedStartSourceCode = startSuggestion.SourceStageCode,
                 SuggestedStartSourceName = startSuggestion.SourceStageName,
@@ -376,5 +396,27 @@ public sealed class ProjectTimelineReadService
             LatestApprovalAt = approvalInfo?.PlanApprovedAt,
             LatestApprovalBy = approvalInfo?.ApprovedBy
         };
+    }
+
+    private async Task<DateOnly> GetReopenSuggestedStartAsync(
+        DateOnly boundary,
+        ProjectScheduleSettings? settings,
+        CancellationToken ct)
+    {
+        if (settings?.NextStageStartPolicy != NextStageStartPolicies.NextWorkingDay)
+        {
+            return boundary.AddDays(1);
+        }
+
+        var calendar = new WorkingCalendar(Array.Empty<DateOnly>(), settings.IncludeWeekends, skipHolidays: false);
+        var candidate = calendar.NextWorkingDay(boundary);
+        // Query the authoritative office calendar as needed rather than using a
+        // fixed holiday horizon that could produce a false working-day default.
+        while (settings.SkipHolidays && await _officeCalendar.IsOfficeHolidayAsync(candidate, ct))
+        {
+            candidate = calendar.NextWorkingDay(candidate);
+        }
+
+        return candidate;
     }
 }

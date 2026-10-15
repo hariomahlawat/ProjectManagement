@@ -253,6 +253,8 @@
                         data-current-status="@s.Status"
                         data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
                         data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                        data-reopen-suggested-start="@s.ReopenSuggestedStartDate?.ToString("yyyy-MM-dd")"
+                        data-actual-today="@s.Today.ToString("yyyy-MM-dd")"
                         data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                         data-start-source="@s.SuggestedStartSourceName"
                         data-stage-sort-order="@s.SortOrder"
@@ -395,8 +397,22 @@
                                 data-project="@timeline.ProjectId"
                                 data-stage="@s.Code"
                                 data-stage-name="@s.Name"
+                                data-status="Reopen"
+                                data-reopen-start="true"
+                                data-default-date="@((s.ActualStart ?? s.ReopenSuggestedStartDate)?.ToString("yyyy-MM-dd"))"
+                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                                data-actual-today="@s.Today.ToString("yyyy-MM-dd")">
+                          Reopen in progress
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
                                 data-status="Reopen">
-                          Reopen stage
+                          Reset to not started
                         </button>
                       </li>
                       <li>
@@ -418,8 +434,22 @@
                                 data-project="@timeline.ProjectId"
                                 data-stage="@s.Code"
                                 data-stage-name="@s.Name"
+                                data-status="Reopen"
+                                data-reopen-start="true"
+                                data-default-date="@((s.ActualStart ?? s.ReopenSuggestedStartDate)?.ToString("yyyy-MM-dd"))"
+                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                                data-actual-today="@s.Today.ToString("yyyy-MM-dd")">
+                          Reopen in progress
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
                                 data-status="Reopen">
-                          Reopen stage
+                          Reset to not started
                         </button>
                       </li>
                     }
@@ -441,6 +471,8 @@
                               data-current-status="@s.Status"
                               data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
                               data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                              data-reopen-suggested-start="@s.ReopenSuggestedStartDate?.ToString("yyyy-MM-dd")"
+                              data-actual-today="@s.Today.ToString("yyyy-MM-dd")"
                               data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                               data-start-source="@s.SuggestedStartSourceName"
                               data-stage-sort-order="@s.SortOrder"

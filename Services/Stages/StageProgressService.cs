@@ -27,7 +27,6 @@ public class StageProgressService
     private readonly ProjectFactsReadService _factsRead;
     private readonly IStageNotificationService _stageNotifications;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
-    private readonly IOfficeCalendarService? _officeCalendar;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageProgressService(
@@ -46,7 +45,6 @@ public class StageProgressService
         _factsRead = factsRead ?? throw new ArgumentNullException(nameof(factsRead));
         _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
-        _officeCalendar = officeCalendar;
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
@@ -75,7 +73,8 @@ public class StageProgressService
         DateOnly? explicitStartDate,
         bool preserveBlankStartOnCompletion,
         string userId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool recordHistory = true)
     {
         if (string.IsNullOrWhiteSpace(stageCode))
         {
@@ -86,6 +85,8 @@ public class StageProgressService
         {
             throw new ArgumentException("A valid user identifier is required.", nameof(userId));
         }
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         await _arppIpaStageAuthority.EnsureManualLifecycleMutationAllowedAsync(
             projectId,
@@ -100,9 +101,20 @@ public class StageProgressService
             ?? throw new InvalidOperationException($"Stage {stageCode} was not found for project {projectId}.");
 
         var previousStatus = stage.Status;
+        var previousStart = stage.ActualStart;
+        var previousCompletion = stage.CompletedOn;
 
         var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
         var resolvedDate = effectiveDate ?? today;
+        if (effectiveDate > today || explicitStartDate > today)
+        {
+            throw new InvalidOperationException("Actual dates cannot be in the future under the operational IST date.");
+        }
+        if (newStatus == StageStatus.Skipped &&
+            (stage.ActualStart.HasValue || stage.CompletedOn.HasValue || stage.Status is StageStatus.InProgress or StageStatus.Completed))
+        {
+            throw new InvalidOperationException("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
+        }
 
         if (newStatus == StageStatus.Completed)
         {
@@ -114,36 +126,35 @@ public class StageProgressService
                 explicitStartDate,
                 preserveBlankStartOnCompletion,
                 previousStatus,
+                recordHistory,
                 userId,
                 cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return;
         }
 
-        if (newStatus == StageStatus.InProgress && stage.Status != StageStatus.InProgress)
+        var nextStart = newStatus == StageStatus.InProgress
+            ? stage.ActualStart ?? explicitStartDate ?? effectiveDate
+            : stage.ActualStart;
+        if (newStatus == StageStatus.InProgress && !nextStart.HasValue)
         {
-            stage.ActualStart ??= resolvedDate;
-            stage.IsAutoCompleted = false;
-            stage.AutoCompletedFromCode = null;
-            stage.RequiresBackfill = false;
+            throw new InvalidOperationException("ActualStart is required before a stage can become InProgress. Supply and confirm a start date.");
         }
-        else if (newStatus != StageStatus.Completed && stage.Status == StageStatus.Completed)
+        if (nextStart > today)
         {
-            stage.CompletedOn = null;
-            stage.IsAutoCompleted = false;
-            stage.AutoCompletedFromCode = null;
-            stage.RequiresBackfill = false;
+            throw new InvalidOperationException("Actual start cannot be in the future under the operational IST date.");
         }
-
-        if (newStatus == StageStatus.NotStarted)
-        {
-            stage.ActualStart = null;
-            stage.CompletedOn = null;
-            stage.IsAutoCompleted = false;
-            stage.AutoCompletedFromCode = null;
-            stage.RequiresBackfill = false;
-        }
+        stage.ActualStart = newStatus is StageStatus.NotStarted or StageStatus.Skipped ? null : nextStart;
+        stage.CompletedOn = null;
+        stage.IsAutoCompleted = false;
+        stage.AutoCompletedFromCode = null;
+        stage.RequiresBackfill = false;
 
         stage.Status = newStatus;
+        if (recordHistory)
+        {
+            RecordChange(stage, previousStatus, previousStart, previousCompletion, userId, "Applied");
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -157,6 +168,8 @@ public class StageProgressService
                 ["NewStatus"] = newStatus.ToString(),
                 ["EffectiveDate"] = resolvedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
             });
+
+        await transaction.CommitAsync(cancellationToken);
 
         if (stage.Project is not null)
         {
@@ -172,6 +185,7 @@ public class StageProgressService
         DateOnly? explicitStartDate,
         bool preserveBlankStartOnCompletion,
         StageStatus previousStatus,
+        bool recordHistory,
         string userId,
         CancellationToken ct)
     {
@@ -183,31 +197,20 @@ public class StageProgressService
         var workflow = await _workflowPolicy.GetAsync(projectId, ct);
         var completionDate = explicitDate ?? stage.CompletedOn ?? resolvedDate;
 
-        if (explicitStartDate.HasValue && completionDate < explicitStartDate.Value)
+        var previousStart = stage.ActualStart;
+        var previousCompletion = stage.CompletedOn;
+        var selectedStart = explicitStartDate ?? previousStart;
+        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
+        if (completionDate > today || selectedStart > today)
         {
-            throw new InvalidOperationException(
-                $"Completion date cannot be before the selected start date ({explicitStartDate.Value:dd MMM yyyy}).");
+            throw new InvalidOperationException("Actual dates cannot be in the future under the operational IST date.");
         }
-
+        if (selectedStart.HasValue && completionDate < selectedStart.Value)
+        {
+            throw new InvalidOperationException("Completion date cannot be before the selected start date.");
+        }
         stage.Status = StageStatus.Completed;
-        if (explicitStartDate.HasValue)
-        {
-            stage.ActualStart = explicitStartDate.Value;
-        }
-        else if (!stage.ActualStart.HasValue && !preserveBlankStartOnCompletion)
-        {
-            var projectStages = await _db.ProjectStages
-                .AsNoTracking()
-                .Where(item => item.ProjectId == projectId)
-                .ToListAsync(ct);
-            var suggestion = StageDateSuggestionResolver.Resolve(workflow, projectStages, stage.StageCode);
-            var inferredStart = suggestion.SuggestedStartDate ?? completionDate;
-
-            stage.ActualStart = inferredStart <= completionDate
-                ? inferredStart
-                : completionDate;
-        }
-
+        stage.ActualStart = selectedStart;
         stage.CompletedOn = completionDate;
         stage.IsAutoCompleted = false;
         stage.AutoCompletedFromCode = null;
@@ -229,8 +232,11 @@ public class StageProgressService
                 ct);
         }
 
-        var completedOnDate = stage.CompletedOn ?? resolvedDate;
-        var autoStart = await AutoStartNextStageAsync(projectId, stage, completedOnDate, workflow, ct);
+        // A calculated next-stage start is a suggestion, not observed commencement.
+        if (recordHistory)
+        {
+            RecordChange(stage, previousStatus, previousStart, previousCompletion, userId, "Applied");
+        }
 
         await _db.SaveChangesAsync(ct);
 
@@ -253,21 +259,6 @@ public class StageProgressService
         if (stage.Project is not null)
         {
             await _stageNotifications.NotifyStageStatusChangedAsync(stage, stage.Project, previousStatus, userId, ct);
-        }
-
-        if (autoStart.HasValue && autoStart.Value.Stage is { } nextStage)
-        {
-            var startDate = autoStart.Value.StartDate;
-            await _audit.LogAsync(
-                "Stages.StageAutoStarted",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                    ["StageCode"] = nextStage.StageCode,
-                    ["TriggeredBy"] = stage.StageCode,
-                    ["StartDate"] = startDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                });
         }
 
         foreach (var auto in autoCompleted)
@@ -308,10 +299,22 @@ public class StageProgressService
             return;
         }
 
+        if (string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+            && await _arppIpaStageAuthority.IsManagedAsync(projectId, ct))
+        {
+            return;
+        }
+        var beforeStatus = stage.Status;
+        var beforeStart = stage.ActualStart;
+        var beforeCompletion = stage.CompletedOn;
         var isOptional = workflow.OptionalStageCodes.Contains(stage.StageCode);
 
         if (isOptional && stage.Status == StageStatus.NotStarted)
         {
+            if (stage.ActualStart.HasValue || stage.CompletedOn.HasValue)
+            {
+                throw new InvalidOperationException("An optional stage with recorded actual evidence cannot be skipped automatically. Correct its factual state through an authorised path first.");
+            }
             stage.Status = StageStatus.Skipped;
             stage.ActualStart = null;
             stage.CompletedOn = null;
@@ -322,20 +325,19 @@ public class StageProgressService
         else if (!isOptional && stage.Status != StageStatus.Completed)
         {
             stage.Status = StageStatus.Completed;
-            stage.ActualStart ??= resolvedDate;
-            stage.CompletedOn ??= resolvedDate;
+            // Completion of a successor does not establish either predecessor date.
             stage.IsAutoCompleted = true;
             stage.AutoCompletedFromCode = triggeredBy;
 
             var hasFacts = await _factsRead.HasRequiredFactsAsync(projectId, stage.StageCode, ct);
-            stage.RequiresBackfill = !hasFacts;
+            stage.RequiresBackfill = !stage.CompletedOn.HasValue || !hasFacts;
             autoCompleted.Add(stage);
         }
-        else if (stage.IsAutoCompleted && stage.CompletedOn is null)
-        {
-            stage.CompletedOn = resolvedDate;
-        }
 
+        if (stage.Status != beforeStatus || stage.ActualStart != beforeStart || stage.CompletedOn != beforeCompletion)
+        {
+            RecordChange(stage, beforeStatus, beforeStart, beforeCompletion, "PRISM system", "AutoBackfill");
+        }
         foreach (var predecessorCode in workflow.RequiredPredecessors(stage.StageCode))
         {
             await AutoCompleteStageAndDependenciesAsync(
@@ -350,90 +352,17 @@ public class StageProgressService
         }
     }
 
-    private async Task<(ProjectStage Stage, DateOnly StartDate)?> AutoStartNextStageAsync(
-        int projectId,
-        ProjectStage completedStage,
-        DateOnly completedOn,
-        ProjectStageWorkflowSnapshot workflow,
-        CancellationToken ct)
+    private void RecordChange(ProjectStage stage, StageStatus previousStatus, DateOnly? previousStart,
+        DateOnly? previousCompletion, string userId, string action)
     {
-        var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == projectId, ct);
-        if (settings is null || settings.AnchorStart is null)
+        _db.StageChangeLogs.Add(new StageChangeLog
         {
-            return null;
-        }
-
-        var stages = await _db.ProjectStages
-            .Where(s => s.ProjectId == projectId)
-            .ToListAsync(ct);
-
-        var ordered = stages
-            .Where(s => workflow.PncApplicable
-                || !string.Equals(s.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(s => workflow.OrderOf(s.StageCode))
-            .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var index = ordered.FindIndex(s => string.Equals(s.StageCode, completedStage.StageCode, StringComparison.OrdinalIgnoreCase));
-        if (index < 0 || index + 1 >= ordered.Count)
-        {
-            return null;
-        }
-
-        var nextStage = ordered[index + 1];
-        if (string.IsNullOrWhiteSpace(nextStage.StageCode))
-        {
-            return null;
-        }
-        if (nextStage.Status != StageStatus.NotStarted)
-        {
-            return null;
-        }
-
-        foreach (var dependency in workflow.RequiredPredecessors(nextStage.StageCode))
-        {
-            var depStage = stages.FirstOrDefault(s => string.Equals(s.StageCode, dependency, StringComparison.OrdinalIgnoreCase));
-            if (depStage?.Status is not StageStatus.Completed and not StageStatus.Skipped)
-            {
-                return null;
-            }
-        }
-
-        var startDate = settings.NextStageStartPolicy == NextStageStartPolicies.SameDay
-            ? completedOn
-            : await ResolveNextWorkingDayAsync(settings, completedOn, ct);
-
-        nextStage.Status = StageStatus.InProgress;
-        nextStage.ActualStart ??= startDate;
-        nextStage.IsAutoCompleted = false;
-        nextStage.AutoCompletedFromCode = null;
-        nextStage.RequiresBackfill = false;
-
-        return (nextStage, startDate);
+            ProjectId = stage.ProjectId, StageCode = stage.StageCode, Action = action,
+            FromStatus = previousStatus.ToString(), ToStatus = stage.Status.ToString(),
+            FromActualStart = previousStart, ToActualStart = stage.ActualStart,
+            FromCompletedOn = previousCompletion, ToCompletedOn = stage.CompletedOn,
+            UserId = userId, At = _clock.UtcNow,
+            Note = "Lifecycle transition; scheduling suggestions are not recorded as actual dates."
+        });
     }
-
-    private async Task<DateOnly> ResolveNextWorkingDayAsync(ProjectScheduleSettings settings, DateOnly completedOn, CancellationToken ct)
-    {
-        if (settings.NextStageStartPolicy == NextStageStartPolicies.SameDay)
-        {
-            return completedOn;
-        }
-
-        var holidays = _officeCalendar is not null
-            ? (await _officeCalendar.GetNonWorkingDatesAsync(
-                completedOn.AddYears(-1),
-                completedOn.AddYears(2),
-                ct)).ToList()
-            : await _db.Holidays
-                .AsNoTracking()
-                .Where(h => h.Type == ProjectManagement.Models.Scheduling.HolidayType.Gazetted || h.IsObservedAsOfficeHoliday)
-                .Select(h => h.Date)
-                .Distinct()
-                .ToListAsync(ct);
-
-        var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
-        return calendar.NextWorkingDay(completedOn);
-    }
-
-
 }

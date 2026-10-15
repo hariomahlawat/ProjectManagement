@@ -531,6 +531,65 @@ public class StageDirectApplyServiceTests
         Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
 
+    [Theory]
+    [InlineData("Reopen")]
+    [InlineData("InProgress")]
+    [InlineData("Blocked")]
+    [InlineData("NotStarted")]
+    public async Task DirectTransition_PreservesStartUnlessExplicitReset_AndClearsCompletion(string status)
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 20, 9, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        var originalStart = new DateOnly(2024, 5, 1);
+        await SeedStageAsync(db, StageStatus.Completed, originalStart);
+        var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
+        stage.CompletedOn = new DateOnly(2024, 5, 10);
+        stage.RequiresBackfill = true;
+        await db.SaveChangesAsync();
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy),
+            new StageRulesService(db, policy), policy);
+        var result = await service.ApplyAsync(1, StageCodes.IPA, status,
+            status is "Reopen" or "InProgress" ? new DateOnly(2024, 5, 15) : null,
+            "Lifecycle correction", "hod-1", false, CancellationToken.None);
+        Assert.Null(result.CompletedOn);
+        Assert.Equal(status == "NotStarted" ? null : (DateOnly?)originalStart, result.ActualStart);
+        Assert.False(result.RequiresBackfill);
+        var log = await db.StageChangeLogs.SingleAsync(l => l.Action == "DirectApply");
+        Assert.Equal(new DateOnly(2024, 5, 10), log.FromCompletedOn);
+        Assert.Null(log.ToCompletedOn);
+    }
+
+    [Fact]
+    public async Task DirectTransition_RejectsSkipWhenWorkStarted()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 20, 9, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 5, 1));
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy),
+            new StageRulesService(db, policy), policy);
+        await Assert.ThrowsAsync<StageDirectApplyValidationException>(() => service.ApplyAsync(1, StageCodes.IPA,
+            "Skipped", null, "Skip", "hod-1", false, CancellationToken.None));
+        await db.Entry(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA)).ReloadAsync();
+        Assert.Equal(StageStatus.InProgress, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA)).Status);
+    }
+
+    [Fact]
+    public async Task DirectCompletion_LegacyCallerDoesNotPersistSuggestedStart()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 20, 9, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy),
+            new StageRulesService(db, policy), policy);
+        var result = await service.ApplyAsync(1, StageCodes.IPA, "Completed", new DateOnly(2024, 5, 10),
+            "Complete with unknown start", "hod-1", false, CancellationToken.None);
+        Assert.Null(result.ActualStart);
+        Assert.Equal(new DateOnly(2024, 5, 10), result.CompletedOn);
+    }
+
     private static async Task SeedStageAsync(
         ApplicationDbContext db,
         StageStatus status,

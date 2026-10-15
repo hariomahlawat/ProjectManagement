@@ -31,6 +31,25 @@ public class ProjectTimelineUiTests
 {
     private static readonly IServiceProvider Services = BuildServiceProvider();
 
+    [Theory]
+    [InlineData(true, false, "2026-08-06")]
+    [InlineData(false, false, "")]
+    [InlineData(false, true, "2026-08-11")]
+    public async Task ReopenStage_OffersExplicitStartAndReset_WithoutInventingDate(bool hasRecordedStart, bool hasReopenSuggestion, string expected)
+    {
+        var stage = new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = StageStatus.Completed,
+            ActualStart = hasRecordedStart ? new DateOnly(2026, 8, 6) : null,
+            PlannedStart = new DateOnly(2026, 8, 1), SuggestedStartDate = new DateOnly(2026, 8, 7),
+            ReopenSuggestedStartDate = hasReopenSuggestion ? new DateOnly(2026, 8, 11) : null,
+            EarliestAllowedStartDate = new DateOnly(2026, 8, 6) };
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
+        Assert.Contains("data-reopen-start=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("Reset to not started", html, StringComparison.Ordinal);
+        Assert.Contains($"data-default-date=\"{expected}\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-default-date=\"2026-08-01\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-default-date=\"2026-08-07\"", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ActionsDropdown_RenderedForHoDOnly()
     {

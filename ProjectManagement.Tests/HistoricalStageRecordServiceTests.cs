@@ -134,6 +134,61 @@ public sealed class HistoricalStageRecordServiceTests
         Assert.Equal(ProjectLifecycleStatus.Cancelled, project.LifecycleStatus);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsync_CeasedWithoutStart_RejectsNewOrChangedInProgress(bool existing)
+    {
+        var fixture = await CreateFixtureAsync(ProjectLifecycleStatus.Cancelled);
+        await using var connection = fixture.Connection;
+        await using var db = fixture.Db;
+        if (existing)
+        {
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = fixture.ProjectId, StageCode = StageCodes.SOW, SortOrder = 2,
+                Status = StageStatus.InProgress, ActualStart = new DateOnly(2024, 1, 11)
+            });
+            await db.SaveChangesAsync();
+        }
+        var input = ValidInput(fixture.ProjectId);
+        var row = input.Rows.Single(item => item.StageCode == StageCodes.SOW);
+        row.Outcome = HistoricalStageOutcome.Ceased;
+        row.ActualStart = null;
+        await Assert.ThrowsAsync<HistoricalStageRecordValidationException>(() => fixture.Service.SaveAsync(input, "hod-1", "HoD"));
+        Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+        if (existing)
+            Assert.Equal(new DateOnly(2024, 1, 11), (await db.ProjectStages.AsNoTracking().SingleAsync()).ActualStart);
+        else
+            Assert.Empty(await db.ProjectStages.ToArrayAsync());
+    }
+
+    [Theory]
+    [InlineData(StageStatus.InProgress)]
+    [InlineData(StageStatus.Blocked)]
+    public async Task SaveAsync_UnchangedCeasedWithUnknownStart_PreservesExistingHistory(StageStatus status)
+    {
+        var fixture = await CreateFixtureAsync(ProjectLifecycleStatus.Cancelled);
+        await using var connection = fixture.Connection;
+        await using var db = fixture.Db;
+        var definitions = ProcurementWorkflow.StageDefinitionsFor(PlanConstants.DefaultStageTemplateVersion);
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = fixture.ProjectId, StageCode = StageCodes.SOW,
+            SortOrder = Array.FindIndex(definitions, definition => definition.Code == StageCodes.SOW),
+            Status = status, ActualStart = null
+        });
+        await db.SaveChangesAsync();
+        var input = ValidInput(fixture.ProjectId);
+        input.Rows.Single(row => row.StageCode == StageCodes.SOW).Outcome = HistoricalStageOutcome.Ceased;
+        await fixture.Service.SaveAsync(input, "hod-1", "HoD");
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync(row => row.StageCode == StageCodes.SOW);
+        Assert.Equal(status, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
+        Assert.DoesNotContain(await db.StageChangeLogs.ToArrayAsync(), log => log.StageCode == StageCodes.SOW);
+    }
+
     [Fact]
     public async Task SaveAsync_AllowsArppManagedIpaAfterCeasedStage_WithoutInventingStart()
     {

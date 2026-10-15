@@ -129,6 +129,12 @@ public sealed class StageValidationService : IStageValidationService
             return BuildResult();
         }
 
+        if (desiredStatus == StageStatus.Skipped &&
+            (stage.ActualStart.HasValue || stage.CompletedOn.HasValue || stage.Status is StageStatus.InProgress or StageStatus.Completed))
+        {
+            errors.Add("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
+        }
+
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         if (targetDate.HasValue && targetDate.Value > today)
@@ -144,6 +150,11 @@ public sealed class StageValidationService : IStageValidationService
         if (!StageTransitionPolicy.TryValidateTransition(stage.Status, desiredStatus, targetDate, out var transitionError))
         {
             errors.Add(transitionError ?? "The requested transition is invalid.");
+        }
+
+        if (desiredStatus == StageStatus.InProgress && !targetDate.HasValue && !stage.ActualStart.HasValue)
+        {
+            errors.Add("Actual start is required before a stage can become InProgress. Supply and confirm a start date.");
         }
 
         if (desiredStatus == StageStatus.Completed && !targetDate.HasValue && !isHoD)
@@ -167,7 +178,7 @@ public sealed class StageValidationService : IStageValidationService
             }
 
             var effectiveStartDate = desiredStatus == StageStatus.InProgress
-                ? targetDate
+                ? (stage.Status == StageStatus.Completed ? stage.ActualStart ?? targetDate : targetDate)
                 : requestedStartDate ?? stage.ActualStart;
 
             var earliestAllowedStart = suggestion.EarliestAllowedStartDate;

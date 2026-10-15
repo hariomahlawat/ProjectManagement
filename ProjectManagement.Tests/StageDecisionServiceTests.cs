@@ -166,7 +166,7 @@ public sealed class StageDecisionServiceTests
     }
 
     [Fact]
-    public async Task ApproveAsync_ClampsCompletionDateAndAddsWarning()
+    public async Task ApproveAsync_RejectsCompletionBeforeRecordedStart_WithoutClamping()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 3, 20, 12, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -201,25 +201,13 @@ public sealed class StageDecisionServiceTests
             isHoD: true,
             cancellationToken: CancellationToken.None);
 
-        Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
-        Assert.Contains(result.Warnings, w => w.Contains("Completion date was earlier"));
-        Assert.NotNull(result.Stage);
-        Assert.Equal(StageStatus.Completed, result.Stage!.Status);
-        Assert.Equal(new DateOnly(2024, 3, 10), result.Stage!.CompletedOn);
-        Assert.Equal(new DateOnly(2024, 3, 10), result.Stage!.ActualStart);
-
+        Assert.Equal(StageDecisionOutcome.ValidationFailed, result.Outcome);
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
-        Assert.Equal(StageStatus.Completed, stage.Status);
-        Assert.Equal(new DateOnly(2024, 3, 10), stage.CompletedOn);
+        Assert.Equal(StageStatus.InProgress, stage.Status);
+        Assert.Null(stage.CompletedOn);
         Assert.Equal(new DateOnly(2024, 3, 10), stage.ActualStart);
-
-        var persistedRequest = await db.StageChangeRequests.SingleAsync();
-        Assert.Equal("Approved", persistedRequest.DecisionStatus);
-        Assert.Contains("Warning:", persistedRequest.DecisionNote);
-        Assert.Contains("adjusted", persistedRequest.DecisionNote, StringComparison.OrdinalIgnoreCase);
-
-        var appliedLog = await db.StageChangeLogs.SingleAsync(l => l.Action == "Applied");
-        Assert.Equal(new DateOnly(2024, 3, 10), appliedLog.ToCompletedOn);
+        Assert.Equal("Pending", (await db.StageChangeRequests.SingleAsync()).DecisionStatus);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
 
     [Fact]
