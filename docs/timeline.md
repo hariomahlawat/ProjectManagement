@@ -73,8 +73,21 @@ Evaluate batch corrections against the final proposed state so users can coheren
 
 | Transition | Required date/backfill effects |
 | --- | --- |
-| `Completed` to `InProgress` | Clear `CompletedOn` and completion backfill state; normally preserve original `ActualStart`, which may subsequently be explicitly corrected if authorised. |
+| `Completed` to `InProgress` | Clear `CompletedOn` and completion backfill state. Preserve an existing `ActualStart`. If `ActualStart` is missing, the stage cannot become `InProgress` until a start date is supplied. |
 | Reopen to `NotStarted` | Clear `ActualStart`, `CompletedOn` and completion backfill state. |
+
+When reopening `Completed` to `InProgress` and the stage has no recorded `ActualStart`, PRISM may prefill a suggested start only when the effective immediate predecessor has a recorded `CompletedOn`. The suggested value is that predecessor completion plus one applicable calendar/working day according to the scheduling rule.
+
+The reopen suggestion is assistance, not an observed fact and not a hard chronology minimum. The user may explicitly replace it with another valid actual start, including the predecessor's `CompletedOn` itself when same-day commencement actually occurred.
+
+Do not infer or prefill a reopen start when:
+- the effective immediate predecessor is completed but its `CompletedOn` is null, including authorised completion-with-backfill;
+- no effective predecessor exists, including the first executable stage; or
+- the applicable predecessor boundary cannot be determined from recorded completion dates, including a convergence with an undated required predecessor branch.
+
+In those cases the user must explicitly supply `ActualStart` before the stage can be reopened as `InProgress`. Do not substitute `PlannedStart`, today's date, a backfill placeholder or an invented predecessor completion date.
+
+Skipped stages remain transparent when resolving the effective predecessor: follow the configured workflow dependency ancestry rather than visual row order. At a convergence, use the latest applicable recorded predecessor completion only when all required dated boundaries needed to determine the effective boundary are available.
 
 Audit/history must retain the previous state and dates.
 
