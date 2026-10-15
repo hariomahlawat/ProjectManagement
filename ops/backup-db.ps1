@@ -9,7 +9,7 @@
 #region Parameters
 param(
     [string]$PgBin = "C:\Program Files\PostgreSQL\16\bin",
-    [string]$Host = "localhost",
+    [Alias('Host')][string]$PgHost = "localhost",
     [int]$Port = 5432,
     [string]$DbName = "ProjectManagement",
     [string]$User = "pm_backup",
@@ -37,11 +37,14 @@ if (-not (Test-Path $pgDumpPath)) {
 
 & $pgDumpPath `
     --format=custom `
-    --host=$Host `
+    --host=$PgHost `
     --port=$Port `
     --username=$User `
     --file=$backupFile `
     $DbName
+if ($LASTEXITCODE -ne 0) {
+    throw "pg_dump failed with exit code $LASTEXITCODE."
+}
 #endregion
 
 #region Output
