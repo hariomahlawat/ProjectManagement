@@ -107,7 +107,7 @@ ith `PM_BACKUP_DIR` and Windows scripts via parameters so dumps land beside the 
 1. Provision OS, .NET Runtime, and PostgreSQL (matching major versions).
 2. Create/restore `Storage:DataRoot` from the latest file backup. On Linux this means exporting `PM_FILE_BACKUP_SOURCE` to the desired timestamped mirror before running `ops/restore-files.sh`; on Windows pass the equivalent `BackupSource` parameter to the PowerShell script.
 3. Deploy the published application build.
-4. Recreate the PostgreSQL database and run `ops/restore-db.*` with the chosen dump.
+4. Stop database clients and run `ops/restore-db.*` with the chosen trusted dump. The scripts restore and validate a separate database before a transactional rename cutover, retaining the original under a printed previous name. Follow the [staged restore procedure](disaster-recovery.md#24-staged-database-restore-and-retained-rollback), including database-level configuration/access checks before app startup and deliberate later cleanup.
 5. Drop the restored `appsettings.Production.json` (or environment variables) on the server, pointing to the restored database and data root.
 6. Start the application service (IIS site, systemd service, Windows Service, etc.).
 7. Perform smoke tests: login, open projects, download attachments, verify uploads.
