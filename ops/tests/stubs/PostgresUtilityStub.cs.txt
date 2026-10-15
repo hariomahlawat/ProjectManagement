@@ -1,0 +1,30 @@
+using System;
+using System.IO;
+using System.Text;
+
+// Text fixture so the web SDK never compiles this into the application.
+// Harmless PostgreSQL CLI stand-in: records arguments, emits diagnostics and exits.
+// It never connects to a database or reads/writes a dump.
+internal static class PostgresUtilityStub
+{
+    private static int Main(string[] args)
+    {
+        string utility = Path.GetFileNameWithoutExtension(Environment.GetCommandLineArgs()[0]);
+        string logPath = Environment.GetEnvironmentVariable("PRISM_TEST_NATIVE_LOG");
+        if (String.IsNullOrEmpty(logPath))
+        {
+            Console.Error.WriteLine("Stub requires a test log path.");
+            return 99;
+        }
+
+        var line = new StringBuilder(utility);
+        foreach (string arg in args)
+            line.Append('\t').Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(arg)));
+        File.AppendAllText(logPath, line.ToString() + Environment.NewLine);
+
+        Console.WriteLine("stub stdout: " + utility);
+        Console.Error.WriteLine("stub stderr: " + utility);
+        return String.Equals(utility, Environment.GetEnvironmentVariable("PRISM_TEST_FAIL_UTILITY"),
+            StringComparison.OrdinalIgnoreCase) ? 23 : 0;
+    }
+}

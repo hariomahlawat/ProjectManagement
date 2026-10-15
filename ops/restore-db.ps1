@@ -8,7 +8,7 @@
 #region Parameters
 param(
     [string]$PgBin = "C:\Program Files\PostgreSQL\16\bin",
-    [string]$Host = "localhost",
+    [Alias('Host')][string]$PgHost = "localhost",
     [int]$Port = 5432,
     [string]$DbName = "ProjectManagement",
     [string]$User = "postgres",
@@ -36,8 +36,14 @@ foreach ($tool in @($dropDb, $createDb)) {
     }
 }
 
-& $dropDb --if-exists --host=$Host --port=$Port --username=$User $DbName
-& $createDb --host=$Host --port=$Port --username=$User $DbName
+& $dropDb --if-exists --host=$PgHost --port=$Port --username=$User $DbName
+if ($LASTEXITCODE -ne 0) {
+    throw "dropdb failed with exit code $LASTEXITCODE."
+}
+& $createDb --host=$PgHost --port=$Port --username=$User $DbName
+if ($LASTEXITCODE -ne 0) {
+    throw "createdb failed with exit code $LASTEXITCODE."
+}
 #endregion
 
 #region Restore
@@ -48,13 +54,16 @@ if (-not (Test-Path $pgRestore)) {
 }
 
 & $pgRestore `
-    --host=$Host `
+    --host=$PgHost `
     --port=$Port `
     --username=$User `
     --dbname=$DbName `
     --clean `
     --if-exists `
     $DumpFile
+if ($LASTEXITCODE -ne 0) {
+    throw "pg_restore failed with exit code $LASTEXITCODE."
+}
 #endregion
 
 #region Output
