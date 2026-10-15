@@ -68,3 +68,4 @@ These invariants are intended to constrain maintenance and Codex-assisted change
 38. For risky fixes, add a regression test that demonstrates the failure mode before or with the fix.
 39. Update durable documentation when a change invalidates it.
 40. Do not use historical patch/readme bundles as instructions without first validating them against current code.
+41. Project timeline date/status semantics have one canonical business-rule source: [Canonical timeline business rules](timeline.md#canonical-timeline-business-rules). Razor/UI, JavaScript, PageModels/controllers, services and reports/exports must not independently redefine them; implementation deviations require separately reviewed production-safe correction.
