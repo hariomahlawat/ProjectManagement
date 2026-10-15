@@ -126,6 +126,48 @@ public sealed class ProjectTimelineReadServiceTests
         Assert.Contains("Bidding", benchmarking.SuggestedStartSourceName, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(28, 28, false, "2026-08-28")]
+    [InlineData(28, 28, true, "2026-08-28")]
+    [InlineData(7, 7, false, "2026-08-07")]
+    [InlineData(7, 7, true, "2026-08-07")]
+    [InlineData(10, 7, false, null)]
+    [InlineData(29, 31, false, null)]
+    [InlineData(28, 0, false, "2026-08-28")]
+    public async Task GetAsync_ReopenSuggestionIsBoundedForPresentationOnly(
+        int predecessorDay, int completedDay, bool workingDays, string? expected)
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project { Id = 1, Name = "Bounded suggestion", CreatedByUserId = "seed", WorkflowVersion = ProcurementWorkflow.VersionV2 });
+        var predecessorCompletion = new DateOnly(2026, 8, predecessorDay);
+        var historicalCompletion = completedDay == 0 ? null : (DateOnly?)new DateOnly(2026, 8, completedDay);
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.BID, Status = StageStatus.Completed, CompletedOn = predecessorCompletion },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.BM, Status = StageStatus.Completed, CompletedOn = historicalCompletion });
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate { Version = ProcurementWorkflow.VersionV2, FromStageCode = StageCodes.BM, DependsOnStageCode = StageCodes.BID });
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings { ProjectId = 1, IncludeWeekends = false,
+            NextStageStartPolicy = workingDays ? NextStageStartPolicies.NextWorkingDay : NextStageStartPolicies.SameDay });
+        await db.SaveChangesAsync();
+        var metadata = new WorkflowStageMetadataProvider();
+        // UTC is still the previous date: the cap must use operational IST today.
+        var clock = new FixedClock(new DateTimeOffset(2026, 8, 27, 20, 0, 0, TimeSpan.Zero));
+        var policy = new ProjectStageWorkflowPolicy(db, metadata);
+        var item = (await new ProjectTimelineReadService(db, clock, metadata, policy).GetAsync(1))
+            .Items.Single(row => row.Code == StageCodes.BM);
+        Assert.Equal(expected is null ? null : DateOnly.Parse(expected), item.ReopenSuggestedStartDate);
+        Assert.Equal(predecessorCompletion, item.EarliestAllowedStartDate);
+        Assert.Equal(predecessorCompletion.AddDays(1), item.SuggestedStartDate);
+        Assert.False(db.ChangeTracker.HasChanges());
+        var persisted = await db.ProjectStages.AsNoTracking().SingleAsync(row => row.StageCode == StageCodes.BM);
+        Assert.Null(persisted.ActualStart); Assert.Equal(historicalCompletion, persisted.CompletedOn);
+        if (expected is not null)
+        {
+            var validation = await new StageValidationService(db, clock, policy).ValidateAsync(1, StageCodes.BM,
+                "InProgress", predecessorCompletion, isHoD: false);
+            Assert.True(validation.IsValid, string.Join("; ", validation.Errors));
+        }
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

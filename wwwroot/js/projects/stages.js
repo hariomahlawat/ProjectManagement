@@ -554,6 +554,7 @@
     let activeStatus = '';
     let activeDirectCompletion = false;
     let activeReopenStart = false;
+    let activeActualToday = '';
 
     function updateSubmitButton(status) {
       if (!submitButton) return;
@@ -579,7 +580,7 @@
       updateSubmitButton(status);
     }
 
-    function configureStartDate(status, defaultStartDate, earliestStartDate, sourceName, isDirectCompletion) {
+    function configureStartDate(status, defaultStartDate, earliestStartDate, sourceName, isDirectCompletion, actualToday) {
       if (!startDateInput || !startDateGroup) return;
 
       const showStartDate = status === 'Completed';
@@ -588,6 +589,7 @@
       startDateInput.required = false;
       startDateInput.value = showStartDate ? (defaultStartDate || '') : '';
       startDateInput.min = showStartDate ? (earliestStartDate || '') : '';
+      startDateInput.max = showStartDate ? actualToday : '';
 
       if (completionNote) {
         completionNote.classList.toggle('d-none', !(showStartDate && isDirectCompletion));
@@ -625,7 +627,7 @@
       }
 
       if (resetValue) {
-        dateInput.value = status === 'Reopen' ? '' : (requiresDate ? todayIso() : '');
+        dateInput.value = status === 'Reopen' ? '' : (requiresDate ? activeActualToday : '');
       }
       if (dateHint) {
         dateHint.textContent = status === 'Reopen'
@@ -683,6 +685,7 @@
       const actualToday = trigger.getAttribute('data-actual-today') || todayIso();
       const startSource = trigger.getAttribute('data-start-source') || '';
       activeStatus = status;
+      activeActualToday = actualToday;
       activeReopenStart = status === 'Reopen' && trigger.getAttribute('data-reopen-start') === 'true';
       activeDirectCompletion = trigger.getAttribute('data-direct-completion') === 'true';
 
@@ -726,11 +729,11 @@
           dateHint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
         }
         dateInput.value = status === 'Reopen' ? (activeReopenStart ? recordedActualStart || defaultDate : '')
-          : defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
+          : defaultDate || (status === 'Completed' ? actualToday : (requiresDate ? actualToday : ''));
         dateInput.min = status === 'InProgress' || status === 'Completed' || activeReopenStart ? earliestStartDate : '';
-        dateInput.max = status === 'InProgress' || status === 'Completed' || activeReopenStart ? actualToday : '';
+        dateInput.max = dateInput.disabled ? '' : actualToday;
       }
-      configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion);
+      configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion, actualToday);
       updateNoDateWarning(status);
 
       if (submitButton) {

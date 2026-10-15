@@ -25,12 +25,19 @@ for (const [name, stage, expected] of [
     dom.window.close();
   });
 }
-function setup(defaultDate = '', startMode = true, recordedStart = '') {
-  const dom = new JSDOM(`<button data-direct-apply data-project="1" data-stage="BM" data-status="Reopen" data-reopen-start="${startMode}" data-actual-start="${recordedStart}" data-default-date="${defaultDate}" data-earliest-start="2026-08-06" data-actual-today="2026-08-28"></button>
+function setup(defaultDate = '', startMode = true, recordedStart = '', status = 'Reopen', browserToday = '') {
+  const dom = new JSDOM(`<button data-direct-apply data-project="1" data-stage="BM" data-status="${status}" data-reopen-start="${startMode}" data-actual-start="${recordedStart}" data-default-date="${defaultDate}" data-earliest-start="2026-08-06" data-actual-today="2026-08-28"></button>
     <div id="stageDirectApplyModal"><form data-direct-apply-form novalidate>
     <input name="projectId"><input name="stageCode"><input name="status"><input name="__RequestVerificationToken" value="token">
-    <input type="date" name="date"><span data-direct-apply-date-label></span><div data-direct-apply-date-hint></div>
+    <input type="date" name="date"><div data-direct-apply-start-group><input type="date" name="startDate"><div data-direct-apply-start-hint></div></div><span data-direct-apply-date-label></span><div data-direct-apply-date-hint></div>
     <div data-direct-apply-errors></div><button data-direct-apply-submit></button></form></div>`, { url: 'http://prism.test/', runScripts: 'outside-only' });
+  if (browserToday) {
+    const NativeDate = dom.window.Date;
+    dom.window.Date = class extends NativeDate {
+      constructor(...args) { super(...(args.length ? args : [`${browserToday}T12:00:00`])); }
+      static now() { return new NativeDate(`${browserToday}T12:00:00`).getTime(); }
+    };
+  }
   const calls = [];
   dom.window.bootstrap = { Modal: { getOrCreateInstance: () => ({ show() {}, hide() {} }) }, Toast: {} };
   dom.window.fetch = async (url, options) => { calls.push(JSON.parse(options.body)); return { status: 422, json: async () => ({ details: ['test response'] }) }; };
@@ -96,3 +103,30 @@ test('PO reopen cannot display a conflicting pending replacement for a recorded 
   assert.equal(row.querySelector('input').readOnly, true);
   dom.window.close();
 });
+
+for (const browserToday of ['2026-08-27', '2026-08-29']) {
+  for (const status of ['InProgress', 'Completed']) {
+    test(`direct ${status} defaults and max use server IST when browser today is ${browserToday}`, () => {
+      const { dom, input } = setup('', true, '', status, browserToday);
+      assert.equal(input.value, '2026-08-28');
+      assert.equal(input.max, '2026-08-28');
+      if (status === 'Completed') assert.equal(dom.window.document.querySelector('[name="startDate"]').max, '2026-08-28');
+      dom.window.close();
+    });
+  }
+  test(`direct reopen retains recorded start and IST max when browser today is ${browserToday}`, () => {
+    const { dom, input } = setup('2026-08-10', true, '2026-08-10', 'Reopen', browserToday);
+    assert.equal(input.value, '2026-08-10');
+    assert.equal(input.readOnly, true);
+    assert.equal(input.max, '2026-08-28');
+    dom.window.close();
+  });
+  for (const status of ['Blocked', 'Skipped']) {
+    test(`direct ${status} optional actual date uses IST max when browser today is ${browserToday}`, () => {
+      const { dom, input } = setup('', true, '', status, browserToday);
+      assert.equal(input.value, '');
+      assert.equal(input.max, '2026-08-28');
+      dom.window.close();
+    });
+  }
+}

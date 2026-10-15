@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -61,6 +62,24 @@ public class ProjectTimelineUiTests
         var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
         Assert.Contains("data-default-date=\"\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-default-date=\"2026-08-11\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("NotStarted")]
+    [InlineData("InProgress")]
+    [InlineData("Blocked")]
+    [InlineData("Completed")]
+    [InlineData("Skipped")]
+    public async Task EveryDirectAction_ReceivesServerOperationalToday(string status)
+    {
+        var stage = new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = Enum.Parse<StageStatus>(status), Today = new DateOnly(2026, 8, 28) };
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
+        var triggers = Regex.Matches(html, "<button\\b[^>]*\\bdata-direct-apply(?:\\s|>)[^>]*>", RegexOptions.Singleline);
+        Assert.NotEmpty(triggers);
+        foreach (Match trigger in triggers)
+        {
+            Assert.Contains("data-actual-today=\"2026-08-28\"", trigger.Value, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

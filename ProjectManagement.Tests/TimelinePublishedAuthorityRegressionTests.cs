@@ -198,6 +198,26 @@ public sealed class TimelinePublishedAuthorityRegressionTests
         Assert.Equal(ipa.ActualStart, log.ToActualStart); Assert.Equal(PublishedDate, log.ToCompletedOn);
     }
 
+    [Fact]
+    public async Task Read_ReopenSuggestionCapsPublishedIpaBoundaryWithoutChangingSource()
+    {
+        await using var db = await SeedAsync(StageStatus.NotStarted, 0, published: true);
+        var sow = await db.ProjectStages.SingleAsync(row => row.StageCode == StageCodes.SOW);
+        sow.CompletedOn = PublishedDate; await db.SaveChangesAsync();
+        var metadata = new WorkflowStageMetadataProvider();
+        var policy = new ProjectStageWorkflowPolicy(db, metadata);
+        var clock = FakeClock.ForIstDate(PublishedDate);
+        var timeline = await new ProjectTimelineReadService(db, clock, metadata, policy).GetAsync(1);
+        var item = timeline.Items.Single(row => row.Code == StageCodes.SOW);
+        Assert.Equal(PublishedDate, item.ReopenSuggestedStartDate);
+        Assert.Equal(PublishedDate, item.EarliestAllowedStartDate);
+        Assert.Equal(PublishedDate.AddDays(1), item.SuggestedStartDate);
+        Assert.True((await new StageValidationService(db, clock, policy).ValidateAsync(1, StageCodes.SOW,
+            "InProgress", PublishedDate, isHoD: false)).IsValid);
+        Assert.Null(sow.ActualStart); Assert.Equal(PublishedDate, sow.CompletedOn);
+        await AssertUnchangedIpaAsync(db, StageStatus.NotStarted, 0);
+    }
+
     private static async Task<ApplicationDbContext> SeedAsync(StageStatus ipaStatus, int ipaDay, bool published)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

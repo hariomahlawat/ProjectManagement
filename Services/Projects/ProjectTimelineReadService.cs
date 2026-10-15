@@ -293,7 +293,12 @@ public sealed class ProjectTimelineReadService
                 && status == StageStatus.Completed
                 && startSuggestion.EarliestAllowedStartDate is DateOnly boundary)
             {
-                reopenSuggestedStart = await GetReopenSuggestedStartAsync(boundary, scheduleSettings, ct);
+                var candidate = await GetReopenSuggestedStartAsync(boundary, scheduleSettings, ct);
+                // Bound presentation assistance only; never change recorded actuals
+                // or the graph's same-day chronology minimum to fit a suggestion.
+                if (candidate > today) candidate = today;
+                if (actualEnd.HasValue && candidate > actualEnd.Value) candidate = actualEnd.Value;
+                reopenSuggestedStart = candidate >= boundary ? candidate : null;
             }
 
             DateOnly? effectiveActualStart = actualStart;
