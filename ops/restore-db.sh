@@ -27,9 +27,12 @@ export PRISM_RESTORE_TARGET="$DBNAME" PRISM_RESTORE_STAGE="$STAGE" PRISM_RESTORE
 export PRISM_RESTORE_TARGET_OID=0 PRISM_RESTORE_STAGE_OID=0 PGCONNECT_TIMEOUT=10 PGCLIENTENCODING=UTF8
 utf8_hex() {
   # Byte-wise encoding using Bash builtins; no xxd, Python or other runtime.
-  local LC_ALL=C value="$1" hex="" byte i
+  local LC_ALL=C value="$1" hex="" byte code i
   for (( i=0; i<${#value}; i++ )); do
-    printf -v byte '%02X' "'${value:i:1}"
+    # Some libc builds expose high bytes as surrogate character values.
+    # Normalize to one byte before formatting, rather than emitting four hex digits.
+    printf -v code '%d' "'${value:i:1}"
+    printf -v byte '%02X' "$((code & 255))"
     hex+="$byte"
   done
   printf '%s' "$hex"
