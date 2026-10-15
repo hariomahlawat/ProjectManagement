@@ -404,6 +404,74 @@ public class StageDirectApplyServiceTests
 
 
     [Fact]
+    public async Task ApplyAsync_PublishedIpaAuthority_DoesNotEmitStalePredecessorWarning()
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2026, 3, 1));
+        await using var db = CreateContext();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow,
+            WorkflowVersion = ProcurementWorkflow.VersionV1
+        });
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.FS,
+                SortOrder = 0,
+                Status = StageStatus.Completed,
+                CompletedOn = new DateOnly(2026, 1, 10)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 1,
+                Status = StageStatus.NotStarted
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.SOW,
+                SortOrder = 2,
+                Status = StageStatus.NotStarted
+            });
+
+        AddPublishedPosition(db, projectId: 1, issueDate: new DateOnly(2026, 2, 26));
+        await db.SaveChangesAsync();
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.SOW,
+            status: StageStatus.InProgress.ToString(),
+            date: new DateOnly(2026, 2, 27),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(StageStatus.InProgress.ToString(), result.UpdatedStatus);
+        Assert.DoesNotContain(result.Warnings, warning =>
+            warning.Contains(StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+            && warning.Contains("complete", StringComparison.OrdinalIgnoreCase));
+
+        var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        Assert.Equal(StageStatus.NotStarted, ipa.Status);
+        Assert.Null(ipa.CompletedOn);
+    }
+
+    [Fact]
     public async Task ApplyAsync_BenchmarkingCompletion_AllowsParallelTechnicalEvaluationChronology()
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2026, 8, 28, 6, 30, 0, TimeSpan.Zero));
