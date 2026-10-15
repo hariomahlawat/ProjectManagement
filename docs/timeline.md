@@ -20,10 +20,10 @@ Planned and actual dates are separate business facts. Changing one must not sile
 | Status | `ActualStart` | `CompletedOn` |
 | --- | --- | --- |
 | `NotStarted` | Must be null. | Must be null. |
-| `InProgress` | Normally required; cannot be cleared while remaining `InProgress`. | Must be null. |
+| `InProgress` | Required. An `InProgress` stage must have `ActualStart`; it cannot be cleared while the stage remains `InProgress`. | Must be null. |
 | `Completed` | Optional. | Normally required; see the authorised exception below. |
 | `Skipped` | Must be null. | Must be null. |
-| `Blocked` | May be null before work starts; may be retained if work already started. | Must not represent completion while blocked. |
+| `Blocked` | May be null before work starts; may be retained if work already started. | Must be null. |
 
 An authorised HoD may complete a stage without a completion date: `Status = Completed`, `CompletedOn = null`, `RequiresBackfill = true`. The workflow may advance, but mandatory backfill remains visible until corrected. Any other mandatory stage facts must also be backfilled where required.
 
