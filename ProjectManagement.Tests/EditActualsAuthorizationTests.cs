@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Projects.Timeline;
 using ProjectManagement.Services;
@@ -66,6 +67,131 @@ public sealed class EditActualsAuthorizationTests
         Assert.Equal(StageStatus.InProgress, stage.Status);
         Assert.Null(stage.CompletedOn);
         Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+    }
+
+    public static IEnumerable<object[]> IpaRoleCases()
+    {
+        foreach (var source in new[] { "none", "draft", "published" })
+        {
+            yield return [source, "Project Officer", true, true];
+            yield return [source, "Project Officer", false, false];
+            yield return [source, "HoD", false, true];
+            yield return [source, "Admin", false, true];
+            yield return [source, "Viewer", true, false];
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(IpaRoleCases))]
+    public async Task OnPostAsync_IpaCompletionCorrectionUsesConditionalPublishedAuthority(
+        string source, string role, bool assigned, bool authorised)
+    {
+        await using var db = CreateContext();
+        await SeedIpaAsync(db, assigned, source);
+        var page = CreatePage(db, role);
+        var requestedCompletion = new DateOnly(2024, 1, 22);
+        page.Input = new ActualsEditInput
+        {
+            ProjectId = 1,
+            Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, CompletedOn = requestedCompletion }]
+        };
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        if (!authorised)
+        {
+            Assert.IsType<ForbidResult>(result);
+            Assert.Equal(new DateOnly(2024, 1, 20), ipa.CompletedOn);
+            Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+            return;
+        }
+
+        Assert.IsType<RedirectToPageResult>(result);
+        if (source == "published")
+        {
+            Assert.Contains("ARPP", Assert.IsType<string>(page.TempData["Error"]), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(new DateOnly(2024, 1, 20), ipa.CompletedOn);
+            Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+        }
+        else
+        {
+            Assert.False(page.TempData.ContainsKey("Error"));
+            Assert.Equal(requestedCompletion, ipa.CompletedOn);
+            var history = await db.StageChangeLogs.SingleAsync();
+            Assert.Equal(new DateOnly(2024, 1, 20), history.FromCompletedOn);
+            Assert.Equal(requestedCompletion, history.ToCompletedOn);
+        }
+        Assert.Equal(new DateOnly(2024, 1, 10), ipa.ActualStart);
+    }
+
+    [Theory]
+    [MemberData(nameof(IpaRoleCases))]
+    public async Task OnPostAsync_IpaStartRemainsSeparatelyCorrectableUnderNormalRoleAuthority(
+        string source, string role, bool assigned, bool authorised)
+    {
+        await using var db = CreateContext();
+        await SeedIpaAsync(db, assigned, source);
+        var page = CreatePage(db, role);
+        var correctedStart = new DateOnly(2024, 1, 11);
+        page.Input = new ActualsEditInput
+        {
+            ProjectId = 1,
+            Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, ActualStart = correctedStart }]
+        };
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        Assert.Equal(new DateOnly(2024, 1, 20), ipa.CompletedOn);
+        if (authorised)
+        {
+            Assert.IsType<RedirectToPageResult>(result);
+            Assert.False(page.TempData.ContainsKey("Error"));
+            Assert.Equal(correctedStart, ipa.ActualStart);
+            Assert.Equal(correctedStart, (await db.StageChangeLogs.SingleAsync()).ToActualStart);
+        }
+        else
+        {
+            Assert.IsType<ForbidResult>(result);
+            Assert.Equal(new DateOnly(2024, 1, 10), ipa.ActualStart);
+            Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+        }
+    }
+
+    private static async Task SeedIpaAsync(ApplicationDbContext db, bool assigned, string source)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = 1, Name = "Conditional IPA", CreatedByUserId = "seed",
+            LeadPoUserId = assigned ? "actor" : "other", WorkflowVersion = ProcurementWorkflow.VersionV1
+        });
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.FS, Status = StageStatus.Completed, CompletedOn = new DateOnly(2024, 1, 1) },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.IPA, Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2024, 1, 10), CompletedOn = new DateOnly(2024, 1, 20) });
+        if (source != "none")
+        {
+            var issue = new ArppIssue
+            {
+                Id = 1, Name = "IPA source", FinancialYearStart = 2023,
+                Kind = ArppIssueKind.Original, IssueSequence = 0, IssueDate = new DateOnly(2024, 1, 20),
+                CreatedByUserId = "seed", UpdatedByUserId = "seed",
+                Entries = { new ArppEntry { ProjectId = 1, ProjectReference = "Conditional IPA", CreatedByUserId = "seed", UpdatedByUserId = "seed" } }
+            };
+            if (source == "published")
+            {
+                issue.PublishedSnapshot = new ArppPublishedIssue
+                {
+                    ArppIssueId = 1, Name = issue.Name, FinancialYearStart = issue.FinancialYearStart,
+                    Kind = issue.Kind, IssueSequence = issue.IssueSequence, IssueDate = issue.IssueDate,
+                    RevisionNumber = 1, PublishedByUserId = "seed",
+                    Entries = { new ArppPublishedEntry { ArppIssueId = 1, SourceEntryId = 1, ProjectId = 1, ProjectReference = "Conditional IPA" } }
+                };
+            }
+            db.ArppIssues.Add(issue);
+        }
+        await db.SaveChangesAsync();
     }
 
     private static ApplicationDbContext CreateContext() => new(new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -399,7 +399,8 @@
                                 data-stage-name="@s.Name"
                                 data-status="Reopen"
                                 data-reopen-start="true"
-                                data-default-date="@((s.ActualStart ?? s.ReopenSuggestedStartDate)?.ToString("yyyy-MM-dd"))"
+                                data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                                data-default-date="@((s.ActualStart ?? (s.Status == StageStatus.Completed ? s.ReopenSuggestedStartDate : null))?.ToString("yyyy-MM-dd"))"
                                 data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                                 data-actual-today="@s.Today.ToString("yyyy-MM-dd")">
                           Reopen in progress
@@ -436,7 +437,8 @@
                                 data-stage-name="@s.Name"
                                 data-status="Reopen"
                                 data-reopen-start="true"
-                                data-default-date="@((s.ActualStart ?? s.ReopenSuggestedStartDate)?.ToString("yyyy-MM-dd"))"
+                                data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                                data-default-date="@((s.ActualStart ?? (s.Status == StageStatus.Completed ? s.ReopenSuggestedStartDate : null))?.ToString("yyyy-MM-dd"))"
                                 data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                                 data-actual-today="@s.Today.ToString("yyyy-MM-dd")">
                           Reopen in progress

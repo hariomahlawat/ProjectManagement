@@ -212,11 +212,18 @@ public sealed class StageDirectApplyService
         {
             throw StageDirectApplyValidationException.FromMessages("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
         }
-        var reopensCompletedStage = stage.Status == StageStatus.Completed &&
+        var preservesRecordedStart = stage.Status is StageStatus.Completed or StageStatus.Blocked &&
             (isReopen || normalizedStatus.Equals(nameof(StageStatus.InProgress), StringComparison.OrdinalIgnoreCase));
-        var validationDate = reopensCompletedStage && date.HasValue ? stage.ActualStart ?? date : date;
+        if (preservesRecordedStart && stage.ActualStart.HasValue && date.HasValue && date.Value != stage.ActualStart.Value)
+        {
+            throw StageDirectApplyValidationException.FromMessages("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates before reopening.");
+        }
+        var validationDate = preservesRecordedStart && date.HasValue ? stage.ActualStart ?? date : date;
         var todayForValidation = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
-        if (date > todayForValidation || startDate > todayForValidation)
+        var publishesPreservedStart = normalizedStatus.Equals(nameof(StageStatus.Blocked), StringComparison.OrdinalIgnoreCase)
+            || (preservesRecordedStart && (date.HasValue || !isReopen));
+        if (date > todayForValidation || startDate > todayForValidation
+            || (publishesPreservedStart && stage.ActualStart > todayForValidation))
         {
             throw StageDirectApplyValidationException.FromMessages("Actual dates cannot be in the future under the operational IST date.");
         }
@@ -448,7 +455,7 @@ public sealed class StageDirectApplyService
                     break;
                 case StageStatus.InProgress:
                     stage.Status = StageStatus.InProgress;
-                    stage.ActualStart = reopensCompletedStage ? stage.ActualStart ?? date!.Value : date!.Value;
+                    stage.ActualStart = preservesRecordedStart ? stage.ActualStart ?? date!.Value : date!.Value;
                     stage.CompletedOn = null;
                     stage.RequiresBackfill = false;
                     break;

@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
 
@@ -27,15 +28,18 @@ public sealed class StageApprovalSequenceService
     private readonly ApplicationDbContext _db;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly ProjectFactsReadService _factsRead;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageApprovalSequenceService(
         ApplicationDbContext db,
         IProjectStageWorkflowPolicy workflowPolicy,
-        ProjectFactsReadService factsRead)
+        ProjectFactsReadService factsRead,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _factsRead = factsRead ?? throw new ArgumentNullException(nameof(factsRead));
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<StageApprovalAssessment?> AssessRequestAsync(
@@ -121,6 +125,7 @@ public sealed class StageApprovalSequenceService
                 || (includeRequestId.HasValue && request.Id == includeRequestId.Value))
             .ToArray();
 
+        var authorities = await _arppIpaStageAuthority.ResolveManyAsync(ids, cancellationToken);
         var result = new Dictionary<int, StageApprovalAssessment>();
 
         foreach (var projectGroup in candidates.GroupBy(request => request.ProjectId))
@@ -142,9 +147,16 @@ public sealed class StageApprovalSequenceService
             }
 
             var workflow = await _workflowPolicy.GetAsync(project.Id, cancellationToken);
+            var ipaAuthority = authorities.GetValueOrDefault(project.Id);
             var projectStages = stages
                 .Where(stage => stage.ProjectId == project.Id)
                 .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+                .Select(stage =>
+                {
+                    var effective = StageEffectiveState.Resolve(stage.StageCode,
+                        new StageChronologyState(stage.Status, stage.CompletedOn), ipaAuthority)!;
+                    return stage with { Status = effective.Status, CompletedOn = effective.CompletionDate };
+                })
                 .ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
 
             var projectRequests = allRequests
@@ -182,6 +194,7 @@ public sealed class StageApprovalSequenceService
                     projectStages,
                     latestPendingByStage,
                     revisionByRequestId.TryGetValue(request.Id, out var revision) ? revision : 1,
+                    ipaAuthority,
                     cancellationToken);
 
                 result[request.Id] = assessment;
@@ -198,6 +211,7 @@ public sealed class StageApprovalSequenceService
         IReadOnlyDictionary<string, StageSnapshot> projectStages,
         IReadOnlyDictionary<string, RequestSnapshot> latestPendingByStage,
         int revisionNumber,
+        ArppIpaStageAuthority? ipaAuthority,
         CancellationToken cancellationToken)
     {
         var stageName = StageCodes.DisplayNameOf(workflow.WorkflowVersion, request.StageCode);
@@ -326,6 +340,15 @@ public sealed class StageApprovalSequenceService
             "Current project state",
             $"Current status: {FormatStatus(stage.Status)}. Requested status: {FormatStatus(requestedStatus)}."));
 
+        if (requestedStatus == StageStatus.InProgress
+            && stage.Status is StageStatus.Completed or StageStatus.Blocked
+            && stage.ActualStart.HasValue
+            && request.RequestedDate.HasValue && request.RequestedDate != stage.ActualStart)
+        {
+            checks.Add(new ApprovalCheckVm(ApprovalCheckState.Blocked, "Recorded actual start",
+                "Reopening preserves the recorded ActualStart. Correct it separately through Actual Dates, then revise the request."));
+        }
+
         if (requestedStatus == StageStatus.Completed)
         {
             if (!request.RequestedDate.HasValue)
@@ -427,7 +450,7 @@ public sealed class StageApprovalSequenceService
                 workflow,
                 request.StageCode,
                 projectStages,
-                latestPendingByStage);
+                latestPendingByStage, ipaAuthority);
 
             var chronologyDate = proposedStartDate
                 ?? (requestedStatus == StageStatus.Completed ? request.RequestedDate : null);
@@ -501,7 +524,8 @@ public sealed class StageApprovalSequenceService
         ProjectStageWorkflowSnapshot workflow,
         string stageCode,
         IReadOnlyDictionary<string, StageSnapshot> projectStages,
-        IReadOnlyDictionary<string, RequestSnapshot> latestPendingByStage)
+        IReadOnlyDictionary<string, RequestSnapshot> latestPendingByStage,
+        ArppIpaStageAuthority? ipaAuthority)
         => StageDateSuggestionResolver.Resolve(
             workflow,
             stageCode,
@@ -523,7 +547,7 @@ public sealed class StageApprovalSequenceService
                 return official is null
                     ? null
                     : new StageChronologyState(official.Status, official.CompletedOn);
-            });
+            }, ipaAuthority);
 
     private static string BuildFactsUrl(int projectId, string stageCode)
         => stageCode switch

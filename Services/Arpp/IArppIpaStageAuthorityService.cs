@@ -16,6 +16,11 @@ public interface IArppIpaStageAuthorityService
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// True only when a published completion authority exists for this project.
+    /// A linkage or unpublished working entry alone does not lock manual IPA completion.
+    /// ActualStart remains a separate, manually correctable fact.
+    /// </summary>
     Task<bool> IsManagedAsync(
         int projectId,
         CancellationToken cancellationToken = default);

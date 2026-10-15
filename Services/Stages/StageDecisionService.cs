@@ -289,6 +289,18 @@ public sealed class StageDecisionService
             }
         }
 
+        // Revalidate approved facts against published IPA authority immediately
+        // before claiming the request. This also rejects old reopen proposals that
+        // name a different start than the one this transition must preserve.
+        var validation = await new StageValidationService(_db, _clock, _workflowPolicy, _arppIpaStageAuthority)
+            .ValidateAsync(stage.ProjectId, stage.StageCode, request.RequestedStatus,
+                effectiveDate, carriedForwardStart, isHoD: true, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return StageDecisionResult.ValidationFailed(string.Join(" ", validation.Errors.Concat(
+                validation.MissingPredecessors.Select(code => $"Resolve required predecessor {code} first."))));
+        }
+
         var useTransaction = _db.Database.IsRelational();
         await using var transaction = useTransaction
             ? await _db.Database.BeginTransactionAsync(cancellationToken)
@@ -465,6 +477,7 @@ public sealed class StageDecisionService
             .Select(ps => new { ps.StageCode, ps.Status })
             .ToListAsync(cancellationToken);
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, cancellationToken);
         var incomplete = new List<string>();
 
         foreach (var code in required)
@@ -472,7 +485,9 @@ public sealed class StageDecisionService
             var match = predecessors.FirstOrDefault(
                 p => string.Equals(p.StageCode, code, StringComparison.OrdinalIgnoreCase));
 
-            if (match is null || match.Status is not StageStatus.Completed and not StageStatus.Skipped)
+            var effective = StageEffectiveState.Resolve(code,
+                match is null ? null : new StageChronologyState(match.Status, null), ipaAuthority);
+            if (effective is null || effective.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
                 incomplete.Add(code);
             }

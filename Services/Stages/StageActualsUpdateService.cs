@@ -98,10 +98,9 @@ public sealed class StageActualsUpdateService
             throw new StageActualsNotFoundException(missing);
         }
 
-        var ipaAuthority = codes.Any(code =>
-                string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase))
-            ? await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken)
-            : null;
+        // IPA may be an unsubmitted predecessor. Its published completion still
+        // controls every downstream chronology calculation.
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken);
 
         var workflow = await _workflowPolicy.GetAsync(input.ProjectId, cancellationToken);
         var submittedByCode = normalized.ToDictionary(row => row.StageCode, StringComparer.OrdinalIgnoreCase);
@@ -155,6 +154,9 @@ public sealed class StageActualsUpdateService
             var isArppManagedIpa = ipaAuthority is not null &&
                                    string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
 
+            var effectiveStatus = StageEffectiveState.Resolve(stage.StageCode,
+                new StageChronologyState(stage.Status, stage.CompletedOn), ipaAuthority)!.Status;
+
             if (isArppManagedIpa && completed.HasValue && completed != ipaAuthority!.IssueDate)
             {
                 validationErrors.Add($"{row.StageCode}: Completion date is controlled by the published ARPP record and cannot be edited here.");
@@ -167,7 +169,7 @@ public sealed class StageActualsUpdateService
                 continue;
             }
 
-            if (row.ClearActualStart && stage.Status == StageStatus.InProgress)
+            if (row.ClearActualStart && effectiveStatus == StageStatus.InProgress)
             {
                 validationErrors.Add($"{row.StageCode}: Actual start is required while the stage is InProgress. Transition the stage before clearing it.");
                 continue;
@@ -190,13 +192,13 @@ public sealed class StageActualsUpdateService
                 continue;
             }
 
-            if (stage.Status is not StageStatus.InProgress and not StageStatus.Completed)
+            if (effectiveStatus is not StageStatus.InProgress and not StageStatus.Completed)
             {
                 validationErrors.Add($"{row.StageCode}: Actual dates can only be edited when the stage is InProgress or Completed.");
                 continue;
             }
 
-            if (stage.Status == StageStatus.InProgress)
+            if (effectiveStatus == StageStatus.InProgress)
             {
                 if (!proposedStart.HasValue)
                 {
@@ -226,7 +228,7 @@ public sealed class StageActualsUpdateService
 
             var chronologyDate = proposedStart ?? proposedCompleted;
             var chronologyLabel = proposedStart.HasValue ? "Start date" : "Completion date";
-            var startBoundary = StageDateSuggestionResolver.Resolve(workflow, projectedStages, row.StageCode);
+            var startBoundary = StageDateSuggestionResolver.Resolve(workflow, projectedStages, row.StageCode, ipaAuthority);
             if (chronologyDate.HasValue
                 && startBoundary.EarliestAllowedStartDate.HasValue
                 && chronologyDate.Value < startBoundary.EarliestAllowedStartDate.Value)
@@ -243,7 +245,7 @@ public sealed class StageActualsUpdateService
             var updatedStart = proposedStart;
             var updatedCompleted = proposedCompleted;
 
-            changes.Add(new StageActualChange(stage, updatedStart, updatedCompleted));
+            changes.Add(new StageActualChange(stage, effectiveStatus, updatedStart, updatedCompleted));
         }
 
         if (lockedStages.Length > 0)
@@ -297,7 +299,7 @@ public sealed class StageActualsUpdateService
                 StageCode = stage.StageCode,
                 Action = ActualsUpdatedLogAction,
                 FromStatus = stage.Status.ToString(),
-                ToStatus = stage.Status.ToString(),
+                ToStatus = change.NewStatus.ToString(),
                 FromActualStart = stage.ActualStart,
                 ToActualStart = change.NewStart,
                 FromCompletedOn = stage.CompletedOn,
@@ -307,6 +309,9 @@ public sealed class StageActualsUpdateService
                 Note = "Actual dates updated via bulk editor."
             };
 
+            // An explicit authorised correction uses the published lifecycle state.
+            // Unchanged rows and read/validation projections never reconcile data.
+            stage.Status = change.NewStatus;
             stage.ActualStart = change.NewStart;
             stage.CompletedOn = change.NewCompleted;
 
@@ -354,7 +359,7 @@ public sealed record StageActualsUpdateResult(int UpdatedCount, IReadOnlyList<st
     public static StageActualsUpdateResult NoChanges() => new(0, Array.Empty<string>());
 }
 
-internal sealed record StageActualChange(ProjectStage Stage, DateOnly? NewStart, DateOnly? NewCompleted);
+internal sealed record StageActualChange(ProjectStage Stage, StageStatus NewStatus, DateOnly? NewStart, DateOnly? NewCompleted);
 
 public sealed class StageActualsValidationException : Exception
 {

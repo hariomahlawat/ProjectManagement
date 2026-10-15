@@ -616,6 +616,117 @@ public sealed class ArppIpaStageSynchronizerTests
         Assert.Equal(authorityDate, (await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA)).CompletedOn);
         Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompletionAuthority_WithoutPublishedSnapshotDoesNotLockBackfill(bool hasDraft)
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project { Id = 1, Name = "Manual IPA", CreatedByUserId = "seed" });
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1, StageCode = StageCodes.IPA,
+            Status = StageStatus.Completed, RequiresBackfill = true
+        });
+        if (hasDraft) AddWorkingPosition(db);
+        await db.SaveChangesAsync();
+        var authority = new ArppIpaStageAuthorityService(db);
+        Assert.False(await authority.IsManagedAsync(1));
+        Assert.Null(await authority.ResolveAsync(1));
+        await authority.EnsureManualLifecycleMutationAllowedAsync(1, StageCodes.IPA);
+        var completion = new DateOnly(2026, 4, 12);
+
+        await new StageBackfillService(db, FakeClock.ForIstDate(2026, 8, 1)).ApplyAsync(
+            1, [new StageBackfillUpdate(StageCodes.IPA, null, completion)], "hod-1");
+
+        var ipa = await db.ProjectStages.SingleAsync();
+        Assert.Equal(completion, ipa.CompletedOn);
+        Assert.Null(ipa.ActualStart);
+        Assert.False(ipa.RequiresBackfill);
+        Assert.Equal(completion, (await db.StageChangeLogs.SingleAsync()).ToCompletedOn);
+    }
+
+    [Theory]
+    [InlineData(false, "hod-1")]
+    [InlineData(true, "hod-1")]
+    [InlineData(false, "admin-1")]
+    [InlineData(true, "admin-1")]
+    public async Task HistoricalCompletion_WithoutPublishedSnapshotRemainsManualUntilPublication(bool hasDraft, string actor)
+    {
+        await using var db = CreateContext();
+        var project = new Project
+        {
+            Id = 1, Name = "Legacy manual IPA", CreatedByUserId = "seed",
+            WorkflowVersion = ProcurementWorkflow.VersionV1, IsLegacy = true,
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+        db.Projects.Add(project);
+        if (hasDraft) AddWorkingPosition(db);
+        await db.SaveChangesAsync();
+        var manualDate = new DateOnly(2026, 4, 12);
+        var service = new HistoricalStageRecordService(db, new WorkflowStageMetadataProvider(),
+            FakeClock.ForIstDate(2026, 8, 1), new RecordingAudit(), NullLogger<HistoricalStageRecordService>.Instance);
+        var input = new HistoricalStageRecordInput
+        {
+            ProjectId = 1, EvidenceNote = "Documented manual IPA completion",
+            Rows = ProcurementWorkflow.StageDefinitionsFor(project.WorkflowVersion).Select(definition =>
+                new HistoricalStageRecordRowInput
+                {
+                    StageCode = definition.Code,
+                    Outcome = definition.Code == StageCodes.IPA ? HistoricalStageOutcome.Completed : HistoricalStageOutcome.NotRecorded,
+                    CompletedOn = definition.Code == StageCodes.IPA ? manualDate : null
+                }).ToList()
+        };
+
+        var result = await service.SaveAsync(input, actor, actor);
+
+        var ipa = await db.ProjectStages.SingleAsync();
+        Assert.Equal(manualDate, ipa.CompletedOn);
+        Assert.Null(ipa.ActualStart);
+        var manualHistory = await db.StageChangeLogs.SingleAsync();
+        Assert.Equal(manualDate, manualHistory.ToCompletedOn);
+        Assert.Equal(actor, manualHistory.UserId);
+        var publishedDate = new DateOnly(2026, 4, 10);
+        AddPublishedPosition(db, 1, 1, publishedDate, 0, ArppCategory.New);
+        await db.SaveChangesAsync();
+
+        var synchronization = await new ArppIpaStageSynchronizer(db).SynchronizeProjectsAsync([1]);
+
+        var change = Assert.Single(synchronization.Changes);
+        Assert.Equal(manualDate, change.PreviousCompletedOn);
+        Assert.Equal(publishedDate, change.CompletionDate);
+        Assert.Equal(publishedDate, ipa.CompletedOn);
+        Assert.Null(ipa.ActualStart);
+        Assert.Equal(manualDate, (await db.StageChangeLogs.SingleAsync()).ToCompletedOn);
+        var authority = new ArppIpaStageAuthorityService(db);
+        Assert.True(await authority.IsManagedAsync(1));
+        await Assert.ThrowsAsync<ArppManagedIpaStageException>(() =>
+            authority.EnsureManualLifecycleMutationAllowedAsync(1, StageCodes.IPA));
+        await Assert.ThrowsAsync<HistoricalStageRecordValidationException>(() =>
+            service.SaveAsync(input, actor, actor));
+        Assert.Equal(publishedDate, ipa.CompletedOn);
+    }
+
+    private static void AddWorkingPosition(ApplicationDbContext db)
+    {
+        db.ArppIssues.Add(new ArppIssue
+        {
+            Id = 10, FinancialYearStart = 2026, Kind = ArppIssueKind.Original, IssueSequence = 0,
+            Name = "Unpublished draft", IssueDate = new DateOnly(2026, 4, 1),
+            CreatedByUserId = "seed", UpdatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow,
+            Entries =
+            {
+                new ArppEntry
+                {
+                    ProjectId = 1, ProjectReference = "Manual IPA", Category = ArppCategory.New,
+                    CreatedByUserId = "seed", UpdatedByUserId = "seed",
+                    CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
+                }
+            }
+        });
+    }
+
     private static async Task SeedManagedIpaAndDownstreamAsync(
         ApplicationDbContext db, DateOnly authorityDate, DateOnly? genuineStart)
     {

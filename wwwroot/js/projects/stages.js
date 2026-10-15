@@ -677,6 +677,7 @@
       const status = trigger.getAttribute('data-status') || '';
       const stageName = trigger.getAttribute('data-stage-name') || '';
       const defaultDate = trigger.getAttribute('data-default-date') || '';
+      const recordedActualStart = trigger.getAttribute('data-actual-start') || '';
       const defaultStartDate = trigger.getAttribute('data-default-start-date') || '';
       const earliestStartDate = trigger.getAttribute('data-earliest-start') || '';
       const actualToday = trigger.getAttribute('data-actual-today') || todayIso();
@@ -720,7 +721,11 @@
       const requiresDate = applyDateState(status, { resetValue: true });
       if (dateInput) {
         dateInput.disabled = status === 'Reopen' && !activeReopenStart;
-        dateInput.value = status === 'Reopen' ? (activeReopenStart ? defaultDate : '')
+        dateInput.readOnly = activeReopenStart && Boolean(recordedActualStart);
+        if (dateInput.readOnly && dateHint) {
+          dateHint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
+        }
+        dateInput.value = status === 'Reopen' ? (activeReopenStart ? recordedActualStart || defaultDate : '')
           : defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
         dateInput.min = status === 'InProgress' || status === 'Completed' || activeReopenStart ? earliestStartDate : '';
         dateInput.max = status === 'InProgress' || status === 'Completed' || activeReopenStart ? actualToday : '';
@@ -1041,14 +1046,19 @@
       const stageSelect = row.querySelector('[data-stage-request-stage]');
       const stage = stageOptionFor(stageSelect?.value || '');
       const isReopenStart = status === 'InProgress' && ['Completed', 'Skipped', 'Blocked'].includes(stage?.currentStatus);
-      const suggestedDate = isReopenStart ? (stage?.actualStart || stage?.reopenSuggestedStart || '') : (stage?.suggestedStart || '');
+      const preservedStart = isReopenStart && ['Completed', 'Blocked'].includes(stage?.currentStatus) ? (stage?.actualStart || '') : '';
+      const suggestedDate = isReopenStart
+        ? (preservedStart || (stage?.currentStatus === 'Completed' ? stage?.reopenSuggestedStart || '' : ''))
+        : (stage?.suggestedStart || '');
       const dateInput = row.querySelector('[data-stage-request-date]');
       const label = row.querySelector('[data-stage-request-date-label]');
       const hint = row.querySelector('[data-stage-request-date-hint]');
       const config = dateConfiguration(status);
       if (label) label.textContent = config.label;
       if (hint) {
-        if (status === 'InProgress' && suggestedDate && !preferredValue) {
+        if (preservedStart) {
+          hint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
+        } else if (status === 'InProgress' && suggestedDate && !preferredValue) {
           hint.textContent = stage.startSource && stage.earliestStart
             ? `Suggested: ${formatDate(suggestedDate)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
             : stage.startSource
@@ -1060,9 +1070,12 @@
       }
       if (dateInput) {
         dateInput.required = config.required;
+        dateInput.readOnly = Boolean(preservedStart);
         dateInput.min = status === 'InProgress' || status === 'Completed' ? (stage?.earliestStart || '') : '';
         dateInput.max = isReopenStart ? (stage?.actualToday || todayIso()) : '';
-        if (preferredValue) {
+        if (preservedStart) {
+          dateInput.value = preservedStart;
+        } else if (preferredValue) {
           dateInput.value = preferredValue;
         } else if (resetValue) {
           dateInput.value = status === 'InProgress'

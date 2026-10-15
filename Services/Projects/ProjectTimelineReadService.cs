@@ -49,11 +49,17 @@ public sealed class ProjectTimelineReadService
         _officeCalendar = officeCalendar ?? new OfficeCalendarService(db);
     }
 
-    public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
-        => _db.ProjectStages.AnyAsync(s =>
-            s.ProjectId == projectId &&
-            s.Status == StageStatus.Completed &&
-            !s.CompletedOn.HasValue, ct);
+    public async Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
+    {
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
+        var undatedCodes = await _db.ProjectStages.AsNoTracking()
+            .Where(stage => stage.ProjectId == projectId
+                && stage.Status == StageStatus.Completed && !stage.CompletedOn.HasValue)
+            .Select(stage => stage.StageCode)
+            .ToListAsync(ct);
+        return undatedCodes.Any(code => !StageEffectiveState.Resolve(code,
+            new StageChronologyState(StageStatus.Completed, null), ipaAuthority)!.CompletionDate.HasValue);
+    }
 
     public async Task<ActualsEditorVm> GetActualsEditorAsync(int projectId, CancellationToken ct = default)
     {
@@ -85,9 +91,11 @@ public sealed class ProjectTimelineReadService
             {
                 stageLookup.TryGetValue(stage.Code, out var projectStage);
                 var hasPending = pendingLookup.ContainsKey(stage.Code);
-                var status = projectStage?.Status ?? StageStatus.NotStarted;
+                var effective = StageEffectiveState.Resolve(stage.Code,
+                    new StageChronologyState(projectStage?.Status ?? StageStatus.NotStarted, projectStage?.CompletedOn), ipaAuthority)!;
+                var status = effective.Status;
                 var isEditable = status is StageStatus.InProgress or StageStatus.Completed;
-                var startBoundary = StageDateSuggestionResolver.Resolve(workflow, stages, stage.Code);
+                var startBoundary = StageDateSuggestionResolver.Resolve(workflow, stages, stage.Code, ipaAuthority);
 
                 return new ActualsEditorRowVm
                 {
@@ -96,13 +104,13 @@ public sealed class ProjectTimelineReadService
                     Status = status,
                     IsEditable = isEditable,
                     ActualStart = projectStage?.ActualStart,
-                    CompletedOn = projectStage?.CompletedOn,
+                    CompletedOn = effective.CompletionDate,
                     EarliestAllowedStartDate = startBoundary.EarliestAllowedStartDate,
                     StartBoundarySourceName = startBoundary.SourceStageName,
                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
                     RequiresBackfill = projectStage is not null &&
                         status == StageStatus.Completed &&
-                        !projectStage.CompletedOn.HasValue,
+                        !effective.CompletionDate.HasValue,
                     HasPendingDecision = hasPending,
                     IsArppManaged = ipaAuthority is not null &&
                         string.Equals(stage.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase),
@@ -213,6 +221,8 @@ public sealed class ProjectTimelineReadService
             .Where(item => item.StartDate.HasValue)
             .ToDictionary(item => item.StageCode, item => item.StartDate, StringComparer.OrdinalIgnoreCase);
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
+
         var pendingRequestVms = latestPendingByStage
             .Select(r =>
             {
@@ -228,7 +238,8 @@ public sealed class ProjectTimelineReadService
                     StageName = !string.IsNullOrWhiteSpace(r.StageCode) && stageNameLookup.TryGetValue(r.StageCode, out var stageName)
                         ? stageName
                         : _workflowStageMetadataProvider.GetDisplayName(workflowVersion, r.StageCode),
-                    CurrentStatus = stageRow?.Status ?? StageStatus.NotStarted,
+                    CurrentStatus = StageEffectiveState.Resolve(r.StageCode,
+                        new StageChronologyState(stageRow?.Status ?? StageStatus.NotStarted, stageRow?.CompletedOn), ipaAuthority)!.Status,
                     RequestedStatus = r.RequestedStatus,
                     RequestedDate = r.RequestedDate,
                     ProposedStartDate = r.RequestedStartDate
@@ -248,7 +259,6 @@ public sealed class ProjectTimelineReadService
         var pendingLookup = latestPendingByStage
             .ToDictionary(r => r.StageCode, StringComparer.OrdinalIgnoreCase);
 
-        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         var items = new List<TimelineItemVm>();
@@ -266,19 +276,21 @@ public sealed class ProjectTimelineReadService
             var plannedStart = r?.PlannedStart;
             var actualStart = r?.ActualStart;
             var plannedEnd = r?.PlannedDue;
-            var actualEnd = r?.CompletedOn;
-            var status = r?.Status ?? StageStatus.NotStarted;
+            var effective = StageEffectiveState.Resolve(code,
+                new StageChronologyState(r?.Status ?? StageStatus.NotStarted, r?.CompletedOn), ipaAuthority)!;
+            var actualEnd = effective.CompletionDate;
+            var status = effective.Status;
             var isArppManaged = ipaAuthority is not null &&
                                 string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
 
-            var startSuggestion = StageDateSuggestionResolver.Resolve(workflow, rows, code);
+            var startSuggestion = StageDateSuggestionResolver.Resolve(workflow, rows, code, ipaAuthority);
             // Reopen assistance is separate from normal timeline inference. It is
             // based only on a fully determined recorded graph boundary and is
             // never persisted merely because the timeline was read.
             DateOnly? reopenSuggestedStart = null;
             if (!isArppManaged
                 && !actualStart.HasValue
-                && status is StageStatus.Completed or StageStatus.Skipped or StageStatus.Blocked
+                && status == StageStatus.Completed
                 && startSuggestion.EarliestAllowedStartDate is DateOnly boundary)
             {
                 reopenSuggestedStart = await GetReopenSuggestedStartAsync(boundary, scheduleSettings, ct);

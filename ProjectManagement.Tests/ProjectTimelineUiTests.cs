@@ -46,8 +46,21 @@ public class ProjectTimelineUiTests
         Assert.Contains("data-reopen-start=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains("Reset to not started", html, StringComparison.Ordinal);
         Assert.Contains($"data-default-date=\"{expected}\"", html, StringComparison.Ordinal);
+        if (hasRecordedStart) Assert.Contains("data-actual-start=\"2026-08-06\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-default-date=\"2026-08-01\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-default-date=\"2026-08-07\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Blocked")]
+    [InlineData("Skipped")]
+    public async Task NonCompletedReopen_DoesNotExposeCompletedOnlyDefault(string status)
+    {
+        var stage = new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = Enum.Parse<StageStatus>(status),
+            SuggestedStartDate = new DateOnly(2026, 8, 7), ReopenSuggestedStartDate = new DateOnly(2026, 8, 11) };
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
+        Assert.Contains("data-default-date=\"\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-default-date=\"2026-08-11\"", html, StringComparison.Ordinal);
     }
 
     [Fact]

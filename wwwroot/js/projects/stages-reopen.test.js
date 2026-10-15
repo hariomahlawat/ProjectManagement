@@ -7,7 +7,10 @@ const source = fs.readFileSync(path.join(__dirname, 'stages.js'), 'utf8');
 const vm = require('node:vm');
 
 for (const [name, stage, expected] of [
+  ['blocked ignores Completed reopen default', { currentStatus: 'Blocked', suggestedStart: '2026-08-20', reopenSuggestedStart: '2026-08-21' }, ''],
+  ['skipped ignores Completed reopen default', { currentStatus: 'Skipped', suggestedStart: '2026-08-20', reopenSuggestedStart: '2026-08-21' }, ''],
   ['unknown start and undetermined boundary', { currentStatus: 'Completed', suggestedStart: '2026-08-20' }, ''],
+  ['blocked recorded start', { currentStatus: 'Blocked', actualStart: '2026-08-06', reopenSuggestedStart: '2026-08-11' }, '2026-08-06'],
   ['recorded start', { currentStatus: 'Completed', actualStart: '2026-08-06', reopenSuggestedStart: '2026-08-11' }, '2026-08-06'],
   ['working-day reopen suggestion', { currentStatus: 'Completed', suggestedStart: '2026-08-08', reopenSuggestedStart: '2026-08-11' }, '2026-08-11']
 ]) {
@@ -18,11 +21,12 @@ for (const [name, stage, expected] of [
     const context = { row, stageOptionFor: () => stage, dateConfiguration: () => ({ required: true }), todayIso: () => '2026-08-28', formatDate: (value) => value };
     vm.runInNewContext(`${functionSource}\nsetDateState(row, 'InProgress', { resetValue: true });`, context);
     assert.equal(row.querySelector('input').value, expected);
+    assert.equal(row.querySelector('input').readOnly, Boolean(stage.actualStart));
     dom.window.close();
   });
 }
-function setup(defaultDate = '', startMode = true) {
-  const dom = new JSDOM(`<button data-direct-apply data-project="1" data-stage="BM" data-status="Reopen" data-reopen-start="${startMode}" data-default-date="${defaultDate}" data-earliest-start="2026-08-06" data-actual-today="2026-08-28"></button>
+function setup(defaultDate = '', startMode = true, recordedStart = '') {
+  const dom = new JSDOM(`<button data-direct-apply data-project="1" data-stage="BM" data-status="Reopen" data-reopen-start="${startMode}" data-actual-start="${recordedStart}" data-default-date="${defaultDate}" data-earliest-start="2026-08-06" data-actual-today="2026-08-28"></button>
     <div id="stageDirectApplyModal"><form data-direct-apply-form novalidate>
     <input name="projectId"><input name="stageCode"><input name="status"><input name="__RequestVerificationToken" value="token">
     <input type="date" name="date"><span data-direct-apply-date-label></span><div data-direct-apply-date-hint></div>
@@ -71,5 +75,24 @@ test('explicit reset to not started submits no start date', async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls.length, 1);
   assert.equal(calls[0].date, null);
+  dom.window.close();
+});
+
+test('direct reopen exposes recorded start as readonly while correction stays separate', () => {
+  const { dom, input } = setup('2026-08-10', true, '2026-08-10');
+  assert.equal(input.value, '2026-08-10');
+  assert.equal(input.readOnly, true);
+  dom.window.close();
+});
+
+test('PO reopen cannot display a conflicting pending replacement for a recorded start', () => {
+  const dom = new JSDOM('<div><select data-stage-request-stage><option value="BM">BM</option></select><input type="date" data-stage-request-date></div>');
+  const row = dom.window.document.querySelector('div');
+  const functionSource = source.slice(source.indexOf('    function setDateState('), source.indexOf('    function retainedStartDate('));
+  vm.runInNewContext(`${functionSource}\nsetDateState(row, 'InProgress', { resetValue: true, preferredValue: '2026-08-12' });`, {
+    row, stageOptionFor: () => ({ currentStatus: 'Completed', actualStart: '2026-08-10' }), dateConfiguration: () => ({ required: true }), todayIso: () => '2026-08-28', formatDate: (value) => value
+  });
+  assert.equal(row.querySelector('input').value, '2026-08-10');
+  assert.equal(row.querySelector('input').readOnly, true);
   dom.window.close();
 });

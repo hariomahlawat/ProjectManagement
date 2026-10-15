@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -563,6 +565,134 @@ public class StageProgressServiceTests
         Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cascade_TraversesPublishedIpaWithoutChangingItsStoredFacts(bool knownStart)
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 20, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.NotStarted),
+            (StageCodes.IPA, StageStatus.NotStarted), (StageCodes.SOW, StageStatus.NotStarted));
+        var ipa = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
+        // Deliberately stale: authority must not trigger an incidental repair during cascade.
+        ipa.ActualStart = knownStart ? new DateOnly(2024, 6, 1) : null;
+        ipa.CompletedOn = new DateOnly(2024, 6, 5);
+        ipa.RequiresBackfill = true;
+        db.ProjectSowFacts.Add(new ProjectSowFact { ProjectId = 1, CreatedByUserId = "seed" });
+        AddPublishedIpa(db, new DateOnly(2024, 6, 10));
+        await db.SaveChangesAsync();
+
+        await CreateService(db, clock).UpdateStageStatusAsync(1, StageCodes.SOW, StageStatus.Completed,
+            new DateOnly(2024, 6, 20), "tester");
+
+        db.ChangeTracker.Clear();
+        var upstream = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.FS);
+        Assert.Equal(StageStatus.Completed, upstream.Status);
+        Assert.True(upstream.IsAutoCompleted);
+        Assert.True(upstream.RequiresBackfill);
+        Assert.Equal(StageCodes.SOW, upstream.AutoCompletedFromCode);
+        Assert.Null(upstream.ActualStart);
+        Assert.Null(upstream.CompletedOn);
+        var unchanged = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
+        Assert.Equal(StageStatus.NotStarted, unchanged.Status);
+        Assert.Equal(knownStart ? new DateOnly(2024, 6, 1) : (DateOnly?)null, unchanged.ActualStart);
+        Assert.Equal(new DateOnly(2024, 6, 5), unchanged.CompletedOn);
+        Assert.True(unchanged.RequiresBackfill);
+        Assert.False(unchanged.IsAutoCompleted);
+        Assert.Null(unchanged.AutoCompletedFromCode);
+        Assert.Empty(await db.StageChangeLogs.Where(log => log.StageCode == StageCodes.IPA).ToListAsync());
+        Assert.Equal(new DateOnly(2024, 6, 10), (await db.ArppPublishedIssues.SingleAsync()).IssueDate);
+    }
+
+    [Theory]
+    [InlineData(StageStatus.InProgress)]
+    [InlineData(StageStatus.Blocked)]
+    public async Task LifecycleTransition_RejectsPreservedFutureStartWithoutRewritingLegacyState(StageStatus target)
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 19, 20, 0, 0, TimeSpan.Zero)); // IST 20 June
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.Completed));
+        var stage = await db.ProjectStages.SingleAsync();
+        stage.ActualStart = new DateOnly(2024, 6, 21);
+        stage.CompletedOn = new DateOnly(2024, 6, 22);
+        await db.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(db, clock)
+            .UpdateStageStatusAsync(1, StageCodes.FS, target, null, "tester"));
+
+        Assert.Contains("future", exception.Message, StringComparison.OrdinalIgnoreCase);
+        db.ChangeTracker.Clear();
+        var original = await db.ProjectStages.SingleAsync();
+        Assert.Equal(StageStatus.Completed, original.Status);
+        Assert.Equal(new DateOnly(2024, 6, 21), original.ActualStart);
+        Assert.Equal(new DateOnly(2024, 6, 22), original.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(StageStatus.InProgress)]
+    [InlineData(StageStatus.Blocked)]
+    public async Task LifecycleTransition_PreservedStartOnCurrentIstDateRemainsValid(StageStatus target)
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 19, 20, 0, 0, TimeSpan.Zero)); // UTC 19 June
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.Completed));
+        var stage = await db.ProjectStages.SingleAsync();
+        stage.ActualStart = new DateOnly(2024, 6, 20);
+        stage.CompletedOn = new DateOnly(2024, 6, 20);
+        await db.SaveChangesAsync();
+
+        await CreateService(db, clock).UpdateStageStatusAsync(1, StageCodes.FS, target, null, "tester");
+
+        await db.Entry(stage).ReloadAsync();
+        Assert.Equal(target, stage.Status);
+        Assert.Equal(new DateOnly(2024, 6, 20), stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
+    }
+
+    [Fact]
+    public async Task ResetToNotStarted_CanExplicitlyClearLegacyFutureDates()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 19, 20, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.Completed));
+        var stage = await db.ProjectStages.SingleAsync();
+        stage.ActualStart = new DateOnly(2024, 6, 21);
+        stage.CompletedOn = new DateOnly(2024, 6, 22);
+        await db.SaveChangesAsync();
+
+        await CreateService(db, clock).UpdateStageStatusAsync(1, StageCodes.FS, StageStatus.NotStarted, null, "tester");
+
+        await db.Entry(stage).ReloadAsync();
+        Assert.Equal(StageStatus.NotStarted, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
+        var history = await db.StageChangeLogs.SingleAsync();
+        Assert.Equal(new DateOnly(2024, 6, 21), history.FromActualStart);
+        Assert.Equal(new DateOnly(2024, 6, 22), history.FromCompletedOn);
+        Assert.Null(history.ToActualStart);
+        Assert.Null(history.ToCompletedOn);
+    }
+
+    private static void AddPublishedIpa(ApplicationDbContext db, DateOnly completion)
+    {
+        db.ArppIssues.Add(new ArppIssue
+        {
+            Id = 1, FinancialYearStart = 2024, Kind = ArppIssueKind.Original, IssueSequence = 0,
+            Name = "Original ARPP", IssueDate = completion, IsVerified = true,
+            CreatedByUserId = "seed", UpdatedByUserId = "seed",
+            PublishedSnapshot = new ArppPublishedIssue
+            {
+                ArppIssueId = 1, RevisionNumber = 1, FinancialYearStart = 2024,
+                Kind = ArppIssueKind.Original, IssueSequence = 0, Name = "Original ARPP", IssueDate = completion,
+                PublishedByUserId = "seed", AttachmentStorageKey = "test.pdf", AttachmentOriginalFileName = "test.pdf",
+                AttachmentContentType = "application/pdf", AttachmentSha256 = new string('a', 64),
+                Entries = { new ArppPublishedEntry { ArppIssueId = 1, SourceEntryId = 1, ProjectId = 1,
+                    Category = ArppCategory.New, ProjectReference = "Project", Cfa = "CFA", Fund = "Fund", DfpdsSchedule = "Schedule" } }
+            }
+        });
+    }
     private static StageProgressService CreateService(ApplicationDbContext db, TestClock clock)
     {
         var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);

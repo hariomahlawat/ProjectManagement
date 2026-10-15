@@ -192,6 +192,8 @@ public class StageRequestService
             });
         }
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken);
+
         var stages = await _db.ProjectStages
             .Where(item => item.ProjectId == input.ProjectId)
             .OrderBy(item => item.SortOrder)
@@ -253,6 +255,7 @@ public class StageRequestService
                 .First())
             .ToDictionary(request => request.StageCode, StringComparer.OrdinalIgnoreCase);
         var projectedStates = BuildProjectedStates(stages, latestPendingByStage.Values, carriedStartByStage);
+        ApplyPublishedAuthority(projectedStates, ipaAuthority);
         var submittedStageCodes = preparedItems
             .Select(item => item.StageCode)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -277,6 +280,8 @@ public class StageRequestService
             ApplyProjection(projectedStage, item.RequestedStatus, item.RequestedDate, item.RequestedStartDate);
         }
 
+        ApplyPublishedAuthority(projectedStates, ipaAuthority);
+
         var validationResults = new List<StageRequestItemResult>(preparedItems.Count);
         var hasValidationFailure = false;
 
@@ -295,6 +300,19 @@ public class StageRequestService
             var errors = validation.Errors
                 .Where(error => !IsPredecessorError(error))
                 .ToList();
+
+            if (item.RequestedStatus == StageStatus.InProgress)
+            {
+                if (!item.RequestedDate.HasValue)
+                {
+                    errors.Add("Supply and confirm the actual start before requesting InProgress.");
+                }
+                else if (stage.Status is StageStatus.Completed or StageStatus.Blocked
+                    && stage.ActualStart.HasValue && item.RequestedDate.Value != stage.ActualStart.Value)
+                {
+                    errors.Add("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates before reopening.");
+                }
+            }
 
             var requiredPredecessors = workflow is not null
                 ? workflow.RequiredPredecessorClosure(item.StageCode)
@@ -472,6 +490,21 @@ public class StageRequestService
             .ToArray();
 
         return BatchStageRequestResult.Success(successfulItems);
+    }
+
+    private static void ApplyPublishedAuthority(
+        IReadOnlyDictionary<string, ProjectedStageState> states,
+        ArppIpaStageAuthority? authority)
+    {
+        if (authority is null || !states.TryGetValue(StageCodes.IPA, out var ipa))
+        {
+            return;
+        }
+
+        var effective = StageEffectiveState.Resolve(ipa.StageCode,
+            new StageChronologyState(ipa.ProjectedStatus, ipa.ProjectedCompletionDate), authority)!;
+        ipa.ProjectedStatus = effective.Status;
+        ipa.ProjectedCompletionDate = effective.CompletionDate;
     }
 
     private static Dictionary<string, ProjectedStageState> BuildProjectedStates(

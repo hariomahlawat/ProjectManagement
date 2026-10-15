@@ -140,7 +140,7 @@ public class StageProgressService
         {
             throw new InvalidOperationException("ActualStart is required before a stage can become InProgress. Supply and confirm a start date.");
         }
-        if (nextStart > today)
+        if ((newStatus is StageStatus.InProgress or StageStatus.Blocked) && nextStart > today)
         {
             throw new InvalidOperationException("Actual start cannot be in the future under the operational IST date.");
         }
@@ -299,17 +299,16 @@ public class StageProgressService
             return;
         }
 
-        if (string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
-            && await _arppIpaStageAuthority.IsManagedAsync(projectId, ct))
-        {
-            return;
-        }
+        // Published authority protects IPA's stored facts, not the ancestry behind it.
+        // Required upstream stages must still participate in a downstream cascade.
+        var hasPublishedIpaAuthority = string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+            && await _arppIpaStageAuthority.ResolveAsync(projectId, ct) is not null;
         var beforeStatus = stage.Status;
         var beforeStart = stage.ActualStart;
         var beforeCompletion = stage.CompletedOn;
         var isOptional = workflow.OptionalStageCodes.Contains(stage.StageCode);
 
-        if (isOptional && stage.Status == StageStatus.NotStarted)
+        if (!hasPublishedIpaAuthority && isOptional && stage.Status == StageStatus.NotStarted)
         {
             if (stage.ActualStart.HasValue || stage.CompletedOn.HasValue)
             {
@@ -322,7 +321,7 @@ public class StageProgressService
             stage.AutoCompletedFromCode = null;
             stage.RequiresBackfill = false;
         }
-        else if (!isOptional && stage.Status != StageStatus.Completed)
+        else if (!hasPublishedIpaAuthority && !isOptional && stage.Status != StageStatus.Completed)
         {
             stage.Status = StageStatus.Completed;
             // Completion of a successor does not establish either predecessor date.

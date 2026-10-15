@@ -550,7 +550,7 @@ public class StageDirectApplyServiceTests
         var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy),
             new StageRulesService(db, policy), policy);
         var result = await service.ApplyAsync(1, StageCodes.IPA, status,
-            status is "Reopen" or "InProgress" ? new DateOnly(2024, 5, 15) : null,
+            status is "Reopen" or "InProgress" ? originalStart : null,
             "Lifecycle correction", "hod-1", false, CancellationToken.None);
         Assert.Null(result.CompletedOn);
         Assert.Equal(status == "NotStarted" ? null : (DateOnly?)originalStart, result.ActualStart);
@@ -588,6 +588,55 @@ public class StageDirectApplyServiceTests
             "Complete with unknown start", "hod-1", false, CancellationToken.None);
         Assert.Null(result.ActualStart);
         Assert.Equal(new DateOnly(2024, 5, 10), result.CompletedOn);
+    }
+
+    [Theory]
+    [InlineData("Completed", "Reopen")]
+    [InlineData("Completed", "InProgress")]
+    [InlineData("Blocked", "Reopen")]
+    [InlineData("Blocked", "InProgress")]
+    public async Task Reopen_RejectsReplacementOfRecordedStart(string prior, string transition)
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2024, 5, 20));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, Enum.Parse<StageStatus>(prior), new DateOnly(2024, 5, 10));
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy), new StageRulesService(db, policy), policy);
+        await Assert.ThrowsAsync<StageDirectApplyValidationException>(() => service.ApplyAsync(1, StageCodes.IPA,
+            transition, new DateOnly(2024, 5, 12), "Resume", "hod-1", false, CancellationToken.None));
+        Assert.Equal(new DateOnly(2024, 5, 10), (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA)).ActualStart);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("Blocked")]
+    [InlineData("InProgress")]
+    public async Task DirectTransition_RejectsPreservedFutureStart(string target)
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2024, 5, 20));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.Completed, new DateOnly(2024, 5, 21));
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy), new StageRulesService(db, policy), policy);
+        await Assert.ThrowsAsync<StageDirectApplyValidationException>(() => service.ApplyAsync(1, StageCodes.IPA,
+            target, target == "InProgress" ? new DateOnly(2024, 5, 20) : null, "Transition", "hod-1", false, CancellationToken.None));
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DirectCompletion_UnpublishedArppDoesNotLockIpa()
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2026, 1, 31));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+        db.ArppIssues.Add(new ArppIssue { Id = 101, Name = "Draft", FinancialYearStart = 2025, IssueDate = new DateOnly(2026, 1, 20),
+            CreatedByUserId = "seed", UpdatedByUserId = "seed", Entries = { new ArppEntry { ProjectId = 1, ProjectReference = "Project", Cfa = "CFA", Fund = "Fund", DfpdsSchedule = "1", CreatedByUserId = "seed", UpdatedByUserId = "seed" } } });
+        await db.SaveChangesAsync();
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        var service = new StageDirectApplyService(db, clock, new StageValidationService(db, clock, policy), new StageRulesService(db, policy), policy);
+        var result = await service.ApplyAsync(1, StageCodes.IPA, "Completed", new DateOnly(2026, 1, 15), "Manual completion", "hod-1", false, CancellationToken.None);
+        Assert.Equal(new DateOnly(2026, 1, 15), result.CompletedOn);
+        Assert.Null(result.ActualStart);
     }
 
     private static async Task SeedStageAsync(
