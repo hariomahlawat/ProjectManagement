@@ -10,6 +10,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Tests.Fakes;
 using Xunit;
 
@@ -711,6 +712,170 @@ public class StageRequestServiceTests
 
         Assert.Equal(new DateOnly(2025, 2, 5), latestAon.RequestedDate);
         Assert.Equal(new DateOnly(2025, 2, 5), latestBid.RequestedDate);
+    }
+
+    [Theory]
+    [InlineData("Completed")]
+    [InlineData("Blocked")]
+    [InlineData("Skipped")]
+    [InlineData("NotStarted")]
+    public async Task Reopen_ConflictingRecordedStartDoesNotCreatePendingRequest(string prior)
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2025, 2, 20));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, Enum.Parse<StageStatus>(prior));
+        var stage = await db.ProjectStages.SingleAsync();
+        stage.ActualStart = new DateOnly(2025, 2, 10);
+        await db.SaveChangesAsync();
+        var service = new StageRequestService(db, clock, new StubStageValidationService());
+        var result = await service.CreateAsync(new StageChangeRequestInput { ProjectId = 1, StageCode = StageCodes.IPA,
+            RequestedStatus = "InProgress", RequestedDate = new DateOnly(2025, 2, 12), Note = "Resume" }, "po-1");
+        Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+        Assert.Empty(await db.StageChangeRequests.ToListAsync());
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Reopen_ConfirmedStartMatchesPendingRequestAndHistory(bool hasRecordedStart)
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2025, 2, 20));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.Completed);
+        var stage = await db.ProjectStages.SingleAsync();
+        var confirmed = new DateOnly(2025, 2, 10);
+        stage.ActualStart = hasRecordedStart ? confirmed : null;
+        await db.SaveChangesAsync();
+        var service = new StageRequestService(db, clock, new StubStageValidationService());
+        var result = await service.CreateAsync(new StageChangeRequestInput { ProjectId = 1, StageCode = StageCodes.IPA,
+            RequestedStatus = "InProgress", RequestedDate = confirmed, Note = "Reopen" }, "po-1");
+        Assert.Equal(StageRequestOutcome.Success, result.Outcome);
+        Assert.Equal(confirmed, (await db.StageChangeRequests.SingleAsync()).RequestedDate);
+        Assert.Equal(confirmed, (await db.StageChangeLogs.SingleAsync()).ToActualStart);
+    }
+
+    [Theory]
+    [InlineData("Completed", 10, 15, false)]
+    [InlineData("Completed", 30, 20, true)]
+    [InlineData("NotStarted", 0, 20, true)]
+    public async Task CreateAsync_ChronologyUsesPublishedIpaAuthorityWithoutRepair(string ipaStatus, int localDay, int requestedDay, bool valid)
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2026, 1, 31));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, Enum.Parse<StageStatus>(ipaStatus)), (StageCodes.SOW, StageStatus.NotStarted));
+        var ipa = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
+        ipa.CompletedOn = localDay == 0 ? null : new DateOnly(2026, 1, localDay);
+        (await db.Projects.SingleAsync()).WorkflowVersion = ProcurementWorkflow.VersionV1;
+        AddPublishedPosition(db, 1, new DateOnly(2026, 1, 20));
+        await db.SaveChangesAsync();
+        var service = new StageRequestService(db, clock, new StubStageValidationService(), StageWorkflowTestFactory.CreatePolicy(db));
+        var result = await service.CreateAsync(new StageChangeRequestInput { ProjectId = 1, StageCode = StageCodes.SOW,
+            RequestedStatus = "InProgress", RequestedDate = new DateOnly(2026, 1, requestedDay) }, "po-1");
+        Assert.Equal(valid ? StageRequestOutcome.Success : StageRequestOutcome.ValidationFailed, result.Outcome);
+        await db.Entry(ipa).ReloadAsync();
+        Assert.Equal(Enum.Parse<StageStatus>(ipaStatus), ipa.Status);
+        Assert.Equal(localDay == 0 ? null : (DateOnly?)new DateOnly(2026, 1, localDay), ipa.CompletedOn);
+    }
+
+    private static void AddPublishedPosition(ApplicationDbContext db, int projectId, DateOnly issueDate)
+    {
+        var issue = new ArppIssue
+        {
+            Id = 100,
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP/I&R&D/ARTRAC",
+            IssueDate = issueDate,
+            IsVerified = true,
+            VerifiedAtUtc = DateTimeOffset.UtcNow,
+            VerifiedByUserId = "verifier",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = issue.Name,
+            IssueDate = issueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = "arpp/100.pdf",
+            AttachmentOriginalFileName = "ARPP-100.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    ArppIssueId = issue.Id,
+                    SourceEntryId = 1,
+                    SortOrder = 1,
+                    SerialNumber = "33",
+                    ProjectReference = "Project",
+                    ProjectId = projectId,
+                    Category = ArppCategory.New,
+                    IpaCost = 40_000_000m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3"
+                }
+            }
+        };
+
+        db.ArppIssues.Add(issue);
+    }
+
+    [Fact]
+    public async Task Reopen_UnknownStartRequiresExplicitConfirmationBeforePendingRequest()
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2025, 2, 20));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.Completed);
+        var service = new StageRequestService(db, clock, new StubStageValidationService());
+        var result = await service.CreateAsync(new StageChangeRequestInput { ProjectId = 1, StageCode = StageCodes.IPA,
+            RequestedStatus = "InProgress", RequestedDate = null, Note = "Reopen" }, "po-1");
+        Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+        Assert.Empty(await db.StageChangeRequests.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("none", true)]
+    [InlineData("draft", true)]
+    [InlineData("published", true)]
+    [InlineData("none", false)]
+    [InlineData("draft", false)]
+    [InlineData("published", false)]
+    public async Task IpaCompletionRequest_ConditionalAuthorityAndAssignment(string authority, bool assigned)
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2026, 1, 31));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+        if (authority == "published")
+        {
+            AddPublishedPosition(db, 1, new DateOnly(2026, 1, 20));
+        }
+        else if (authority == "draft")
+        {
+            db.ArppIssues.Add(new ArppIssue { Id = 101, Name = "Draft", FinancialYearStart = 2025, IssueDate = new DateOnly(2026, 1, 20),
+                CreatedByUserId = "seed", UpdatedByUserId = "seed", Entries = { new ArppEntry { ProjectId = 1, ProjectReference = "Project", Cfa = "CFA", Fund = "Fund", DfpdsSchedule = "1", CreatedByUserId = "seed", UpdatedByUserId = "seed" } } });
+        }
+        await db.SaveChangesAsync();
+        var service = new StageRequestService(db, clock, new StubStageValidationService());
+        var result = await service.CreateAsync(new StageChangeRequestInput { ProjectId = 1, StageCode = StageCodes.IPA,
+            RequestedStatus = "Completed", RequestedDate = new DateOnly(2026, 1, 15), Note = "Manual completion" }, assigned ? "po-1" : "other-po");
+        var expected = !assigned ? StageRequestOutcome.NotProjectOfficer : authority == "published" ? StageRequestOutcome.ValidationFailed : StageRequestOutcome.Success;
+        Assert.Equal(expected, result.Outcome);
+        Assert.Equal(expected == StageRequestOutcome.Success ? 1 : 0, await db.StageChangeRequests.CountAsync());
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status)

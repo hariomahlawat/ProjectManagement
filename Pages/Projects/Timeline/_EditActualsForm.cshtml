@@ -17,7 +17,7 @@
 
     <!-- SECTION: Introduction -->
     <div class="small text-muted">
-        Record actual stage dates. For completed stages, completion date is authoritative; start date is optional and may be inferred from the preceding stage. For the current stage, actual start remains operationally important.
+        Record actual stage dates. For completed stages, the recorded start is optional and can be explicitly cleared; displayed duration may use an estimated start. An InProgress stage requires its actual start. Complete stages through the stage-transition workflow.
     </div>
 
     <!-- SECTION: Actuals list -->
@@ -33,7 +33,7 @@
                 var earliestStartValue = row.EarliestAllowedStartDate?.ToString("yyyy-MM-dd");
                 var startBoundarySourceName = row.StartBoundarySourceName ?? "predecessor";
                 var canEditStart = row.IsEditable && !row.HasPendingDecision;
-                var canEditCompletion = canEditStart && !row.IsArppManaged;
+                var canEditCompletion = canEditStart && row.Status == StageStatus.Completed && !row.IsArppManaged;
                 var startDisabledAttr = canEditStart ? null : "disabled";
                 var completionDisabledAttr = canEditCompletion ? null : "disabled";
                 <section class="actuals-editor__stage border rounded p-3"
@@ -115,9 +115,13 @@
                                 {
                                     <text>Controlled by @row.ArppSourceLabel. Change the published ARPP record or project linkage to revise it.</text>
                                 }
+                                else if (row.Status == StageStatus.InProgress)
+                                {
+                                    <text>Use the stage-transition workflow to complete this stage.</text>
+                                }
                                 else
                                 {
-                                    <text>Enter the known completion date for this stage.</text>
+                                    <text>Enter the known completion date. Leaving this blank preserves the recorded completion.</text>
                                 }
                             </div>
                         </div>
@@ -130,6 +134,7 @@
 
                     <div class="text-danger small d-none" data-row-error role="alert"></div>
 
+                    <input type="hidden" name="Input.Rows[@i].ClearActualStart" value="false" data-clear-start />
                     <input type="hidden" name="Input.Rows[@i].StageCode" value="@row.StageCode" />
                     <input type="hidden" name="Input.Rows[@i].StageName" value="@row.StageName" />
                 </section>

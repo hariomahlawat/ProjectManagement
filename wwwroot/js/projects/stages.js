@@ -553,6 +553,8 @@
     const actorCanOverride = modalEl.getAttribute('data-authorised-override') === 'true';
     let activeStatus = '';
     let activeDirectCompletion = false;
+    let activeReopenStart = false;
+    let activeActualToday = '';
 
     function updateSubmitButton(status) {
       if (!submitButton) return;
@@ -578,7 +580,7 @@
       updateSubmitButton(status);
     }
 
-    function configureStartDate(status, defaultStartDate, earliestStartDate, sourceName, isDirectCompletion) {
+    function configureStartDate(status, defaultStartDate, earliestStartDate, sourceName, isDirectCompletion, actualToday) {
       if (!startDateInput || !startDateGroup) return;
 
       const showStartDate = status === 'Completed';
@@ -587,6 +589,7 @@
       startDateInput.required = false;
       startDateInput.value = showStartDate ? (defaultStartDate || '') : '';
       startDateInput.min = showStartDate ? (earliestStartDate || '') : '';
+      startDateInput.max = showStartDate ? actualToday : '';
 
       if (completionNote) {
         completionNote.classList.toggle('d-none', !(showStartDate && isDirectCompletion));
@@ -609,24 +612,29 @@
     function applyDateState(status, { resetValue = false } = {}) {
       if (!dateInput) return false;
       const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status)
+        || (status === 'Reopen' && activeReopenStart)
         || (status === 'Completed' && !actorCanOverride);
       dateInput.required = requiresDate;
 
       if (dateLabel) {
-        dateLabel.textContent = status === 'InProgress'
+        dateLabel.textContent = status === 'InProgress' || (status === 'Reopen' && activeReopenStart)
           ? 'Started on'
           : status === 'Completed'
             ? 'Completed on'
             : status === 'Reopen'
-              ? 'Reopened on'
+              ? 'Reset to not started'
               : 'Effective date';
       }
 
       if (resetValue) {
-        dateInput.value = requiresDate ? todayIso() : '';
+        dateInput.value = status === 'Reopen' ? '' : (requiresDate ? activeActualToday : '');
       }
       if (dateHint) {
-        dateHint.textContent = status === 'Completed' && actorCanOverride
+        dateHint.textContent = status === 'Reopen'
+          ? activeReopenStart
+            ? 'Review or enter the actual start. A suggested date becomes recorded only when you apply this change; same-day commencement is permitted.'
+            : 'This resets the stage to not started and clears its actual dates.'
+          : status === 'Completed' && actorCanOverride
           ? 'Optional for an authorised override; omitting it creates mandatory backfill.'
           : requiresDate
             ? 'Required'
@@ -671,10 +679,14 @@
       const status = trigger.getAttribute('data-status') || '';
       const stageName = trigger.getAttribute('data-stage-name') || '';
       const defaultDate = trigger.getAttribute('data-default-date') || '';
+      const recordedActualStart = trigger.getAttribute('data-actual-start') || '';
       const defaultStartDate = trigger.getAttribute('data-default-start-date') || '';
       const earliestStartDate = trigger.getAttribute('data-earliest-start') || '';
+      const actualToday = trigger.getAttribute('data-actual-today') || todayIso();
       const startSource = trigger.getAttribute('data-start-source') || '';
       activeStatus = status;
+      activeActualToday = actualToday;
+      activeReopenStart = status === 'Reopen' && trigger.getAttribute('data-reopen-start') === 'true';
       activeDirectCompletion = trigger.getAttribute('data-direct-completion') === 'true';
 
       if (projectInput) projectInput.value = projectId;
@@ -711,10 +723,17 @@
 
       const requiresDate = applyDateState(status, { resetValue: true });
       if (dateInput) {
-        dateInput.value = defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
-        dateInput.min = status === 'InProgress' || status === 'Completed' ? earliestStartDate : '';
+        dateInput.disabled = status === 'Reopen' && !activeReopenStart;
+        dateInput.readOnly = activeReopenStart && Boolean(recordedActualStart);
+        if (dateInput.readOnly && dateHint) {
+          dateHint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
+        }
+        dateInput.value = status === 'Reopen' ? (activeReopenStart ? recordedActualStart || defaultDate : '')
+          : defaultDate || (status === 'Completed' ? actualToday : (requiresDate ? actualToday : ''));
+        dateInput.min = status === 'InProgress' || status === 'Completed' || activeReopenStart ? earliestStartDate : '';
+        dateInput.max = dateInput.disabled ? '' : actualToday;
       }
-      configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion);
+      configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion, actualToday);
       updateNoDateWarning(status);
 
       if (submitButton) {
@@ -750,6 +769,10 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (activeReopenStart && dateInput && !dateInput.checkValidity()) {
+        dateInput.reportValidity();
+        return;
+      }
       if (!projectInput || !stageInput || !statusInput || !tokenInput) {
         return;
       }
@@ -929,6 +952,8 @@
         currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
         actualStart: button.getAttribute('data-actual-start') || '',
         suggestedStart: button.getAttribute('data-suggested-start') || '',
+        reopenSuggestedStart: button.getAttribute('data-reopen-suggested-start') || '',
+        actualToday: button.getAttribute('data-actual-today') || '',
         earliestStart: button.getAttribute('data-earliest-start') || '',
         startSource: button.getAttribute('data-start-source') || '',
         pendingStatus: button.getAttribute('data-pending-status') || '',
@@ -1023,15 +1048,23 @@
     function setDateState(row, status, { resetValue = false, preferredValue = '' } = {}) {
       const stageSelect = row.querySelector('[data-stage-request-stage]');
       const stage = stageOptionFor(stageSelect?.value || '');
+      const actualToday = stage?.actualToday || todayIso();
+      const isReopenStart = status === 'InProgress' && ['Completed', 'Skipped', 'Blocked'].includes(stage?.currentStatus);
+      const preservedStart = isReopenStart ? (stage?.actualStart || '') : '';
+      const suggestedDate = isReopenStart
+        ? (preservedStart || (stage?.currentStatus === 'Completed' ? stage?.reopenSuggestedStart || '' : ''))
+        : (stage?.suggestedStart || '');
       const dateInput = row.querySelector('[data-stage-request-date]');
       const label = row.querySelector('[data-stage-request-date-label]');
       const hint = row.querySelector('[data-stage-request-date-hint]');
       const config = dateConfiguration(status);
       if (label) label.textContent = config.label;
       if (hint) {
-        if (status === 'InProgress' && stage?.suggestedStart && !preferredValue) {
+        if (preservedStart) {
+          hint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
+        } else if (status === 'InProgress' && suggestedDate && !preferredValue) {
           hint.textContent = stage.startSource && stage.earliestStart
-            ? `Suggested: ${formatDate(stage.suggestedStart)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
+            ? `Suggested: ${formatDate(suggestedDate)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
             : stage.startSource
               ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
               : 'Suggested from the preceding workflow stage. You may edit it.';
@@ -1041,13 +1074,17 @@
       }
       if (dateInput) {
         dateInput.required = config.required;
+        dateInput.readOnly = Boolean(preservedStart);
         dateInput.min = status === 'InProgress' || status === 'Completed' ? (stage?.earliestStart || '') : '';
-        if (preferredValue) {
+        dateInput.max = actualToday;
+        if (preservedStart) {
+          dateInput.value = preservedStart;
+        } else if (preferredValue) {
           dateInput.value = preferredValue;
         } else if (resetValue) {
           dateInput.value = status === 'InProgress'
-            ? (stage?.suggestedStart || todayIso())
-            : (config.required ? todayIso() : '');
+            ? (isReopenStart ? suggestedDate : (stage?.suggestedStart || actualToday))
+            : (config.required ? actualToday : '');
         }
       }
     }
@@ -1073,6 +1110,7 @@
         input.disabled = !visible;
         input.required = false;
         input.min = visible ? (stage?.earliestStart || '') : '';
+        input.max = visible ? (stage?.actualToday || todayIso()) : '';
         if (!visible) {
           input.value = '';
         } else if (preferredValue) {

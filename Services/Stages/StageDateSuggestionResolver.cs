@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -22,7 +23,8 @@ public static class StageDateSuggestionResolver
     public static StageDateSuggestion Resolve(
         ProjectStageWorkflowSnapshot workflow,
         IEnumerable<ProjectStage> projectStages,
-        string? stageCode)
+        string? stageCode,
+        ArppIpaStageAuthority? ipaAuthority = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(projectStages);
@@ -37,7 +39,8 @@ public static class StageDateSuggestionResolver
             stageCode,
             code => stageLookup.TryGetValue(code, out var stage)
                 ? new StageChronologyState(stage.Status, stage.CompletedOn)
-                : null);
+                : null,
+            ipaAuthority);
     }
 
     /// <summary>
@@ -48,7 +51,8 @@ public static class StageDateSuggestionResolver
     public static StageDateSuggestion Resolve(
         ProjectStageWorkflowSnapshot workflow,
         string? stageCode,
-        Func<string, StageChronologyState?> stateAccessor)
+        Func<string, StageChronologyState?> stateAccessor,
+        ArppIpaStageAuthority? ipaAuthority = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(stateAccessor);
@@ -73,7 +77,7 @@ public static class StageDateSuggestionResolver
             .Select(predecessorCode => ResolveDependencyBranch(
                 workflow,
                 predecessorCode,
-                stateAccessor,
+                code => StageEffectiveState.Resolve(code, stateAccessor(code), ipaAuthority),
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
             .ToArray();
 

@@ -30,9 +30,6 @@ public sealed class StageDecisionService
     private const string RejectedLogAction = "Rejected";
     private const string AppliedLogAction = "Applied";
 
-    private const string CompletionClampedWarning =
-        "Completion date was earlier than the actual start date and has been adjusted to match the start date.";
-
     // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -274,8 +271,7 @@ public sealed class StageDecisionService
 
             if (carriedForwardStart.HasValue && request.RequestedDate.Value < carriedForwardStart.Value)
             {
-                effectiveDate = carriedForwardStart;
-                warnings.Add(CompletionClampedWarning);
+                return StageDecisionResult.ValidationFailed("Completion date cannot be before the recorded or proposed start date. Revise the request; no dates were changed.");
             }
         }
 
@@ -291,6 +287,20 @@ public sealed class StageDecisionService
                 return StageDecisionResult.ValidationFailed(
                     $"Approve or resolve the required predecessor stage{(incompletePredecessors.Count == 1 ? string.Empty : "s")} first: {string.Join(", ", incompletePredecessors)}.");
             }
+        }
+
+        // Revalidate approved facts against published IPA authority immediately
+        // before claiming the request. This also rejects old reopen proposals that
+        // name a different start than the one this transition must preserve.
+        var validation = await new StageValidationService(_db, _clock, _workflowPolicy, _arppIpaStageAuthority)
+            .ValidateAsync(stage.ProjectId, stage.StageCode, request.RequestedStatus,
+                effectiveDate, requestedStatus == StageStatus.Completed ? carriedForwardStart
+                    : requestedStatus == StageStatus.InProgress ? request.RequestedStartDate : null,
+                isHoD: true, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return StageDecisionResult.ValidationFailed(string.Join(" ", validation.Errors.Concat(
+                validation.MissingPredecessors.Select(code => $"Resolve required predecessor {code} first."))));
         }
 
         var useTransaction = _db.Database.IsRelational();
@@ -336,7 +346,8 @@ public sealed class StageDecisionService
                 requestedStatus == StageStatus.Completed ? request.RequestedStartDate : null,
                 preserveBlankStartOnCompletion: requestedStatus == StageStatus.Completed,
                 userId: decisionUserId,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken,
+                recordHistory: false);
         }
         catch (InvalidOperationException ex)
         {
@@ -468,6 +479,7 @@ public sealed class StageDecisionService
             .Select(ps => new { ps.StageCode, ps.Status })
             .ToListAsync(cancellationToken);
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, cancellationToken);
         var incomplete = new List<string>();
 
         foreach (var code in required)
@@ -475,7 +487,9 @@ public sealed class StageDecisionService
             var match = predecessors.FirstOrDefault(
                 p => string.Equals(p.StageCode, code, StringComparison.OrdinalIgnoreCase));
 
-            if (match is null || match.Status is not StageStatus.Completed and not StageStatus.Skipped)
+            var effective = StageEffectiveState.Resolve(code,
+                match is null ? null : new StageChronologyState(match.Status, null), ipaAuthority);
+            if (effective is null || effective.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
                 incomplete.Add(code);
             }

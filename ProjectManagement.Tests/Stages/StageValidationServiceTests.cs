@@ -342,6 +342,35 @@ public class StageValidationServiceTests
             error => error.Contains("2025-09-12", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ValidateAsync_RejectsSkippingRecordedExecutionForEveryAuthority(bool isHod)
+    {
+        await using var db = CreateContext();
+        var today = new DateOnly(2026, 8, 10);
+        await SeedAsync(db, new StageSeed(StageCodes.FS, StageStatus.InProgress, today.AddDays(-1), null));
+        var service = new StageValidationService(db, FakeClock.ForIstDate(today), StageWorkflowTestFactory.CreatePolicy(db));
+        var result = await service.ValidateAsync(1, StageCodes.FS, "Skipped", null, isHod);
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("started", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ValidateAsync_ReopenRequiresRecordedOrConfirmedStart(bool hasRecordedStart)
+    {
+        await using var db = CreateContext();
+        var today = new DateOnly(2026, 8, 10);
+        await SeedAsync(db, new StageSeed(StageCodes.FS, StageStatus.Completed,
+            hasRecordedStart ? today.AddDays(-5) : null, today.AddDays(-1)));
+        var service = new StageValidationService(db, FakeClock.ForIstDate(today), StageWorkflowTestFactory.CreatePolicy(db));
+        var result = await service.ValidateAsync(1, StageCodes.FS, "InProgress", null, isHoD: false);
+        Assert.Equal(hasRecordedStart, result.IsValid);
+        if (!hasRecordedStart) Assert.Contains(result.Errors, e => e.Contains("start", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
         => SeedAsync(db, ProcurementWorkflow.VersionV1, stages);
 

@@ -27,7 +27,6 @@ public sealed class StageDirectApplyService
     private const string AuthorisedCompletionNote = "Authorised completion without date by HoD; mandatory backfill created.";
     private const string AuthorisedCompletionWarning = "Stage completed through an authorised override. Add the completion date through the mandatory backfill workflow.";
     private const string AutoBackfillNoteTemplate = "Auto-backfilled (no dates) due to completion of {0}";
-    private const string ClampWarning = "CompletedOn was clamped to ActualStart";
 
     // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
@@ -208,12 +207,32 @@ public sealed class StageDirectApplyService
         stage.Project ??= project;
 
         var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (normalizedStatus.Equals("Skipped", StringComparison.OrdinalIgnoreCase) &&
+            (stage.ActualStart.HasValue || stage.CompletedOn.HasValue || stage.Status is StageStatus.InProgress or StageStatus.Completed))
+        {
+            throw StageDirectApplyValidationException.FromMessages("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
+        }
+        // Preserve any recorded start, including malformed legacy Skipped rows.
+        var preservesRecordedStart = isReopen || normalizedStatus.Equals(nameof(StageStatus.InProgress), StringComparison.OrdinalIgnoreCase);
+        if (preservesRecordedStart && stage.ActualStart.HasValue && date.HasValue && date.Value != stage.ActualStart.Value)
+        {
+            throw StageDirectApplyValidationException.FromMessages("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates.");
+        }
+        var validationDate = preservesRecordedStart && date.HasValue ? stage.ActualStart ?? date : date;
+        var todayForValidation = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
+        var publishesPreservedStart = normalizedStatus.Equals(nameof(StageStatus.Blocked), StringComparison.OrdinalIgnoreCase)
+            || (preservesRecordedStart && (date.HasValue || !isReopen));
+        if (date > todayForValidation || startDate > todayForValidation
+            || (publishesPreservedStart && stage.ActualStart > todayForValidation))
+        {
+            throw StageDirectApplyValidationException.FromMessages("Actual dates cannot be in the future under the operational IST date.");
+        }
 
         var validation = await _validator.ValidateAsync(
             projectId,
             normalizedStageCode,
             validationTargetStatus,
-            date,
+            validationDate,
             string.Equals(validationTargetStatus, StageStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase)
                 ? startDate
                 : null,
@@ -364,12 +383,17 @@ public sealed class StageDirectApplyService
                     continue;
                 }
 
+                if (string.Equals(predecessor.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+                    && await _arppIpaStageAuthority.IsManagedAsync(projectId, ct))
+                {
+                    continue;
+                }
                 var predecessorOriginalStatus = predecessor.Status;
                 var predecessorOriginalActualStart = predecessor.ActualStart;
                 var predecessorOriginalCompletedOn = predecessor.CompletedOn;
 
                 predecessor.Status = StageStatus.Completed;
-                predecessor.ActualStart = null;
+                // Preserve genuine commencement; a forced completion supplies no completion date.
                 predecessor.CompletedOn = null;
                 predecessor.IsAutoCompleted = true;
                 predecessor.AutoCompletedFromCode = stage.StageCode;
@@ -385,7 +409,7 @@ public sealed class StageDirectApplyService
                     FromStatus = predecessorOriginalStatus.ToString(),
                     ToStatus = StageStatus.Completed.ToString(),
                     FromActualStart = predecessorOriginalActualStart,
-                    ToActualStart = null,
+                    ToActualStart = predecessor.ActualStart,
                     FromCompletedOn = predecessorOriginalCompletedOn,
                     ToCompletedOn = null,
                     UserId = hodUserId,
@@ -407,7 +431,7 @@ public sealed class StageDirectApplyService
             stage.CompletedOn = null;
             if (targetStatus == StageStatus.InProgress)
             {
-                var reopenedStartDate = date ?? today;
+                var reopenedStartDate = stage.ActualStart ?? date!.Value;
                 stage.Status = StageStatus.InProgress;
                 stage.ActualStart = reopenedStartDate;
                 stage.RequiresBackfill = false;
@@ -431,7 +455,7 @@ public sealed class StageDirectApplyService
                     break;
                 case StageStatus.InProgress:
                     stage.Status = StageStatus.InProgress;
-                    stage.ActualStart = date!.Value;
+                    stage.ActualStart = preservesRecordedStart ? stage.ActualStart ?? date!.Value : date!.Value;
                     stage.CompletedOn = null;
                     stage.RequiresBackfill = false;
                     break;
@@ -462,36 +486,21 @@ public sealed class StageDirectApplyService
                                 stage.ActualStart = startDate.Value;
                             }
                         }
-                        else if (!stage.ActualStart.HasValue
-                            && validation.SuggestedAutoStart.HasValue
-                            && completionDate >= validation.SuggestedAutoStart.Value)
-                        {
-                            // Backward-compatible behaviour for older callers that
-                            // do not submit the new start-date field.
-                            stage.ActualStart = validation.SuggestedAutoStart.Value;
-                        }
-
                         stage.CompletedOn = completionDate;
 
-                        if (stage.ActualStart.HasValue && stage.CompletedOn.Value < stage.ActualStart.Value)
-                        {
-                            stage.CompletedOn = stage.ActualStart.Value;
-                            stage.RequiresBackfill = false;
-                            warnings.Add(ClampWarning);
-                        }
-                        else
-                        {
-                            stage.RequiresBackfill = false;
-                        }
+                        stage.RequiresBackfill = false;
 
                         break;
                     }
                 case StageStatus.Blocked:
                     stage.Status = StageStatus.Blocked;
+                    stage.CompletedOn = null;
                     stage.RequiresBackfill = false;
                     break;
                 case StageStatus.Skipped:
                     stage.Status = StageStatus.Skipped;
+                    stage.ActualStart = null;
+                    stage.CompletedOn = null;
                     stage.RequiresBackfill = false;
                     break;
                 default:

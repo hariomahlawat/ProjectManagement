@@ -55,7 +55,7 @@ test('direct completion submits an editable requested start date', () => {
 });
 
 test('start and direct completion use the workflow-derived editable defaults', () => {
-  assert.match(source, /stage\?\.suggestedStart \|\| todayIso\(\)/);
+  assert.match(source, /stage\?\.suggestedStart \|\| actualToday/);
   assert.match(source, /retainedStartDate\(stage\)/);
   assert.match(source, /No usable predecessor completion date is recorded\. Enter a start date or leave it blank\./);
 });

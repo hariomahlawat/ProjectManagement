@@ -8,6 +8,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -46,15 +47,18 @@ public sealed class StageValidationService : IStageValidationService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageValidationService(
         ApplicationDbContext db,
         IClock clock,
-        IProjectStageWorkflowPolicy workflowPolicy)
+        IProjectStageWorkflowPolicy workflowPolicy,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public Task<StageValidationResult> ValidateAsync(
@@ -119,6 +123,8 @@ public sealed class StageValidationService : IStageValidationService
             return BuildResult();
         }
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
+
         var stageLookup = stages
             .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
             .ToDictionary(item => item.StageCode, StringComparer.OrdinalIgnoreCase);
@@ -127,6 +133,12 @@ public sealed class StageValidationService : IStageValidationService
         {
             errors.Add("The requested stage was not found for this project.");
             return BuildResult();
+        }
+
+        if (desiredStatus == StageStatus.Skipped &&
+            (stage.ActualStart.HasValue || stage.CompletedOn.HasValue || stage.Status is StageStatus.InProgress or StageStatus.Completed))
+        {
+            errors.Add("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
         }
 
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
@@ -146,6 +158,30 @@ public sealed class StageValidationService : IStageValidationService
             errors.Add(transitionError ?? "The requested transition is invalid.");
         }
 
+        if (desiredStatus == StageStatus.InProgress && !targetDate.HasValue && !stage.ActualStart.HasValue)
+        {
+            errors.Add("Actual start is required before a stage can become InProgress. Supply and confirm a start date.");
+        }
+
+        if (desiredStatus == StageStatus.InProgress
+            && stage.ActualStart.HasValue && targetDate.HasValue && targetDate != stage.ActualStart)
+        {
+            errors.Add("Reopening preserves the recorded ActualStart. Correct the start separately through Actual Dates.");
+        }
+
+        if (desiredStatus == StageStatus.InProgress && requestedStartDate.HasValue && requestedStartDate != targetDate)
+        {
+            errors.Add("The start-date fields must agree when requesting InProgress. Confirm a single actual start date.");
+        }
+
+        var finalStart = desiredStatus == StageStatus.InProgress
+            ? stage.ActualStart ?? targetDate
+            : desiredStatus == StageStatus.Blocked ? stage.ActualStart : null;
+        if (finalStart > today)
+        {
+            errors.Add("Recorded start date cannot be in the future under the operational IST date.");
+        }
+
         if (desiredStatus == StageStatus.Completed && !targetDate.HasValue && !isHoD)
         {
             errors.Add("Completion date is required.");
@@ -154,20 +190,23 @@ public sealed class StageValidationService : IStageValidationService
         if (desiredStatus is StageStatus.InProgress or StageStatus.Completed)
         {
             var workflow = await _workflowPolicy.GetAsync(projectId, ct);
-            var suggestion = StageDateSuggestionResolver.Resolve(workflow, stages, stage.StageCode);
+            var suggestion = StageDateSuggestionResolver.Resolve(workflow, stages, stage.StageCode, ipaAuthority);
             suggestedAutoStart = suggestion.SuggestedStartDate;
 
             foreach (var predecessorCode in workflow.RequiredPredecessorClosure(stage.StageCode))
             {
-                if (!stageLookup.TryGetValue(predecessorCode, out var predecessor)
-                    || predecessor.Status is not StageStatus.Completed and not StageStatus.Skipped)
+                stageLookup.TryGetValue(predecessorCode, out var predecessor);
+                var effectivePredecessor = StageEffectiveState.Resolve(predecessorCode,
+                    predecessor is null ? null : new StageChronologyState(predecessor.Status, predecessor.CompletedOn), ipaAuthority);
+                if (effectivePredecessor is null
+                    || effectivePredecessor.Status is not StageStatus.Completed and not StageStatus.Skipped)
                 {
                     missingPredecessors.Add(predecessorCode);
                 }
             }
 
             var effectiveStartDate = desiredStatus == StageStatus.InProgress
-                ? targetDate
+                ? stage.ActualStart ?? targetDate
                 : requestedStartDate ?? stage.ActualStart;
 
             var earliestAllowedStart = suggestion.EarliestAllowedStartDate;

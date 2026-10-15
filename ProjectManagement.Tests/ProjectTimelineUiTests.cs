@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -30,6 +31,56 @@ namespace ProjectManagement.Tests;
 public class ProjectTimelineUiTests
 {
     private static readonly IServiceProvider Services = BuildServiceProvider();
+
+    [Theory]
+    [InlineData(true, false, "2026-08-06")]
+    [InlineData(false, false, "")]
+    [InlineData(false, true, "2026-08-11")]
+    public async Task ReopenStage_OffersExplicitStartAndReset_WithoutInventingDate(bool hasRecordedStart, bool hasReopenSuggestion, string expected)
+    {
+        var stage = new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = StageStatus.Completed,
+            ActualStart = hasRecordedStart ? new DateOnly(2026, 8, 6) : null,
+            PlannedStart = new DateOnly(2026, 8, 1), SuggestedStartDate = new DateOnly(2026, 8, 7),
+            ReopenSuggestedStartDate = hasReopenSuggestion ? new DateOnly(2026, 8, 11) : null,
+            EarliestAllowedStartDate = new DateOnly(2026, 8, 6) };
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
+        Assert.Contains("data-reopen-start=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("Reset to not started", html, StringComparison.Ordinal);
+        Assert.Contains($"data-default-date=\"{expected}\"", html, StringComparison.Ordinal);
+        if (hasRecordedStart) Assert.Contains("data-actual-start=\"2026-08-06\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-default-date=\"2026-08-01\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-default-date=\"2026-08-07\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Blocked")]
+    [InlineData("Skipped")]
+    public async Task NonCompletedReopen_DoesNotExposeCompletedOnlyDefault(string status)
+    {
+        var stage = new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = Enum.Parse<StageStatus>(status),
+            SuggestedStartDate = new DateOnly(2026, 8, 7), ReopenSuggestedStartDate = new DateOnly(2026, 8, 11) };
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
+        Assert.Contains("data-default-date=\"\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-default-date=\"2026-08-11\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("NotStarted")]
+    [InlineData("InProgress")]
+    [InlineData("Blocked")]
+    [InlineData("Completed")]
+    [InlineData("Skipped")]
+    public async Task EveryDirectAction_ReceivesServerOperationalToday(string status)
+    {
+        var stage = new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = Enum.Parse<StageStatus>(status), Today = new DateOnly(2026, 8, 28) };
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = new[] { stage } }, isHoD: true, isAssignedProjectOfficer: false);
+        var triggers = Regex.Matches(html, "<button\\b[^>]*\\bdata-direct-apply(?:\\s|>)[^>]*>", RegexOptions.Singleline);
+        Assert.NotEmpty(triggers);
+        foreach (Match trigger in triggers)
+        {
+            Assert.Contains("data-actual-today=\"2026-08-28\"", trigger.Value, StringComparison.Ordinal);
+        }
+    }
 
     [Fact]
     public async Task ActionsDropdown_RenderedForHoDOnly()

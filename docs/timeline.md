@@ -126,7 +126,16 @@ Omitted/skipped optional stages must not break downstream chronology. Resolve de
 
 ### 17. ARPP-managed IPA
 
-Where published ARPP controls IPA completion, ARPP is authoritative for `CompletedOn`; generic timeline editing must not override it. `ActualStart` may remain independently recordable/correctable where allowed. Changes to authoritative completion must use the ARPP source/linkage workflow.
+IPA completion is conditionally ARPP-authoritative.
+
+- If no authoritative published ARPP entry exists for the project, authorised users may record or correct IPA `CompletedOn` through the normal timeline workflows, subject to the same role and date-validity rules as other stages. Draft or unpublished ARPP data does not lock IPA completion.
+- Once the project appears in an authoritative published ARPP, PRISM must synchronise the persisted IPA stage to `Status = Completed` and `CompletedOn =` the authoritative published ARPP issue date. The published ARPP completion supersedes any manual, requested, approved, historical, backfill or previously stored IPA completion date.
+- ARPP publication/reconciliation must set `RequiresBackfill = false`, clear auto-completion markers, supersede conflicting pending IPA lifecycle requests, and preserve durable before/after history.
+- `ActualStart` remains an independent fact. Preserve a recorded `ActualStart`; if commencement is unknown, leave it null. Do not infer or invent it from the ARPP completion date.
+- Reads and chronology validation must still resolve the published ARPP completion as the effective IPA state if a stored `ProjectStage` row is temporarily stale. That projection is a safety net, not a substitute for publication-time synchronisation.
+- If the authoritative ARPP completion conflicts with an existing `ActualStart` or surrounding chronology, preserve the ARPP completion and surface the data-quality conflict rather than clamping or replacing the source date.
+
+Changes to authoritative IPA completion must use the ARPP source/linkage workflow.
 
 ### 18. Pending lifecycle decisions
 
@@ -196,7 +205,7 @@ Every stage service resolves order and dependencies through `IProjectStageWorkfl
 - **SDD-1.0:** FS → IPA → SOW → AON → …
 - **SDD-2.0:** FS → SOW → IPA → AON → …
 
-The same policy controls validation, direct application, approval decisions, predecessor cascade, auto-start and stage materialisation. Plan generation uses the same workflow metadata and does not fall back to the static SDD-1.0 order for known stages.
+The same policy controls validation, direct application, approval decisions, predecessor cascade, start suggestions and stage materialisation. Plan generation uses the same workflow metadata and does not fall back to the static SDD-1.0 order for known stages.
 
 ### Actual-date editing and backfill
 

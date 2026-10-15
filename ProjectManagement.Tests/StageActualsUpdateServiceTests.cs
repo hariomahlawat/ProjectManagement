@@ -47,7 +47,7 @@ public sealed class StageActualsUpdateServiceTests
             ProjectId = 1,
             StageCode = StageCodes.IPA,
             SortOrder = 1,
-            Status = StageStatus.InProgress,
+            Status = StageStatus.Completed,
             ActualStart = new DateOnly(2024, 1, 5),
             CompletedOn = new DateOnly(2024, 1, 20),
             RequiresBackfill = false
@@ -207,36 +207,110 @@ public sealed class StageActualsUpdateServiceTests
         Assert.False(stage.RequiresBackfill);
     }
 
-    [Fact]
-    public async Task UpdateAsync_AllowsCompletionWithoutStart_ForInProgressStage()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task UpdateAsync_RejectsCompletionForInProgressStage(bool hasStart)
     {
-        var (connection, db, service) = await CreateServiceWithSingleStageAsync(
-            StageStatus.InProgress,
-            actualStart: null,
-            completedOn: null);
+        var start = hasStart ? new DateOnly(2024, 1, 10) : (DateOnly?)null;
+        var (connection, db, service) = await CreateServiceWithSingleStageAsync(StageStatus.InProgress, start, null);
         await using var _ = connection;
         await using var __ = db;
+        var input = new ActualsEditInput
+        {
+            ProjectId = 1,
+            Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA, CompletedOn = new DateOnly(2024, 1, 25) } }
+        };
+        await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "user-1", "Tester"));
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
+        Assert.Equal(StageStatus.InProgress, stage.Status);
+        Assert.Equal(start, stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+    }
 
+    [Theory]
+    [InlineData(StageStatus.Completed, true)]
+    [InlineData(StageStatus.InProgress, false)]
+    public async Task UpdateAsync_ExplicitStartClear_ObeysStatus(StageStatus status, bool allowed)
+    {
+        var completion = status == StageStatus.Completed ? new DateOnly(2024, 1, 25) : (DateOnly?)null;
+        var (connection, db, service) = await CreateServiceWithSingleStageAsync(status, new DateOnly(2024, 1, 10), completion);
+        await using var _ = connection;
+        await using var __ = db;
+        var row = System.Text.Json.JsonSerializer.Deserialize<ActualsEditRowInput>(
+            "{\"StageCode\":\"IPA\",\"ClearActualStart\":true}")!;
+        var input = new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { row } };
+        if (allowed)
+        {
+            Assert.Equal(1, (await service.UpdateAsync(input, "user-1", "Tester")).UpdatedCount);
+            Assert.Null((await db.ProjectStages.AsNoTracking().SingleAsync()).ActualStart);
+            var log = await db.StageChangeLogs.SingleAsync();
+            Assert.Equal(new DateOnly(2024, 1, 10), log.FromActualStart);
+            Assert.Null(log.ToActualStart);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "user-1", "Tester"));
+            Assert.Equal(new DateOnly(2024, 1, 10), (await db.ProjectStages.AsNoTracking().SingleAsync()).ActualStart);
+            Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+        }
+        Assert.Equal(completion, (await db.ProjectStages.AsNoTracking().SingleAsync()).CompletedOn);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LegacyBlankFields_PreserveCompletedDates()
+    {
+        var (connection, db, service) = await CreateServiceWithSingleStageAsync(
+            StageStatus.Completed, new DateOnly(2024, 1, 10), new DateOnly(2024, 1, 25));
+        await using var _ = connection;
+        await using var __ = db;
         var result = await service.UpdateAsync(
-            new ActualsEditInput
-            {
-                ProjectId = 1,
-                Rows = new List<ActualsEditRowInput>
-                {
-                    new()
-                    {
-                        StageCode = StageCodes.IPA,
-                        CompletedOn = new DateOnly(2024, 1, 25)
-                    }
-                }
-            },
-            userId: "user-1",
-            userName: "Tester");
-
-        Assert.Equal(1, result.UpdatedCount);
-        var stage = await db.ProjectStages.SingleAsync();
-        Assert.Null(stage.ActualStart);
+            new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA } } }, "user-1", "Tester");
+        Assert.Equal(0, result.UpdatedCount);
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
+        Assert.Equal(new DateOnly(2024, 1, 10), stage.ActualStart);
         Assert.Equal(new DateOnly(2024, 1, 25), stage.CompletedOn);
+    }
+
+    [Theory]
+    [InlineData("2024-02-02", "2024-01-25")]
+    [InlineData("2024-01-10", "2024-02-02")]
+    [InlineData("2024-01-26", "2024-01-25")]
+    public async Task UpdateAsync_RejectsFutureOrInvertedDates_WithoutClamping(string startText, string completionText)
+    {
+        var (connection, db, service) = await CreateServiceWithSingleStageAsync(
+            StageStatus.Completed, new DateOnly(2024, 1, 10), new DateOnly(2024, 1, 25));
+        await using var _ = connection;
+        await using var __ = db;
+        var input = new ActualsEditInput
+        {
+            ProjectId = 1, Rows = new List<ActualsEditRowInput>
+            {
+                new() { StageCode = StageCodes.IPA, ActualStart = DateOnly.Parse(startText), CompletedOn = DateOnly.Parse(completionText) }
+            }
+        };
+        await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "user-1", "Tester"));
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
+        Assert.Equal(new DateOnly(2024, 1, 10), stage.ActualStart);
+        Assert.Equal(new DateOnly(2024, 1, 25), stage.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnchangedInvalidExistingRow_IsNotRepaired()
+    {
+        var completion = new DateOnly(2024, 1, 25);
+        var (connection, db, service) = await CreateServiceWithSingleStageAsync(StageStatus.InProgress, null, completion);
+        await using var _ = connection;
+        await using var __ = db;
+        var input = new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA } } };
+        Assert.Equal(0, (await service.UpdateAsync(input, "user-1", "Tester")).UpdatedCount);
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
+        Assert.Equal(StageStatus.InProgress, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Equal(completion, stage.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
     }
 
     [Fact]
@@ -303,7 +377,7 @@ public sealed class StageActualsUpdateServiceTests
                     new()
                     {
                         StageCode = StageCodes.IPA,
-                        CompletedOn = new DateOnly(2024, 1, 20)
+                        ActualStart = new DateOnly(2024, 1, 10)
                     },
                     new()
                     {
@@ -316,7 +390,8 @@ public sealed class StageActualsUpdateServiceTests
 
         Assert.Equal(1, result.UpdatedCount);
         var updated = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
-        Assert.Equal(new DateOnly(2024, 1, 20), updated.CompletedOn);
+        Assert.Equal(new DateOnly(2024, 1, 10), updated.ActualStart);
+        Assert.Null(updated.CompletedOn);
     }
 
     [Fact]
@@ -493,6 +568,7 @@ public sealed class StageActualsUpdateServiceTests
                     {
                         StageCode = StageCodes.IPA,
                         ActualStart = null,
+                        ClearActualStart = true,
                         CompletedOn = null
                     }
                 }
@@ -505,6 +581,29 @@ public sealed class StageActualsUpdateServiceTests
         Assert.Null(stage.ActualStart);
         Assert.Equal(new DateOnly(2026, 2, 26), stage.CompletedOn);
         Assert.False(stage.RequiresBackfill);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ArppManagedIpa_OmittedStartPreservesRecordedFact()
+    {
+        var start = new DateOnly(2026, 2, 1);
+        var completion = new DateOnly(2026, 2, 26);
+        var (connection, db, _) = await CreateServiceWithSingleStageAsync(StageStatus.Completed, start, completion);
+        await using var disposableConnection = connection;
+        await using var disposableDb = db;
+        AddPublishedPosition(db, 1, completion);
+        await db.SaveChangesAsync();
+        var service = new StageActualsUpdateService(db,
+            new FixedClock(new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero)),
+            new FakeAudit(), NullLogger<StageActualsUpdateService>.Instance);
+        var result = await service.UpdateAsync(new ActualsEditInput
+        {
+            ProjectId = 1,
+            Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, CompletedOn = completion }]
+        }, "user-1", "Tester");
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(start, (await db.ProjectStages.SingleAsync()).ActualStart);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
 
     [Fact]
