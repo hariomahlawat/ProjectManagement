@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Services;
@@ -15,13 +16,16 @@ public class StageRulesService
 {
     private readonly ApplicationDbContext _db;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageRulesService(
         ApplicationDbContext db,
-        IProjectStageWorkflowPolicy workflowPolicy)
+        IProjectStageWorkflowPolicy workflowPolicy,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<StageRulesContext> GetContextAsync(int projectId, CancellationToken cancellationToken)
@@ -41,8 +45,21 @@ public class StageRulesService
             throw new ArgumentNullException(nameof(stages));
         }
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, cancellationToken);
         var stageSnapshots = stages
-            .Select(ps => new StageSnapshot(ps.StageCode, ps.Status, ps.ActualStart, ps.CompletedOn))
+            .Select(ps =>
+            {
+                var effective = StageEffectiveState.Resolve(
+                    ps.StageCode,
+                    new StageChronologyState(ps.Status, ps.CompletedOn),
+                    ipaAuthority)!;
+
+                return new StageSnapshot(
+                    ps.StageCode,
+                    effective.Status,
+                    ps.ActualStart,
+                    effective.CompletionDate);
+            })
             .ToList();
 
         // SECTION: Workflow resolution
