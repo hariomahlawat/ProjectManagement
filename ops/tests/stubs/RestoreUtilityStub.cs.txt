@@ -1,0 +1,34 @@
+using System;
+using System.IO;
+using System.Text;
+
+// Compiled only into a temporary test directory; never connects to PostgreSQL.
+internal static class RestoreUtilityStub
+{
+    static int Main(string[] args)
+    {
+        string tool = Path.GetFileNameWithoutExtension(Environment.GetCommandLineArgs()[0]);
+        string sql = tool == "psql" ? Console.In.ReadToEnd().Replace("\r\n", "\n") : "";
+        string phase = tool;
+        if (tool == "pg_restore") phase = Array.IndexOf(args, "--list") >= 0 ? "list" : "restore";
+        if (tool == "psql") {
+            foreach (string candidate in new [] {"preflight", "identity", "validate", "cutover", "activated", "rollback"})
+                if (sql.Contains("-- prism-restore: " + candidate + "\n")) phase = candidate;
+        }
+        var line = new StringBuilder(tool + "\t" + phase);
+        foreach (string field in new [] { Environment.GetEnvironmentVariable("PRISM_RESTORE_TARGET"),
+            Environment.GetEnvironmentVariable("PRISM_RESTORE_STAGE"), Environment.GetEnvironmentVariable("PRISM_RESTORE_PREVIOUS"),
+            Environment.GetEnvironmentVariable("PGDATABASE"), Environment.GetEnvironmentVariable("PGSERVICE"), sql,
+            Environment.GetEnvironmentVariable("PGHOSTADDR") })
+            line.Append('\t').Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(field ?? "")));
+        foreach (string arg in args) line.Append('\t').Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(arg)));
+        File.AppendAllText(Environment.GetEnvironmentVariable("PRISM_TEST_NATIVE_LOG"), line + "\n");
+        Console.WriteLine("stub stdout: " + phase);
+        Console.Error.WriteLine("stub stderr: " + phase);
+        string failures = "," + Environment.GetEnvironmentVariable("PRISM_TEST_FAIL_PHASE") + ",";
+        if (failures.Contains("," + phase + ",")) return 23;
+        if (phase == "preflight") Console.WriteLine("PRISM_OID=101");
+        if (phase == "identity" || phase == "validate" || phase == "activated") Console.WriteLine("PRISM_OID=202");
+        return 0;
+    }
+}

@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    Offline Windows regression tests for backup-db.ps1 and restore-db.ps1 (F01/R08).
+    Offline Windows backup regressions (F01/R08).
 .DESCRIPTION
     Run with powershell.exe or pwsh.exe -NoProfile -ExecutionPolicy Bypass -File ops/tests/Test-DatabaseScripts.ps1.
     Builds harmless native executable stubs using the Windows .NET Framework compiler.
     Tests every installed Windows PowerShell/PowerShell 7 host by default. No PostgreSQL,
     Pester, package restore, network access or real database is used.
+    Restore coverage is in test_restore_scripts.py and test_restore_postgres.py.
 #>
 param([string[]]$PowerShellPath)
 
@@ -98,13 +99,7 @@ try {
         @{ Name = 'backup default host'; Script = 'backup-db.ps1'; HostFlag = ''; HostValue = 'localhost'; Fail = '' },
         @{ Name = 'backup explicit PgHost'; Script = 'backup-db.ps1'; HostFlag = '-PgHost'; HostValue = 'lan-db'; Fail = '' },
         @{ Name = 'backup legacy Host alias'; Script = 'backup-db.ps1'; HostFlag = '-Host'; HostValue = 'legacy-db'; Fail = '' },
-        @{ Name = 'restore default host'; Script = 'restore-db.ps1'; HostFlag = ''; HostValue = 'localhost'; Fail = '' },
-        @{ Name = 'restore explicit PgHost'; Script = 'restore-db.ps1'; HostFlag = '-PgHost'; HostValue = 'lan-db'; Fail = '' },
-        @{ Name = 'restore legacy Host alias'; Script = 'restore-db.ps1'; HostFlag = '-Host'; HostValue = 'legacy-db'; Fail = '' },
-        @{ Name = 'pg_dump failure'; Script = 'backup-db.ps1'; HostFlag = ''; HostValue = 'localhost'; Fail = 'pg_dump' },
-        @{ Name = 'dropdb failure'; Script = 'restore-db.ps1'; HostFlag = '-PgHost'; HostValue = 'lan-db'; Fail = 'dropdb' },
-        @{ Name = 'createdb failure'; Script = 'restore-db.ps1'; HostFlag = '-PgHost'; HostValue = 'lan-db'; Fail = 'createdb' },
-        @{ Name = 'pg_restore failure'; Script = 'restore-db.ps1'; HostFlag = '-Host'; HostValue = 'legacy-db'; Fail = 'pg_restore' }
+        @{ Name = 'pg_dump failure'; Script = 'backup-db.ps1'; HostFlag = ''; HostValue = 'localhost'; Fail = 'pg_dump' }
     )
 
     foreach ($shell in $PowerShellPath) {
@@ -113,13 +108,11 @@ try {
                 $caseId = [Guid]::NewGuid().ToString('N')
                 $caseArguments = @('-PgBin', $binRoot, '-Port', '5544', '-DbName', 'prism test db', '-User', 'test operator')
                 if ($case.HostFlag) { $caseArguments += @($case.HostFlag, $case.HostValue) }
-                $isBackup = $case.Script -eq 'backup-db.ps1'
                 $backupRoot = Join-Path $fixtureRoot "backup output $caseId"
-                if ($isBackup) { $caseArguments += @('-BackupDir', $backupRoot) }
-                else { $caseArguments += @('-DumpFile', $dumpPath) }
+                $caseArguments += @('-BackupDir', $backupRoot)
                 $result = Invoke-ScriptCase $shell (Join-Path $opsRoot $case.Script) $caseArguments (Join-Path $fixtureRoot "$caseId.log") $case.Fail
                 $diagnostic = "Exit=$($result.ExitCode); output=$($result.Output)"
-                [string[]]$expectedUtilities = if ($isBackup) { @('pg_dump') } else { @('dropdb', 'createdb', 'pg_restore') }
+                [string[]]$expectedUtilities = @('pg_dump')
                 if ($case.Fail) {
                     $stopIndex = [Array]::IndexOf($expectedUtilities, $case.Fail)
                     $expectedUtilities = @($expectedUtilities[0..$stopIndex])
@@ -142,9 +135,6 @@ try {
                             Assert-True ((Split-Path -Leaf $outputPath) -match '^prism test db-\d{8}-\d{6}\.dump$') 'Unexpected timestamped dump filename.'
                             @('--format=custom', "--host=$($case.HostValue)", '--port=5544', '--username=test operator', $fileArgument[0], 'prism test db')
                         }
-                        'dropdb' { @('--if-exists', "--host=$($case.HostValue)", '--port=5544', '--username=test operator', 'prism test db') }
-                        'createdb' { @("--host=$($case.HostValue)", '--port=5544', '--username=test operator', 'prism test db') }
-                        'pg_restore' { @("--host=$($case.HostValue)", '--port=5544', '--username=test operator', '--dbname=prism test db', '--clean', '--if-exists', $dumpPath) }
                     }
                     Assert-True (($call.Arguments -join "`n") -eq ($expected -join "`n")) "Argument forwarding changed for $($call.Utility). $diagnostic"
                     Assert-True ($result.Output.Contains("stub stdout: $($call.Utility)")) 'Native stdout was lost.'
