@@ -1048,8 +1048,9 @@
     function setDateState(row, status, { resetValue = false, preferredValue = '' } = {}) {
       const stageSelect = row.querySelector('[data-stage-request-stage]');
       const stage = stageOptionFor(stageSelect?.value || '');
+      const actualToday = stage?.actualToday || todayIso();
       const isReopenStart = status === 'InProgress' && ['Completed', 'Skipped', 'Blocked'].includes(stage?.currentStatus);
-      const preservedStart = isReopenStart && ['Completed', 'Blocked'].includes(stage?.currentStatus) ? (stage?.actualStart || '') : '';
+      const preservedStart = isReopenStart ? (stage?.actualStart || '') : '';
       const suggestedDate = isReopenStart
         ? (preservedStart || (stage?.currentStatus === 'Completed' ? stage?.reopenSuggestedStart || '' : ''))
         : (stage?.suggestedStart || '');
@@ -1075,15 +1076,15 @@
         dateInput.required = config.required;
         dateInput.readOnly = Boolean(preservedStart);
         dateInput.min = status === 'InProgress' || status === 'Completed' ? (stage?.earliestStart || '') : '';
-        dateInput.max = isReopenStart ? (stage?.actualToday || todayIso()) : '';
+        dateInput.max = actualToday;
         if (preservedStart) {
           dateInput.value = preservedStart;
         } else if (preferredValue) {
           dateInput.value = preferredValue;
         } else if (resetValue) {
           dateInput.value = status === 'InProgress'
-            ? (isReopenStart ? suggestedDate : (stage?.suggestedStart || todayIso()))
-            : (config.required ? todayIso() : '');
+            ? (isReopenStart ? suggestedDate : (stage?.suggestedStart || actualToday))
+            : (config.required ? actualToday : '');
         }
       }
     }
@@ -1109,6 +1110,7 @@
         input.disabled = !visible;
         input.required = false;
         input.min = visible ? (stage?.earliestStart || '') : '';
+        input.max = visible ? (stage?.actualToday || todayIso()) : '';
         if (!visible) {
           input.value = '';
         } else if (preferredValue) {

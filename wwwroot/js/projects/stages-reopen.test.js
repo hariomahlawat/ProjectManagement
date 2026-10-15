@@ -130,3 +130,58 @@ for (const browserToday of ['2026-08-27', '2026-08-29']) {
     });
   }
 }
+
+function poDateInputs(stage, targetStatus, browserToday, preferredValue = '') {
+  const dom = new JSDOM(`<div><select data-stage-request-stage><option value="BM">BM</option></select>
+    <input type="date" data-stage-request-date><span data-stage-request-date-hint></span>
+    <div data-stage-request-start-group><input type="date" data-stage-request-start-date><span data-stage-request-start-hint></span></div></div>`);
+  const row = dom.window.document.querySelector('div');
+  const functionSource = source.slice(source.indexOf('    function setDateState('), source.indexOf('    function refreshCarriedStartState('));
+  vm.runInNewContext(`${functionSource}\nsetDateState(row, targetStatus, { resetValue: true, preferredValue });\nsetStartDateState(row, targetStatus, { resetValue: true });`, {
+    row, targetStatus, preferredValue, stageOptionFor: () => stage,
+    dateConfiguration: () => ({ required: ['InProgress', 'Completed'].includes(targetStatus) }),
+    todayIso: () => browserToday, formatDate: (value) => value
+  });
+  return { dom, date: row.querySelector('[data-stage-request-date]'), start: row.querySelector('[data-stage-request-start-date]') };
+}
+
+for (const browserToday of ['2026-08-27', '2026-08-29']) {
+  test(`PO ordinary start uses server IST default and maximum with browser ${browserToday}`, () => {
+    const { dom, date } = poDateInputs({ currentStatus: 'NotStarted', actualToday: '2026-08-28' }, 'InProgress', browserToday);
+    assert.equal(date.value, '2026-08-28');
+    assert.equal(date.max, '2026-08-28');
+    dom.window.close();
+  });
+  test(`PO completion uses server IST default and maximum with browser ${browserToday}`, () => {
+    const { dom, date } = poDateInputs({ currentStatus: 'InProgress', actualToday: '2026-08-28' }, 'Completed', browserToday);
+    assert.equal(date.value, '2026-08-28');
+    assert.equal(date.max, '2026-08-28');
+    dom.window.close();
+  });
+  test(`PO optional completion start uses server IST maximum with browser ${browserToday}`, () => {
+    const { dom, start } = poDateInputs({ currentStatus: 'InProgress', actualToday: '2026-08-28', actualStart: '2026-08-10' }, 'Completed', browserToday);
+    assert.equal(start.disabled, false);
+    assert.equal(start.value, '2026-08-10');
+    assert.equal(start.max, '2026-08-28');
+    dom.window.close();
+  });
+  for (const currentStatus of ['Completed', 'Skipped', 'Blocked']) {
+    test(`PO ${currentStatus} reopen preserves recorded start readonly and IST max with browser ${browserToday}`, () => {
+      const { dom, date } = poDateInputs({ currentStatus, actualStart: '2026-08-10', actualToday: '2026-08-28', suggestedStart: '2026-08-15', reopenSuggestedStart: '2026-08-16' }, 'InProgress', browserToday, '2026-08-12');
+      assert.equal(date.value, '2026-08-10');
+      assert.equal(date.readOnly, true);
+      assert.equal(date.max, '2026-08-28');
+      dom.window.close();
+    });
+  }
+  for (const targetStatus of ['Blocked', 'Skipped']) {
+    test(`PO ${targetStatus} optional actual date uses server IST max with browser ${browserToday}`, () => {
+      const { dom, date, start } = poDateInputs({ currentStatus: 'NotStarted', actualToday: '2026-08-28' }, targetStatus, browserToday);
+      assert.equal(date.value, '');
+      assert.equal(date.max, '2026-08-28');
+      assert.equal(start.disabled, true);
+      assert.equal(start.max, '');
+      dom.window.close();
+    });
+  }
+}

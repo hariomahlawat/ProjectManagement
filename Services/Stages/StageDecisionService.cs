@@ -294,7 +294,9 @@ public sealed class StageDecisionService
         // name a different start than the one this transition must preserve.
         var validation = await new StageValidationService(_db, _clock, _workflowPolicy, _arppIpaStageAuthority)
             .ValidateAsync(stage.ProjectId, stage.StageCode, request.RequestedStatus,
-                effectiveDate, carriedForwardStart, isHoD: true, cancellationToken);
+                effectiveDate, requestedStatus == StageStatus.Completed ? carriedForwardStart
+                    : requestedStatus == StageStatus.InProgress ? request.RequestedStartDate : null,
+                isHoD: true, cancellationToken);
         if (!validation.IsValid)
         {
             return StageDecisionResult.ValidationFailed(string.Join(" ", validation.Errors.Concat(

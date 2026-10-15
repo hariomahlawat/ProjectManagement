@@ -307,11 +307,16 @@ public class StageRequestService
                 {
                     errors.Add("Supply and confirm the actual start before requesting InProgress.");
                 }
-                else if (stage.Status is StageStatus.Completed or StageStatus.Blocked
-                    && stage.ActualStart.HasValue && item.RequestedDate.Value != stage.ActualStart.Value)
+                else if (stage.ActualStart.HasValue && item.RequestedDate.Value != stage.ActualStart.Value)
                 {
-                    errors.Add("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates before reopening.");
+                    errors.Add("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates.");
                 }
+            }
+
+            if (item.RequestedStatus == StageStatus.InProgress && item.RequestedStartDate.HasValue
+                && item.RequestedStartDate != item.RequestedDate)
+            {
+                errors.Add("The start-date fields must agree when requesting InProgress. Confirm a single actual start date.");
             }
 
             var requiredPredecessors = workflow is not null

@@ -212,11 +212,11 @@ public sealed class StageDirectApplyService
         {
             throw StageDirectApplyValidationException.FromMessages("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
         }
-        var preservesRecordedStart = stage.Status is StageStatus.Completed or StageStatus.Blocked &&
-            (isReopen || normalizedStatus.Equals(nameof(StageStatus.InProgress), StringComparison.OrdinalIgnoreCase));
+        // Preserve any recorded start, including malformed legacy Skipped rows.
+        var preservesRecordedStart = isReopen || normalizedStatus.Equals(nameof(StageStatus.InProgress), StringComparison.OrdinalIgnoreCase);
         if (preservesRecordedStart && stage.ActualStart.HasValue && date.HasValue && date.Value != stage.ActualStart.Value)
         {
-            throw StageDirectApplyValidationException.FromMessages("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates before reopening.");
+            throw StageDirectApplyValidationException.FromMessages("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates.");
         }
         var validationDate = preservesRecordedStart && date.HasValue ? stage.ActualStart ?? date : date;
         var todayForValidation = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);

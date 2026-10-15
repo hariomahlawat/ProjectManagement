@@ -717,6 +717,8 @@ public class StageRequestServiceTests
     [Theory]
     [InlineData("Completed")]
     [InlineData("Blocked")]
+    [InlineData("Skipped")]
+    [InlineData("NotStarted")]
     public async Task Reopen_ConflictingRecordedStartDoesNotCreatePendingRequest(string prior)
     {
         var clock = FakeClock.ForIstDate(new DateOnly(2025, 2, 20));

@@ -341,12 +341,18 @@ public sealed class StageApprovalSequenceService
             $"Current status: {FormatStatus(stage.Status)}. Requested status: {FormatStatus(requestedStatus)}."));
 
         if (requestedStatus == StageStatus.InProgress
-            && stage.Status is StageStatus.Completed or StageStatus.Blocked
             && stage.ActualStart.HasValue
             && request.RequestedDate.HasValue && request.RequestedDate != stage.ActualStart)
         {
             checks.Add(new ApprovalCheckVm(ApprovalCheckState.Blocked, "Recorded actual start",
                 "Reopening preserves the recorded ActualStart. Correct it separately through Actual Dates, then revise the request."));
+        }
+
+        if (requestedStatus == StageStatus.InProgress && request.RequestedStartDate.HasValue
+            && request.RequestedStartDate != request.RequestedDate)
+        {
+            checks.Add(new ApprovalCheckVm(ApprovalCheckState.Blocked, "Actual start agreement",
+                "The request contains conflicting start-date fields. Revise it before approval; no dates have been changed."));
         }
 
         if (requestedStatus == StageStatus.Completed)

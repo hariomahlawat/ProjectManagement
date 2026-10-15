@@ -138,6 +138,8 @@ public sealed class TimelinePublishedAuthorityRegressionTests
     [Theory]
     [InlineData(StageStatus.Completed)]
     [InlineData(StageStatus.Blocked)]
+    [InlineData(StageStatus.Skipped)]
+    [InlineData(StageStatus.NotStarted)]
     public async Task ValidationAndDecision_RejectConflictingRecordedReopenStart(StageStatus status)
     {
         await using var db = await SeedAsync(StageStatus.Completed, 10, published: false);

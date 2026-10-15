@@ -163,10 +163,15 @@ public sealed class StageValidationService : IStageValidationService
             errors.Add("Actual start is required before a stage can become InProgress. Supply and confirm a start date.");
         }
 
-        if (desiredStatus == StageStatus.InProgress && stage.Status is StageStatus.Completed or StageStatus.Blocked
+        if (desiredStatus == StageStatus.InProgress
             && stage.ActualStart.HasValue && targetDate.HasValue && targetDate != stage.ActualStart)
         {
             errors.Add("Reopening preserves the recorded ActualStart. Correct the start separately through Actual Dates.");
+        }
+
+        if (desiredStatus == StageStatus.InProgress && requestedStartDate.HasValue && requestedStartDate != targetDate)
+        {
+            errors.Add("The start-date fields must agree when requesting InProgress. Confirm a single actual start date.");
         }
 
         var finalStart = desiredStatus == StageStatus.InProgress

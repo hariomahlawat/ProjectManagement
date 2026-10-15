@@ -663,6 +663,9 @@ public class StageDirectApplyServiceTests
     [InlineData("Completed", "InProgress")]
     [InlineData("Blocked", "Reopen")]
     [InlineData("Blocked", "InProgress")]
+    [InlineData("Skipped", "Reopen")]
+    [InlineData("Skipped", "InProgress")]
+    [InlineData("NotStarted", "InProgress")]
     public async Task Reopen_RejectsReplacementOfRecordedStart(string prior, string transition)
     {
         var clock = FakeClock.ForIstDate(new DateOnly(2024, 5, 20));
