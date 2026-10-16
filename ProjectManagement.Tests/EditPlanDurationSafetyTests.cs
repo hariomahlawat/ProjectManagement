@@ -1,3 +1,5 @@
+using Microsoft.Data.Sqlite;
+using ProjectManagement.Infrastructure;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -24,6 +26,200 @@ namespace ProjectManagement.Tests;
 
 public class EditPlanDurationSafetyTests
 {
+    [Theory]
+    [InlineData("HoD", true, PlanEditorModes.Durations)]
+    [InlineData("HoD", false, PlanEditorModes.Durations)]
+    [InlineData("Admin", true, PlanEditorModes.Durations)]
+    [InlineData("Admin", false, PlanEditorModes.Durations)]
+    [InlineData("HoD", true, PlanEditorModes.Exact)]
+    [InlineData("HoD", false, PlanEditorModes.Exact)]
+    [InlineData("Admin", true, PlanEditorModes.Exact)]
+    [InlineData("Admin", false, PlanEditorModes.Exact)]
+    public async Task DirectPublication_CommitsCurrentApplicabilityAndRefreshesScopedPolicy(string role, bool initiallyApplicable, string mode)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true);
+        await SeedPublishedExecutionAsync(f, initiallyApplicable);
+        f.Page.Input.Mode = mode;
+        var pnc = f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC);
+        pnc.DurationDays = initiallyApplicable ? null : 2;
+        pnc.PlannedStart = initiallyApplicable ? null : new DateOnly(2026, 10, 22);
+        pnc.PlannedDue = initiallyApplicable ? null : new DateOnly(2026, 10, 23);
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        var policy = new ProjectStageWorkflowPolicy(f.Db, new WorkflowStageMetadataProvider());
+        Assert.Equal(initiallyApplicable, (await policy.GetAsync(1)).PncApplicable);
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        Assert.Equal(!initiallyApplicable, (await policy.GetAsync(1)).PncApplicable);
+        await using var fresh = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(f.Db.Database.GetDbConnection()).Options);
+        var freshPolicy = new ProjectStageWorkflowPolicy(fresh, new WorkflowStageMetadataProvider());
+        Assert.Equal(!initiallyApplicable, (await freshPolicy.GetAsync(1)).PncApplicable);
+        var rules = new StageRulesService(fresh, freshPolicy);
+        Assert.Equal(initiallyApplicable, rules.CanStart(await rules.GetContextAsync(1, default), StageCodes.EAS).Allowed);
+        Assert.Equal(initiallyApplicable, (await fresh.PlanVersions.SingleAsync(p => p.VersionNo == 40)).PncApplicable);
+        Assert.Equal(40, (await fresh.Projects.SingleAsync()).ActivePlanVersionNo);
+        var stale = await fresh.ProjectStages.SingleAsync(p => p.StageCode == StageCodes.PNC);
+        Assert.Equal(StageStatus.NotStarted, stale.Status);
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    public async Task ExactPublication_UnchangedDatesStillPublishExplicitApplicability(string role)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true);
+        await SeedPublishedExecutionAsync(f, false);
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        foreach (var row in f.Page.Input.Rows)
+        {
+            var stage = await f.Db.ProjectStages.SingleAsync(s => s.StageCode == row.Code);
+            row.PlannedStart = stage.PlannedStart;
+            row.PlannedDue = stage.PlannedDue;
+        }
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        f.Db.ChangeTracker.Clear();
+        Assert.True((await f.Db.Projects.SingleAsync()).PncApplicable);
+        var pnc = await f.Db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(new DateOnly(2024, 1, 3), pnc.PlannedStart);
+        Assert.Equal(StageStatus.NotStarted, pnc.Status);
+    }
+
+    [Theory]
+    [InlineData("HoD", PlanEditorModes.Durations)]
+    [InlineData("Admin", PlanEditorModes.Durations)]
+    [InlineData("HoD", PlanEditorModes.Exact)]
+    [InlineData("Admin", PlanEditorModes.Exact)]
+    public async Task Publication_OmittedPncNeverInfersApplicabilityFromWorkingOrStageRows(string role, string mode)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true);
+        await SeedPublishedExecutionAsync(f, false);
+        f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.PNC, DurationDays = 2, SortOrder = 80 });
+        await f.Db.SaveChangesAsync();
+        f.Page.Input.Rows.RemoveAll(r => r.Code == StageCodes.PNC);
+        f.Page.Input.Mode = mode;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.False((await f.Db.Projects.AsNoTracking().SingleAsync()).PncApplicable);
+        var policy = new ProjectStageWorkflowPolicy(f.Db, new WorkflowStageMetadataProvider());
+        Assert.False((await policy.GetAsync(1)).PncApplicable);
+    }
+
+    [Theory]
+    [InlineData(PlanEditorModes.Durations, true)]
+    [InlineData(PlanEditorModes.Durations, false)]
+    [InlineData(PlanEditorModes.Exact, true)]
+    [InlineData(PlanEditorModes.Exact, false)]
+    public async Task Publication_DuplicatePncRowsUseTheSameFinalSubmittedDecisionAsPlannerWrites(string mode, bool finalApplicable)
+    {
+        await using var f = await Fixture.CreateAsync("HoD", "SaveChanges", relational: true);
+        await SeedPublishedExecutionAsync(f, !finalApplicable);
+        f.Page.Input.Mode = mode;
+        var first = f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC);
+        first.DurationDays = finalApplicable ? null : 2;
+        first.PlannedStart = finalApplicable ? null : new DateOnly(2026, 10, 22);
+        first.PlannedDue = finalApplicable ? null : new DateOnly(2026, 10, 23);
+        f.Page.Input.Rows.Add(new PlanEditInputRow
+        {
+            Code = "pnc", Name = "PNC repeated", DurationDays = finalApplicable ? 2 : null,
+            PlannedStart = finalApplicable ? new DateOnly(2026, 10, 22) : null,
+            PlannedDue = finalApplicable ? new DateOnly(2026, 10, 23) : null
+        });
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.Equal(finalApplicable, (await f.Db.Projects.AsNoTracking().SingleAsync()).PncApplicable);
+        var pnc = await f.Db.ProjectStages.AsNoTracking().SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(finalApplicable, pnc.PlannedStart.HasValue && pnc.PlannedDue.HasValue);
+    }
+
+    public static IEnumerable<object[]> NonAuthoritativePublicationCases()
+    {
+        foreach (var initial in new[] { true, false })
+        foreach (var role in new[] { "Project Officer", "HoD", "Admin" })
+        foreach (var action in role == "Project Officer" ? new[] { "Autosave", "SaveDraft", "Calculate", "Submit" } : new[] { "Autosave", "SaveDraft", "Calculate" })
+            yield return new object[] { role, action, initial };
+    }
+
+    [Theory]
+    [MemberData(nameof(NonAuthoritativePublicationCases))]
+    public async Task WorkingActions_NeverPublishExecutionApplicability(string role, string action, bool initiallyApplicable)
+    {
+        await using var f = await Fixture.CreateAsync(role, action);
+        await SeedPublishedExecutionAsync(f, initiallyApplicable);
+        f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC).DurationDays = initiallyApplicable ? null : 2;
+        var policy = new ProjectStageWorkflowPolicy(f.Db, new WorkflowStageMetadataProvider());
+        Assert.Equal(initiallyApplicable, (await policy.GetAsync(1)).PncApplicable);
+        var result = await f.Page.OnPostAsync(1, default);
+        if (action == "Autosave") AssertJson(result, 200, true);
+        else Assert.IsType<RedirectToPageResult>(result);
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        Assert.Equal(initiallyApplicable, (await policy.GetAsync(1)).PncApplicable);
+        Assert.Equal(initiallyApplicable, (await f.Db.Projects.AsNoTracking().SingleAsync()).PncApplicable);
+        var working = await f.Db.PlanVersions.AsNoTracking().SingleAsync(p => p.VersionNo != 40);
+        Assert.Equal(!initiallyApplicable, working.PncApplicable);
+        Assert.Equal(action == "Submit" ? PlanVersionStatus.PendingApproval : PlanVersionStatus.Draft, working.Status);
+    }
+
+    [Theory]
+    [InlineData("HoD", PlanEditorModes.Durations)]
+    [InlineData("Admin", PlanEditorModes.Durations)]
+    [InlineData("HoD", PlanEditorModes.Exact)]
+    [InlineData("Admin", PlanEditorModes.Exact)]
+    public async Task DirectPublication_FailureRollsBackApplicabilityAndAllPlannerWrites(string role, string mode)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, failAudit: true);
+        await SeedPublishedExecutionAsync(f, true);
+        f.Page.Input.Mode = mode;
+        f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC).DurationDays = null;
+        var before = await PlannerStateAsync(f.Db);
+        var policy = new ProjectStageWorkflowPolicy(f.Db, new WorkflowStageMetadataProvider());
+        Assert.True((await policy.GetAsync(1)).PncApplicable);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Page.OnPostAsync(1, default));
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        Assert.True((await policy.GetAsync(1)).PncApplicable);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Approval_OuterRollbackKeepsPublishedApplicabilityAndPlanState(bool initiallyApplicable)
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "Submit", relational: true);
+        await SeedPublishedExecutionAsync(f, initiallyApplicable);
+        var pending = new PlanVersion { ProjectId = 1, VersionNo = 41, CreatedByUserId = "po-user", SubmittedByUserId = "po-user", Status = PlanVersionStatus.PendingApproval, PncApplicable = !initiallyApplicable };
+        pending.StagePlans.Add(new StagePlan { StageCode = StageCodes.PNC, PlannedStart = new DateOnly(2026, 10, 22), PlannedDue = new DateOnly(2026, 10, 23) });
+        f.Db.PlanVersions.Add(pending);
+        await f.Db.SaveChangesAsync();
+        var before = await PlannerStateAsync(f.Db);
+        var approval = new PlanApprovalService(f.Db, new TestClock(), NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(f.Db), new NullNotifications());
+        await using (var outer = await RelationalTransactionScope.CreateAsync(f.Db.Database))
+        {
+            Assert.True(await approval.ApproveVersionAsync(pending.Id, "hod-reviewer", false, true));
+            Assert.Equal(!initiallyApplicable, (await f.Db.Projects.AsNoTracking().SingleAsync()).PncApplicable);
+            await outer.RollbackAsync();
+        }
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        Assert.Equal(initiallyApplicable, (await new ProjectStageWorkflowPolicy(f.Db, new WorkflowStageMetadataProvider()).GetAsync(1)).PncApplicable);
+    }
+
+    private static async Task SeedPublishedExecutionAsync(Fixture f, bool applicable)
+    {
+        var project = await f.Db.Projects.SingleAsync();
+        project.PncApplicable = applicable;
+        project.ActivePlanVersionNo = 40;
+        f.Db.PlanVersions.Add(new PlanVersion { ProjectId = 1, VersionNo = 40, CreatedByUserId = "earlier-po", Status = PlanVersionStatus.Approved, PncApplicable = applicable });
+        f.Db.StageTemplates.Add(new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.PNC, Name = "PNC", Sequence = 80, Optional = true });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.COB, Status = StageStatus.Completed, ActualStart = new DateOnly(2024, 1, 1), CompletedOn = new DateOnly(2024, 1, 2) },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.PNC, Status = StageStatus.NotStarted, PlannedStart = new DateOnly(2024, 1, 3), PlannedDue = new DateOnly(2024, 1, 4) },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.EAS, Status = StageStatus.NotStarted });
+        f.Page.Input.Rows.Add(new PlanEditInputRow { Code = StageCodes.PNC, Name = "PNC", DurationDays = applicable ? 2 : null });
+        await f.Db.SaveChangesAsync();
+        f.Db.ChangeTracker.Clear();
+    }
+
     public static IEnumerable<object?[]> AllowedPlannerActions()
     {
         foreach (var role in new[] { "Project Officer", "HoD", "Admin" })
@@ -191,6 +387,7 @@ public class EditPlanDurationSafetyTests
         db.ChangeTracker.Clear();
         return JsonSerializer.Serialize(new
         {
+            Published = await db.Projects.AsNoTracking().OrderBy(p => p.Id).Select(p => new { p.Id, p.PncApplicable, p.ActivePlanVersionNo }).ToListAsync(),
             Settings = await db.ProjectScheduleSettings.AsNoTracking().OrderBy(s => s.ProjectId)
                 .Select(s => new { s.ProjectId, s.AnchorStart, s.IncludeWeekends, s.SkipHolidays, s.NextStageStartPolicy }).ToListAsync(),
             Durations = await db.ProjectPlanDurations.AsNoTracking().OrderBy(d => d.Id)
@@ -591,12 +788,20 @@ public class EditPlanDurationSafetyTests
         public EditPlanModel Page { get; }
         public UserContext User { get; }
 
-        private Fixture(ApplicationDbContext db, EditPlanModel page, UserContext user) => (Db, Page, User) = (db, page, user);
+        private readonly SqliteConnection? _connection;
+        private Fixture(ApplicationDbContext db, EditPlanModel page, UserContext user, SqliteConnection? connection) => (Db, Page, User, _connection) = (db, page, user, connection);
 
-        public static async Task<Fixture> CreateAsync(string role, string? action)
+        public static async Task<Fixture> CreateAsync(string role, string? action, bool relational = false, bool failAudit = false)
         {
-            var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            // FK validation has dedicated PostgreSQL coverage; this disposable
+            // SQLite fixture exercises the real transaction/rollback boundaries.
+            var connection = relational ? new SqliteConnection("Data Source=:memory:;Foreign Keys=False") : null;
+            if (connection is not null) await connection.OpenAsync();
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>();
+            if (connection is not null) options.UseSqlite(connection);
+            else options.UseInMemoryDatabase(Guid.NewGuid().ToString());
+            var db = new ApplicationDbContext(options.Options);
+            if (relational) await db.Database.EnsureCreatedAsync();
             db.Projects.Add(new Project { Id = 1, Name = "Disposable duration test", LeadPoUserId = "po-user", WorkflowVersion = PlanConstants.StageTemplateVersionV1 });
             db.StageTemplates.Add(new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.FS, Name = "FS", Sequence = 10 });
             db.ProjectStages.Add(new ProjectStage { ProjectId = 1, StageCode = StageCodes.FS, Status = StageStatus.NotStarted, PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 3) });
@@ -607,7 +812,7 @@ public class EditPlanDurationSafetyTests
                 new Claim(ClaimTypes.NameIdentifier, actor), new Claim(ClaimTypes.Name, actor),
                 new Claim(ClaimTypes.Role, role == "Unassigned PO" ? "Project Officer" : role)
             }, "Test")) };
-            var audit = new NullAudit();
+            IAuditService audit = failAudit ? new FailingAudit() : new NullAudit();
             var clock = new TestClock();
             var draft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, user);
             var approval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullNotifications());
@@ -623,7 +828,7 @@ public class EditPlanDurationSafetyTests
             var http = new DefaultHttpContext { User = user.User };
             page.PageContext = new PageContext(new ActionContext(http, new RouteData(), new PageActionDescriptor()));
             page.TempData = new TempDataDictionary(http, new TempProvider());
-            return new Fixture(db, page, user);
+            return new Fixture(db, page, user, connection);
         }
 
         public async Task AssertLiveDatesUnchangedAsync()
@@ -634,7 +839,11 @@ public class EditPlanDurationSafetyTests
             Assert.Equal(new DateOnly(2024, 1, 3), stage.PlannedDue);
             Assert.Equal(StageStatus.NotStarted, stage.Status);
         }
-        public ValueTask DisposeAsync() => Db.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            await Db.DisposeAsync();
+            if (_connection is not null) await _connection.DisposeAsync();
+        }
     }
 
     private sealed class UserContext : IUserContext
@@ -647,6 +856,11 @@ public class EditPlanDurationSafetyTests
     {
         public IDictionary<string, object?> LoadTempData(HttpContext context) => new Dictionary<string, object?>();
         public void SaveTempData(HttpContext context, IDictionary<string, object?> values) { }
+    }
+    private sealed class FailingAudit : IAuditService
+    {
+        public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null, IDictionary<string, string?>? data = null, HttpContext? http = null)
+            => throw new InvalidOperationException("Injected publication failure before transaction commit.");
     }
     private sealed class NullAudit : IAuditService
     {

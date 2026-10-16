@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
@@ -467,6 +468,10 @@ public class EditPlanModel : PageModel
             return RedirectWithValidationErrors(id);
         }
 
+        await using var publication = intent == PlanIntent.SaveChanges
+            ? await RelationalTransactionScope.CreateAsync(_db.Database, ct)
+            : null;
+
         PlanVersion? draft = null;
         if (intent != PlanIntent.SaveChanges)
         {
@@ -554,6 +559,17 @@ public class EditPlanModel : PageModel
                 await _planGeneration.GenerateDraftAsync(id, workingDraft.Id, ct);
             }
 
+            // The explicit submitted publication decision is authoritative. Shared
+            // working duration rows and retained stage dates never supply this value.
+            var publishedPnc = rows.LastOrDefault(row =>
+                string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+            if (publishedPnc is not null)
+            {
+                var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
+                publishedProject.PncApplicable = publishedPnc.DurationDays.GetValueOrDefault() > 0;
+                await _db.SaveChangesAsync(ct);
+            }
+
             await _audit.LogAsync(
                 "Projects.PlanGeneratedFromDurations",
                 userId: userId,
@@ -562,6 +578,8 @@ public class EditPlanModel : PageModel
                     ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
                     ["Action"] = PlanEditActions.SaveChanges
                 });
+
+            await publication!.CommitAsync(ct);
 
             TempData["Flash"] = "Timeline plan updated.";
             return RedirectToPage("/Projects/Overview", new { id });
@@ -774,6 +792,8 @@ public class EditPlanModel : PageModel
         WorkingCalendar workingCalendar,
         CancellationToken cancellationToken)
     {
+        await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+
         var stageRows = await _db.ProjectStages
             .Where(stage => stage.ProjectId == projectId)
             .ToListAsync(cancellationToken);
@@ -874,7 +894,14 @@ public class EditPlanModel : PageModel
                 string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase) &&
                 stage.PlannedStart.HasValue && stage.PlannedDue.HasValue);
         }
-        if (changes.Count > 0 || workingDraft is not null)
+        var publishedPnc = rows.LastOrDefault(row =>
+            string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+        if (publishedPnc is not null)
+        {
+            var publishedProject = await _db.Projects.SingleAsync(project => project.Id == projectId, cancellationToken);
+            publishedProject.PncApplicable = publishedPnc.PlannedStart.HasValue && publishedPnc.PlannedDue.HasValue;
+        }
+        if (changes.Count > 0 || workingDraft is not null || publishedPnc is not null)
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
@@ -908,6 +935,8 @@ public class EditPlanModel : PageModel
                 userName: userName,
                 data: data);
         }
+
+        await publication.CommitAsync(cancellationToken);
 
         TempData["Flash"] = changes.Count > 0
             ? "Timeline plan updated."

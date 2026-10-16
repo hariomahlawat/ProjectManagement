@@ -86,6 +86,9 @@ public sealed class PostgresMigrationIntegrationTests
             CancellationToken.None);
         await SeedLegacyProjectStageConstraintDriftAsync(applicationDb);
 
+        await migrator.MigrateAsync("20261216230000_AllowDuplicateActivityTitles", CancellationToken.None);
+        var expectedPncApplicability = await SeedPreApplicabilityMigrationAsync(applicationDb);
+
         var results = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
             applicationDb,
             NullLogger.Instance,
@@ -128,9 +131,74 @@ public sealed class PostgresMigrationIntegrationTests
             mediaDb.Database.GetMigrations().Last(),
             results[1].LatestAppliedMigration);
 
+        foreach (var (projectId, expected) in expectedPncApplicability)
+        {
+            Assert.Equal(expected, (await applicationDb.Projects.AsNoTracking().SingleAsync(p => p.Id == projectId)).PncApplicable);
+            var stale = await applicationDb.ProjectStages.AsNoTracking().SingleAsync(p => p.ProjectId == projectId);
+            Assert.Equal(StageStatus.NotStarted, stale.Status);
+            Assert.Equal(new DateOnly(2024, 1, 1), stale.PlannedStart);
+            Assert.Equal(new DateOnly(2024, 1, 2), stale.PlannedDue);
+        }
+        var defaultProjectId = await InsertLegacyPncProjectAsync(applicationDb, "PNC default after migration");
+        Assert.True((await applicationDb.Projects.AsNoTracking().SingleAsync(p => p.Id == defaultProjectId)).PncApplicable);
+
         await VerifyProjectStageCompletionConstraintAsync(applicationDb);
     }
 
+
+    private static async Task<Dictionary<int, bool>> SeedPreApplicabilityMigrationAsync(ApplicationDbContext db)
+    {
+        db.Users.Add(new ApplicationUser { Id = "pnc-migration-user", UserName = "pnc-migration-user" });
+        await db.SaveChangesAsync();
+        var expected = new Dictionary<int, bool>();
+        for (var scenario = 0; scenario < 7; scenario++)
+        {
+            var id = await InsertLegacyPncProjectAsync(db, $"PNC backfill scenario {scenario}");
+            expected[id] = scenario != 2;
+            if (scenario != 1)
+            {
+                db.PlanVersions.Add(new ProjectManagement.Models.Plans.PlanVersion
+                {
+                    ProjectId = id, VersionNo = 1, CreatedByUserId = "pnc-migration-user",
+                    Status = scenario == 4 ? ProjectManagement.Models.Plans.PlanVersionStatus.PendingApproval
+                        : scenario == 5 ? ProjectManagement.Models.Plans.PlanVersionStatus.Draft
+                        : ProjectManagement.Models.Plans.PlanVersionStatus.Approved,
+                    PncApplicable = scenario is 3 or 6
+                });
+                if (scenario == 6)
+                    db.PlanVersions.Add(new ProjectManagement.Models.Plans.PlanVersion
+                    {
+                        ProjectId = id, VersionNo = 2, CreatedByUserId = "pnc-migration-user",
+                        Status = ProjectManagement.Models.Plans.PlanVersionStatus.Approved, PncApplicable = false
+                    });
+                await db.SaveChangesAsync();
+            }
+            if (scenario != 0)
+                await db.Database.ExecuteSqlRawAsync("UPDATE \"Projects\" SET \"ActivePlanVersionNo\" = {0} WHERE \"Id\" = {1}", scenario == 1 ? 999 : 1, id);
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO "ProjectStages" ("ProjectId", "StageCode", "SortOrder", "Status", "PlannedStart", "PlannedDue", "RequiresBackfill")
+                VALUES ({0}, 'PNC', 1, 'NotStarted', DATE '2024-01-01', DATE '2024-01-02', FALSE);
+                """, id);
+        }
+        db.ChangeTracker.Clear();
+        return expected;
+    }
+
+    private static async Task<int> InsertLegacyPncProjectAsync(ApplicationDbContext db, string name)
+    {
+        await db.Database.OpenConnectionAsync();
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            INSERT INTO "Projects" ("Name", "CreatedAt", "CreatedByUserId", "RowVersion", "WorkflowVersion")
+            VALUES (@name, TIMESTAMP '2026-10-16 00:00:00', 'system', '\x'::bytea, 'v1')
+            RETURNING "Id";
+            """;
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "name";
+        parameter.Value = name;
+        command.Parameters.Add(parameter);
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
+    }
 
     private static async Task SeedLegacyProjectStageConstraintDriftAsync(
         ApplicationDbContext applicationDb)

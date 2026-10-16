@@ -154,6 +154,22 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("INSERT INTO \"AspNetUsers\"", sql);
     }
 
+    [Fact]
+    public void CurrentPncMigration_IsAdditiveAndBackfillsOnlyActiveApprovedPublication()
+    {
+        using var context = CreateMetadataContext();
+        var property = context.Model.FindEntityType(typeof(ProjectManagement.Models.Project))!
+            .FindProperty(nameof(ProjectManagement.Models.Project.PncApplicable))!;
+        Assert.Equal(true, property.GetDefaultValue());
+        var sql = context.GetService<IMigrator>().GenerateScript(
+            "20261216230000_AllowDuplicateActivityTitles", "20261217000000_AddCurrentPncApplicability");
+        Assert.Contains("ADD \"PncApplicable\" boolean NOT NULL DEFAULT TRUE", sql);
+        Assert.Contains("project.\"ActivePlanVersionNo\"", sql);
+        Assert.Contains("plan.\"Status\" = 'Approved'", sql);
+        Assert.DoesNotContain("ProjectPlanDurations", sql);
+        Assert.DoesNotContain("ProjectStages", sql);
+    }
+
     private static string[] ReadApplicationManifest()
     {
         var manifestPath = Path.Combine(

@@ -329,8 +329,10 @@ public class StageProgressServiceTests
         Assert.False(ipa.RequiresBackfill);
     }
 
-    [Fact]
-    public async Task UpdateStageStatusAsync_LeavesOptionalStagesOutsideDependencyClosureUnchanged()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdateStageStatusAsync_OnlySkipsOptionalPncWhenInEffectiveDependencyClosure(bool applicable)
     {
         var clock = new TestClock(new DateTimeOffset(2024, 6, 16, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -345,6 +347,8 @@ public class StageProgressServiceTests
             (StageCodes.PNC, StageStatus.NotStarted),
             (StageCodes.EAS, StageStatus.NotStarted),
             (StageCodes.SO, StageStatus.NotStarted));
+
+        (await db.Projects.SingleAsync()).PncApplicable = applicable;
 
         db.StageTemplates.Add(new StageTemplate
         {
@@ -370,7 +374,7 @@ public class StageProgressServiceTests
         await service.UpdateStageStatusAsync(1, StageCodes.SO, StageStatus.Completed, completedOn, "tester");
 
         var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
-        Assert.Equal(StageStatus.NotStarted, pnc.Status);
+        Assert.Equal(applicable ? StageStatus.Skipped : StageStatus.NotStarted, pnc.Status);
         Assert.False(pnc.IsAutoCompleted);
 
         var cob = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB);
@@ -673,6 +677,27 @@ public class StageProgressServiceTests
         Assert.Equal(new DateOnly(2024, 6, 22), history.FromCompletedOn);
         Assert.Null(history.ToActualStart);
         Assert.Null(history.ToCompletedOn);
+    }
+
+    [Theory]
+    [InlineData(StageStatus.Completed, StageStatus.Completed)]
+    [InlineData(StageStatus.Completed, StageStatus.Skipped)]
+    [InlineData(StageStatus.Skipped, StageStatus.Completed)]
+    [InlineData(StageStatus.Skipped, StageStatus.Skipped)]
+    public async Task CompletingCob_PreservesSatisfiedSkippedPredecessors(StageStatus tec, StageStatus bm)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.TEC, tec), (StageCodes.BM, bm), (StageCodes.COB, StageStatus.InProgress));
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact { ProjectId = 1, CreatedByUserId = "seed" });
+        var cob = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB);
+        cob.ActualStart = new DateOnly(2024, 6, 10);
+        await db.SaveChangesAsync();
+        await CreateService(db, new TestClock(new DateTimeOffset(2024, 6, 16, 0, 0, 0, TimeSpan.Zero)))
+            .UpdateStageStatusAsync(1, StageCodes.COB, StageStatus.Completed, new DateOnly(2024, 6, 15), "tester");
+        db.ChangeTracker.Clear();
+        Assert.Equal(tec, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.TEC)).Status);
+        Assert.Equal(bm, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.BM)).Status);
+        Assert.Equal(StageStatus.Completed, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB)).Status);
     }
 
     private static void AddPublishedIpa(ApplicationDbContext db, DateOnly completion)

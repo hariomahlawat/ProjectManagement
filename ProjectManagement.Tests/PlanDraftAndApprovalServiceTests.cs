@@ -29,7 +29,7 @@ public class PlanDraftAndApprovalServiceTests
     {
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        db.Projects.Add(new Project { Id = 1, Name = "Excluded PNC", LeadPoUserId = "po-user" });
+        db.Projects.Add(new Project { Id = 1, Name = "Excluded PNC", LeadPoUserId = "po-user", PncApplicable = !applicable });
         if (existingPnc)
         {
             db.ProjectStages.Add(new ProjectStage
@@ -58,7 +58,10 @@ public class PlanDraftAndApprovalServiceTests
         await db.SaveChangesAsync();
         var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance,
             new PlanSnapshotService(db), new NullPlanNotificationService());
+        var workflowPolicy = new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider());
+        Assert.Equal(!applicable, (await workflowPolicy.GetAsync(1)).PncApplicable);
         Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+        Assert.Equal(applicable, (await workflowPolicy.GetAsync(1)).PncApplicable);
         db.ChangeTracker.Clear();
         var pnc = await db.ProjectStages.SingleOrDefaultAsync(s => s.StageCode == StageCodes.PNC);
         if (!existingPnc) Assert.Null(pnc);

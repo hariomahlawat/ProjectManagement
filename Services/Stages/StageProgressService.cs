@@ -321,7 +321,7 @@ public class StageProgressService
             stage.AutoCompletedFromCode = null;
             stage.RequiresBackfill = false;
         }
-        else if (!hasPublishedIpaAuthority && !isOptional && stage.Status != StageStatus.Completed)
+        else if (!hasPublishedIpaAuthority && !isOptional && stage.Status is not StageStatus.Completed and not StageStatus.Skipped)
         {
             stage.Status = StageStatus.Completed;
             // Completion of a successor does not establish either predecessor date.
