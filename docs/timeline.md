@@ -2,16 +2,18 @@
 
 ## Canonical timeline business rules
 
-These are the canonical business rules. Current implementation deviations should be treated as defects and corrected through separately reviewed production-safe changes. This document defines the agreed rules before implementation debugging; it does not claim that current code enforces every rule. PRISM is live in production: remediation must preserve continuity and follow the change guardrails in [AGENTS.md](../AGENTS.md).
+These are the canonical business rules. Current implementation deviations should be treated as defects and corrected through separately reviewed production-safe changes. This document defines the intended business contract, including the next PO proposal phase; it does not claim that current code enforces every rule. The [implementation gaps and phased roadmap](timeline-proposal-roadmap.md) distinguish current behavior from the target and are deliberately deferred from this rules-only change. PRISM is live in production: remediation must preserve continuity and follow the change guardrails in [AGENTS.md](../AGENTS.md).
 
 ### 1. Date meanings
 
-| Field | Business meaning |
-| --- | --- |
-| `PlannedStart` | Latest working planned start date. |
-| `PlannedDue` | Latest working planned completion date / PDC. |
-| `ActualStart` | Date work actually began. |
-| `CompletedOn` | Date work actually completed. |
+| User-facing term | Internal property | Business meaning |
+| --- | --- | --- |
+| Planned start | `PlannedStart` | Latest working planned start. |
+| PDC | `PlannedDue` | Latest working PDC. |
+| Actual start | `ActualStart` | Observed actual commencement. |
+| Actual completion | `CompletedOn` | Observed actual completion. |
+
+Use **Planned start / PDC / Actual start / Actual completion** consistently in user-facing timeline documentation and future UI copy. PDC is the organisation's familiar term; do not expand it in normal UI terminology or prefer "Planned Due". Property names remain implementation details.
 
 Planned and actual dates are separate business facts. Changing one must not silently alter the other. Planned dates are not an immutable original baseline: they represent the latest working plan and remain freely correctable. `ForecastStart` / `ForecastDue` are not the authoritative working PDC in the current model; this document does not redefine those fields.
 
@@ -99,7 +101,7 @@ A skipped stage never started, never completed and was not required. Both actual
 
 When both planned dates exist, `PlannedStart <= PlannedDue`; same-day planned start/due is valid. Planned dates may remain incomplete where business rules permit, and future-stage planned dates are optional.
 
-The current `InProgress` stage's `PlannedDue` / PDC is operationally important but **not mandatory**. Its absence should produce a warning or nudge, not block operation.
+The current `InProgress` stage's PDC is operationally important but **not mandatory**. Its absence should produce a warning or nudge, not block operation.
 
 ### 13. Planned dependency chronology
 
@@ -139,11 +141,11 @@ Changes to authoritative IPA completion must use the ARPP source/linkage workflo
 
 ### 18. Pending lifecycle decisions
 
-Generic actual-date correction must not concurrently edit a stage in a way that contradicts its pending lifecycle decision. Existing conflict protection remains part of the business contract.
+A proposal must not contradict a pending lifecycle decision that could still publish. Resolve coordinated changes through the final proposed state and supersede incompatible earlier revisions; do not bypass conflict protection by directly mutating official facts. Pending review must never lock the PO out of creating, revising, withdrawing or replacing proposals. Current generic actual-date mutation guards are an implementation constraint, not permission to freeze proposal editing; see rules 22-25 and the [implementation gaps](timeline-proposal-roadmap.md#current-implementation-gaps).
 
 ### 19. Authority
 
-- **Project Officer:** may edit/propose plan data only for authorised/assigned projects. Normal plan publication and stage-change requests follow the existing approval workflows.
+- **Project Officer:** may work only on authorised/assigned projects. Planned start/PDC changes, lifecycle transitions and actual-date corrections (including completion-date backfill) are proposals requiring HoD approval before authoritative timeline state changes. Pending review does not restrict continuing proposal work. Current direct PO actual-date/backfill publication is an implementation deviation.
 - **HoD:** may review, approve or reject plan submissions; may directly modify timeline/stage state where current product permissions allow; may use authorised completion-without-date/backfill behaviour.
 - **Admin:** has timeline modification authority, including direct planned-date edits where current product permissions allow. Admin authority must not weaken date-validity rules. This does not grant unrelated plan-approval rights.
 - **Viewer/read-only roles:** have no mutation authority.
@@ -152,17 +154,93 @@ These rules do not extend unrelated approval or security policy.
 
 ### 20. Concurrent edits
 
-For concurrent edits to the same stage, the first valid save wins; reject the second stale save. Tell the user the stage changed and ask them to reload/review. Silent last-write-wins is not allowed for the same stage. Where practical, non-overlapping changes to different stages may both succeed.
+For concurrent edits to the same stage, the first valid save wins; reject the second stale save. Tell the user the stage changed and ask them to reload/review. Silent last-write-wins is not allowed for the same stage. Where practical, non-overlapping changes to different stages may both succeed. Proposal concurrency must also reject decisions on superseded or stale revisions as defined in rule 24; rejecting a stale save/decision must leave the PO able to reload and continue working.
 
 ### 21. Audit and validation messages
 
 Date/status corrections must preserve durable before/after history. Current values may change; historical evidence must not silently disappear. Automatic corrections must not happen silently.
 
-Validation messages should identify the stage, the invalid date/rule and the relevant predecessor or authoritative source where applicable.
+Validation messages should identify the stage, the invalid date/rule and the relevant predecessor or authoritative source where applicable. Proposal history must additionally meet rule 26 so a decision can be reconstructed against the exact values reviewed.
+
+### 22. Continuous PO work and approval scope
+
+**PO works continuously. HoD controls publication.**
+
+An assigned/authorised PO must be able to create, revise, correct, withdraw, resubmit and replace timeline proposals as many times as necessary while the relevant proposal is undecided. A pending HoD review must never freeze the PO out of further timeline work, including another stage or category of change. Validation must explain conflicts and allow a coherent correction; it must not turn pending approval into an editing lock. Assignment checks, date validity and stale-edit protection still apply.
+
+All three categories below require HoD approval for a PO submission before authoritative timeline values change:
+
+| Category | Proposed changes |
+| --- | --- |
+| Plan | Planned start and PDC. |
+| Actual fact correction | Actual start, Actual completion, corrections to previously recorded actual dates, completion-date backfill and other factual actual-date corrections. |
+| Lifecycle | Start, complete, block/resume, skip, reopen, permitted reset and other status transitions. |
+
+For a PO, completion backfill is an actual fact correction with the same approval authority, not a separate publication privilege. The UI may highlight **Completion date required**, but the missing fact remains unresolved until an authorised decision publishes it. Authorised HoD completion without a date remains valid under rule 2. HoD/Admin direct behavior remains separately authorised only where existing product permissions allow, with identical business/date validity; this contract grants no new Admin approval rights.
+
+### 23. Official and proposed state
+
+Official/authoritative timeline facts remain unchanged until HoD approval of the applicable PO proposal. Saving, revising or submitting a proposal must not overwrite `ProjectStage` values. Working and pending values must be clearly identified as proposals, never displayed as already-published facts. Read models may show all three dimensions together:
+
+| Official value | Proposed value | Approval status |
+| --- | --- | --- |
+| PDC: 30 Oct | PDC: 05 Nov | Awaiting HoD approval |
+
+This approval boundary covers both plan and actual facts. It does not replace the published ARPP authority in rule 17: without published authority, normal proposal rules apply to IPA completion; once published, generic proposals cannot override it. An IPA Actual start correction may still be proposed independently where authorised.
+
+### 24. Revisions, supersession and stale decisions
+
+Every material revision must have a reviewable revision identity. Submitted content must not be mutated in place under the identity a HoD already reviewed. Earlier submitted revisions become **Superseded**, or an equivalent immutable historical state; withdrawn revisions are not actionable and remain auditable. Only the latest actionable submitted revision may be decided.
+
+For PO-originated timeline work, **latest is scoped to the project's active Timeline Change Set, not to an individual stage or change category**. A project has at most one active undecided PO Timeline Change Set. A new material revision carries forward every still-pending proposed change in that change set and adds, removes or corrects changes as required; the prior submitted revision is superseded as a whole. Do not keep independent parallel actionable PO proposal sequences for different stages or categories of the same project. A decided or withdrawn change set closes that revision lineage; later PO work starts a new change set against the then-current authoritative timeline.
+
+For example, revision 4 proposing IPA Actual completion = 19 Oct is awaiting review. If the PO then proposes SOW PDC = 05 Nov, revision 5 carries both still-pending changes. Revision 4 becomes Superseded and only revision 5 is actionable. Likewise, revision 1 proposing SOW Actual completion = 10 Oct becomes Superseded when revision 2 replaces it with 11 Oct. The HoD cannot approve an earlier revision after its successor exists. A material revision makes the older reviewed content non-actionable even if the replacement still needs resubmission; editing must not leave the old revision silently approvable.
+
+**Reject stale decisions, not PO editing.** If HoD opens revision N and the PO creates N+1 before a decision, approval **or rejection** against N must fail as stale with no authoritative mutation. Show: **A newer revision is available. Review the latest update before deciding.** The PO remains free to continue work. Decision processing must verify the exact actionable revision and validate its final proposed state against current authoritative facts before publication.
+
+Revision/version/fingerprint/concurrency identity can implement this contract, but no particular storage or locking mechanism is prescribed here. Withdrawal, supersession and decisions must preserve prior evidence; a decided proposal is not edited retrospectively, and subsequent work is a new proposal/revision.
+
+### 25. Timeline Change Set and final-state validity
+
+PO timeline work must converge toward one revisioned **Timeline Change Set** / proposal model. A change set may coordinate one or more changes across stages, with **Plan**, **Actual fact correction** and **Lifecycle** kept visually and auditably distinct even when a coherent revision is approved atomically. A factual correction must not silently infer a lifecycle transition; any intended status change is explicit in the Lifecycle category.
+
+An illustrative revision could contain SOW PDC 30 Oct to 05 Nov, IPA Actual completion 18 Oct to 19 Oct, and SOW NotStarted to InProgress with an explicitly observed Actual start of 19 Oct. The IPA correction is eligible only without published ARPP completion authority, and all configured workflow rules must still pass.
+
+Validate the **final proposed state**, not each field against an intermediate state. If FS Actual completion changes from 10 Jan to 20 Jan and its dependent IPA Actual start is 11 Jan, identify the affected chronology and allow a coordinated proposal changing both dates to 20 Jan if otherwise valid. Check the configured workflow graph and all required convergence boundaries, follow skipped dependency ancestry transparently, and permit explicit same-day commencement. Validate affected untouched descendants as well as changed rows; present the conflicting stages so the PO can correct them together.
+
+Rules 1-21 remain in force: Planned start/PDC are the latest mutable working plan; partial/future-stage plans may be allowed; current InProgress PDC warrants a nudge rather than a mandatory-field block; planned SameDay/NextWorkingDay policy and authoritative weekends/holidays apply identically to PO proposals and HoD/Admin direct saves. Actual dates remain observed facts, use IST future-date limits and inclusive start/completion ordering, permit optional Completed Actual start and authorised explicit clearing, require InProgress Actual start, and preserve published ARPP authority and explicit reopen semantics. Approval is not a waiver of validity.
+
+### 26. Shared proposal presentation and durable audit
+
+The PO submission summary and HoD review must use the same exact proposal revision and values. Both show current to proposed values grouped as Plan, Actual corrections and Lifecycle, plus affected downstream chronology where relevant. A concise summary might show SOW PDC 30 Oct to 05 Nov and IPA Actual completion 18 Oct to 19 Oct, explicitly stating that no other timeline facts changed; the IPA example again requires no published ARPP completion authority.
+
+HoD review shows the revision, submitter and submitted time and approves/rejects that exact revision only. Every submitted, revised, superseded, withdrawn and decided proposal must preserve enough durable history to reconstruct authoritative before values, proposed values, revision identity, submitter, submission time, superseded revisions, reviewer, decision/time and authoritative values after approval. Values requested, reviewed, approved, logged and persisted must agree. No silent mutation or loss of superseded evidence is permitted.
+
+### 27. Target PO experience
+
+This is the target experience for later implementation, not a claim about current screens. The PO should understand **Plan** (what do we now expect?), **Stage status** (what lifecycle state are we proposing?), **Actual dates** (what observed facts are being corrected?) and **Update** (what do I want to change?), without having to understand storage/service names or a separate technical backfill workflow.
+
+The primary stage action should be **Update**. Within that one experience, keep the three semantic categories visibly distinct:
+
+- **Plan:** Planned start and PDC.
+- **Stage status — Lifecycle:** Start, complete, block/resume, skip, reopen or another permitted status transition.
+- **Actual dates — Actual fact correction:** Actual start and Actual completion.
+
+A broader **Progress** or **Actual progress** heading may contain Stage status and Actual dates, but it must not visually merge lifecycle actions with factual date corrections. The proposal diff, HoD review and audit must preserve the same Plan / Actual fact correction / Lifecycle distinction from rules 25-26.
+
+Show the approval behavior explicitly:
+
+> Changes will be sent to HoD for approval. You can revise them at any time until they are approved.
+
+When pending:
+
+> Your update is awaiting HoD approval. You can continue editing it.
+
+Support a single-stage quick update for one PDC or other stage change; do not require the PO to experience a whole-project editor for one field. Provide **Update project plan** separately for coordinated/bulk planning across stages. The backend may retain revision records such as `PlanVersion`; those storage distinctions must not drive the PO's workflow choices. Before submission, show a concise current/proposed diff and make the scope of unchanged facts clear.
 
 ## Timeline workflow reference
 
-The workflow and page descriptions below provide context; they do not override the canonical rules above or certify complete implementation compliance.
+The workflow and page descriptions below describe current implementation paths and labels, including known deviations. They do not override the canonical target rules above or certify compliance. In particular, current plan locks and direct PO actual-date/backfill writes are not the intended governance. See the [implementation gaps and phased roadmap](timeline-proposal-roadmap.md).
 
 ### Roles
 - **Project Officer (PO)**: may edit only assigned projects; maintains their own private Draft; **Save** keeps their personal draft; **Save & request approval** → PendingApproval (if none already pending).
@@ -184,7 +262,7 @@ The workflow and page descriptions below provide context; they do not override t
 - **Edit timeline**:
   - The default view focuses on the current and future stages. Completed and skipped stages are collapsed under **Show completed and skipped stages** because historical planned dates do not affect record completeness.
   - **Durations**: Calculate → writes to Draft StagePlans and shows a preview of the resulting exact dates beneath each input.
-  - **Exact**: direct edits to Draft StagePlans. The current-stage planned completion/PDC is operationally important but optional; missing PDC warrants a warning/nudge, not a block. Future-stage dates are optional.
+  - **Exact**: direct edits to Draft StagePlans. The current-stage PDC is operationally important but optional; missing PDC warrants a warning/nudge, not a block. Future-stage dates are optional.
   - **Save** keeps your private draft; **Save & request** is blocked with a warning while another submission is PendingApproval
   - Durations honour `ProjectScheduleSettings` (anchor date, weekend/holiday policy, next-stage start rules) and populate `ProjectPlanDuration` rows for future reuse.
 - **Review** (HoD):
@@ -209,7 +287,7 @@ The same policy controls validation, direct application, approval decisions, pre
 
 ### Actual-date editing and backfill
 
-Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition.
+Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. The current editor and completion backfill paths publish authorised PO corrections directly; those are recorded implementation deviations from rules 22-24, which require PO corrections to be proposed for HoD approval.
 
 ### Project Officer projected lifecycle
 
