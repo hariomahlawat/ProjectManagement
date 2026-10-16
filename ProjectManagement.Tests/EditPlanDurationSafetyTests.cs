@@ -27,6 +27,70 @@ public class EditPlanDurationSafetyTests
     [Theory]
     [InlineData("HoD", null)]
     [InlineData("HoD", 0)]
+    [InlineData("Admin", null)]
+    [InlineData("Admin", 0)]
+    public async Task LeadingClearedStage_DurationApplyAndExactRoundTripKeepLiveAndDraftAligned(string role, int? leadingDuration)
+    {
+        await using var f = await Fixture.CreateAsync(role, "Calculate");
+        var fs = await f.Db.ProjectStages.SingleAsync();
+        fs.Status = StageStatus.Skipped;
+        f.Page.Input.Rows[0].DurationDays = leadingDuration;
+        f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
+        f.Db.StageTemplates.AddRange(
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.IPA, Name = "IPA", Sequence = 20 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.SOW, Name = "SOW", Sequence = 30 });
+        f.Page.Input.Rows.AddRange(new[]
+        {
+            new PlanEditInputRow { Code = StageCodes.IPA, Name = "IPA", DurationDays = 2 },
+            new PlanEditInputRow { Code = StageCodes.SOW, Name = "SOW", DurationDays = 2 }
+        });
+        await f.Db.SaveChangesAsync();
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        var draftIpa = await f.Db.StagePlans.SingleAsync(s => s.StageCode == StageCodes.IPA);
+        Assert.Equal(new DateOnly(2026, 10, 19), draftIpa.PlannedStart);
+        // Calculate is still non-authoritative, including for the skipped FS.
+        Assert.Equal(new DateOnly(2024, 1, 1), (await f.Db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.FS)).PlannedStart);
+        f.Page.Input.Action = "SaveChanges";
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        f.Db.ChangeTracker.Clear();
+        var live = await f.Db.ProjectStages.ToDictionaryAsync(s => s.StageCode);
+        Assert.Equal(new DateOnly(2026, 10, 19), live[StageCodes.IPA].PlannedStart);
+        Assert.Equal(new DateOnly(2026, 10, 20), live[StageCodes.IPA].PlannedDue);
+        Assert.Equal(new DateOnly(2026, 10, 21), live[StageCodes.SOW].PlannedStart);
+        Assert.Equal(new DateOnly(2026, 10, 22), live[StageCodes.SOW].PlannedDue);
+        var view = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        foreach (var code in new[] { StageCodes.IPA, StageCodes.SOW })
+        {
+            var preview = view.Durations.Rows.Single(r => r.Code == code);
+            var exact = view.Exact.Rows.Single(r => r.Code == code);
+            Assert.Equal(live[code].PlannedStart, preview.PreviewStart);
+            Assert.Equal(live[code].PlannedDue, preview.PreviewDue);
+            Assert.Equal(live[code].PlannedStart, exact.PlannedStart);
+            Assert.Equal(live[code].PlannedDue, exact.PlannedDue);
+        }
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = view.Exact.Rows.Select(r => new PlanEditInputRow
+        {
+            Code = r.Code, Name = r.Name, PlannedStart = r.PlannedStart, PlannedDue = r.PlannedDue
+        }).ToList();
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        f.Db.ChangeTracker.Clear();
+        var afterExact = await f.Db.ProjectStages.ToDictionaryAsync(s => s.StageCode);
+        foreach (var code in new[] { StageCodes.IPA, StageCodes.SOW })
+        {
+            Assert.Equal(live[code].PlannedStart, afterExact[code].PlannedStart);
+            Assert.Equal(live[code].PlannedDue, afterExact[code].PlannedDue);
+        }
+        Assert.Null(afterExact[StageCodes.FS].PlannedStart);
+        Assert.Null(afterExact[StageCodes.FS].PlannedDue);
+        Assert.Equal(StageStatus.Skipped, afterExact[StageCodes.FS].Status);
+        Assert.Null(afterExact[StageCodes.FS].ActualStart);
+        Assert.Null(afterExact[StageCodes.FS].CompletedOn);
+    }
+
+    [Theory]
+    [InlineData("HoD", null)]
+    [InlineData("HoD", 0)]
     [InlineData("HoD", -1)]
     [InlineData("Admin", null)]
     [InlineData("Admin", 0)]

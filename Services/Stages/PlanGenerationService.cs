@@ -84,10 +84,10 @@ public sealed class PlanGenerationService
             .ToList();
 
         var cursor = settings.AnchorStart.Value;
+        var isFirstStage = true;
 
-        for (var i = 0; i < orderedStages.Count; i++)
+        foreach (var stage in orderedStages)
         {
-            var stage = orderedStages[i];
             if (string.IsNullOrWhiteSpace(stage.StageCode))
             {
                 continue;
@@ -110,7 +110,7 @@ public sealed class PlanGenerationService
 
             stage.SortOrder = ResolveSortOrder(stage.StageCode, durationMap, templateSequence);
 
-            var start = i == 0
+            var start = isFirstStage
                 ? cursor
                 : settings.NextStageStartPolicy == NextStageStartPolicies.SameDay
                     ? cursor
@@ -122,6 +122,7 @@ public sealed class PlanGenerationService
             stage.PlannedDue = end;
 
             cursor = end;
+            isFirstStage = false;
         }
 
         await _db.SaveChangesAsync(ct);
