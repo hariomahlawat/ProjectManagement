@@ -67,17 +67,20 @@ public class EditPlanModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
     {
+        if (IsAutosaveRequest && !string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        {
+            return AutosaveFailure("Autosave is only supported for Duration working inputs.", 400);
+        }
+
         if (id != Input.ProjectId)
         {
-            TempData["Error"] = "Unable to process the request. Please reload and try again.";
-            TempData["OpenOffcanvas"] = "plan-edit";
-            return RedirectToPage("/Projects/Overview", new { id });
+            return RejectPlanRequest(id, "Unable to process the request. Please reload and try again.");
         }
 
         var userId = _userContext.UserId;
         if (string.IsNullOrEmpty(userId))
         {
-            return Forbid();
+            return IsAutosaveRequest ? AutosaveFailure("You are not authorised to edit this plan.", 403) : Forbid();
         }
 
         var principal = _userContext.User;
@@ -91,7 +94,7 @@ public class EditPlanModel : PageModel
 
         if (project is null)
         {
-            return NotFound();
+            return IsAutosaveRequest ? AutosaveFailure("The project was not found.", 404) : NotFound();
         }
 
         var workflowVersion = project.WorkflowVersion;
@@ -102,7 +105,7 @@ public class EditPlanModel : PageModel
         if (!isAdmin && !isProjectsPo && !isProjectsHod)
         {
             _logger.LogWarning("User {UserId} attempted to edit plan for project {ProjectId} without permission.", userId, id);
-            return Forbid();
+            return IsAutosaveRequest ? AutosaveFailure("You are not authorised to edit this plan.", 403) : Forbid();
         }
 
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
@@ -380,11 +383,18 @@ public class EditPlanModel : PageModel
 
     private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion, bool canDirectApply)
     {
+        var intent = ParseDurationIntent(Input.Action);
+        if (intent is null)
+        {
+            return RejectPlanRequest(id, "Choose a valid Duration planner action.");
+        }
+        // Authority permits explicit publication; it never upgrades working intent.
+        if (intent == DurationIntent.Apply && !canDirectApply)
+        {
+            return Forbid();
+        }
+        var submitForApproval = intent == DurationIntent.Submit;
         var action = NormalizeAction(Input.Action);
-        var calculateOnly = string.Equals(action, PlanEditActions.Calculate, StringComparison.OrdinalIgnoreCase);
-        var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
-        var saveDraft = string.Equals(action, PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) ||
-                        (!calculateOnly && !submitForApproval);
 
         // SECTION: Optional stage aggregation
         var optionalStageQuery = _db.StageTemplates
@@ -460,6 +470,19 @@ public class EditPlanModel : PageModel
             return RedirectWithValidationErrors(id);
         }
 
+        PlanVersion? draft = null;
+        if (intent != DurationIntent.Apply)
+        {
+            try
+            {
+                draft = await _planDraft.CreateOrGetDraftAsync(id, ct);
+            }
+            catch (PlanDraftLockedException ex)
+            {
+                return RejectPlanRequest(id, ex.Message, 409);
+            }
+        }
+
         var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
         if (settings is null)
         {
@@ -520,10 +543,15 @@ public class EditPlanModel : PageModel
             ConnectionStringHasher.Hash(
                 _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null));
 
-        if (canDirectApply)
+        if (intent == DurationIntent.Apply)
         {
             await EnsureProjectStagesExistAsync(id, rows.Select(r => r.Code), ct);
             await _planGeneration.GenerateAsync(id, ct);
+            var workingDraft = await _planDraft.GetMyDraftAsync(id, ct);
+            if (workingDraft is not null)
+            {
+                await _planGeneration.GenerateDraftAsync(id, workingDraft.Id, ct);
+            }
 
             await _audit.LogAsync(
                 "Projects.PlanGeneratedFromDurations",
@@ -538,22 +566,10 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        PlanVersion draft;
-        try
-        {
-            draft = await _planDraft.CreateOrGetDraftAsync(id, ct);
-        }
-        catch (PlanDraftLockedException ex)
-        {
-            TempData["Error"] = ex.Message;
-            TempData["OpenOffcanvas"] = "plan-edit";
-            return RedirectToPage("/Projects/Overview", new { id });
-        }
-
         var pncApplicable = durationMap.TryGetValue(StageCodes.PNC, out var pncRow) &&
             pncRow.DurationDays.GetValueOrDefault() > 0;
 
-        draft.PncApplicable = pncApplicable;
+        draft!.PncApplicable = pncApplicable;
         await _db.SaveChangesAsync(ct);
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
 
@@ -600,6 +616,11 @@ public class EditPlanModel : PageModel
                 ["Action"] = action
             });
 
+        if (IsAutosaveRequest)
+        {
+            return new JsonResult(new { ok = true, savedAt = DateTimeOffset.UtcNow });
+        }
+
         if (submitForApproval)
         {
             TempData["Flash"] = "Plan submitted for HoD review.";
@@ -608,11 +629,11 @@ public class EditPlanModel : PageModel
         {
             TempData["OpenOffcanvas"] = "plan-edit";
 
-            if (saveDraft)
+            if (intent is DurationIntent.SaveDraft or DurationIntent.Autosave)
             {
                 TempData["Flash"] = "Draft saved.";
             }
-            else if (calculateOnly)
+            else if (intent == DurationIntent.Calculate)
             {
                 TempData["Flash"] = "Draft recalculated.";
             }
@@ -633,13 +654,43 @@ public class EditPlanModel : PageModel
             .Where(message => !string.IsNullOrWhiteSpace(message))
             .ToArray();
 
-        TempData["Error"] = messages.Length > 0
+        return RejectPlanRequest(projectId, messages.Length > 0
             ? string.Join(" ", messages)
-            : "Please correct the highlighted errors and try again.";
+            : "Please correct the highlighted errors and try again.", errors: messages);
+    }
 
+    private bool IsAutosaveRequest =>
+        string.Equals(NormalizeAction(Input.Action), PlanEditActions.Autosave, StringComparison.OrdinalIgnoreCase) ||
+        // Keep cached clients using AJAX SaveDraft safe during rollout as well.
+        (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase) &&
+         string.Equals(NormalizeAction(Input.Action), PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) &&
+         string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase));
+
+    private static JsonResult AutosaveFailure(string message, int statusCode, string[]? errors = null) =>
+        new(new { ok = false, message, errors = errors ?? new[] { message } }) { StatusCode = statusCode };
+
+    private IActionResult RejectPlanRequest(int projectId, string message, int statusCode = 400, string[]? errors = null)
+    {
+        if (IsAutosaveRequest)
+        {
+            return AutosaveFailure(message, statusCode, errors);
+        }
+        TempData["Error"] = message;
         TempData["OpenOffcanvas"] = "plan-edit";
         return RedirectToPage("/Projects/Overview", new { id = projectId });
     }
+
+    private enum DurationIntent { Autosave, SaveDraft, Calculate, Submit, Apply }
+
+    private static DurationIntent? ParseDurationIntent(string? action) => NormalizeAction(action).ToUpperInvariant() switch
+    {
+        "AUTOSAVE" => DurationIntent.Autosave,
+        "" or "SAVEDRAFT" => DurationIntent.SaveDraft,
+        "CALCULATE" => DurationIntent.Calculate,
+        "SUBMIT" => DurationIntent.Submit,
+        "SAVECHANGES" => DurationIntent.Apply,
+        _ => null
+    };
 
     private static string NormalizeAction(string? action) => string.IsNullOrWhiteSpace(action)
         ? string.Empty
@@ -788,9 +839,36 @@ public class EditPlanModel : PageModel
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
 
-        if (changes.Count > 0)
+        // Duration working previews also feed Exact mode. Keep this actor's
+        // existing draft consistent with their explicit direct save, so reload
+        // cannot mask the newly published dates with an older preview.
+        var workingDraft = await _planDraft.GetMyDraftAsync(projectId, cancellationToken);
+        if (workingDraft is not null)
+        {
+            foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Code)))
+            {
+                var draftStage = workingDraft.StagePlans.FirstOrDefault(stage =>
+                    string.Equals(stage.StageCode, row.Code, StringComparison.OrdinalIgnoreCase));
+                if (draftStage is null)
+                {
+                    draftStage = new StagePlan { PlanVersionId = workingDraft.Id, StageCode = row.Code };
+                    workingDraft.StagePlans.Add(draftStage);
+                }
+                draftStage.PlannedStart = row.PlannedStart;
+                draftStage.PlannedDue = row.PlannedDue;
+                draftStage.DurationDays = CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue);
+            }
+            workingDraft.PncApplicable = workingDraft.StagePlans.Any(stage =>
+                string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase) &&
+                stage.PlannedStart.HasValue && stage.PlannedDue.HasValue);
+        }
+        if (changes.Count > 0 || workingDraft is not null)
         {
             await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (changes.Count > 0)
+        {
             var userName = principal.Identity?.Name;
 
             var data = new Dictionary<string, string?>

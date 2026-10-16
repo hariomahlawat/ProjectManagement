@@ -2,6 +2,7 @@ namespace ProjectManagement.ViewModels;
 
 public static class PlanEditActions
 {
+    public const string Autosave = "Autosave";
     public const string Calculate = "Calculate";
     public const string SaveDraft = "SaveDraft";
     public const string SaveChanges = "SaveChanges";
