@@ -24,6 +24,189 @@ namespace ProjectManagement.Tests;
 
 public class EditPlanDurationSafetyTests
 {
+    public static IEnumerable<object?[]> AllowedPlannerActions()
+    {
+        foreach (var role in new[] { "Project Officer", "HoD", "Admin" })
+        {
+            foreach (var action in new[] { "Autosave", "SaveDraft", "Calculate", role == "Project Officer" ? "Submit" : "SaveChanges" })
+                yield return new object?[] { role, PlanEditorModes.Durations, action };
+            foreach (var action in role == "Project Officer" ? new[] { "SaveDraft", "Submit" } : new[] { "SaveChanges" })
+                yield return new object?[] { role, PlanEditorModes.Exact, action };
+        }
+        yield return new object?[] { "Project Officer", PlanEditorModes.Exact, " savedraft " };
+        yield return new object?[] { "HoD", PlanEditorModes.Durations, " savechanges " };
+        yield return new object?[] { "Admin", PlanEditorModes.Durations, "aUtOsAvE" };
+    }
+
+    [Theory]
+    [MemberData(nameof(AllowedPlannerActions))]
+    public async Task AllowedActionMatrix_PreservesPublicationIntent(string role, string mode, string action)
+    {
+        await using var f = await Fixture.CreateAsync(role, action);
+        await SeedRecognizablePlannerStateAsync(f);
+        f.Page.Input.Mode = mode;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        var result = await f.Page.OnPostAsync(1, default);
+        var normalizedAction = action.Trim().ToUpperInvariant();
+        if (normalizedAction == "AUTOSAVE") AssertJson(result, 200, true);
+        else Assert.IsType<RedirectToPageResult>(result);
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        f.Db.ChangeTracker.Clear();
+        var live = await f.Db.ProjectStages.SingleAsync();
+        var publishes = normalizedAction == "SAVECHANGES";
+        Assert.Equal(publishes ? new DateOnly(2026, 10, 19) : new DateOnly(2024, 1, 1), live.PlannedStart);
+        Assert.Equal(publishes ? new DateOnly(2026, 10, 21) : new DateOnly(2024, 1, 3), live.PlannedDue);
+        Assert.Equal(StageStatus.NotStarted, live.Status);
+        var plan = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.Equal(normalizedAction == "SUBMIT" ? PlanVersionStatus.PendingApproval : PlanVersionStatus.Draft, plan.Status);
+        Assert.Equal(new DateOnly(2026, 10, 19), Assert.Single(plan.StagePlans).PlannedStart);
+        Assert.Equal(new DateOnly(2026, 10, 21), Assert.Single(plan.StagePlans).PlannedDue);
+        if (normalizedAction == "SUBMIT")
+        {
+            Assert.Equal(f.User.UserId, plan.SubmittedByUserId);
+            Assert.NotNull(plan.SubmittedOn);
+        }
+        else
+        {
+            Assert.Null(plan.SubmittedByUserId);
+            Assert.Null(plan.SubmittedOn);
+        }
+    }
+
+    public static IEnumerable<object?[]> RejectedPlannerActions()
+    {
+        foreach (var role in new[] { "Project Officer", "HoD", "Admin" })
+        foreach (var mode in new[] { PlanEditorModes.Durations, PlanEditorModes.Exact })
+        {
+            var allowed = mode == PlanEditorModes.Durations
+                ? new[] { "Autosave", "SaveDraft", "Calculate", role == "Project Officer" ? "Submit" : "SaveChanges" }
+                : role == "Project Officer" ? new[] { "SaveDraft", "Submit" } : new[] { "SaveChanges" };
+            foreach (var action in new string?[] { "Autosave", "SaveDraft", "Calculate", "Submit", "SaveChanges", "Unknown", null, "", " \t ", "1", "Apply" })
+                if (!allowed.Contains(action)) yield return new object?[] { role, mode, action };
+        }
+        foreach (var role in new[] { "Project Officer", "HoD", "Admin" })
+        foreach (var mode in new string?[] { "Unknown", "", null })
+            yield return new object?[] { role, mode, role == "Project Officer" ? "SaveDraft" : "SaveChanges" };
+    }
+
+    [Theory]
+    [MemberData(nameof(RejectedPlannerActions))]
+    public async Task RejectedActionMatrix_PreservesAllSeededPlannerState(string role, string? mode, string? action)
+    {
+        await using var f = await Fixture.CreateAsync(role, action);
+        await SeedRecognizablePlannerStateAsync(f);
+        f.Page.Input.Mode = mode!;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        var before = await PlannerStateAsync(f.Db);
+        var result = await f.Page.OnPostAsync(1, default);
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        AssertRejectedPlannerRequest(f.Page, result, action);
+    }
+
+    [Theory]
+    [InlineData("HoD", PlanEditorModes.Durations, "Submit")]
+    [InlineData("Admin", PlanEditorModes.Durations, "Submit")]
+    [InlineData("HoD", PlanEditorModes.Exact, "SaveDraft")]
+    [InlineData("Admin", PlanEditorModes.Exact, "Submit")]
+    [InlineData("Project Officer", PlanEditorModes.Exact, "Unknown")]
+    [InlineData("Project Officer", PlanEditorModes.Durations, null)]
+    public async Task RejectedAction_CannotCreateDraftBeforeValidation(string role, string mode, string? action)
+    {
+        await using var f = await Fixture.CreateAsync(role, action);
+        await SeedRecognizablePlannerStateAsync(f, ownDraft: false);
+        f.Page.Input.Mode = mode;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        var before = await PlannerStateAsync(f.Db);
+        var result = await f.Page.OnPostAsync(1, default);
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        AssertRejectedPlannerRequest(f.Page, result, action);
+    }
+
+    [Theory]
+    [InlineData("HoD", PlanEditorModes.Durations)]
+    [InlineData("Admin", PlanEditorModes.Durations)]
+    [InlineData("HoD", PlanEditorModes.Exact)]
+    [InlineData("Admin", PlanEditorModes.Exact)]
+    public async Task DirectRoleAlsoAssignedAsPo_CannotSubmit(string role, string mode)
+    {
+        await using var f = await Fixture.CreateAsync(role, "Submit");
+        ((ClaimsIdentity)f.User.User.Identity!).AddClaim(new Claim(ClaimTypes.Role, "Project Officer"));
+        (await f.Db.Projects.SingleAsync()).LeadPoUserId = f.User.UserId;
+        await f.Db.SaveChangesAsync();
+        await SeedRecognizablePlannerStateAsync(f);
+        f.Page.Input.Mode = mode;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 21);
+        var before = await PlannerStateAsync(f.Db);
+        var result = await f.Page.OnPostAsync(1, default);
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        AssertRejectedPlannerRequest(f.Page, result, "Submit");
+    }
+
+    private static void AssertRejectedPlannerRequest(EditPlanModel page, IActionResult result, string? action)
+    {
+        if (string.Equals(action?.Trim(), "Autosave", StringComparison.OrdinalIgnoreCase))
+        {
+            var json = AssertJson(result, 400, false);
+            Assert.NotEmpty(json.GetProperty("errors").EnumerateArray());
+        }
+        else
+        {
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+            Assert.Equal(1, redirect.RouteValues!["id"]);
+            Assert.False(string.IsNullOrWhiteSpace(page.TempData["Error"] as string));
+            Assert.Equal("plan-edit", page.TempData["OpenOffcanvas"]);
+        }
+    }
+
+    private static async Task SeedRecognizablePlannerStateAsync(Fixture f, bool ownDraft = true)
+    {
+        f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1, AnchorStart = new DateOnly(2026, 10, 5), IncludeWeekends = true,
+            SkipHolidays = true, NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.FS, DurationDays = 9, SortOrder = 17 });
+        var owner = ownDraft ? f.User.UserId! : "previous-owner";
+        var plan = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 7, OwnerUserId = owner, CreatedByUserId = owner,
+            CreatedOn = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero),
+            Status = ownDraft ? PlanVersionStatus.Draft : PlanVersionStatus.Approved,
+            AnchorStageCode = StageCodes.FS, AnchorDate = new DateOnly(2026, 10, 5),
+            PncApplicable = false, SkipWeekends = false, TransitionRule = PlanTransitionRule.SameDay
+        };
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.FS, PlannedStart = new DateOnly(2026, 10, 6), PlannedDue = new DateOnly(2026, 10, 8), DurationDays = 3 });
+        f.Db.PlanVersions.Add(plan);
+        await f.Db.SaveChangesAsync();
+        f.Db.ChangeTracker.Clear();
+    }
+
+    private static async Task<string> PlannerStateAsync(ApplicationDbContext db)
+    {
+        db.ChangeTracker.Clear();
+        return JsonSerializer.Serialize(new
+        {
+            Settings = await db.ProjectScheduleSettings.AsNoTracking().OrderBy(s => s.ProjectId)
+                .Select(s => new { s.ProjectId, s.AnchorStart, s.IncludeWeekends, s.SkipHolidays, s.NextStageStartPolicy }).ToListAsync(),
+            Durations = await db.ProjectPlanDurations.AsNoTracking().OrderBy(d => d.Id)
+                .Select(d => new { d.Id, d.ProjectId, d.StageCode, d.DurationDays, d.SortOrder }).ToListAsync(),
+            StagePlans = await db.StagePlans.AsNoTracking().OrderBy(s => s.Id)
+                .Select(s => new { s.Id, s.PlanVersionId, s.StageCode, s.PlannedStart, s.PlannedDue, s.DurationDays }).ToListAsync(),
+            Stages = await db.ProjectStages.AsNoTracking().OrderBy(s => s.Id)
+                .Select(s => new { s.Id, s.ProjectId, s.StageCode, s.PlannedStart, s.PlannedDue, s.Status, s.ActualStart, s.CompletedOn, s.SortOrder }).ToListAsync(),
+            Plans = await db.PlanVersions.AsNoTracking().OrderBy(p => p.Id)
+                .Select(p => new { p.Id, p.ProjectId, p.VersionNo, p.Title, p.OwnerUserId, p.CreatedByUserId, p.CreatedOn, p.Status,
+                    p.SubmittedByUserId, p.SubmittedOn, p.ApprovedByUserId, p.ApprovedOn, p.RejectedByUserId, p.RejectedOn, p.RejectionNote,
+                    p.AnchorStageCode, p.AnchorDate, p.SkipWeekends, p.TransitionRule, p.PncApplicable }).ToListAsync(),
+            ApprovalLogs = await db.PlanApprovalLogs.AsNoTracking().OrderBy(l => l.Id).Select(l => l.Id).ToListAsync()
+        });
+    }
+
     [Theory]
     [InlineData("HoD", null)]
     [InlineData("HoD", 0)]
@@ -336,15 +519,19 @@ public class EditPlanDurationSafetyTests
     public async Task PoCannotForgeDirectSaveIntent()
     {
         await using var f = await Fixture.CreateAsync("Project Officer", "SaveChanges");
-        Assert.IsType<ForbidResult>(await f.Page.OnPostAsync(1, default));
+        AssertRejectedPlannerRequest(f.Page, await f.Page.OnPostAsync(1, default), "SaveChanges");
         Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
         await f.AssertLiveDatesUnchangedAsync();
     }
 
-    [Fact]
-    public async Task LegacyAjaxSaveDraft_DoesNotDirectApplyAndReturnsJson()
+    [Theory]
+    [InlineData("Project Officer")]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    public async Task LegacyAjaxSaveDraft_DoesNotDirectApplyAndReturnsJson(string role)
     {
-        await using var f = await Fixture.CreateAsync("HoD", "SaveDraft");
+        await using var f = await Fixture.CreateAsync(role, "SaveDraft");
+        await SeedRecognizablePlannerStateAsync(f);
         f.Page.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
         AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
         await f.AssertLiveDatesUnchangedAsync();
@@ -406,7 +593,7 @@ public class EditPlanDurationSafetyTests
 
         private Fixture(ApplicationDbContext db, EditPlanModel page, UserContext user) => (Db, Page, User) = (db, page, user);
 
-        public static async Task<Fixture> CreateAsync(string role, string action)
+        public static async Task<Fixture> CreateAsync(string role, string? action)
         {
             var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

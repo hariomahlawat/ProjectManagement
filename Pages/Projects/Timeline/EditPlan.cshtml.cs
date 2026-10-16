@@ -108,12 +108,20 @@ public class EditPlanModel : PageModel
             return IsAutosaveRequest ? AutosaveFailure("You are not authorised to edit this plan.", 403) : Forbid();
         }
 
-        if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        // Validate request intent before either handler can retrieve/create a draft
+        // or change working inputs, official dates, or approval state.
+        var intent = ParsePlanIntent(Input.Action);
+        if (intent is null || !IsAllowedPlanIntent(Input.Mode, canDirectApply, intent.Value))
         {
-            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion, canDirectApply);
+            return RejectPlanRequest(id, "Choose a valid planner action for your role and mode.");
         }
 
-        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion, canDirectApply);
+        if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion, intent.Value);
+        }
+
+        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion, canDirectApply, intent.Value);
     }
 
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
@@ -201,7 +209,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion, bool canDirectApply)
+    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion, bool canDirectApply, PlanIntent intent)
     {
         var rows = Input.Rows ??= new List<PlanEditInputRow>();
 
@@ -227,13 +235,12 @@ public class EditPlanModel : PageModel
 
         var workingCalendar = await BuildWorkingCalendarAsync(id, rows, cancellationToken);
 
-        var action = NormalizeAction(Input.Action);
         if (canDirectApply)
         {
             return await HandleExactDirectSaveAsync(id, userId, principal, rows, workingCalendar, cancellationToken);
         }
 
-        var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
+        var submitForApproval = intent == PlanIntent.Submit;
 
         PlanVersion draft;
         try
@@ -381,19 +388,9 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion, bool canDirectApply)
+    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion, PlanIntent intent)
     {
-        var intent = ParseDurationIntent(Input.Action);
-        if (intent is null)
-        {
-            return RejectPlanRequest(id, "Choose a valid Duration planner action.");
-        }
-        // Authority permits explicit publication; it never upgrades working intent.
-        if (intent == DurationIntent.Apply && !canDirectApply)
-        {
-            return Forbid();
-        }
-        var submitForApproval = intent == DurationIntent.Submit;
+        var submitForApproval = intent == PlanIntent.Submit;
         var action = NormalizeAction(Input.Action);
 
         // SECTION: Optional stage aggregation
@@ -471,7 +468,7 @@ public class EditPlanModel : PageModel
         }
 
         PlanVersion? draft = null;
-        if (intent != DurationIntent.Apply)
+        if (intent != PlanIntent.SaveChanges)
         {
             try
             {
@@ -546,7 +543,7 @@ public class EditPlanModel : PageModel
         var pncApplicable = durationMap.TryGetValue(StageCodes.PNC, out var pncRow) &&
             pncRow.DurationDays.GetValueOrDefault() > 0;
 
-        if (intent == DurationIntent.Apply)
+        if (intent == PlanIntent.SaveChanges)
         {
             await EnsureProjectStagesExistAsync(id, rows.Select(r => r.Code), ct);
             await _planGeneration.GenerateAsync(id, ct);
@@ -630,11 +627,11 @@ public class EditPlanModel : PageModel
         {
             TempData["OpenOffcanvas"] = "plan-edit";
 
-            if (intent is DurationIntent.SaveDraft or DurationIntent.Autosave)
+            if (intent is PlanIntent.SaveDraft or PlanIntent.Autosave)
             {
                 TempData["Flash"] = "Draft saved.";
             }
-            else if (intent == DurationIntent.Calculate)
+            else if (intent == PlanIntent.Calculate)
             {
                 TempData["Flash"] = "Draft recalculated.";
             }
@@ -681,17 +678,31 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id = projectId });
     }
 
-    private enum DurationIntent { Autosave, SaveDraft, Calculate, Submit, Apply }
+    private enum PlanIntent { Autosave, SaveDraft, Calculate, Submit, SaveChanges }
 
-    private static DurationIntent? ParseDurationIntent(string? action) => NormalizeAction(action).ToUpperInvariant() switch
+    private static PlanIntent? ParsePlanIntent(string? action) => NormalizeAction(action).ToUpperInvariant() switch
     {
-        "AUTOSAVE" => DurationIntent.Autosave,
-        "" or "SAVEDRAFT" => DurationIntent.SaveDraft,
-        "CALCULATE" => DurationIntent.Calculate,
-        "SUBMIT" => DurationIntent.Submit,
-        "SAVECHANGES" => DurationIntent.Apply,
+        "AUTOSAVE" => PlanIntent.Autosave,
+        "SAVEDRAFT" => PlanIntent.SaveDraft,
+        "CALCULATE" => PlanIntent.Calculate,
+        "SUBMIT" => PlanIntent.Submit,
+        "SAVECHANGES" => PlanIntent.SaveChanges,
         _ => null
     };
+
+    private static bool IsAllowedPlanIntent(string? mode, bool canDirectApply, PlanIntent intent)
+    {
+        if (string.Equals(mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        {
+            return intent is PlanIntent.Autosave or PlanIntent.SaveDraft or PlanIntent.Calculate ||
+                intent == (canDirectApply ? PlanIntent.SaveChanges : PlanIntent.Submit);
+        }
+
+        return string.Equals(mode, PlanEditorModes.Exact, StringComparison.OrdinalIgnoreCase) &&
+            (canDirectApply
+                ? intent == PlanIntent.SaveChanges
+                : intent is PlanIntent.SaveDraft or PlanIntent.Submit);
+    }
 
     private static string NormalizeAction(string? action) => string.IsNullOrWhiteSpace(action)
         ? string.Empty
