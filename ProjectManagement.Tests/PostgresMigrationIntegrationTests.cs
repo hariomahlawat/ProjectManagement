@@ -86,9 +86,6 @@ public sealed class PostgresMigrationIntegrationTests
             CancellationToken.None);
         await SeedLegacyProjectStageConstraintDriftAsync(applicationDb);
 
-        await migrator.MigrateAsync("20261216230000_AllowDuplicateActivityTitles", CancellationToken.None);
-        var expectedPncApplicability = await SeedPreApplicabilityMigrationAsync(applicationDb);
-
         var results = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
             applicationDb,
             NullLogger.Instance,
@@ -130,6 +127,13 @@ public sealed class PostgresMigrationIntegrationTests
         Assert.Equal(
             mediaDb.Database.GetMigrations().Last(),
             results[1].LatestAppliedMigration);
+
+        // Keep the original startup-boundary/legacy-constraint regression intact.
+        // Then exercise only the new additive migration's down/up boundary using
+        // legacy applicability fixtures in this guarded disposable database.
+        await migrator.MigrateAsync("20261216230000_AllowDuplicateActivityTitles", CancellationToken.None);
+        var expectedPncApplicability = await SeedPreApplicabilityMigrationAsync(applicationDb);
+        await migrator.MigrateAsync(cancellationToken: CancellationToken.None);
 
         foreach (var (projectId, expected) in expectedPncApplicability)
         {
