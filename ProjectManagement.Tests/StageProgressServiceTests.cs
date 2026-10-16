@@ -700,6 +700,42 @@ public class StageProgressServiceTests
         Assert.Equal(StageStatus.Completed, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB)).Status);
     }
 
+    public static IEnumerable<object[]> EasCompletionCases()
+    {
+        foreach (var version in new[] { ProcurementWorkflow.VersionV1, ProcurementWorkflow.VersionV2 })
+        foreach (var applicable in new[] { true, false })
+        foreach (var status in Enum.GetValues<StageStatus>())
+            yield return new object[] { version, applicable, status };
+    }
+
+    [Theory]
+    [MemberData(nameof(EasCompletionCases))]
+    public async Task EasCompletion_CannotLeaveAnApplicableOptionalPredecessorUnresolved(string version, bool applicable, StageStatus pncStatus)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, pncStatus), (StageCodes.EAS, StageStatus.InProgress));
+        var project = await db.Projects.SingleAsync();
+        project.PncApplicable = applicable;
+        project.WorkflowVersion = version;
+        db.StageTemplates.Add(new StageTemplate { Version = version, Code = StageCodes.PNC, Name = "PNC", Sequence = 80, Optional = true });
+        var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        if (pncStatus is StageStatus.InProgress or StageStatus.Blocked or StageStatus.Completed)
+            pnc.ActualStart = new DateOnly(2024, 6, 7);
+        if (pncStatus == StageStatus.Completed) pnc.CompletedOn = new DateOnly(2024, 6, 8);
+        (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.EAS)).ActualStart = new DateOnly(2024, 6, 10);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, new TestClock(new DateTimeOffset(2024, 6, 16, 0, 0, 0, TimeSpan.Zero)));
+        var blocked = applicable && pncStatus is StageStatus.InProgress or StageStatus.Blocked;
+        if (blocked)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateStageStatusAsync(1, StageCodes.EAS, StageStatus.Completed, new DateOnly(2024, 6, 15), "tester"));
+        else
+            await service.UpdateStageStatusAsync(1, StageCodes.EAS, StageStatus.Completed, new DateOnly(2024, 6, 15), "tester");
+        db.ChangeTracker.Clear();
+        Assert.Equal(blocked ? StageStatus.InProgress : StageStatus.Completed, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.EAS)).Status);
+        Assert.Equal(applicable && pncStatus == StageStatus.NotStarted ? StageStatus.Skipped : pncStatus,
+            (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC)).Status);
+    }
+
     private static void AddPublishedIpa(ApplicationDbContext db, DateOnly completion)
     {
         db.ArppIssues.Add(new ArppIssue

@@ -321,6 +321,10 @@ public class StageProgressService
             stage.AutoCompletedFromCode = null;
             stage.RequiresBackfill = false;
         }
+        else if (!hasPublishedIpaAuthority && isOptional && stage.Status is not StageStatus.Completed and not StageStatus.Skipped)
+        {
+            throw new InvalidOperationException($"Complete or skip {stage.StageCode} before completing {triggeredBy}.");
+        }
         else if (!hasPublishedIpaAuthority && !isOptional && stage.Status is not StageStatus.Completed and not StageStatus.Skipped)
         {
             stage.Status = StageStatus.Completed;
