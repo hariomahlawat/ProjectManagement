@@ -4,7 +4,7 @@
     return;
   }
 
-  const forms = offcanvas.querySelectorAll('form[action$="/Projects/Timeline/EditPlan"]');
+  const forms = offcanvas.querySelectorAll('form[data-plan-edit-form]');
   const durationsForm = Array.from(forms).find((form) =>
     form.querySelector('input[name="Input.Mode"]')?.value === 'Durations');
   const projectIdInput = durationsForm?.querySelector('input[name="Input.ProjectId"]');

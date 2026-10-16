@@ -14,7 +14,7 @@ const jsonResponse = (data, options = {}) => ({
 });
 
 function setup(t, fetchResponse = () => jsonResponse({ ok: true, savedAt: '2026-10-16T10:00:00Z' })) {
-  const dom = new JSDOM(`<div id="offcanvasPlanEdit"><form action="/Projects/Timeline/EditPlan">
+  const dom = new JSDOM(`<div id="offcanvasPlanEdit"><form action="/Projects/Timeline/EditPlan/1" data-plan-edit-form>
     <input name="Input.Mode" value="Durations" type="hidden">
     <input name="Input.ProjectId" value="1" type="hidden">
     <input name="__RequestVerificationToken" value="test-token" type="hidden">
@@ -24,7 +24,16 @@ function setup(t, fetchResponse = () => jsonResponse({ ok: true, savedAt: '2026-
       <button type="submit" name="Input.Action" value="SaveDraft">Save draft</button>
       <button type="submit" name="Input.Action" value="SaveChanges">Save changes</button>
       <button type="submit" name="Input.Action" value="Submit">Save &amp; request approval</button>
-    </div></form></div>`, { url: 'https://prism.test/Projects/Overview/1', runScripts: 'outside-only' });
+    </div></form>
+    <form action="/Projects/Timeline/EditPlan/1" data-plan-edit-form id="exactPlanForm">
+      <input name="Input.Mode" value="Exact" type="hidden">
+      <input name="Input.ProjectId" value="1" type="hidden">
+      <button type="submit" name="Input.Action" value="SaveChanges">Save changes</button>
+    </form>
+    <form action="/Projects/Timeline/EditPlan/1?handler=DeleteDraft" id="discardPlanForm">
+      <input name="Input.ProjectId" value="1" type="hidden">
+      <button type="submit">Discard draft</button>
+    </form></div>`, { url: 'https://prism.test/Projects/Overview/1', runScripts: 'outside-only' });
   t.after(() => dom.window.close());
   const { window } = dom;
   const form = window.document.querySelector('form');
@@ -37,14 +46,17 @@ function setup(t, fetchResponse = () => jsonResponse({ ok: true, savedAt: '2026-
   window.fetch = async (url, options) => { calls.push({ url, options }); return fetchResponse(url, options); };
   // jsdom has no navigation. Observe successful controls at the native boundary.
   // A return to native submit() must lose the button action, just as it does in a browser.
-  form.submit = () => submissions.push(new window.FormData(form));
+  const allForms = window.document.querySelectorAll('form');
+  allForms.forEach((candidate) => {
+    candidate.submit = () => submissions.push(new window.FormData(candidate));
+  });
   window.eval(source);
-  form.addEventListener('submit', (event) => {
+  allForms.forEach((candidate) => candidate.addEventListener('submit', (event) => {
     if (!event.defaultPrevented) {
-      submissions.push(new window.FormData(form, event.submitter));
+      submissions.push(new window.FormData(candidate, event.submitter));
       event.preventDefault();
     }
-  });
+  }));
   return {
     window, form, calls, submissions, timers,
     status: () => window.document.getElementById('planSavedAt').textContent,
@@ -62,6 +74,41 @@ function setup(t, fetchResponse = () => jsonResponse({ ok: true, savedAt: '2026-
     click(action) { form.querySelector(`button[value="${action}"]`).click(); }
   };
 }
+
+test('routed Duration form initializes status and autosaves its entered values', async (t) => {
+  const h = setup(t);
+  assert.ok(h.window.document.getElementById('planSavedAt'));
+  h.input('7');
+  await h.autosave();
+  assert.equal(h.calls.length, 1);
+  assert.equal(new URL(h.calls[0].url).pathname, '/Projects/Timeline/EditPlan/1');
+  assert.equal(h.calls[0].options.body.get('Input.Mode'), 'Durations');
+  assert.equal(h.calls[0].options.body.get('Input.Rows[0].DurationDays'), '7');
+  assert.match(h.status(), /^Saved/);
+});
+
+test('marked Exact form also receives explicit submission protection', async (t) => {
+  const h = setup(t);
+  h.input();
+  const button = h.window.document.querySelector('#exactPlanForm button');
+  button.click();
+  button.click();
+  await h.autosave();
+  assert.equal(h.submissions.length, 1);
+  assert.equal(h.submissions[0].get('Input.Mode'), 'Exact');
+  assert.equal(h.submissions[0].get('Input.Action'), 'SaveChanges');
+  assert.equal(h.calls.length, 0);
+});
+
+test('unmarked discard form is not adopted by planner submit handling', async (t) => {
+  const h = setup(t);
+  const button = h.window.document.querySelector('#discardPlanForm button');
+  button.click();
+  button.click();
+  await tick();
+  assert.equal(h.submissions.length, 2, 'planner duplicate guard must not intercept an unrelated form');
+  assert.equal(h.calls.length, 0);
+});
 
 for (const action of ['Submit', 'Calculate', 'SaveDraft', 'SaveChanges']) {
   test(`duration ${action} preserves the clicked submitter and cancels pending autosave`, async (t) => {
