@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
@@ -19,6 +20,67 @@ namespace ProjectManagement.Tests;
 
 public class PlanDraftAndApprovalServiceTests
 {
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, true)]
+    public async Task Approve_UsesPncApplicabilityDespiteStaleRows(bool applicable, bool existingPnc, bool hasPncRow)
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Projects.Add(new Project { Id = 1, Name = "Excluded PNC", LeadPoUserId = "po-user" });
+        if (existingPnc)
+        {
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = 1, StageCode = StageCodes.PNC, Status = StageStatus.Completed,
+                PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 2),
+                ActualStart = new DateOnly(2025, 1, 1), CompletedOn = new DateOnly(2025, 1, 2)
+            });
+        }
+        db.ProjectStages.Add(new ProjectStage { ProjectId = 1, StageCode = StageCodes.TOT, Status = StageStatus.Skipped });
+        var plan = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 1, CreatedByUserId = "po-user", OwnerUserId = "po-user",
+            SubmittedByUserId = "po-user", Status = PlanVersionStatus.PendingApproval, PncApplicable = applicable
+        };
+        if (hasPncRow)
+        {
+            plan.StagePlans.Add(new StagePlan
+            {
+                StageCode = StageCodes.PNC, PlannedStart = new DateOnly(2026, 10, 19),
+                PlannedDue = new DateOnly(2026, 10, 20), DurationDays = 2
+            });
+        }
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.TOT, PlannedStart = new DateOnly(2026, 10, 21), PlannedDue = new DateOnly(2026, 10, 22) });
+        db.PlanVersions.Add(plan);
+        await db.SaveChangesAsync();
+        var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance,
+            new PlanSnapshotService(db), new NullPlanNotificationService());
+        Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+        db.ChangeTracker.Clear();
+        var pnc = await db.ProjectStages.SingleOrDefaultAsync(s => s.StageCode == StageCodes.PNC);
+        if (!existingPnc) Assert.Null(pnc);
+        else
+        {
+            Assert.NotNull(pnc);
+            Assert.Equal(applicable ? new DateOnly(2026, 10, 19) : (DateOnly?)null, pnc!.PlannedStart);
+            Assert.Equal(applicable ? new DateOnly(2026, 10, 20) : (DateOnly?)null, pnc.PlannedDue);
+            Assert.Equal(StageStatus.Completed, pnc.Status);
+            Assert.Equal(new DateOnly(2025, 1, 1), pnc.ActualStart);
+            Assert.Equal(new DateOnly(2025, 1, 2), pnc.CompletedOn);
+            var snapshot = await db.ProjectPlanSnapshotRows.SingleAsync(s => s.StageCode == StageCodes.PNC);
+            Assert.Equal(pnc.PlannedStart, snapshot.PlannedStart);
+            Assert.Equal(pnc.PlannedDue, snapshot.PlannedDue);
+        }
+        var tot = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.TOT);
+        Assert.Equal(StageStatus.Skipped, tot.Status);
+        Assert.Equal(new DateOnly(2026, 10, 21), tot.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 10, 22), tot.PlannedDue);
+        Assert.Equal(PlanVersionStatus.Approved, (await db.PlanVersions.SingleAsync()).Status);
+    }
+
     [Fact]
     public async Task CreateOrGetDraft_IsScopedToCurrentUser()
     {
