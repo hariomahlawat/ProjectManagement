@@ -192,7 +192,9 @@ This approval boundary covers both plan and actual facts. It does not replace th
 
 Every material revision must have a reviewable revision identity. Submitted content must not be mutated in place under the identity a HoD already reviewed. Earlier submitted revisions become **Superseded**, or an equivalent immutable historical state; withdrawn revisions are not actionable and remain auditable. Only the latest actionable submitted revision may be decided.
 
-For example, revision 1 proposing SOW Actual completion = 10 Oct becomes Superseded when revision 2 replaces it with 11 Oct. The HoD cannot approve revision 1 after revision 2 exists. A material revision makes the older reviewed content non-actionable even if the replacement still needs resubmission; editing must not leave the old revision silently approvable.
+For PO-originated timeline work, **latest is scoped to the project's active Timeline Change Set, not to an individual stage or change category**. A project has at most one active undecided PO Timeline Change Set. A new material revision carries forward every still-pending proposed change in that change set and adds, removes or corrects changes as required; the prior submitted revision is superseded as a whole. Do not keep independent parallel actionable PO proposal sequences for different stages or categories of the same project. A decided or withdrawn change set closes that revision lineage; later PO work starts a new change set against the then-current authoritative timeline.
+
+For example, revision 4 proposing IPA Actual completion = 19 Oct is awaiting review. If the PO then proposes SOW PDC = 05 Nov, revision 5 carries both still-pending changes. Revision 4 becomes Superseded and only revision 5 is actionable. Likewise, revision 1 proposing SOW Actual completion = 10 Oct becomes Superseded when revision 2 replaces it with 11 Oct. The HoD cannot approve an earlier revision after its successor exists. A material revision makes the older reviewed content non-actionable even if the replacement still needs resubmission; editing must not leave the old revision silently approvable.
 
 **Reject stale decisions, not PO editing.** If HoD opens revision N and the PO creates N+1 before a decision, approval **or rejection** against N must fail as stale with no authoritative mutation. Show: **A newer revision is available. Review the latest update before deciding.** The PO remains free to continue work. Decision processing must verify the exact actionable revision and validate its final proposed state against current authoritative facts before publication.
 
@@ -216,12 +218,15 @@ HoD review shows the revision, submitter and submitted time and approves/rejects
 
 ### 27. Target PO experience
 
-This is the target experience for later implementation, not a claim about current screens. The PO should understand **Plan** (what do we now expect?), **Actual progress** (what actually happened?) and **Update** (what do I want to change?), without having to understand storage/service names or a separate technical backfill workflow.
+This is the target experience for later implementation, not a claim about current screens. The PO should understand **Plan** (what do we now expect?), **Stage status** (what lifecycle state are we proposing?), **Actual dates** (what observed facts are being corrected?) and **Update** (what do I want to change?), without having to understand storage/service names or a separate technical backfill workflow.
 
-The primary stage action should be **Update**. Within it, distinguish:
+The primary stage action should be **Update**. Within that one experience, keep the three semantic categories visibly distinct:
 
 - **Plan:** Planned start and PDC.
-- **Actual progress:** Status, Actual start and Actual completion.
+- **Stage status — Lifecycle:** Start, complete, block/resume, skip, reopen or another permitted status transition.
+- **Actual dates — Actual fact correction:** Actual start and Actual completion.
+
+A broader **Progress** or **Actual progress** heading may contain Stage status and Actual dates, but it must not visually merge lifecycle actions with factual date corrections. The proposal diff, HoD review and audit must preserve the same Plan / Actual fact correction / Lifecycle distinction from rules 25-26.
 
 Show the approval behavior explicitly:
 
