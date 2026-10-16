@@ -577,6 +577,8 @@ namespace ProjectManagement.Pages.Projects
                 HistoricalStageEditor = await _historicalStageRecords.GetEditorAsync(id, ct);
             }
             PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
+            PlanEdit = PlanEditorRecovery.Restore(
+                PlanEdit, TempData[PlanEditorRecovery.TempDataKey] as string, id, CurrentUserId, User);
             HasBackfill = Timeline.HasBackfill;
             Backfill = BuildBackfillViewModel(id);
             RequiresPlanApproval = Timeline.PlanPendingApproval;

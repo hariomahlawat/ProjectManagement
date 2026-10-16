@@ -19,7 +19,7 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
-public class StageDirectApplyServiceTests
+public partial class StageDirectApplyServiceTests
 {
     [Fact]
     public async Task ApplyAsync_AuthorisedCompletion_AllowsNullDatesCreatesBackfillAndLogsAudit()

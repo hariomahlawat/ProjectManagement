@@ -117,12 +117,24 @@ public class EditPlanModel : PageModel
             return RejectPlanRequest(id, "Choose a valid planner action for your role and mode.");
         }
 
-        if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion, intent.Value);
-        }
+            if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+            {
+                return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion, intent.Value);
+            }
 
-        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion, canDirectApply, intent.Value);
+            return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion, canDirectApply, intent.Value);
+        }
+        catch (DbUpdateConcurrencyException ex) when (intent == PlanIntent.SaveChanges)
+        {
+            // Handler transaction scopes have rolled back before control reaches
+            // this boundary, including any earlier generation/draft/audit writes.
+            _db.ChangeTracker.Clear();
+            _logger.LogWarning(ex, "Concurrent plan publication rejected for Project {ProjectId}.", id);
+            TempData[PlanEditorRecovery.TempDataKey] = PlanEditorRecovery.Serialize(Input, userId);
+            return RejectPlanRequest(id, "The project plan changed while you were saving. Review the current plan and try again.", 409);
+        }
     }
 
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
@@ -563,21 +575,34 @@ public class EditPlanModel : PageModel
             // working duration rows and retained stage dates never supply this value.
             var publishedPnc = rows.LastOrDefault(row =>
                 string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+            bool? previousPncApplicable = null;
             if (publishedPnc is not null)
             {
                 var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
+                previousPncApplicable = publishedProject.PncApplicable;
                 publishedProject.PncApplicable = publishedPnc.DurationDays.GetValueOrDefault() > 0;
+                // An explicit decision belongs to this publication even if its
+                // value equals the original. Include the existing RowVersion check.
+                _db.Entry(publishedProject).Property(project => project.PncApplicable).IsModified = true;
                 await _db.SaveChangesAsync(ct);
+            }
+
+            var publicationData = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
+                ["Action"] = PlanEditActions.SaveChanges,
+                ["SaveMode"] = "Direct"
+            };
+            if (previousPncApplicable.HasValue)
+            {
+                publicationData["PncApplicable.Before"] = previousPncApplicable.Value.ToString();
+                publicationData["PncApplicable.After"] = (publishedPnc!.DurationDays.GetValueOrDefault() > 0).ToString();
             }
 
             await _audit.LogAsync(
                 "Projects.PlanGeneratedFromDurations",
                 userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
-                    ["Action"] = PlanEditActions.SaveChanges
-                });
+                data: publicationData);
 
             await publication!.CommitAsync(ct);
 
@@ -896,17 +921,23 @@ public class EditPlanModel : PageModel
         }
         var publishedPnc = rows.LastOrDefault(row =>
             string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+        bool? previousPncApplicable = null;
+        var submittedPncApplicable = publishedPnc is not null && publishedPnc.PlannedStart.HasValue && publishedPnc.PlannedDue.HasValue;
         if (publishedPnc is not null)
         {
             var publishedProject = await _db.Projects.SingleAsync(project => project.Id == projectId, cancellationToken);
-            publishedProject.PncApplicable = publishedPnc.PlannedStart.HasValue && publishedPnc.PlannedDue.HasValue;
+            previousPncApplicable = publishedProject.PncApplicable;
+            publishedProject.PncApplicable = submittedPncApplicable;
+            // Force this explicit decision into the existing optimistic-concurrency
+            // write-set, including when EF would otherwise see an unchanged bool.
+            _db.Entry(publishedProject).Property(project => project.PncApplicable).IsModified = true;
         }
         if (changes.Count > 0 || workingDraft is not null || publishedPnc is not null)
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
 
-        if (changes.Count > 0)
+        if (changes.Count > 0 || (previousPncApplicable.HasValue && previousPncApplicable.Value != submittedPncApplicable))
         {
             var userName = principal.Identity?.Name;
 
@@ -916,6 +947,12 @@ public class EditPlanModel : PageModel
                 ["ChangedStages"] = string.Join(";", changes.Select(change => change.Code)),
                 ["SaveMode"] = "Direct"
             };
+
+            if (previousPncApplicable.HasValue)
+            {
+                data["PncApplicable.Before"] = previousPncApplicable.Value.ToString();
+                data["PncApplicable.After"] = submittedPncApplicable.ToString();
+            }
 
             for (var index = 0; index < changes.Count; index++)
             {
