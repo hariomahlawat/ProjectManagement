@@ -543,6 +543,9 @@ public class EditPlanModel : PageModel
             ConnectionStringHasher.Hash(
                 _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null));
 
+        var pncApplicable = durationMap.TryGetValue(StageCodes.PNC, out var pncRow) &&
+            pncRow.DurationDays.GetValueOrDefault() > 0;
+
         if (intent == DurationIntent.Apply)
         {
             await EnsureProjectStagesExistAsync(id, rows.Select(r => r.Code), ct);
@@ -550,6 +553,7 @@ public class EditPlanModel : PageModel
             var workingDraft = await _planDraft.GetMyDraftAsync(id, ct);
             if (workingDraft is not null)
             {
+                workingDraft.PncApplicable = pncApplicable;
                 await _planGeneration.GenerateDraftAsync(id, workingDraft.Id, ct);
             }
 
@@ -565,9 +569,6 @@ public class EditPlanModel : PageModel
             TempData["Flash"] = "Timeline plan updated.";
             return RedirectToPage("/Projects/Overview", new { id });
         }
-
-        var pncApplicable = durationMap.TryGetValue(StageCodes.PNC, out var pncRow) &&
-            pncRow.DurationDays.GetValueOrDefault() > 0;
 
         draft!.PncApplicable = pncApplicable;
         await _db.SaveChangesAsync(ct);

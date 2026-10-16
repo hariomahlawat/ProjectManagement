@@ -25,6 +25,106 @@ namespace ProjectManagement.Tests;
 public class EditPlanDurationSafetyTests
 {
     [Theory]
+    [InlineData("HoD", null)]
+    [InlineData("HoD", 0)]
+    [InlineData("HoD", -1)]
+    [InlineData("Admin", null)]
+    [InlineData("Admin", 0)]
+    [InlineData("Admin", -1)]
+    public async Task DurationPnc_PositiveThenCleared_DoesNotResurrectOnExactSave(string role, int? removedDuration)
+    {
+        await using var f = await Fixture.CreateAsync(role, "Calculate");
+        await AddOptionalPncAsync(f);
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        var draft = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.True(draft.PncApplicable);
+        Assert.NotNull(draft.StagePlans.Single(s => s.StageCode == StageCodes.PNC).PlannedDue);
+        f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC).DurationDays = removedDuration;
+        f.Page.Input.Action = "SaveChanges";
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        f.Db.ChangeTracker.Clear();
+
+        draft = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.False(draft.PncApplicable);
+        var pncPlan = draft.StagePlans.Single(s => s.StageCode == StageCodes.PNC);
+        Assert.Null(pncPlan.PlannedStart);
+        Assert.Null(pncPlan.PlannedDue);
+        Assert.Equal(0, pncPlan.DurationDays);
+        var view = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        var pncPreview = view.Durations.Rows.Single(r => r.Code == StageCodes.PNC);
+        Assert.Null(pncPreview.PreviewStart);
+        Assert.Null(pncPreview.PreviewDue);
+        var pncExact = view.Exact.Rows.Single(r => r.Code == StageCodes.PNC);
+        Assert.Null(pncExact.PlannedStart);
+        Assert.Null(pncExact.PlannedDue);
+
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = view.Exact.Rows.Select(r => new PlanEditInputRow
+        {
+            Code = r.Code, Name = r.Name, PlannedStart = r.PlannedStart, PlannedDue = r.PlannedDue
+        }).ToList();
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        f.Db.ChangeTracker.Clear();
+        var pnc = await f.Db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Null(pnc.PlannedStart);
+        Assert.Null(pnc.PlannedDue);
+        Assert.Null((await f.Db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC)).DurationDays);
+        Assert.Equal(StageStatus.Completed, pnc.Status);
+        Assert.Equal(new DateOnly(2025, 1, 1), pnc.ActualStart);
+        Assert.Equal(new DateOnly(2025, 1, 2), pnc.CompletedOn);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    public async Task PoDurationPnc_PositiveThenCleared_SubmitAndApproveDoesNotPublishOldDates(int? removedDuration)
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "Calculate");
+        await AddOptionalPncAsync(f);
+        await f.Page.OnPostAsync(1, default);
+        var draft = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.NotNull(draft.StagePlans.Single(s => s.StageCode == StageCodes.PNC).PlannedDue);
+        f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC).DurationDays = removedDuration;
+        f.Page.Input.Action = "Submit";
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        f.Db.ChangeTracker.Clear();
+        var pending = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.Equal(PlanVersionStatus.PendingApproval, pending.Status);
+        Assert.False(pending.PncApplicable);
+        var pncPlan = pending.StagePlans.Single(s => s.StageCode == StageCodes.PNC);
+        Assert.Null(pncPlan.PlannedStart);
+        Assert.Null(pncPlan.PlannedDue);
+        Assert.Equal(0, pncPlan.DurationDays);
+        // PO submission cannot erase the already-published plan before approval.
+        Assert.Equal(new DateOnly(2024, 1, 2), (await f.Db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC)).PlannedDue);
+        var approval = new PlanApprovalService(f.Db, new TestClock(), NullLogger<PlanApprovalService>.Instance,
+            new PlanSnapshotService(f.Db), new NullNotifications());
+        Assert.True(await approval.ApproveVersionAsync(pending.Id, "hod-reviewer", false, true));
+        f.Db.ChangeTracker.Clear();
+        var pnc = await f.Db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Null(pnc.PlannedStart);
+        Assert.Null(pnc.PlannedDue);
+        Assert.Equal(StageStatus.Completed, pnc.Status);
+        Assert.Equal(new DateOnly(2025, 1, 2), pnc.CompletedOn);
+    }
+
+    private static async Task AddOptionalPncAsync(Fixture f)
+    {
+        f.Db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.PNC, Name = "PNC", Sequence = 80, Optional = true
+        });
+        f.Db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1, StageCode = StageCodes.PNC, Status = StageStatus.Completed,
+            PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 2),
+            ActualStart = new DateOnly(2025, 1, 1), CompletedOn = new DateOnly(2025, 1, 2)
+        });
+        f.Page.Input.Rows.Add(new PlanEditInputRow { Code = StageCodes.PNC, Name = "PNC", DurationDays = 2 });
+        await f.Db.SaveChangesAsync();
+    }
+
+    [Theory]
     [InlineData("Project Officer", "Autosave")]
     [InlineData("HoD", "Autosave")]
     [InlineData("Admin", "Autosave")]

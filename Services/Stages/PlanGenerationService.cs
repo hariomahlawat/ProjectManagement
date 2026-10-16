@@ -93,14 +93,18 @@ public sealed class PlanGenerationService
                 continue;
             }
 
-            if (!durationMap.TryGetValue(stage.StageCode, out var duration) || duration.DurationDays is null)
+            if (!durationMap.TryGetValue(stage.StageCode, out var duration))
             {
+                // No Duration input owns this stage; preserve its manual plan.
                 continue;
             }
 
-            var days = duration.DurationDays.Value;
-            if (days <= 0)
+            if (duration.DurationDays is not int days || days <= 0)
             {
+                // An explicit cleared input removes the previous working plan,
+                // without changing lifecycle status or observed actual dates.
+                stage.PlannedStart = null;
+                stage.PlannedDue = null;
                 continue;
             }
 
@@ -196,14 +200,16 @@ public sealed class PlanGenerationService
 
         foreach (var code in orderedCodes)
         {
-            if (!durationMap.TryGetValue(code, out var duration) || duration.DurationDays is null)
+            if (!durationMap.TryGetValue(code, out var duration) || duration.DurationDays is not int days || days <= 0)
             {
-                continue;
-            }
-
-            var days = duration.DurationDays.Value;
-            if (days <= 0)
-            {
+                // Regeneration replaces this Duration working draft. A removed
+                // duration must not leave a previously generated schedule behind.
+                if (stagePlans.TryGetValue(code, out var previous))
+                {
+                    previous.PlannedStart = null;
+                    previous.PlannedDue = null;
+                    previous.DurationDays = 0;
+                }
                 continue;
             }
 

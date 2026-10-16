@@ -184,9 +184,21 @@ public class PlanApprovalService
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
 
+        // The reviewed applicability flag wins over stale or legacy draft rows.
+        // Also clear an old official plan when no PNC row was submitted at all.
+        if (!plan.PncApplicable && stageLookup.TryGetValue(StageCodes.PNC, out var excludedPnc))
+        {
+            excludedPnc.PlannedStart = null;
+            excludedPnc.PlannedDue = null;
+        }
+
         foreach (var stagePlan in plan.StagePlans.Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode)))
         {
             var code = stagePlan.StageCode!;
+            if (!plan.PncApplicable && string.Equals(code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
             if (!stageLookup.TryGetValue(code, out var stage))
             {
                 stage = new ProjectStage
