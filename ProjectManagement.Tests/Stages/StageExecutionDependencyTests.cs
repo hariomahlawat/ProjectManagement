@@ -79,6 +79,40 @@ public sealed class StageExecutionDependencyTests
         Assert.Equal(allowed, rules.CanSkip(ContextFor(StageStatus.NotStarted), StageCodes.COB).Allowed);
     }
 
+    [Theory]
+    [InlineData(ProcurementWorkflow.VersionV1, false)]
+    [InlineData(ProcurementWorkflow.VersionV1, true)]
+    [InlineData(ProcurementWorkflow.VersionV2, false)]
+    [InlineData(ProcurementWorkflow.VersionV2, true)]
+    public async Task Guards_DoNotAdvertiseLaterAdvancementWithUnresolvedApplicablePncAncestor(string version, bool missingPnc)
+    {
+        await using var db = Context();
+        db.Projects.Add(new ProjectManagement.Models.Project
+        {
+            Id = 1, Name = "Project", CreatedByUserId = "seed",
+            WorkflowVersion = version, PncApplicable = true
+        });
+        var codes = new WorkflowStageMetadataProvider().GetStages(version).Select(s => s.Code);
+        foreach (var code in codes)
+        {
+            if (code == StageCodes.PNC && missingPnc) continue;
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = 1, StageCode = code,
+                Status = code is StageCodes.SO or StageCodes.PNC ? StageStatus.NotStarted : StageStatus.Completed
+            });
+        }
+        await db.SaveChangesAsync();
+        var rules = new StageRulesService(db, new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider()));
+        var context = await rules.GetContextAsync(1, CancellationToken.None);
+        Assert.False(rules.CanStart(context, StageCodes.SO).Allowed);
+        Assert.False(rules.CanSkip(context, StageCodes.SO).Allowed);
+        var so = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.SO);
+        so.Status = StageStatus.InProgress;
+        await db.SaveChangesAsync();
+        Assert.False(rules.CanComplete(await rules.GetContextAsync(1, CancellationToken.None), StageCodes.SO).Allowed);
+    }
+
     private static ProjectStageWorkflowSnapshot Snapshot(string version, bool applicable) => new(
         version, new WorkflowStageMetadataProvider().GetStages(version),
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)

@@ -116,6 +116,13 @@ public class StageProgressService
             throw new InvalidOperationException("A stage that actually started or completed cannot be skipped. Correct its factual state through an authorised path first.");
         }
 
+        if (newStatus is StageStatus.InProgress or StageStatus.Skipped)
+        {
+            var workflow = await _workflowPolicy.GetAsync(projectId, cancellationToken);
+            await EnsureRequiredPredecessorsAsync(
+                projectId, stage.StageCode, workflow, allowNonOptionalBackfill: false, cancellationToken);
+        }
+
         if (newStatus == StageStatus.Completed)
         {
             await CompleteWithCascadeAsync(
@@ -209,6 +216,12 @@ public class StageProgressService
         {
             throw new InvalidOperationException("Completion date cannot be before the selected start date.");
         }
+        // Validate the graph before touching tracked lifecycle state or history. A
+        // missing row must not truncate ancestry, and optional prerequisites must
+        // already be explicitly resolved rather than incidentally auto-skipped.
+        await EnsureRequiredPredecessorsAsync(
+            projectId, stage.StageCode, workflow, allowNonOptionalBackfill: true, ct);
+
         stage.Status = StageStatus.Completed;
         stage.ActualStart = selectedStart;
         stage.CompletedOn = completionDate;
@@ -276,6 +289,49 @@ public class StageProgressService
         }
     }
 
+    private async Task EnsureRequiredPredecessorsAsync(
+        int projectId,
+        string stageCode,
+        ProjectStageWorkflowSnapshot workflow,
+        bool allowNonOptionalBackfill,
+        CancellationToken ct)
+    {
+        var required = workflow.RequiredPredecessorClosure(stageCode);
+        if (required.Count == 0)
+        {
+            return;
+        }
+
+        var stages = await _db.ProjectStages
+            .Where(item => item.ProjectId == projectId)
+            .ToDictionaryAsync(item => item.StageCode, StringComparer.OrdinalIgnoreCase, ct);
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
+        foreach (var predecessorCode in required)
+        {
+            if (!stages.TryGetValue(predecessorCode, out var predecessor))
+            {
+                throw new InvalidOperationException($"Dependency {predecessorCode} is missing for stage {stageCode}.");
+            }
+
+            var effective = StageEffectiveState.Resolve(
+                predecessorCode,
+                new StageChronologyState(predecessor.Status, predecessor.CompletedOn),
+                ipaAuthority)!;
+            if (effective.Status is StageStatus.Completed or StageStatus.Skipped)
+            {
+                continue;
+            }
+
+            // Completion deliberately backfills present non-optional ancestors.
+            // Starting/skipping never advances unresolved prerequisites, and an
+            // effective optional prerequisite always requires explicit resolution.
+            if (!allowNonOptionalBackfill || workflow.OptionalStageCodes.Contains(predecessorCode))
+            {
+                throw new InvalidOperationException($"Complete or skip {predecessorCode} before advancing {stageCode}.");
+            }
+        }
+    }
+
     private async Task AutoCompleteStageAndDependenciesAsync(
         int projectId,
         string stageCode,
@@ -296,7 +352,7 @@ public class StageProgressService
 
         if (stage is null)
         {
-            return;
+            throw new InvalidOperationException($"Dependency {stageCode} is missing for stage {triggeredBy}.");
         }
 
         // Published authority protects IPA's stored facts, not the ancestry behind it.
@@ -308,20 +364,7 @@ public class StageProgressService
         var beforeCompletion = stage.CompletedOn;
         var isOptional = workflow.OptionalStageCodes.Contains(stage.StageCode);
 
-        if (!hasPublishedIpaAuthority && isOptional && stage.Status == StageStatus.NotStarted)
-        {
-            if (stage.ActualStart.HasValue || stage.CompletedOn.HasValue)
-            {
-                throw new InvalidOperationException("An optional stage with recorded actual evidence cannot be skipped automatically. Correct its factual state through an authorised path first.");
-            }
-            stage.Status = StageStatus.Skipped;
-            stage.ActualStart = null;
-            stage.CompletedOn = null;
-            stage.IsAutoCompleted = false;
-            stage.AutoCompletedFromCode = null;
-            stage.RequiresBackfill = false;
-        }
-        else if (!hasPublishedIpaAuthority && isOptional && stage.Status is not StageStatus.Completed and not StageStatus.Skipped)
+        if (!hasPublishedIpaAuthority && isOptional && stage.Status is not StageStatus.Completed and not StageStatus.Skipped)
         {
             throw new InvalidOperationException($"Complete or skip {stage.StageCode} before completing {triggeredBy}.");
         }

@@ -66,7 +66,7 @@ public class StageRulesService
         var workflow = await _workflowPolicy.GetAsync(projectId, cancellationToken);
         var dependencies = workflow.Dependencies.ToDictionary(
             item => item.Key,
-            item => workflow.RequiredPredecessors(item.Key),
+            item => workflow.RequiredPredecessorClosure(item.Key),
             StringComparer.OrdinalIgnoreCase);
 
         return new StageRulesContext(stageSnapshots, dependencies);
