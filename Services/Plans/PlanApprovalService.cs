@@ -221,6 +221,7 @@ public class PlanApprovalService
         await _snapshots.CreateSnapshotAsync(plan.ProjectId, hodUserId, cancellationToken);
 
         project.ActivePlanVersionNo = plan.VersionNo;
+        project.PncApplicable = plan.PncApplicable;
         project.PlanApprovedAt = now;
         project.PlanApprovedByUserId = hodUserId;
 

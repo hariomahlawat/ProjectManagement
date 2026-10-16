@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Workspace;
@@ -203,6 +204,63 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         Assert.Equal($"/Projects/Meta/Edit/{project.Id}", gap.ActionUrl);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(null, false)]
+    public async Task Procurement_PncCostGapUsesCurrentPublishedApplicability(
+        bool? approvedPlanApplicability,
+        bool publishedApplicability)
+    {
+        await using var db = CreateContext();
+        var project = NewProject();
+        project.PncApplicable = publishedApplicability;
+        project.ProjectStages.Add(new ProjectStage
+        {
+            StageCode = StageCodes.PNC,
+            Status = StageStatus.Completed,
+            ActualStart = new DateOnly(2026, 1, 1),
+            CompletedOn = new DateOnly(2026, 1, 2)
+        });
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        if (approvedPlanApplicability.HasValue)
+        {
+            db.PlanVersions.Add(new PlanVersion
+            {
+                ProjectId = project.Id,
+                VersionNo = 1,
+                Status = PlanVersionStatus.Approved,
+                PncApplicable = approvedPlanApplicability.Value,
+                CreatedByUserId = "seed",
+                ApprovedOn = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // A retained completed PNC row has no procurement cost fact. Current
+        // publication alone decides whether that missing cost is a health gap.
+        var result = await CreateService(db).CalculateForProjectIdsAsync(
+            new[] { project.Id }, "po-1", default);
+        var health = result[project.Id];
+        var procurement = Assert.Single(health.Components.Where(component => component.Code == "PROCUREMENT"));
+
+        if (publishedApplicability)
+        {
+            var gap = Assert.Single(procurement.Gaps);
+            Assert.Equal("PNC_COST", gap.Code);
+            Assert.Equal(StageCodes.PNC, gap.StageCode);
+            Assert.Contains(health.GapDetails, item => item.Code == "PNC_COST");
+            Assert.Equal(0m, procurement.EarnedPoints);
+        }
+        else
+        {
+            Assert.Empty(procurement.Gaps);
+            Assert.DoesNotContain(health.GapDetails, gap => gap.Code == "PNC_COST");
+            Assert.Equal(procurement.MaximumPoints, procurement.EarnedPoints);
+        }
+    }
     private static ProjectRecordHealthService CreateService(ApplicationDbContext db)
         => new(db, new ProjectProcurementReadService(db));
 

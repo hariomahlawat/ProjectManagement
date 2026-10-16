@@ -13,7 +13,7 @@ namespace ProjectManagement.Services.Stages;
 /// <summary>
 /// Resolves the authoritative stage sequence, dependencies and optional-stage
 /// rules for a project from its workflow version. The service is scoped so a
-/// project snapshot is loaded once per request and reused by all stage services.
+/// workflow topology is reused only while persisted project version and applicability match.
 /// </summary>
 public interface IProjectStageWorkflowPolicy
 {
@@ -38,18 +38,13 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
         int projectId,
         CancellationToken cancellationToken = default)
     {
-        if (_cache.TryGetValue(projectId, out var cached))
-        {
-            return cached;
-        }
-
         var project = await _db.Projects
             .AsNoTracking()
             .Where(item => item.Id == projectId)
             .Select(item => new
             {
                 item.WorkflowVersion,
-                item.ActivePlanVersionNo
+                item.PncApplicable
             })
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException($"Project {projectId} was not found.");
@@ -57,6 +52,15 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
         var workflowVersion = string.IsNullOrWhiteSpace(project.WorkflowVersion)
             ? PlanConstants.DefaultStageTemplateVersion
             : project.WorkflowVersion;
+
+        // Re-read persisted publication state even in a reused scope. AsNoTracking
+        // deliberately ignores unsaved changes on tracked Project entities.
+        if (_cache.TryGetValue(projectId, out var cached) &&
+            string.Equals(cached.WorkflowVersion, workflowVersion, StringComparison.OrdinalIgnoreCase) &&
+            cached.PncApplicable == project.PncApplicable)
+        {
+            return cached;
+        }
 
         var stageDefinitions = _metadataProvider
             .GetStages(workflowVersion)
@@ -90,23 +94,12 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
             ? configuredOptionalStages.ToHashSet(StringComparer.OrdinalIgnoreCase)
             : BuildFallbackOptionalStages();
 
-        var pncApplicable = true;
-        if (project.ActivePlanVersionNo.HasValue)
-        {
-            pncApplicable = await _db.PlanVersions
-                .AsNoTracking()
-                .Where(item => item.ProjectId == projectId && item.VersionNo == project.ActivePlanVersionNo.Value)
-                .Select(item => (bool?)item.PncApplicable)
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? true;
-        }
-
         var snapshot = new ProjectStageWorkflowSnapshot(
             workflowVersion,
             stageDefinitions,
             dependencies,
             optionalStageCodes,
-            pncApplicable);
+            project.PncApplicable);
 
         _cache[projectId] = snapshot;
         return snapshot;
@@ -184,12 +177,32 @@ public sealed class ProjectStageWorkflowSnapshot
     {
         WorkflowVersion = workflowVersion;
         Stages = stages;
-        Dependencies = dependencies;
         OptionalStageCodes = optionalStageCodes;
         PncApplicable = pncApplicable;
         _orderLookup = stages
             .Select((stage, index) => new { stage.Code, Index = index })
             .ToDictionary(item => item.Code, item => item.Index, StringComparer.OrdinalIgnoreCase);
+
+        // Execution uses the effective graph. Template topology remains unchanged
+        // for planning/forecasting consumers that do not use this snapshot.
+        var effective = dependencies.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.AsEnumerable(),
+            StringComparer.OrdinalIgnoreCase);
+        if (ContainsStage(StageCodes.EAS) && pncApplicable)
+        {
+            effective.TryGetValue(StageCodes.EAS, out var easPredecessors);
+            effective[StageCodes.EAS] = (easPredecessors ?? Array.Empty<string>()).Append(StageCodes.PNC);
+        }
+        Dependencies = effective.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<string>)pair.Value
+                .Where(code => pncApplicable || !string.Equals(code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(OrderOf)
+                .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public string WorkflowVersion { get; }
@@ -218,14 +231,7 @@ public sealed class ProjectStageWorkflowSnapshot
             return Array.Empty<string>();
         }
 
-        if (PncApplicable)
-        {
-            return predecessors;
-        }
-
-        return predecessors
-            .Where(code => !string.Equals(code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        return predecessors;
     }
 
     /// <summary>

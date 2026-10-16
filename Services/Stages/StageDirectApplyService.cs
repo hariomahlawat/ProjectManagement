@@ -267,6 +267,27 @@ public sealed class StageDirectApplyService
 
         if (targetStatus is StageStatus.InProgress or StageStatus.Completed or StageStatus.Skipped)
         {
+            // Optional ancestors in the effective graph require an explicit
+            // resolved lifecycle decision. Force backfill is reserved for the
+            // existing non-optional predecessor completion flow.
+            var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
+            var unresolvedOptional = workflow.RequiredPredecessorClosure(normalizedStageCode)
+                .Where(code => workflow.OptionalStageCodes.Contains(code))
+                .Where(code =>
+                {
+                    stageLookup.TryGetValue(code, out var predecessor);
+                    var effective = StageEffectiveState.Resolve(code,
+                        predecessor is null ? null : new StageChronologyState(predecessor.Status, predecessor.CompletedOn), ipaAuthority);
+                    return effective is null || effective.Status is not StageStatus.Completed and not StageStatus.Skipped;
+                })
+                .ToArray();
+            if (unresolvedOptional.Length > 0)
+            {
+                throw new StageDirectApplyValidationException(
+                    new[] { $"Complete or explicitly skip required optional predecessor stages first: {string.Join(", ", unresolvedOptional)}." },
+                    unresolvedOptional);
+            }
+
             var projectStages = await _db.ProjectStages
                 .AsNoTracking()
                 .Where(ps => ps.ProjectId == projectId)

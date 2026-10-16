@@ -66,7 +66,7 @@ public class StageRulesService
         var workflow = await _workflowPolicy.GetAsync(projectId, cancellationToken);
         var dependencies = workflow.Dependencies.ToDictionary(
             item => item.Key,
-            item => workflow.RequiredPredecessors(item.Key),
+            item => workflow.RequiredPredecessorClosure(item.Key),
             StringComparer.OrdinalIgnoreCase);
 
         return new StageRulesContext(stageSnapshots, dependencies);
@@ -94,28 +94,7 @@ public class StageRulesService
             return StageGuardResult.Deny($"Stage {stage.Code} was skipped.");
         }
 
-        foreach (var dependencyCode in context.GetDependencies(stageCode))
-        {
-            if (!context.TryGetStage(dependencyCode, out var dependency))
-            {
-                return StageGuardResult.Deny($"Dependency {dependencyCode} is missing for stage {stage.Code}.");
-            }
-
-            if (dependency.Status is not StageStatus.Completed and not StageStatus.Skipped)
-            {
-                return StageGuardResult.Deny($"Complete or skip {dependency.Code} before starting {stage.Code}.");
-            }
-        }
-
-        if (string.Equals(stage.Code, StageCodes.EAS, StringComparison.OrdinalIgnoreCase))
-        {
-            if (context.TryGetStage(StageCodes.PNC, out var pnc) && pnc.Status is not StageStatus.Completed and not StageStatus.Skipped)
-            {
-                return StageGuardResult.Deny("EAS cannot start until PNC is completed or skipped.");
-            }
-        }
-
-        return StageGuardResult.Allow();
+        return CheckDependencies(context, stage, "starting");
     }
 
     public StageGuardResult CanComplete(StageRulesContext context, string stageCode)
@@ -140,28 +119,7 @@ public class StageRulesService
             return StageGuardResult.Deny($"Start {stage.Code} before completing it.");
         }
 
-        if (string.Equals(stage.Code, StageCodes.COB, StringComparison.OrdinalIgnoreCase))
-        {
-            if (!context.TryGetStage(StageCodes.TEC, out var tec) || tec.Status != StageStatus.Completed)
-            {
-                return StageGuardResult.Deny("COB cannot complete until TEC is completed.");
-            }
-
-            if (!context.TryGetStage(StageCodes.BM, out var bench) || bench.Status != StageStatus.Completed)
-            {
-                return StageGuardResult.Deny("COB cannot complete until Benchmarking (BM) is completed.");
-            }
-        }
-
-        if (string.Equals(stage.Code, StageCodes.EAS, StringComparison.OrdinalIgnoreCase))
-        {
-            if (context.TryGetStage(StageCodes.PNC, out var pnc) && pnc.Status is not StageStatus.Completed and not StageStatus.Skipped)
-            {
-                return StageGuardResult.Deny("EAS cannot complete until PNC is completed or skipped.");
-            }
-        }
-
-        return StageGuardResult.Allow();
+        return CheckDependencies(context, stage, "completing");
     }
 
     public StageGuardResult CanSkip(StageRulesContext context, string stageCode)
@@ -181,19 +139,22 @@ public class StageRulesService
             return StageGuardResult.Deny($"Stage {stage.Code} has already been skipped.");
         }
 
-        foreach (var dependencyCode in context.GetDependencies(stageCode))
+        return CheckDependencies(context, stage, "skipping");
+    }
+
+    private static StageGuardResult CheckDependencies(StageRulesContext context, StageSnapshot stage, string operation)
+    {
+        foreach (var dependencyCode in context.GetDependencies(stage.Code))
         {
             if (!context.TryGetStage(dependencyCode, out var dependency))
             {
                 return StageGuardResult.Deny($"Dependency {dependencyCode} is missing for stage {stage.Code}.");
             }
-
             if (dependency.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
-                return StageGuardResult.Deny($"Complete or skip {dependency.Code} before skipping {stage.Code}.");
+                return StageGuardResult.Deny($"Complete or skip {dependency.Code} before {operation} {stage.Code}.");
             }
         }
-
         return StageGuardResult.Allow();
     }
 

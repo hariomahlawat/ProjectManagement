@@ -73,6 +73,9 @@ namespace ProjectManagement.Models
 
         public int? ActivePlanVersionNo { get; set; }
 
+        // Canonical current published applicability; draft/version flags are not live state.
+        public bool PncApplicable { get; set; } = true;
+
         // SECTION: Workflow Versioning
         [Required]
         [MaxLength(64)]

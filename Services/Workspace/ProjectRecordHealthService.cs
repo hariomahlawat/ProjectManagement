@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
-using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels.Workspace;
@@ -66,7 +65,6 @@ public sealed class ProjectRecordHealthService
         var projectIds = projects.Select(p => p.Id).Distinct().ToArray();
         var mediaCounts = await LoadMediaCountsAsync(projectIds, ct);
         var procurement = await _procurementRead.GetManyAsync(projectIds, ct);
-        var pncApplicability = await LoadPncApplicabilityAsync(projectIds, ct);
         var results = new Dictionary<int, WorkspaceRecordHealthVm>();
 
         foreach (var project in projects)
@@ -74,7 +72,7 @@ public sealed class ProjectRecordHealthService
             var components = new List<WorkspaceRecordComponentScoreVm>
             {
                 ScoreCoreProfile(project, userId),
-                ScoreProcurement(project, procurement, pncApplicability),
+                ScoreProcurement(project, procurement),
                 ScoreHistoricalTimeline(project),
                 ScoreCurrentStageTimeline(project),
                 ScoreDocuments(project.Id, mediaCounts),
@@ -108,35 +106,6 @@ public sealed class ProjectRecordHealthService
         }
 
         return results;
-    }
-
-    private async Task<IReadOnlyDictionary<int, bool>> LoadPncApplicabilityAsync(
-        int[] projectIds,
-        CancellationToken ct)
-    {
-        var planRows = await _db.PlanVersions
-            .AsNoTracking()
-            .Where(plan =>
-                projectIds.Contains(plan.ProjectId) &&
-                plan.Status == PlanVersionStatus.Approved)
-            .Select(plan => new
-            {
-                plan.ProjectId,
-                plan.PncApplicable,
-                plan.CreatedOn,
-                plan.SubmittedOn,
-                plan.ApprovedOn
-            })
-            .ToListAsync(ct);
-
-        return planRows
-            .GroupBy(plan => plan.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(plan => plan.ApprovedOn ?? plan.SubmittedOn ?? plan.CreatedOn)
-                    .First()
-                    .PncApplicable);
     }
 
     private async Task<IReadOnlyDictionary<int, ProjectDataCounts>> LoadMediaCountsAsync(
@@ -217,8 +186,7 @@ public sealed class ProjectRecordHealthService
 
     private static WorkspaceRecordComponentScoreVm ScoreProcurement(
         Project project,
-        IReadOnlyDictionary<int, ProcurementAtAGlanceVm> procurementByProject,
-        IReadOnlyDictionary<int, bool> pncApplicability)
+        IReadOnlyDictionary<int, ProcurementAtAGlanceVm> procurementByProject)
     {
         var snapshot = procurementByProject.GetValueOrDefault(project.Id) ?? ProcurementAtAGlanceVm.Empty;
         var fields = new List<ApplicableField>();
@@ -233,8 +201,7 @@ public sealed class ProjectRecordHealthService
         AddWhenStageCompleted(project, ProcurementStageRules.StageForL1Cost,
             snapshot.L1Cost is > 0m, "L1_COST", "L1 Cost", actionUrl, fields);
 
-        var isPncApplicable = !pncApplicability.TryGetValue(project.Id, out var applicable) || applicable;
-        if (isPncApplicable)
+        if (project.PncApplicable)
         {
             AddWhenStageCompleted(project, ProcurementStageRules.StageForPncCost,
                 snapshot.PncCost is > 0m, "PNC_COST", "PNC Cost", actionUrl, fields);

@@ -968,6 +968,7 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.SponsoringLineDirectorateId)
                     .OnDelete(DeleteBehavior.Restrict);
+                e.Property(x => x.PncApplicable).HasDefaultValue(true);
                 e.Property(x => x.PlanApprovedByUserId).HasMaxLength(450);
                 e.HasOne(x => x.PlanApprovedByUser)
                     .WithMany()

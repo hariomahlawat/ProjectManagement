@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -329,8 +330,10 @@ public class StageProgressServiceTests
         Assert.False(ipa.RequiresBackfill);
     }
 
-    [Fact]
-    public async Task UpdateStageStatusAsync_LeavesOptionalStagesOutsideDependencyClosureUnchanged()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdateStageStatusAsync_ApplicableUnresolvedPncBlocksCascadeWhileNonApplicablePncIsUntouched(bool applicable)
     {
         var clock = new TestClock(new DateTimeOffset(2024, 6, 16, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -345,6 +348,8 @@ public class StageProgressServiceTests
             (StageCodes.PNC, StageStatus.NotStarted),
             (StageCodes.EAS, StageStatus.NotStarted),
             (StageCodes.SO, StageStatus.NotStarted));
+
+        (await db.Projects.SingleAsync()).PncApplicable = applicable;
 
         db.StageTemplates.Add(new StageTemplate
         {
@@ -367,6 +372,12 @@ public class StageProgressServiceTests
         var service = CreateService(db, clock);
 
         var completedOn = new DateOnly(2024, 6, 15);
+        if (applicable)
+        {
+            await AssertRejectedWithoutMutationAsync(db, () => service.UpdateStageStatusAsync(
+                1, StageCodes.SO, StageStatus.Completed, completedOn, "tester"));
+            return;
+        }
         await service.UpdateStageStatusAsync(1, StageCodes.SO, StageStatus.Completed, completedOn, "tester");
 
         var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
@@ -675,6 +686,230 @@ public class StageProgressServiceTests
         Assert.Null(history.ToCompletedOn);
     }
 
+    [Theory]
+    [InlineData(StageStatus.Completed, StageStatus.Completed)]
+    [InlineData(StageStatus.Completed, StageStatus.Skipped)]
+    [InlineData(StageStatus.Skipped, StageStatus.Completed)]
+    [InlineData(StageStatus.Skipped, StageStatus.Skipped)]
+    public async Task CompletingCob_PreservesSatisfiedSkippedPredecessors(StageStatus tec, StageStatus bm)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.TEC, tec), (StageCodes.BM, bm), (StageCodes.COB, StageStatus.InProgress));
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact { ProjectId = 1, CreatedByUserId = "seed" });
+        var cob = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB);
+        cob.ActualStart = new DateOnly(2024, 6, 10);
+        await db.SaveChangesAsync();
+        await CreateService(db, new TestClock(new DateTimeOffset(2024, 6, 16, 0, 0, 0, TimeSpan.Zero)))
+            .UpdateStageStatusAsync(1, StageCodes.COB, StageStatus.Completed, new DateOnly(2024, 6, 15), "tester");
+        db.ChangeTracker.Clear();
+        Assert.Equal(tec, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.TEC)).Status);
+        Assert.Equal(bm, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.BM)).Status);
+        Assert.Equal(StageStatus.Completed, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB)).Status);
+    }
+
+    public static IEnumerable<object[]> EasProgressCases()
+    {
+        foreach (var version in new[] { ProcurementWorkflow.VersionV1, ProcurementWorkflow.VersionV2 })
+        foreach (var applicable in new[] { true, false })
+        foreach (StageStatus? status in Enum.GetValues<StageStatus>().Select(s => (StageStatus?)s).Append(null))
+        foreach (var target in new[] { StageStatus.InProgress, StageStatus.Completed, StageStatus.Skipped })
+        foreach (var staleEvidence in status == StageStatus.NotStarted ? new[] { false, true } : new[] { true })
+            yield return new object[] { version, applicable, status!, target, staleEvidence };
+    }
+
+    [Theory]
+    [MemberData(nameof(EasProgressCases))]
+    public async Task EasProgress_EnforcesPublishedPncAtTheMutationBoundary(
+        string version, bool applicable, StageStatus? pncStatus, StageStatus target, bool staleEvidence)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.EAS,
+            target == StageStatus.Completed ? StageStatus.InProgress : StageStatus.NotStarted));
+        var project = await db.Projects.SingleAsync();
+        project.WorkflowVersion = version;
+        project.PncApplicable = applicable;
+        var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        if (!pncStatus.HasValue)
+            db.ProjectStages.Remove(pnc);
+        else
+        {
+            pnc.Status = pncStatus.Value;
+            // Stale evidence must neither satisfy applicable unresolved PNC nor be repaired
+            // as a side effect when PNC is outside the effective graph.
+            pnc.ActualStart = staleEvidence ? new DateOnly(2024, 6, 7) : null;
+            pnc.CompletedOn = staleEvidence ? new DateOnly(2024, 6, 8) : null;
+            pnc.IsAutoCompleted = staleEvidence;
+            pnc.AutoCompletedFromCode = staleEvidence ? StageCodes.SO : null;
+            pnc.RequiresBackfill = staleEvidence;
+        }
+        var eas = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.EAS);
+        if (target == StageStatus.Completed) eas.ActualStart = new DateOnly(2024, 6, 10);
+        await db.SaveChangesAsync();
+        var beforePnc = pncStatus.HasValue ? StageState(pnc) : null;
+        var service = CreateService(db, OperationalClock());
+        Task Update() => service.UpdateStageStatusAsync(1, StageCodes.EAS, target, new DateOnly(2024, 6, 15), "tester");
+        if (applicable && pncStatus is not StageStatus.Completed and not StageStatus.Skipped)
+        {
+            await AssertRejectedWithoutMutationAsync(db, Update);
+            return;
+        }
+        await Update();
+        db.ChangeTracker.Clear();
+        Assert.Equal(target, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.EAS)).Status);
+        var persistedPnc = await db.ProjectStages.SingleOrDefaultAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(beforePnc, persistedPnc is null ? null : StageState(persistedPnc));
+    }
+
+    public static IEnumerable<object[]> CobProgressCases()
+    {
+        foreach (var version in new[] { ProcurementWorkflow.VersionV1, ProcurementWorkflow.VersionV2 })
+        foreach (var tec in new[] { StageStatus.Completed, StageStatus.Skipped })
+        foreach (var bm in new[] { StageStatus.Completed, StageStatus.Skipped })
+        foreach (var target in new[] { StageStatus.InProgress, StageStatus.Completed, StageStatus.Skipped })
+            yield return new object[] { version, tec, bm, target };
+    }
+
+    [Theory]
+    [MemberData(nameof(CobProgressCases))]
+    public async Task CobProgress_AcceptsCompletedOrSkippedPredecessors(
+        string version, StageStatus tec, StageStatus bm, StageStatus target)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.TEC, tec), (StageCodes.BM, bm),
+            (StageCodes.COB, target == StageStatus.Completed ? StageStatus.InProgress : StageStatus.NotStarted));
+        (await db.Projects.SingleAsync()).WorkflowVersion = version;
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact { ProjectId = 1, CreatedByUserId = "seed" });
+        await db.SaveChangesAsync();
+        var beforeTec = StageState(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.TEC));
+        var beforeBm = StageState(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.BM));
+        await CreateService(db, OperationalClock()).UpdateStageStatusAsync(
+            1, StageCodes.COB, target, new DateOnly(2024, 6, 15), "tester");
+        db.ChangeTracker.Clear();
+        Assert.Equal(target, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB)).Status);
+        Assert.Equal(beforeTec, StageState(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.TEC)));
+        Assert.Equal(beforeBm, StageState(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.BM)));
+    }
+
+    [Theory]
+    [InlineData(ProcurementWorkflow.VersionV1)]
+    [InlineData(ProcurementWorkflow.VersionV2)]
+    public async Task CobCompletion_PreservesPresentNonOptionalPredecessorBackfill(string version)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.TEC, StageStatus.NotStarted),
+            (StageCodes.BM, StageStatus.Blocked), (StageCodes.COB, StageStatus.InProgress));
+        (await db.Projects.SingleAsync()).WorkflowVersion = version;
+        var bm = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.BM);
+        bm.ActualStart = new DateOnly(2024, 6, 7);
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact { ProjectId = 1, CreatedByUserId = "seed" });
+        await db.SaveChangesAsync();
+        await CreateService(db, OperationalClock()).UpdateStageStatusAsync(
+            1, StageCodes.COB, StageStatus.Completed, new DateOnly(2024, 6, 15), "tester");
+        db.ChangeTracker.Clear();
+        foreach (var code in new[] { StageCodes.TEC, StageCodes.BM })
+        {
+            var row = await db.ProjectStages.SingleAsync(s => s.StageCode == code);
+            Assert.Equal(StageStatus.Completed, row.Status);
+            Assert.True(row.IsAutoCompleted);
+            Assert.True(row.RequiresBackfill);
+            Assert.Equal(StageCodes.COB, row.AutoCompletedFromCode);
+            Assert.Equal(code == StageCodes.BM ? new DateOnly(2024, 6, 7) : (DateOnly?)null, row.ActualStart);
+            Assert.Null(row.CompletedOn);
+        }
+    }
+
+    public static IEnumerable<object[]> CobRejectedCases()
+    {
+        foreach (var version in new[] { ProcurementWorkflow.VersionV1, ProcurementWorkflow.VersionV2 })
+        foreach (var predecessor in new[] { StageCodes.TEC, StageCodes.BM })
+        foreach (StageStatus? status in new StageStatus?[] { StageStatus.NotStarted, StageStatus.InProgress, StageStatus.Blocked, null })
+        foreach (var target in new[] { StageStatus.InProgress, StageStatus.Completed, StageStatus.Skipped })
+        {
+            // Present non-optional stages retain the deliberate completion/backfill cascade.
+            if (target == StageStatus.Completed && status.HasValue) continue;
+            yield return new object[] { version, predecessor, status!, target };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(CobRejectedCases))]
+    public async Task CobProgress_RejectsUnresolvedStartOrSkipAndMissingRequiredRows(
+        string version, string predecessor, StageStatus? status, StageStatus target)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.COB,
+            target == StageStatus.Completed ? StageStatus.InProgress : StageStatus.NotStarted));
+        (await db.Projects.SingleAsync()).WorkflowVersion = version;
+        var row = await db.ProjectStages.SingleAsync(s => s.StageCode == predecessor);
+        if (status.HasValue) row.Status = status.Value;
+        else db.ProjectStages.Remove(row);
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact { ProjectId = 1, CreatedByUserId = "seed" });
+        await db.SaveChangesAsync();
+        await AssertRejectedWithoutMutationAsync(db, () => CreateService(db, OperationalClock())
+            .UpdateStageStatusAsync(1, StageCodes.COB, target, new DateOnly(2024, 6, 15), "tester"));
+    }
+
+    [Theory]
+    [InlineData(ProcurementWorkflow.VersionV1, false)]
+    [InlineData(ProcurementWorkflow.VersionV1, true)]
+    [InlineData(ProcurementWorkflow.VersionV2, false)]
+    [InlineData(ProcurementWorkflow.VersionV2, true)]
+    public async Task LaterCompletion_MissingIntermediateRowCannotTruncateRequiredAncestry(string version, bool missingPnc)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.SO, StageStatus.InProgress), (StageCodes.PNC, StageStatus.NotStarted));
+        (await db.Projects.SingleAsync()).WorkflowVersion = version;
+        db.ProjectStages.Remove(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.EAS));
+        if (missingPnc) db.ProjectStages.Remove(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC));
+        db.ProjectSupplyOrderFacts.Add(new ProjectSupplyOrderFact { ProjectId = 1, CreatedByUserId = "seed" });
+        await db.SaveChangesAsync();
+        await AssertRejectedWithoutMutationAsync(db, () => CreateService(db, OperationalClock())
+            .UpdateStageStatusAsync(1, StageCodes.SO, StageStatus.Completed, new DateOnly(2024, 6, 15), "tester"));
+    }
+
+    [Theory]
+    [InlineData(ProcurementWorkflow.VersionV1, StageStatus.InProgress)]
+    [InlineData(ProcurementWorkflow.VersionV1, StageStatus.Skipped)]
+    [InlineData(ProcurementWorkflow.VersionV2, StageStatus.InProgress)]
+    [InlineData(ProcurementWorkflow.VersionV2, StageStatus.Skipped)]
+    public async Task Advancement_UsesPublishedIpaAuthorityWithoutRepairingStoredFacts(string version, StageStatus target)
+    {
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.AON, StageStatus.NotStarted), (StageCodes.IPA, StageStatus.NotStarted));
+        (await db.Projects.SingleAsync()).WorkflowVersion = version;
+        AddPublishedIpa(db, new DateOnly(2024, 6, 10));
+        await db.SaveChangesAsync();
+        var beforeIpa = StageState(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA));
+        await CreateService(db, OperationalClock()).UpdateStageStatusAsync(
+            1, StageCodes.AON, target, new DateOnly(2024, 6, 15), "tester");
+        db.ChangeTracker.Clear();
+        Assert.Equal(beforeIpa, StageState(await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA)));
+        Assert.Equal(target, (await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.AON)).Status);
+    }
+
+    private static TestClock OperationalClock() => new(new DateTimeOffset(2024, 6, 16, 0, 0, 0, TimeSpan.Zero));
+
+    private static string StageState(ProjectStage stage) => JsonSerializer.Serialize(new
+    {
+        stage.StageCode, stage.Status, stage.ActualStart, stage.CompletedOn,
+        stage.IsAutoCompleted, stage.AutoCompletedFromCode, stage.RequiresBackfill
+    });
+
+    private static async Task AssertRejectedWithoutMutationAsync(ApplicationDbContext db, Func<Task> update)
+    {
+        var rows = await db.ProjectStages.OrderBy(s => s.StageCode).ToListAsync();
+        var before = rows.Select(StageState).ToArray();
+        var history = JsonSerializer.Serialize(await db.StageChangeLogs.OrderBy(l => l.Id).ToListAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(update);
+        // Verify the reusable context as well as persisted rows: a denied operation
+        // must not leave mutations that a later SaveChanges could accidentally publish.
+        Assert.Equal(before, rows.Select(StageState).ToArray());
+        Assert.DoesNotContain(db.ChangeTracker.Entries<StageChangeLog>(), e => e.State == EntityState.Added);
+        db.ChangeTracker.Clear();
+        Assert.Equal(before, (await db.ProjectStages.OrderBy(s => s.StageCode).ToListAsync()).Select(StageState).ToArray());
+        Assert.Equal(history, JsonSerializer.Serialize(await db.StageChangeLogs.OrderBy(l => l.Id).ToListAsync()));
+    }
+
     private static void AddPublishedIpa(ApplicationDbContext db, DateOnly completion)
     {
         db.ArppIssues.Add(new ArppIssue
@@ -735,6 +970,20 @@ public class StageProgressServiceTests
             });
         }
 
+        await db.SaveChangesAsync();
+        // Seed terminal prerequisite rows without replacing any explicitly supplied state.
+        // Tests for corrupt/missing prerequisites remove the relevant row deliberately.
+        var workflow = await StageWorkflowTestFactory.CreatePolicy(db).GetAsync(1);
+        var supplied = stages.Select(s => s.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var code in stages.SelectMany(s => workflow.RequiredPredecessorClosure(s.Code)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (supplied.Contains(code)) continue;
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = 1, StageCode = code, SortOrder = Array.IndexOf(StageCodes.All, code),
+                Status = StageStatus.Completed
+            });
+        }
         await db.SaveChangesAsync();
     }
 
