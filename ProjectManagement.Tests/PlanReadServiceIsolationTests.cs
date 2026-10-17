@@ -124,7 +124,7 @@ public class PlanReadServiceIsolationTests
     [Theory]
     [InlineData(PlanVersionStatus.Draft, false)]
     [InlineData(PlanVersionStatus.PendingApproval, true)]
-    public async Task LegacyActorProposal_OwnsDatesButUsesAcceptedPublishedPolicy(PlanVersionStatus status, bool proposalPnc)
+    public async Task LegacyActorProposal_OwnsDatesAndPresentsDraftCandidatesWhilePendingUsesAcceptedPolicy(PlanVersionStatus status, bool proposalPnc)
     {
         await using var db = CreateDb();
         await SeedAsync(db);
@@ -135,14 +135,69 @@ public class PlanReadServiceIsolationTests
                 PlannedStart = new DateOnly(2027, 1, 4), PlannedDue = new DateOnly(2027, 1, 5) } } });
         await db.SaveChangesAsync();
         var vm = await new PlanReadService(db).GetAsync(1, "actor");
-        Assert.Equal(new DateOnly(2026, 11, 1), vm.Durations.AnchorStart);
-        Assert.False(vm.Durations.IncludeWeekends);
+        Assert.Equal(status == PlanVersionStatus.Draft ? new DateOnly(2040, 1, 1) : new DateOnly(2026, 11, 1), vm.Durations.AnchorStart);
+        Assert.Equal(status == PlanVersionStatus.Draft, vm.Durations.IncludeWeekends);
         Assert.True(vm.Durations.SkipHolidays);
-        Assert.Equal(NextStageStartPolicies.NextWorkingDay, vm.Durations.NextStageStartPolicy);
-        Assert.Equal(5, vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.Equal(status == PlanVersionStatus.Draft ? NextStageStartPolicies.SameDay : NextStageStartPolicies.NextWorkingDay, vm.Durations.NextStageStartPolicy);
+        Assert.Equal(status == PlanVersionStatus.Draft ? 81 : 5, vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
         Assert.Equal(new DateOnly(2027, 1, 4), vm.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedStart);
         Assert.Equal(proposalPnc, vm.State.PncApplicable);
         Assert.Equal(status == PlanVersionStatus.PendingApproval, vm.State.IsLocked);
+    }
+
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task LegacyOwnDraft_PresentsPrivateDurationCandidatesWithoutPromotingPolicyOrLeakingToOtherActors(
+        bool trustedBaseline, bool livePnc, bool proposalPnc)
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+        var project = await db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = trustedBaseline ? PlanningInputVersions.Current : PlanningInputVersions.Legacy;
+        project.PncApplicable = livePnc;
+        var mine = new PlanVersion { ProjectId = 1, OwnerUserId = "actor", CreatedByUserId = "actor", VersionNo = 20,
+            PlanningInputVersion = PlanningInputVersions.Legacy, Status = PlanVersionStatus.Draft,
+            AnchorDate = new DateOnly(2035, 1, 1), SkipWeekends = false, SkipHolidays = false,
+            TransitionRule = PlanTransitionRule.SameDay, PncApplicable = proposalPnc,
+            StagePlans = new() {
+                new() { StageCode = StageCodes.FS, DurationDays = 99, PlannedStart = new DateOnly(2035, 1, 1), PlannedDue = new DateOnly(2035, 4, 9) },
+                new() { StageCode = StageCodes.PNC, DurationDays = 15, PlannedStart = new DateOnly(2035, 4, 9), PlannedDue = new DateOnly(2035, 4, 23) },
+                new() { StageCode = "PRIVATE", DurationDays = 45, SortOrder = 90,
+                    PlannedStart = new DateOnly(2035, 4, 23), PlannedDue = new DateOnly(2035, 6, 6) }
+            } };
+        db.PlanVersions.Add(mine);
+        await db.SaveChangesAsync();
+
+        var vm = await new PlanReadService(db).GetAsync(1, "actor");
+        Assert.Equal(new DateOnly(2035, 1, 1), vm.Durations.AnchorStart);
+        Assert.True(vm.Durations.IncludeWeekends);
+        Assert.True(vm.Durations.SkipHolidays); // Legacy revisions did not own this policy.
+        Assert.Equal(NextStageStartPolicies.SameDay, vm.Durations.NextStageStartPolicy);
+        Assert.Equal(99, vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.Equal(45, vm.Durations.Rows.Single(r => r.Code == "PRIVATE").DurationDays);
+        Assert.Equal(new DateOnly(2035, 1, 1), vm.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedStart);
+        Assert.Equal(livePnc && proposalPnc, vm.State.PncApplicable);
+        var pnc = vm.Durations.Rows.Single(r => r.Code == StageCodes.PNC);
+        Assert.Equal(livePnc && proposalPnc ? 15 : (int?)null, pnc.DurationDays);
+        Assert.Equal(livePnc && proposalPnc ? new DateOnly(2035, 4, 9) : (DateOnly?)null, pnc.PreviewStart);
+        Assert.Equal(trustedBaseline ? PlanEditorModes.Durations : PlanEditorModes.Exact, vm.ActiveMode);
+
+        var other = await new PlanReadService(db).GetAsync(1, "uninvolved");
+        Assert.Equal(trustedBaseline ? new DateOnly(2026, 11, 1) : (DateOnly?)null, other.Durations.AnchorStart);
+        Assert.Equal(trustedBaseline ? 5 : (int?)null, other.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.DoesNotContain(other.Durations.Rows, r => r.Code == "PRIVATE");
+        Assert.All(db.ChangeTracker.Entries(), entry => Assert.Equal(EntityState.Unchanged, entry.State));
+        db.ChangeTracker.Clear();
+        mine = await db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == "actor");
+        Assert.Equal(PlanningInputVersions.Legacy, mine.PlanningInputVersion);
+        Assert.False(mine.SkipHolidays);
+        Assert.Equal(proposalPnc, mine.PncApplicable);
+        Assert.Equal(15, mine.StagePlans.Single(s => s.StageCode == StageCodes.PNC).DurationDays);
+        Assert.NotNull(mine.StagePlans.Single(s => s.StageCode == StageCodes.PNC).PlannedStart);
+        Assert.Equal(45, mine.StagePlans.Single(s => s.StageCode == "PRIVATE").DurationDays);
     }
 
     [Fact]

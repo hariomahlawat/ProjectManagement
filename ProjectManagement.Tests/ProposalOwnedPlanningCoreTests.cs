@@ -18,6 +18,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 using Xunit;
 
@@ -261,6 +262,9 @@ public sealed class ProposalOwnedPlanningCoreTests
 
         var draft = await Service(db, "actor").CreateOrGetDraftAsync(1);
 
+        if (resumeLegacy)
+            await UpgradeAsync(Service(db, "actor"), draft, exact: true);
+
         Assert.False(draft.PncApplicable);
         var pnc = draft.StagePlans.Single(stage => stage.StageCode == StageCodes.PNC);
         Assert.Equal(0, pnc.DurationDays);
@@ -270,7 +274,7 @@ public sealed class ProposalOwnedPlanningCoreTests
         Assert.Equal(15, (await db.ProjectPlanDurations.SingleAsync(stage => stage.StageCode == StageCodes.PNC)).DurationDays);
         Assert.Equal(new DateOnly(2026, 11, 1), draft.AnchorDate);
         Assert.False(draft.SkipWeekends);
-        Assert.Equal(5, draft.StagePlans.Single(stage => stage.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(resumeLegacy ? 2 : 5, draft.StagePlans.Single(stage => stage.StageCode == StageCodes.FS).DurationDays);
         Assert.Equal(resumeLegacy ? new DateOnly(2026, 12, 1) : new DateOnly(2026, 11, 2), draft.StagePlans.Single(stage => stage.StageCode == StageCodes.FS).PlannedStart);
         Assert.Equal(PlanningInputVersions.Current, draft.PlanningInputVersion);
     }
@@ -299,6 +303,8 @@ public sealed class ProposalOwnedPlanningCoreTests
         var service = Service(db, "actor");
         Assert.Equal(PlanningInputVersions.Legacy, (await service.GetMyDraftAsync(1))!.PlanningInputVersion);
         await service.CreateOrGetDraftAsync(1);
+        Assert.Equal(PlanningInputVersions.Legacy, mine.PlanningInputVersion);
+        await UpgradeAsync(service, mine, exact: true);
         Assert.Equal(PlanningInputVersions.Current, mine.PlanningInputVersion);
         Assert.Equal(new DateOnly(2026, 11, 1), mine.AnchorDate);
         Assert.Equal(PlanningInputVersions.Legacy, other.PlanningInputVersion);
@@ -319,6 +325,226 @@ public sealed class ProposalOwnedPlanningCoreTests
         Assert.Null(legacy.StagePlans.Single().PlannedStart);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyDraft_GenericRetrievalPreservesPrivateDurationInputsBeforeModeSelection(bool orphan)
+    {
+        await using var db = CreateDb();
+        await SeedPublishedAsync(db);
+        var legacy = LegacyDurationDraft();
+        if (orphan) legacy.OwnerUserId = null;
+        db.PlanVersions.Add(legacy);
+        await db.SaveChangesAsync();
+
+        var retrieved = await Service(db, "actor").CreateOrGetDraftAsync(1);
+
+        Assert.Equal(legacy.Id, retrieved.Id);
+        Assert.Equal("actor", retrieved.OwnerUserId);
+        Assert.Equal(PlanningInputVersions.Legacy, retrieved.PlanningInputVersion);
+        Assert.Equal(new DateOnly(2035, 1, 1), retrieved.AnchorDate);
+        Assert.False(retrieved.SkipWeekends);
+        Assert.Equal(PlanTransitionRule.SameDay, retrieved.TransitionRule);
+        Assert.True(retrieved.PncApplicable);
+        Assert.Equal(99, retrieved.StagePlans.Single(row => row.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(15, retrieved.StagePlans.Single(row => row.StageCode == StageCodes.PNC).DurationDays);
+        Assert.Equal(45, retrieved.StagePlans.Single(row => row.StageCode == "PRIVATE").DurationDays);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public async Task LegacyDurationUpgrade_PreservesPrivateInputsAndNormalizesOnlyMissingPolicyPncAndKnownOrder(
+        bool trusted, bool livePnc, bool legacyPnc)
+    {
+        await using var db = CreateDb();
+        await SeedPublishedAsync(db);
+        var project = await db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = trusted ? PlanningInputVersions.Current : PlanningInputVersions.Legacy;
+        project.PncApplicable = livePnc;
+        var legacy = LegacyDurationDraft();
+        legacy.PncApplicable = legacyPnc;
+        legacy.SkipHolidays = trusted;
+        db.PlanVersions.Add(legacy);
+        await db.SaveChangesAsync();
+        var originalRows = legacy.StagePlans.ToDictionary(row => row.StageCode,
+            row => (row.DurationDays, row.PlannedStart, row.PlannedDue, row.SortOrder));
+        var service = Service(db, "actor");
+
+        await UpgradeAsync(service, legacy, exact: false);
+
+        Assert.Equal(PlanningInputVersions.Current, legacy.PlanningInputVersion);
+        Assert.Equal(new DateOnly(2035, 1, 1), legacy.AnchorDate);
+        Assert.False(legacy.SkipWeekends);
+        Assert.Equal(PlanTransitionRule.SameDay, legacy.TransitionRule);
+        Assert.Equal(!trusted, legacy.SkipHolidays);
+        Assert.Equal(livePnc && legacyPnc, legacy.PncApplicable);
+        Assert.Equal(10, legacy.StagePlans.Single(row => row.StageCode == StageCodes.FS).SortOrder);
+        foreach (var row in legacy.StagePlans.Where(row =>
+                     livePnc && legacyPnc || row.StageCode != StageCodes.PNC))
+        {
+            var original = originalRows[row.StageCode];
+            Assert.Equal(original.DurationDays, row.DurationDays);
+            Assert.Equal(original.PlannedStart, row.PlannedStart);
+            Assert.Equal(original.PlannedDue, row.PlannedDue);
+        }
+        var extension = legacy.StagePlans.Single(row => row.StageCode == "PRIVATE");
+        Assert.Equal(45, extension.DurationDays);
+        Assert.Equal(731, extension.SortOrder);
+        var pnc = legacy.StagePlans.Single(row => row.StageCode == StageCodes.PNC);
+        if (!livePnc)
+        {
+            Assert.Equal(0, pnc.DurationDays);
+            Assert.Null(pnc.PlannedStart);
+            Assert.Null(pnc.PlannedDue);
+        }
+        Assert.Equal(3, legacy.StagePlans.Count);
+        Assert.Equal(new DateOnly(2026, 11, 1), (await db.ProjectScheduleSettings.SingleAsync()).AnchorStart);
+        Assert.Equal(5, (await db.ProjectPlanDurations.SingleAsync(row => row.StageCode == StageCodes.FS)).DurationDays);
+        Assert.Equal(new DateOnly(2026, 11, 2), (await db.ProjectStages.SingleAsync(row => row.StageCode == StageCodes.FS)).PlannedStart);
+
+        // Current proposals must never have their edited fields reset by either cutover API.
+        legacy.AnchorDate = new DateOnly(2040, 2, 3);
+        legacy.SkipHolidays = trusted;
+        extension.DurationDays = 46;
+        await db.SaveChangesAsync();
+        await UpgradeAsync(service, legacy, exact: false);
+        await UpgradeAsync(service, legacy, exact: true);
+        Assert.Equal(new DateOnly(2040, 2, 3), legacy.AnchorDate);
+        Assert.Equal(trusted, legacy.SkipHolidays);
+        Assert.Equal(46, extension.DurationDays);
+    }
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 2)]
+    public async Task LegacyExactUpgrade_RecalculatesAllPreservedDatesWithAcceptedOfficeCalendar(
+        bool injectedCalendar, int privateDuration)
+    {
+        await using var db = CreateDb();
+        await SeedPublishedAsync(db);
+        (await db.Projects.SingleAsync()).PublishedPlanningInputVersion = PlanningInputVersions.Legacy;
+        db.Holidays.AddRange(
+            new Holiday { Date = new DateOnly(2026, 11, 11), Name = "Gazetted", Type = HolidayType.Gazetted },
+            new Holiday { Date = new DateOnly(2026, 12, 25), Name = "Gazetted", Type = HolidayType.Gazetted },
+            new Holiday { Date = new DateOnly(2026, 12, 24), Name = "Observed", Type = HolidayType.Restricted, IsObservedAsOfficeHoliday = true },
+            new Holiday { Date = new DateOnly(2026, 12, 28), Name = "Informational", Type = HolidayType.Restricted, IsObservedAsOfficeHoliday = false });
+        var legacy = LegacyDurationDraft();
+        legacy.StagePlans.Single(row => row.StageCode == StageCodes.FS).PlannedStart = new DateOnly(2026, 11, 10);
+        legacy.StagePlans.Single(row => row.StageCode == StageCodes.FS).PlannedDue = new DateOnly(2026, 11, 12);
+        var extension = legacy.StagePlans.Single(row => row.StageCode == "PRIVATE");
+        extension.PlannedStart = new DateOnly(2026, 12, 24);
+        extension.PlannedDue = new DateOnly(2026, 12, 28);
+        legacy.StagePlans.Add(new StagePlan { StageCode = "INCOMPLETE", DurationDays = 9, PlannedStart = new DateOnly(2027, 1, 1) });
+        legacy.StagePlans.Add(new StagePlan { StageCode = "REVERSED", DurationDays = 9, PlannedStart = new DateOnly(2027, 2, 2), PlannedDue = new DateOnly(2027, 2, 1) });
+        db.PlanVersions.Add(legacy);
+        await db.SaveChangesAsync();
+        var office = new CutoverOfficeCalendar();
+        var service = injectedCalendar
+            ? ServiceWithCalendar(db, office)
+            : Service(db, "actor");
+
+        await UpgradeAsync(service, legacy, exact: true);
+
+        Assert.Equal(PlanningInputVersions.Current, legacy.PlanningInputVersion);
+        Assert.Null(legacy.AnchorDate);
+        Assert.True(legacy.SkipWeekends);
+        Assert.True(legacy.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.NextWorkingDay, legacy.TransitionRule);
+        Assert.False(legacy.PncApplicable);
+        Assert.Equal(2, legacy.StagePlans.Single(row => row.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(privateDuration, extension.DurationDays);
+        Assert.Equal(new DateOnly(2026, 12, 24), extension.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 12, 28), extension.PlannedDue);
+        Assert.Equal(0, legacy.StagePlans.Single(row => row.StageCode == "INCOMPLETE").DurationDays);
+        Assert.Equal(0, legacy.StagePlans.Single(row => row.StageCode == "REVERSED").DurationDays);
+        Assert.Equal(0, legacy.StagePlans.Single(row => row.StageCode == StageCodes.PNC).DurationDays);
+        Assert.Null(legacy.StagePlans.Single(row => row.StageCode == StageCodes.PNC).PlannedStart);
+        if (injectedCalendar)
+        {
+            Assert.True(office.Start <= new DateOnly(2026, 11, 10));
+            Assert.True(office.End > new DateOnly(2027, 2, 2));
+        }
+        Assert.Equal(new DateOnly(2026, 11, 1), (await db.ProjectScheduleSettings.SingleAsync()).AnchorStart);
+        Assert.Equal(5, (await db.ProjectPlanDurations.SingleAsync(row => row.StageCode == StageCodes.FS)).DurationDays);
+    }
+
+    [Theory]
+    [InlineData(true, true, PlanVersionStatus.Draft)]
+    [InlineData(false, true, PlanVersionStatus.Draft)]
+    [InlineData(true, false, PlanVersionStatus.PendingApproval)]
+    [InlineData(false, false, PlanVersionStatus.Approved)]
+    public async Task LegacyUpgrade_RejectsAnotherOwnerOrUneditableRevision(bool exact, bool foreign, PlanVersionStatus status)
+    {
+        await using var db = CreateDb();
+        await SeedPublishedAsync(db);
+        var legacy = LegacyDurationDraft();
+        legacy.Status = status;
+        if (foreign) legacy.OwnerUserId = "other";
+        db.PlanVersions.Add(legacy);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => UpgradeAsync(Service(db, "actor"), legacy, exact));
+
+        Assert.Equal(PlanningInputVersions.Legacy, legacy.PlanningInputVersion);
+        Assert.Equal(new DateOnly(2035, 1, 1), legacy.AnchorDate);
+        Assert.Equal(99, legacy.StagePlans.Single(row => row.StageCode == StageCodes.FS).DurationDays);
+    }
+
+    private static PlanVersion LegacyDurationDraft()
+    {
+        var draft = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 1, CreatedByUserId = "actor", OwnerUserId = "actor",
+            PlanningInputVersion = PlanningInputVersions.Legacy, AnchorDate = new DateOnly(2035, 1, 1),
+            SkipWeekends = false, SkipHolidays = false, TransitionRule = PlanTransitionRule.SameDay, PncApplicable = true
+        };
+        draft.StagePlans.AddRange(new[]
+        {
+            new StagePlan { StageCode = StageCodes.FS, DurationDays = 99, SortOrder = 999, PlannedStart = new DateOnly(2035, 1, 1), PlannedDue = new DateOnly(2035, 4, 9) },
+            new StagePlan { StageCode = StageCodes.PNC, DurationDays = 15, SortOrder = 888, PlannedStart = new DateOnly(2035, 4, 9), PlannedDue = new DateOnly(2035, 4, 23) },
+            new StagePlan { StageCode = "PRIVATE", DurationDays = 45, SortOrder = 731, PlannedStart = new DateOnly(2035, 4, 23), PlannedDue = new DateOnly(2035, 6, 6) }
+        });
+        return draft;
+    }
+
+    private static async Task UpgradeAsync(PlanDraftService service, PlanVersion draft, bool exact)
+    {
+        var methodName = exact ? "UpgradeLegacyDraftForExactAsync" : "UpgradeLegacyDraftForDurationAsync";
+        var method = typeof(PlanDraftService).GetMethod(methodName, new[] { typeof(PlanVersion), typeof(CancellationToken) });
+        Assert.NotNull(method);
+        await (Task)method.Invoke(service, new object[] { draft, CancellationToken.None })!;
+    }
+
+    private static PlanDraftService ServiceWithCalendar(ApplicationDbContext db, IOfficeCalendarService office)
+    {
+        var constructor = typeof(PlanDraftService).GetConstructor(new[]
+        {
+            typeof(ApplicationDbContext), typeof(IClock), typeof(Microsoft.Extensions.Logging.ILogger<PlanDraftService>),
+            typeof(IAuditService), typeof(IUserContext), typeof(IOfficeCalendarService)
+        });
+        Assert.NotNull(constructor);
+        return (PlanDraftService)constructor.Invoke(new object[]
+        {
+            db, new TestClock(), NullLogger<PlanDraftService>.Instance, new NullAudit(), new UserContext("actor"), office
+        });
+    }
+
+    private sealed class CutoverOfficeCalendar : IOfficeCalendarService
+    {
+        public DateOnly Start { get; private set; }
+        public DateOnly End { get; private set; }
+        public Task<IReadOnlySet<DateOnly>> GetNonWorkingDatesAsync(DateOnly startInclusive, DateOnly endExclusive, CancellationToken cancellationToken = default)
+        {
+            Start = startInclusive;
+            End = endExclusive;
+            return Task.FromResult<IReadOnlySet<DateOnly>>(new HashSet<DateOnly> { new(2026, 11, 12), new(2026, 12, 28) });
+        }
+        public Task<IReadOnlyList<OfficeCalendarDay>> GetCalendarDaysAsync(DateOnly startInclusive, DateOnly endExclusive, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> IsOfficeHolidayAsync(DateOnly date, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
     private sealed class PublishAfterBaselineRead : DbCommandInterceptor
     {
         public Func<Task>? PublishAsync { get; set; }

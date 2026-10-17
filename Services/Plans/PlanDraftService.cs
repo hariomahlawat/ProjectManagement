@@ -5,6 +5,8 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Scheduling;
+using ProjectManagement.Services.Stages;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,19 +22,22 @@ public class PlanDraftService
     private readonly ILogger<PlanDraftService> _logger;
     private readonly IAuditService _audit;
     private readonly IUserContext _userContext;
+    private readonly IOfficeCalendarService? _officeCalendar;
 
     public PlanDraftService(
         ApplicationDbContext db,
         IClock clock,
         ILogger<PlanDraftService> logger,
         IAuditService audit,
-        IUserContext userContext)
+        IUserContext userContext,
+        IOfficeCalendarService? officeCalendar = null)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
         _audit = audit;
         _userContext = userContext;
+        _officeCalendar = officeCalendar;
     }
 
     public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, CancellationToken cancellationToken = default)
@@ -49,7 +54,6 @@ public class PlanDraftService
 
         if (myDraft is not null)
         {
-            await UpgradeLegacyDraftAsync(myDraft, cancellationToken);
             return myDraft;
         }
 
@@ -78,7 +82,6 @@ public class PlanDraftService
         if (orphanDraft is not null)
         {
             orphanDraft.OwnerUserId = userId;
-            await UpgradeLegacyDraftAsync(orphanDraft, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
             return orphanDraft;
         }
@@ -162,19 +165,112 @@ public class PlanDraftService
         return plan;
     }
 
-    private async Task UpgradeLegacyDraftAsync(PlanVersion draft, CancellationToken cancellationToken)
+    public async Task UpgradeLegacyDraftForExactAsync(
+        PlanVersion draft,
+        CancellationToken cancellationToken = default)
     {
+        ValidateEditableDraftOwner(draft);
         if (draft.PlanningInputVersion != PlanningInputVersions.Legacy)
         {
             return;
         }
 
-        // This path is reached only after selecting this actor's own editable draft.
-        // Existing Exact dates were already proposal-owned; policy/duration fields
-        // were not, so replace those from the accepted baseline before any new edits.
         await InitializeInputsAsync(draft, preserveExistingDates: true, cancellationToken);
+
+        var datedRows = draft.StagePlans
+            .Where(row => row.PlannedStart.HasValue || row.PlannedDue.HasValue)
+            .ToArray();
+        var dates = datedRows
+            .SelectMany(row => new[] { row.PlannedStart, row.PlannedDue })
+            .Where(date => date.HasValue)
+            .Select(date => date!.Value)
+            .ToArray();
+        IReadOnlyCollection<DateOnly> holidays = Array.Empty<DateOnly>();
+        if (dates.Length > 0)
+        {
+            var start = dates.Min().AddDays(-7);
+            var endExclusive = dates.Max().AddDays(8);
+            holidays = _officeCalendar is not null
+                ? (await _officeCalendar.GetNonWorkingDatesAsync(start, endExclusive, cancellationToken)).ToArray()
+                : await _db.Holidays.AsNoTracking()
+                    .Where(holiday => holiday.Date >= start && holiday.Date < endExclusive &&
+                        (holiday.Type == HolidayType.Gazetted || holiday.IsObservedAsOfficeHoliday))
+                    .Select(holiday => holiday.Date)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+        }
+
+        var calendar = new WorkingCalendar(holidays, includeWeekends: !draft.SkipWeekends, draft.SkipHolidays);
+        foreach (var row in draft.StagePlans)
+        {
+            row.DurationDays = row.PlannedStart.HasValue && row.PlannedDue.HasValue
+                ? calendar.CountWorkingDaysInclusive(row.PlannedStart.Value, row.PlannedDue.Value)
+                : 0;
+        }
+
         draft.PlanningInputVersion = PlanningInputVersions.Current;
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpgradeLegacyDraftForDurationAsync(
+        PlanVersion draft,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateEditableDraftOwner(draft);
+        if (draft.PlanningInputVersion != PlanningInputVersions.Legacy)
+        {
+            return;
+        }
+
+        var baseline = await PublishedPlanningBaseline.LoadAsync(_db, draft.ProjectId, cancellationToken);
+        var workflowVersion = baseline.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
+        var templateOrder = await _db.StageTemplates.AsNoTracking()
+            .Where(template => template.Version == workflowVersion)
+            .ToDictionaryAsync(template => template.Code, template => template.Sequence,
+                StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var workflowOrder = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
+
+        draft.AnchorStageCode = PlanConstants.DefaultAnchorStageCode;
+        // Legacy revisions predate proposal-owned holiday policy. The migration
+        // supplied only a compatibility value, so establish it from trusted
+        // published policy or the safe default without replacing owned inputs.
+        draft.SkipHolidays = baseline.Settings?.SkipHolidays ?? true;
+        foreach (var row in draft.StagePlans)
+        {
+            if (templateOrder.TryGetValue(row.StageCode, out var templateSequence))
+            {
+                row.SortOrder = templateSequence;
+            }
+            else if (workflowOrder.TryGetValue(row.StageCode, out var workflowSequence))
+            {
+                row.SortOrder = workflowSequence;
+            }
+        }
+
+        if (!baseline.PncApplicable || !draft.PncApplicable)
+        {
+            draft.PncApplicable = false;
+            foreach (var pnc in draft.StagePlans.Where(row =>
+                         string.Equals(row.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase)))
+            {
+                pnc.DurationDays = 0;
+                pnc.PlannedStart = null;
+                pnc.PlannedDue = null;
+            }
+        }
+
+        draft.PlanningInputVersion = PlanningInputVersions.Current;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private void ValidateEditableDraftOwner(PlanVersion draft)
+    {
+        var userId = GetCurrentUserId();
+        if (draft.Status != PlanVersionStatus.Draft ||
+            !string.Equals(draft.OwnerUserId, userId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only the owner can upgrade an editable draft.");
+        }
     }
 
     private async Task InitializeInputsAsync(PlanVersion plan, bool preserveExistingDates, CancellationToken cancellationToken)

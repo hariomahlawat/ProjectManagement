@@ -1,5 +1,10 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,6 +13,8 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Pages.Projects.Timeline;
+using ProjectManagement.ViewModels;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Stages;
@@ -35,8 +42,8 @@ internal static class ProposalOwnedPlanningCutoverPostgresFixture
             await db.Database.OpenConnectionAsync();
             await using var command = db.Database.GetDbConnection().CreateCommand();
             command.CommandText = """
-                INSERT INTO "Projects" ("Name", "CreatedAt", "CreatedByUserId", "RowVersion", "WorkflowVersion", "PncApplicable")
-                VALUES ('Previous-master planning cutover', TIMESTAMP '2026-10-16 00:00:00', 'system', '\x'::bytea, 'v1', FALSE)
+                INSERT INTO "Projects" ("Name", "CreatedAt", "CreatedByUserId", "RowVersion", "WorkflowVersion", "PncApplicable", "LeadPoUserId")
+                VALUES ('Previous-master planning cutover', TIMESTAMP '2026-10-16 00:00:00', 'system', '\x'::bytea, 'v1', FALSE, 'cutover-a')
                 RETURNING "Id";
                 """;
             var id = Convert.ToInt32(await command.ExecuteScalarAsync());
@@ -141,15 +148,20 @@ internal static class ProposalOwnedPlanningCutoverPostgresFixture
             Assert.False(realignment.PncApplicable);
         }
 
+        await ResumeLegacyDurationViaPostAsync(db, projects[0]);
+
         var legacyDraftProject = projects[2];
-        var resumed = await DraftService(db, "cutover-a").CreateOrGetDraftAsync(legacyDraftProject);
+        var exactDraftService = DraftService(db, "cutover-a");
+        var resumed = await exactDraftService.CreateOrGetDraftAsync(legacyDraftProject);
+        Assert.Equal(PlanningInputVersions.Legacy, resumed.PlanningInputVersion);
+        await exactDraftService.UpgradeLegacyDraftForExactAsync(resumed);
         Assert.Equal(1, resumed.PlanningInputVersion);
         Assert.Null(resumed.AnchorDate);
         Assert.True(resumed.SkipWeekends);
         Assert.True(resumed.SkipHolidays);
         Assert.Equal(PlanTransitionRule.NextWorkingDay, resumed.TransitionRule);
         Assert.Equal(new DateOnly(2026, 12, 1), resumed.StagePlans.Single(s => s.StageCode == StageCodes.FS).PlannedStart);
-        Assert.Equal(0, resumed.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(2, resumed.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays);
         // This represents the subsequent actor edit, after the upgrade boundary.
         resumed.AnchorDate = new DateOnly(2026, 12, 1);
         resumed.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays = 3;
@@ -174,6 +186,134 @@ internal static class ProposalOwnedPlanningCutoverPostgresFixture
         Assert.Equal(0, (await db.Projects.AsNoTracking().SingleAsync(p => p.Id == pendingProject)).PublishedPlanningInputVersion);
     }
 
+    private static async Task ResumeLegacyDurationViaPostAsync(ApplicationDbContext db, int projectId)
+    {
+        db.ChangeTracker.Clear();
+        var legacy = await db.PlanVersions.AsNoTracking().Include(p => p.StagePlans)
+            .SingleAsync(p => p.ProjectId == projectId && p.VersionNo == 2);
+        Assert.Equal("cutover-a", legacy.OwnerUserId);
+        Assert.Equal(PlanningInputVersions.Legacy, legacy.PlanningInputVersion);
+        Assert.Equal(new DateOnly(2035, 1, 1), legacy.AnchorDate);
+        Assert.False(legacy.SkipWeekends);
+        Assert.Equal(PlanTransitionRule.SameDay, legacy.TransitionRule);
+        Assert.Equal(99, legacy.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(15, legacy.StagePlans.Single(s => s.StageCode == StageCodes.PNC).DurationDays);
+        Assert.Equal(45, legacy.StagePlans.Single(s => s.StageCode == "PRIVATE").DurationDays);
+        var extensionOrder = legacy.StagePlans.Single(s => s.StageCode == "PRIVATE").SortOrder;
+        var beforePublished = await PublishedStateAsync(db, projectId);
+        var beforeOthers = await OtherProposalsAsync(db, projectId);
+
+        var owner = await new PlanReadService(db).GetAsync(projectId, "cutover-a");
+        Assert.Equal(99, owner.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.Equal(45, owner.Durations.Rows.Single(r => r.Code == "PRIVATE").DurationDays);
+        Assert.True(owner.Durations.Rows.Single(r => r.Code == StageCodes.PNC).DurationDays is null or 0);
+        Assert.Null(owner.Exact.Rows.Single(r => r.Code == StageCodes.PNC).PlannedStart);
+        Assert.Null(owner.Exact.Rows.Single(r => r.Code == StageCodes.PNC).PlannedDue);
+        var untouched = await db.PlanVersions.AsNoTracking().Include(p => p.StagePlans).SingleAsync(p => p.Id == legacy.Id);
+        Assert.Equal(PlanningInputVersions.Legacy, untouched.PlanningInputVersion);
+        Assert.Equal(15, untouched.StagePlans.Single(s => s.StageCode == StageCodes.PNC).DurationDays);
+        Assert.Equal(legacy.AnchorDate, untouched.AnchorDate);
+
+        var other = await new PlanReadService(db).GetAsync(projectId, "cutover-b");
+        Assert.Null(other.Durations.AnchorStart);
+        Assert.DoesNotContain(other.Durations.Rows, row => row.Code == "PRIVATE" || row.DurationDays == 99);
+        Assert.Equal(beforePublished, await PublishedStateAsync(db, projectId));
+        Assert.Equal(beforeOthers, await OtherProposalsAsync(db, projectId));
+
+        var user = new UserContext("cutover-a");
+        var draftService = DraftService(db, "cutover-a");
+        var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance,
+            new PlanSnapshotService(db), new NoNotifications());
+        var page = new EditPlanModel(db, new NullAudit(), new PlanGenerationService(db), draftService,
+            approval, NullLogger<EditPlanModel>.Instance, user)
+        {
+            // A first explicit Duration edit posts only FS. PRIVATE and PNC are
+            // omitted: retained private data survives, while live false PNC wins.
+            Input = new PlanEditInput
+            {
+                ProjectId = projectId, Mode = PlanEditorModes.Durations, Action = "SaveDraft",
+                AnchorStart = legacy.AnchorDate, IncludeWeekends = true, SkipHolidays = true,
+                NextStageStartPolicy = NextStageStartPolicies.SameDay,
+                Rows = new() { new() { Code = StageCodes.FS, Name = "FS", DurationDays = 100 } }
+            }
+        };
+        var http = new DefaultHttpContext { User = user.User };
+        page.PageContext = new PageContext(new ActionContext(http, new RouteData(), new PageActionDescriptor()));
+        page.TempData = new TempDataDictionary(http, new TempProvider());
+        Assert.IsType<RedirectToPageResult>(await page.OnPostAsync(projectId, default));
+        Assert.False(page.TempData.ContainsKey("Error"));
+        Assert.Equal("Draft saved.", page.TempData["Flash"]);
+
+        db.ChangeTracker.Clear();
+        var resumed = await db.PlanVersions.AsNoTracking().Include(p => p.StagePlans).SingleAsync(p => p.Id == legacy.Id);
+        Assert.Equal(PlanningInputVersions.Current, resumed.PlanningInputVersion);
+        Assert.Equal(legacy.AnchorDate, resumed.AnchorDate);
+        Assert.False(resumed.SkipWeekends);
+        Assert.Equal(PlanTransitionRule.SameDay, resumed.TransitionRule);
+        // Legacy PlanVersion did not own holiday policy. The untrusted baseline
+        // safely skips holidays even though the retained shared setting is false.
+        Assert.True(resumed.SkipHolidays);
+        Assert.False(resumed.PncApplicable);
+        var fs = resumed.StagePlans.Single(s => s.StageCode == StageCodes.FS);
+        var pnc = resumed.StagePlans.Single(s => s.StageCode == StageCodes.PNC);
+        var extension = resumed.StagePlans.Single(s => s.StageCode == "PRIVATE");
+        Assert.Equal(100, fs.DurationDays);
+        Assert.Equal(45, extension.DurationDays);
+        Assert.Equal(extensionOrder, extension.SortOrder);
+        Assert.Equal(0, pnc.DurationDays);
+        Assert.Null(pnc.PlannedStart);
+        Assert.Null(pnc.PlannedDue);
+        var holidays = await db.Holidays.AsNoTracking()
+            .Where(h => h.Type == HolidayType.Gazetted || h.IsObservedAsOfficeHoliday)
+            .Select(h => h.Date).Distinct().ToListAsync();
+        var calendar = new WorkingCalendar(holidays, includeWeekends: true, skipHolidays: true);
+        Assert.Equal(new DateOnly(2035, 1, 1), fs.PlannedStart);
+        Assert.Equal(calendar.AddWorkingDays(fs.PlannedStart!.Value, 99), fs.PlannedDue);
+        Assert.Equal(fs.PlannedDue, extension.PlannedStart);
+        Assert.Equal(calendar.AddWorkingDays(extension.PlannedStart!.Value, 44), extension.PlannedDue);
+        Assert.Equal(beforePublished, await PublishedStateAsync(db, projectId));
+        Assert.Equal(beforeOthers, await OtherProposalsAsync(db, projectId));
+
+        Assert.Equal(PlanDraftDeleteResult.Success, await draftService.DeleteDraftAsync(projectId));
+        db.ChangeTracker.Clear();
+        Assert.False(await db.PlanVersions.AnyAsync(p => p.Id == legacy.Id));
+        Assert.False(await db.StagePlans.AnyAsync(s => s.PlanVersionId == legacy.Id));
+        Assert.Equal(beforePublished, await PublishedStateAsync(db, projectId));
+        Assert.Equal(beforeOthers, await OtherProposalsAsync(db, projectId));
+        var afterDiscard = await new PlanReadService(db).GetAsync(projectId, "cutover-a");
+        Assert.Null(afterDiscard.Durations.AnchorStart);
+        Assert.DoesNotContain(afterDiscard.Durations.Rows, row => row.Code == "PRIVATE");
+        Assert.All(afterDiscard.Durations.Rows, row => Assert.True(row.DurationDays is null or 0));
+        Assert.Equal(PlanningInputVersions.Legacy,
+            (await db.Projects.AsNoTracking().SingleAsync(p => p.Id == projectId)).PublishedPlanningInputVersion);
+    }
+
+    private static async Task<string> PublishedStateAsync(ApplicationDbContext db, int projectId)
+    {
+        var project = await db.Projects.AsNoTracking().SingleAsync(p => p.Id == projectId);
+        return JsonSerializer.Serialize(new
+        {
+            project.PncApplicable, project.PublishedPlanningInputVersion, project.RowVersion,
+            project.ActivePlanVersionNo, project.PlanApprovedAt, project.PlanApprovedByUserId,
+            Settings = await db.ProjectScheduleSettings.AsNoTracking().Where(s => s.ProjectId == projectId).ToListAsync(),
+            Durations = await db.ProjectPlanDurations.AsNoTracking().Where(s => s.ProjectId == projectId).OrderBy(s => s.Id).ToListAsync(),
+            Stages = await db.ProjectStages.AsNoTracking().Where(s => s.ProjectId == projectId).OrderBy(s => s.Id).ToListAsync(),
+            Snapshots = await db.ProjectPlanSnapshots.AsNoTracking().Where(s => s.ProjectId == projectId).OrderBy(s => s.Id).ToListAsync()
+        });
+    }
+
+    private static async Task<string> OtherProposalsAsync(ApplicationDbContext db, int projectId) =>
+        JsonSerializer.Serialize(await db.PlanVersions.AsNoTracking().Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId && p.OwnerUserId != "cutover-a")
+            .OrderBy(p => p.Id).Select(p => new
+            {
+                p.Id, p.VersionNo, p.OwnerUserId, p.Status, p.PlanningInputVersion,
+                p.AnchorDate, p.SkipWeekends, p.SkipHolidays, p.TransitionRule, p.PncApplicable,
+                Stages = p.StagePlans.OrderBy(s => s.Id).Select(s => new
+                {
+                    s.Id, s.StageCode, s.DurationDays, s.PlannedStart, s.PlannedDue, s.SortOrder
+                }).ToList()
+            }).ToListAsync());
     private static async Task AssertPreviousMasterSeedAsync(ApplicationDbContext db, int projectId, bool durationRevision)
     {
         await using var command = db.Database.GetDbConnection().CreateCommand();
@@ -237,7 +377,12 @@ internal static class ProposalOwnedPlanningCutoverPostgresFixture
     private sealed class UserContext(string actor) : IUserContext
     {
         public string? UserId => actor;
-        public ClaimsPrincipal User => new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, actor) }, "Test"));
+        public ClaimsPrincipal User => new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, actor), new Claim(ClaimTypes.Role, "Project Officer") }, "Test"));
+    }
+    private sealed class TempProvider : ITempDataProvider
+    {
+        public IDictionary<string, object?> LoadTempData(HttpContext context) => new Dictionary<string, object?>();
+        public void SaveTempData(HttpContext context, IDictionary<string, object?> values) { }
     }
     private sealed class NullAudit : IAuditService
     {

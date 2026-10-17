@@ -1386,6 +1386,90 @@ public class EditPlanDurationSafetyTests
     }
 
     [Theory]
+    [InlineData("SaveDraft", false, true, false)]
+    [InlineData("Calculate", false, true, false)]
+    [InlineData("SaveDraft", true, true, false)]
+    [InlineData("Calculate", true, true, false)]
+    [InlineData("SaveDraft", true, false, false)]
+    [InlineData("SaveDraft", false, true, true)]
+    public async Task Cutover_LegacyDurationPostPreservesPrivateInputsAndOmittedRowsWithoutPublishing(
+        string action, bool livePnc, bool proposalPnc, bool explicitlyEnablePnc)
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", action, relational: true);
+        await SeedRecognizablePlannerStateAsync(f);
+        var project = await f.Db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = PlanningInputVersions.Legacy;
+        project.PncApplicable = livePnc;
+        var legacy = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        legacy.PlanningInputVersion = PlanningInputVersions.Legacy;
+        legacy.AnchorDate = new DateOnly(2035, 1, 1);
+        legacy.SkipWeekends = false;
+        legacy.SkipHolidays = false; // This legacy field must come from the accepted safe baseline.
+        legacy.TransitionRule = PlanTransitionRule.SameDay;
+        legacy.PncApplicable = proposalPnc;
+        var fs = legacy.StagePlans.Single(s => s.StageCode == StageCodes.FS);
+        fs.DurationDays = 99;
+        fs.PlannedStart = new DateOnly(2035, 1, 1);
+        fs.PlannedDue = new DateOnly(2035, 4, 9);
+        legacy.StagePlans.Add(new StagePlan { StageCode = StageCodes.PNC, DurationDays = 15,
+            PlannedStart = new DateOnly(2035, 4, 9), PlannedDue = new DateOnly(2035, 4, 23) });
+        legacy.StagePlans.Add(new StagePlan { StageCode = "PRIVATE", DurationDays = 45, SortOrder = 90,
+            PlannedStart = new DateOnly(2035, 4, 23), PlannedDue = new DateOnly(2035, 6, 6) });
+        f.Db.ProjectStages.Add(new ProjectStage { ProjectId = 1, StageCode = StageCodes.PNC,
+            PlannedStart = new DateOnly(2024, 2, 1), PlannedDue = new DateOnly(2024, 2, 15) });
+        f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = "SHARED-ONLY", DurationDays = 77 });
+        f.Db.PlanVersions.Add(new PlanVersion { ProjectId = 1, OwnerUserId = "someone-else", CreatedByUserId = "someone-else",
+            VersionNo = 8, PlanningInputVersion = PlanningInputVersions.Legacy, Status = PlanVersionStatus.Draft,
+            AnchorDate = new DateOnly(2040, 1, 1), StagePlans = new() { new() { StageCode = StageCodes.FS, DurationDays = 88 } } });
+        await f.Db.SaveChangesAsync();
+        var publishedBefore = await PublishedStateAsync(f.Db);
+        var othersBefore = await OtherProposalStateAsync(f.Db, f.User.UserId!);
+
+        // Simulate the full settings posted by the owner editor, changing only FS.
+        // Extension and PNC rows are omitted so their proposal-owned inputs must survive.
+        var editor = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        Assert.Equal(99, editor.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        f.Page.Input.AnchorStart = editor.Durations.AnchorStart;
+        f.Page.Input.IncludeWeekends = editor.Durations.IncludeWeekends;
+        f.Page.Input.SkipHolidays = editor.Durations.SkipHolidays;
+        f.Page.Input.NextStageStartPolicy = editor.Durations.NextStageStartPolicy;
+        f.Page.Input.Rows[0].DurationDays = 100;
+        if (explicitlyEnablePnc)
+            f.Page.Input.Rows.Add(new PlanEditInputRow { Code = StageCodes.PNC, Name = "PNC", DurationDays = 2 });
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        f.Db.ChangeTracker.Clear();
+        var proposal = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == f.User.UserId);
+        Assert.Equal(PlanningInputVersions.Current, proposal.PlanningInputVersion);
+        Assert.Equal(new DateOnly(2035, 1, 1), proposal.AnchorDate);
+        Assert.False(proposal.SkipWeekends);
+        Assert.True(proposal.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.SameDay, proposal.TransitionRule);
+        Assert.Equal(100, proposal.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(new DateOnly(2035, 1, 1), proposal.StagePlans.Single(s => s.StageCode == StageCodes.FS).PlannedStart);
+        Assert.Equal(new DateOnly(2035, 4, 10), proposal.StagePlans.Single(s => s.StageCode == StageCodes.FS).PlannedDue);
+        var extension = proposal.StagePlans.Single(s => s.StageCode == "PRIVATE");
+        Assert.Equal(45, extension.DurationDays);
+        Assert.Equal(90, extension.SortOrder);
+        Assert.NotNull(extension.PlannedStart);
+        Assert.NotNull(extension.PlannedDue);
+        Assert.DoesNotContain(proposal.StagePlans, s => s.StageCode == "SHARED-ONLY");
+        var pncEnabled = explicitlyEnablePnc || livePnc && proposalPnc;
+        Assert.Equal(pncEnabled, proposal.PncApplicable);
+        var pnc = proposal.StagePlans.Single(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(explicitlyEnablePnc ? 2 : pncEnabled ? 15 : 0, pnc.DurationDays);
+        if (!pncEnabled) { Assert.Null(pnc.PlannedStart); Assert.Null(pnc.PlannedDue); }
+        else { Assert.NotNull(pnc.PlannedStart); Assert.NotNull(pnc.PlannedDue); }
+        Assert.Equal(publishedBefore, await PublishedStateAsync(f.Db));
+        Assert.Equal(othersBefore, await OtherProposalStateAsync(f.Db, f.User.UserId!));
+
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostDeleteDraftAsync(1, default));
+        Assert.False(await f.Db.PlanVersions.AnyAsync(p => p.OwnerUserId == f.User.UserId));
+        Assert.Equal(publishedBefore, await PublishedStateAsync(f.Db));
+        Assert.Equal(othersBefore, await OtherProposalStateAsync(f.Db, f.User.UserId!));
+    }
+
+    [Theory]
     [InlineData(PlanEditorModes.Exact)]
     [InlineData(PlanEditorModes.Durations)]
     public async Task Cutover_LegacyDraftResumesWithAcceptedPolicyBeforePostedEdits(string mode)

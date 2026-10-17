@@ -86,21 +86,27 @@ public sealed class PlanReadService
             .FirstOrDefault();
         var draftPlan = myDraft ?? myPending;
         var ownsInputs = draftPlan?.PlanningInputVersion >= PlanningInputVersions.Current;
-        // A legacy draft is normalized on first edit. Pending revisions retain
-        // their historical applicability decision while they remain in review.
+        var presentsLegacyDraftInputs = draftPlan is
+            { Status: PlanVersionStatus.Draft, PlanningInputVersion: PlanningInputVersions.Legacy };
+        var presentsDurationInputs = ownsInputs || presentsLegacyDraftInputs;
+        // A legacy draft's pre-cutover Duration inputs remain private revision
+        // candidates until the owner explicitly selects a mode and saves.
+        // Pending revisions retain their historical applicability decision.
         var pncApplicable = draftPlan is { Status: PlanVersionStatus.PendingApproval }
             ? draftPlan.PncApplicable
-            : draftPlan is not null && ownsInputs ? draftPlan.PncApplicable : baseline.PncApplicable;
+            : draftPlan is not null && ownsInputs ? draftPlan.PncApplicable
+            : presentsLegacyDraftInputs ? baseline.PncApplicable && draftPlan!.PncApplicable
+            : baseline.PncApplicable;
 
 
         var exactVm = new PlanEditVm { ProjectId = projectId };
         var durationVm = new PlanDurationVm
         {
             ProjectId = projectId,
-            AnchorStart = ownsInputs ? draftPlan!.AnchorDate : scheduleSettings?.AnchorStart,
-            IncludeWeekends = ownsInputs ? !draftPlan!.SkipWeekends : scheduleSettings?.IncludeWeekends ?? false,
+            AnchorStart = presentsDurationInputs ? draftPlan!.AnchorDate : scheduleSettings?.AnchorStart,
+            IncludeWeekends = presentsDurationInputs ? !draftPlan!.SkipWeekends : scheduleSettings?.IncludeWeekends ?? false,
             SkipHolidays = ownsInputs ? draftPlan!.SkipHolidays : scheduleSettings?.SkipHolidays ?? true,
-            NextStageStartPolicy = ownsInputs
+            NextStageStartPolicy = presentsDurationInputs
                 ? draftPlan!.TransitionRule == PlanTransitionRule.SameDay ? NextStageStartPolicies.SameDay : NextStageStartPolicies.NextWorkingDay
                 : scheduleSettings?.NextStageStartPolicy ?? NextStageStartPolicies.NextWorkingDay
         };
@@ -158,7 +164,7 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = definition.Name,
-                DurationDays = ownsInputs
+                DurationDays = presentsDurationInputs
                     ? draftStage is { DurationDays: > 0 } ? draftStage.DurationDays : null
                     : duration?.DurationDays,
                 PreviewStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
@@ -202,7 +208,7 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                DurationDays = ownsInputs
+                DurationDays = presentsDurationInputs
                     ? draftStage is { DurationDays: > 0 } ? draftStage.DurationDays : null
                     : duration?.DurationDays,
                 PreviewStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
@@ -227,7 +233,8 @@ public sealed class PlanReadService
             }
         }
 
-        var activeMode = durationVm.AnchorStart is not null
+        var activeModeAnchor = presentsLegacyDraftInputs ? scheduleSettings?.AnchorStart : durationVm.AnchorStart;
+        var activeMode = activeModeAnchor is not null
             ? PlanEditorModes.Durations
             : PlanEditorModes.Exact;
 

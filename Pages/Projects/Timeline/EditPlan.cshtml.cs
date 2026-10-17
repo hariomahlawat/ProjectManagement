@@ -265,6 +265,7 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
+        await _planDraft.UpgradeLegacyDraftForExactAsync(draft, cancellationToken);
         var workingCalendar = await BuildWorkingCalendarAsync(id, rows, cancellationToken, draft);
         var userName = principal.Identity?.Name;
         var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
@@ -626,6 +627,7 @@ public class EditPlanModel : PageModel
             return RejectPlanRequest(id, ex.Message, 409);
         }
 
+        await _planDraft.UpgradeLegacyDraftForDurationAsync(draft, ct);
         SetDurationProposalInputs(draft, rows, workflowVersion);
         await _db.SaveChangesAsync(ct);
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
