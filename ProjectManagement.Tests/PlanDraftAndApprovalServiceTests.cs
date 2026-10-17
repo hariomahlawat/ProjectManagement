@@ -10,6 +10,7 @@ using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
@@ -20,6 +21,68 @@ namespace ProjectManagement.Tests;
 
 public class PlanDraftAndApprovalServiceTests
 {
+    [Fact]
+    public async Task SubmitForApproval_RejectsOfficeHolidayChronologyAndLeavesDraftUntouched()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Projects.Add(new Project
+        {
+            Id = 41,
+            Name = "Holiday validation",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+        db.StageTemplates.AddRange(
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.IPA, Name = "In-Principle Approval", Sequence = 20 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.SOW, Name = "SOW Vetting", Sequence = 30 });
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            FromStageCode = StageCodes.SOW,
+            DependsOnStageCode = StageCodes.IPA
+        });
+        db.Holidays.Add(new Holiday
+        {
+            Date = new DateOnly(2026, 10, 26),
+            Name = "Observed closure",
+            Type = HolidayType.Gazetted,
+            IsObservedAsOfficeHoliday = true
+        });
+        var draft = new PlanVersion
+        {
+            ProjectId = 41,
+            VersionNo = 1,
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "po-user",
+            OwnerUserId = "po-user",
+            AnchorStageCode = StageCodes.IPA,
+            TransitionRule = PlanTransitionRule.NextWorkingDay,
+            SkipWeekends = true,
+            SkipHolidays = true,
+            PlanningInputVersion = PlanningInputVersions.Current
+        };
+        draft.StagePlans.AddRange(new[]
+        {
+            new StagePlan { StageCode = StageCodes.IPA, PlannedStart = new DateOnly(2026, 10, 20), PlannedDue = new DateOnly(2026, 10, 23) },
+            new StagePlan { StageCode = StageCodes.SOW, PlannedStart = new DateOnly(2026, 10, 26), PlannedDue = new DateOnly(2026, 10, 30) }
+        });
+        db.PlanVersions.Add(draft);
+        await db.SaveChangesAsync();
+        var notifications = new RecordingPlanNotifications();
+        var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance,
+            new PlanSnapshotService(db), notifications);
+
+        var error = await Assert.ThrowsAsync<PlanApprovalValidationException>(() =>
+            approval.SubmitForApprovalAsync(41, "po-user"));
+
+        Assert.Contains(error.Errors, message => message.Contains("27 Oct 2026"));
+        Assert.Equal(PlanVersionStatus.Draft, draft.Status);
+        Assert.Null(draft.SubmittedByUserId);
+        Assert.Null(draft.SubmittedOn);
+        Assert.Equal(0, notifications.Submissions);
+    }
+
     [Theory]
     [InlineData(false, true, true)]
     [InlineData(false, false, true)]
@@ -467,6 +530,23 @@ public class PlanDraftAndApprovalServiceTests
 
         public Task NotifyPlanSubmittedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    private sealed class RecordingPlanNotifications : IPlanNotificationService
+    {
+        public int Submissions { get; private set; }
+
+        public Task NotifyPlanApprovedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyPlanRejectedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyPlanSubmittedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+        {
+            Submissions++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeAudit : IAuditService
