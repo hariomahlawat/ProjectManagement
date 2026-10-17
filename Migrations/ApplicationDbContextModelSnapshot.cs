@@ -4219,6 +4219,11 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<int>("PlanningInputVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<bool>("PncApplicable")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -4237,6 +4242,11 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("RejectionNote")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
+
+                    b.Property<bool>("SkipHolidays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<bool>("SkipWeekends")
                         .ValueGeneratedOnAdd()
@@ -4366,6 +4376,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateOnly?>("PlannedStart")
                         .HasColumnType("date");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
 
                     b.Property<string>("StageCode")
                         .IsRequired()
@@ -5701,6 +5714,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("PublishedPlanningInputVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<bool>("PncApplicable")
                         .ValueGeneratedOnAdd()

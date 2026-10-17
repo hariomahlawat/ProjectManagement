@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
@@ -176,6 +177,65 @@ public class PlanApprovalService
                 StringComparer.OrdinalIgnoreCase,
                 cancellationToken);
 
+        // Legacy pending revisions never owned the full calendar/duration inputs.
+        // Preserve their pre-B1 dates/PNC publication authority without promoting globals.
+        if (plan.PlanningInputVersion == PlanningInputVersions.Current)
+        {
+            var settings = await _db.ProjectScheduleSettings
+                .SingleOrDefaultAsync(s => s.ProjectId == plan.ProjectId, cancellationToken);
+            if (settings is null)
+            {
+                settings = new ProjectScheduleSettings { ProjectId = plan.ProjectId };
+                _db.ProjectScheduleSettings.Add(settings);
+            }
+
+            settings.AnchorStart = plan.AnchorDate;
+            settings.IncludeWeekends = !plan.SkipWeekends;
+            settings.SkipHolidays = plan.SkipHolidays;
+            settings.NextStageStartPolicy = plan.TransitionRule == PlanTransitionRule.SameDay
+                ? NextStageStartPolicies.SameDay
+                : NextStageStartPolicies.NextWorkingDay;
+
+            var publishedDurationRows = await PlanningCompatibilityCatalog.PrepareDurationRowsForPublicationAsync(
+                _db,
+                plan.ProjectId,
+                workflowVersion,
+                project.PublishedPlanningInputVersion == PlanningInputVersions.Current,
+                plan.StagePlans.Select(stage => stage.StageCode),
+                cancellationToken);
+            var publishedDurations = publishedDurationRows
+                .Where(duration => !string.IsNullOrWhiteSpace(duration.StageCode))
+                .ToDictionary(duration => duration.StageCode, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var stagePlan in plan.StagePlans.Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode)))
+            {
+                if (!publishedDurations.TryGetValue(stagePlan.StageCode, out var duration))
+                {
+                    duration = new ProjectPlanDuration
+                    {
+                        ProjectId = plan.ProjectId,
+                        StageCode = stagePlan.StageCode
+                    };
+                    _db.ProjectPlanDurations.Add(duration);
+                    publishedDurations[stagePlan.StageCode] = duration;
+                }
+
+                var isExcludedPnc = !plan.PncApplicable &&
+                    string.Equals(stagePlan.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase);
+                duration.DurationDays = !isExcludedPnc && stagePlan.DurationDays > 0
+                    ? stagePlan.DurationDays : null;
+                duration.SortOrder = workflowOrder.TryGetValue(stagePlan.StageCode, out var order)
+                    ? order
+                    : stagePlan.SortOrder;
+            }
+
+            // False is authoritative even when the reviewed proposal omits its PNC row.
+            if (!plan.PncApplicable && publishedDurations.TryGetValue(StageCodes.PNC, out var pncDuration))
+                pncDuration.DurationDays = null;
+
+            project.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        }
+
         var currentStages = await _db.ProjectStages
             .Where(ps => ps.ProjectId == plan.ProjectId)
             .ToListAsync(cancellationToken);
@@ -205,7 +265,7 @@ public class PlanApprovalService
                 {
                     ProjectId = plan.ProjectId,
                     StageCode = code,
-                    SortOrder = workflowOrder.TryGetValue(code, out var order) ? order : int.MaxValue,
+                    SortOrder = workflowOrder.TryGetValue(code, out var order) ? order : stagePlan.SortOrder,
                     Status = StageStatus.NotStarted
                 };
                 _db.ProjectStages.Add(stage);

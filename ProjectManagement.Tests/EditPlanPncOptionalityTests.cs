@@ -139,8 +139,10 @@ public class EditPlanPncOptionalityTests
         Assert.True(page.ModelState.IsValid);
         Assert.IsType<RedirectToPageResult>(result);
 
-        var totDuration = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.TOT);
-        Assert.Null(totDuration.DurationDays);
+        var totDuration = await db.StagePlans.SingleAsync(d => d.StageCode == StageCodes.TOT);
+        Assert.Equal(0, totDuration.DurationDays);
+        Assert.Empty(await db.ProjectPlanDurations.ToListAsync());
+        Assert.Empty(await db.ProjectScheduleSettings.ToListAsync());
     }
 
     [Fact]
@@ -208,6 +210,7 @@ public class EditPlanPncOptionalityTests
         db.Projects.Add(new Project
         {
             Id = 20,
+            PublishedPlanningInputVersion = 1,
             Name = "Working-day exact plan",
             LeadPoUserId = "po-user",
             WorkflowVersion = PlanConstants.StageTemplateVersionV1
@@ -387,8 +390,10 @@ public class EditPlanPncOptionalityTests
         Assert.True(page.ModelState.IsValid);
         Assert.IsType<RedirectToPageResult>(result);
 
-        var savedDuration = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC);
-        Assert.Null(savedDuration.DurationDays);
+        var savedDuration = await db.StagePlans.SingleAsync(d => d.StageCode == StageCodes.PNC);
+        Assert.Equal(0, savedDuration.DurationDays);
+        Assert.Empty(await db.ProjectPlanDurations.ToListAsync());
+        Assert.Empty(await db.ProjectScheduleSettings.ToListAsync());
     }
 
     private static void SeedStageTemplates(ApplicationDbContext db)

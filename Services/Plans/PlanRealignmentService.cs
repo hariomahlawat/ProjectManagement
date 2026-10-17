@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 
@@ -57,11 +58,33 @@ namespace ProjectManagement.Services.Plans
                 return;
             }
 
+            // Legacy shared globals may contain another actor's private work.
+            // Resolve the accepted policy/duration/date/PNC boundary in one SQL snapshot.
+            var baseline = await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken);
+            var settings = baseline.Settings;
+            var durations = baseline.Durations.ToDictionary(d => d.StageCode, StringComparer.OrdinalIgnoreCase);
+            var stageOrder = baseline.Stages.ToDictionary(s => s.StageCode, s => s.SortOrder, StringComparer.OrdinalIgnoreCase);
+            // Templates are shared workflow metadata, outside the mutable published
+            // baseline; materializing the version avoids a provider-specific APPLY.
+            var workflowVersion = baseline.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
+            var templateOrder = await _db.StageTemplates.AsNoTracking()
+                .Where(t => t.Version == workflowVersion)
+                .ToDictionaryAsync(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase, cancellationToken);
+            var workflowOrder = ProcurementWorkflow.BuildOrderLookup(baseline.WorkflowVersion);
+
             // SECTION: Prepare new plan shell
             var newPlan = new PlanVersion
             {
                 ProjectId = projectId,
+                PlanningInputVersion = PlanningInputVersions.Current,
                 CreatedByUserId = triggeredByUserId,
+                AnchorStageCode = activePlan.AnchorStageCode,
+                AnchorDate = settings?.AnchorStart,
+                SkipWeekends = !(settings?.IncludeWeekends ?? false),
+                SkipHolidays = settings?.SkipHolidays ?? true,
+                TransitionRule = settings?.NextStageStartPolicy == NextStageStartPolicies.SameDay
+                    ? PlanTransitionRule.SameDay : PlanTransitionRule.NextWorkingDay,
+                PncApplicable = baseline.PncApplicable,
                 Status = PlanVersionStatus.Draft
             };
 
@@ -80,10 +103,15 @@ namespace ProjectManagement.Services.Plans
 
             foreach (var stagePlan in orderedStages)
             {
+                durations.TryGetValue(stagePlan.StageCode, out var duration);
                 var copy = new StagePlan
                 {
                     StageCode = stagePlan.StageCode,
-                    DurationDays = stagePlan.DurationDays,
+                    DurationDays = Math.Max(0, duration?.DurationDays ?? 0),
+                    SortOrder = templateOrder.TryGetValue(stagePlan.StageCode, out var sequence) ? sequence
+                        : workflowOrder.TryGetValue(stagePlan.StageCode, out var order) ? order
+                        : duration?.SortOrder
+                            ?? (stageOrder.TryGetValue(stagePlan.StageCode, out var officialOrder) ? officialOrder : stagePlan.Id),
                     PlannedStart = stagePlan.PlannedStart,
                     PlannedDue = stagePlan.PlannedDue
                 };
@@ -103,6 +131,14 @@ namespace ProjectManagement.Services.Plans
                     {
                         copy.PlannedDue = copy.PlannedDue.Value.AddDays(delayDays);
                     }
+                }
+
+                // Retained official/history PNC values are not an applicability decision.
+                if (!baseline.PncApplicable && string.Equals(copy.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+                {
+                    copy.DurationDays = 0;
+                    copy.PlannedStart = null;
+                    copy.PlannedDue = null;
                 }
 
                 newPlan.StagePlans.Add(copy);

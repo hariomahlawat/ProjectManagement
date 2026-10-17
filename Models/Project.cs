@@ -76,6 +76,9 @@ namespace ProjectManagement.Models
         // Canonical current published applicability; draft/version flags are not live state.
         public bool PncApplicable { get; set; } = true;
 
+        // 0: ambiguous legacy shared inputs; 1: published by proposal-owned planning.
+        public int PublishedPlanningInputVersion { get; set; }
+
         // SECTION: Workflow Versioning
         [Required]
         [MaxLength(64)]

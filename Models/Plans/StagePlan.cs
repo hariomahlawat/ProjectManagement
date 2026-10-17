@@ -11,4 +11,5 @@ public class StagePlan
     public DateOnly? PlannedStart { get; set; }
     public DateOnly? PlannedDue { get; set; }
     public int DurationDays { get; set; }
+    public int SortOrder { get; set; }
 }
