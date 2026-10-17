@@ -509,16 +509,13 @@ public class EditPlanModel : PageModel
                 ? Input.NextStageStartPolicy
                 : NextStageStartPolicies.NextWorkingDay;
 
-            var durationRows = await _db.ProjectPlanDurations
-                .Where(d => d.ProjectId == id)
-                .ToListAsync(ct);
-
-            // Legacy rows can contain another actor's discarded private work.
-            // Retain the compatibility rows, but only posted inputs gain authority.
-            if (!baseline.IsTrusted)
-            {
-                foreach (var duration in durationRows) duration.DurationDays = null;
-            }
+            var durationRows = await PlanningCompatibilityCatalog.PrepareDurationRowsForPublicationAsync(
+                _db,
+                id,
+                workflowVersion,
+                baseline.IsTrusted,
+                rows.Select(row => row.Code),
+                ct);
             publishedProject.PublishedPlanningInputVersion = PlanningInputVersions.Current;
 
             var durationMap = durationRows
@@ -939,13 +936,13 @@ public class EditPlanModel : PageModel
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
             .ToDictionary(stage => stage.StageCode!, StringComparer.OrdinalIgnoreCase);
 
-        var durationRows = await _db.ProjectPlanDurations
-            .Where(item => item.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-        if (!baseline.IsTrusted)
-        {
-            foreach (var duration in durationRows) duration.DurationDays = null;
-        }
+        var durationRows = await PlanningCompatibilityCatalog.PrepareDurationRowsForPublicationAsync(
+            _db,
+            projectId,
+            baseline.WorkflowVersion,
+            baseline.IsTrusted,
+            rows.Select(row => row.Code),
+            cancellationToken);
         var durationLookup = durationRows
             .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
             .ToDictionary(item => item.StageCode!, StringComparer.OrdinalIgnoreCase);
