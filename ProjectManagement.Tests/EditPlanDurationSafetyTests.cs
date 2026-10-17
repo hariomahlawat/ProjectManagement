@@ -1516,6 +1516,8 @@ public class EditPlanDurationSafetyTests
         own.PncApplicable = true;
         own.StagePlans.Add(new StagePlan { StageCode = StageCodes.PNC, DurationDays = 80,
             PlannedStart = new DateOnly(2030, 1, 1), PlannedDue = new DateOnly(2030, 2, 1) });
+        own.StagePlans.Add(new StagePlan { StageCode = "PRIVATE-ONLY", DurationDays = 77, SortOrder = 92,
+            PlannedStart = new DateOnly(2031, 1, 1), PlannedDue = new DateOnly(2031, 2, 1) });
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = "PRIVATE-ONLY", DurationDays = 77 });
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = "OFFICIAL-EXT", DurationDays = 66, SortOrder = 91 });
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.PNC, DurationDays = 80 });
@@ -1560,6 +1562,7 @@ public class EditPlanDurationSafetyTests
         own = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == f.User.UserId);
         Assert.Equal(1, own.PlanningInputVersion);
         Assert.False(own.PncApplicable);
+        Assert.DoesNotContain(own.StagePlans, stage => stage.StageCode == "PRIVATE-ONLY");
         var pnc = own.StagePlans.Single(s => s.StageCode == StageCodes.PNC);
         Assert.Equal(0, pnc.DurationDays);
         Assert.Null(pnc.PlannedStart);
