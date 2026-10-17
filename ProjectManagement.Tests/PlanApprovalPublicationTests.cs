@@ -189,30 +189,44 @@ public class PlanApprovalPublicationTests
     }
 
     [Fact]
-    public async Task Approval_FirstCompletePublicationClearsUnreviewedLegacyDurationValuesWithoutDeletingRows()
+    public async Task Approval_FirstCompletePublicationRemovesPrivateOnlyCatalogRowsAndKeepsAuthoritativeExtensions()
     {
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var plan = await SeedAsync(db, true, false, true, false);
-        db.ProjectPlanDurations.Add(new ProjectPlanDuration
+        db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration
+            {
+                ProjectId = 1, StageCode = "OLD_PRIVATE_EXTENSION", DurationDays = 99, SortOrder = 987
+            },
+            new ProjectPlanDuration
+            {
+                ProjectId = 1, StageCode = "OFFICIAL_EXTENSION", DurationDays = 88, SortOrder = 986
+            });
+        db.ProjectStages.Add(new ProjectStage
         {
-            ProjectId = 1, StageCode = "OLD_PRIVATE_EXTENSION", DurationDays = 99, SortOrder = 987
+            ProjectId = 1, StageCode = "OFFICIAL_EXTENSION", SortOrder = 986,
+            PlannedStart = new DateOnly(2026, 11, 24), PlannedDue = new DateOnly(2026, 11, 25)
         });
         await db.SaveChangesAsync();
-        var oldRow = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "OLD_PRIVATE_EXTENSION");
-        var oldId = oldRow.Id;
 
         Assert.True(await CreateApproval(db, new RecordingNotifications()).ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
 
         db.ChangeTracker.Clear();
-        oldRow = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "OLD_PRIVATE_EXTENSION");
-        Assert.Equal(oldId, oldRow.Id);
-        Assert.Null(oldRow.DurationDays);
-        Assert.Equal(987, oldRow.SortOrder);
+        Assert.False(await db.ProjectPlanDurations.AnyAsync(d => d.StageCode == "OLD_PRIVATE_EXTENSION"));
+        var officialExtension = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "OFFICIAL_EXTENSION");
+        Assert.Null(officialExtension.DurationDays);
+        Assert.Equal(986, officialExtension.SortOrder);
+        Assert.Equal(3, (await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "EXTENSION")).DurationDays);
         Assert.Equal(7, (await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.FS)).DurationDays);
         Assert.Null((await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC)).DurationDays);
         Assert.False((await db.Projects.SingleAsync()).PncApplicable);
         Assert.Equal(PlanningInputVersions.Current, (await db.Projects.SingleAsync()).PublishedPlanningInputVersion);
+
+        var editor = await new PlanReadService(db).GetAsync(1, "uninvolved-after-approval");
+        Assert.DoesNotContain(editor.Durations.Rows, row => row.Code == "OLD_PRIVATE_EXTENSION");
+        Assert.Contains(editor.Durations.Rows, row => row.Code == "OFFICIAL_EXTENSION");
+        Assert.Contains(editor.Durations.Rows, row => row.Code == "EXTENSION");
     }
 
     private static async Task<string> CompatibilityStateAsync(ApplicationDbContext db)
