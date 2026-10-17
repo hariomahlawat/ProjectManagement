@@ -182,7 +182,7 @@ public class PlanDraftAndApprovalServiceTests
     }
 
     [Fact]
-    public async Task CreateOrGetDraftAsync_ClaimsOrphanDraft()
+    public async Task CreateOrGetDraftAsync_ClaimsOwnOrphanDraft()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -212,7 +212,7 @@ public class PlanDraftAndApprovalServiceTests
             VersionNo = 1,
             Title = "Orphan",
             Status = PlanVersionStatus.Draft,
-            CreatedByUserId = "creator",
+            CreatedByUserId = "new-owner",
             OwnerUserId = null,
             CreatedOn = DateTimeOffset.UtcNow
         };

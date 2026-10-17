@@ -57,6 +57,8 @@ public class PlanVersion
 
     public bool SkipWeekends { get; set; } = true;
 
+    public bool SkipHolidays { get; set; } = true;
+
     public PlanTransitionRule TransitionRule { get; set; } = PlanTransitionRule.NextWorkingDay;
 
     public bool PncApplicable { get; set; } = true;

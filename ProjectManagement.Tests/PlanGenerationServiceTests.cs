@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -53,9 +54,15 @@ public class PlanGenerationServiceTests
             new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.SOW, DurationDays = 2, SortOrder = 30 },
             new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.AON, DurationDays = 1, SortOrder = 40 });
         var plan = new PlanVersion { ProjectId = 1, VersionNo = 1, CreatedByUserId = "owner" };
-        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.FS, PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 2), DurationDays = 2 });
-        if (twoClearedStages)
-            plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.IPA, PlannedStart = new DateOnly(2024, 1, 3), PlannedDue = new DateOnly(2024, 1, 4), DurationDays = 2 });
+        plan.AnchorDate = new DateOnly(2026, 10, 19);
+        plan.SkipWeekends = true;
+        plan.SkipHolidays = true;
+        plan.TransitionRule = policy == NextStageStartPolicies.SameDay ? PlanTransitionRule.SameDay : PlanTransitionRule.NextWorkingDay;
+        plan.StagePlans.AddRange(new[] {
+            new StagePlan { StageCode = StageCodes.FS, DurationDays = 0, PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 2) },
+            new StagePlan { StageCode = StageCodes.IPA, DurationDays = twoClearedStages ? 0 : 2, PlannedStart = new DateOnly(2024, 1, 3), PlannedDue = new DateOnly(2024, 1, 4) },
+            new StagePlan { StageCode = StageCodes.SOW, DurationDays = 2 },
+            new StagePlan { StageCode = StageCodes.AON, DurationDays = 1 } });
         db.PlanVersions.Add(plan);
         await db.SaveChangesAsync();
         var generation = new PlanGenerationService(db);
@@ -135,6 +142,13 @@ public class PlanGenerationServiceTests
             new ProjectStage { ProjectId = 1, StageCode = StageCodes.TOT, Status = StageStatus.Skipped,
                 PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 2) });
         var plan = new PlanVersion { ProjectId = 1, VersionNo = 1, CreatedByUserId = "owner" };
+        plan.AnchorDate = new DateOnly(2026, 10, 19);
+        plan.SkipWeekends = false;
+        plan.SkipHolidays = false;
+        plan.StagePlans.AddRange(new[] {
+            new StagePlan { StageCode = StageCodes.FS, DurationDays = 3 },
+            new StagePlan { StageCode = StageCodes.PNC, DurationDays = 2 },
+            new StagePlan { StageCode = StageCodes.EAS, DurationDays = 4 } });
         db.PlanVersions.Add(plan);
         await db.SaveChangesAsync();
         var generation = new PlanGenerationService(db);
@@ -147,6 +161,8 @@ public class PlanGenerationServiceTests
         var duration = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC);
         if (removeRow) db.ProjectPlanDurations.Remove(duration);
         else duration.DurationDays = clearedDuration;
+        if (!live)
+            (await db.StagePlans.SingleAsync(s => s.PlanVersionId == plan.Id && s.StageCode == StageCodes.PNC)).DurationDays = 0;
         await db.SaveChangesAsync();
         if (live) await generation.GenerateAsync(1);
         else await generation.GenerateDraftAsync(1, plan.Id);
@@ -230,9 +246,9 @@ public class PlanGenerationServiceTests
             PncApplicable = true
         };
 
-        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.COB });
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.COB, DurationDays = 5 });
         plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.PNC });
-        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.EAS });
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.EAS, DurationDays = 3 });
 
         db.PlanVersions.Add(plan);
 
@@ -251,7 +267,7 @@ public class PlanGenerationServiceTests
     }
 
     [Fact]
-    public async Task GenerateDraft_SyncsPlanMetadataWithScheduleSettings()
+    public async Task GenerateDraft_PreservesProposalMetadataDespiteContradictoryScheduleSettings()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -295,14 +311,15 @@ public class PlanGenerationServiceTests
             Title = PlanVersion.ProjectTimelineTitle,
             Status = PlanVersionStatus.Draft,
             AnchorStageCode = StageCodes.BID,
-            AnchorDate = null,
-            SkipWeekends = true,
-            TransitionRule = PlanTransitionRule.NextWorkingDay,
+            AnchorDate = new DateOnly(2024, 5, 6),
+            SkipWeekends = false,
+            SkipHolidays = false,
+            TransitionRule = PlanTransitionRule.SameDay,
             PncApplicable = true
         };
 
-        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.BID });
-        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.TEC });
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.BID, DurationDays = 3 });
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.TEC, DurationDays = 2 });
 
         db.PlanVersions.Add(plan);
 
@@ -315,7 +332,8 @@ public class PlanGenerationServiceTests
 
         Assert.False(plan.SkipWeekends);
         Assert.Equal(PlanTransitionRule.SameDay, plan.TransitionRule);
-        Assert.Equal(new DateOnly(2024, 5, 1), plan.AnchorDate);
+        Assert.Equal(new DateOnly(2024, 5, 6), plan.AnchorDate);
+        Assert.False(plan.SkipHolidays);
 
         var bid = await db.StagePlans.SingleAsync(sp => sp.PlanVersionId == plan.Id && sp.StageCode == StageCodes.BID);
         var tec = await db.StagePlans.SingleAsync(sp => sp.PlanVersionId == plan.Id && sp.StageCode == StageCodes.TEC);

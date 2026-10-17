@@ -25,11 +25,12 @@ public sealed class PlanReadService
 
     public async Task<PlanEditorVm> GetAsync(int projectId, string? currentUserId, CancellationToken cancellationToken = default)
     {
-        var workflowVersion = await _db.Projects
+        var project = await _db.Projects
             .AsNoTracking()
             .Where(project => project.Id == projectId)
-            .Select(project => project.WorkflowVersion)
-            .FirstOrDefaultAsync(cancellationToken) ?? PlanConstants.DefaultStageTemplateVersion;
+            .Select(project => new { project.WorkflowVersion, project.PncApplicable })
+            .FirstOrDefaultAsync(cancellationToken);
+        var workflowVersion = project?.WorkflowVersion ?? PlanConstants.DefaultStageTemplateVersion;
 
         var workflowStages = ProcurementWorkflow.StageDefinitionsFor(workflowVersion);
 
@@ -88,21 +89,24 @@ public sealed class PlanReadService
                 .FirstOrDefault();
         }
 
-        var draftPlan = myDraft;
-        if (draftPlan is null && pendingPlan is not null && !string.IsNullOrWhiteSpace(currentUserId) &&
-            string.Equals(pendingPlan.OwnerUserId ?? pendingPlan.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
-        {
-            draftPlan = pendingPlan;
-        }
+        var myPending = string.IsNullOrWhiteSpace(currentUserId) ? null : planCandidates
+            .Where(plan => plan.Status == PlanVersionStatus.PendingApproval &&
+                string.Equals(plan.OwnerUserId ?? plan.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(plan => plan.SubmittedOn)
+            .ThenByDescending(plan => plan.VersionNo)
+            .FirstOrDefault();
+        var draftPlan = myDraft ?? myPending;
 
         var exactVm = new PlanEditVm { ProjectId = projectId };
         var durationVm = new PlanDurationVm
         {
             ProjectId = projectId,
-            AnchorStart = scheduleSettings?.AnchorStart,
-            IncludeWeekends = scheduleSettings?.IncludeWeekends ?? false,
-            SkipHolidays = scheduleSettings?.SkipHolidays ?? true,
-            NextStageStartPolicy = scheduleSettings?.NextStageStartPolicy ?? NextStageStartPolicies.NextWorkingDay
+            AnchorStart = draftPlan is not null ? draftPlan.AnchorDate : scheduleSettings?.AnchorStart,
+            IncludeWeekends = draftPlan is not null ? !draftPlan.SkipWeekends : scheduleSettings?.IncludeWeekends ?? false,
+            SkipHolidays = draftPlan?.SkipHolidays ?? scheduleSettings?.SkipHolidays ?? true,
+            NextStageStartPolicy = draftPlan is not null
+                ? draftPlan.TransitionRule == PlanTransitionRule.SameDay ? NextStageStartPolicies.SameDay : NextStageStartPolicies.NextWorkingDay
+                : scheduleSettings?.NextStageStartPolicy ?? NextStageStartPolicies.NextWorkingDay
         };
 
         var stageMap = stages
@@ -129,9 +133,11 @@ public sealed class PlanReadService
                 return;
             }
 
-            var sort = durationMap.TryGetValue(code, out var duration)
-                ? duration.SortOrder
-                : workflowStages.Length + extraCodes.Count;
+            var sort = draftMap.TryGetValue(code, out var proposalStage)
+                ? proposalStage.SortOrder
+                : draftPlan is null && durationMap.TryGetValue(code, out var duration)
+                    ? duration.SortOrder
+                    : stageMap.TryGetValue(code, out var stage) ? stage.SortOrder : workflowStages.Length + extraCodes.Count;
             extraCodes.Add((code, sort));
         }
 
@@ -147,8 +153,8 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = definition.Name,
-                PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart,
-                PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue,
+                PlannedStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
+                PlannedDue = draftStage is not null ? draftStage.PlannedDue : stage?.PlannedDue,
                 Status = status
             });
 
@@ -156,9 +162,11 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = definition.Name,
-                DurationDays = duration?.DurationDays,
-                PreviewStart = draftStage?.PlannedStart,
-                PreviewDue = draftStage?.PlannedDue,
+                DurationDays = draftPlan is not null
+                    ? draftStage is { DurationDays: > 0 } ? draftStage.DurationDays : null
+                    : duration?.DurationDays,
+                PreviewStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
+                PreviewDue = draftStage is not null ? draftStage.PlannedDue : stage?.PlannedDue,
                 IsOptional = optionalStages.Contains(code),
                 Status = status
             });
@@ -174,6 +182,11 @@ public sealed class PlanReadService
             AddExtra(code);
         }
 
+        if (draftPlan is null)
+        {
+            foreach (var code in durationMap.Keys) AddExtra(code);
+        }
+
         foreach (var (code, _) in extraCodes.OrderBy(s => s.Sort).ThenBy(s => s.Code, StringComparer.OrdinalIgnoreCase))
         {
             stageMap.TryGetValue(code, out var stage);
@@ -184,8 +197,8 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart,
-                PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue,
+                PlannedStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
+                PlannedDue = draftStage is not null ? draftStage.PlannedDue : stage?.PlannedDue,
                 Status = stage?.Status ?? StageStatus.NotStarted
             });
 
@@ -193,15 +206,17 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                DurationDays = duration?.DurationDays,
-                PreviewStart = draftStage?.PlannedStart,
-                PreviewDue = draftStage?.PlannedDue,
+                DurationDays = draftPlan is not null
+                    ? draftStage is { DurationDays: > 0 } ? draftStage.DurationDays : null
+                    : duration?.DurationDays,
+                PreviewStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
+                PreviewDue = draftStage is not null ? draftStage.PlannedDue : stage?.PlannedDue,
                 IsOptional = optionalStages.Contains(code),
                 Status = stage?.Status ?? StageStatus.NotStarted
             });
         }
 
-        var activeMode = scheduleSettings?.AnchorStart is not null
+        var activeMode = durationVm.AnchorStart is not null
             ? PlanEditorModes.Durations
             : PlanEditorModes.Exact;
 
@@ -220,7 +235,7 @@ public sealed class PlanReadService
         var state = new PlanEditorStateVm
         {
             HasDraft = myDraft is not null,
-            IsLocked = isPendingMine,
+            IsLocked = myPending is not null,
             Status = draftPlan?.Status ?? pendingPlan?.Status,
             VersionNo = draftPlan?.VersionNo ?? pendingPlan?.VersionNo,
             CreatedOn = draftPlan?.CreatedOn ?? pendingPlan?.CreatedOn,
@@ -238,7 +253,7 @@ public sealed class PlanReadService
             SubmissionBlockedReason = pendingPlan is not null && !isPendingMine
                 ? "Another plan is already awaiting approval."
                 : null,
-            PncApplicable = draftPlan?.PncApplicable ?? pendingPlan?.PncApplicable ?? true,
+            PncApplicable = draftPlan?.PncApplicable ?? project?.PncApplicable ?? true,
             LastSavedOn = lastSavedOn,
             ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan)
         };

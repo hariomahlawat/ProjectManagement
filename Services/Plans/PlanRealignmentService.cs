@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 
@@ -57,11 +58,43 @@ namespace ProjectManagement.Services.Plans
                 return;
             }
 
+            // Read publication inputs coherently. A later direct SaveChanges may have
+            // superseded the selected approved revision's policy, durations and PNC.
+            var baseline = await _db.Projects.AsNoTracking()
+                .Where(p => p.Id == projectId)
+                .AsSingleQuery()
+                .Select(p => new
+                {
+                    p.WorkflowVersion,
+                    p.PncApplicable,
+                    Settings = _db.ProjectScheduleSettings.Where(s => s.ProjectId == p.Id).FirstOrDefault(),
+                    Durations = _db.ProjectPlanDurations.Where(d => d.ProjectId == p.Id).ToList(),
+                    Stages = _db.ProjectStages.Where(s => s.ProjectId == p.Id).ToList()
+                })
+                .SingleAsync(cancellationToken);
+            var settings = baseline.Settings;
+            var durations = baseline.Durations.ToDictionary(d => d.StageCode, StringComparer.OrdinalIgnoreCase);
+            var stageOrder = baseline.Stages.ToDictionary(s => s.StageCode, s => s.SortOrder, StringComparer.OrdinalIgnoreCase);
+            // Templates are shared workflow metadata, outside the mutable published
+            // baseline; materializing the version avoids a provider-specific APPLY.
+            var workflowVersion = baseline.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
+            var templateOrder = await _db.StageTemplates.AsNoTracking()
+                .Where(t => t.Version == workflowVersion)
+                .ToDictionaryAsync(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase, cancellationToken);
+            var workflowOrder = ProcurementWorkflow.BuildOrderLookup(baseline.WorkflowVersion);
+
             // SECTION: Prepare new plan shell
             var newPlan = new PlanVersion
             {
                 ProjectId = projectId,
                 CreatedByUserId = triggeredByUserId,
+                AnchorStageCode = activePlan.AnchorStageCode,
+                AnchorDate = settings?.AnchorStart,
+                SkipWeekends = !(settings?.IncludeWeekends ?? false),
+                SkipHolidays = settings?.SkipHolidays ?? true,
+                TransitionRule = settings?.NextStageStartPolicy == NextStageStartPolicies.SameDay
+                    ? PlanTransitionRule.SameDay : PlanTransitionRule.NextWorkingDay,
+                PncApplicable = baseline.PncApplicable,
                 Status = PlanVersionStatus.Draft
             };
 
@@ -80,10 +113,15 @@ namespace ProjectManagement.Services.Plans
 
             foreach (var stagePlan in orderedStages)
             {
+                durations.TryGetValue(stagePlan.StageCode, out var duration);
                 var copy = new StagePlan
                 {
                     StageCode = stagePlan.StageCode,
-                    DurationDays = stagePlan.DurationDays,
+                    DurationDays = Math.Max(0, duration?.DurationDays ?? 0),
+                    SortOrder = duration?.SortOrder
+                        ?? (stageOrder.TryGetValue(stagePlan.StageCode, out var officialOrder) ? officialOrder
+                            : templateOrder.TryGetValue(stagePlan.StageCode, out var sequence) ? sequence
+                            : workflowOrder.TryGetValue(stagePlan.StageCode, out var order) ? order : stagePlan.Id),
                     PlannedStart = stagePlan.PlannedStart,
                     PlannedDue = stagePlan.PlannedDue
                 };

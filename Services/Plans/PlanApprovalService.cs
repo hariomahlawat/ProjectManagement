@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
@@ -176,6 +177,48 @@ public class PlanApprovalService
                 StringComparer.OrdinalIgnoreCase,
                 cancellationToken);
 
+        // Publish the exact reviewed revision's inputs alongside its official dates.
+        // These shared rows are the published compatibility baseline, never draft storage.
+        var settings = await _db.ProjectScheduleSettings
+            .SingleOrDefaultAsync(s => s.ProjectId == plan.ProjectId, cancellationToken);
+        if (settings is null)
+        {
+            settings = new ProjectScheduleSettings { ProjectId = plan.ProjectId };
+            _db.ProjectScheduleSettings.Add(settings);
+        }
+
+        settings.AnchorStart = plan.AnchorDate;
+        settings.IncludeWeekends = !plan.SkipWeekends;
+        settings.SkipHolidays = plan.SkipHolidays;
+        settings.NextStageStartPolicy = plan.TransitionRule == PlanTransitionRule.SameDay
+            ? NextStageStartPolicies.SameDay
+            : NextStageStartPolicies.NextWorkingDay;
+
+        var publishedDurations = await _db.ProjectPlanDurations
+            .Where(d => d.ProjectId == plan.ProjectId)
+            .ToDictionaryAsync(d => d.StageCode, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+        foreach (var stagePlan in plan.StagePlans.Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode)))
+        {
+            if (!publishedDurations.TryGetValue(stagePlan.StageCode, out var duration))
+            {
+                duration = new ProjectPlanDuration
+                {
+                    ProjectId = plan.ProjectId,
+                    StageCode = stagePlan.StageCode
+                };
+                _db.ProjectPlanDurations.Add(duration);
+                publishedDurations[stagePlan.StageCode] = duration;
+            }
+
+            // A cleared proposal duration is zero; compatibility rows use null
+            // and remain present so existing consumers retain their stage catalog.
+            duration.DurationDays = stagePlan.DurationDays > 0 ? stagePlan.DurationDays : null;
+            duration.SortOrder = workflowOrder.TryGetValue(stagePlan.StageCode, out var order)
+                ? order
+                : stagePlan.SortOrder;
+        }
+
         var currentStages = await _db.ProjectStages
             .Where(ps => ps.ProjectId == plan.ProjectId)
             .ToListAsync(cancellationToken);
@@ -205,7 +248,7 @@ public class PlanApprovalService
                 {
                     ProjectId = plan.ProjectId,
                     StageCode = code,
-                    SortOrder = workflowOrder.TryGetValue(code, out var order) ? order : int.MaxValue,
+                    SortOrder = workflowOrder.TryGetValue(code, out var order) ? order : stagePlan.SortOrder,
                     Status = StageStatus.NotStarted
                 };
                 _db.ProjectStages.Add(stage);

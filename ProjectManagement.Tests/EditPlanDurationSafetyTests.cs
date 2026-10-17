@@ -645,13 +645,13 @@ public class EditPlanDurationSafetyTests
             Durations = await db.ProjectPlanDurations.AsNoTracking().OrderBy(d => d.Id)
                 .Select(d => new { d.Id, d.ProjectId, d.StageCode, d.DurationDays, d.SortOrder }).ToListAsync(),
             StagePlans = await db.StagePlans.AsNoTracking().OrderBy(s => s.Id)
-                .Select(s => new { s.Id, s.PlanVersionId, s.StageCode, s.PlannedStart, s.PlannedDue, s.DurationDays }).ToListAsync(),
+                .Select(s => new { s.Id, s.PlanVersionId, s.StageCode, s.PlannedStart, s.PlannedDue, s.DurationDays, s.SortOrder }).ToListAsync(),
             Stages = await db.ProjectStages.AsNoTracking().OrderBy(s => s.Id)
                 .Select(s => new { s.Id, s.ProjectId, s.StageCode, s.PlannedStart, s.PlannedDue, s.Status, s.ActualStart, s.CompletedOn, s.SortOrder }).ToListAsync(),
             Plans = await db.PlanVersions.AsNoTracking().OrderBy(p => p.Id)
                 .Select(p => new { p.Id, p.ProjectId, p.VersionNo, p.Title, p.OwnerUserId, p.CreatedByUserId, p.CreatedOn, p.Status,
                     p.SubmittedByUserId, p.SubmittedOn, p.ApprovedByUserId, p.ApprovedOn, p.RejectedByUserId, p.RejectedOn, p.RejectionNote,
-                    p.AnchorStageCode, p.AnchorDate, p.SkipWeekends, p.TransitionRule, p.PncApplicable }).ToListAsync(),
+                    p.AnchorStageCode, p.AnchorDate, p.SkipWeekends, p.SkipHolidays, p.TransitionRule, p.PncApplicable }).ToListAsync(),
             ApprovalLogs = await db.PlanApprovalLogs.AsNoTracking().OrderBy(l => l.Id).Select(l => l.Id).ToListAsync()
         });
     }
@@ -837,7 +837,8 @@ public class EditPlanDurationSafetyTests
         if (action == "Autosave") AssertJson(result, 200, true);
         else Assert.IsType<RedirectToPageResult>(result);
         await f.AssertLiveDatesUnchangedAsync();
-        Assert.Equal(3, (await f.Db.ProjectPlanDurations.SingleAsync()).DurationDays);
+        Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
+        Assert.Empty(await f.Db.ProjectScheduleSettings.ToListAsync());
         var draft = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
         Assert.Equal(PlanVersionStatus.Draft, draft.Status);
         Assert.Equal(new DateOnly(2026, 10, 19), Assert.Single(draft.StagePlans).PlannedStart);
@@ -982,7 +983,9 @@ public class EditPlanDurationSafetyTests
         await using var f = await Fixture.CreateAsync(role, "SaveDraft");
         await SeedRecognizablePlannerStateAsync(f);
         f.Page.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        var before = await PublishedStateAsync(f.Db);
         AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        Assert.Equal(before, await PublishedStateAsync(f.Db));
         await f.AssertLiveDatesUnchangedAsync();
     }
 
@@ -1021,6 +1024,312 @@ public class EditPlanDurationSafetyTests
         AssertJson(await f.Page.OnPostAsync(id, default), status, false);
         Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
         await f.AssertLiveDatesUnchangedAsync();
+    }
+
+    public static IEnumerable<object[]> PrivateDurationActions()
+    {
+        foreach (var role in new[] { "Project Officer", "HoD", "Admin" })
+        foreach (var action in role == "Project Officer"
+            ? new[] { "Autosave", "SaveDraft", "Calculate", "Submit" }
+            : new[] { "Autosave", "SaveDraft", "Calculate" })
+            yield return new object[] { role, action };
+    }
+
+    [Theory]
+    [MemberData(nameof(PrivateDurationActions))]
+    public async Task PrivateDurationAction_PreservesEveryPublishedInputAndOtherActorProposal(string role, string action)
+    {
+        await using var f = await Fixture.CreateAsync(role, action);
+        await SeedRecognizablePlannerStateAsync(f);
+        var otherPlan = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 8, OwnerUserId = "unrelated-owner", CreatedByUserId = "unrelated-owner",
+            Status = PlanVersionStatus.PendingApproval, AnchorDate = new DateOnly(2027, 2, 1),
+            SkipWeekends = false, SkipHolidays = true, TransitionRule = PlanTransitionRule.SameDay,
+            PncApplicable = true
+        };
+        otherPlan.StagePlans.Add(new StagePlan { StageCode = StageCodes.FS, DurationDays = 21, SortOrder = 60,
+            PlannedStart = new DateOnly(2027, 2, 1), PlannedDue = new DateOnly(2027, 2, 21) });
+        // Submission needs an empty pending slot; the approved pointer is part of
+        // the immutable published snapshot in every case.
+        if (action == "Submit") otherPlan.Status = PlanVersionStatus.Draft;
+        f.Db.PlanVersions.Add(otherPlan);
+        (await f.Db.Projects.SingleAsync()).ActivePlanVersionNo = 6;
+        f.Db.PlanVersions.Add(new PlanVersion { ProjectId = 1, VersionNo = 6, OwnerUserId = "approved-owner",
+            CreatedByUserId = "approved-owner", Status = PlanVersionStatus.Approved });
+        await f.Db.SaveChangesAsync();
+        var before = await PublishedStateAsync(f.Db);
+        var otherBefore = await OtherProposalStateAsync(f.Db, f.User.UserId!);
+        f.Page.Input.AnchorStart = new DateOnly(2026, 11, 10);
+        f.Page.Input.IncludeWeekends = false;
+        f.Page.Input.SkipHolidays = false;
+        f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
+        f.Page.Input.Rows[0].DurationDays = 12;
+
+        var result = await f.Page.OnPostAsync(1, default);
+        if (action == "Autosave") AssertJson(result, 200, true);
+        else Assert.IsType<RedirectToPageResult>(result);
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        Assert.Equal(before, await PublishedStateAsync(f.Db));
+        Assert.Equal(otherBefore, await OtherProposalStateAsync(f.Db, f.User.UserId!));
+        var proposal = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == f.User.UserId);
+        Assert.Equal(action == "Submit" ? PlanVersionStatus.PendingApproval : PlanVersionStatus.Draft, proposal.Status);
+        Assert.Equal(f.Page.Input.AnchorStart, proposal.AnchorDate);
+        Assert.True(proposal.SkipWeekends);
+        Assert.False(proposal.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.NextWorkingDay, proposal.TransitionRule);
+        Assert.Equal(12, proposal.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays);
+        var own = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        Assert.Equal(f.Page.Input.AnchorStart, own.Durations.AnchorStart);
+        Assert.False(own.Durations.SkipHolidays);
+        Assert.Equal(12, own.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.Equal(action == "Submit", own.State.IsLocked);
+        var outsider = await new PlanReadService(f.Db).GetAsync(1, "no-proposal-user");
+        Assert.Equal(new DateOnly(2026, 10, 5), outsider.Durations.AnchorStart);
+        Assert.True(outsider.Durations.SkipHolidays);
+        Assert.Equal(9, outsider.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.Equal(new DateOnly(2024, 1, 1), outsider.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedStart);
+    }
+
+    [Fact]
+    public async Task IndependentActorDraftsAndDiscard_ReloadOnlyTheirOwnInputsThenPublishedBaseline()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "Calculate");
+        await SeedRecognizablePlannerStateAsync(f);
+        await AddOptionalPncAsync(f);
+        var before = await PublishedStateAsync(f.Db);
+        f.Page.Input.AnchorStart = new DateOnly(2026, 11, 10);
+        f.Page.Input.Rows[0].DurationDays = 12;
+        await f.Page.OnPostAsync(1, default);
+        var poBefore = await OtherProposalStateAsync(f.Db, "hod-user");
+        f.User.User = new ClaimsPrincipal(new ClaimsIdentity(new[] {
+            new Claim(ClaimTypes.NameIdentifier, "hod-user"), new Claim(ClaimTypes.Role, "HoD") }, "Test"));
+        f.Page.Input.Action = "SaveDraft";
+        f.Page.Input.AnchorStart = new DateOnly(2026, 12, 3);
+        f.Page.Input.IncludeWeekends = true;
+        f.Page.Input.SkipHolidays = true;
+        f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.SameDay;
+        f.Page.Input.Rows[0].DurationDays = 4;
+        f.Page.Input.Rows.Single(r => r.Code == StageCodes.PNC).DurationDays = 0;
+        await f.Page.OnPostAsync(1, default);
+        Assert.Equal(poBefore, await OtherProposalStateAsync(f.Db, "hod-user"));
+        Assert.Equal(before, await PublishedStateAsync(f.Db));
+        var po = await new PlanReadService(f.Db).GetAsync(1, "po-user");
+        var hod = await new PlanReadService(f.Db).GetAsync(1, "hod-user");
+        Assert.Equal(new DateOnly(2026, 11, 10), po.Durations.AnchorStart);
+        Assert.False(po.Durations.IncludeWeekends);
+        Assert.False(po.Durations.SkipHolidays);
+        Assert.Equal(12, po.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.True(po.State.PncApplicable);
+        Assert.Equal(new DateOnly(2026, 12, 3), hod.Durations.AnchorStart);
+        Assert.True(hod.Durations.IncludeWeekends);
+        Assert.True(hod.Durations.SkipHolidays);
+        Assert.Equal(NextStageStartPolicies.SameDay, hod.Durations.NextStageStartPolicy);
+        Assert.Equal(4, hod.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.False(hod.State.PncApplicable);
+        await f.Page.OnPostDeleteDraftAsync(1, default);
+        Assert.Equal(before, await PublishedStateAsync(f.Db));
+        Assert.Equal(poBefore, await OtherProposalStateAsync(f.Db, "hod-user"));
+        Assert.False(await f.Db.PlanVersions.AnyAsync(p => p.OwnerUserId == "hod-user"));
+        Assert.False(await f.Db.StagePlans.AnyAsync(s => s.PlanVersion!.OwnerUserId == "hod-user"));
+        hod = await new PlanReadService(f.Db).GetAsync(1, "hod-user");
+        Assert.Equal(new DateOnly(2026, 10, 5), hod.Durations.AnchorStart);
+        Assert.Equal(9, hod.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+        Assert.Equal(new DateOnly(2024, 1, 1), hod.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedStart);
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    public async Task DirectDurationSave_SynchronizesOnlyExistingActorDraftWithAllPublishedInputs(string role)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges");
+        await SeedRecognizablePlannerStateAsync(f);
+        f.Db.PlanVersions.Add(new PlanVersion { ProjectId = 1, VersionNo = 8, OwnerUserId = "other-author",
+            CreatedByUserId = "other-author", Status = PlanVersionStatus.Draft, AnchorDate = new DateOnly(2028, 1, 1),
+            StagePlans = new() { new() { StageCode = StageCodes.FS, DurationDays = 27, SortOrder = 42 } } });
+        await f.Db.SaveChangesAsync();
+        var otherBefore = await OtherProposalStateAsync(f.Db, f.User.UserId!);
+        f.Page.Input.AnchorStart = new DateOnly(2026, 11, 10);
+        f.Page.Input.SkipHolidays = false;
+        f.Page.Input.IncludeWeekends = true;
+        f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.Equal(otherBefore, await OtherProposalStateAsync(f.Db, f.User.UserId!));
+        var own = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == f.User.UserId);
+        Assert.Equal(f.Page.Input.AnchorStart, own.AnchorDate);
+        Assert.False(own.SkipWeekends);
+        Assert.False(own.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.NextWorkingDay, own.TransitionRule);
+        Assert.Equal(3, own.StagePlans.Single(s => s.StageCode == StageCodes.FS).DurationDays);
+        var settings = await f.Db.ProjectScheduleSettings.SingleAsync();
+        Assert.Equal(own.AnchorDate, settings.AnchorStart);
+        Assert.Equal(!own.SkipWeekends, settings.IncludeWeekends);
+        Assert.Equal(own.SkipHolidays, settings.SkipHolidays);
+        var live = await f.Db.ProjectStages.SingleAsync();
+        Assert.Equal(live.PlannedStart, own.StagePlans.Single(s => s.StageCode == StageCodes.FS).PlannedStart);
+        Assert.Equal(live.PlannedDue, own.StagePlans.Single(s => s.StageCode == StageCodes.FS).PlannedDue);
+    }
+
+    [Theory]
+    [InlineData("HoD", true, false, 2, 4)]
+    [InlineData("Admin", true, false, 2, 4)]
+    [InlineData("HoD", false, true, 1, 2)]
+    [InlineData("Admin", false, true, 1, 2)]
+    public async Task DirectExactSave_PreservesSeparatePublishedAndActorProposalCalendars(
+        string role, bool proposalIncludesWeekends, bool holidayOnMonday, int publishedDuration, int proposalDuration)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges");
+        await SeedRecognizablePlannerStateAsync(f);
+        var settings = await f.Db.ProjectScheduleSettings.SingleAsync();
+        settings.IncludeWeekends = false;
+        settings.SkipHolidays = true;
+        var ownDraft = await f.Db.PlanVersions.SingleAsync();
+        ownDraft.AnchorDate = new DateOnly(2026, 10, 23); // Friday
+        ownDraft.SkipWeekends = !proposalIncludesWeekends;
+        ownDraft.SkipHolidays = false;
+        if (holidayOnMonday)
+        {
+            f.Db.Holidays.Add(new Holiday { Date = new DateOnly(2026, 10, 26),
+                Name = "Office holiday", Type = HolidayType.Gazetted });
+        }
+        f.Db.PlanVersions.Add(new PlanVersion { ProjectId = 1, VersionNo = 8,
+            OwnerUserId = "other-author", CreatedByUserId = "other-author", Status = PlanVersionStatus.Draft,
+            AnchorDate = new DateOnly(2027, 2, 1), SkipWeekends = true, SkipHolidays = true,
+            StagePlans = new() { new() { StageCode = StageCodes.FS, DurationDays = 21, SortOrder = 70,
+                PlannedStart = new DateOnly(2027, 2, 1), PlannedDue = new DateOnly(2027, 3, 1) } } });
+        await f.Db.SaveChangesAsync();
+        var otherBefore = await OtherProposalStateAsync(f.Db, f.User.UserId!);
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 23);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 26); // Monday
+
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(publishedDuration, (await f.Db.ProjectPlanDurations.SingleAsync()).DurationDays);
+        var publishedStage = await f.Db.ProjectStages.SingleAsync();
+        Assert.Equal(f.Page.Input.Rows[0].PlannedStart, publishedStage.PlannedStart);
+        Assert.Equal(f.Page.Input.Rows[0].PlannedDue, publishedStage.PlannedDue);
+        ownDraft = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == f.User.UserId);
+        Assert.Equal(proposalDuration, Assert.Single(ownDraft.StagePlans).DurationDays);
+        Assert.Equal(new DateOnly(2026, 10, 23), ownDraft.AnchorDate);
+        Assert.Equal(!proposalIncludesWeekends, ownDraft.SkipWeekends);
+        Assert.False(ownDraft.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.SameDay, ownDraft.TransitionRule);
+        Assert.Equal(otherBefore, await OtherProposalStateAsync(f.Db, f.User.UserId!));
+        settings = await f.Db.ProjectScheduleSettings.SingleAsync();
+        Assert.Equal(new DateOnly(2026, 10, 5), settings.AnchorStart);
+        Assert.False(settings.IncludeWeekends);
+        Assert.True(settings.SkipHolidays);
+        Assert.Equal(NextStageStartPolicies.SameDay, settings.NextStageStartPolicy);
+
+        var publishedAfterExact = await PublishedStateAsync(f.Db);
+        var editor = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        f.Page.Input.Mode = PlanEditorModes.Durations;
+        f.Page.Input.Action = "Calculate";
+        f.Page.Input.AnchorStart = editor.Durations.AnchorStart;
+        f.Page.Input.IncludeWeekends = editor.Durations.IncludeWeekends;
+        f.Page.Input.SkipHolidays = editor.Durations.SkipHolidays;
+        f.Page.Input.NextStageStartPolicy = editor.Durations.NextStageStartPolicy;
+        f.Page.Input.Rows[0].DurationDays = editor.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays;
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        editor = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        var recalculated = editor.Exact.Rows.Single(r => r.Code == StageCodes.FS);
+        Assert.Equal(new DateOnly(2026, 10, 23), recalculated.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 10, 26), recalculated.PlannedDue);
+        Assert.Equal(publishedAfterExact, await PublishedStateAsync(f.Db));
+        Assert.Equal(otherBefore, await OtherProposalStateAsync(f.Db, f.User.UserId!));
+    }
+
+    [Theory]
+    [InlineData("SaveDraft", PlanVersionStatus.Draft)]
+    [InlineData("Submit", PlanVersionStatus.PendingApproval)]
+    public async Task PrivateExact_NewProposalWithoutPublishedSettings_ReloadsExactInputsAndMode(string action, PlanVersionStatus status)
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", action);
+        Assert.Empty(await f.Db.PlanVersions.ToListAsync());
+        Assert.Empty(await f.Db.ProjectScheduleSettings.ToListAsync());
+        Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
+        var publishedBefore = await PublishedStateAsync(f.Db);
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.AnchorStart = null;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 11, 2);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 11, 5);
+
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        var view = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        Assert.Equal(PlanEditorModes.Exact, view.ActiveMode);
+        Assert.Null(view.Durations.AnchorStart);
+        var row = view.Exact.Rows.Single(r => r.Code == StageCodes.FS);
+        Assert.Equal(f.Page.Input.Rows[0].PlannedStart, row.PlannedStart);
+        Assert.Equal(f.Page.Input.Rows[0].PlannedDue, row.PlannedDue);
+        Assert.Equal(status, view.State.Status);
+        Assert.Equal(action == "Submit", view.State.IsLocked);
+        Assert.Equal(action == "SaveDraft", view.State.HasMyDraft);
+        var proposal = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.Equal(status, proposal.Status);
+        Assert.Equal(f.User.UserId, proposal.OwnerUserId);
+        Assert.Null(proposal.AnchorDate);
+        var stage = Assert.Single(proposal.StagePlans);
+        Assert.Equal(row.PlannedStart, stage.PlannedStart);
+        Assert.Equal(row.PlannedDue, stage.PlannedDue);
+        Assert.Equal(4, stage.DurationDays);
+        if (action == "Submit")
+        {
+            Assert.Equal(f.User.UserId, proposal.SubmittedByUserId);
+            Assert.NotNull(proposal.SubmittedOn);
+        }
+        Assert.Equal(publishedBefore, await PublishedStateAsync(f.Db));
+        Assert.Empty(await f.Db.ProjectScheduleSettings.ToListAsync());
+        Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
+    }
+
+    [Fact]
+    public async Task PrivateExact_UsesActorDraftCalendarAndPreservesExplicitClearedDatesOnReload()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "SaveDraft");
+        await SeedRecognizablePlannerStateAsync(f);
+        var draft = await f.Db.PlanVersions.SingleAsync();
+        draft.SkipWeekends = true;
+        draft.SkipHolidays = false;
+        await f.Db.SaveChangesAsync();
+        var publishedBefore = await PublishedStateAsync(f.Db);
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows[0].PlannedStart = new DateOnly(2026, 10, 23);
+        f.Page.Input.Rows[0].PlannedDue = new DateOnly(2026, 10, 26);
+        await f.Page.OnPostAsync(1, default);
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(2, (await f.Db.StagePlans.SingleAsync()).DurationDays);
+        f.Page.Input.Rows[0].PlannedStart = null;
+        f.Page.Input.Rows[0].PlannedDue = null;
+        await f.Page.OnPostAsync(1, default);
+        var view = await new PlanReadService(f.Db).GetAsync(1, f.User.UserId);
+        Assert.Null(view.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedStart);
+        Assert.Null(view.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedDue);
+        Assert.Equal(publishedBefore, await PublishedStateAsync(f.Db));
+    }
+
+    private static async Task<string> PublishedStateAsync(ApplicationDbContext db)
+    {
+        db.ChangeTracker.Clear();
+        return JsonSerializer.Serialize(new {
+            Projects = await db.Projects.AsNoTracking().OrderBy(p => p.Id).Select(p => new { p.Id, p.PncApplicable, p.ActivePlanVersionNo, p.RowVersion }).ToListAsync(),
+            Settings = await db.ProjectScheduleSettings.AsNoTracking().OrderBy(s => s.ProjectId).Select(s => new { s.ProjectId, s.AnchorStart, s.IncludeWeekends, s.SkipHolidays, s.NextStageStartPolicy }).ToListAsync(),
+            Durations = await db.ProjectPlanDurations.AsNoTracking().OrderBy(d => d.Id).Select(d => new { d.Id, d.StageCode, d.DurationDays, d.SortOrder }).ToListAsync(),
+            Stages = await db.ProjectStages.AsNoTracking().OrderBy(s => s.Id).Select(s => new { s.Id, s.StageCode, s.PlannedStart, s.PlannedDue, s.Status, s.ActualStart, s.CompletedOn, s.SortOrder }).ToListAsync(),
+            Approved = await db.PlanVersions.AsNoTracking().Where(p => p.Status == PlanVersionStatus.Approved).OrderBy(p => p.Id).Select(p => new { p.Id, p.VersionNo, p.Status, p.ApprovedOn, p.ApprovedByUserId }).ToListAsync()
+        });
+    }
+
+    private static async Task<string> OtherProposalStateAsync(ApplicationDbContext db, string actor)
+    {
+        db.ChangeTracker.Clear();
+        return JsonSerializer.Serialize(await db.PlanVersions.AsNoTracking().Where(p => p.OwnerUserId != actor).OrderBy(p => p.Id)
+            .Select(p => new { p.Id, p.Status, p.OwnerUserId, p.AnchorDate, p.SkipWeekends, p.SkipHolidays, p.TransitionRule, p.PncApplicable,
+                Stages = p.StagePlans.OrderBy(s => s.Id).Select(s => new { s.Id, s.StageCode, s.DurationDays, s.SortOrder, s.PlannedStart, s.PlannedDue }).ToList() }).ToListAsync());
     }
 
     private static JsonElement AssertJson(IActionResult result, int status, bool ok)

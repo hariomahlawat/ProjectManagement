@@ -130,155 +130,87 @@ public sealed class PlanGenerationService
 
     public async Task GenerateDraftAsync(int projectId, int planVersionId, CancellationToken ct = default)
     {
-        var settings = await _db.ProjectScheduleSettings
-            .SingleOrDefaultAsync(s => s.ProjectId == projectId, ct)
-            ?? throw new InvalidOperationException("Configure schedule settings before generating the plan.");
-
-        if (settings.AnchorStart is null)
+        var plan = await _db.PlanVersions
+            .Include(v => v.StagePlans)
+            .SingleAsync(v => v.Id == planVersionId && v.ProjectId == projectId, ct);
+        if (plan.AnchorDate is null)
         {
             throw new InvalidOperationException("Set an anchor start date before generating the plan.");
         }
 
-        var durations = await _db.ProjectPlanDurations
-            .Where(d => d.ProjectId == projectId)
-            .OrderBy(d => d.SortOrder)
-            .ToListAsync(ct);
-
-        // SECTION: Workflow Resolution
         var workflowVersion = await _db.Projects
             .Where(p => p.Id == projectId)
             .Select(p => p.WorkflowVersion)
             .SingleAsync(ct);
         workflowVersion ??= PlanConstants.DefaultStageTemplateVersion;
-
-        var templates = await _db.StageTemplates
-            .AsNoTracking()
+        var templates = await _db.StageTemplates.AsNoTracking()
             .Where(t => t.Version == workflowVersion)
-            .OrderBy(t => t.Sequence)
+            .OrderBy(t => t.Sequence).ThenBy(t => t.Id)
             .Select(t => t.Code)
             .ToListAsync(ct);
         var workflowCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
-        if (templates.Count == 0)
-        {
-            templates.AddRange(workflowCodes);
-        }
 
         var holidays = _officeCalendar is not null
             ? (await _officeCalendar.GetNonWorkingDatesAsync(
-                settings.AnchorStart.Value.AddYears(-1),
-                settings.AnchorStart.Value.AddYears(10),
-                ct)).ToList()
-            : await _db.Holidays
-                .AsNoTracking()
+                plan.AnchorDate.Value.AddYears(-1),
+                plan.AnchorDate.Value.AddYears(10), ct)).ToList()
+            : await _db.Holidays.AsNoTracking()
                 .Where(h => h.Type == ProjectManagement.Models.Scheduling.HolidayType.Gazetted || h.IsObservedAsOfficeHoliday)
-                .Select(h => h.Date)
-                .Distinct()
-                .ToListAsync(ct);
-
-        var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
-        var durationMap = durations
-            .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
-            .ToDictionary(d => d.StageCode!, StringComparer.OrdinalIgnoreCase);
-
-        var plan = await _db.PlanVersions
-            .Include(v => v.StagePlans)
-            .SingleAsync(v => v.Id == planVersionId && v.ProjectId == projectId, ct);
-
-        plan.SkipWeekends = !settings.IncludeWeekends;
-        plan.TransitionRule = string.Equals(settings.NextStageStartPolicy, NextStageStartPolicies.SameDay, StringComparison.Ordinal)
-            ? PlanTransitionRule.SameDay
-            : PlanTransitionRule.NextWorkingDay;
-        plan.AnchorDate = settings.AnchorStart;
-
+                .Select(h => h.Date).Distinct().ToListAsync(ct);
+        var calendar = new WorkingCalendar(holidays, !plan.SkipWeekends, plan.SkipHolidays);
         var stagePlans = plan.StagePlans
             .Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode))
-            .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase);
-
-        var orderedCodes = BuildOrderedCodes(templates, durationMap, stagePlans.Keys, workflowCodes);
-
-        var cursor = settings.AnchorStart.Value;
+            .ToDictionary(sp => sp.StageCode, StringComparer.OrdinalIgnoreCase);
+        var orderedCodes = BuildOrderedCodes(templates, workflowCodes, stagePlans.Values);
+        var cursor = plan.AnchorDate.Value;
         var isFirstStage = true;
-
         foreach (var code in orderedCodes)
         {
-            if (!durationMap.TryGetValue(code, out var duration) || duration.DurationDays is not int days || days <= 0)
-            {
-                // Regeneration replaces this Duration working draft. A removed
-                // duration must not leave a previously generated schedule behind.
-                if (stagePlans.TryGetValue(code, out var previous))
-                {
-                    previous.PlannedStart = null;
-                    previous.PlannedDue = null;
-                    previous.DurationDays = 0;
-                }
-                continue;
-            }
-
-            var start = cursor;
-            if (!isFirstStage && settings.NextStageStartPolicy == NextStageStartPolicies.NextWorkingDay)
-            {
-                start = calendar.NextWorkingDay(cursor);
-            }
-
-            var end = calendar.AddWorkingDays(start, days - 1);
-
             if (!stagePlans.TryGetValue(code, out var row))
             {
-                row = new StagePlan
-                {
-                    PlanVersionId = planVersionId,
-                    StageCode = code
-                };
-                plan.StagePlans.Add(row);
-                stagePlans[code] = row;
+                continue;
             }
-
+            if (row.DurationDays <= 0)
+            {
+                row.PlannedStart = null;
+                row.PlannedDue = null;
+                row.DurationDays = 0;
+                continue;
+            }
+            var start = !isFirstStage && plan.TransitionRule == PlanTransitionRule.NextWorkingDay
+                ? calendar.NextWorkingDay(cursor) : cursor;
+            var end = calendar.AddWorkingDays(start, row.DurationDays - 1);
             row.PlannedStart = start;
             row.PlannedDue = end;
-            row.DurationDays = days;
-
             cursor = end;
             isFirstStage = false;
         }
-
         await _db.SaveChangesAsync(ct);
     }
 
     private static IReadOnlyList<string> BuildOrderedCodes(
         IEnumerable<string> templates,
-        IReadOnlyDictionary<string, ProjectPlanDuration> durationMap,
-        IEnumerable<string> stagePlanKeys,
-        IEnumerable<string> workflowCodes)
+        IEnumerable<string> workflowCodes,
+        IEnumerable<StagePlan> stagePlans)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ordered = new List<string>();
-
-        void AddRange(IEnumerable<string> source)
+        void AddRange(IEnumerable<string> codes)
         {
-            foreach (var code in source)
+            foreach (var code in codes)
             {
-                if (string.IsNullOrWhiteSpace(code))
-                {
-                    continue;
-                }
-
-                if (seen.Add(code))
+                if (!string.IsNullOrWhiteSpace(code) && seen.Add(code))
                 {
                     ordered.Add(code);
                 }
             }
         }
-
+        // Known workflow metadata owns known-stage order. Only extensions need
+        // proposal-owned order; they cannot consult mutable compatibility rows.
         AddRange(templates);
-        var durationOrdered = durationMap.Values
-            .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
-            .OrderBy(d => ResolveSortOrder(d.StageCode, durationMap))
-            .Select(d => d.StageCode!)
-            .ToList();
-        AddRange(durationOrdered);
         AddRange(workflowCodes);
-        AddRange(stagePlanKeys);
-
+        AddRange(stagePlans.OrderBy(s => s.SortOrder).ThenBy(s => s.Id)
+            .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase).Select(s => s.StageCode));
         return ordered;
     }
 

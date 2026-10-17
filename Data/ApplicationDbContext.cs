@@ -3140,6 +3140,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.AnchorStageCode).HasMaxLength(16);
                 e.Property(x => x.TransitionRule).HasConversion<string>().HasMaxLength(32);
                 e.Property(x => x.SkipWeekends).HasDefaultValue(true);
+                e.Property(x => x.SkipHolidays).HasDefaultValue(true);
                 e.Property(x => x.PncApplicable).HasDefaultValue(true);
                 e.HasOne(x => x.OwnerUser)
                     .WithMany()

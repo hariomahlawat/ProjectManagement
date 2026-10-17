@@ -146,7 +146,76 @@ public sealed class PostgresMigrationIntegrationTests
         var defaultProjectId = await InsertLegacyPncProjectAsync(applicationDb, "PNC default after migration");
         Assert.True((await applicationDb.Projects.AsNoTracking().SingleAsync(p => p.Id == defaultProjectId)).PncApplicable);
 
+        await VerifyProposalOwnedPlanningMigrationAsync(applicationDb, migrator);
         await VerifyProjectStageCompletionConstraintAsync(applicationDb);
+    }
+
+
+    private static async Task VerifyProposalOwnedPlanningMigrationAsync(ApplicationDbContext db, IMigrator migrator)
+    {
+        await migrator.MigrateAsync(ProposalOwnedPlanningMigrationTests.PreviousBoundary);
+        var configuredProject = await InsertLegacyPncProjectAsync(db, "Proposal backfill configured");
+        var defaultProject = await InsertLegacyPncProjectAsync(db, "Proposal backfill defaults");
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO "ProjectScheduleSettings" ("ProjectId", "IncludeWeekends", "SkipHolidays", "NextStageStartPolicy", "AnchorStart")
+            VALUES ({0}, TRUE, FALSE, 'SameDay', DATE '2030-01-01');
+            INSERT INTO "StageTemplates" ("Version", "Code", "Name", "Sequence", "Optional")
+            VALUES ('v1', 'TEMPLATE', 'Migration extension', 33, FALSE);
+            """, configuredProject);
+        foreach (var projectId in new[] { configuredProject, defaultProject })
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO "PlanVersions" ("ProjectId", "VersionNo", "Title", "Status", "CreatedByUserId", "CreatedOn", "AnchorDate", "SkipWeekends", "TransitionRule", "PncApplicable")
+                VALUES ({0}, 1, 'Migration proposal', 'PendingApproval', 'pnc-migration-user', NOW(), DATE '2026-11-10', FALSE, 'SameDay', FALSE);
+                INSERT INTO "StagePlans" ("PlanVersionId", "StageCode", "DurationDays", "PlannedStart", "PlannedDue")
+                SELECT "Id", code, 7, DATE '2026-11-10', DATE '2026-11-16'
+                FROM "PlanVersions" CROSS JOIN (VALUES ('DURATION'), ('OFFICIAL'), ('TEMPLATE'), ('FALLBACK')) AS stages(code)
+                WHERE "ProjectId" = {0};
+                """, projectId);
+        }
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO "ProjectPlanDurations" ("ProjectId", "StageCode", "DurationDays", "SortOrder") VALUES ({0}, 'DURATION', 99, 11);
+            INSERT INTO "ProjectStages" ("ProjectId", "StageCode", "SortOrder", "Status", "RequiresBackfill")
+            VALUES ({0}, 'DURATION', 91, 'NotStarted', FALSE), ({0}, 'OFFICIAL', 22, 'NotStarted', FALSE);
+            """, configuredProject);
+        db.ChangeTracker.Clear();
+        await migrator.MigrateAsync();
+        await AssertBackfillAsync();
+        // The reversible additive schema round trip must preserve old proposal fields
+        // and deterministically reconstruct the two newly introduced values.
+        await migrator.MigrateAsync(ProposalOwnedPlanningMigrationTests.PreviousBoundary);
+        await migrator.MigrateAsync();
+        await AssertBackfillAsync();
+
+        async Task AssertBackfillAsync()
+        {
+            db.ChangeTracker.Clear();
+            var configured = await db.PlanVersions.AsNoTracking().Include(p => p.StagePlans).SingleAsync(p => p.ProjectId == configuredProject);
+            var defaults = await db.PlanVersions.AsNoTracking().Include(p => p.StagePlans).SingleAsync(p => p.ProjectId == defaultProject);
+            Assert.False(configured.SkipHolidays);
+            Assert.True(defaults.SkipHolidays);
+            foreach (var plan in new[] { configured, defaults })
+            {
+                Assert.Equal(ProjectManagement.Models.Plans.PlanVersionStatus.PendingApproval, plan.Status);
+                Assert.Equal(new DateOnly(2026, 11, 10), plan.AnchorDate);
+                Assert.False(plan.SkipWeekends);
+                Assert.False(plan.PncApplicable);
+                Assert.Equal(ProjectManagement.Models.Plans.PlanTransitionRule.SameDay, plan.TransitionRule);
+                Assert.All(plan.StagePlans, row =>
+                {
+                    Assert.Equal(7, row.DurationDays);
+                    Assert.Equal(new DateOnly(2026, 11, 10), row.PlannedStart);
+                    Assert.Equal(new DateOnly(2026, 11, 16), row.PlannedDue);
+                });
+            }
+            Assert.Equal(11, configured.StagePlans.Single(s => s.StageCode == "DURATION").SortOrder);
+            Assert.Equal(22, configured.StagePlans.Single(s => s.StageCode == "OFFICIAL").SortOrder);
+            Assert.Equal(33, configured.StagePlans.Single(s => s.StageCode == "TEMPLATE").SortOrder);
+            var fallback = configured.StagePlans.Single(s => s.StageCode == "FALLBACK");
+            Assert.Equal(fallback.Id, fallback.SortOrder);
+            Assert.All(defaults.StagePlans, s => Assert.Equal(s.StageCode == "TEMPLATE" ? 33 : s.Id, s.SortOrder));
+            Assert.Equal(99, (await db.ProjectPlanDurations.AsNoTracking().SingleAsync(d => d.ProjectId == configuredProject)).DurationDays);
+        }
     }
 
 
@@ -161,21 +230,16 @@ public sealed class PostgresMigrationIntegrationTests
             expected[id] = scenario != 2;
             if (scenario != 1)
             {
-                db.PlanVersions.Add(new ProjectManagement.Models.Plans.PlanVersion
-                {
-                    ProjectId = id, VersionNo = 1, CreatedByUserId = "pnc-migration-user",
-                    Status = scenario == 4 ? ProjectManagement.Models.Plans.PlanVersionStatus.PendingApproval
-                        : scenario == 5 ? ProjectManagement.Models.Plans.PlanVersionStatus.Draft
-                        : ProjectManagement.Models.Plans.PlanVersionStatus.Approved,
-                    PncApplicable = scenario is 3 or 6
-                });
+                var status = scenario == 4 ? "PendingApproval" : scenario == 5 ? "Draft" : "Approved";
+                await db.Database.ExecuteSqlRawAsync("""
+                    INSERT INTO "PlanVersions" ("ProjectId", "VersionNo", "Title", "Status", "CreatedByUserId", "CreatedOn", "SkipWeekends", "TransitionRule", "PncApplicable")
+                    VALUES ({0}, 1, 'PNC migration proposal', {1}, 'pnc-migration-user', NOW(), TRUE, 'NextWorkingDay', {2});
+                    """, id, status, scenario is 3 or 6);
                 if (scenario == 6)
-                    db.PlanVersions.Add(new ProjectManagement.Models.Plans.PlanVersion
-                    {
-                        ProjectId = id, VersionNo = 2, CreatedByUserId = "pnc-migration-user",
-                        Status = ProjectManagement.Models.Plans.PlanVersionStatus.Approved, PncApplicable = false
-                    });
-                await db.SaveChangesAsync();
+                    await db.Database.ExecuteSqlRawAsync("""
+                        INSERT INTO "PlanVersions" ("ProjectId", "VersionNo", "Title", "Status", "CreatedByUserId", "CreatedOn", "SkipWeekends", "TransitionRule", "PncApplicable")
+                        VALUES ({0}, 2, 'PNC migration proposal', 'Approved', 'pnc-migration-user', NOW(), TRUE, 'NextWorkingDay', FALSE);
+                        """, id);
             }
             if (scenario != 0)
                 await db.Database.ExecuteSqlRawAsync("UPDATE \"Projects\" SET \"ActivePlanVersionNo\" = {0} WHERE \"Id\" = {1}", scenario == 1 ? 999 : 1, id);

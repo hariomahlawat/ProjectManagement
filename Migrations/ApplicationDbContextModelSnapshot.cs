@@ -4238,6 +4238,11 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
+                    b.Property<bool>("SkipHolidays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("SkipWeekends")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -4366,6 +4371,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateOnly?>("PlannedStart")
                         .HasColumnType("date");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
 
                     b.Property<string>("StageCode")
                         .IsRequired()
