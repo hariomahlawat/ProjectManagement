@@ -573,10 +573,55 @@ public class EditPlanModel : PageModel
                 .Where(row => !string.IsNullOrWhiteSpace(row.Code))
                 .Select(row => row.Code).ToArray();
             await _planGeneration.GenerateAsync(id, ct, publishedStageCodes);
-            // The explicit submitted publication decision is authoritative. Shared
-            // working duration rows and retained stage dates never supply this value.
+
+            // Validate the complete projected publication after generation so
+            // retained manual/extension stages participate in chronology. The
+            // enclosing relational transaction makes rejection all-or-nothing.
             var publishedPnc = rows.LastOrDefault(row =>
                 string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+            var candidatePncApplicable = publishedPnc is null
+                ? publishedProject.PncApplicable
+                : publishedPnc.DurationDays.GetValueOrDefault() > 0;
+            var projectedStages = await _db.ProjectStages
+                .Where(stage => stage.ProjectId == id && !string.IsNullOrWhiteSpace(stage.StageCode))
+                .Select(stage => new PlannedTimelineStage(
+                    stage.StageCode,
+                    stage.PlannedStart,
+                    stage.PlannedDue,
+                    stage.Status == StageStatus.Skipped,
+                    stage.SortOrder))
+                .ToListAsync(ct);
+            var directAnchor = rows
+                .Where(row => !string.IsNullOrWhiteSpace(row.Code))
+                .Select(row => new
+                {
+                    row.Code,
+                    Order = ProcurementWorkflow.OrderOf(workflowVersion, row.Code)
+                })
+                .Where(item => item.Order != int.MaxValue)
+                .OrderBy(item => item.Order)
+                .Select(item => item.Code)
+                .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
+            var validation = await _timelineValidation.ValidateAsync(
+                new PlannedTimelineCandidate(
+                    id,
+                    directAnchor,
+                    settings.NextStageStartPolicy == NextStageStartPolicies.SameDay
+                        ? PlanTransitionRule.SameDay
+                        : PlanTransitionRule.NextWorkingDay,
+                    settings.IncludeWeekends,
+                    settings.SkipHolidays,
+                    candidatePncApplicable,
+                    projectedStages),
+                ct);
+            if (!validation.IsValid)
+            {
+                var errors = validation.Errors.ToArray();
+                return RejectPlanRequest(id, string.Join(" ", errors), errors: errors);
+            }
+
+            // The explicit submitted publication decision is authoritative. Shared
+            // working duration rows and retained stage dates never supply this value.
             bool? previousPncApplicable = null;
             if (publishedPnc is not null)
             {

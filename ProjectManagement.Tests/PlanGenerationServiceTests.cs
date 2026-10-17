@@ -8,6 +8,8 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 using Xunit;
 
@@ -15,6 +17,125 @@ namespace ProjectManagement.Tests;
 
 public class PlanGenerationServiceTests
 {
+    [Theory]
+    [InlineData(true, NextStageStartPolicies.SameDay, true, false)]
+    [InlineData(true, NextStageStartPolicies.NextWorkingDay, false, true)]
+    [InlineData(false, NextStageStartPolicies.SameDay, true, false)]
+    [InlineData(false, NextStageStartPolicies.NextWorkingDay, false, true)]
+    public async Task GeneratedLiveAndDraftOutput_PassesCanonicalTimelineValidation(
+        bool live,
+        string nextStageStartPolicy,
+        bool includeWeekends,
+        bool skipHolidays)
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Generated invariant",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1,
+            PncApplicable = false
+        });
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2026, 10, 23), // Friday
+            IncludeWeekends = includeWeekends,
+            SkipHolidays = skipHolidays,
+            NextStageStartPolicy = nextStageStartPolicy
+        });
+        db.Holidays.Add(new Holiday
+        {
+            Date = new DateOnly(2026, 10, 26), // Monday
+            Name = "Office holiday",
+            Type = HolidayType.Gazetted
+        });
+        db.StageTemplates.AddRange(
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.FS, Name = "FS", Sequence = 10 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.IPA, Name = "IPA", Sequence = 20 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.SOW, Name = "SOW", Sequence = 30 });
+        db.StageDependencyTemplates.AddRange(
+            new StageDependencyTemplate { Version = PlanConstants.StageTemplateVersionV1, FromStageCode = StageCodes.IPA, DependsOnStageCode = StageCodes.FS },
+            new StageDependencyTemplate { Version = PlanConstants.StageTemplateVersionV1, FromStageCode = StageCodes.SOW, DependsOnStageCode = StageCodes.IPA });
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.FS, SortOrder = 10, Status = StageStatus.NotStarted },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.IPA, SortOrder = 20, Status = StageStatus.NotStarted },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.SOW, SortOrder = 30, Status = StageStatus.NotStarted });
+        db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.FS, DurationDays = 2, SortOrder = 10 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.IPA, DurationDays = 2, SortOrder = 20 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.SOW, DurationDays = 2, SortOrder = 30 });
+        var plan = new PlanVersion
+        {
+            ProjectId = 1,
+            VersionNo = 1,
+            CreatedByUserId = "owner",
+            PlanningInputVersion = PlanningInputVersions.Current,
+            AnchorStageCode = StageCodes.FS,
+            AnchorDate = new DateOnly(2026, 10, 23),
+            SkipWeekends = !includeWeekends,
+            SkipHolidays = skipHolidays,
+            TransitionRule = nextStageStartPolicy == NextStageStartPolicies.SameDay
+                ? PlanTransitionRule.SameDay
+                : PlanTransitionRule.NextWorkingDay,
+            PncApplicable = false
+        };
+        plan.StagePlans.AddRange(new[]
+        {
+            new StagePlan { StageCode = StageCodes.FS, DurationDays = 2, SortOrder = 10 },
+            new StagePlan { StageCode = StageCodes.IPA, DurationDays = 2, SortOrder = 20 },
+            new StagePlan { StageCode = StageCodes.SOW, DurationDays = 2, SortOrder = 30 }
+        });
+        db.PlanVersions.Add(plan);
+        await db.SaveChangesAsync();
+        var officeCalendar = new OfficeCalendarService(db);
+        var generation = new PlanGenerationService(db, officeCalendar);
+
+        if (live)
+        {
+            await generation.GenerateAsync(1);
+        }
+        else
+        {
+            await generation.GenerateDraftAsync(1, plan.Id);
+        }
+
+        db.ChangeTracker.Clear();
+        var stages = live
+            ? await db.ProjectStages.AsNoTracking().OrderBy(stage => stage.SortOrder)
+                .Select(stage => new PlannedTimelineStage(
+                    stage.StageCode,
+                    stage.PlannedStart,
+                    stage.PlannedDue,
+                    stage.Status == StageStatus.Skipped,
+                    stage.SortOrder))
+                .ToListAsync()
+            : await db.StagePlans.AsNoTracking().Where(stage => stage.PlanVersionId == plan.Id)
+                .OrderBy(stage => stage.SortOrder)
+                .Select(stage => new PlannedTimelineStage(
+                    stage.StageCode,
+                    stage.PlannedStart,
+                    stage.PlannedDue,
+                    false,
+                    stage.SortOrder))
+                .ToListAsync();
+        var validator = new PlannedTimelineValidationService(
+            db,
+            new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider()),
+            officeCalendar);
+        var result = await validator.ValidateAsync(new PlannedTimelineCandidate(
+            1,
+            StageCodes.FS,
+            plan.TransitionRule,
+            includeWeekends,
+            skipHolidays,
+            false,
+            stages));
+
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+    }
+
     [Theory]
     [InlineData(null, NextStageStartPolicies.NextWorkingDay, false, false)]
     [InlineData(0, NextStageStartPolicies.NextWorkingDay, false, false)]
