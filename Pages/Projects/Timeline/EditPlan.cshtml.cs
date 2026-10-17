@@ -748,8 +748,20 @@ public class EditPlanModel : PageModel
 
         var stages = await _db.ProjectStages.Where(stage => stage.ProjectId == projectId)
             .ToDictionaryAsync(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var authoritativeCodes = new HashSet<string>(
+            durations.Keys.Concat(stages.Keys),
+            StringComparer.OrdinalIgnoreCase);
+        var obsoleteDraftStages = draft.StagePlans
+            .Where(stage => !authoritativeCodes.Contains(stage.StageCode))
+            .ToList();
+        if (obsoleteDraftStages.Count > 0)
+        {
+            _db.StagePlans.RemoveRange(obsoleteDraftStages);
+            foreach (var stage in obsoleteDraftStages) draft.StagePlans.Remove(stage);
+        }
+
         var draftStages = draft.StagePlans.ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
-        foreach (var code in durations.Keys.Concat(stages.Keys).Concat(draftStages.Keys).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var code in authoritativeCodes)
         {
             if (!draftStages.TryGetValue(code, out var draftStage))
             {
