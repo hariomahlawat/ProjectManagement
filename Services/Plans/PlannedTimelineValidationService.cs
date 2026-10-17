@@ -1,0 +1,199 @@
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Scheduling;
+using ProjectManagement.Services.Stages;
+
+namespace ProjectManagement.Services.Plans;
+
+public sealed record PlannedTimelineStage(
+    string StageCode,
+    DateOnly? PlannedStart,
+    DateOnly? PlannedDue,
+    bool IsSkipped = false,
+    int SortOrder = 0);
+
+public sealed record PlannedTimelineCandidate(
+    int ProjectId,
+    string? AnchorStageCode,
+    PlanTransitionRule TransitionRule,
+    bool IncludeWeekends,
+    bool SkipHolidays,
+    bool PncApplicable,
+    IReadOnlyList<PlannedTimelineStage> Stages);
+
+public sealed record PlannedTimelineValidationResult(IReadOnlyList<string> Errors)
+{
+    public bool IsValid => Errors.Count == 0;
+}
+
+public interface IPlannedTimelineValidationService
+{
+    Task<PlannedTimelineValidationResult> ValidateAsync(
+        PlannedTimelineCandidate candidate,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Canonical planned-date and workflow chronology validation. This service validates
+/// a complete candidate projection and is intentionally separate from execution
+/// lifecycle validation.
+/// </summary>
+public sealed class PlannedTimelineValidationService : IPlannedTimelineValidationService
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
+    private readonly IOfficeCalendarService _officeCalendar;
+
+    public PlannedTimelineValidationService(
+        ApplicationDbContext db,
+        IProjectStageWorkflowPolicy workflowPolicy,
+        IOfficeCalendarService officeCalendar)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
+        _officeCalendar = officeCalendar ?? throw new ArgumentNullException(nameof(officeCalendar));
+    }
+
+    public async Task<PlannedTimelineValidationResult> ValidateAsync(
+        PlannedTimelineCandidate candidate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(candidate.Stages);
+
+        var workflow = await _workflowPolicy.GetAsync(
+            candidate.ProjectId,
+            candidate.PncApplicable,
+            cancellationToken);
+
+        var configuredNames = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(template => template.Version == workflow.WorkflowVersion)
+            .ToDictionaryAsync(
+                template => template.Code,
+                template => template.Name,
+                StringComparer.OrdinalIgnoreCase,
+                cancellationToken);
+        foreach (var stage in workflow.Stages)
+        {
+            configuredNames.TryAdd(stage.Code, stage.Name);
+        }
+
+        var finalRows = new Dictionary<string, (PlannedTimelineStage Stage, int Index)>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < candidate.Stages.Count; index++)
+        {
+            var stage = candidate.Stages[index];
+            if (!string.IsNullOrWhiteSpace(stage.StageCode))
+            {
+                finalRows[stage.StageCode] = (stage, index);
+            }
+        }
+
+        var rows = finalRows.Values
+            .OrderBy(item => workflow.OrderOf(item.Stage.StageCode))
+            .ThenBy(item => item.Stage.SortOrder)
+            .ThenBy(item => item.Index)
+            .Select(item => item.Stage)
+            .ToArray();
+        var rowLookup = rows.ToDictionary(row => row.StageCode, StringComparer.OrdinalIgnoreCase);
+
+        var anchorCode = string.IsNullOrWhiteSpace(candidate.AnchorStageCode)
+            ? PlanConstants.DefaultAnchorStageCode
+            : candidate.AnchorStageCode;
+        var anchorOrder = workflow.ContainsStage(anchorCode)
+            ? workflow.OrderOf(anchorCode)
+            : int.MinValue;
+
+        var relevantDueDates = rows
+            .Where(row => IsIncluded(row, candidate.PncApplicable, workflow, anchorOrder))
+            .Select(row => row.PlannedDue)
+            .OfType<DateOnly>()
+            .ToArray();
+        IReadOnlySet<DateOnly> holidays = new HashSet<DateOnly>();
+        if (candidate.SkipHolidays && relevantDueDates.Length > 0)
+        {
+            var first = relevantDueDates.Min();
+            var last = relevantDueDates.Max();
+            holidays = await _officeCalendar.GetNonWorkingDatesAsync(
+                first,
+                last.AddYears(1),
+                cancellationToken);
+        }
+
+        var calendar = new WorkingCalendar(holidays, candidate.IncludeWeekends, candidate.SkipHolidays);
+        var errors = new List<string>();
+
+        foreach (var stage in rows)
+        {
+            if (!IsIncluded(stage, candidate.PncApplicable, workflow, anchorOrder))
+            {
+                continue;
+            }
+
+            var stageName = DisplayName(stage.StageCode, configuredNames);
+            if (stage.PlannedStart is DateOnly start &&
+                stage.PlannedDue is DateOnly due &&
+                due < start)
+            {
+                errors.Add($"{stageName} Planned due must be on or after its Planned start.");
+            }
+
+            if (stage.PlannedStart is not DateOnly successorStart)
+            {
+                continue;
+            }
+
+            foreach (var predecessorCode in workflow.RequiredPredecessors(stage.StageCode))
+            {
+                if (!rowLookup.TryGetValue(predecessorCode, out var predecessor) ||
+                    !IsIncluded(predecessor, candidate.PncApplicable, workflow, anchorOrder) ||
+                    predecessor.PlannedDue is not DateOnly predecessorDue)
+                {
+                    continue;
+                }
+
+                var minimumStart = candidate.TransitionRule == PlanTransitionRule.SameDay
+                    ? predecessorDue
+                    : calendar.NextWorkingDay(predecessorDue);
+                if (successorStart >= minimumStart)
+                {
+                    continue;
+                }
+
+                var predecessorName = DisplayName(predecessorCode, configuredNames);
+                var boundary = candidate.TransitionRule == PlanTransitionRule.SameDay
+                    ? "planned due date"
+                    : "next working day";
+                errors.Add(
+                    $"{stageName} Planned start must be on or after {predecessorName}'s {boundary} ({minimumStart:dd MMM yyyy}).");
+            }
+        }
+
+        return new PlannedTimelineValidationResult(errors);
+    }
+
+    private static bool IsIncluded(
+        PlannedTimelineStage stage,
+        bool pncApplicable,
+        ProjectStageWorkflowSnapshot workflow,
+        int anchorOrder)
+    {
+        if (stage.IsSkipped ||
+            (!pncApplicable && string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var order = workflow.OrderOf(stage.StageCode);
+        return order >= anchorOrder;
+    }
+
+    private static string DisplayName(
+        string stageCode,
+        IReadOnlyDictionary<string, string> configuredNames) =>
+        configuredNames.TryGetValue(stageCode, out var name) && !string.IsNullOrWhiteSpace(name)
+            ? name
+            : stageCode;
+}

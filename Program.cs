@@ -652,6 +652,7 @@ builder.Services.AddHostedService<TodoPurgeWorker>();
 builder.Services.AddHostedService<ProjectRetentionWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
+builder.Services.AddScoped<IPlannedTimelineValidationService, PlannedTimelineValidationService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
 
 // SECTION: Proliferation read-model services
