@@ -1517,9 +1517,13 @@ public class EditPlanDurationSafetyTests
         own.StagePlans.Add(new StagePlan { StageCode = StageCodes.PNC, DurationDays = 80,
             PlannedStart = new DateOnly(2030, 1, 1), PlannedDue = new DateOnly(2030, 2, 1) });
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = "PRIVATE-ONLY", DurationDays = 77 });
+        f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = "OFFICIAL-EXT", DurationDays = 66, SortOrder = 91 });
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.PNC, DurationDays = 80 });
-        f.Db.ProjectStages.Add(new ProjectStage { ProjectId = 1, StageCode = StageCodes.PNC,
-            PlannedStart = new DateOnly(2025, 1, 1), PlannedDue = new DateOnly(2025, 2, 1) });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.PNC,
+                PlannedStart = new DateOnly(2025, 1, 1), PlannedDue = new DateOnly(2025, 2, 1) },
+            new ProjectStage { ProjectId = 1, StageCode = "OFFICIAL-EXT", SortOrder = 91,
+                PlannedStart = new DateOnly(2025, 3, 1), PlannedDue = new DateOnly(2025, 3, 4) });
         f.Db.PlanVersions.Add(new PlanVersion { ProjectId = 1, OwnerUserId = "someone-else", CreatedByUserId = "someone-else",
             VersionNo = 9, PlanningInputVersion = 0, Status = PlanVersionStatus.Draft, AnchorDate = new DateOnly(2035, 1, 1) });
         await f.Db.SaveChangesAsync();
@@ -1542,8 +1546,17 @@ public class EditPlanDurationSafetyTests
         Assert.Equal(mode != PlanEditorModes.Durations, settings.SkipHolidays);
         Assert.Equal(mode == PlanEditorModes.Durations ? NextStageStartPolicies.SameDay : NextStageStartPolicies.NextWorkingDay, settings.NextStageStartPolicy);
         Assert.Equal(3, (await f.Db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.FS)).DurationDays);
-        Assert.Null((await f.Db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "PRIVATE-ONLY")).DurationDays);
+        Assert.False(await f.Db.ProjectPlanDurations.AnyAsync(d => d.StageCode == "PRIVATE-ONLY"));
+        var officialExtensionDuration = await f.Db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "OFFICIAL-EXT");
+        Assert.Null(officialExtensionDuration.DurationDays);
+        Assert.Equal(91, officialExtensionDuration.SortOrder);
+        var officialExtensionStage = await f.Db.ProjectStages.SingleAsync(s => s.StageCode == "OFFICIAL-EXT");
+        Assert.Equal(new DateOnly(2025, 3, 1), officialExtensionStage.PlannedStart);
+        Assert.Equal(new DateOnly(2025, 3, 4), officialExtensionStage.PlannedDue);
         Assert.Null((await f.Db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC)).DurationDays);
+        var freshEditor = await new PlanReadService(f.Db).GetAsync(1, "fresh-user");
+        Assert.DoesNotContain(freshEditor.Durations.Rows, row => row.Code == "PRIVATE-ONLY");
+        Assert.Contains(freshEditor.Durations.Rows, row => row.Code == "OFFICIAL-EXT");
         own = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.OwnerUserId == f.User.UserId);
         Assert.Equal(1, own.PlanningInputVersion);
         Assert.False(own.PncApplicable);
