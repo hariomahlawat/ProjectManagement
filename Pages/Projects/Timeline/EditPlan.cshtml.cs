@@ -40,6 +40,7 @@ public class EditPlanModel : PageModel
     private readonly ILogger<EditPlanModel> _logger;
     private readonly IUserContext _userContext;
     private readonly IOfficeCalendarService? _officeCalendar;
+    private readonly IPlannedTimelineValidationService _timelineValidation;
 
     public EditPlanModel(
         ApplicationDbContext db,
@@ -49,7 +50,8 @@ public class EditPlanModel : PageModel
         PlanApprovalService planApproval,
         ILogger<EditPlanModel> logger,
         IUserContext userContext,
-        IOfficeCalendarService? officeCalendar = null)
+        IOfficeCalendarService? officeCalendar = null,
+        IPlannedTimelineValidationService? timelineValidation = null)
     {
         _db = db;
         _audit = audit;
@@ -59,6 +61,10 @@ public class EditPlanModel : PageModel
         _logger = logger;
         _userContext = userContext;
         _officeCalendar = officeCalendar;
+        _timelineValidation = timelineValidation ?? new PlannedTimelineValidationService(
+            db,
+            new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider()),
+            officeCalendar ?? new OfficeCalendarService(db));
     }
 
     [BindProperty]
@@ -924,6 +930,69 @@ public class EditPlanModel : PageModel
         var baseline = await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken);
         var workingCalendar = await BuildWorkingCalendarAsync(projectId, rows, cancellationToken, acceptedBaseline: baseline);
         var publishedProject = await _db.Projects.SingleAsync(project => project.Id == projectId, cancellationToken);
+        var stageRows = await _db.ProjectStages
+            .Where(stage => stage.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+
+        var publishedPnc = rows.LastOrDefault(row =>
+            string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+        var submittedPncApplicable = publishedPnc is not null &&
+            publishedPnc.PlannedStart.HasValue &&
+            publishedPnc.PlannedDue.HasValue;
+        var candidatePncApplicable = publishedPnc is null
+            ? publishedProject.PncApplicable
+            : submittedPncApplicable;
+        var projectedStages = stageRows
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(
+                stage => stage.StageCode,
+                stage => new PlannedTimelineStage(
+                    stage.StageCode,
+                    stage.PlannedStart,
+                    stage.PlannedDue,
+                    stage.Status == StageStatus.Skipped,
+                    stage.SortOrder),
+                StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Code)))
+        {
+            projectedStages[row.Code] = new PlannedTimelineStage(
+                row.Code,
+                row.PlannedStart,
+                row.PlannedDue,
+                projectedStages.TryGetValue(row.Code, out var existing) && existing.IsSkipped,
+                existing?.SortOrder ?? ProcurementWorkflow.OrderOf(baseline.WorkflowVersion, row.Code));
+        }
+
+        var acceptedSettings = baseline.Settings;
+        var directAnchor = rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Code))
+            .Select(row => new
+            {
+                row.Code,
+                Order = ProcurementWorkflow.OrderOf(baseline.WorkflowVersion, row.Code)
+            })
+            .Where(item => item.Order != int.MaxValue)
+            .OrderBy(item => item.Order)
+            .Select(item => item.Code)
+            .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
+        var validation = await _timelineValidation.ValidateAsync(
+            new PlannedTimelineCandidate(
+                projectId,
+                directAnchor,
+                acceptedSettings?.NextStageStartPolicy == NextStageStartPolicies.SameDay
+                    ? PlanTransitionRule.SameDay
+                    : PlanTransitionRule.NextWorkingDay,
+                acceptedSettings?.IncludeWeekends ?? false,
+                acceptedSettings?.SkipHolidays ?? true,
+                candidatePncApplicable,
+                projectedStages.Values.ToArray()),
+            cancellationToken);
+        if (!validation.IsValid)
+        {
+            var errors = validation.Errors.ToArray();
+            return RejectPlanRequest(projectId, string.Join(" ", errors), errors: errors);
+        }
+
         ProjectScheduleSettings? establishedSettings = null;
         if (!baseline.IsTrusted)
         {
@@ -939,10 +1008,6 @@ public class EditPlanModel : PageModel
             establishedSettings.NextStageStartPolicy = baseline.Settings?.NextStageStartPolicy ?? NextStageStartPolicies.NextWorkingDay;
             publishedProject.PublishedPlanningInputVersion = PlanningInputVersions.Current;
         }
-
-        var stageRows = await _db.ProjectStages
-            .Where(stage => stage.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
 
         var stageLookup = stageRows
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
@@ -1025,10 +1090,7 @@ public class EditPlanModel : PageModel
             }
         }
 
-        var publishedPnc = rows.LastOrDefault(row =>
-            string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
         bool? previousPncApplicable = null;
-        var submittedPncApplicable = publishedPnc is not null && publishedPnc.PlannedStart.HasValue && publishedPnc.PlannedDue.HasValue;
         if (publishedPnc is not null)
         {
             previousPncApplicable = publishedProject.PncApplicable;

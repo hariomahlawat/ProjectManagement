@@ -37,6 +37,174 @@ namespace ProjectManagement.Tests;
 
 public class EditPlanDurationSafetyTests
 {
+    [Fact]
+    public async Task DirectExact_RejectsChangedPredecessorThatInvalidatesOmittedSuccessorWithoutAnyMutation()
+    {
+        await using var f = await Fixture.CreateAsync("HoD", "SaveChanges", relational: true, persistAudit: true);
+        var project = await f.Db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        project.PncApplicable = false;
+        project.ActivePlanVersionNo = 8;
+        f.Db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            Code = StageCodes.IPA,
+            Name = "In-Principle Approval",
+            Sequence = 20
+        });
+        f.Db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            FromStageCode = StageCodes.IPA,
+            DependsOnStageCode = StageCodes.FS
+        });
+        f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2024, 1, 1),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        f.Db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.FS, DurationDays = 3, SortOrder = 10 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.IPA, DurationDays = 3, SortOrder = 20 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = "EXTENSION", DurationDays = 2, SortOrder = 80 });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 20,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2024, 1, 4),
+                PlannedDue = new DateOnly(2024, 1, 6)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = "EXTENSION",
+                SortOrder = 80,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2024, 2, 1),
+                PlannedDue = new DateOnly(2024, 2, 2)
+            });
+        var actorDraft = new PlanVersion
+        {
+            ProjectId = 1,
+            VersionNo = 9,
+            OwnerUserId = f.User.UserId,
+            CreatedByUserId = f.User.UserId!,
+            Status = PlanVersionStatus.Draft,
+            PlanningInputVersion = PlanningInputVersions.Current,
+            AnchorStageCode = StageCodes.FS,
+            PncApplicable = false
+        };
+        actorDraft.StagePlans.Add(new StagePlan
+        {
+            StageCode = "EXTENSION",
+            SortOrder = 80,
+            DurationDays = 2,
+            PlannedStart = new DateOnly(2024, 2, 1),
+            PlannedDue = new DateOnly(2024, 2, 2)
+        });
+        f.Db.PlanVersions.Add(actorDraft);
+        await f.Db.SaveChangesAsync();
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = new()
+        {
+            new()
+            {
+                Code = StageCodes.FS,
+                Name = "FS",
+                PlannedStart = new DateOnly(2024, 1, 1),
+                PlannedDue = new DateOnly(2024, 1, 5)
+            }
+        };
+        var before = await PlannerStateAsync(f.Db);
+        var auditBefore = await AuditStateAsync(f.Db);
+
+        var result = await f.Page.OnPostAsync(1, default);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("In-Principle Approval", Assert.IsType<string>(f.Page.TempData["Error"]));
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        Assert.Equal(auditBefore, await AuditStateAsync(f.Db));
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    public async Task DirectExact_AppliesExplicitClearAndPreservesOmittedExtension(string role)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true);
+        var project = await f.Db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        project.PncApplicable = false;
+        f.Db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            Code = StageCodes.IPA,
+            Name = "In-Principle Approval",
+            Sequence = 20
+        });
+        f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2024, 1, 1),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        f.Db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.IPA, DurationDays = 3, SortOrder = 20 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = "EXTENSION", DurationDays = 2, SortOrder = 80 });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 20,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2024, 1, 4),
+                PlannedDue = new DateOnly(2024, 1, 6)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = "EXTENSION",
+                SortOrder = 80,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2024, 2, 1),
+                PlannedDue = new DateOnly(2024, 2, 2)
+            });
+        await f.Db.SaveChangesAsync();
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = new()
+        {
+            new()
+            {
+                Code = StageCodes.IPA,
+                Name = "In-Principle Approval",
+                PlannedStart = null,
+                PlannedDue = null
+            }
+        };
+
+        var result = await f.Page.OnPostAsync(1, default);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        f.Db.ChangeTracker.Clear();
+        var stages = await f.Db.ProjectStages.ToDictionaryAsync(stage => stage.StageCode);
+        Assert.Null(stages[StageCodes.IPA].PlannedStart);
+        Assert.Null(stages[StageCodes.IPA].PlannedDue);
+        Assert.Equal(new DateOnly(2024, 2, 1), stages["EXTENSION"].PlannedStart);
+        Assert.Equal(new DateOnly(2024, 2, 2), stages["EXTENSION"].PlannedDue);
+        Assert.Null((await f.Db.ProjectPlanDurations.SingleAsync(row => row.StageCode == StageCodes.IPA)).DurationDays);
+        Assert.Equal(2, (await f.Db.ProjectPlanDurations.SingleAsync(row => row.StageCode == "EXTENSION")).DurationDays);
+    }
+
     [Theory]
     [InlineData("HoD", true, PlanEditorModes.Durations)]
     [InlineData("HoD", false, PlanEditorModes.Durations)]
