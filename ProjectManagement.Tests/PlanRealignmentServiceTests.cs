@@ -35,7 +35,7 @@ public class PlanRealignmentServiceTests
         else options.UseInMemoryDatabase(Guid.NewGuid().ToString());
         await using var db = new ApplicationDbContext(options.Options);
         if (relational) await db.Database.EnsureCreatedAsync();
-        db.Projects.Add(new Project { Id = 1, Name = "Realignment", ActivePlanVersionNo = 1, PncApplicable = false });
+        db.Projects.Add(new Project { Id = 1, Name = "Realignment", ActivePlanVersionNo = 1, PncApplicable = false, PublishedPlanningInputVersion = PlanningInputVersions.Current });
         db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
         {
             ProjectId = 1, AnchorStart = new DateOnly(2026, 12, 9), IncludeWeekends = true,
@@ -89,11 +89,11 @@ public class PlanRealignmentServiceTests
         Assert.False(pending.PncApplicable);
         var rows = pending.StagePlans.ToDictionary(s => s.StageCode);
         Assert.Equal(11, rows[StageCodes.FS].DurationDays);
-        Assert.Equal(12, rows[StageCodes.FS].SortOrder);
+        Assert.Equal(ProcurementWorkflow.OrderOf(null, StageCodes.FS), rows[StageCodes.FS].SortOrder);
         Assert.Equal(new DateOnly(2026, 11, 10), rows[StageCodes.FS].PlannedStart);
         Assert.Equal(new DateOnly(2026, 11, 16), rows[StageCodes.FS].PlannedDue);
         Assert.Equal(0, rows[StageCodes.IPA].DurationDays);
-        Assert.Equal(24, rows[StageCodes.IPA].SortOrder);
+        Assert.Equal(ProcurementWorkflow.OrderOf(null, StageCodes.IPA), rows[StageCodes.IPA].SortOrder);
         Assert.Equal(new DateOnly(2026, 11, 20), rows[StageCodes.IPA].PlannedStart);
         Assert.Equal(new DateOnly(2026, 11, 22), rows[StageCodes.IPA].PlannedDue);
         Assert.Equal(88, rows["EXTENSION"].SortOrder);
@@ -155,7 +155,7 @@ public class PlanRealignmentServiceTests
         Assert.Equal(PlanVersionStatus.PendingApproval, pending.Status);
         Assert.All(pending.StagePlans, s => Assert.Equal(0, s.DurationDays));
         var rows = pending.StagePlans.ToDictionary(s => s.StageCode);
-        Assert.Equal(15, rows[StageCodes.FS].SortOrder);
+        Assert.Equal(ProcurementWorkflow.OrderOf(PlanConstants.StageTemplateVersionV1, StageCodes.FS), rows[StageCodes.FS].SortOrder);
         Assert.Equal(20, rows[StageCodes.IPA].SortOrder);
         Assert.Equal(extensionFallback, rows["EXTENSION"].SortOrder);
         Assert.Equal(new DateOnly(2026, 11, 10), rows[StageCodes.FS].PlannedStart);
@@ -164,6 +164,80 @@ public class PlanRealignmentServiceTests
         Assert.Empty(await db.ProjectPlanDurations.ToListAsync());
         Assert.Equal(new DateOnly(2028, 1, 1), (await db.ProjectStages.SingleAsync()).PlannedStart);
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Realignment_LegacySharedPrivateInputsAreIgnoredEvenAfterOldDraftDiscard(bool discarded)
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        db.Projects.Add(new Project
+        {
+            Id = 1, Name = "Legacy private inputs", PncApplicable = false, ActivePlanVersionNo = 1,
+            PublishedPlanningInputVersion = PlanningInputVersions.Legacy
+        });
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1, AnchorStart = new DateOnly(2027, 5, 1), IncludeWeekends = true,
+            SkipHolidays = false, NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.FS, DurationDays = 99, SortOrder = 999 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.PNC, DurationDays = 88, SortOrder = 998 });
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1, StageCode = StageCodes.PNC, Status = StageStatus.Completed,
+            PlannedStart = new DateOnly(2026, 11, 20), PlannedDue = new DateOnly(2026, 11, 21),
+            ActualStart = new DateOnly(2026, 11, 20), CompletedOn = new DateOnly(2026, 11, 21)
+        });
+        var approved = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 1, CreatedByUserId = "old-po", Status = PlanVersionStatus.Approved,
+            PlanningInputVersion = PlanningInputVersions.Legacy
+        };
+        approved.StagePlans.AddRange(new[]
+        {
+            new StagePlan { StageCode = StageCodes.FS, DurationDays = 5, PlannedStart = new DateOnly(2026, 11, 1), PlannedDue = new DateOnly(2026, 11, 5) },
+            new StagePlan { StageCode = StageCodes.PNC, DurationDays = 4, PlannedStart = new DateOnly(2026, 11, 20), PlannedDue = new DateOnly(2026, 11, 21) }
+        });
+        db.PlanVersions.Add(approved);
+        if (!discarded)
+            db.PlanVersions.Add(new PlanVersion
+            {
+                ProjectId = 1, VersionNo = 2, CreatedByUserId = "private-po", OwnerUserId = "private-po",
+                Status = PlanVersionStatus.Draft, PlanningInputVersion = PlanningInputVersions.Legacy,
+                AnchorDate = new DateOnly(2027, 5, 1)
+            });
+        await db.SaveChangesAsync();
+
+        await new PlanRealignmentService(db, new TestClock()).CreateRealignmentDraftAsync(1, StageCodes.FS, 4, "trigger-user");
+
+        db.ChangeTracker.Clear();
+        var pending = await db.PlanVersions.Include(p => p.StagePlans).SingleAsync(p => p.Status == PlanVersionStatus.PendingApproval);
+        Assert.Equal(PlanningInputVersions.Current, pending.PlanningInputVersion);
+        Assert.Null(pending.OwnerUserId);
+        Assert.Null(pending.AnchorDate);
+        Assert.True(pending.SkipWeekends);
+        Assert.True(pending.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.NextWorkingDay, pending.TransitionRule);
+        Assert.False(pending.PncApplicable);
+        var fs = pending.StagePlans.Single(s => s.StageCode == StageCodes.FS);
+        Assert.Equal(0, fs.DurationDays);
+        Assert.Equal(new DateOnly(2026, 11, 1), fs.PlannedStart);
+        var pnc = pending.StagePlans.Single(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(0, pnc.DurationDays);
+        Assert.Null(pnc.PlannedStart);
+        Assert.Null(pnc.PlannedDue);
+        var official = await db.ProjectStages.SingleAsync();
+        Assert.Equal(new DateOnly(2026, 11, 20), official.PlannedStart);
+        Assert.Equal(StageStatus.Completed, official.Status);
+        Assert.Equal(99, (await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.FS)).DurationDays);
+        Assert.Equal(PlanningInputVersions.Legacy, (await db.Projects.SingleAsync()).PublishedPlanningInputVersion);
+    }
+
     [Fact]
     public async Task Realignment_RejectionPreservesActorsExistingPrivateDraftWithoutOwnerCollision()
     {

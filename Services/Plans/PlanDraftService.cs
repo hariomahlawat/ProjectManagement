@@ -49,6 +49,7 @@ public class PlanDraftService
 
         if (myDraft is not null)
         {
+            await UpgradeLegacyDraftAsync(myDraft, cancellationToken);
             return myDraft;
         }
 
@@ -77,6 +78,7 @@ public class PlanDraftService
         if (orphanDraft is not null)
         {
             orphanDraft.OwnerUserId = userId;
+            await UpgradeLegacyDraftAsync(orphanDraft, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
             return orphanDraft;
         }
@@ -141,46 +143,6 @@ public class PlanDraftService
             .Select(p => (int?)p.VersionNo)
             .MaxAsync(cancellationToken) ?? 0;
 
-        // One statement captures one published version even when an approval or
-        // direct publication commits between this service's other queries.
-        var baseline = await _db.Projects.AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .AsSingleQuery()
-            .Select(p => new
-            {
-                p.WorkflowVersion,
-                p.PncApplicable,
-                Settings = _db.ProjectScheduleSettings
-                    .Where(settings => settings.ProjectId == p.Id).FirstOrDefault(),
-                Durations = _db.ProjectPlanDurations
-                    .Where(duration => duration.ProjectId == p.Id)
-                    .OrderBy(duration => duration.SortOrder).ThenBy(duration => duration.Id).ToList(),
-                Stages = _db.ProjectStages
-                    .Where(stage => stage.ProjectId == p.Id)
-                    .OrderBy(stage => stage.SortOrder).ThenBy(stage => stage.Id).ToList()
-            })
-            .SingleAsync(cancellationToken);
-        var workflowVersion = baseline.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
-        var templates = await _db.StageTemplates.AsNoTracking()
-            .Where(t => t.Version == workflowVersion)
-            .OrderBy(t => t.Sequence).ThenBy(t => t.Id)
-            .ToListAsync(cancellationToken);
-        var settings = baseline.Settings;
-        var durations = baseline.Durations;
-        var stages = baseline.Stages;
-        var durationMap = durations.ToDictionary(d => d.StageCode, StringComparer.OrdinalIgnoreCase);
-        var stageMap = stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-        var templateOrder = templates.ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
-        var workflowOrder = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
-        var stageCodes = (templates.Count > 0
-                ? templates.Select(t => t.Code)
-                : ProcurementWorkflow.StageCodesFor(workflowVersion))
-            .Concat(durations.Select(d => d.StageCode))
-            .Concat(stages.Select(s => s.StageCode))
-            .Where(code => !string.IsNullOrWhiteSpace(code))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
         var plan = new PlanVersion
         {
             ProjectId = projectId,
@@ -190,35 +152,90 @@ public class PlanDraftService
             CreatedByUserId = userId,
             OwnerUserId = userId,
             CreatedOn = _clock.UtcNow,
-            AnchorStageCode = PlanConstants.DefaultAnchorStageCode,
-            AnchorDate = settings?.AnchorStart,
-            SkipWeekends = !(settings?.IncludeWeekends ?? false),
-            SkipHolidays = settings?.SkipHolidays ?? true,
-            TransitionRule = settings?.NextStageStartPolicy == NextStageStartPolicies.SameDay
-                ? PlanTransitionRule.SameDay : PlanTransitionRule.NextWorkingDay,
-            PncApplicable = baseline.PncApplicable
+            PlanningInputVersion = PlanningInputVersions.Current
         };
-
-        foreach (var code in stageCodes)
-        {
-            durationMap.TryGetValue(code, out var duration);
-            stageMap.TryGetValue(code, out var stage);
-            plan.StagePlans.Add(new StagePlan
-            {
-                StageCode = code,
-                DurationDays = Math.Max(0, duration?.DurationDays ?? 0),
-                PlannedStart = stage?.PlannedStart,
-                PlannedDue = stage?.PlannedDue,
-                SortOrder = duration?.SortOrder ?? stage?.SortOrder
-                    ?? (templateOrder.TryGetValue(code, out var sequence) ? sequence
-                        : workflowOrder.TryGetValue(code, out var order) ? order : 0)
-            });
-        }
+        await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
 
         _db.PlanVersions.Add(plan);
         await _db.SaveChangesAsync(cancellationToken);
 
         return plan;
+    }
+
+    private async Task UpgradeLegacyDraftAsync(PlanVersion draft, CancellationToken cancellationToken)
+    {
+        if (draft.PlanningInputVersion != PlanningInputVersions.Legacy)
+        {
+            return;
+        }
+
+        // This path is reached only after selecting this actor's own editable draft.
+        // Existing Exact dates were already proposal-owned; policy/duration fields
+        // were not, so replace those from the accepted baseline before any new edits.
+        await InitializeInputsAsync(draft, preserveExistingDates: true, cancellationToken);
+        draft.PlanningInputVersion = PlanningInputVersions.Current;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task InitializeInputsAsync(PlanVersion plan, bool preserveExistingDates, CancellationToken cancellationToken)
+    {
+        var baseline = await PublishedPlanningBaseline.LoadAsync(_db, plan.ProjectId, cancellationToken);
+        var workflowVersion = baseline.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
+        var templates = await _db.StageTemplates.AsNoTracking()
+            .Where(template => template.Version == workflowVersion)
+            .OrderBy(template => template.Sequence).ThenBy(template => template.Id)
+            .ToListAsync(cancellationToken);
+        var durationMap = baseline.Durations.ToDictionary(duration => duration.StageCode, StringComparer.OrdinalIgnoreCase);
+        var stageMap = baseline.Stages.ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+        var templateOrder = templates.ToDictionary(template => template.Code, template => template.Sequence, StringComparer.OrdinalIgnoreCase);
+        var workflowOrder = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
+        var proposalMap = plan.StagePlans.ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+        var stageCodes = (templates.Count > 0
+                ? templates.Select(template => template.Code)
+                : ProcurementWorkflow.StageCodesFor(workflowVersion))
+            .Concat(baseline.Durations.Select(duration => duration.StageCode))
+            .Concat(baseline.Stages.Select(stage => stage.StageCode))
+            .Concat(proposalMap.Keys)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        plan.AnchorStageCode = PlanConstants.DefaultAnchorStageCode;
+        plan.AnchorDate = baseline.Settings?.AnchorStart;
+        plan.SkipWeekends = !(baseline.Settings?.IncludeWeekends ?? false);
+        plan.SkipHolidays = baseline.Settings?.SkipHolidays ?? true;
+        plan.TransitionRule = baseline.Settings?.NextStageStartPolicy == NextStageStartPolicies.SameDay
+            ? PlanTransitionRule.SameDay : PlanTransitionRule.NextWorkingDay;
+        plan.PncApplicable = baseline.PncApplicable;
+
+        foreach (var code in stageCodes)
+        {
+            durationMap.TryGetValue(code, out var duration);
+            stageMap.TryGetValue(code, out var official);
+            if (!proposalMap.TryGetValue(code, out var row))
+            {
+                row = new StagePlan { StageCode = code, PlannedStart = official?.PlannedStart, PlannedDue = official?.PlannedDue };
+                plan.StagePlans.Add(row);
+            }
+            else if (!preserveExistingDates)
+            {
+                row.PlannedStart = official?.PlannedStart;
+                row.PlannedDue = official?.PlannedDue;
+            }
+
+            row.DurationDays = Math.Max(0, duration?.DurationDays ?? 0);
+            row.SortOrder = templateOrder.TryGetValue(code, out var sequence) ? sequence
+                : workflowOrder.TryGetValue(code, out var order) ? order
+                : duration?.SortOrder ?? official?.SortOrder ?? (row.Id != 0 ? row.Id : duration?.Id ?? official?.Id ?? 0);
+
+            // Live applicability overrides retained compatibility duration/date inputs.
+            // Preserve the official row as evidence; only normalize the new proposal.
+            if (!baseline.PncApplicable && string.Equals(code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+            {
+                row.DurationDays = 0;
+                row.PlannedStart = null;
+                row.PlannedDue = null;
+            }
+        }
     }
 
     private string GetCurrentUserId()

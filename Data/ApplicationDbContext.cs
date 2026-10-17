@@ -969,6 +969,7 @@ namespace ProjectManagement.Data
                     .HasForeignKey(x => x.SponsoringLineDirectorateId)
                     .OnDelete(DeleteBehavior.Restrict);
                 e.Property(x => x.PncApplicable).HasDefaultValue(true);
+                e.Property(x => x.PublishedPlanningInputVersion).HasDefaultValue(PlanningInputVersions.Legacy);
                 e.Property(x => x.PlanApprovedByUserId).HasMaxLength(450);
                 e.HasOne(x => x.PlanApprovedByUser)
                     .WithMany()
@@ -3142,6 +3143,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.SkipWeekends).HasDefaultValue(true);
                 e.Property(x => x.SkipHolidays).HasDefaultValue(true);
                 e.Property(x => x.PncApplicable).HasDefaultValue(true);
+                e.Property(x => x.PlanningInputVersion).HasDefaultValue(PlanningInputVersions.Legacy);
                 e.HasOne(x => x.OwnerUser)
                     .WithMany()
                     .HasForeignKey(x => x.OwnerUserId)

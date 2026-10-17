@@ -248,8 +248,7 @@ public class EditPlanModel : PageModel
 
         if (canDirectApply)
         {
-            var publishedCalendar = await BuildWorkingCalendarAsync(id, rows, cancellationToken);
-            return await HandleExactDirectSaveAsync(id, userId, principal, rows, publishedCalendar, cancellationToken);
+            return await HandleExactDirectSaveAsync(id, userId, principal, rows, cancellationToken);
         }
 
         var submitForApproval = intent == PlanIntent.Submit;
@@ -276,6 +275,7 @@ public class EditPlanModel : PageModel
             .ToDictionary(stage => stage.StageCode!, stage => stage, StringComparer.OrdinalIgnoreCase);
 
         var changes = new List<StageChange>();
+        var durationsChanged = false;
 
         foreach (var row in rows)
         {
@@ -298,6 +298,14 @@ public class EditPlanModel : PageModel
 
             var previousStart = stagePlan.PlannedStart;
             var previousDue = stagePlan.PlannedDue;
+            // Legacy Exact dates already belonged to the proposal, but its
+            // duration is rebuilt from the accepted calendar during cutover.
+            var duration = CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue);
+            if (stagePlan.DurationDays != duration)
+            {
+                stagePlan.DurationDays = duration;
+                durationsChanged = true;
+            }
 
             if (previousStart == row.PlannedStart && previousDue == row.PlannedDue)
             {
@@ -306,26 +314,21 @@ public class EditPlanModel : PageModel
 
             stagePlan.PlannedStart = row.PlannedStart;
             stagePlan.PlannedDue = row.PlannedDue;
-            stagePlan.DurationDays = CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue);
-
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
 
         var pncApplicable = stageMap.TryGetValue(StageCodes.PNC, out var pncStage) &&
             pncStage.PlannedStart is DateOnly && pncStage.PlannedDue is DateOnly;
 
-        if (draft.PncApplicable != pncApplicable)
+        var pncChanged = draft.PncApplicable != pncApplicable;
+        draft.PncApplicable = pncApplicable;
+        if (changes.Count > 0 || durationsChanged || pncChanged)
         {
-            draft.PncApplicable = pncApplicable;
-            if (changes.Count == 0)
-            {
-                await _db.SaveChangesAsync(cancellationToken);
-            }
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         if (changes.Count > 0)
         {
-            await _db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation(
                 "Exact timeline saved for Project {ProjectId}. ConnHash: {ConnHash}",
                 id,
@@ -486,6 +489,8 @@ public class EditPlanModel : PageModel
         if (intent == PlanIntent.SaveChanges)
         {
             await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
+            var baseline = await PublishedPlanningBaseline.LoadAsync(_db, id, ct);
+            var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
             var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
             if (settings is null)
             {
@@ -506,6 +511,14 @@ public class EditPlanModel : PageModel
             var durationRows = await _db.ProjectPlanDurations
                 .Where(d => d.ProjectId == id)
                 .ToListAsync(ct);
+
+            // Legacy rows can contain another actor's discarded private work.
+            // Retain the compatibility rows, but only posted inputs gain authority.
+            if (!baseline.IsTrusted)
+            {
+                foreach (var duration in durationRows) duration.DurationDays = null;
+            }
+            publishedProject.PublishedPlanningInputVersion = PlanningInputVersions.Current;
 
             var durationMap = durationRows
                 .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
@@ -550,7 +563,12 @@ public class EditPlanModel : PageModel
                     _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null));
 
             await EnsureProjectStagesExistAsync(id, rows.Select(r => r.Code), ct);
-            await _planGeneration.GenerateAsync(id, ct);
+            // Clearing ambiguous legacy inputs does not make omitted stages an
+            // explicit date-clear request. Only the submitted inputs generate.
+            var publishedStageCodes = baseline.IsTrusted ? null : rows
+                .Where(row => !string.IsNullOrWhiteSpace(row.Code))
+                .Select(row => row.Code).ToArray();
+            await _planGeneration.GenerateAsync(id, ct, publishedStageCodes);
             // The explicit submitted publication decision is authoritative. Shared
             // working duration rows and retained stage dates never supply this value.
             var publishedPnc = rows.LastOrDefault(row =>
@@ -558,7 +576,6 @@ public class EditPlanModel : PageModel
             bool? previousPncApplicable = null;
             if (publishedPnc is not null)
             {
-                var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
                 previousPncApplicable = publishedProject.PncApplicable;
                 publishedProject.PncApplicable = publishedPnc.DurationDays.GetValueOrDefault() > 0;
                 // An explicit decision belongs to this publication even if its
@@ -720,6 +737,7 @@ public class EditPlanModel : PageModel
         IReadOnlyDictionary<string, ProjectPlanDuration> durations,
         CancellationToken cancellationToken)
     {
+        draft.PlanningInputVersion = PlanningInputVersions.Current;
         draft.AnchorDate = settings.AnchorStart;
         draft.SkipWeekends = !settings.IncludeWeekends;
         draft.SkipHolidays = settings.SkipHolidays;
@@ -745,6 +763,18 @@ public class EditPlanModel : PageModel
             draftStage.SortOrder = duration?.SortOrder ?? stage?.SortOrder ?? draftStage.SortOrder;
             draftStage.PlannedStart = stage?.PlannedStart;
             draftStage.PlannedDue = stage?.PlannedDue;
+        }
+        NormalizeNonApplicablePnc(draft);
+    }
+
+    private static void NormalizeNonApplicablePnc(PlanVersion draft)
+    {
+        if (draft.PncApplicable) return;
+        foreach (var stage in draft.StagePlans.Where(stage => string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase)))
+        {
+            stage.DurationDays = 0;
+            stage.PlannedStart = null;
+            stage.PlannedDue = null;
         }
     }
 
@@ -826,11 +856,11 @@ public class EditPlanModel : PageModel
         int projectId,
         IReadOnlyCollection<PlanEditInputRow> rows,
         CancellationToken cancellationToken,
-        PlanVersion? proposal = null)
+        PlanVersion? proposal = null,
+        PublishedPlanningBaseline? acceptedBaseline = null)
     {
         var settings = proposal is null
-            ? await _db.ProjectScheduleSettings.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken)
+            ? (acceptedBaseline ?? await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken)).Settings
             : null;
 
         var includeWeekends = proposal is not null ? !proposal.SkipWeekends : settings?.IncludeWeekends ?? false;
@@ -877,10 +907,27 @@ public class EditPlanModel : PageModel
         string userId,
         ClaimsPrincipal principal,
         IReadOnlyCollection<PlanEditInputRow> rows,
-        WorkingCalendar workingCalendar,
         CancellationToken cancellationToken)
     {
         await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        var baseline = await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken);
+        var workingCalendar = await BuildWorkingCalendarAsync(projectId, rows, cancellationToken, acceptedBaseline: baseline);
+        var publishedProject = await _db.Projects.SingleAsync(project => project.Id == projectId, cancellationToken);
+        ProjectScheduleSettings? establishedSettings = null;
+        if (!baseline.IsTrusted)
+        {
+            establishedSettings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken);
+            if (establishedSettings is null)
+            {
+                establishedSettings = new ProjectScheduleSettings { ProjectId = projectId };
+                _db.ProjectScheduleSettings.Add(establishedSettings);
+            }
+            establishedSettings.AnchorStart = baseline.Settings?.AnchorStart;
+            establishedSettings.IncludeWeekends = baseline.Settings?.IncludeWeekends ?? false;
+            establishedSettings.SkipHolidays = baseline.Settings?.SkipHolidays ?? true;
+            establishedSettings.NextStageStartPolicy = baseline.Settings?.NextStageStartPolicy ?? NextStageStartPolicies.NextWorkingDay;
+            publishedProject.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        }
 
         var stageRows = await _db.ProjectStages
             .Where(stage => stage.ProjectId == projectId)
@@ -893,6 +940,10 @@ public class EditPlanModel : PageModel
         var durationRows = await _db.ProjectPlanDurations
             .Where(item => item.ProjectId == projectId)
             .ToListAsync(cancellationToken);
+        if (!baseline.IsTrusted)
+        {
+            foreach (var duration in durationRows) duration.DurationDays = null;
+        }
         var durationLookup = durationRows
             .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
             .ToDictionary(item => item.StageCode!, StringComparer.OrdinalIgnoreCase);
@@ -931,7 +982,8 @@ public class EditPlanModel : PageModel
 
             var previousStart = stage.PlannedStart;
             var previousDue = stage.PlannedDue;
-            if (previousStart == row.PlannedStart && previousDue == row.PlannedDue)
+            var datesChanged = previousStart != row.PlannedStart || previousDue != row.PlannedDue;
+            if (!datesChanged && baseline.IsTrusted)
             {
                 continue;
             }
@@ -956,49 +1008,59 @@ public class EditPlanModel : PageModel
                 ? CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue)
                 : null;
 
-            changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
+            if (datesChanged)
+            {
+                changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
+            }
         }
 
-        // Duration working previews also feed Exact mode. Keep this actor's
-        // existing draft consistent with their explicit direct save, so reload
-        // cannot mask the newly published dates with an older preview.
-        var workingDraft = await _planDraft.GetMyDraftAsync(projectId, cancellationToken);
-        if (workingDraft is not null)
-        {
-            var proposalCalendar = await BuildWorkingCalendarAsync(projectId, rows, cancellationToken, workingDraft);
-            foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Code)))
-            {
-                var draftStage = workingDraft.StagePlans.FirstOrDefault(stage =>
-                    string.Equals(stage.StageCode, row.Code, StringComparison.OrdinalIgnoreCase));
-                if (draftStage is null)
-                {
-                    draftStage = new StagePlan { PlanVersionId = workingDraft.Id, StageCode = row.Code };
-                    workingDraft.StagePlans.Add(draftStage);
-                }
-                draftStage.PlannedStart = row.PlannedStart;
-                draftStage.PlannedDue = row.PlannedDue;
-                draftStage.DurationDays = CalculateWorkingDuration(proposalCalendar, row.PlannedStart, row.PlannedDue);
-                if (stageLookup.TryGetValue(row.Code, out var publishedStage)) draftStage.SortOrder = publishedStage.SortOrder;
-            }
-            workingDraft.PncApplicable = workingDraft.StagePlans.Any(stage =>
-                string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase) &&
-                stage.PlannedStart.HasValue && stage.PlannedDue.HasValue);
-        }
         var publishedPnc = rows.LastOrDefault(row =>
             string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
         bool? previousPncApplicable = null;
         var submittedPncApplicable = publishedPnc is not null && publishedPnc.PlannedStart.HasValue && publishedPnc.PlannedDue.HasValue;
         if (publishedPnc is not null)
         {
-            var publishedProject = await _db.Projects.SingleAsync(project => project.Id == projectId, cancellationToken);
             previousPncApplicable = publishedProject.PncApplicable;
             publishedProject.PncApplicable = submittedPncApplicable;
-            // Force this explicit decision into the existing optimistic-concurrency
-            // write-set, including when EF would otherwise see an unchanged bool.
+            // Keep the canonical Project RowVersion in the explicit decision's write-set.
             _db.Entry(publishedProject).Property(project => project.PncApplicable).IsModified = true;
         }
-        if (changes.Count > 0 || workingDraft is not null || publishedPnc is not null)
+
+        var workingDraft = await _planDraft.GetMyDraftAsync(projectId, cancellationToken);
+        if (changes.Count > 0 || workingDraft is not null || publishedPnc is not null || !baseline.IsTrusted)
         {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        if (workingDraft is not null)
+        {
+            if (!baseline.IsTrusted || workingDraft.PlanningInputVersion < PlanningInputVersions.Current)
+            {
+                // Direct publication completes only an existing actor-owned draft.
+                var settings = establishedSettings ?? baseline.Settings ?? new ProjectScheduleSettings { ProjectId = projectId };
+                await SynchronizeDurationDraftAsync(projectId, workingDraft, settings, durationLookup, cancellationToken);
+            }
+            else
+            {
+                var proposalCalendar = await BuildWorkingCalendarAsync(projectId, rows, cancellationToken, workingDraft);
+                foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Code)))
+                {
+                    var draftStage = workingDraft.StagePlans.FirstOrDefault(stage =>
+                        string.Equals(stage.StageCode, row.Code, StringComparison.OrdinalIgnoreCase));
+                    if (draftStage is null)
+                    {
+                        draftStage = new StagePlan { PlanVersionId = workingDraft.Id, StageCode = row.Code };
+                        workingDraft.StagePlans.Add(draftStage);
+                    }
+                    draftStage.PlannedStart = row.PlannedStart;
+                    draftStage.PlannedDue = row.PlannedDue;
+                    draftStage.DurationDays = CalculateWorkingDuration(proposalCalendar, row.PlannedStart, row.PlannedDue);
+                    if (stageLookup.TryGetValue(row.Code, out var publishedStage)) draftStage.SortOrder = publishedStage.SortOrder;
+                }
+                workingDraft.PncApplicable = publishedProject.PncApplicable && workingDraft.StagePlans.Any(stage =>
+                    string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase) &&
+                    stage.PlannedStart.HasValue && stage.PlannedDue.HasValue);
+                NormalizeNonApplicablePnc(workingDraft);
+            }
             await _db.SaveChangesAsync(cancellationToken);
         }
 

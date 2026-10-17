@@ -63,6 +63,9 @@ public class PlanDraftAndApprovalServiceTests
         Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
         Assert.Equal(applicable, (await workflowPolicy.GetAsync(1)).PncApplicable);
         db.ChangeTracker.Clear();
+        Assert.Equal(PlanningInputVersions.Current, (await db.Projects.SingleAsync()).PublishedPlanningInputVersion);
+        if (!applicable && hasPncRow)
+            Assert.Null((await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC)).DurationDays);
         var pnc = await db.ProjectStages.SingleOrDefaultAsync(s => s.StageCode == StageCodes.PNC);
         if (!existingPnc) Assert.Null(pnc);
         else

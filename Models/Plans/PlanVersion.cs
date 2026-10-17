@@ -59,6 +59,9 @@ public class PlanVersion
 
     public bool SkipHolidays { get; set; } = true;
 
+    // New revisions own complete inputs; existing database rows remain legacy (0).
+    public int PlanningInputVersion { get; set; } = PlanningInputVersions.Current;
+
     public PlanTransitionRule TransitionRule { get; set; } = PlanTransitionRule.NextWorkingDay;
 
     public bool PncApplicable { get; set; } = true;

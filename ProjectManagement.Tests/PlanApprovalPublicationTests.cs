@@ -58,7 +58,7 @@ public class PlanApprovalPublicationTests
         Assert.Equal(20, durations[StageCodes.IPA].SortOrder);
         Assert.Equal(3, durations["EXTENSION"].DurationDays);
         Assert.Equal(73, durations["EXTENSION"].SortOrder);
-        Assert.Equal(2, durations[StageCodes.PNC].DurationDays);
+        Assert.Equal(pncApplicable ? 2 : (int?)null, durations[StageCodes.PNC].DurationDays);
         Assert.Equal(4, durations.Count);
         var stages = await db.ProjectStages.ToDictionaryAsync(s => s.StageCode);
         Assert.Equal(new DateOnly(2026, 11, 10), stages[StageCodes.FS].PlannedStart);
@@ -74,6 +74,7 @@ public class PlanApprovalPublicationTests
         Assert.Equal(new DateOnly(2025, 1, 2), stages[StageCodes.FS].CompletedOn);
         var project = await db.Projects.SingleAsync();
         Assert.Equal(pncApplicable, project.PncApplicable);
+        Assert.Equal(PlanningInputVersions.Current, project.PublishedPlanningInputVersion);
         Assert.Equal(2, project.ActivePlanVersionNo);
         Assert.Equal("hod-reviewer", project.PlanApprovedByUserId);
         Assert.Equal(PlanVersionStatus.Approved, (await db.PlanVersions.SingleAsync(p => p.Id == plan.Id)).Status);
@@ -142,6 +143,89 @@ public class PlanApprovalPublicationTests
         Assert.Equal(0, notifications.Approvals);
     }
 
+    [Theory]
+    [InlineData(PlanningInputVersions.Legacy)]
+    [InlineData(PlanningInputVersions.Current)]
+    public async Task Approval_LegacyPendingPublishesDatesAndPncWithoutPromotingOrChangingCompatibilityInputs(int publishedVersion)
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var plan = await SeedAsync(db, true, false, true, false);
+        plan.PlanningInputVersion = PlanningInputVersions.Legacy;
+        var project = await db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = publishedVersion;
+        // Previous Exact proposals retained creation defaults, not the policy used by Exact calculation.
+        plan.AnchorDate = new DateOnly(2026, 10, 1);
+        plan.SkipWeekends = true;
+        plan.TransitionRule = PlanTransitionRule.NextWorkingDay;
+        var settings = await db.ProjectScheduleSettings.SingleAsync();
+        settings.AnchorStart = new DateOnly(2026, 11, 1);
+        settings.IncludeWeekends = true;
+        settings.SkipHolidays = false;
+        settings.NextStageStartPolicy = NextStageStartPolicies.SameDay;
+        await db.SaveChangesAsync();
+        var compatibilityBefore = await CompatibilityStateAsync(db);
+
+        Assert.True(await CreateApproval(db, new RecordingNotifications()).ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+
+        db.ChangeTracker.Clear();
+        Assert.Equal(compatibilityBefore, await CompatibilityStateAsync(db));
+        project = await db.Projects.SingleAsync();
+        Assert.Equal(publishedVersion, project.PublishedPlanningInputVersion);
+        Assert.False(project.PncApplicable);
+        Assert.Equal(2, project.ActivePlanVersionNo);
+        var fs = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.FS);
+        Assert.Equal(new DateOnly(2026, 11, 10), fs.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 11, 18), fs.PlannedDue);
+        var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Null(pnc.PlannedStart);
+        Assert.Null(pnc.PlannedDue);
+        Assert.Equal(StageStatus.Completed, pnc.Status);
+        Assert.Equal(PlanVersionStatus.Approved, (await db.PlanVersions.SingleAsync(p => p.Id == plan.Id)).Status);
+        Assert.Single(await db.ProjectPlanSnapshots.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Approval_FirstCompletePublicationClearsUnreviewedLegacyDurationValuesWithoutDeletingRows()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var plan = await SeedAsync(db, true, false, true, false);
+        db.ProjectPlanDurations.Add(new ProjectPlanDuration
+        {
+            ProjectId = 1, StageCode = "OLD_PRIVATE_EXTENSION", DurationDays = 99, SortOrder = 987
+        });
+        await db.SaveChangesAsync();
+        var oldRow = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "OLD_PRIVATE_EXTENSION");
+        var oldId = oldRow.Id;
+
+        Assert.True(await CreateApproval(db, new RecordingNotifications()).ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+
+        db.ChangeTracker.Clear();
+        oldRow = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == "OLD_PRIVATE_EXTENSION");
+        Assert.Equal(oldId, oldRow.Id);
+        Assert.Null(oldRow.DurationDays);
+        Assert.Equal(987, oldRow.SortOrder);
+        Assert.Equal(7, (await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.FS)).DurationDays);
+        Assert.Null((await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC)).DurationDays);
+        Assert.False((await db.Projects.SingleAsync()).PncApplicable);
+        Assert.Equal(PlanningInputVersions.Current, (await db.Projects.SingleAsync()).PublishedPlanningInputVersion);
+    }
+
+    private static async Task<string> CompatibilityStateAsync(ApplicationDbContext db)
+    {
+        var settings = await db.ProjectScheduleSettings.AsNoTracking().OrderBy(s => s.ProjectId).ToListAsync();
+        var durations = await db.ProjectPlanDurations.AsNoTracking().OrderBy(s => s.Id).ToListAsync();
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            Settings = settings.Select(s => new { s.ProjectId, s.AnchorStart, s.IncludeWeekends, s.SkipHolidays, s.NextStageStartPolicy }),
+            Durations = durations.Select(s => new { s.Id, s.ProjectId, s.StageCode, s.DurationDays, s.SortOrder })
+        });
+    }
+
     private static async Task<PlanVersion> SeedAsync(ApplicationDbContext db, bool includeWeekends, bool skipHolidays, bool sameDay, bool pncApplicable)
     {
         db.Projects.Add(new Project
@@ -202,7 +286,7 @@ public class PlanApprovalPublicationTests
             Settings = settings.Select(s => new { s.ProjectId, s.AnchorStart, s.IncludeWeekends, s.SkipHolidays, s.NextStageStartPolicy }),
             Durations = durations.Select(s => new { s.Id, s.ProjectId, s.StageCode, s.DurationDays, s.SortOrder }),
             Stages = stages.Select(s => new { s.Id, s.ProjectId, s.StageCode, s.PlannedStart, s.PlannedDue, s.SortOrder, s.Status, s.ActualStart, s.CompletedOn }),
-            Projects = projects.Select(p => new { p.Id, p.PncApplicable, p.ActivePlanVersionNo, p.PlanApprovedAt, p.PlanApprovedByUserId })
+            Projects = projects.Select(p => new { p.Id, p.PncApplicable, p.PublishedPlanningInputVersion, p.ActivePlanVersionNo, p.PlanApprovedAt, p.PlanApprovedByUserId })
         });
     }
 

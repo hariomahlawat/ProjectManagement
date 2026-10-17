@@ -4219,6 +4219,11 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<int>("PlanningInputVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<bool>("PncApplicable")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -5709,6 +5714,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("PublishedPlanningInputVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<bool>("PncApplicable")
                         .ValueGeneratedOnAdd()

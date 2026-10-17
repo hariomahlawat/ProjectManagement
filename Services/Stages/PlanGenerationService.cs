@@ -24,7 +24,10 @@ public sealed class PlanGenerationService
         _officeCalendar = officeCalendar;
     }
 
-    public async Task GenerateAsync(int projectId, CancellationToken ct = default)
+    public async Task GenerateAsync(
+        int projectId,
+        CancellationToken ct = default,
+        IReadOnlyCollection<string>? stageCodes = null)
     {
         var settings = await _db.ProjectScheduleSettings
             .SingleOrDefaultAsync(s => s.ProjectId == projectId, ct)
@@ -39,6 +42,13 @@ public sealed class PlanGenerationService
             .Where(d => d.ProjectId == projectId)
             .OrderBy(d => d.SortOrder)
             .ToListAsync(ct);
+        if (stageCodes is not null)
+        {
+            // First publication after cutover only grants scheduling authority
+            // to posted rows; omitted compatibility rows remain unowned inputs.
+            var includedCodes = new HashSet<string>(stageCodes, StringComparer.OrdinalIgnoreCase);
+            durations = durations.Where(duration => includedCodes.Contains(duration.StageCode)).ToList();
+        }
 
         // SECTION: Workflow Resolution
         var workflowVersion = await _db.Projects
@@ -133,6 +143,10 @@ public sealed class PlanGenerationService
         var plan = await _db.PlanVersions
             .Include(v => v.StagePlans)
             .SingleAsync(v => v.Id == planVersionId && v.ProjectId == projectId, ct);
+        if (plan.PlanningInputVersion != PlanningInputVersions.Current)
+        {
+            throw new InvalidOperationException("Resume and upgrade the legacy draft before generating a proposal timeline.");
+        }
         if (plan.AnchorDate is null)
         {
             throw new InvalidOperationException("Set an anchor start date before generating the plan.");

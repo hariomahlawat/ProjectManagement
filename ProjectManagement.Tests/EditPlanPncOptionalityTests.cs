@@ -210,6 +210,7 @@ public class EditPlanPncOptionalityTests
         db.Projects.Add(new Project
         {
             Id = 20,
+            PublishedPlanningInputVersion = 1,
             Name = "Working-day exact plan",
             LeadPoUserId = "po-user",
             WorkflowVersion = PlanConstants.StageTemplateVersionV1

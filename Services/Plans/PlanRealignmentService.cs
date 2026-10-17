@@ -58,20 +58,9 @@ namespace ProjectManagement.Services.Plans
                 return;
             }
 
-            // Read publication inputs coherently. A later direct SaveChanges may have
-            // superseded the selected approved revision's policy, durations and PNC.
-            var baseline = await _db.Projects.AsNoTracking()
-                .Where(p => p.Id == projectId)
-                .AsSingleQuery()
-                .Select(p => new
-                {
-                    p.WorkflowVersion,
-                    p.PncApplicable,
-                    Settings = _db.ProjectScheduleSettings.Where(s => s.ProjectId == p.Id).FirstOrDefault(),
-                    Durations = _db.ProjectPlanDurations.Where(d => d.ProjectId == p.Id).ToList(),
-                    Stages = _db.ProjectStages.Where(s => s.ProjectId == p.Id).ToList()
-                })
-                .SingleAsync(cancellationToken);
+            // Legacy shared globals may contain another actor's private work.
+            // Resolve the accepted policy/duration/date/PNC boundary in one SQL snapshot.
+            var baseline = await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken);
             var settings = baseline.Settings;
             var durations = baseline.Durations.ToDictionary(d => d.StageCode, StringComparer.OrdinalIgnoreCase);
             var stageOrder = baseline.Stages.ToDictionary(s => s.StageCode, s => s.SortOrder, StringComparer.OrdinalIgnoreCase);
@@ -87,6 +76,7 @@ namespace ProjectManagement.Services.Plans
             var newPlan = new PlanVersion
             {
                 ProjectId = projectId,
+                PlanningInputVersion = PlanningInputVersions.Current,
                 CreatedByUserId = triggeredByUserId,
                 AnchorStageCode = activePlan.AnchorStageCode,
                 AnchorDate = settings?.AnchorStart,
@@ -118,10 +108,10 @@ namespace ProjectManagement.Services.Plans
                 {
                     StageCode = stagePlan.StageCode,
                     DurationDays = Math.Max(0, duration?.DurationDays ?? 0),
-                    SortOrder = duration?.SortOrder
-                        ?? (stageOrder.TryGetValue(stagePlan.StageCode, out var officialOrder) ? officialOrder
-                            : templateOrder.TryGetValue(stagePlan.StageCode, out var sequence) ? sequence
-                            : workflowOrder.TryGetValue(stagePlan.StageCode, out var order) ? order : stagePlan.Id),
+                    SortOrder = templateOrder.TryGetValue(stagePlan.StageCode, out var sequence) ? sequence
+                        : workflowOrder.TryGetValue(stagePlan.StageCode, out var order) ? order
+                        : duration?.SortOrder
+                            ?? (stageOrder.TryGetValue(stagePlan.StageCode, out var officialOrder) ? officialOrder : stagePlan.Id),
                     PlannedStart = stagePlan.PlannedStart,
                     PlannedDue = stagePlan.PlannedDue
                 };
@@ -141,6 +131,14 @@ namespace ProjectManagement.Services.Plans
                     {
                         copy.PlannedDue = copy.PlannedDue.Value.AddDays(delayDays);
                     }
+                }
+
+                // Retained official/history PNC values are not an applicability decision.
+                if (!baseline.PncApplicable && string.Equals(copy.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+                {
+                    copy.DurationDays = 0;
+                    copy.PlannedStart = null;
+                    copy.PlannedDue = null;
                 }
 
                 newPlan.StagePlans.Add(copy);

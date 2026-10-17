@@ -11,6 +11,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.ViewModels;
+using ProjectManagement.Services.Plans;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -25,12 +26,8 @@ public sealed class PlanReadService
 
     public async Task<PlanEditorVm> GetAsync(int projectId, string? currentUserId, CancellationToken cancellationToken = default)
     {
-        var project = await _db.Projects
-            .AsNoTracking()
-            .Where(project => project.Id == projectId)
-            .Select(project => new { project.WorkflowVersion, project.PncApplicable })
-            .FirstOrDefaultAsync(cancellationToken);
-        var workflowVersion = project?.WorkflowVersion ?? PlanConstants.DefaultStageTemplateVersion;
+        var baseline = await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken);
+        var workflowVersion = baseline.WorkflowVersion ?? PlanConstants.DefaultStageTemplateVersion;
 
         var workflowStages = ProcurementWorkflow.StageDefinitionsFor(workflowVersion);
 
@@ -39,9 +36,7 @@ public sealed class PlanReadService
             .Where(template => template.Version == workflowVersion)
             .ToListAsync(cancellationToken);
 
-        var stages = await _db.ProjectStages
-            .Where(stage => stage.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
+        var stages = baseline.Stages;
 
         // SECTION: Optional stage aggregation
         var optionalStages = new HashSet<string>(
@@ -54,14 +49,8 @@ public sealed class PlanReadService
 
         optionalStages.UnionWith(skippedStageCodes);
 
-        var scheduleSettings = await _db.ProjectScheduleSettings
-            .AsNoTracking()
-            .SingleOrDefaultAsync(s => s.ProjectId == projectId, cancellationToken);
-
-        var durationRows = await _db.ProjectPlanDurations
-            .Where(d => d.ProjectId == projectId)
-            .OrderBy(d => d.SortOrder)
-            .ToListAsync(cancellationToken);
+        var scheduleSettings = baseline.Settings;
+        var durationRows = baseline.Durations;
 
         var planCandidates = await _db.PlanVersions
             .AsNoTracking()
@@ -96,16 +85,23 @@ public sealed class PlanReadService
             .ThenByDescending(plan => plan.VersionNo)
             .FirstOrDefault();
         var draftPlan = myDraft ?? myPending;
+        var ownsInputs = draftPlan?.PlanningInputVersion >= PlanningInputVersions.Current;
+        // A legacy draft is normalized on first edit. Pending revisions retain
+        // their historical applicability decision while they remain in review.
+        var pncApplicable = draftPlan is { Status: PlanVersionStatus.PendingApproval }
+            ? draftPlan.PncApplicable
+            : draftPlan is not null && ownsInputs ? draftPlan.PncApplicable : baseline.PncApplicable;
+
 
         var exactVm = new PlanEditVm { ProjectId = projectId };
         var durationVm = new PlanDurationVm
         {
             ProjectId = projectId,
-            AnchorStart = draftPlan is not null ? draftPlan.AnchorDate : scheduleSettings?.AnchorStart,
-            IncludeWeekends = draftPlan is not null ? !draftPlan.SkipWeekends : scheduleSettings?.IncludeWeekends ?? false,
-            SkipHolidays = draftPlan?.SkipHolidays ?? scheduleSettings?.SkipHolidays ?? true,
-            NextStageStartPolicy = draftPlan is not null
-                ? draftPlan.TransitionRule == PlanTransitionRule.SameDay ? NextStageStartPolicies.SameDay : NextStageStartPolicies.NextWorkingDay
+            AnchorStart = ownsInputs ? draftPlan!.AnchorDate : scheduleSettings?.AnchorStart,
+            IncludeWeekends = ownsInputs ? !draftPlan!.SkipWeekends : scheduleSettings?.IncludeWeekends ?? false,
+            SkipHolidays = ownsInputs ? draftPlan!.SkipHolidays : scheduleSettings?.SkipHolidays ?? true,
+            NextStageStartPolicy = ownsInputs
+                ? draftPlan!.TransitionRule == PlanTransitionRule.SameDay ? NextStageStartPolicies.SameDay : NextStageStartPolicies.NextWorkingDay
                 : scheduleSettings?.NextStageStartPolicy ?? NextStageStartPolicies.NextWorkingDay
         };
 
@@ -162,7 +158,7 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = definition.Name,
-                DurationDays = draftPlan is not null
+                DurationDays = ownsInputs
                     ? draftStage is { DurationDays: > 0 } ? draftStage.DurationDays : null
                     : duration?.DurationDays,
                 PreviewStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
@@ -206,7 +202,7 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                DurationDays = draftPlan is not null
+                DurationDays = ownsInputs
                     ? draftStage is { DurationDays: > 0 } ? draftStage.DurationDays : null
                     : duration?.DurationDays,
                 PreviewStart = draftStage is not null ? draftStage.PlannedStart : stage?.PlannedStart,
@@ -214,6 +210,21 @@ public sealed class PlanReadService
                 IsOptional = optionalStages.Contains(code),
                 Status = stage?.Status ?? StageStatus.NotStarted
             });
+        }
+
+        if (!pncApplicable)
+        {
+            foreach (var row in exactVm.Rows.Where(row => string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase)))
+            {
+                row.PlannedStart = null;
+                row.PlannedDue = null;
+            }
+            foreach (var row in durationVm.Rows.Where(row => string.Equals(row.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase)))
+            {
+                row.DurationDays = null;
+                row.PreviewStart = null;
+                row.PreviewDue = null;
+            }
         }
 
         var activeMode = durationVm.AnchorStart is not null
@@ -253,7 +264,7 @@ public sealed class PlanReadService
             SubmissionBlockedReason = pendingPlan is not null && !isPendingMine
                 ? "Another plan is already awaiting approval."
                 : null,
-            PncApplicable = draftPlan?.PncApplicable ?? project?.PncApplicable ?? true,
+            PncApplicable = pncApplicable,
             LastSavedOn = lastSavedOn,
             ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan)
         };

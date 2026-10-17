@@ -147,6 +147,7 @@ public sealed class PostgresMigrationIntegrationTests
         Assert.True((await applicationDb.Projects.AsNoTracking().SingleAsync(p => p.Id == defaultProjectId)).PncApplicable);
 
         await VerifyProposalOwnedPlanningMigrationAsync(applicationDb, migrator);
+        await ProposalOwnedPlanningCutoverPostgresFixture.RunAsync(applicationDb, migrator);
         await VerifyProjectStageCompletionConstraintAsync(applicationDb);
     }
 
