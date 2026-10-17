@@ -29,6 +29,36 @@ public sealed class PlannedTimelineValidationServiceTests
         Assert.Equal(new[] { "Feasibility Study Planned due must be on or after its Planned start." }, result.Errors);
     }
 
+    [Fact]
+    public async Task ValidateAsync_RejectsMissingConfiguredStageButAllowsItsDatesToRemainPartial()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            Code = StageCodes.IPA,
+            Name = "In-Principle Approval",
+            Sequence = 20
+        });
+        await fixture.Db.SaveChangesAsync();
+        var fs = new PlannedTimelineStage(
+            StageCodes.FS,
+            new DateOnly(2026, 10, 20),
+            new DateOnly(2026, 10, 21));
+
+        var missing = await fixture.Service.ValidateAsync(fixture.Candidate(stages: [fs]));
+        var partial = await fixture.Service.ValidateAsync(fixture.Candidate(stages:
+        [
+            fs,
+            new(StageCodes.IPA, null, null)
+        ]));
+
+        Assert.Equal(
+            new[] { "Stage In-Principle Approval (IPA) is missing from the plan." },
+            missing.Errors);
+        Assert.True(partial.IsValid);
+    }
+
     [Theory]
     [InlineData(PlanTransitionRule.SameDay, "2026-10-23", true)]
     [InlineData(PlanTransitionRule.NextWorkingDay, "2026-10-23", false)]

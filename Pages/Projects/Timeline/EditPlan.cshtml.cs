@@ -591,17 +591,7 @@ public class EditPlanModel : PageModel
                     stage.Status == StageStatus.Skipped,
                     stage.SortOrder))
                 .ToListAsync(ct);
-            var directAnchor = rows
-                .Where(row => !string.IsNullOrWhiteSpace(row.Code))
-                .Select(row => new
-                {
-                    row.Code,
-                    Order = ProcurementWorkflow.OrderOf(workflowVersion, row.Code)
-                })
-                .Where(item => item.Order != int.MaxValue)
-                .OrderBy(item => item.Order)
-                .Select(item => item.Code)
-                .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
+            var directAnchor = ResolveDirectPublicationAnchor(workflowVersion, rows);
             var validation = await _timelineValidation.ValidateAsync(
                 new PlannedTimelineCandidate(
                     id,
@@ -1009,17 +999,7 @@ public class EditPlanModel : PageModel
         }
 
         var acceptedSettings = baseline.Settings;
-        var directAnchor = rows
-            .Where(row => !string.IsNullOrWhiteSpace(row.Code))
-            .Select(row => new
-            {
-                row.Code,
-                Order = ProcurementWorkflow.OrderOf(baseline.WorkflowVersion, row.Code)
-            })
-            .Where(item => item.Order != int.MaxValue)
-            .OrderBy(item => item.Order)
-            .Select(item => item.Code)
-            .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
+        var directAnchor = ResolveDirectPublicationAnchor(baseline.WorkflowVersion, rows);
         var validation = await _timelineValidation.ValidateAsync(
             new PlannedTimelineCandidate(
                 projectId,
@@ -1282,6 +1262,26 @@ public class EditPlanModel : PageModel
         }
 
         return extraSortStart++;
+    }
+
+    private static string ResolveDirectPublicationAnchor(
+        string? workflowVersion,
+        IEnumerable<PlanEditInputRow> rows)
+    {
+        var defaultOrder = ProcurementWorkflow.OrderOf(
+            workflowVersion,
+            PlanConstants.DefaultAnchorStageCode);
+        return rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Code))
+            .Select(row => new
+            {
+                row.Code,
+                Order = ProcurementWorkflow.OrderOf(workflowVersion, row.Code)
+            })
+            .Where(item => item.Order < defaultOrder)
+            .OrderBy(item => item.Order)
+            .Select(item => item.Code)
+            .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
     }
 
     private sealed record StageChange(

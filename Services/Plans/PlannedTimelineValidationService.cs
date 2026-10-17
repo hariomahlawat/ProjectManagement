@@ -68,14 +68,16 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
             candidate.PncApplicable,
             cancellationToken);
 
-        var configuredNames = await _db.StageTemplates
+        var configuredStages = await _db.StageTemplates
             .AsNoTracking()
             .Where(template => template.Version == workflow.WorkflowVersion)
-            .ToDictionaryAsync(
-                template => template.Code,
-                template => template.Name,
-                StringComparer.OrdinalIgnoreCase,
-                cancellationToken);
+            .OrderBy(template => template.Sequence)
+            .ThenBy(template => template.Id)
+            .ToListAsync(cancellationToken);
+        var configuredNames = configuredStages.ToDictionary(
+            template => template.Code,
+            template => template.Name,
+            StringComparer.OrdinalIgnoreCase);
         foreach (var stage in workflow.Stages)
         {
             configuredNames.TryAdd(stage.Code, stage.Name);
@@ -124,6 +126,23 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
 
         var calendar = new WorkingCalendar(holidays, candidate.IncludeWeekends, candidate.SkipHolidays);
         var errors = new List<string>();
+
+        foreach (var configuredStage in configuredStages)
+        {
+            if (workflow.OrderOf(configuredStage.Code) < anchorOrder ||
+                (!candidate.PncApplicable && string.Equals(
+                    configuredStage.Code,
+                    StageCodes.PNC,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            if (!rowLookup.ContainsKey(configuredStage.Code))
+            {
+                errors.Add($"Stage {configuredStage.Name} ({configuredStage.Code}) is missing from the plan.");
+            }
+        }
 
         foreach (var stage in rows)
         {
