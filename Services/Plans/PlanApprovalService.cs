@@ -196,17 +196,16 @@ public class PlanApprovalService
                 ? NextStageStartPolicies.SameDay
                 : NextStageStartPolicies.NextWorkingDay;
 
-            var publishedDurations = await _db.ProjectPlanDurations
-                .Where(d => d.ProjectId == plan.ProjectId)
-                .ToDictionaryAsync(d => d.StageCode, StringComparer.OrdinalIgnoreCase, cancellationToken);
-
-            if (project.PublishedPlanningInputVersion != PlanningInputVersions.Current)
-            {
-                // Unreviewed legacy values must not gain authority with the marker.
-                // Keep the rows so compatibility consumers retain their stage catalog.
-                foreach (var duration in publishedDurations.Values)
-                    duration.DurationDays = null;
-            }
+            var publishedDurationRows = await PlanningCompatibilityCatalog.PrepareDurationRowsForPublicationAsync(
+                _db,
+                plan.ProjectId,
+                workflowVersion,
+                project.PublishedPlanningInputVersion == PlanningInputVersions.Current,
+                plan.StagePlans.Select(stage => stage.StageCode),
+                cancellationToken);
+            var publishedDurations = publishedDurationRows
+                .Where(duration => !string.IsNullOrWhiteSpace(duration.StageCode))
+                .ToDictionary(duration => duration.StageCode, StringComparer.OrdinalIgnoreCase);
 
             foreach (var stagePlan in plan.StagePlans.Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode)))
             {
