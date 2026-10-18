@@ -567,6 +567,38 @@ public class PlanApprovalPublicationTests
     }
 
     [Fact]
+    public async Task ExactRejection_FinalSaveFailureRollsBackClaimAndRejectionLog()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        var failure = new FailFinalRejectionSave();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).AddInterceptors(failure).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var plan = await SeedAsync(db, true, false, true, false);
+        var published = await PublishedStateAsync(db);
+        var notifications = new RecordingNotifications();
+        failure.Armed = true;
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateApproval(db, notifications).RejectVersionAsync(plan.Id, "hod-reviewer", false, true, "Revise"));
+
+        Assert.Equal("Injected rejection failure before commit.", error.Message);
+        await using var verify = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options);
+        Assert.Equal(published, await PublishedStateAsync(verify));
+        var pending = await verify.PlanVersions.SingleAsync(p => p.Id == plan.Id);
+        Assert.Equal(PlanVersionStatus.PendingApproval, pending.Status);
+        Assert.Null(pending.RejectedByUserId);
+        Assert.Null(pending.RejectedOn);
+        Assert.Empty(await verify.PlanApprovalLogs.ToListAsync());
+        Assert.Empty(await verify.ProjectPlanSnapshots.ToListAsync());
+        Assert.Equal(0, notifications.Rejections);
+        Assert.Equal(0, notifications.Approvals);
+    }
+
+    [Fact]
     public async Task SamePlanVersion_ResubmissionInvalidatesOldReviewTokensForBothDecisions()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
@@ -763,6 +795,24 @@ public class PlanApprovalPublicationTests
         public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
         {
             if (Armed) CompletedSaves++;
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class FailFinalRejectionSave : SaveChangesInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Armed && eventData.Context!.ChangeTracker.Entries<PlanVersion>()
+                .Any(e => e.State == EntityState.Modified &&
+                          e.Entity.Status == PlanVersionStatus.Draft &&
+                          e.Entity.RejectedOn.HasValue))
+                throw new InvalidOperationException("Injected rejection failure before commit.");
+
             return ValueTask.FromResult(result);
         }
     }
