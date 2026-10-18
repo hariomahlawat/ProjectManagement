@@ -152,23 +152,9 @@ public class PlanDraftService
 
     private async Task<PlanVersion> CreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken)
     {
-        // Read a coherent published baseline before the allocation gate. Draft
-        // initialization is private and does not allocate a version number.
-        var plan = new PlanVersion
-        {
-            ProjectId = projectId,
-            Title = PlanVersion.ProjectTimelineTitle,
-            Status = PlanVersionStatus.Draft,
-            CreatedByUserId = userId,
-            OwnerUserId = userId,
-            CreatedOn = _clock.UtcNow,
-            PlanningInputVersion = PlanningInputVersions.Current
-        };
-        await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
-
-        // Recheck after acquiring the same gate as realignment and decisions.
-        // No writer may compute Max(VersionNo) or insert a revision outside this
-        // critical section; two editor opens for one actor also share one Draft.
+        // Hold the same project gate as publication/realignment for both the
+        // published-input snapshot and version allocation. Neither operation may
+        // observe a different accepted planning revision.
         await using var transaction = await RelationalTransactionScope.CreateAsync(
             _db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
@@ -204,6 +190,21 @@ public class PlanDraftService
             await transaction.CommitAsync(cancellationToken);
             return orphan;
         }
+
+        // Initialize only after the gate and the duplicate/ownership checks.
+        // In particular, no realignment can publish or insert between capturing
+        // the official dates and assigning this draft's revision number.
+        var plan = new PlanVersion
+        {
+            ProjectId = projectId,
+            Title = PlanVersion.ProjectTimelineTitle,
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = userId,
+            OwnerUserId = userId,
+            CreatedOn = _clock.UtcNow,
+            PlanningInputVersion = PlanningInputVersions.Current
+        };
+        await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
 
         var latestVersion = await _db.PlanVersions
             .Where(p => p.ProjectId == projectId)
