@@ -340,7 +340,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
     // SECTION: Plan approval list
     private IQueryable<PlanApprovalRow> BuildPlanApprovalQuery(ApprovalQueueQuery query)
     {
-        var baseQuery = from plan in _db.PlanVersions.AsNoTracking()
+        var baseQuery = from plan in PlanRevisionConsistency.ActionablePending(_db).AsNoTracking()
                         join project in _db.Projects.AsNoTracking() on plan.ProjectId equals project.Id
                         join user in _db.Users.AsNoTracking() on plan.SubmittedByUserId equals user.Id into userGroup
                         from user in userGroup.DefaultIfEmpty()
@@ -969,6 +969,8 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         if (project is null)
             return null;
 
+        var isActionable = await PlanRevisionConsistency.ActionablePending(_db).AsNoTracking()
+            .AnyAsync(plan => plan.Id == id, ct);
         var requester = await GetUserSnapshotAsync(review.SubmittedByUserId, ct);
         var diffs = review.Rows;
         var diffVms = diffs.Select(diff => new PlanStageDiffVm(
@@ -993,7 +995,9 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             ApprovalQueueModule.Projects,
             review.Status.ToString(),
             null,
-            null);
+            null,
+            isActionable ? ApprovalReadiness.Ready : ApprovalReadiness.Superseded,
+            isActionable ? null : "This timeline revision was superseded and can no longer be decided.");
 
         var detail = new PlanApprovalDetailVm(
             review.PlanVersionId,
