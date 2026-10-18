@@ -70,6 +70,9 @@ public class PlanApprovalService
             throw new ArgumentException("A valid user identifier is required to submit a plan for approval.", nameof(userId));
         }
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
+
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
             .Include(p => p.Project)
@@ -83,9 +86,14 @@ public class PlanApprovalService
             throw new InvalidOperationException("No draft plan was found to submit for approval.");
         }
 
-        var alreadyPending = await _db.PlanVersions
-            .AnyAsync(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval, cancellationToken);
+        if (await PlanRevisionConsistency.IsSupersededAsync(
+                _db, projectId, plan.VersionNo, cancellationToken))
+        {
+            throw new DomainException("This revision was superseded by a later timeline submission.");
+        }
 
+        var alreadyPending = await PlanRevisionConsistency.ActionablePending(_db)
+            .AnyAsync(p => p.ProjectId == projectId, cancellationToken);
         if (alreadyPending)
         {
             throw new DomainException("Another submission is already pending approval.");
@@ -113,6 +121,7 @@ public class PlanApprovalService
         plan.RejectionNote = null;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
 
         if (plan.Project is not null)
@@ -133,10 +142,10 @@ public class PlanApprovalService
     {
         EnsureCanDecide(hodUserId, isAdmin, isHoD, "approve");
 
-        var plan = await _db.PlanVersions
+        var plan = await PlanRevisionConsistency.ActionablePending(_db)
             .Include(p => p.StagePlans)
             .Include(p => p.Project)
-            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
+            .Where(p => p.ProjectId == projectId)
             .OrderByDescending(p => p.SubmittedOn)
             .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
@@ -199,18 +208,17 @@ public class PlanApprovalService
                 .FirstOrDefaultAsync(p => p.Id == plan.ProjectId, cancellationToken)
             ?? throw new InvalidOperationException("Project not found.");
 
+        var now = _clock.UtcNow;
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, plan.ProjectId, cancellationToken);
+        if (!await IsCurrentReviewTargetAsync(plan, cancellationToken))
+            return false;
+
         var validationErrors = await ValidatePlanAsync(plan, cancellationToken);
         if (validationErrors.Count > 0)
-        {
             throw new PlanApprovalValidationException(validationErrors);
-        }
 
-        var now = _clock.UtcNow;
-
-
-        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
-        if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
-            !await TryClaimPendingDecisionAsync(plan, PlanVersionStatus.Approved, cancellationToken))
+        if (!await TryClaimPendingDecisionAsync(plan, PlanVersionStatus.Approved, cancellationToken))
             return false;
 
         var workflowVersion = project.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
@@ -407,10 +415,10 @@ public class PlanApprovalService
     {
         EnsureCanDecide(hodUserId, isAdmin, isHoD, "reject");
 
-        var plan = await _db.PlanVersions
+        var plan = await PlanRevisionConsistency.ActionablePending(_db)
             .Include(p => p.ApprovalLogs)
             .Include(p => p.Project)
-            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
+            .Where(p => p.ProjectId == projectId)
             .OrderByDescending(p => p.SubmittedOn)
             .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
@@ -461,6 +469,7 @@ public class PlanApprovalService
         }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, plan.ProjectId, cancellationToken);
         if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
             !await TryClaimPendingDecisionAsync(plan, PlanVersionStatus.Draft, cancellationToken))
             return false;
@@ -533,27 +542,9 @@ public class PlanApprovalService
     // but must never make an older pending revision actionable again. A later
     // version that has been pending, approved or rejected supersedes earlier
     // submissions; an ordinary unsubmitted Draft does not.
-    private async Task<bool> IsCurrentReviewTargetAsync(PlanVersion plan, CancellationToken cancellationToken)
-    {
-        var activeVersion = await _db.Projects
-            .AsNoTracking()
-            .Where(project => project.Id == plan.ProjectId)
-            .Select(project => project.ActivePlanVersionNo)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (activeVersion.HasValue && activeVersion.Value >= plan.VersionNo)
-            return false;
-
-        return !await _db.PlanVersions
-            .AsNoTracking()
-            .AnyAsync(version => version.ProjectId == plan.ProjectId &&
-                                 version.VersionNo > plan.VersionNo &&
-                                 (version.Status == PlanVersionStatus.PendingApproval ||
-                                  version.Status == PlanVersionStatus.Approved ||
-                                  version.RejectedOn != null ||
-                                  version.ApprovalLogs.Any()),
-                cancellationToken);
-    }
+    private Task<bool> IsCurrentReviewTargetAsync(PlanVersion plan, CancellationToken cancellationToken)
+        => PlanRevisionConsistency.ActionablePending(_db).AsNoTracking()
+            .AnyAsync(version => version.Id == plan.Id, cancellationToken);
 
     // Atomic compare-and-set inside the decision transaction. On a relational store
     // the row-level UPDATE serializes competing approvals/rejections; only the first
