@@ -234,7 +234,10 @@ public sealed class ApprovalDecisionService
         {
             if (request.Decision == ApprovalDecisionAction.Approve)
             {
-                var approved = await _planApprovalService.ApproveVersionAsync(selectedPlan.Id, userId, isAdmin, isHoD, cancellationToken);
+                var approved = await _planApprovalService.ApproveVersionAsync(
+                    selectedPlan.Id, userId, isAdmin, isHoD, cancellationToken,
+                    expectedProjectId: selectedPlan.ProjectId,
+                    verifySubmissionIdentity: true, expectedSubmittedOn: request.SubmittedOn);
                 return approved
                     ? ApprovalDecisionResult.Success("Timeline approved and activated.")
                     : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
@@ -246,7 +249,9 @@ public sealed class ApprovalDecisionService
                 isAdmin,
                 isHoD,
                 request.Remarks,
-                cancellationToken);
+                cancellationToken,
+                expectedProjectId: selectedPlan.ProjectId,
+                verifySubmissionIdentity: true, expectedSubmittedOn: request.SubmittedOn);
 
             return rejected
                 ? ApprovalDecisionResult.Success("Timeline returned to the Project Officer.")
