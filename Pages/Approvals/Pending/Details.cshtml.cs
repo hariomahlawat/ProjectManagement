@@ -42,7 +42,8 @@ public sealed class DetailsModel : PageModel
     public string? ErrorMessage => TempData["Error"] as string;
     public bool IsPending { get; private set; }
     public bool CanApprove => IsPending && Detail.Item.Readiness == ApprovalReadiness.Ready;
-    public bool CanReject => IsPending;
+    public bool CanReject => IsPending && (Detail.Item.ApprovalType != ApprovalQueueType.PlanApproval ||
+                                               Detail.Item.Readiness == ApprovalReadiness.Ready);
     public string CurrentStatus { get; private set; } = "Pending";
     public string? DecidedByName { get; private set; }
     public DateTimeOffset? DecidedAtUtc { get; private set; }
