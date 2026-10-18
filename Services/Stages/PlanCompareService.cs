@@ -12,6 +12,8 @@ namespace ProjectManagement.Services.Stages;
 
 public record PlanDiffRow(string StageCode, DateOnly? NewStart, DateOnly? NewDue, DateOnly? OldStart, DateOnly? OldDue);
 
+public sealed record PlanReviewHistory(string Action, string? Note, DateTimeOffset PerformedOn, string? PerformedBy);
+
 /// <summary>The exact submitted revision and its comparison, bound together for review.</summary>
 public sealed record PlanReviewSnapshot(
     int PlanVersionId,
@@ -21,7 +23,8 @@ public sealed record PlanReviewSnapshot(
     string? SubmittedBy,
     IReadOnlyList<PlanDiffRow> Rows,
     string? RealignmentSourceStageCode,
-    int? RealignmentDelayDays);
+    int? RealignmentDelayDays,
+    IReadOnlyList<PlanReviewHistory> ApprovalHistory);
 
 public sealed class PlanCompareService
 {
@@ -115,6 +118,7 @@ public sealed class PlanCompareService
             .AsNoTracking()
             .Include(v => v.StagePlans)
             .Include(v => v.SubmittedByUser)
+            .Include(v => v.ApprovalLogs).ThenInclude(log => log.PerformedByUser)
             .SingleOrDefaultAsync(v => v.ProjectId == projectId && v.Id == planVersionId, ct);
 
         if (draft is null)
@@ -169,8 +173,18 @@ public sealed class PlanCompareService
             .Where(audit => audit.ProjectId == projectId &&
                             audit.PlanVersionNo == draft.VersionNo)
             .FirstOrDefaultAsync(ct);
+        var history = draft.ApprovalLogs
+            .OrderByDescending(log => log.PerformedOn)
+            .Take(5)
+            .Select(log => new PlanReviewHistory(
+                log.Action,
+                string.IsNullOrWhiteSpace(log.Note) ? null : log.Note.Trim(),
+                log.PerformedOn,
+                log.PerformedByUser?.FullName ?? log.PerformedByUser?.UserName ?? log.PerformedByUserId))
+            .ToArray();
+
         return new PlanReviewSnapshot(
             draft.Id, draft.VersionNo, draft.Status, draft.SubmittedOn, submittedBy, diffs,
-            realignment?.SourceStageCode, realignment?.DelayDays);
+            realignment?.SourceStageCode, realignment?.DelayDays, history);
     }
 }
