@@ -103,6 +103,85 @@ public class PlanApprovalValidationSkippedStagesTests
     }
 
     [Fact]
+    public async Task SubmitForApproval_AllowsMissingSkippedConfiguredStageAfterAnchor()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+
+        db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.IPA,
+                Name = "In-Principle Approval",
+                Sequence = 20
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.SOW,
+                Name = "SOW Vetting",
+                Sequence = 30
+            });
+        db.Projects.Add(new Project
+        {
+            Id = 3,
+            Name = "Skipped after anchor",
+            LeadPoUserId = "owner",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 3,
+                StageCode = StageCodes.IPA,
+                Status = StageStatus.NotStarted
+            },
+            new ProjectStage
+            {
+                ProjectId = 3,
+                StageCode = StageCodes.SOW,
+                Status = StageStatus.Skipped
+            });
+
+        var plan = new PlanVersion
+        {
+            ProjectId = 3,
+            VersionNo = 1,
+            Title = "Draft",
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "owner",
+            OwnerUserId = "owner",
+            CreatedOn = DateTimeOffset.UtcNow,
+            AnchorStageCode = StageCodes.IPA,
+            PlanningInputVersion = PlanningInputVersions.Current
+        };
+        plan.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.IPA,
+            PlannedStart = new DateOnly(2024, 3, 1),
+            PlannedDue = new DateOnly(2024, 3, 5)
+        });
+        db.PlanVersions.Add(plan);
+        await db.SaveChangesAsync();
+
+        var approval = new PlanApprovalService(
+            db,
+            new TestClock(),
+            NullLogger<PlanApprovalService>.Instance,
+            new PlanSnapshotService(db),
+            new NullPlanNotificationService());
+
+        await approval.SubmitForApprovalAsync(3, "owner");
+
+        Assert.Equal(
+            PlanVersionStatus.PendingApproval,
+            (await db.PlanVersions.SingleAsync(p => p.ProjectId == 3)).Status);
+    }
+
+    [Fact]
     public async Task SubmitForApproval_SkipsDependencyValidationWhenDependencyStageIsSkipped()
     {
         // SECTION: Arrange
