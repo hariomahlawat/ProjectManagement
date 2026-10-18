@@ -129,6 +129,7 @@ public sealed class StageDirectApplyService
         await using var transaction = await RelationalTransactionScope.CreateAsync(
             _db.Database,
             ct);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, ct);
 
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
         var normalizedStatus = status.Trim();
