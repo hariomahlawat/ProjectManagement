@@ -496,6 +496,9 @@ public class EditPlanModel : PageModel
         if (intent == PlanIntent.SaveChanges)
         {
             await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
+            // Explicit HoD/Admin publication participates in the same project
+            // gate as approval, realignment and draft baseline capture.
+            await PlanRevisionConsistency.LockProjectAsync(_db, id, ct);
             var baseline = await PublishedPlanningBaseline.LoadAsync(_db, id, ct);
             var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
             var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
@@ -990,6 +993,9 @@ public class EditPlanModel : PageModel
         CancellationToken cancellationToken)
     {
         await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        // Direct Exact publication must not interleave with a newly allocated
+        // draft's published-input snapshot or with another plan decision.
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
         var baseline = await PublishedPlanningBaseline.LoadAsync(_db, projectId, cancellationToken);
         var workingCalendar = await BuildWorkingCalendarAsync(projectId, rows, cancellationToken, acceptedBaseline: baseline);
         var publishedProject = await _db.Projects.SingleAsync(project => project.Id == projectId, cancellationToken);
