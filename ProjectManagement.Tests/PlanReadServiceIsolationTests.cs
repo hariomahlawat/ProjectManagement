@@ -51,6 +51,45 @@ public class PlanReadServiceIsolationTests
     }
 
     [Fact]
+    public async Task SupersededPending_DoesNotLockCorrectedRejectedDraftInEditor()
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+        var older = await db.PlanVersions.SingleAsync(p => p.VersionNo == 4);
+        older.OwnerUserId = "actor";
+        older.SubmittedByUserId = "actor";
+        var corrected = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 6, Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "actor", OwnerUserId = "actor",
+            RejectedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero),
+            PlanningInputVersion = PlanningInputVersions.Current,
+            AnchorDate = new DateOnly(2026, 12, 5),
+            StagePlans = new() { new() { StageCode = StageCodes.FS, DurationDays = 9 } }
+        };
+        db.PlanVersions.Add(corrected);
+        await db.SaveChangesAsync();
+
+        var vm = await new PlanReadService(db).GetAsync(1, "actor");
+        Assert.True(vm.State.HasDraft);
+        Assert.True(vm.State.HasMyDraft);
+        Assert.False(vm.State.IsLocked);
+        Assert.False(vm.State.HasPendingSubmission);
+        Assert.True(vm.State.CanSubmit);
+        Assert.Null(vm.State.PendingSubmittedOn);
+        Assert.Equal(PlanVersionStatus.Draft, vm.State.Status);
+        Assert.Equal(6, vm.State.VersionNo);
+        Assert.Equal(new DateOnly(2026, 12, 5), vm.Durations.AnchorStart);
+        Assert.Equal(9, vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+
+        var other = await new PlanReadService(db).GetAsync(1, "uninvolved");
+        Assert.False(other.State.HasPendingSubmission);
+        Assert.True(other.State.CanSubmit);
+        Assert.False(other.State.IsLocked);
+        Assert.DoesNotContain(other.Durations.Rows, r => r.Code == "OTHER-ONLY");
+    }
+
+    [Fact]
     public async Task ActorWithoutProposal_ReadsPublishedBaselineDespiteOtherActorDraftAndPending()
     {
         await using var db = CreateDb();
