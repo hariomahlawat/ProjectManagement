@@ -102,15 +102,35 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
             .ToArray();
         var rowLookup = rows.ToDictionary(row => row.StageCode, StringComparer.OrdinalIgnoreCase);
 
+        var configuredSequence = configuredStages.ToDictionary(
+            template => template.Code,
+            template => template.Sequence,
+            StringComparer.OrdinalIgnoreCase);
         var anchorCode = string.IsNullOrWhiteSpace(candidate.AnchorStageCode)
             ? PlanConstants.DefaultAnchorStageCode
             : candidate.AnchorStageCode;
-        var anchorOrder = workflow.ContainsStage(anchorCode)
+        int? configuredAnchorSequence = configuredSequence.TryGetValue(anchorCode, out var anchorSequence)
+            ? anchorSequence
+            : null;
+        var anchorOrder = !configuredAnchorSequence.HasValue && workflow.ContainsStage(anchorCode)
             ? workflow.OrderOf(anchorCode)
             : int.MinValue;
+        var officialSkippedStageCodes = (await _db.ProjectStages
+            .AsNoTracking()
+            .Where(stage => stage.ProjectId == candidate.ProjectId && stage.Status == StageStatus.Skipped)
+            .Select(stage => stage.StageCode)
+            .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var relevantDueDates = rows
-            .Where(row => IsIncluded(row, candidate.PncApplicable, workflow, anchorOrder))
+            .Where(row => IsIncluded(
+                row,
+                candidate.PncApplicable,
+                workflow,
+                configuredSequence,
+                configuredAnchorSequence,
+                anchorOrder,
+                officialSkippedStageCodes))
             .Select(row => row.PlannedDue)
             .OfType<DateOnly>()
             .ToArray();
@@ -132,7 +152,11 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
         {
             foreach (var configuredStage in configuredStages)
             {
-                if (workflow.OrderOf(configuredStage.Code) < anchorOrder ||
+                var beforeAnchor = configuredAnchorSequence.HasValue
+                    ? configuredStage.Sequence < configuredAnchorSequence.Value
+                    : workflow.OrderOf(configuredStage.Code) < anchorOrder;
+                if (beforeAnchor ||
+                    officialSkippedStageCodes.Contains(configuredStage.Code) ||
                     (!candidate.PncApplicable && string.Equals(
                         configuredStage.Code,
                         StageCodes.PNC,
@@ -150,7 +174,14 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
 
         foreach (var stage in rows)
         {
-            if (!IsIncluded(stage, candidate.PncApplicable, workflow, anchorOrder))
+            if (!IsIncluded(
+                    stage,
+                    candidate.PncApplicable,
+                    workflow,
+                    configuredSequence,
+                    configuredAnchorSequence,
+                    anchorOrder,
+                    officialSkippedStageCodes))
             {
                 continue;
             }
@@ -171,7 +202,14 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
             foreach (var predecessorCode in workflow.RequiredPredecessors(stage.StageCode))
             {
                 if (!rowLookup.TryGetValue(predecessorCode, out var predecessor) ||
-                    !IsIncluded(predecessor, candidate.PncApplicable, workflow, anchorOrder) ||
+                    !IsIncluded(
+                        predecessor,
+                        candidate.PncApplicable,
+                        workflow,
+                        configuredSequence,
+                        configuredAnchorSequence,
+                        anchorOrder,
+                        officialSkippedStageCodes) ||
                     predecessor.PlannedDue is not DateOnly predecessorDue)
                 {
                     continue;
@@ -201,16 +239,29 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
         PlannedTimelineStage stage,
         bool pncApplicable,
         ProjectStageWorkflowSnapshot workflow,
-        int anchorOrder)
+        IReadOnlyDictionary<string, int> configuredSequence,
+        int? configuredAnchorSequence,
+        int anchorOrder,
+        IReadOnlySet<string> officialSkippedStageCodes)
     {
         if (stage.IsSkipped ||
+            officialSkippedStageCodes.Contains(stage.StageCode) ||
             (!pncApplicable && string.Equals(stage.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
 
-        var order = workflow.OrderOf(stage.StageCode);
-        return order >= anchorOrder;
+        if (configuredAnchorSequence.HasValue)
+        {
+            // Preserve the pre-B2 anchor contract: configured StageTemplate
+            // sequence owns anchor scope. Rows outside that configured catalog
+            // remain independently validatable rather than being guessed into
+            // either side of a custom anchor.
+            return !configuredSequence.TryGetValue(stage.StageCode, out var stageSequence) ||
+                stageSequence >= configuredAnchorSequence.Value;
+        }
+
+        return workflow.OrderOf(stage.StageCode) >= anchorOrder;
     }
 
     private static string DisplayName(
