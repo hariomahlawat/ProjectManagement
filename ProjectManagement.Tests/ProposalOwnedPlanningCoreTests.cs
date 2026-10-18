@@ -564,7 +564,8 @@ public sealed class ProposalOwnedPlanningCoreTests
                     Published = true;
                     await PublishAsync();
                 }
-                else if (command.CommandText.Contains("FROM \"Projects\"", StringComparison.Ordinal))
+                else if (command.CommandText.Contains("FROM \"Projects\"", StringComparison.Ordinal) &&
+                         command.CommandText.Contains("\"PublishedPlanningInputVersion\"", StringComparison.Ordinal))
                 {
                     _baselineReadStarted = true;
                 }
