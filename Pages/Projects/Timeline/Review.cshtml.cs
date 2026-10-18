@@ -79,7 +79,7 @@ public class ReviewModel : PageModel
                     return RedirectToPage("/Projects/Overview", new { id });
                 }
 
-                TempData["Error"] = "The reviewed plan revision is no longer pending or does not belong to this project.";
+                TempData["Error"] = "This plan submission changed, is no longer actionable, or does not belong to this project. Refresh and review the current submission.";
                 TempData["OpenOffcanvas"] = "plan-review";
                 _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 return RedirectToPage("/Projects/Overview", new { id });
@@ -96,7 +96,7 @@ public class ReviewModel : PageModel
                 }
                 else
                 {
-                    TempData["Error"] = "The reviewed plan revision is no longer pending or does not belong to this project.";
+                    TempData["Error"] = "This plan submission changed, is no longer actionable, or does not belong to this project. Refresh and review the current submission.";
                     TempData["OpenOffcanvas"] = "plan-review";
                     _logger.LogWarning("Plan approval attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 }
