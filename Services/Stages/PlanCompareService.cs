@@ -20,6 +20,7 @@ public sealed record PlanReviewSnapshot(
     int VersionNo,
     PlanVersionStatus Status,
     DateTimeOffset? SubmittedOn,
+    string? SubmittedByUserId,
     string? SubmittedBy,
     IReadOnlyList<PlanDiffRow> Rows,
     string? RealignmentSourceStageCode,
@@ -184,7 +185,7 @@ public sealed class PlanCompareService
             .ToArray();
 
         return new PlanReviewSnapshot(
-            draft.Id, draft.VersionNo, draft.Status, draft.SubmittedOn, submittedBy, diffs,
+            draft.Id, draft.VersionNo, draft.Status, draft.SubmittedOn, draft.SubmittedByUserId, submittedBy, diffs,
             realignment?.SourceStageCode, realignment?.DelayDays, history);
     }
 }
