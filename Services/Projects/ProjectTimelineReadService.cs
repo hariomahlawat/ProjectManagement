@@ -13,6 +13,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
@@ -380,14 +381,11 @@ public sealed class ProjectTimelineReadService
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);
 
-        var openPlan = await _db.PlanVersions
+        var hasActionablePending = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
-            .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
-            .OrderByDescending(p => p.Status)
-            .ThenByDescending(p => p.VersionNo)
-            .Select(p => new { p.Status })
-            .FirstOrDefaultAsync(ct);
+            .AnyAsync(plan => plan.ProjectId == projectId, ct);
+        var hasDraft = await _db.PlanVersions.AsNoTracking()
+            .AnyAsync(plan => plan.ProjectId == projectId && plan.Status == PlanVersionStatus.Draft, ct);
 
         var approvalInfo = await _db.Projects
             .AsNoTracking()
@@ -408,8 +406,8 @@ public sealed class ProjectTimelineReadService
             CompletedCount = completed,
             Items = items,
             PendingRequests = pendingRequestVms,
-            PlanPendingApproval = openPlan?.Status == PlanVersionStatus.PendingApproval,
-            HasDraft = openPlan is not null,
+            PlanPendingApproval = hasActionablePending,
+            HasDraft = hasActionablePending || hasDraft,
             LatestApprovalAt = approvalInfo?.PlanApprovedAt,
             LatestApprovalBy = approvalInfo?.ApprovedBy
         };
