@@ -227,6 +227,53 @@ public sealed class PlannedTimelineValidationServiceTests
     }
 
     [Fact]
+    public async Task ValidateAsync_UsesConfiguredStageSequenceForCustomAnchorScope()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.FS,
+                Name = "Feasibility Study",
+                Sequence = 10
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.IPA,
+                Name = "In-Principle Approval",
+                Sequence = 20
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = "CUSTOM",
+                Name = "Custom Review",
+                Sequence = 25
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.SOW,
+                Name = "SOW Vetting",
+                Sequence = 30
+            });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ValidateAsync(fixture.Candidate(
+            anchorStageCode: "CUSTOM",
+            stages:
+            [
+                new(StageCodes.FS, new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 10)),
+                new("CUSTOM", new DateOnly(2026, 10, 21), new DateOnly(2026, 10, 22)),
+                new(StageCodes.SOW, new DateOnly(2026, 10, 23), new DateOnly(2026, 10, 24))
+            ]));
+
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+    }
+
+    [Fact]
     public async Task ValidateAsync_ValidatesExtensionIntrinsicDatesAndConfiguredDependenciesWithoutUsingSortOrder()
     {
         await using var fixture = await Fixture.CreateAsync();
