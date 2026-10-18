@@ -199,7 +199,8 @@ public class PlanApprovalService
 
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
-        if (!await TryClaimPendingDecisionAsync(plan.Id, PlanVersionStatus.Approved, cancellationToken))
+        if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
+            !await TryClaimPendingDecisionAsync(plan.Id, PlanVersionStatus.Approved, cancellationToken))
             return false;
 
         var workflowVersion = project.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
@@ -445,7 +446,8 @@ public class PlanApprovalService
         }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
-        if (!await TryClaimPendingDecisionAsync(plan.Id, PlanVersionStatus.Draft, cancellationToken))
+        if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
+            !await TryClaimPendingDecisionAsync(plan.Id, PlanVersionStatus.Draft, cancellationToken))
             return false;
 
         var trimmedNote = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
@@ -510,6 +512,33 @@ public class PlanApprovalService
         {
             throw new InvalidOperationException("No plan is currently pending approval for this project.");
         }
+    }
+
+    // The existing review rule treats a replaced Pending submission as stale. Keep
+    // both overview and Decision Centre decisions consistent even if an automatic
+    // realignment creates another Pending version despite the PO submission lock.
+    // A revision older than the already published version cannot be reactivated.
+    private async Task<bool> IsCurrentReviewTargetAsync(PlanVersion plan, CancellationToken cancellationToken)
+    {
+        var activeVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == plan.ProjectId)
+            .Select(project => project.ActivePlanVersionNo)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (activeVersion.HasValue && activeVersion.Value >= plan.VersionNo)
+            return false;
+
+        var latestPendingId = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(version => version.ProjectId == plan.ProjectId &&
+                              version.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(version => version.SubmittedOn)
+            .ThenByDescending(version => version.VersionNo)
+            .Select(version => (int?)version.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return latestPendingId == plan.Id;
     }
 
     // Atomic compare-and-set inside the decision transaction. On a relational store
