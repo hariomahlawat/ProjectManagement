@@ -508,7 +508,7 @@ public class PlanApprovalPublicationTests
     [Fact]
     public async Task UnsubmittedNewerDraft_DoesNotSupersedePendingReview()
     {
-        await using var connection = new SqliteConnection("DataSource=:memory;Foreign Keys=False");
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
         await using var db = new ApplicationDbContext(options);
@@ -529,7 +529,7 @@ public class PlanApprovalPublicationTests
     [Fact]
     public async Task DecisionCentreDetail_UsesOneSubmissionEpochForHeaderAndDates()
     {
-        await using var connection = new SqliteConnection("DataSource=:memory;Foreign Keys=False");
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
         await using var db = new ApplicationDbContext(options);
