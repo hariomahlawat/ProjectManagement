@@ -21,7 +21,7 @@ public class PlanReadServiceIsolationTests
         await using var db = CreateDb();
         await SeedAsync(db);
         var mine = new PlanVersion {
-            ProjectId = 1, OwnerUserId = "actor", CreatedByUserId = "actor", VersionNo = 2, Status = status,
+            ProjectId = 1, OwnerUserId = "actor", CreatedByUserId = "actor", VersionNo = 6, Status = status,
             AnchorDate = new DateOnly(2026, 11, 10), SkipWeekends = false, SkipHolidays = false,
             TransitionRule = PlanTransitionRule.SameDay, PncApplicable = false,
             SubmittedOn = status == PlanVersionStatus.PendingApproval ? new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero) : null,
