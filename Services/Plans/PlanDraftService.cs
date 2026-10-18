@@ -57,10 +57,9 @@ public class PlanDraftService
             return myDraft;
         }
 
-        var hasPending = await _db.PlanVersions
+        var hasPending = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
             .AnyAsync(p => p.ProjectId == projectId &&
-                           p.Status == PlanVersionStatus.PendingApproval &&
                            (p.OwnerUserId == userId || (p.OwnerUserId == null && p.CreatedByUserId == userId)),
                 cancellationToken);
 
