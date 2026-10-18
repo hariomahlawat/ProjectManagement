@@ -602,9 +602,17 @@ public class EditPlanModel : PageModel
                     stage.Status == StageStatus.Skipped,
                     stage.SortOrder))
                 .ToListAsync(ct);
-            var generatedStageCodes = baseline.IsTrusted
-                ? durationMap.Keys
-                : publishedStageCodes ?? Array.Empty<string>();
+            IEnumerable<string> generatedStageCodes;
+            if (baseline.IsTrusted)
+            {
+                generatedStageCodes = durationMap.Keys;
+            }
+            else
+            {
+                generatedStageCodes = (publishedStageCodes ?? Array.Empty<string?>())
+                    .Where(code => !string.IsNullOrWhiteSpace(code))
+                    .Select(code => code!);
+            }
             var directAnchor = schedulingPolicyChanged
                 ? ResolveDirectPolicyChangeAnchor(workflowVersion, projectedStages)
                 : ResolveDirectDurationAnchor(workflowVersion, generatedStageCodes);
