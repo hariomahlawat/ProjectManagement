@@ -143,6 +143,141 @@ public class PlanApprovalPublicationTests
         Assert.Equal(0, notifications.Approvals);
     }
 
+    [Fact]
+    public async Task Approval_RevalidatesCurrentHolidayCalendarBeforeAnyAuthoritativeMutation()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Projects.Add(new Project
+        {
+            Id = 71,
+            Name = "Approval calendar change",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1,
+            PncApplicable = false,
+            ActivePlanVersionNo = 4,
+            PlanApprovedByUserId = "previous-reviewer",
+            PlanApprovedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            PublishedPlanningInputVersion = PlanningInputVersions.Current
+        });
+        db.StageTemplates.AddRange(
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.IPA, Name = "In-Principle Approval", Sequence = 20 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.SOW, Name = "SOW Vetting", Sequence = 30 });
+        db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            FromStageCode = StageCodes.SOW,
+            DependsOnStageCode = StageCodes.IPA
+        });
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 71,
+            AnchorStart = new DateOnly(2026, 10, 20),
+            IncludeWeekends = false,
+            SkipHolidays = true,
+            NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay
+        });
+        db.ProjectPlanDurations.Add(new ProjectPlanDuration { ProjectId = 71, StageCode = StageCodes.IPA, DurationDays = 4, SortOrder = 20 });
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 71, StageCode = StageCodes.IPA, SortOrder = 20, Status = StageStatus.NotStarted, PlannedStart = new DateOnly(2026, 1, 1), PlannedDue = new DateOnly(2026, 1, 2) },
+            new ProjectStage { ProjectId = 71, StageCode = StageCodes.SOW, SortOrder = 30, Status = StageStatus.NotStarted, PlannedStart = new DateOnly(2026, 1, 3), PlannedDue = new DateOnly(2026, 1, 4) });
+        var draft = new PlanVersion
+        {
+            ProjectId = 71,
+            VersionNo = 5,
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "po-user",
+            OwnerUserId = "po-user",
+            AnchorStageCode = StageCodes.IPA,
+            AnchorDate = new DateOnly(2026, 10, 20),
+            TransitionRule = PlanTransitionRule.NextWorkingDay,
+            SkipWeekends = true,
+            SkipHolidays = true,
+            PncApplicable = false,
+            PlanningInputVersion = PlanningInputVersions.Current
+        };
+        draft.StagePlans.AddRange(new[]
+        {
+            new StagePlan { StageCode = StageCodes.IPA, SortOrder = 20, DurationDays = 4, PlannedStart = new DateOnly(2026, 10, 20), PlannedDue = new DateOnly(2026, 10, 23) },
+            new StagePlan { StageCode = StageCodes.SOW, SortOrder = 30, DurationDays = 5, PlannedStart = new DateOnly(2026, 10, 26), PlannedDue = new DateOnly(2026, 10, 30) }
+        });
+        db.PlanVersions.Add(draft);
+        await db.SaveChangesAsync();
+        var notifications = new RecordingNotifications();
+        var approval = CreateApproval(db, notifications);
+        await approval.SubmitForApprovalAsync(71, "po-user");
+        db.Holidays.Add(new Holiday
+        {
+            Date = new DateOnly(2026, 10, 26),
+            Name = "New gazetted closure",
+            Type = HolidayType.Gazetted,
+            IsObservedAsOfficeHoliday = true
+        });
+        await db.SaveChangesAsync();
+        var publishedBefore = await PublishedStateAsync(db);
+
+        var error = await Assert.ThrowsAsync<PlanApprovalValidationException>(() =>
+            approval.ApproveVersionAsync(draft.Id, "hod-reviewer", false, true));
+
+        Assert.Contains(error.Errors, message => message.Contains("27 Oct 2026"));
+        db.ChangeTracker.Clear();
+        Assert.Equal(publishedBefore, await PublishedStateAsync(db));
+        var pending = await db.PlanVersions.SingleAsync(plan => plan.Id == draft.Id);
+        Assert.Equal(PlanVersionStatus.PendingApproval, pending.Status);
+        Assert.Null(pending.ApprovedByUserId);
+        Assert.Null(pending.ApprovedOn);
+        Assert.Empty(await db.ProjectPlanSnapshots.ToListAsync());
+        Assert.Empty(await db.ProjectPlanSnapshotRows.ToListAsync());
+        Assert.Equal(0, notifications.Approvals);
+    }
+
+    [Fact]
+    public async Task Approval_LegacyPendingUsesAcceptedPublishedTransitionPolicy()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var plan = await SeedAsync(db, includeWeekends: true, skipHolidays: false, sameDay: true, pncApplicable: false);
+        plan.PlanningInputVersion = PlanningInputVersions.Legacy;
+        (await db.Projects.SingleAsync()).PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        (await db.ProjectScheduleSettings.SingleAsync()).NextStageStartPolicy = NextStageStartPolicies.SameDay;
+        plan.AnchorStageCode = StageCodes.IPA;
+        plan.TransitionRule = PlanTransitionRule.NextWorkingDay;
+        var ipa = plan.StagePlans.Single(stage => stage.StageCode == StageCodes.IPA);
+        ipa.PlannedStart = new DateOnly(2026, 11, 18);
+        ipa.PlannedDue = new DateOnly(2026, 11, 20);
+        plan.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.SOW,
+            SortOrder = 30,
+            PlannedStart = new DateOnly(2026, 11, 20),
+            PlannedDue = new DateOnly(2026, 11, 21)
+        });
+        await db.SaveChangesAsync();
+
+        var approval = CreateApproval(db, new RecordingNotifications());
+        var errors = await approval.GetValidationErrorsAsync(plan.Id);
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
+        Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+    }
+
+    [Fact]
+    public async Task Approval_SparseLegacyPendingRemainsApprovableAcrossCompleteCatalogCutover()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var plan = await SeedAsync(db, includeWeekends: true, skipHolidays: false, sameDay: true, pncApplicable: false);
+        plan.PlanningInputVersion = PlanningInputVersions.Legacy;
+        db.StagePlans.RemoveRange(plan.StagePlans.Where(stage => stage.StageCode != StageCodes.FS));
+        await db.SaveChangesAsync();
+
+        var approval = CreateApproval(db, new RecordingNotifications());
+        var errors = await approval.GetValidationErrorsAsync(plan.Id);
+
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
+        Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+        Assert.Equal(PlanVersionStatus.Approved, (await db.PlanVersions.SingleAsync(item => item.Id == plan.Id)).Status);
+    }
+
     [Theory]
     [InlineData(PlanningInputVersions.Legacy)]
     [InlineData(PlanningInputVersions.Current)]

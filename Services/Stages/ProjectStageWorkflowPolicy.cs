@@ -18,6 +18,11 @@ namespace ProjectManagement.Services.Stages;
 public interface IProjectStageWorkflowPolicy
 {
     Task<ProjectStageWorkflowSnapshot> GetAsync(int projectId, CancellationToken cancellationToken = default);
+
+    Task<ProjectStageWorkflowSnapshot> GetAsync(
+        int projectId,
+        bool pncApplicable,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
@@ -49,15 +54,39 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException($"Project {projectId} was not found.");
 
-        var workflowVersion = string.IsNullOrWhiteSpace(project.WorkflowVersion)
+        return await GetSnapshotAsync(projectId, project.WorkflowVersion, project.PncApplicable, cancellationToken);
+    }
+
+    public async Task<ProjectStageWorkflowSnapshot> GetAsync(
+        int projectId,
+        bool pncApplicable,
+        CancellationToken cancellationToken = default)
+    {
+        var workflowVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(item => item.Id == projectId)
+            .Select(item => item.WorkflowVersion)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? PlanConstants.DefaultStageTemplateVersion;
+
+        return await GetSnapshotAsync(projectId, workflowVersion, pncApplicable, cancellationToken);
+    }
+
+    private async Task<ProjectStageWorkflowSnapshot> GetSnapshotAsync(
+        int projectId,
+        string? configuredWorkflowVersion,
+        bool pncApplicable,
+        CancellationToken cancellationToken)
+    {
+        var workflowVersion = string.IsNullOrWhiteSpace(configuredWorkflowVersion)
             ? PlanConstants.DefaultStageTemplateVersion
-            : project.WorkflowVersion;
+            : configuredWorkflowVersion;
 
         // Re-read persisted publication state even in a reused scope. AsNoTracking
         // deliberately ignores unsaved changes on tracked Project entities.
         if (_cache.TryGetValue(projectId, out var cached) &&
             string.Equals(cached.WorkflowVersion, workflowVersion, StringComparison.OrdinalIgnoreCase) &&
-            cached.PncApplicable == project.PncApplicable)
+            cached.PncApplicable == pncApplicable)
         {
             return cached;
         }
@@ -99,7 +128,7 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
             stageDefinitions,
             dependencies,
             optionalStageCodes,
-            project.PncApplicable);
+            pncApplicable);
 
         _cache[projectId] = snapshot;
         return snapshot;

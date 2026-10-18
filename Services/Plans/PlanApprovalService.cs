@@ -13,6 +13,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.Infrastructure;
 
@@ -25,6 +26,7 @@ public class PlanApprovalService
     private readonly ILogger<PlanApprovalService> _logger;
     private readonly PlanSnapshotService _snapshots;
     private readonly IPlanNotificationService _notifications;
+    private readonly IPlannedTimelineValidationService _timelineValidation;
 
     public PlanApprovalService(
         ApplicationDbContext db,
@@ -32,12 +34,33 @@ public class PlanApprovalService
         ILogger<PlanApprovalService> logger,
         PlanSnapshotService snapshots,
         IPlanNotificationService notifications)
+        : this(
+            db,
+            clock,
+            logger,
+            snapshots,
+            notifications,
+            new PlannedTimelineValidationService(
+                db,
+                new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider()),
+                new OfficeCalendarService(db)))
+    {
+    }
+
+    public PlanApprovalService(
+        ApplicationDbContext db,
+        IClock clock,
+        ILogger<PlanApprovalService> logger,
+        PlanSnapshotService snapshots,
+        IPlanNotificationService notifications,
+        IPlannedTimelineValidationService timelineValidation)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
         _snapshots = snapshots;
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
+        _timelineValidation = timelineValidation ?? throw new ArgumentNullException(nameof(timelineValidation));
     }
 
     public async Task SubmitAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -68,7 +91,7 @@ public class PlanApprovalService
             throw new DomainException("Another submission is already pending approval.");
         }
 
-        var errors = await ValidateStagePlansAsync(plan, cancellationToken);
+        var errors = await ValidatePlanAsync(plan, cancellationToken);
         if (errors.Count > 0)
         {
             throw new PlanApprovalValidationException(errors);
@@ -162,6 +185,12 @@ public class PlanApprovalService
             ?? await _db.Projects
                 .FirstOrDefaultAsync(p => p.Id == plan.ProjectId, cancellationToken)
             ?? throw new InvalidOperationException("Project not found.");
+
+        var validationErrors = await ValidatePlanAsync(plan, cancellationToken);
+        if (validationErrors.Count > 0)
+        {
+            throw new PlanApprovalValidationException(validationErrors);
+        }
 
         var now = _clock.UtcNow;
 
@@ -348,7 +377,7 @@ public class PlanApprovalService
             throw new InvalidOperationException("Plan not found.");
         }
 
-        return await ValidateStagePlansAsync(plan, cancellationToken);
+        return await ValidatePlanAsync(plan, cancellationToken);
     }
 
     public async Task<bool> RejectLatestPendingAsync(
@@ -469,152 +498,54 @@ public class PlanApprovalService
         }
     }
 
-    private async Task<List<string>> ValidateStagePlansAsync(PlanVersion plan, CancellationToken cancellationToken)
+    private async Task<List<string>> ValidatePlanAsync(PlanVersion plan, CancellationToken cancellationToken)
     {
-        var errors = new List<string>();
-
-        // SECTION: Workflow Resolution
-        var workflowVersion = plan.Project?.WorkflowVersion
-            ?? await _db.Projects
-                .Where(p => p.Id == plan.ProjectId)
-                .Select(p => p.WorkflowVersion)
-                .SingleAsync(cancellationToken);
-        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
-
-        var templates = await _db.StageTemplates
-            .AsNoTracking()
-            .Where(t => t.Version == workflowVersion)
-            .OrderBy(t => t.Sequence)
-            .ToListAsync(cancellationToken);
-
-        var templateNames = templates.ToDictionary(t => t.Code, t => t.Name, StringComparer.OrdinalIgnoreCase);
-        var sequenceByCode = templates.ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
-
-        var dependencies = await _db.StageDependencyTemplates
-            .AsNoTracking()
-            .Where(d => d.Version == workflowVersion)
-            .ToListAsync(cancellationToken);
-
-        var dependenciesByStage = dependencies
-            .GroupBy(d => d.FromStageCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
-        var stagePlans = plan.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-
-        // SECTION: Skipped Stage Resolution
         var skippedStageCodes = await _db.ProjectStages
             .AsNoTracking()
             .Where(ps => ps.ProjectId == plan.ProjectId && ps.Status == StageStatus.Skipped)
             .Select(ps => ps.StageCode)
             .ToListAsync(cancellationToken);
-
         var skippedStageSet = new HashSet<string>(skippedStageCodes, StringComparer.OrdinalIgnoreCase);
-
-        var anchorCode = plan.AnchorStageCode ?? PlanConstants.DefaultAnchorStageCode;
-        var anchorSequence = sequenceByCode.TryGetValue(anchorCode, out var anchorSeq)
-            ? anchorSeq
-            : int.MinValue;
-
-        var includedStages = new HashSet<string>(templates.Select(t => t.Code), StringComparer.OrdinalIgnoreCase);
-        if (!plan.PncApplicable)
+        string? anchorStageCode;
+        PlanTransitionRule transitionRule;
+        bool includeWeekends;
+        bool skipHolidays;
+        if (plan.PlanningInputVersion == PlanningInputVersions.Current)
         {
-            includedStages.Remove("PNC");
+            anchorStageCode = plan.AnchorStageCode;
+            transitionRule = plan.TransitionRule;
+            includeWeekends = !plan.SkipWeekends;
+            skipHolidays = plan.SkipHolidays;
+        }
+        else
+        {
+            // Legacy Pending revisions own their reviewed dates and historical PNC
+            // decision, but not the calendar policy introduced by B1.
+            var baseline = await PublishedPlanningBaseline.LoadAsync(_db, plan.ProjectId, cancellationToken);
+            anchorStageCode = PlanConstants.DefaultAnchorStageCode;
+            transitionRule = baseline.Settings?.NextStageStartPolicy == NextStageStartPolicies.SameDay
+                ? PlanTransitionRule.SameDay
+                : PlanTransitionRule.NextWorkingDay;
+            includeWeekends = baseline.Settings?.IncludeWeekends ?? false;
+            skipHolidays = baseline.Settings?.SkipHolidays ?? true;
         }
 
-        foreach (var skippedCode in skippedStageSet)
-        {
-            includedStages.Remove(skippedCode);
-        }
-
-        foreach (var template in templates)
-        {
-            if (template.Sequence < anchorSequence)
-            {
-                continue;
-            }
-
-            if (!includedStages.Contains(template.Code))
-            {
-                continue;
-            }
-
-            if (!stagePlans.TryGetValue(template.Code, out var stage))
-            {
-                errors.Add($"Stage {template.Name} ({template.Code}) is missing from the plan.");
-                continue;
-            }
-
-            if (stage.PlannedStart is not DateOnly start || stage.PlannedDue is not DateOnly due)
-            {
-                // SECTION: Partial timeline support
-                // Allow submission even when planned dates are missing; validation only applies when both are provided.
-                continue;
-            }
-
-            if (due < start)
-            {
-                errors.Add($"Stage {template.Name} must end on or after its planned start date.");
-            }
-
-            if (!dependenciesByStage.TryGetValue(template.Code, out var stageDependencies))
-            {
-                continue;
-            }
-
-            foreach (var dependency in stageDependencies)
-            {
-                var dependencyCode = dependency.DependsOnStageCode;
-
-                if (!includedStages.Contains(dependencyCode))
-                {
-                    continue;
-                }
-
-                if (sequenceByCode.TryGetValue(dependencyCode, out var dependencySequence) && dependencySequence < anchorSequence)
-                {
-                    continue;
-                }
-
-                var dependencyName = templateNames.TryGetValue(dependencyCode, out var friendlyName)
-                    ? friendlyName
-                    : dependencyCode;
-
-                if (!stagePlans.TryGetValue(dependencyCode, out var prerequisite) || prerequisite.PlannedDue is not DateOnly prerequisiteDue)
-                {
-                    continue;
-                }
-
-                var minimumStart = prerequisiteDue;
-
-                if (plan.TransitionRule == PlanTransitionRule.NextWorkingDay)
-                {
-                    minimumStart = minimumStart.AddDays(1);
-                }
-
-                if (plan.SkipWeekends)
-                {
-                    minimumStart = NextWorkday(minimumStart);
-                }
-
-                if (start < minimumStart)
-                {
-                    errors.Add($"Stage {template.Name} must start on or after {dependencyName}'s planned due date ({prerequisiteDue:dd MMM yyyy}) when applying the transition rule.");
-                }
-            }
-        }
-
-        return errors;
-    }
-
-    private static DateOnly NextWorkday(DateOnly date)
-    {
-        var current = date;
-        while (current.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-        {
-            current = current.AddDays(1);
-        }
-
-        return current;
+        var candidate = new PlannedTimelineCandidate(
+            plan.ProjectId,
+            anchorStageCode,
+            transitionRule,
+            includeWeekends,
+            skipHolidays,
+            plan.PncApplicable,
+            plan.StagePlans.Select(stage => new PlannedTimelineStage(
+                stage.StageCode,
+                stage.PlannedStart,
+                stage.PlannedDue,
+                skippedStageSet.Contains(stage.StageCode),
+                stage.SortOrder)).ToArray(),
+            RequireConfiguredStages: plan.PlanningInputVersion == PlanningInputVersions.Current);
+        var result = await _timelineValidation.ValidateAsync(candidate, cancellationToken);
+        return result.Errors.ToList();
     }
 }
 
