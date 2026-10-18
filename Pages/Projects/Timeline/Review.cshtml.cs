@@ -39,6 +39,7 @@ public class ReviewModel : PageModel
     {
         public int ProjectId { get; set; }
         public int PlanVersionId { get; set; }
+        public DateTimeOffset? SubmittedOn { get; set; }
         public string Decision { get; set; } = string.Empty;
         public string? Note { get; set; }
     }
@@ -69,7 +70,8 @@ public class ReviewModel : PageModel
         {
             if (string.Equals(Input.Decision, "Reject", StringComparison.OrdinalIgnoreCase))
             {
-                var rejected = await _approval.RejectVersionAsync(Input.PlanVersionId, userId, isAdmin, isHoD, Input.Note, ct, expectedProjectId: id);
+                var rejected = await _approval.RejectVersionAsync(Input.PlanVersionId, userId, isAdmin, isHoD, Input.Note, ct,
+                    expectedProjectId: id, verifySubmissionIdentity: true, expectedSubmittedOn: Input.SubmittedOn);
                 if (rejected)
                 {
                     TempData["Flash"] = "Draft rejected and returned to the Project Officer.";
@@ -85,7 +87,8 @@ public class ReviewModel : PageModel
 
             if (string.Equals(Input.Decision, "Approve", StringComparison.OrdinalIgnoreCase))
             {
-                var approved = await _approval.ApproveVersionAsync(Input.PlanVersionId, userId, isAdmin, isHoD, ct, expectedProjectId: id);
+                var approved = await _approval.ApproveVersionAsync(Input.PlanVersionId, userId, isAdmin, isHoD, ct,
+                    expectedProjectId: id, verifySubmissionIdentity: true, expectedSubmittedOn: Input.SubmittedOn);
                 if (approved)
                 {
                     TempData["Flash"] = "Plan approved.";
