@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Security.Claims;
 using System.Linq;
 using System.Threading;
@@ -531,11 +532,14 @@ public class PlanApprovalPublicationTests
     {
         await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
         await connection.OpenAsync();
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        var firstEpoch = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero);
+        var secondEpoch = new DateTimeOffset(2026, 10, 18, 0, 0, 0, TimeSpan.Zero);
+        var race = new ResubmitOnSecondPlanRead(secondEpoch);
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).AddInterceptors(race).Options;
         await using var db = new ApplicationDbContext(options);
         await db.Database.EnsureCreatedAsync();
         var plan = await SeedAsync(db, true, false, true, false);
-        var firstEpoch = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero);
         plan.SubmittedOn = firstEpoch;
         await db.SaveChangesAsync();
 
@@ -552,18 +556,17 @@ public class PlanApprovalPublicationTests
         Assert.Equal(new DateOnly(2026, 11, 10),
             original.PlanApproval.StageDiffs.Single(row => row.StageCode == StageCodes.FS).ProposedStart);
 
-        // Same PlanVersionId, different submission epoch and reviewed dates.
-        plan.SubmittedOn = new DateTimeOffset(2026, 10, 18, 0, 0, 0, TimeSpan.Zero);
-        plan.StagePlans.Single(row => row.StageCode == StageCodes.FS).PlannedStart =
-            new DateOnly(2026, 12, 5);
-        await db.SaveChangesAsync();
-
+        // Change the same PlanVersionId between the detail's first plan read
+        // and the review comparison read. A separate header query would retain
+        // the old epoch while showing the newly resubmitted stage dates.
+        race.Arm();
         var revised = await queue.GetDetailAsync(
             ApprovalQueueType.PlanApproval, plan.Id.ToString(), reviewer);
+        Assert.Equal(1, race.Resubmissions);
         Assert.NotNull(revised?.PlanApproval);
         Assert.Equal(plan.Id, revised.PlanApproval.PlanVersionId);
-        Assert.Equal(plan.SubmittedOn, revised.PlanApproval.SubmittedOnUtc);
-        Assert.Equal(plan.SubmittedOn, revised.Item.RequestedAtUtc);
+        Assert.Equal(secondEpoch, revised.PlanApproval.SubmittedOnUtc);
+        Assert.Equal(secondEpoch, revised.Item.RequestedAtUtc);
         Assert.Equal(new DateOnly(2026, 12, 5),
             revised.PlanApproval.StageDiffs.Single(row => row.StageCode == StageCodes.FS).ProposedStart);
     }
@@ -910,6 +913,47 @@ public class PlanApprovalPublicationTests
 
     private static PlanApprovalService CreateApproval(ApplicationDbContext db, RecordingNotifications notifications) =>
         new(db, new TestClock(), NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), notifications);
+
+    private sealed class ResubmitOnSecondPlanRead : DbCommandInterceptor
+    {
+        private readonly DateTimeOffset _nextEpoch;
+        private int _reads;
+        private bool _armed;
+        public int Resubmissions { get; private set; }
+
+        public ResubmitOnSecondPlanRead(DateTimeOffset nextEpoch) => _nextEpoch = nextEpoch;
+
+        public void Arm()
+        {
+            _reads = 0;
+            _armed = true;
+        }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (_armed && command.CommandText.Contains("FROM \"PlanVersions\"", StringComparison.Ordinal) &&
+                ++_reads == 2)
+            {
+                _armed = false;
+                await using var changer = new ApplicationDbContext(
+                    new DbContextOptionsBuilder<ApplicationDbContext>()
+                        .UseSqlite((SqliteConnection)command.Connection!).Options);
+                var changed = await changer.PlanVersions
+                    .Include(p => p.StagePlans)
+                    .SingleAsync(p => p.ProjectId == 1 && p.VersionNo == 2, cancellationToken);
+                changed.SubmittedOn = _nextEpoch;
+                changed.StagePlans.Single(stage => stage.StageCode == StageCodes.FS).PlannedStart =
+                    new DateOnly(2026, 12, 5);
+                await changer.SaveChangesAsync(cancellationToken);
+                Resubmissions++;
+            }
+
+            return await base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
 
     private sealed class FailFinalApprovalSave : SaveChangesInterceptor
     {
