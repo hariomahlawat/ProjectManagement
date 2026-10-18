@@ -276,6 +276,9 @@ public class PlanReadServiceIsolationTests
                 .UseSqlite(connection).AddInterceptors(race).Options);
         await db.Database.EnsureCreatedAsync();
         await SeedAsync(db);
+        (await db.PlanVersions.SingleAsync(p => p.VersionNo == 5)).PlanningInputVersion =
+            PlanningInputVersions.Current;
+        await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
         // Submit N+1 immediately before the editor's first candidate SELECT.
