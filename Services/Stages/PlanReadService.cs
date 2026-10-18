@@ -58,6 +58,7 @@ public sealed class PlanReadService
         var actionablePending = PlanRevisionConsistency.ActionablePending(_db);
         var planCandidates = await _db.PlanVersions
             .AsNoTracking()
+            .AsSingleQuery() // Keep status, actor metadata and child rows in one statement snapshot.
             .Include(p => p.StagePlans)
             .Include(p => p.SubmittedByUser)
             .Include(p => p.RejectedByUser)
