@@ -6,6 +6,8 @@ using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
