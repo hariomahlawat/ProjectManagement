@@ -498,6 +498,16 @@ public class EditPlanModel : PageModel
             await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
             var baseline = await PublishedPlanningBaseline.LoadAsync(_db, id, ct);
             var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
+            var originalStages = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(stage => stage.ProjectId == id && !string.IsNullOrWhiteSpace(stage.StageCode))
+                .Select(stage => new PlannedTimelineStage(
+                    stage.StageCode,
+                    stage.PlannedStart,
+                    stage.PlannedDue,
+                    stage.Status == StageStatus.Skipped,
+                    stage.SortOrder))
+                .ToListAsync(ct);
             var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
             if (settings is null)
             {
@@ -591,7 +601,10 @@ public class EditPlanModel : PageModel
                     stage.Status == StageStatus.Skipped,
                     stage.SortOrder))
                 .ToListAsync(ct);
-            var directAnchor = ResolveDirectPublicationAnchor(workflowVersion, rows);
+            var directAnchor = ResolveDirectPublicationAnchor(
+                workflowVersion,
+                originalStages,
+                projectedStages);
             var validation = await _timelineValidation.ValidateAsync(
                 new PlannedTimelineCandidate(
                     id,
@@ -988,6 +1001,7 @@ public class EditPlanModel : PageModel
                     stage.Status == StageStatus.Skipped,
                     stage.SortOrder),
                 StringComparer.OrdinalIgnoreCase);
+        var originalStages = projectedStages.Values.ToArray();
         foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Code)))
         {
             projectedStages[row.Code] = new PlannedTimelineStage(
@@ -999,7 +1013,10 @@ public class EditPlanModel : PageModel
         }
 
         var acceptedSettings = baseline.Settings;
-        var directAnchor = ResolveDirectPublicationAnchor(baseline.WorkflowVersion, rows);
+        var directAnchor = ResolveDirectPublicationAnchor(
+            baseline.WorkflowVersion,
+            originalStages,
+            projectedStages.Values);
         var validation = await _timelineValidation.ValidateAsync(
             new PlannedTimelineCandidate(
                 projectId,
@@ -1266,21 +1283,28 @@ public class EditPlanModel : PageModel
 
     private static string ResolveDirectPublicationAnchor(
         string? workflowVersion,
-        IEnumerable<PlanEditInputRow> rows)
+        IEnumerable<PlannedTimelineStage> originalStages,
+        IEnumerable<PlannedTimelineStage> projectedStages)
     {
         var defaultOrder = ProcurementWorkflow.OrderOf(
             workflowVersion,
             PlanConstants.DefaultAnchorStageCode);
-        return rows
-            .Where(row => !string.IsNullOrWhiteSpace(row.Code))
-            .Select(row => new
+        var originalLookup = originalStages.ToDictionary(
+            stage => stage.StageCode,
+            StringComparer.OrdinalIgnoreCase);
+        return projectedStages
+            .Where(stage => !stage.IsSkipped)
+            .Select(stage => new
             {
-                row.Code,
-                Order = ProcurementWorkflow.OrderOf(workflowVersion, row.Code)
+                stage.StageCode,
+                Order = ProcurementWorkflow.OrderOf(workflowVersion, stage.StageCode),
+                Changed = !originalLookup.TryGetValue(stage.StageCode, out var original) ||
+                    original.PlannedStart != stage.PlannedStart ||
+                    original.PlannedDue != stage.PlannedDue
             })
-            .Where(item => item.Order < defaultOrder)
+            .Where(item => item.Changed && item.Order < defaultOrder)
             .OrderBy(item => item.Order)
-            .Select(item => item.Code)
+            .Select(item => item.StageCode)
             .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
     }
 
