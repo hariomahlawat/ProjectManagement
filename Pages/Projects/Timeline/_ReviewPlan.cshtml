@@ -7,10 +7,8 @@
 @using System.Linq
 @using ProjectManagement.Models.Plans
 @using ProjectManagement.Models.Stages
-@using ProjectManagement.ViewModels
 
 @{
-    var planState = ViewBag.PlanState as PlanEditorStateVm;
     var isPending = Model?.Status == PlanVersionStatus.PendingApproval;
     var requiresBackfill = ViewBag.HasBackfill is bool hb && hb;
     var submittedOn = Model?.SubmittedOn;
@@ -96,12 +94,12 @@ else
         </table>
     </div>
 
-    if (planState?.ApprovalHistory is { Count: > 0 })
+    if (Model.ApprovalHistory.Count > 0)
     {
         <div class="mt-3">
             <h6 class="fw-semibold">Recent approval activity</h6>
             <ul class="list-unstyled mb-0">
-                @foreach (var entry in planState.ApprovalHistory)
+                @foreach (var entry in Model.ApprovalHistory)
                 {
                     <li class="small mb-1">
                         <strong>@entry.Action</strong>
