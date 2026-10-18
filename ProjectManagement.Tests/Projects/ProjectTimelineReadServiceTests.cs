@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Services;
@@ -166,6 +167,50 @@ public sealed class ProjectTimelineReadServiceTests
                 "InProgress", predecessorCompletion, isHoD: false);
             Assert.True(validation.IsValid, string.Join("; ", validation.Errors));
         }
+    }
+
+    [Fact]
+    public async Task GetAsync_SupersededPendingDoesNotDisplayReviewPendingChip()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 1, Name = "Timeline supersession",
+            CreatedByUserId = "po", WorkflowVersion = ProcurementWorkflow.VersionV2
+        });
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1, StageCode = StageCodes.FS, Status = StageStatus.NotStarted
+        });
+        var older = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 2, Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "po", SubmittedByUserId = "po",
+            SubmittedOn = new DateTimeOffset(2026, 10, 16, 0, 0, 0, TimeSpan.Zero)
+        };
+        var newer = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 3, Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "po", OwnerUserId = "po",
+            RejectedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero)
+        };
+        db.PlanVersions.AddRange(older, newer);
+        await db.SaveChangesAsync();
+
+        var metadata = new WorkflowStageMetadataProvider();
+        var service = new ProjectTimelineReadService(db,
+            new FixedClock(new DateTimeOffset(2026, 10, 18, 0, 0, 0, TimeSpan.Zero)),
+            metadata, new ProjectStageWorkflowPolicy(db, metadata));
+        var stale = await service.GetAsync(1);
+        Assert.False(stale.PlanPendingApproval);
+        Assert.True(stale.HasDraft);
+
+        newer.Status = PlanVersionStatus.PendingApproval;
+        newer.SubmittedOn = new DateTimeOffset(2026, 10, 18, 0, 0, 0, TimeSpan.Zero);
+        await db.SaveChangesAsync();
+        var active = await service.GetAsync(1);
+        Assert.True(active.PlanPendingApproval);
+        Assert.True(active.HasDraft);
     }
 
     private static ApplicationDbContext CreateContext()
