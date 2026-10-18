@@ -296,6 +296,10 @@
                         <input type="hidden" asp-for="Input.ApprovalType" />
                         <input type="hidden" asp-for="Input.RequestId" />
                         <input type="hidden" asp-for="Input.RowVersion" />
+                        @if (Model.Detail.PlanApproval is not null)
+                        {
+                            <input type="hidden" name="Input.SubmittedOn" value="@(Model.Input.SubmittedOn?.ToString("O"))" />
+                        }
                         <input type="hidden" asp-for="Input.ReturnUrl" />
 
                         <label asp-for="Input.Remarks">Remarks</label>
