@@ -1306,16 +1306,10 @@ public class EditPlanModel : PageModel
             ? PlanConstants.DefaultStageTemplateVersion
             : workflowVersion;
 
-        // Configured StageTemplate.Sequence is the planning-order authority.
-        // Static procurement order is only a fallback when a built-in stage has
-        // no configured template row. Use sequence-like fallback values so a
-        // configured extension can be placed before/between built-in stages.
-        var lookup = ProcurementWorkflow.StageCodesFor(version)
-            .Select((code, index) => new { code, order = (index + 1) * 10 })
-            .ToDictionary(
-                item => item.code,
-                item => item.order,
-                StringComparer.OrdinalIgnoreCase);
+        // Match generation exactly: canonical procurement order supplies
+        // fallback values, then configured StageTemplate.Sequence overrides it
+        // and places configured extensions in the same planning order.
+        var lookup = ProcurementWorkflow.BuildOrderLookup(version);
 
         var configured = await _db.StageTemplates
             .AsNoTracking()
