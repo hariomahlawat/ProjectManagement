@@ -52,6 +52,15 @@ public sealed class PlanReadService
         var scheduleSettings = baseline.Settings;
         var durationRows = baseline.Durations;
 
+        // Only actionable PendingApproval revisions may lock the editor or
+        // prevent a corrected newer Draft from being resubmitted. Retain all
+        // private Drafts, including rejected realignments, as editable inputs.
+        var actionablePendingIds = await PlanRevisionConsistency.ActionablePending(_db)
+            .AsNoTracking()
+            .Where(p => p.ProjectId == projectId)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
         var planCandidates = await _db.PlanVersions
             .AsNoTracking()
             .Include(p => p.StagePlans)
@@ -59,7 +68,8 @@ public sealed class PlanReadService
             .Include(p => p.RejectedByUser)
             .Include(p => p.ApprovalLogs).ThenInclude(log => log.PerformedByUser)
             .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
+                        (p.Status == PlanVersionStatus.Draft ||
+                         (p.Status == PlanVersionStatus.PendingApproval && actionablePendingIds.Contains(p.Id))))
             .ToListAsync(cancellationToken);
 
         var pendingPlan = planCandidates
