@@ -507,6 +507,83 @@ public class PlanApprovalPublicationTests
     }
 
     [Fact]
+    public async Task RejectedNewerRevision_CanBeResubmittedWhileStaleOlderPendingIsNotActionable()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var older = await SeedAsync(db, true, false, true, false);
+        var newer = AddNewerPending(db);
+        await db.SaveChangesAsync();
+        var reviewer = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.Role, "HoD") }, "Test"));
+        var notifications = new RecordingNotifications();
+        var decisions = CreateApproval(db, notifications);
+        Assert.True(await decisions.RejectVersionAsync(
+            newer.Id, "hod-reviewer", false, true, "Revise", expectedProjectId: 1));
+        db.ChangeTracker.Clear();
+
+        var metadata = new WorkflowStageMetadataProvider();
+        var sequence = new StageApprovalSequenceService(
+            db, new ProjectStageWorkflowPolicy(db, metadata), new ProjectFactsReadService(db));
+        var queue = new ApprovalQueueService(db, new PlanCompareService(db), sequence);
+        var pending = await queue.GetPendingAsync(
+            new ApprovalQueueQuery { Type = ApprovalQueueType.PlanApproval }, reviewer);
+        Assert.Empty(pending);
+        Assert.Equal(0, await queue.GetPendingCountAsync(reviewer));
+        var detail = await queue.GetDetailAsync(
+            ApprovalQueueType.PlanApproval, older.Id.ToString(), reviewer);
+        Assert.NotNull(detail);
+        Assert.Equal(ApprovalReadiness.Superseded, detail.Item.Readiness);
+        Assert.Null(await new PlanCompareService(db).GetLatestPendingReviewAsync(1));
+
+        // The older pending row remains for historical audit, but it cannot
+        // prevent the corrected newer revision from being submitted again.
+        var submit = new PlanApprovalService(db, new TestClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db),
+            notifications, new AlwaysValidTimeline());
+        await submit.SubmitAsync(1, "another-po");
+        db.ChangeTracker.Clear();
+        var resubmitted = await db.PlanVersions.AsNoTracking()
+            .SingleAsync(p => p.Id == newer.Id);
+        Assert.Equal(PlanVersionStatus.PendingApproval, resubmitted.Status);
+        Assert.NotNull(resubmitted.SubmittedOn);
+        Assert.Equal(newer.Id, (await new PlanCompareService(db)
+            .GetLatestPendingReviewAsync(1))!.PlanVersionId);
+        Assert.False(await decisions.ApproveVersionAsync(
+            older.Id, "hod-reviewer", false, true, expectedProjectId: 1));
+        var visible = await queue.GetPendingAsync(
+            new ApprovalQueueQuery { Type = ApprovalQueueType.PlanApproval }, reviewer);
+        Assert.Equal(newer.Id.ToString(), Assert.Single(visible).RequestId);
+        Assert.Equal(1, await queue.GetPendingCountAsync(reviewer));
+    }
+
+    [Fact]
+    public async Task HigherSubmittedRevisionCannotBeBypassedBySubmittingOldUnsubmittedDraft()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var older = await SeedAsync(db, true, false, true, false);
+        older.Status = PlanVersionStatus.Draft;
+        older.OwnerUserId = "po-user";
+        var newer = AddNewerPending(db);
+        await db.SaveChangesAsync();
+        var submit = new PlanApprovalService(db, new TestClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db),
+            new RecordingNotifications(), new AlwaysValidTimeline());
+
+        await Assert.ThrowsAsync<ProjectManagement.Helpers.DomainException>(() =>
+            submit.SubmitAsync(1, "po-user"));
+        Assert.Equal(PlanVersionStatus.Draft, older.Status);
+        Assert.Equal(PlanVersionStatus.PendingApproval, newer.Status);
+    }
+
+    [Fact]
     public async Task UnsubmittedNewerDraft_DoesNotSupersedePendingReview()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
@@ -909,6 +986,13 @@ public class PlanApprovalPublicationTests
             Stages = stages.Select(s => new { s.Id, s.ProjectId, s.StageCode, s.PlannedStart, s.PlannedDue, s.SortOrder, s.Status, s.ActualStart, s.CompletedOn }),
             Projects = projects.Select(p => new { p.Id, p.PncApplicable, p.PublishedPlanningInputVersion, p.ActivePlanVersionNo, p.PlanApprovedAt, p.PlanApprovedByUserId })
         });
+    }
+
+    private sealed class AlwaysValidTimeline : IPlannedTimelineValidationService
+    {
+        public Task<PlannedTimelineValidationResult> ValidateAsync(
+            PlannedTimelineCandidate candidate, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlannedTimelineValidationResult(Array.Empty<string>()));
     }
 
     private static PlanApprovalService CreateApproval(ApplicationDbContext db, RecordingNotifications notifications) =>
