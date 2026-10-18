@@ -567,6 +567,60 @@ public class PlanApprovalPublicationTests
     }
 
     [Fact]
+    public async Task SamePlanVersion_ResubmissionInvalidatesOldReviewTokensForBothDecisions()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var pending = await SeedAsync(db, true, false, true, false);
+        pending.SubmittedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero);
+        await db.SaveChangesAsync();
+        var originalSubmission = pending.SubmittedOn;
+        var published = await PublishedStateAsync(db);
+        var notifications = new RecordingNotifications();
+        var decisions = CreateApproval(db, notifications);
+
+        Assert.True(await decisions.RejectVersionAsync(
+            pending.Id, "hod-reviewer", false, true, "Revise", expectedProjectId: 1,
+            verifySubmissionIdentity: true, expectedSubmittedOn: originalSubmission));
+
+        // A rejected plan returns to Draft, so the PO edits and submits the same
+        // PlanVersionId. Even on the fixed test clock its submission epoch changes.
+        await decisions.SubmitAsync(1, "po-user");
+        db.ChangeTracker.Clear();
+        var resubmitted = await db.PlanVersions.SingleAsync(plan => plan.Id == pending.Id);
+        Assert.Equal(PlanVersionStatus.PendingApproval, resubmitted.Status);
+        Assert.NotNull(resubmitted.SubmittedOn);
+        Assert.True(resubmitted.SubmittedOn > originalSubmission);
+
+        Assert.False(await decisions.ApproveVersionAsync(
+            pending.Id, "second-hod", false, true, expectedProjectId: 1,
+            verifySubmissionIdentity: true, expectedSubmittedOn: originalSubmission));
+        Assert.False(await decisions.RejectVersionAsync(
+            pending.Id, "second-hod", false, true, "Old tab", expectedProjectId: 1,
+            verifySubmissionIdentity: true, expectedSubmittedOn: originalSubmission));
+        Assert.False(await decisions.ApproveVersionAsync(
+            pending.Id, "second-hod", false, true, expectedProjectId: 1,
+            verifySubmissionIdentity: true, expectedSubmittedOn: null));
+
+        db.ChangeTracker.Clear();
+        Assert.Equal(published, await PublishedStateAsync(db));
+        Assert.Equal(PlanVersionStatus.PendingApproval, (await db.PlanVersions.SingleAsync(p => p.Id == pending.Id)).Status);
+        Assert.Empty(await db.ProjectPlanSnapshots.ToListAsync());
+        Assert.Single(await db.PlanApprovalLogs.ToListAsync());
+        Assert.Equal(0, notifications.Approvals);
+        Assert.Equal(1, notifications.Rejections);
+
+        // A fresh review carrying the new submission epoch is still actionable.
+        Assert.True(await decisions.ApproveVersionAsync(
+            pending.Id, "second-hod", false, true, expectedProjectId: 1,
+            verifySubmissionIdentity: true, expectedSubmittedOn: resubmitted.SubmittedOn));
+        Assert.Equal(1, notifications.Approvals);
+    }
+
+    [Fact]
     public async Task ExactComparison_UsesSelectedRevisionNotLatestPending()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
