@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Stages;
@@ -91,9 +92,9 @@ public sealed class PlanCompareService
     public async Task<PlanReviewSnapshot?> GetLatestPendingReviewAsync(
         int projectId, CancellationToken ct = default)
     {
-        var pendingId = await _db.PlanVersions
+        var pendingId = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
-            .Where(v => v.ProjectId == projectId && v.Status == PlanVersionStatus.PendingApproval)
+            .Where(v => v.ProjectId == projectId)
             .OrderByDescending(v => v.SubmittedOn)
             .ThenByDescending(v => v.VersionNo)
             .Select(v => (int?)v.Id)
