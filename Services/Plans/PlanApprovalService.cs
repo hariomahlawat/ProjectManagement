@@ -529,10 +529,10 @@ public class PlanApprovalService
         }
     }
 
-    // The existing review rule treats a replaced Pending submission as stale. Keep
-    // both overview and Decision Centre decisions consistent even if an automatic
-    // realignment creates another Pending version despite the PO submission lock.
-    // A revision older than the already published version cannot be reactivated.
+    // Supersession is durable: rejecting a newer submission returns it to Draft,
+    // but must never make an older pending revision actionable again. A later
+    // version that has been pending, approved or rejected supersedes earlier
+    // submissions; an ordinary unsubmitted Draft does not.
     private async Task<bool> IsCurrentReviewTargetAsync(PlanVersion plan, CancellationToken cancellationToken)
     {
         var activeVersion = await _db.Projects
@@ -544,16 +544,15 @@ public class PlanApprovalService
         if (activeVersion.HasValue && activeVersion.Value >= plan.VersionNo)
             return false;
 
-        var latestPendingId = await _db.PlanVersions
+        return !await _db.PlanVersions
             .AsNoTracking()
-            .Where(version => version.ProjectId == plan.ProjectId &&
-                              version.Status == PlanVersionStatus.PendingApproval)
-            .OrderByDescending(version => version.SubmittedOn)
-            .ThenByDescending(version => version.VersionNo)
-            .Select(version => (int?)version.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return latestPendingId == plan.Id;
+            .AnyAsync(version => version.ProjectId == plan.ProjectId &&
+                                 version.VersionNo > plan.VersionNo &&
+                                 (version.Status == PlanVersionStatus.PendingApproval ||
+                                  version.Status == PlanVersionStatus.Approved ||
+                                  version.RejectedOn != null ||
+                                  version.ApprovalLogs.Any()),
+                cancellationToken);
     }
 
     // Atomic compare-and-set inside the decision transaction. On a relational store
