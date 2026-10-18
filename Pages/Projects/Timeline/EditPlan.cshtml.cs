@@ -498,16 +498,6 @@ public class EditPlanModel : PageModel
             await using var publication = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
             var baseline = await PublishedPlanningBaseline.LoadAsync(_db, id, ct);
             var publishedProject = await _db.Projects.SingleAsync(project => project.Id == id, ct);
-            var originalStages = await _db.ProjectStages
-                .AsNoTracking()
-                .Where(stage => stage.ProjectId == id && !string.IsNullOrWhiteSpace(stage.StageCode))
-                .Select(stage => new PlannedTimelineStage(
-                    stage.StageCode,
-                    stage.PlannedStart,
-                    stage.PlannedDue,
-                    stage.Status == StageStatus.Skipped,
-                    stage.SortOrder))
-                .ToListAsync(ct);
             var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
             if (settings is null)
             {
