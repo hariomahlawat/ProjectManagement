@@ -52,14 +52,20 @@ public sealed class PlanReadService
         var scheduleSettings = baseline.Settings;
         var durationRows = baseline.Durations;
 
+        // Evaluate actionability in the SAME statement that loads candidates.
+        // A separate pending-ID read would permit another submission to change
+        // revision identity before the editor reads status and ownership.
+        var actionablePending = PlanRevisionConsistency.ActionablePending(_db);
         var planCandidates = await _db.PlanVersions
             .AsNoTracking()
+            .AsSingleQuery() // Keep status, actor metadata and child rows in one statement snapshot.
             .Include(p => p.StagePlans)
             .Include(p => p.SubmittedByUser)
             .Include(p => p.RejectedByUser)
             .Include(p => p.ApprovalLogs).ThenInclude(log => log.PerformedByUser)
             .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
+                        (p.Status == PlanVersionStatus.Draft ||
+                         (p.Status == PlanVersionStatus.PendingApproval && actionablePending.Any(pending => pending.Id == p.Id))))
             .ToListAsync(cancellationToken);
 
         var pendingPlan = planCandidates

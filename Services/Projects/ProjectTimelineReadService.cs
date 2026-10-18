@@ -13,6 +13,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
@@ -380,13 +381,16 @@ public sealed class ProjectTimelineReadService
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);
 
-        var openPlan = await _db.PlanVersions
-            .AsNoTracking()
-            .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
-            .OrderByDescending(p => p.Status)
-            .ThenByDescending(p => p.VersionNo)
-            .Select(p => new { p.Status })
+        // The pending indicator and draft-existence indicator must come from
+        // the same revision state, even if another actor submits during this read.
+        var actionablePending = PlanRevisionConsistency.ActionablePending(_db);
+        var openPlan = await _db.PlanVersions.AsNoTracking()
+            .Where(plan => plan.ProjectId == projectId &&
+                           (plan.Status == PlanVersionStatus.Draft ||
+                            actionablePending.Any(pending => pending.Id == plan.Id)))
+            .OrderByDescending(plan => plan.Status == PlanVersionStatus.PendingApproval)
+            .ThenByDescending(plan => plan.VersionNo)
+            .Select(plan => new { plan.Status })
             .FirstOrDefaultAsync(ct);
 
         var approvalInfo = await _db.Projects

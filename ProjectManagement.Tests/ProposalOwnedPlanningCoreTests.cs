@@ -53,7 +53,7 @@ public sealed class ProposalOwnedPlanningCoreTests
     }
 
     [Fact]
-    public async Task NewDraft_PublishedBaselineIsCoherentWhenPublicationInterleavesBetweenReadCommands()
+    public async Task PublishedBaseline_IsCoherentAcrossPublication_AndLaterDraftUsesCommittedRevision()
     {
         await using var connection = new SqliteConnection($"Data Source=proposal-baseline-{Guid.NewGuid():N};Mode=Memory;Cache=Shared;Foreign Keys=False");
         await connection.OpenAsync();
@@ -80,22 +80,37 @@ public sealed class ProposalOwnedPlanningCoreTests
             await transaction.CommitAsync();
         };
 
-        var draft = await Service(db, "actor").CreateOrGetDraftAsync(1);
+        // The source snapshot is one SQL statement: a later publication must not
+        // retroactively change any of the baseline's captured inputs.
+        var old = await PublishedPlanningBaseline.LoadAsync(db, 1);
+        Assert.False(old.PncApplicable);
+        Assert.Equal(new DateOnly(2026, 11, 1), old.Settings?.AnchorStart);
+        Assert.Equal(5, old.Durations.Single(row => row.StageCode == StageCodes.FS).DurationDays);
+        Assert.Equal(new DateOnly(2026, 11, 2),
+            old.Stages.Single(row => row.StageCode == StageCodes.FS).PlannedStart);
 
-        Assert.True(observer.Published, "A complete publication must commit after the first baseline read and before the next service query.");
-        Assert.False(draft.PncApplicable);
-        Assert.Equal(new DateOnly(2026, 11, 1), draft.AnchorDate);
-        Assert.False(draft.SkipWeekends);
-        Assert.False(draft.SkipHolidays);
-        Assert.Equal(PlanTransitionRule.SameDay, draft.TransitionRule);
-        var fs = Assert.Single(draft.StagePlans, row => row.StageCode == StageCodes.FS);
-        Assert.Equal(5, fs.DurationDays);
-        Assert.Equal(10, fs.SortOrder);
-        Assert.Equal(new DateOnly(2026, 11, 2), fs.PlannedStart);
-        Assert.Equal(new DateOnly(2026, 11, 6), fs.PlannedDue);
+        // The next read triggers an independent full publication after the
+        // snapshot's reader has been materialized. It must not occur mid-snapshot.
+        await db.ProjectStages.AsNoTracking().ToListAsync();
+        Assert.True(observer.Published);
         Assert.True((await db.Projects.AsNoTracking().SingleAsync()).PncApplicable);
-        Assert.Equal(new DateOnly(2026, 11, 10), (await db.ProjectScheduleSettings.AsNoTracking().SingleAsync()).AnchorStart);
-        Assert.Equal(12, (await db.ProjectPlanDurations.AsNoTracking().SingleAsync(row => row.StageCode == StageCodes.FS)).DurationDays);
+
+        // Draft allocation now loads accepted planning inputs *inside* its
+        // project gate, so a later draft reflects the newer committed baseline.
+        var draft = await Service(db, "actor").CreateOrGetDraftAsync(1);
+        Assert.True(draft.PncApplicable);
+        Assert.Equal(new DateOnly(2026, 11, 10), draft.AnchorDate);
+        Assert.True(draft.SkipWeekends);
+        Assert.True(draft.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.NextWorkingDay, draft.TransitionRule);
+        var fs = Assert.Single(draft.StagePlans, row => row.StageCode == StageCodes.FS);
+        Assert.Equal(12, fs.DurationDays);
+        // Configured workflow ordering takes precedence over compatibility-row order.
+        Assert.Equal(10, fs.SortOrder);
+        Assert.Equal(new DateOnly(2026, 11, 10), fs.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 11, 21), fs.PlannedDue);
+        Assert.Equal(new DateOnly(2026, 11, 10),
+            (await db.ProjectScheduleSettings.AsNoTracking().SingleAsync()).AnchorStart);
     }
 
     [Fact]
@@ -564,7 +579,8 @@ public sealed class ProposalOwnedPlanningCoreTests
                     Published = true;
                     await PublishAsync();
                 }
-                else if (command.CommandText.Contains("FROM \"Projects\"", StringComparison.Ordinal))
+                else if (command.CommandText.Contains("FROM \"Projects\"", StringComparison.Ordinal) &&
+                         command.CommandText.Contains("\"PublishedPlanningInputVersion\"", StringComparison.Ordinal))
                 {
                     _baselineReadStarted = true;
                 }

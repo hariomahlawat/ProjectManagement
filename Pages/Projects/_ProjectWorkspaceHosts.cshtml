@@ -47,10 +47,9 @@
         @{
             ViewBag.ProjectId = Model.Project.Id;
             ViewBag.HasBackfill = Model.HasBackfill;
-            ViewBag.PlanState = Model.PlanEdit?.State ?? new ProjectManagement.ViewModels.PlanEditorStateVm();
             ViewBag.WorkflowVersion = Model.Project.WorkflowVersion;
-            var differences = await Model.PlanCompare.GetDraftVsCurrentAsync(Model.Project.Id);
-            await Html.RenderPartialAsync("~/Pages/Projects/Timeline/_ReviewPlan.cshtml", differences ?? Array.Empty<ProjectManagement.Services.Stages.PlanDiffRow>());
+            var review = await Model.PlanCompare.GetLatestPendingReviewAsync(Model.Project.Id);
+            await Html.RenderPartialAsync("~/Pages/Projects/Timeline/_ReviewPlan.cshtml", review);
         }
     </div>
 </div>

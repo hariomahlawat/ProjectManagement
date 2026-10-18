@@ -1,4 +1,4 @@
-@model IReadOnlyList<ProjectManagement.Services.Stages.PlanDiffRow>
+@model ProjectManagement.Services.Stages.PlanReviewSnapshot
 @inject ProjectManagement.Models.Stages.IWorkflowStageMetadataProvider WorkflowStageMetadataProvider
 
 @{
@@ -7,18 +7,15 @@
 @using System.Linq
 @using ProjectManagement.Models.Plans
 @using ProjectManagement.Models.Stages
-@using ProjectManagement.ViewModels
 
 @{
-    var planState = ViewBag.PlanState as PlanEditorStateVm;
-    var status = planState?.Status;
-    var isPending = status == PlanVersionStatus.PendingApproval;
+    var isPending = Model?.Status == PlanVersionStatus.PendingApproval;
     var requiresBackfill = ViewBag.HasBackfill is bool hb && hb;
-    var submittedOn = planState?.SubmittedOn;
-    var submittedBy = planState?.SubmittedBy;
+    var submittedOn = Model?.SubmittedOn;
+    var submittedBy = Model?.SubmittedBy;
 }
 
-@if (Model is null || Model.Count == 0)
+@if (Model is null)
 {
     <div class="alert alert-secondary">No draft plan found to review.</div>
     <div class="text-end">
@@ -28,14 +25,15 @@
 else
 {
     <div class="small text-muted mb-2">
-        <span>Draft plan compared against the current timeline.</span>
+        <span>Submitted revision #@Model.VersionNo (ID @Model.PlanVersionId) compared against the current timeline.</span>
     </div>
 
-    @* show reason if this draft was auto created due to late completion *@
-    @if (TempData["RealignmentInfo"] is string ri)
+    @if (!string.IsNullOrWhiteSpace(Model.RealignmentSourceStageCode) &&
+         Model.RealignmentDelayDays.HasValue)
     {
         <div class="alert alert-info mb-2">
-            @ri
+            This revision was auto-generated because stage @Model.RealignmentSourceStageCode
+            finished @Model.RealignmentDelayDays days late.
         </div>
     }
 
@@ -59,7 +57,7 @@ else
         <div class="alert alert-warning">Some earlier stages were auto-completed and still need dates or costs (procurement backfill pending). This does not block approval of the timeline, but should be addressed separately in the procurement details.</div>
     }
 
-    var hasChanges = Model.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
+    var hasChanges = Model.Rows.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
 
     @if (!hasChanges)
     {
@@ -76,7 +74,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var row in Model)
+                @foreach (var row in Model.Rows)
                 {
                     var changed = row.OldStart != row.NewStart || row.OldDue != row.NewDue;
                     <tr class="@(changed ? "table-warning" : "table-secondary")">
@@ -96,12 +94,12 @@ else
         </table>
     </div>
 
-    if (planState?.ApprovalHistory is { Count: > 0 })
+    if (Model.ApprovalHistory.Count > 0)
     {
         <div class="mt-3">
             <h6 class="fw-semibold">Recent approval activity</h6>
             <ul class="list-unstyled mb-0">
-                @foreach (var entry in planState.ApprovalHistory)
+                @foreach (var entry in Model.ApprovalHistory)
                 {
                     <li class="small mb-1">
                         <strong>@entry.Action</strong>
@@ -127,6 +125,8 @@ else
           data-plan-review-form="true">
         @Html.AntiForgeryToken()
         <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
+        <input type="hidden" name="Input.PlanVersionId" value="@Model.PlanVersionId" />
+        <input type="hidden" name="Input.SubmittedOn" value="@(Model.SubmittedOn?.ToString("O"))" />
         <div class="d-flex gap-2 justify-content-end">
             <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary" @(isPending ? null : "disabled") data-plan-review-reject="true">Reject</button>
             <button name="Input.Decision" value="Approve" class="btn btn-primary" @(!isPending ? "disabled" : null)>Approve plan</button>

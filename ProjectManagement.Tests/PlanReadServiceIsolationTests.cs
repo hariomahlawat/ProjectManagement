@@ -1,4 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Data.Sqlite;
+using System.Data.Common;
+using System.Threading;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -21,7 +25,7 @@ public class PlanReadServiceIsolationTests
         await using var db = CreateDb();
         await SeedAsync(db);
         var mine = new PlanVersion {
-            ProjectId = 1, OwnerUserId = "actor", CreatedByUserId = "actor", VersionNo = 2, Status = status,
+            ProjectId = 1, OwnerUserId = "actor", CreatedByUserId = "actor", VersionNo = 6, Status = status,
             AnchorDate = new DateOnly(2026, 11, 10), SkipWeekends = false, SkipHolidays = false,
             TransitionRule = PlanTransitionRule.SameDay, PncApplicable = false,
             SubmittedOn = status == PlanVersionStatus.PendingApproval ? new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero) : null,
@@ -48,6 +52,45 @@ public class PlanReadServiceIsolationTests
         Assert.True(vm.State.HasPendingSubmission);
         Assert.Equal(status == PlanVersionStatus.PendingApproval, vm.State.IsLocked);
         Assert.Equal(PlanEditorModes.Durations, vm.ActiveMode);
+    }
+
+    [Fact]
+    public async Task SupersededPending_DoesNotLockCorrectedRejectedDraftInEditor()
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+        var older = await db.PlanVersions.SingleAsync(p => p.VersionNo == 4);
+        older.OwnerUserId = "actor";
+        older.SubmittedByUserId = "actor";
+        var corrected = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 6, Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "actor", OwnerUserId = "actor",
+            RejectedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero),
+            PlanningInputVersion = PlanningInputVersions.Current,
+            AnchorDate = new DateOnly(2026, 12, 5),
+            StagePlans = new() { new() { StageCode = StageCodes.FS, DurationDays = 9 } }
+        };
+        db.PlanVersions.Add(corrected);
+        await db.SaveChangesAsync();
+
+        var vm = await new PlanReadService(db).GetAsync(1, "actor");
+        Assert.True(vm.State.HasDraft);
+        Assert.True(vm.State.HasMyDraft);
+        Assert.False(vm.State.IsLocked);
+        Assert.False(vm.State.HasPendingSubmission);
+        Assert.True(vm.State.CanSubmit);
+        Assert.Null(vm.State.PendingSubmittedOn);
+        Assert.Equal(PlanVersionStatus.Draft, vm.State.Status);
+        Assert.Equal(6, vm.State.VersionNo);
+        Assert.Equal(new DateOnly(2026, 12, 5), vm.Durations.AnchorStart);
+        Assert.Equal(9, vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
+
+        var other = await new PlanReadService(db).GetAsync(1, "uninvolved");
+        Assert.False(other.State.HasPendingSubmission);
+        Assert.True(other.State.CanSubmit);
+        Assert.False(other.State.IsLocked);
+        Assert.DoesNotContain(other.Durations.Rows, r => r.Code == "OTHER-ONLY");
     }
 
     [Fact]
@@ -219,6 +262,75 @@ public class PlanReadServiceIsolationTests
         Assert.Null(duration.PreviewStart);
         Assert.Null(duration.PreviewDue);
         Assert.NotNull((await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC)).PlannedStart);
+    }
+
+    [Fact]
+    public async Task PendingActionabilityAndEditorCandidatesUseOneRevisionEpoch()
+    {
+        await using var connection = new SqliteConnection(
+            $"Data Source=editor-revision-{Guid.NewGuid():N};Mode=Memory;Cache=Shared;Foreign Keys=False");
+        await connection.OpenAsync();
+        var race = new SubmitNewerAtCandidateRead();
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlite(connection).AddInterceptors(race).Options);
+        await db.Database.EnsureCreatedAsync();
+        await SeedAsync(db);
+        (await db.PlanVersions.SingleAsync(p => p.VersionNo == 5)).PlanningInputVersion =
+            PlanningInputVersions.Current;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        // Submit N+1 immediately before the editor's first candidate SELECT.
+        // A prior standalone actionable-ID query would capture N, then show
+        // stale N after this transition and miss the newly submitted N+1.
+        race.SubmitAsync = async () =>
+        {
+            await using var writerConnection = new SqliteConnection(connection.ConnectionString);
+            await writerConnection.OpenAsync();
+            await using var writer = new ApplicationDbContext(
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseSqlite(writerConnection).Options);
+            await writer.PlanVersions.Where(p => p.ProjectId == 1 && p.VersionNo == 5)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(p => p.Status, PlanVersionStatus.PendingApproval)
+                    .SetProperty(p => p.SubmittedByUserId, "third-user")
+                    .SetProperty(p => p.SubmittedOn,
+                        new DateTimeOffset(2026, 10, 18, 0, 0, 0, TimeSpan.Zero)));
+        };
+
+        var vm = await new PlanReadService(db).GetAsync(1, "third-user");
+        Assert.True(race.Submitted);
+        Assert.True(vm.State.IsLocked);
+        Assert.True(vm.State.HasPendingSubmission);
+        Assert.True(vm.State.PendingOwnedByCurrentUser);
+        Assert.Equal(5, vm.State.VersionNo);
+        Assert.Equal(PlanVersionStatus.PendingApproval, vm.State.Status);
+        Assert.Equal(new DateTimeOffset(2026, 10, 18, 0, 0, 0, TimeSpan.Zero),
+            vm.State.PendingSubmittedOn);
+        Assert.Equal(new DateOnly(2029, 1, 1), vm.Durations.AnchorStart);
+        Assert.DoesNotContain(vm.Durations.Rows, row => row.Code == "OTHER-ONLY");
+    }
+
+    private sealed class SubmitNewerAtCandidateRead : DbCommandInterceptor
+    {
+        public Func<Task>? SubmitAsync { get; set; }
+        public bool Submitted { get; private set; }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (!Submitted && SubmitAsync is not null &&
+                command.CommandText.Contains("PlanVersions", StringComparison.Ordinal) &&
+                command.CommandText.Contains("StagePlans", StringComparison.Ordinal))
+            {
+                Submitted = true;
+                await SubmitAsync();
+            }
+
+            return result;
+        }
     }
 
     private static ApplicationDbContext CreateDb() => new(new DbContextOptionsBuilder<ApplicationDbContext>()

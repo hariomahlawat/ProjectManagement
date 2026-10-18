@@ -42,7 +42,8 @@ public sealed class DetailsModel : PageModel
     public string? ErrorMessage => TempData["Error"] as string;
     public bool IsPending { get; private set; }
     public bool CanApprove => IsPending && Detail.Item.Readiness == ApprovalReadiness.Ready;
-    public bool CanReject => IsPending;
+    public bool CanReject => IsPending && (Detail.Item.ApprovalType != ApprovalQueueType.PlanApproval ||
+                                               Detail.Item.Readiness == ApprovalReadiness.Ready);
     public string CurrentStatus { get; private set; } = "Pending";
     public string? DecidedByName { get; private set; }
     public DateTimeOffset? DecidedAtUtc { get; private set; }
@@ -67,6 +68,7 @@ public sealed class DetailsModel : PageModel
             ApprovalType = detail.Item.ApprovalType,
             RequestId = detail.Item.RequestId,
             RowVersion = detail.Item.ConcurrencyToken,
+            SubmittedOn = detail.PlanApproval?.SubmittedOnUtc,
             ReturnUrl = ReturnUrl
         };
 
@@ -81,6 +83,7 @@ public sealed class DetailsModel : PageModel
         [Required] public string Decision { get; set; } = string.Empty;
         [MaxLength(2000)] public string? Remarks { get; set; }
         public string? RowVersion { get; set; }
+        public DateTimeOffset? SubmittedOn { get; set; }
         public string? ReturnUrl { get; set; }
     }
 

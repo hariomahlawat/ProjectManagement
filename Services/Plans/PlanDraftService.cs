@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
@@ -57,10 +58,9 @@ public class PlanDraftService
             return myDraft;
         }
 
-        var hasPending = await _db.PlanVersions
+        var hasPending = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
             .AnyAsync(p => p.ProjectId == projectId &&
-                           p.Status == PlanVersionStatus.PendingApproval &&
                            (p.OwnerUserId == userId || (p.OwnerUserId == null && p.CreatedByUserId == userId)),
                 cancellationToken);
 
@@ -124,6 +124,17 @@ public class PlanDraftService
                 : PlanDraftDeleteResult.NotFound;
         }
 
+        // A rejected draft is still an authoritative submitted revision. Removing
+        // it would cascade its approval logs and could reactivate an older pending
+        // version that this revision superseded. Only never-submitted drafts may
+        // be discarded; retaining the version also retains its decision history.
+        if (plan.SubmittedOn.HasValue || plan.RejectedOn.HasValue ||
+            await _db.PlanApprovalLogs.AsNoTracking().AnyAsync(
+                log => log.PlanVersionId == plan.Id, cancellationToken))
+        {
+            return PlanDraftDeleteResult.Conflict;
+        }
+
         if (plan.StagePlans.Count > 0)
         {
             _db.StagePlans.RemoveRange(plan.StagePlans);
@@ -141,15 +152,51 @@ public class PlanDraftService
 
     private async Task<PlanVersion> CreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken)
     {
-        var latestVersion = await _db.PlanVersions
-            .Where(p => p.ProjectId == projectId)
-            .Select(p => (int?)p.VersionNo)
-            .MaxAsync(cancellationToken) ?? 0;
+        // Hold the same project gate as publication/realignment for both the
+        // published-input snapshot and version allocation. Neither operation may
+        // observe a different accepted planning revision.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(
+            _db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
 
+        var existing = await _db.PlanVersions.Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (existing is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return existing;
+        }
+
+        var pendingMine = await PlanRevisionConsistency.ActionablePending(_db)
+            .AnyAsync(p => p.ProjectId == projectId &&
+                           (p.OwnerUserId == userId ||
+                            (p.OwnerUserId == null && p.CreatedByUserId == userId)),
+                cancellationToken);
+        if (pendingMine)
+            throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
+
+        var orphan = await _db.PlanVersions.Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == null && p.CreatedByUserId == userId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (orphan is not null)
+        {
+            orphan.OwnerUserId = userId;
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return orphan;
+        }
+
+        // Initialize only after the gate and the duplicate/ownership checks.
+        // In particular, no realignment can publish or insert between capturing
+        // the official dates and assigning this draft's revision number.
         var plan = new PlanVersion
         {
             ProjectId = projectId,
-            VersionNo = latestVersion + 1,
             Title = PlanVersion.ProjectTimelineTitle,
             Status = PlanVersionStatus.Draft,
             CreatedByUserId = userId,
@@ -159,9 +206,13 @@ public class PlanDraftService
         };
         await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
 
+        var latestVersion = await _db.PlanVersions
+            .Where(p => p.ProjectId == projectId)
+            .MaxAsync(p => (int?)p.VersionNo, cancellationToken) ?? 0;
+        plan.VersionNo = latestVersion + 1;
         _db.PlanVersions.Add(plan);
         await _db.SaveChangesAsync(cancellationToken);
-
+        await transaction.CommitAsync(cancellationToken);
         return plan;
     }
 

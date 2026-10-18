@@ -46,7 +46,8 @@ public class DecideModel : PageModel
             Input.RequestId,
             action,
             Input.Remarks,
-            Input.RowVersion);
+            Input.RowVersion,
+            Input.SubmittedOn);
 
         var result = await _decisionService.DecideAsync(request, User, cancellationToken);
 
@@ -80,6 +81,7 @@ public class DecideModel : PageModel
         public string Decision { get; set; } = string.Empty;
         public string? Remarks { get; set; }
         public string? RowVersion { get; set; }
+        public DateTimeOffset? SubmittedOn { get; set; }
         public string? ReturnUrl { get; set; }
     }
 

@@ -215,11 +215,11 @@ public sealed class ApprovalDecisionService
             return ApprovalDecisionResult.AlreadyDecided("This timeline request is no longer pending.");
         }
 
-        // The legacy domain service acts on the latest pending version. Verify that the
-        // exact version reviewed in the Decision Centre is still that version before use.
-        var currentPendingId = await _db.PlanVersions
+        // Preserve the Decision Centre's specific supersession feedback. The exact-version
+        // service repeats the actionability check inside the decision transaction.
+        var currentPendingId = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
-            .Where(plan => plan.ProjectId == selectedPlan.ProjectId && plan.Status == PlanVersionStatus.PendingApproval)
+            .Where(plan => plan.ProjectId == selectedPlan.ProjectId)
             .OrderByDescending(plan => plan.SubmittedOn)
             .ThenByDescending(plan => plan.VersionNo)
             .Select(plan => (int?)plan.Id)
@@ -234,10 +234,13 @@ public sealed class ApprovalDecisionService
         {
             if (request.Decision == ApprovalDecisionAction.Approve)
             {
-                var approved = await _planApprovalService.ApproveVersionAsync(selectedPlan.Id, userId, isAdmin, isHoD, cancellationToken);
+                var approved = await _planApprovalService.ApproveVersionAsync(
+                    selectedPlan.Id, userId, isAdmin, isHoD, cancellationToken,
+                    expectedProjectId: selectedPlan.ProjectId,
+                    verifySubmissionIdentity: true, expectedSubmittedOn: request.SubmittedOn);
                 return approved
                     ? ApprovalDecisionResult.Success("Timeline approved and activated.")
-                    : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
+                    : ApprovalDecisionResult.AlreadyDecided("This timeline submission changed or is no longer actionable. Refresh and review it again.");
             }
 
             var rejected = await _planApprovalService.RejectVersionAsync(
@@ -246,11 +249,13 @@ public sealed class ApprovalDecisionService
                 isAdmin,
                 isHoD,
                 request.Remarks,
-                cancellationToken);
+                cancellationToken,
+                expectedProjectId: selectedPlan.ProjectId,
+                verifySubmissionIdentity: true, expectedSubmittedOn: request.SubmittedOn);
 
             return rejected
                 ? ApprovalDecisionResult.Success("Timeline returned to the Project Officer.")
-                : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
+                : ApprovalDecisionResult.AlreadyDecided("This timeline submission changed or is no longer actionable. Refresh and review it again.");
         }
         catch (PlanApprovalValidationException ex)
         {

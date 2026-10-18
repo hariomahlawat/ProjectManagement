@@ -269,7 +269,8 @@ public sealed record ApprovalDecisionRequest(
     string RequestId,
     ApprovalDecisionAction Decision,
     string? Remarks,
-    string? RowVersion);
+    string? RowVersion,
+    DateTimeOffset? SubmittedOn = null);
 
 public sealed record ApprovalDecisionResult(ApprovalDecisionOutcome Outcome, string? Message)
 {

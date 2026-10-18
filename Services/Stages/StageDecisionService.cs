@@ -307,6 +307,9 @@ public sealed class StageDecisionService
         await using var transaction = useTransaction
             ? await _db.Database.BeginTransactionAsync(cancellationToken)
             : null;
+        // Acquire before stage mutation, so a nested realignment cannot introduce
+        // a higher plan revision during concurrent timeline publication.
+        await PlanRevisionConsistency.LockProjectAsync(_db, stage.ProjectId, cancellationToken);
 
         // Claim the still-pending request atomically before changing lifecycle state.
         // This closes the race where two HoDs open the same request and approve it

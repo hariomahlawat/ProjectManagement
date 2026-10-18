@@ -7,8 +7,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore; // <- add
-using ProjectManagement.Data;        // <- add
 using ProjectManagement.Models;
 using ProjectManagement.Helpers;
 using ProjectManagement.Services.Plans;
@@ -24,25 +22,24 @@ public class ReviewModel : PageModel
     private readonly ProjectTimelineReadService _timeline;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<ReviewModel> _logger;
-    private readonly ApplicationDbContext _db; // <- add
 
     public ReviewModel(
         PlanApprovalService approval,
         ProjectTimelineReadService timeline,
         UserManager<ApplicationUser> users,
-        ILogger<ReviewModel> logger,
-        ApplicationDbContext db) // <- add
+        ILogger<ReviewModel> logger)
     {
         _approval = approval;
         _timeline = timeline;
         _users = users;
         _logger = logger;
-        _db = db; // <- add
     }
 
     public sealed class InputModel
     {
         public int ProjectId { get; set; }
+        public int PlanVersionId { get; set; }
+        public DateTimeOffset? SubmittedOn { get; set; }
         public string Decision { get; set; } = string.Empty;
         public string? Note { get; set; }
     }
@@ -54,7 +51,7 @@ public class ReviewModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken ct)
     {
-        if (id != Input.ProjectId)
+        if (id != Input.ProjectId || Input.PlanVersionId <= 0)
         {
             return BadRequest();
         }
@@ -69,14 +66,12 @@ public class ReviewModel : PageModel
         var isAdmin = User.IsInRole("Admin");
         var isHoD = User.IsInRole("HoD");
 
-        // NEW: try to detect if the latest pending plan is an auto realignment and surface it
-        await LoadRealignmentInfoAsync(id, ct);
-
         try
         {
             if (string.Equals(Input.Decision, "Reject", StringComparison.OrdinalIgnoreCase))
             {
-                var rejected = await _approval.RejectLatestPendingAsync(id, userId, isAdmin, isHoD, Input.Note, ct);
+                var rejected = await _approval.RejectVersionAsync(Input.PlanVersionId, userId, isAdmin, isHoD, Input.Note, ct,
+                    expectedProjectId: id, verifySubmissionIdentity: true, expectedSubmittedOn: Input.SubmittedOn);
                 if (rejected)
                 {
                     TempData["Flash"] = "Draft rejected and returned to the Project Officer.";
@@ -84,7 +79,7 @@ public class ReviewModel : PageModel
                     return RedirectToPage("/Projects/Overview", new { id });
                 }
 
-                TempData["Error"] = "No pending draft found to reject.";
+                TempData["Error"] = "This plan submission changed, is no longer actionable, or does not belong to this project. Refresh and review the current submission.";
                 TempData["OpenOffcanvas"] = "plan-review";
                 _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 return RedirectToPage("/Projects/Overview", new { id });
@@ -92,7 +87,8 @@ public class ReviewModel : PageModel
 
             if (string.Equals(Input.Decision, "Approve", StringComparison.OrdinalIgnoreCase))
             {
-                var approved = await _approval.ApproveLatestDraftAsync(id, userId, isAdmin, isHoD, ct);
+                var approved = await _approval.ApproveVersionAsync(Input.PlanVersionId, userId, isAdmin, isHoD, ct,
+                    expectedProjectId: id, verifySubmissionIdentity: true, expectedSubmittedOn: Input.SubmittedOn);
                 if (approved)
                 {
                     TempData["Flash"] = "Plan approved.";
@@ -100,7 +96,7 @@ public class ReviewModel : PageModel
                 }
                 else
                 {
-                    TempData["Error"] = "No draft to approve.";
+                    TempData["Error"] = "This plan submission changed, is no longer actionable, or does not belong to this project. Refresh and review the current submission.";
                     TempData["OpenOffcanvas"] = "plan-review";
                     _logger.LogWarning("Plan approval attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 }
@@ -140,29 +136,4 @@ public class ReviewModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    // NEW helper
-    private async Task LoadRealignmentInfoAsync(int projectId, CancellationToken ct)
-    {
-        // get latest pending plan for this project
-        var plan = await _db.PlanVersions
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Status == Models.Plans.PlanVersionStatus.PendingApproval,
-                                 ct);
-
-        if (plan is null)
-        {
-            return;
-        }
-
-        // see if there is a realignment audit attached to this version
-        var audit = await _db.PlanRealignmentAudits
-            .FirstOrDefaultAsync(a => a.ProjectId == projectId && a.PlanVersionNo == plan.VersionNo, ct);
-
-        if (audit is null)
-        {
-            return;
-        }
-
-        TempData["RealignmentInfo"] =
-            $"This plan was auto-generated because stage {audit.SourceStageCode} finished {audit.DelayDays} days late.";
-    }
 }
