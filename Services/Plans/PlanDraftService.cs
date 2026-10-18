@@ -124,6 +124,17 @@ public class PlanDraftService
                 : PlanDraftDeleteResult.NotFound;
         }
 
+        // A rejected draft is still an authoritative submitted revision. Removing
+        // it would cascade its approval logs and could reactivate an older pending
+        // version that this revision superseded. Only never-submitted drafts may
+        // be discarded; retaining the version also retains its decision history.
+        if (plan.SubmittedOn.HasValue || plan.RejectedOn.HasValue ||
+            await _db.PlanApprovalLogs.AsNoTracking().AnyAsync(
+                log => log.PlanVersionId == plan.Id, cancellationToken))
+        {
+            return PlanDraftDeleteResult.Conflict;
+        }
+
         if (plan.StagePlans.Count > 0)
         {
             _db.StagePlans.RemoveRange(plan.StagePlans);
