@@ -25,6 +25,7 @@ internal static class PlanRevisionConcurrencyPostgresFixture
         await ConcurrentSubmissionsAsync(options);
         await RealignmentCreationHonoursProjectGateAsync(options);
         await DraftAndRealignmentAllocateDistinctVersionsAsync(options);
+        await DraftBaselineFollowsCommittedPublicationAsync(options);
     }
 
     private static async Task ConcurrentSubmissionsAsync(DbContextOptions<ApplicationDbContext> options)
@@ -212,6 +213,94 @@ internal static class PlanRevisionConcurrencyPostgresFixture
         Assert.Equal(PlanVersionStatus.PendingApproval,
             Assert.Single(versions, p => p.CreatedByUserId == "revision-actor-b").Status);
         Assert.Equal(3, versions.Select(p => p.VersionNo).Distinct().Count());
+    }
+
+    // Regression: reading accepted planning inputs before the project gate can
+    // allocate N+1 using dates/policy published before revision N was committed.
+    // Hold the gate, start a competing editor draft, publish a new authoritative
+    // baseline inside the holder, then prove the created draft uses that baseline.
+    private static async Task DraftBaselineFollowsCommittedPublicationAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        await using var seed = new ApplicationDbContext(options);
+        var project = new Project
+        {
+            Name = "Locked draft baseline publication",
+            CreatedByUserId = "revision-actor-a",
+            LeadPoUserId = "revision-actor-a",
+            RowVersion = Array.Empty<byte>(),
+            PncApplicable = false,
+            PublishedPlanningInputVersion = PlanningInputVersions.Current
+        };
+        seed.Projects.Add(project);
+        await seed.SaveChangesAsync();
+        seed.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = project.Id,
+            AnchorStart = new DateOnly(2026, 11, 1),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        seed.ProjectPlanDurations.Add(new ProjectPlanDuration
+        {
+            ProjectId = project.Id, StageCode = StageCodes.FS,
+            DurationDays = 4, SortOrder = 10
+        });
+        seed.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = project.Id, StageCode = StageCodes.FS,
+            Status = StageStatus.NotStarted, SortOrder = 10,
+            PlannedStart = new DateOnly(2026, 11, 1),
+            PlannedDue = new DateOnly(2026, 11, 4)
+        });
+        await seed.SaveChangesAsync();
+
+        await using var publisher = new ApplicationDbContext(options);
+        await using var heldTransaction = await publisher.Database.BeginTransactionAsync();
+        await PlanRevisionConsistency.LockProjectAsync(publisher, project.Id, default);
+
+        await using var actorDb = new ApplicationDbContext(options);
+        var draftTask = new PlanDraftService(actorDb, new FixedClock(),
+            NullLogger<PlanDraftService>.Instance, new NullAudit(),
+            new ActorContext("revision-actor-a"))
+            .CreateOrGetDraftAsync(project.Id);
+        await Task.Delay(100);
+        Assert.False(draftTask.IsCompleted);
+
+        (await publisher.Projects.SingleAsync(p => p.Id == project.Id)).PncApplicable = true;
+        var settings = await publisher.ProjectScheduleSettings.SingleAsync(p => p.ProjectId == project.Id);
+        settings.AnchorStart = new DateOnly(2026, 12, 1);
+        settings.IncludeWeekends = false;
+        settings.SkipHolidays = true;
+        settings.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
+        var duration = await publisher.ProjectPlanDurations.SingleAsync(p =>
+            p.ProjectId == project.Id && p.StageCode == StageCodes.FS);
+        duration.DurationDays = 9;
+        var stage = await publisher.ProjectStages.SingleAsync(p =>
+            p.ProjectId == project.Id && p.StageCode == StageCodes.FS);
+        stage.PlannedStart = new DateOnly(2026, 12, 1);
+        stage.PlannedDue = new DateOnly(2026, 12, 9);
+        await publisher.SaveChangesAsync();
+        await heldTransaction.CommitAsync();
+
+        var created = await draftTask.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.True(created.PncApplicable);
+        Assert.Equal(new DateOnly(2026, 12, 1), created.AnchorDate);
+        Assert.True(created.SkipWeekends);
+        Assert.True(created.SkipHolidays);
+        Assert.Equal(PlanTransitionRule.NextWorkingDay, created.TransitionRule);
+        var fs = Assert.Single(created.StagePlans, row => row.StageCode == StageCodes.FS);
+        Assert.Equal(9, fs.DurationDays);
+        Assert.Equal(new DateOnly(2026, 12, 1), fs.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 12, 9), fs.PlannedDue);
+
+        seed.ChangeTracker.Clear();
+        var stored = await seed.PlanVersions.AsNoTracking()
+            .Include(p => p.StagePlans)
+            .SingleAsync(p => p.Id == created.Id);
+        Assert.Equal(created.AnchorDate, stored.AnchorDate);
+        Assert.Equal(9, stored.StagePlans.Single(row => row.StageCode == StageCodes.FS).DurationDays);
     }
 
     private static async Task<bool> TrySubmitAsync(
