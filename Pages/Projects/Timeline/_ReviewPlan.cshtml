@@ -128,6 +128,7 @@ else
         @Html.AntiForgeryToken()
         <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
         <input type="hidden" name="Input.PlanVersionId" value="@Model.PlanVersionId" />
+        <input type="hidden" name="Input.SubmittedOn" value="@(Model.SubmittedOn?.ToString("O"))" />
         <div class="d-flex gap-2 justify-content-end">
             <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary" @(isPending ? null : "disabled") data-plan-review-reject="true">Reject</button>
             <button name="Input.Decision" value="Approve" class="btn btn-primary" @(!isPending ? "disabled" : null)>Approve plan</button>
