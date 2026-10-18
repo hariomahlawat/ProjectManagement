@@ -277,6 +277,262 @@ public class EditPlanDurationSafetyTests
     [Theory]
     [InlineData("HoD")]
     [InlineData("Admin")]
+    public async Task DirectExact_RejectsConfiguredPreAnchorPredecessorChangeWithoutAnyMutation(string role)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, persistAudit: true);
+        var project = await f.Db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        project.PncApplicable = false;
+        f.Db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = "CUSTOM",
+                Name = "Custom Review",
+                Sequence = 15
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.IPA,
+                Name = "In-Principle Approval",
+                Sequence = 20
+            });
+        f.Db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            FromStageCode = StageCodes.IPA,
+            DependsOnStageCode = "CUSTOM"
+        });
+        f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2026, 11, 1),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = "CUSTOM",
+                SortOrder = 15,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2026, 11, 1),
+                PlannedDue = new DateOnly(2026, 11, 10)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 20,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2026, 11, 11),
+                PlannedDue = new DateOnly(2026, 11, 12)
+            });
+        await f.Db.SaveChangesAsync();
+
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = new()
+        {
+            new()
+            {
+                Code = "CUSTOM",
+                Name = "Custom Review",
+                PlannedStart = new DateOnly(2026, 11, 1),
+                PlannedDue = new DateOnly(2026, 11, 15)
+            }
+        };
+        var before = await PlannerStateAsync(f.Db);
+        var auditBefore = await AuditStateAsync(f.Db);
+
+        var result = await f.Page.OnPostAsync(1, default);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("In-Principle Approval", Assert.IsType<string>(f.Page.TempData["Error"]));
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        Assert.Equal(auditBefore, await AuditStateAsync(f.Db));
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    public async Task DirectDuration_RejectsConfiguredGeneratedPredecessorChangeWithoutAnyMutation(string role)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, persistAudit: true);
+        var project = await f.Db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        project.PncApplicable = false;
+        f.Db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = "CUSTOM",
+                Name = "Custom Review",
+                Sequence = 15
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.IPA,
+                Name = "In-Principle Approval",
+                Sequence = 20
+            });
+        f.Db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            FromStageCode = StageCodes.IPA,
+            DependsOnStageCode = "CUSTOM"
+        });
+        f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2026, 11, 10),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration
+        {
+            ProjectId = 1,
+            StageCode = "CUSTOM",
+            DurationDays = 1,
+            SortOrder = 15
+        });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = "CUSTOM",
+                SortOrder = 15,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2026, 11, 10),
+                PlannedDue = new DateOnly(2026, 11, 10)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 20,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2026, 11, 11),
+                PlannedDue = new DateOnly(2026, 11, 12)
+            });
+        await f.Db.SaveChangesAsync();
+
+        f.Page.Input.Mode = PlanEditorModes.Durations;
+        f.Page.Input.AnchorStart = new DateOnly(2026, 11, 10);
+        f.Page.Input.IncludeWeekends = true;
+        f.Page.Input.SkipHolidays = false;
+        f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.SameDay;
+        f.Page.Input.Rows = new()
+        {
+            new() { Code = "CUSTOM", Name = "Custom Review", DurationDays = 6 }
+        };
+        var before = await PlannerStateAsync(f.Db);
+        var auditBefore = await AuditStateAsync(f.Db);
+
+        var result = await f.Page.OnPostAsync(1, default);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("In-Principle Approval", Assert.IsType<string>(f.Page.TempData["Error"]));
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        Assert.Equal(auditBefore, await AuditStateAsync(f.Db));
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    public async Task DirectDuration_RejectsPolicyOnlyChangeAcrossConfiguredPreAnchorPredecessorWithoutAnyMutation(string role)
+    {
+        await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, persistAudit: true);
+        var project = await f.Db.Projects.SingleAsync();
+        project.PublishedPlanningInputVersion = PlanningInputVersions.Current;
+        project.PncApplicable = false;
+        var fs = await f.Db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.FS);
+        fs.PlannedStart = null;
+        fs.PlannedDue = null;
+        f.Db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = "CUSTOM",
+                Name = "Custom Review",
+                Sequence = 15
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.IPA,
+                Name = "In-Principle Approval",
+                Sequence = 20
+            });
+        f.Db.StageDependencyTemplates.Add(new StageDependencyTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            FromStageCode = StageCodes.IPA,
+            DependsOnStageCode = "CUSTOM"
+        });
+        f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2026, 11, 10),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+        f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            DurationDays = 2,
+            SortOrder = 20
+        });
+        f.Db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = "CUSTOM",
+                SortOrder = 15,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2026, 11, 10),
+                PlannedDue = new DateOnly(2026, 11, 10)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 20,
+                Status = StageStatus.NotStarted,
+                PlannedStart = new DateOnly(2026, 11, 10),
+                PlannedDue = new DateOnly(2026, 11, 11)
+            });
+        await f.Db.SaveChangesAsync();
+
+        f.Page.Input.Mode = PlanEditorModes.Durations;
+        f.Page.Input.AnchorStart = new DateOnly(2026, 11, 10);
+        f.Page.Input.IncludeWeekends = true;
+        f.Page.Input.SkipHolidays = false;
+        f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
+        f.Page.Input.Rows = new()
+        {
+            new() { Code = StageCodes.IPA, Name = "In-Principle Approval", DurationDays = 2 }
+        };
+        var before = await PlannerStateAsync(f.Db);
+        var auditBefore = await AuditStateAsync(f.Db);
+
+        var result = await f.Page.OnPostAsync(1, default);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("In-Principle Approval", Assert.IsType<string>(f.Page.TempData["Error"]));
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        Assert.Equal(auditBefore, await AuditStateAsync(f.Db));
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
     public async Task DirectDuration_RejectsGeneratedPredecessorThatInvalidatesRetainedManualSuccessorWithoutAnyMutation(string role)
     {
         await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, persistAudit: true);
