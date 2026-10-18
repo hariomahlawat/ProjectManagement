@@ -662,6 +662,18 @@ public class PlanApprovalPublicationTests
         await db.Database.EnsureCreatedAsync();
         var reviewed = await SeedAsync(db, true, false, true, false);
         var newer = AddNewerPending(db);
+        reviewed.ApprovalLogs.Add(new PlanApprovalLog
+        {
+            Action = "Rejected", Note = "First revision feedback",
+            PerformedByUserId = "hod-one",
+            PerformedOn = new DateTimeOffset(2026, 10, 16, 0, 0, 0, TimeSpan.Zero)
+        });
+        newer.ApprovalLogs.Add(new PlanApprovalLog
+        {
+            Action = "Rejected", Note = "Other revision feedback",
+            PerformedByUserId = "hod-two",
+            PerformedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero)
+        });
         db.PlanRealignmentAudits.Add(new PlanRealignmentAudit
         {
             ProjectId = 1,
@@ -686,6 +698,9 @@ public class PlanApprovalPublicationTests
         Assert.Null(exact.RealignmentDelayDays);
         Assert.Equal(StageCodes.FS, latest.RealignmentSourceStageCode);
         Assert.Equal(2, latest.RealignmentDelayDays);
+        Assert.Equal("First revision feedback", Assert.Single(exact.ApprovalHistory).Note);
+        Assert.Equal("hod-one", Assert.Single(exact.ApprovalHistory).PerformedBy);
+        Assert.Equal("Other revision feedback", Assert.Single(latest.ApprovalHistory).Note);
         Assert.Null(await compare.GetReviewAsync(99, reviewed.Id));
     }
 
