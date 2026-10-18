@@ -221,7 +221,7 @@ public class EditPlanModel : PageModel
                 TempData["Error"] = "No draft to discard.";
                 break;
             case PlanDraftDeleteResult.Conflict:
-                TempData["Error"] = "Draft already submitted. Nothing to discard.";
+                TempData["Error"] = "Submitted or previously reviewed drafts cannot be discarded because their approval history must be retained.";
                 break;
         }
 
