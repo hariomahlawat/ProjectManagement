@@ -61,7 +61,7 @@ public class EditPlanDurationSafetyTests
         f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
         {
             ProjectId = 1,
-            AnchorStart = new DateOnly(2024, 1, 1),
+            AnchorStart = new DateOnly(2024, 1, 5),
             IncludeWeekends = true,
             SkipHolidays = false,
             NextStageStartPolicy = NextStageStartPolicies.SameDay
@@ -369,7 +369,7 @@ public class EditPlanDurationSafetyTests
     [Theory]
     [InlineData("HoD")]
     [InlineData("Admin")]
-    public async Task DirectDuration_RejectsTransitionPolicyOnlyChangeWhenGeneratedPredecessorDatesStayUnchanged(string role)
+    public async Task DirectDuration_RejectsTransitionPolicyOnlyChangeAgainstRetainedManualPredecessor(string role)
     {
         await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, persistAudit: true);
         var project = await f.Db.Projects.SingleAsync();
@@ -440,7 +440,7 @@ public class EditPlanDurationSafetyTests
     [Theory]
     [InlineData("HoD")]
     [InlineData("Admin")]
-    public async Task DirectDuration_RejectsHolidayPolicyOnlyChangeWhenGeneratedPredecessorDatesStayUnchanged(string role)
+    public async Task DirectDuration_RejectsHolidayPolicyOnlyChangeAgainstRetainedManualPredecessor(string role)
     {
         await using var f = await Fixture.CreateAsync(role, "SaveChanges", relational: true, persistAudit: true);
         var project = await f.Db.Projects.SingleAsync();
@@ -465,7 +465,7 @@ public class EditPlanDurationSafetyTests
         f.Db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
         {
             ProjectId = 1,
-            AnchorStart = new DateOnly(2026, 10, 19),
+            AnchorStart = new DateOnly(2026, 10, 26),
             IncludeWeekends = false,
             SkipHolidays = false,
             NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay
