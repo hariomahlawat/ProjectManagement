@@ -240,7 +240,7 @@ public sealed class ApprovalDecisionService
                     verifySubmissionIdentity: true, expectedSubmittedOn: request.SubmittedOn);
                 return approved
                     ? ApprovalDecisionResult.Success("Timeline approved and activated.")
-                    : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
+                    : ApprovalDecisionResult.AlreadyDecided("This timeline submission changed or is no longer actionable. Refresh and review it again.");
             }
 
             var rejected = await _planApprovalService.RejectVersionAsync(
@@ -255,7 +255,7 @@ public sealed class ApprovalDecisionService
 
             return rejected
                 ? ApprovalDecisionResult.Success("Timeline returned to the Project Officer.")
-                : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
+                : ApprovalDecisionResult.AlreadyDecided("This timeline submission changed or is no longer actionable. Refresh and review it again.");
         }
         catch (PlanApprovalValidationException ex)
         {
