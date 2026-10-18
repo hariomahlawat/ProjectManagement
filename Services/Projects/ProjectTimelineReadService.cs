@@ -381,11 +381,17 @@ public sealed class ProjectTimelineReadService
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);
 
-        var hasActionablePending = await PlanRevisionConsistency.ActionablePending(_db)
-            .AsNoTracking()
-            .AnyAsync(plan => plan.ProjectId == projectId, ct);
-        var hasDraft = await _db.PlanVersions.AsNoTracking()
-            .AnyAsync(plan => plan.ProjectId == projectId && plan.Status == PlanVersionStatus.Draft, ct);
+        // The pending indicator and draft-existence indicator must come from
+        // the same revision state, even if another actor submits during this read.
+        var actionablePending = PlanRevisionConsistency.ActionablePending(_db);
+        var openPlan = await _db.PlanVersions.AsNoTracking()
+            .Where(plan => plan.ProjectId == projectId &&
+                           (plan.Status == PlanVersionStatus.Draft ||
+                            actionablePending.Any(pending => pending.Id == plan.Id)))
+            .OrderByDescending(plan => plan.Status == PlanVersionStatus.PendingApproval)
+            .ThenByDescending(plan => plan.VersionNo)
+            .Select(plan => new { plan.Status })
+            .FirstOrDefaultAsync(ct);
 
         var approvalInfo = await _db.Projects
             .AsNoTracking()
@@ -406,8 +412,8 @@ public sealed class ProjectTimelineReadService
             CompletedCount = completed,
             Items = items,
             PendingRequests = pendingRequestVms,
-            PlanPendingApproval = hasActionablePending,
-            HasDraft = hasActionablePending || hasDraft,
+            PlanPendingApproval = openPlan?.Status == PlanVersionStatus.PendingApproval,
+            HasDraft = openPlan is not null,
             LatestApprovalAt = approvalInfo?.PlanApprovedAt,
             LatestApprovalBy = approvalInfo?.ApprovedBy
         };
