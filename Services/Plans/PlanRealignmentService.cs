@@ -8,6 +8,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services.Plans
 {
@@ -45,6 +46,11 @@ namespace ProjectManagement.Services.Plans
             {
                 return;
             }
+
+            // One gate for draft creation, submission, approval and rejection.
+            // A nested call participates in its caller's stage transaction.
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+            await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
 
             // SECTION: Retrieve active plan
             var activePlan = await _db.PlanVersions
@@ -171,6 +177,7 @@ namespace ProjectManagement.Services.Plans
             _db.PlanRealignmentAudits.Add(audit);
 
             await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
     }
 }
