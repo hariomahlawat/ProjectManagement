@@ -260,6 +260,24 @@ public class PlanApprovalPublicationTests
         Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
     }
 
+    [Fact]
+    public async Task Approval_SparseLegacyPendingRemainsApprovableAcrossCompleteCatalogCutover()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var plan = await SeedAsync(db, includeWeekends: true, skipHolidays: false, sameDay: true, pncApplicable: false);
+        plan.PlanningInputVersion = PlanningInputVersions.Legacy;
+        db.StagePlans.RemoveRange(plan.StagePlans.Where(stage => stage.StageCode != StageCodes.FS));
+        await db.SaveChangesAsync();
+
+        var approval = CreateApproval(db, new RecordingNotifications());
+        var errors = await approval.GetValidationErrorsAsync(plan.Id);
+
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
+        Assert.True(await approval.ApproveVersionAsync(plan.Id, "hod-reviewer", false, true));
+        Assert.Equal(PlanVersionStatus.Approved, (await db.PlanVersions.SingleAsync(item => item.Id == plan.Id)).Status);
+    }
+
     [Theory]
     [InlineData(PlanningInputVersions.Legacy)]
     [InlineData(PlanningInputVersions.Current)]

@@ -542,7 +542,8 @@ public class PlanApprovalService
                 stage.PlannedStart,
                 stage.PlannedDue,
                 skippedStageSet.Contains(stage.StageCode),
-                stage.SortOrder)).ToArray());
+                stage.SortOrder)).ToArray(),
+            RequireConfiguredStages: plan.PlanningInputVersion == PlanningInputVersions.Current);
         var result = await _timelineValidation.ValidateAsync(candidate, cancellationToken);
         return result.Errors.ToList();
     }

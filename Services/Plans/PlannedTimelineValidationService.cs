@@ -21,7 +21,8 @@ public sealed record PlannedTimelineCandidate(
     bool IncludeWeekends,
     bool SkipHolidays,
     bool PncApplicable,
-    IReadOnlyList<PlannedTimelineStage> Stages);
+    IReadOnlyList<PlannedTimelineStage> Stages,
+    bool RequireConfiguredStages = true);
 
 public sealed record PlannedTimelineValidationResult(IReadOnlyList<string> Errors)
 {
@@ -127,20 +128,23 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
         var calendar = new WorkingCalendar(holidays, candidate.IncludeWeekends, candidate.SkipHolidays);
         var errors = new List<string>();
 
-        foreach (var configuredStage in configuredStages)
+        if (candidate.RequireConfiguredStages)
         {
-            if (workflow.OrderOf(configuredStage.Code) < anchorOrder ||
-                (!candidate.PncApplicable && string.Equals(
-                    configuredStage.Code,
-                    StageCodes.PNC,
-                    StringComparison.OrdinalIgnoreCase)))
+            foreach (var configuredStage in configuredStages)
             {
-                continue;
-            }
+                if (workflow.OrderOf(configuredStage.Code) < anchorOrder ||
+                    (!candidate.PncApplicable && string.Equals(
+                        configuredStage.Code,
+                        StageCodes.PNC,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
 
-            if (!rowLookup.ContainsKey(configuredStage.Code))
-            {
-                errors.Add($"Stage {configuredStage.Name} ({configuredStage.Code}) is missing from the plan.");
+                if (!rowLookup.ContainsKey(configuredStage.Code))
+                {
+                    errors.Add($"Stage {configuredStage.Name} ({configuredStage.Code}) is missing from the plan.");
+                }
             }
         }
 
