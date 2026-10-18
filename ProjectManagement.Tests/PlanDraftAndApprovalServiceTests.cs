@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
@@ -477,6 +478,100 @@ public class PlanDraftAndApprovalServiceTests
 
         Assert.Equal(PlanDraftDeleteResult.NotFound, result);
         Assert.Single(await db.PlanVersions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RejectedRealignmentDraft_CannotBeDeletedToReactivateSupersededPendingVersion()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        db.Projects.Add(new Project
+        {
+            Id = 41, Name = "Supersession", LeadPoUserId = "realignment-actor"
+        });
+        var older = new PlanVersion
+        {
+            ProjectId = 41, VersionNo = 2, Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "older-po", OwnerUserId = "older-po",
+            SubmittedByUserId = "older-po",
+            SubmittedOn = new DateTimeOffset(2026, 10, 16, 0, 0, 0, TimeSpan.Zero)
+        };
+        var newer = new PlanVersion
+        {
+            ProjectId = 41, VersionNo = 3, Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "realignment-actor", OwnerUserId = null,
+            SubmittedByUserId = "realignment-actor",
+            SubmittedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero)
+        };
+        db.PlanVersions.AddRange(older, newer);
+        await db.SaveChangesAsync();
+
+        var decisions = new PlanApprovalService(db, new TestClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db),
+            new NullPlanNotificationService());
+        Assert.True(await decisions.RejectVersionAsync(
+            newer.Id, "hod-reviewer", false, true, "Revise newer", expectedProjectId: 41));
+        db.ChangeTracker.Clear();
+
+        // The creator can claim an ownerless rejected realignment draft, but
+        // must not discard the durable revision and its approval history.
+        var audit = new FakeAudit();
+        var drafts = new PlanDraftService(db, new TestClock(),
+            NullLogger<PlanDraftService>.Instance, audit,
+            new StubUserContext("realignment-actor"));
+        var claimed = await drafts.CreateOrGetDraftAsync(41);
+        Assert.Equal(newer.Id, claimed.Id);
+        Assert.Equal("realignment-actor", claimed.OwnerUserId);
+        Assert.Equal(PlanDraftDeleteResult.Conflict, await drafts.DeleteDraftAsync(41));
+
+        db.ChangeTracker.Clear();
+        Assert.Equal(PlanVersionStatus.Draft,
+            (await db.PlanVersions.SingleAsync(p => p.Id == newer.Id)).Status);
+        Assert.Equal(PlanVersionStatus.PendingApproval,
+            (await db.PlanVersions.SingleAsync(p => p.Id == older.Id)).Status);
+        Assert.Single(await db.PlanApprovalLogs.ToListAsync());
+        Assert.False(await decisions.ApproveVersionAsync(
+            older.Id, "hod-reviewer", false, true, expectedProjectId: 41));
+        Assert.False(await decisions.RejectVersionAsync(
+            older.Id, "hod-reviewer", false, true, "Old stale form", expectedProjectId: 41));
+        Assert.Empty(await db.ProjectPlanSnapshots.ToListAsync());
+        Assert.Single(await db.PlanApprovalLogs.ToListAsync());
+        Assert.Empty(audit.Entries);
+    }
+
+    [Fact]
+    public async Task DeleteDraftAsync_PreservesSubmittedHistoryEvenIfRejectionTimestampIsMissing()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=False");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var draft = new PlanVersion
+        {
+            ProjectId = 42, VersionNo = 3, Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "owner", OwnerUserId = "owner"
+        };
+        draft.ApprovalLogs.Add(new PlanApprovalLog
+        {
+            Action = "Rejected", PerformedByUserId = "hod-reviewer",
+            PerformedOn = new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero)
+        });
+        db.PlanVersions.Add(draft);
+        await db.SaveChangesAsync();
+        var drafts = new PlanDraftService(db, new TestClock(),
+            NullLogger<PlanDraftService>.Instance, new FakeAudit(), new StubUserContext("owner"));
+
+        Assert.Null(draft.RejectedOn);
+        Assert.Null(draft.SubmittedOn);
+        Assert.Equal(PlanDraftDeleteResult.Conflict, await drafts.DeleteDraftAsync(42));
+        Assert.True(await db.PlanVersions.AnyAsync(p => p.Id == draft.Id));
+        Assert.Single(await db.PlanApprovalLogs.ToListAsync());
     }
 
     [Fact]
