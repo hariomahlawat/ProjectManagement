@@ -613,9 +613,12 @@ public class EditPlanModel : PageModel
                     .Where(code => !string.IsNullOrWhiteSpace(code))
                     .Select(code => code!);
             }
+            var directValidationOrder = await BuildDirectValidationOrderLookupAsync(
+                workflowVersion,
+                ct);
             var directAnchor = schedulingPolicyChanged
-                ? ResolveDirectPolicyChangeAnchor(workflowVersion, projectedStages)
-                : ResolveDirectDurationAnchor(workflowVersion, generatedStageCodes);
+                ? ResolveDirectPolicyChangeAnchor(directValidationOrder, projectedStages)
+                : ResolveDirectDurationAnchor(directValidationOrder, generatedStageCodes);
             var validation = await _timelineValidation.ValidateAsync(
                 new PlannedTimelineCandidate(
                     id,
@@ -1024,8 +1027,11 @@ public class EditPlanModel : PageModel
         }
 
         var acceptedSettings = baseline.Settings;
-        var directAnchor = ResolveDirectPublicationAnchor(
+        var directValidationOrder = await BuildDirectValidationOrderLookupAsync(
             baseline.WorkflowVersion,
+            cancellationToken);
+        var directAnchor = ResolveDirectPublicationAnchor(
+            directValidationOrder,
             originalStages,
             projectedStages.Values);
         var validation = await _timelineValidation.ValidateAsync(
@@ -1292,12 +1298,56 @@ public class EditPlanModel : PageModel
         return extraSortStart++;
     }
 
-    private static string ResolveDirectPolicyChangeAnchor(
+    private async Task<IReadOnlyDictionary<string, int>> BuildDirectValidationOrderLookupAsync(
         string? workflowVersion,
+        CancellationToken cancellationToken)
+    {
+        var version = string.IsNullOrWhiteSpace(workflowVersion)
+            ? PlanConstants.DefaultStageTemplateVersion
+            : workflowVersion;
+
+        // Configured StageTemplate.Sequence is the planning-order authority.
+        // Static procurement order is only a fallback when a built-in stage has
+        // no configured template row. Use sequence-like fallback values so a
+        // configured extension can be placed before/between built-in stages.
+        var lookup = ProcurementWorkflow.StageCodesFor(version)
+            .Select((code, index) => new { code, order = (index + 1) * 10 })
+            .ToDictionary(
+                item => item.code,
+                item => item.order,
+                StringComparer.OrdinalIgnoreCase);
+
+        var configured = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(template => template.Version == version)
+            .Select(template => new { template.Code, template.Sequence })
+            .ToListAsync(cancellationToken);
+
+        foreach (var template in configured)
+        {
+            if (!string.IsNullOrWhiteSpace(template.Code))
+            {
+                lookup[template.Code] = template.Sequence;
+            }
+        }
+
+        return lookup;
+    }
+
+    private static int DirectValidationOrderOf(
+        IReadOnlyDictionary<string, int> orderLookup,
+        string? stageCode) =>
+        !string.IsNullOrWhiteSpace(stageCode) &&
+        orderLookup.TryGetValue(stageCode, out var order)
+            ? order
+            : int.MaxValue;
+
+    private static string ResolveDirectPolicyChangeAnchor(
+        IReadOnlyDictionary<string, int> orderLookup,
         IEnumerable<PlannedTimelineStage> projectedStages)
     {
-        var defaultOrder = ProcurementWorkflow.OrderOf(
-            workflowVersion,
+        var defaultOrder = DirectValidationOrderOf(
+            orderLookup,
             PlanConstants.DefaultAnchorStageCode);
         return projectedStages
             .Where(stage =>
@@ -1306,7 +1356,7 @@ public class EditPlanModel : PageModel
             .Select(stage => new
             {
                 stage.StageCode,
-                Order = ProcurementWorkflow.OrderOf(workflowVersion, stage.StageCode)
+                Order = DirectValidationOrderOf(orderLookup, stage.StageCode)
             })
             .Where(item => item.Order < defaultOrder)
             .OrderBy(item => item.Order)
@@ -1316,11 +1366,11 @@ public class EditPlanModel : PageModel
     }
 
     private static string ResolveDirectDurationAnchor(
-        string? workflowVersion,
+        IReadOnlyDictionary<string, int> orderLookup,
         IEnumerable<string> generatedStageCodes)
     {
-        var defaultOrder = ProcurementWorkflow.OrderOf(
-            workflowVersion,
+        var defaultOrder = DirectValidationOrderOf(
+            orderLookup,
             PlanConstants.DefaultAnchorStageCode);
         return generatedStageCodes
             .Where(code => !string.IsNullOrWhiteSpace(code))
@@ -1328,7 +1378,7 @@ public class EditPlanModel : PageModel
             .Select(code => new
             {
                 StageCode = code,
-                Order = ProcurementWorkflow.OrderOf(workflowVersion, code)
+                Order = DirectValidationOrderOf(orderLookup, code)
             })
             .Where(item => item.Order < defaultOrder)
             .OrderBy(item => item.Order)
@@ -1338,12 +1388,12 @@ public class EditPlanModel : PageModel
     }
 
     private static string ResolveDirectPublicationAnchor(
-        string? workflowVersion,
+        IReadOnlyDictionary<string, int> orderLookup,
         IEnumerable<PlannedTimelineStage> originalStages,
         IEnumerable<PlannedTimelineStage> projectedStages)
     {
-        var defaultOrder = ProcurementWorkflow.OrderOf(
-            workflowVersion,
+        var defaultOrder = DirectValidationOrderOf(
+            orderLookup,
             PlanConstants.DefaultAnchorStageCode);
         var originalLookup = originalStages.ToDictionary(
             stage => stage.StageCode,
@@ -1353,13 +1403,14 @@ public class EditPlanModel : PageModel
             .Select(stage => new
             {
                 stage.StageCode,
-                Order = ProcurementWorkflow.OrderOf(workflowVersion, stage.StageCode),
+                Order = DirectValidationOrderOf(orderLookup, stage.StageCode),
                 Changed = !originalLookup.TryGetValue(stage.StageCode, out var original) ||
                     original.PlannedStart != stage.PlannedStart ||
                     original.PlannedDue != stage.PlannedDue
             })
             .Where(item => item.Changed && item.Order < defaultOrder)
             .OrderBy(item => item.Order)
+            .ThenBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
             .Select(item => item.StageCode)
             .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
     }
