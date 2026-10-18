@@ -514,6 +514,7 @@ public class EditPlanModel : PageModel
             var acceptedSettings = baseline.Settings;
             var schedulingPolicyChanged = !baseline.IsTrusted ||
                 acceptedSettings is null ||
+                acceptedSettings.AnchorStart != Input.AnchorStart ||
                 acceptedSettings.IncludeWeekends != Input.IncludeWeekends ||
                 acceptedSettings.SkipHolidays != Input.SkipHolidays ||
                 !string.Equals(
