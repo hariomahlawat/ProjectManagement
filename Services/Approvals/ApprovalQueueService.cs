@@ -946,26 +946,31 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             return null;
         }
 
-        var plan = await _db.PlanVersions
+        // Resolve the project to locate the exact review, then take the header,
+        // submission token, submitter and stage dates from one plan snapshot.
+        // A reject/edit/resubmit between queries cannot mix two submission epochs.
+        var projectId = await _db.PlanVersions
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == id, ct);
+            .Where(p => p.Id == id)
+            .Select(p => (int?)p.ProjectId)
+            .SingleOrDefaultAsync(ct);
 
-        if (plan is null)
-        {
+        if (!projectId.HasValue)
             return null;
-        }
+
+        var review = await _planCompareService.GetReviewAsync(projectId.Value, id, ct);
+        if (review is null)
+            return null;
 
         var project = await _db.Projects
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == plan.ProjectId, ct);
+            .FirstOrDefaultAsync(p => p.Id == projectId.Value, ct);
 
         if (project is null)
-        {
             return null;
-        }
 
-        var requester = await GetUserSnapshotAsync(plan.SubmittedByUserId, ct);
-        var diffs = await _planCompareService.GetVersionVsCurrentAsync(plan.ProjectId, plan.Id, ct);
+        var requester = await GetUserSnapshotAsync(review.SubmittedByUserId, ct);
+        var diffs = review.Rows;
         var diffVms = diffs.Select(diff => new PlanStageDiffVm(
                 diff.StageCode,
                 StageCodes.DisplayNameOf(project.WorkflowVersion, diff.StageCode),
@@ -975,27 +980,28 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 diff.NewDue))
             .ToList();
 
+        var requesterName = ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email);
         var item = new ApprovalQueueItemVm(
             ApprovalQueueType.PlanApproval,
-            plan.Id.ToString(CultureInfo.InvariantCulture),
+            review.PlanVersionId.ToString(CultureInfo.InvariantCulture),
             project.Id,
             project.Name,
-            plan.SubmittedByUserId ?? string.Empty,
-            ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email),
-            plan.SubmittedOn ?? DateTimeOffset.MinValue,
-            $"Plan version {plan.VersionNo} awaiting approval.",
+            review.SubmittedByUserId ?? string.Empty,
+            requesterName,
+            review.SubmittedOn ?? DateTimeOffset.MinValue,
+            $"Plan version {review.VersionNo} awaiting approval.",
             ApprovalQueueModule.Projects,
-            plan.Status.ToString(),
+            review.Status.ToString(),
             null,
             null);
 
         var detail = new PlanApprovalDetailVm(
-            plan.Id,
-            plan.VersionNo,
+            review.PlanVersionId,
+            review.VersionNo,
             diffVms,
-            plan.Status,
-            plan.SubmittedOn,
-            ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email));
+            review.Status,
+            review.SubmittedOn,
+            requesterName);
 
         return new ApprovalQueueDetailVm
         {
