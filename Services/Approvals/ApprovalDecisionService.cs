@@ -217,9 +217,9 @@ public sealed class ApprovalDecisionService
 
         // Preserve the Decision Centre's specific supersession feedback. The exact-version
         // service repeats the actionability check inside the decision transaction.
-        var currentPendingId = await _db.PlanVersions
+        var currentPendingId = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
-            .Where(plan => plan.ProjectId == selectedPlan.ProjectId && plan.Status == PlanVersionStatus.PendingApproval)
+            .Where(plan => plan.ProjectId == selectedPlan.ProjectId)
             .OrderByDescending(plan => plan.SubmittedOn)
             .ThenByDescending(plan => plan.VersionNo)
             .Select(plan => (int?)plan.Id)
