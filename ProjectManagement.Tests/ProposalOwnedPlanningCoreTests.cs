@@ -105,7 +105,8 @@ public sealed class ProposalOwnedPlanningCoreTests
         Assert.Equal(PlanTransitionRule.NextWorkingDay, draft.TransitionRule);
         var fs = Assert.Single(draft.StagePlans, row => row.StageCode == StageCodes.FS);
         Assert.Equal(12, fs.DurationDays);
-        Assert.Equal(20, fs.SortOrder);
+        // Configured workflow ordering takes precedence over compatibility-row order.
+        Assert.Equal(10, fs.SortOrder);
         Assert.Equal(new DateOnly(2026, 11, 10), fs.PlannedStart);
         Assert.Equal(new DateOnly(2026, 11, 21), fs.PlannedDue);
         Assert.Equal(new DateOnly(2026, 11, 10),
