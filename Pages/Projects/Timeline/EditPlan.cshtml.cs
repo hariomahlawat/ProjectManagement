@@ -601,10 +601,12 @@ public class EditPlanModel : PageModel
                     stage.Status == StageStatus.Skipped,
                     stage.SortOrder))
                 .ToListAsync(ct);
-            var directAnchor = ResolveDirectPublicationAnchor(
+            var generatedStageCodes = baseline.IsTrusted
+                ? durationMap.Keys
+                : publishedStageCodes ?? Array.Empty<string>();
+            var directAnchor = ResolveDirectDurationAnchor(
                 workflowVersion,
-                originalStages,
-                projectedStages);
+                generatedStageCodes);
             var validation = await _timelineValidation.ValidateAsync(
                 new PlannedTimelineCandidate(
                     id,
@@ -1279,6 +1281,28 @@ public class EditPlanModel : PageModel
         }
 
         return extraSortStart++;
+    }
+
+    private static string ResolveDirectDurationAnchor(
+        string? workflowVersion,
+        IEnumerable<string> generatedStageCodes)
+    {
+        var defaultOrder = ProcurementWorkflow.OrderOf(
+            workflowVersion,
+            PlanConstants.DefaultAnchorStageCode);
+        return generatedStageCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(code => new
+            {
+                StageCode = code,
+                Order = ProcurementWorkflow.OrderOf(workflowVersion, code)
+            })
+            .Where(item => item.Order < defaultOrder)
+            .OrderBy(item => item.Order)
+            .ThenBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
+            .Select(item => item.StageCode)
+            .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
     }
 
     private static string ResolveDirectPublicationAnchor(
