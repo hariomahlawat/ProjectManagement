@@ -965,7 +965,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         }
 
         var requester = await GetUserSnapshotAsync(plan.SubmittedByUserId, ct);
-        var diffs = await _planCompareService.GetDraftVsCurrentAsync(plan.ProjectId, ct);
+        var diffs = await _planCompareService.GetVersionVsCurrentAsync(plan.ProjectId, plan.Id, ct);
         var diffVms = diffs.Select(diff => new PlanStageDiffVm(
                 diff.StageCode,
                 StageCodes.DisplayNameOf(project.WorkflowVersion, diff.StageCode),
