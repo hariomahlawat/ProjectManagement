@@ -402,9 +402,9 @@ public class EditPlanDurationSafetyTests
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration
         {
             ProjectId = 1,
-            StageCode = StageCodes.FS,
-            DurationDays = 5,
-            SortOrder = 10
+            StageCode = StageCodes.IPA,
+            DurationDays = 2,
+            SortOrder = 20
         });
         f.Db.ProjectStages.Add(new ProjectStage
         {
@@ -418,13 +418,13 @@ public class EditPlanDurationSafetyTests
         await f.Db.SaveChangesAsync();
 
         f.Page.Input.Mode = PlanEditorModes.Durations;
-        f.Page.Input.AnchorStart = new DateOnly(2024, 1, 1);
+        f.Page.Input.AnchorStart = new DateOnly(2024, 1, 5);
         f.Page.Input.IncludeWeekends = true;
         f.Page.Input.SkipHolidays = false;
         f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
         f.Page.Input.Rows = new()
         {
-            new() { Code = StageCodes.FS, Name = "FS", DurationDays = 5 }
+            new() { Code = StageCodes.IPA, Name = "In-Principle Approval", DurationDays = 2 }
         };
         var before = await PlannerStateAsync(f.Db);
         var auditBefore = await AuditStateAsync(f.Db);
@@ -473,9 +473,9 @@ public class EditPlanDurationSafetyTests
         f.Db.ProjectPlanDurations.Add(new ProjectPlanDuration
         {
             ProjectId = 1,
-            StageCode = StageCodes.FS,
+            StageCode = StageCodes.IPA,
             DurationDays = 5,
-            SortOrder = 10
+            SortOrder = 20
         });
         f.Db.ProjectStages.Add(new ProjectStage
         {
@@ -496,13 +496,13 @@ public class EditPlanDurationSafetyTests
         await f.Db.SaveChangesAsync();
 
         f.Page.Input.Mode = PlanEditorModes.Durations;
-        f.Page.Input.AnchorStart = new DateOnly(2026, 10, 19);
+        f.Page.Input.AnchorStart = new DateOnly(2026, 10, 26);
         f.Page.Input.IncludeWeekends = false;
         f.Page.Input.SkipHolidays = true;
         f.Page.Input.NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay;
         f.Page.Input.Rows = new()
         {
-            new() { Code = StageCodes.FS, Name = "FS", DurationDays = 5 }
+            new() { Code = StageCodes.IPA, Name = "In-Principle Approval", DurationDays = 5 }
         };
         var before = await PlannerStateAsync(f.Db);
         var auditBefore = await AuditStateAsync(f.Db);
