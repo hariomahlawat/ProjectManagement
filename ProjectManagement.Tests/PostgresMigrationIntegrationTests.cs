@@ -149,6 +149,9 @@ public sealed class PostgresMigrationIntegrationTests
         await VerifyProposalOwnedPlanningMigrationAsync(applicationDb, migrator);
         await ProposalOwnedPlanningCutoverPostgresFixture.RunAsync(applicationDb, migrator);
         await VerifyProjectStageCompletionConstraintAsync(applicationDb);
+        // Exercise the actual Npgsql two-connection advisory-lock behavior, not
+        // merely SQLite's database-wide write serialization.
+        await PlanRevisionConcurrencyPostgresFixture.RunAsync(applicationOptions);
     }
 
 
