@@ -576,6 +576,15 @@ public class PlanApprovalPublicationTests
         await db.Database.EnsureCreatedAsync();
         var reviewed = await SeedAsync(db, true, false, true, false);
         var newer = AddNewerPending(db);
+        db.PlanRealignmentAudits.Add(new PlanRealignmentAudit
+        {
+            ProjectId = 1,
+            PlanVersionNo = 3,
+            SourceStageCode = StageCodes.FS,
+            DelayDays = 2,
+            CreatedAtUtc = new DateTime(2026, 10, 18, 0, 0, 0, DateTimeKind.Utc),
+            CreatedByUserId = "realignment-actor"
+        });
         await db.SaveChangesAsync();
         var compare = new PlanCompareService(db);
 
@@ -587,6 +596,10 @@ public class PlanApprovalPublicationTests
         Assert.Equal(newer.Id, latest.PlanVersionId);
         Assert.Equal(new DateOnly(2026, 11, 10), exact.Rows.Single(r => r.StageCode == StageCodes.FS).NewStart);
         Assert.Equal(new DateOnly(2026, 12, 1), latest.Rows.Single(r => r.StageCode == StageCodes.FS).NewStart);
+        Assert.Null(exact.RealignmentSourceStageCode);
+        Assert.Null(exact.RealignmentDelayDays);
+        Assert.Equal(StageCodes.FS, latest.RealignmentSourceStageCode);
+        Assert.Equal(2, latest.RealignmentDelayDays);
         Assert.Null(await compare.GetReviewAsync(99, reviewed.Id));
     }
 
