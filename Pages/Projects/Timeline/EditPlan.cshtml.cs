@@ -508,12 +508,23 @@ public class EditPlanModel : PageModel
                 _db.ProjectScheduleSettings.Add(settings);
             }
 
+            var candidateNextStageStartPolicy = NextStageStartPolicies.IsValid(Input.NextStageStartPolicy)
+                ? Input.NextStageStartPolicy
+                : NextStageStartPolicies.NextWorkingDay;
+            var acceptedSettings = baseline.Settings;
+            var schedulingPolicyChanged = !baseline.IsTrusted ||
+                acceptedSettings is null ||
+                acceptedSettings.IncludeWeekends != Input.IncludeWeekends ||
+                acceptedSettings.SkipHolidays != Input.SkipHolidays ||
+                !string.Equals(
+                    acceptedSettings.NextStageStartPolicy,
+                    candidateNextStageStartPolicy,
+                    StringComparison.OrdinalIgnoreCase);
+
             settings.AnchorStart = Input.AnchorStart;
             settings.IncludeWeekends = Input.IncludeWeekends;
             settings.SkipHolidays = Input.SkipHolidays;
-            settings.NextStageStartPolicy = NextStageStartPolicies.IsValid(Input.NextStageStartPolicy)
-                ? Input.NextStageStartPolicy
-                : NextStageStartPolicies.NextWorkingDay;
+            settings.NextStageStartPolicy = candidateNextStageStartPolicy;
 
             var durationRows = await PlanningCompatibilityCatalog.PrepareDurationRowsForPublicationAsync(
                 _db,
@@ -594,9 +605,9 @@ public class EditPlanModel : PageModel
             var generatedStageCodes = baseline.IsTrusted
                 ? durationMap.Keys
                 : publishedStageCodes ?? Array.Empty<string>();
-            var directAnchor = ResolveDirectDurationAnchor(
-                workflowVersion,
-                generatedStageCodes);
+            var directAnchor = schedulingPolicyChanged
+                ? ResolveDirectPolicyChangeAnchor(workflowVersion, projectedStages)
+                : ResolveDirectDurationAnchor(workflowVersion, generatedStageCodes);
             var validation = await _timelineValidation.ValidateAsync(
                 new PlannedTimelineCandidate(
                     id,
@@ -1271,6 +1282,29 @@ public class EditPlanModel : PageModel
         }
 
         return extraSortStart++;
+    }
+
+    private static string ResolveDirectPolicyChangeAnchor(
+        string? workflowVersion,
+        IEnumerable<PlannedTimelineStage> projectedStages)
+    {
+        var defaultOrder = ProcurementWorkflow.OrderOf(
+            workflowVersion,
+            PlanConstants.DefaultAnchorStageCode);
+        return projectedStages
+            .Where(stage =>
+                !stage.IsSkipped &&
+                (stage.PlannedStart.HasValue || stage.PlannedDue.HasValue))
+            .Select(stage => new
+            {
+                stage.StageCode,
+                Order = ProcurementWorkflow.OrderOf(workflowVersion, stage.StageCode)
+            })
+            .Where(item => item.Order < defaultOrder)
+            .OrderBy(item => item.Order)
+            .ThenBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
+            .Select(item => item.StageCode)
+            .FirstOrDefault() ?? PlanConstants.DefaultAnchorStageCode;
     }
 
     private static string ResolveDirectDurationAnchor(
