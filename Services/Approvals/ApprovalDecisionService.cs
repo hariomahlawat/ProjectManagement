@@ -215,8 +215,8 @@ public sealed class ApprovalDecisionService
             return ApprovalDecisionResult.AlreadyDecided("This timeline request is no longer pending.");
         }
 
-        // The legacy domain service acts on the latest pending version. Verify that the
-        // exact version reviewed in the Decision Centre is still that version before use.
+        // Preserve the Decision Centre's specific supersession feedback. The exact-version
+        // service repeats the actionability check inside the decision transaction.
         var currentPendingId = await _db.PlanVersions
             .AsNoTracking()
             .Where(plan => plan.ProjectId == selectedPlan.ProjectId && plan.Status == PlanVersionStatus.PendingApproval)
