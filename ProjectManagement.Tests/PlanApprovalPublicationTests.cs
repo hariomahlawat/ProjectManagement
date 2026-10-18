@@ -662,6 +662,11 @@ public class PlanApprovalPublicationTests
         await db.Database.EnsureCreatedAsync();
         var reviewed = await SeedAsync(db, true, false, true, false);
         var newer = AddNewerPending(db);
+        // Seed the required reviewer users so the approval-log Include represents
+        // the same valid FK relationships as production data.
+        db.Users.AddRange(
+            new ApplicationUser { Id = "hod-one", UserName = "hod-one", FullName = "hod-one" },
+            new ApplicationUser { Id = "hod-two", UserName = "hod-two", FullName = "hod-two" });
         reviewed.ApprovalLogs.Add(new PlanApprovalLog
         {
             Action = "Rejected", Note = "First revision feedback",
@@ -684,6 +689,7 @@ public class PlanApprovalPublicationTests
             CreatedByUserId = "realignment-actor"
         });
         await db.SaveChangesAsync();
+        Assert.Equal(2, await db.PlanApprovalLogs.CountAsync());
         var compare = new PlanCompareService(db);
 
         var exact = await compare.GetReviewAsync(1, reviewed.Id);
