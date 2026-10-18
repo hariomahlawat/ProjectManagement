@@ -19,7 +19,9 @@ public sealed record PlanReviewSnapshot(
     PlanVersionStatus Status,
     DateTimeOffset? SubmittedOn,
     string? SubmittedBy,
-    IReadOnlyList<PlanDiffRow> Rows);
+    IReadOnlyList<PlanDiffRow> Rows,
+    string? RealignmentSourceStageCode,
+    int? RealignmentDelayDays);
 
 public sealed class PlanCompareService
 {
@@ -162,7 +164,13 @@ public sealed class PlanCompareService
         var submittedBy = draft.SubmittedByUser?.FullName
             ?? draft.SubmittedByUser?.UserName
             ?? draft.SubmittedByUserId;
+        var realignment = await _db.PlanRealignmentAudits
+            .AsNoTracking()
+            .Where(audit => audit.ProjectId == projectId &&
+                            audit.PlanVersionNo == draft.VersionNo)
+            .FirstOrDefaultAsync(ct);
         return new PlanReviewSnapshot(
-            draft.Id, draft.VersionNo, draft.Status, draft.SubmittedOn, submittedBy, diffs);
+            draft.Id, draft.VersionNo, draft.Status, draft.SubmittedOn, submittedBy, diffs,
+            realignment?.SourceStageCode, realignment?.DelayDays);
     }
 }

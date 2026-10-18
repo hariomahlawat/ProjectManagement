@@ -30,11 +30,12 @@ else
         <span>Submitted revision #@Model.VersionNo (ID @Model.PlanVersionId) compared against the current timeline.</span>
     </div>
 
-    @* show reason if this draft was auto created due to late completion *@
-    @if (TempData["RealignmentInfo"] is string ri)
+    @if (!string.IsNullOrWhiteSpace(Model.RealignmentSourceStageCode) &&
+         Model.RealignmentDelayDays.HasValue)
     {
         <div class="alert alert-info mb-2">
-            @ri
+            This revision was auto-generated because stage @Model.RealignmentSourceStageCode
+            finished @Model.RealignmentDelayDays days late.
         </div>
     }
 
