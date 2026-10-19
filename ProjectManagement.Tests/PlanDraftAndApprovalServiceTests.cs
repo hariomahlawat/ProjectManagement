@@ -112,6 +112,13 @@ public class PlanDraftAndApprovalServiceTests
         Assert.True(await approval.WithdrawVersionAsync(91, submitted.Id,
             submitted.SubmittedOn, "po-owner"));
         Assert.Equal(PlanVersionStatus.Withdrawn, submitted.Status);
+        var correction = await db.PlanVersions.Include(p => p.StagePlans)
+            .SingleAsync(p => p.ProjectId == 91 && p.Status == PlanVersionStatus.Draft);
+        Assert.Equal(2, correction.VersionNo);
+        Assert.Equal("po-owner", correction.OwnerUserId);
+        Assert.Equal(submitted.AnchorDate, correction.AnchorDate);
+        Assert.Equal(submitted.PncApplicable, correction.PncApplicable);
+        Assert.Equal(new DateOnly(2026, 11, 4), correction.StagePlans.Single().PlannedDue);
         Assert.Equal(new DateOnly(2026, 11, 4), submitted.StagePlans[0].PlannedDue);
         Assert.Equal(1, await db.PlanApprovalLogs.CountAsync(l =>
             l.PlanVersionId == submitted.Id && l.Action == "Withdrawn"));
