@@ -37,7 +37,7 @@ Do not silently infer lifecycle transitions from changed dates. HoD/Admin direct
 
 ## Non-negotiable target invariants
 
-- Official `ProjectStage` actual dates and mandatory-backfill flags do **not** change on PO draft/save/submit/revise/withdraw/reject. Only an authorized publication decision changes them.
+- PO draft, save, submit, revision, withdrawal and rejection must not mutate authoritative `ProjectStage` Actual dates or mandatory-backfill flags. PO-proposed changes become authoritative only through an authorized HoD approval decision. Existing independently authorized HoD/Admin direct-update paths remain permitted where current product policy allows, subject to the same validation, audit and transactional integrity requirements.
 - Approval/rejection binds the exact reviewed submitted identity and submission epoch. Reject stale review after revision, withdrawal, prior decision, or relevant authoritative source change; avoid double-approval and stale publication.
 - The assigned PO can continue private proposal work; no recreation of the removed C2 pending-edit lock. An ordinary PO must not gain HoD/Admin direct publication powers.
 - Whole affected final-state chronology uses configured workflow dependencies, transparent skipped ancestry and latest required convergence boundary, including untouched descendants. Explicit same-day actual starts remain valid; next-day suggested starts are not mandatory facts.
