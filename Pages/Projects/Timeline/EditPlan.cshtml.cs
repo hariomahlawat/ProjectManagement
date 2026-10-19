@@ -799,6 +799,11 @@ public class EditPlanModel : PageModel
                 ["Action"] = action
             });
 
+        // Commit before acknowledging an autosave. Otherwise disposal would
+        // roll it back while returning a false "Saved" confirmation.
+        // For Submit this is still AFTER nested approval validation/replacement.
+        await revisionSave.CommitAsync(ct);
+
         if (IsAutosaveRequest)
         {
             return new JsonResult(new
@@ -808,8 +813,6 @@ public class EditPlanModel : PageModel
                 editToken = PlanEditFingerprint.Compute(draft)
             });
         }
-
-        await revisionSave.CommitAsync(ct);
 
         if (submitForApproval)
         {
