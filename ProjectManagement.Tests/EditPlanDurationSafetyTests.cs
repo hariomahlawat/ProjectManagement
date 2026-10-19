@@ -1833,7 +1833,16 @@ public class EditPlanDurationSafetyTests
         Assert.Equal("po-user", successor.OwnerUserId);
         Assert.Empty(await f.Db.PlanApprovalLogs.ToListAsync());
 
+        // Pre-C2 cached clients sent AJAX SaveDraft instead of Autosave.
+        // This compatibility path must also leave HoD's review actionable.
         f.Page.Input.Action = "SaveDraft";
+        f.Page.HttpContext.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        f.Page.Input.Rows[0].DurationDays += 2;
+        AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        Assert.Equal(PlanVersionStatus.PendingApproval, submitted.Status);
+        Assert.Empty(await f.Db.PlanApprovalLogs.ToListAsync());
+
+        f.Page.HttpContext.Request.Headers.Remove("X-Requested-With");
         Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
         Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
         Assert.Single(await f.Db.PlanApprovalLogs.Where(l => l.PlanVersionId == submitted.Id &&
