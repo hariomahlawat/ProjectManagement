@@ -31,6 +31,7 @@ public sealed class PlanEditorStateVm
     public string? RejectedBy { get; init; }
     public string? RejectionNote { get; init; }
     public bool HasMyDraft { get; init; }
+    public bool CanDiscardDraft { get; init; }
     public bool HasPendingSubmission { get; init; }
     public int? PendingPlanVersionId { get; init; }
     public bool PendingOwnedByCurrentUser { get; init; }
