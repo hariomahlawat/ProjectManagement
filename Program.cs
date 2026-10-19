@@ -387,6 +387,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.Configure<LoginRateLimitOptions>(builder.Configuration.GetSection(LoginRateLimitOptions.SectionName));
+builder.Services.Configure<DocumentUploadRateLimitOptions>(builder.Configuration.GetSection(DocumentUploadRateLimitOptions.SectionName));
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -405,17 +406,22 @@ builder.Services.AddRateLimiter(options =>
                 .LogWarning("Sign-in attempts throttled for client {ClientIp}.", LoginRateLimiting.ClientLabel(context.HttpContext));
             context.HttpContext.Response.Redirect(LoginRateLimiting.BuildThrottledRedirect(context.HttpContext));
         }
+        else if (DocumentUploadRateLimiting.IsUploadRequest(context.HttpContext))
+        {
+            context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ProjectManagement.DocumentUploadRateLimit")
+                .LogWarning("Document uploads throttled for {Uploader}.", DocumentUploadRateLimiting.UploaderLabel(context.HttpContext));
+            context.HttpContext.Response.Redirect(DocumentUploadRateLimiting.BuildThrottledRedirect(context.HttpContext));
+        }
 
         return ValueTask.CompletedTask;
     };
 
-    options.AddFixedWindowLimiter("docUpload", o =>
-    {
-        o.PermitLimit = 10;
-        o.Window = TimeSpan.FromMinutes(1);
-        o.QueueLimit = 0;
-        o.AutoReplenishment = true;
-    });
+    // Document uploads are throttled per signed-in user; opening the upload page is not.
+    options.AddPolicy(DocumentUploadRateLimiting.PolicyName, context =>
+        DocumentUploadRateLimiting.GetPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptions<DocumentUploadRateLimitOptions>>().Value));
 });
 
 builder.Services.AddHsts(o =>
@@ -1361,9 +1367,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseRateLimiter();
-
 app.UseAuthentication();
+
+// After authentication so per-user policies (document uploads) can see the signed-in user.
+app.UseRateLimiter();
 app.UseAuthorization();
 app.UseMiddleware<ErpUsageMiddleware>();
 app.UseAntiforgery();

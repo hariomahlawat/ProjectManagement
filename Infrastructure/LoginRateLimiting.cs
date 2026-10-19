@@ -4,21 +4,31 @@ using ProjectManagement.Helpers;
 
 namespace ProjectManagement.Infrastructure;
 
-// Settings for the "login" rate-limiting policy, bound from Security:LoginRateLimit.
-public sealed class LoginRateLimitOptions
+// A fixed-window allowance. Out-of-range values are clamped rather than rejected so a
+// configuration typo cannot block sign-in, uploads or startup.
+public class RateLimitWindowOptions
 {
-    public const string SectionName = "Security:LoginRateLimit";
+    public int PermitLimit { get; set; }
 
-    // Sign-in attempts (POSTs) allowed per client address in each window. Sites where
-    // many users reach PRISM through one terminal server or proxy should raise this.
-    // Out-of-range values are clamped rather than rejected so a typo cannot block sign-in.
-    public int PermitLimit { get; set; } = 100;
-
-    public int WindowMinutes { get; set; } = 5;
+    public int WindowMinutes { get; set; }
 
     public int EffectivePermitLimit => Math.Clamp(PermitLimit, 1, 100_000);
 
     public TimeSpan EffectiveWindow => TimeSpan.FromMinutes(Math.Clamp(WindowMinutes, 1, 1440));
+}
+
+// Settings for the "login" rate-limiting policy, bound from Security:LoginRateLimit.
+// PermitLimit is sign-in attempts (POSTs) per client address in each window; sites where
+// many users reach PRISM through one terminal server or proxy should raise it.
+public sealed class LoginRateLimitOptions : RateLimitWindowOptions
+{
+    public const string SectionName = "Security:LoginRateLimit";
+
+    public LoginRateLimitOptions()
+    {
+        PermitLimit = 100;
+        WindowMinutes = 5;
+    }
 }
 
 // Partitions sign-in throttling per client address. Opening the login page is never
