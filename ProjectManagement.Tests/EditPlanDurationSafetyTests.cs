@@ -1827,10 +1827,15 @@ public class EditPlanDurationSafetyTests
         f.Db.PlanVersions.Add(submitted);
         await f.Db.SaveChangesAsync();
         AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
-        Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
+        Assert.Equal(PlanVersionStatus.PendingApproval, submitted.Status);
         var successor = await f.Db.PlanVersions.SingleAsync(p => p.VersionNo == 2);
         Assert.Equal(PlanVersionStatus.Draft, successor.Status);
         Assert.Equal("po-user", successor.OwnerUserId);
+        Assert.Empty(await f.Db.PlanApprovalLogs.ToListAsync());
+
+        f.Page.Input.Action = "SaveDraft";
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
         Assert.Single(await f.Db.PlanApprovalLogs.Where(l => l.PlanVersionId == submitted.Id &&
             l.Action == "Superseded").ToListAsync());
         Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
