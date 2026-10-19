@@ -94,6 +94,19 @@
                                                 {
                                                     <span class="badge text-bg-warning">Timeline plan submitted for approval</span>
                                                 }
+                                                @if (isActiveLifecycle && access.IsAssignedProjectOfficer &&
+                                                     !access.IsHoD && !access.IsAdmin &&
+                                                     pendingOwnedByCurrentUser && planState.PendingPlanVersionId.HasValue &&
+                                                     planState.PendingSubmittedOn.HasValue)
+                                                {
+                                                    <form method="post" asp-page="/Projects/Timeline/EditPlan"
+                                                          asp-page-handler="Withdraw" asp-route-id="@project!.Id">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="WithdrawPlanVersionId" value="@planState.PendingPlanVersionId" />
+                                                        <input type="hidden" name="WithdrawSubmittedOn" value="@planState.PendingSubmittedOn.Value.ToString("O")" />
+                                                        <button class="btn btn-sm btn-outline-warning" type="submit">Withdraw submission</button>
+                                                    </form>
+                                                }
                                                 else if (isActiveLifecycle && Model.Timeline.PlanPendingApproval)
                                                 {
                                                     <span class="badge text-bg-warning">Another submission pending</span>
@@ -120,7 +133,7 @@
                                                 }
                                             </div>
                                         </div>
-                                        @if (isActiveLifecycle && hasMyDraft && !pendingOwnedByCurrentUser)
+                                        @if (isActiveLifecycle && hasMyDraft)
                                         {
                                             <div class="d-flex flex-wrap align-items-center gap-2">
                                                 <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
