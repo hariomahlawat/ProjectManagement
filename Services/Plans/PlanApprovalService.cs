@@ -467,6 +467,7 @@ public class PlanApprovalService
 
         var plan = await PlanRevisionConsistency.ActionablePending(_db)
             .Include(p => p.ApprovalLogs)
+            .Include(p => p.StagePlans)
             .Include(p => p.Project)
             .Where(p => p.ProjectId == projectId)
             .OrderByDescending(p => p.SubmittedOn)
@@ -494,6 +495,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.ApprovalLogs)
+            .Include(p => p.StagePlans)
             .Include(p => p.Project)
             .SingleOrDefaultAsync(
                 p => p.Id == planVersionId &&
@@ -520,16 +522,23 @@ public class PlanApprovalService
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, plan.ProjectId, cancellationToken);
+        var preserveSubmittedRevision = plan.ApprovalLogs.Any(log => log.Action == "CreatedAsReplacement");
+        var rejectionStatus = preserveSubmittedRevision ? PlanVersionStatus.Rejected : PlanVersionStatus.Draft;
         if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
-            !await TryClaimPendingDecisionAsync(plan, PlanVersionStatus.Draft, cancellationToken))
+            !await TryClaimPendingDecisionAsync(plan, rejectionStatus, cancellationToken))
             return false;
 
         var trimmedNote = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         var rejectedOn = _clock.UtcNow;
 
-        plan.Status = PlanVersionStatus.Draft;
-        plan.SubmittedByUserId = null;
-        plan.SubmittedOn = null;
+        plan.Status = rejectionStatus;
+        // Legacy C1 rejected drafts preserve the existing resubmission path.
+        // C2 successors remain immutable and keep the reviewed submission epoch.
+        if (!preserveSubmittedRevision)
+        {
+            plan.SubmittedByUserId = null;
+            plan.SubmittedOn = null;
+        }
         plan.ApprovedByUserId = null;
         plan.ApprovedOn = null;
         plan.RejectedByUserId = hodUserId;
@@ -544,6 +553,40 @@ public class PlanApprovalService
             PerformedByUserId = hodUserId,
             PerformedOn = rejectedOn
         });
+
+        if (preserveSubmittedRevision && !string.IsNullOrWhiteSpace(plan.OwnerUserId) &&
+            !await _db.PlanVersions.AnyAsync(candidate =>
+                candidate.ProjectId == plan.ProjectId &&
+                candidate.Status == PlanVersionStatus.Draft &&
+                candidate.OwnerUserId == plan.OwnerUserId, cancellationToken))
+        {
+            var latest = await _db.PlanVersions.Where(p => p.ProjectId == plan.ProjectId)
+                .MaxAsync(p => (int?)p.VersionNo, cancellationToken) ?? 0;
+            var correction = new PlanVersion
+            {
+                ProjectId = plan.ProjectId,
+                VersionNo = latest + 1,
+                Status = PlanVersionStatus.Draft,
+                Title = PlanVersion.ProjectTimelineTitle,
+                CreatedByUserId = plan.OwnerUserId!,
+                OwnerUserId = plan.OwnerUserId,
+                CreatedOn = rejectedOn,
+                PlanningInputVersion = plan.PlanningInputVersion,
+                AnchorStageCode = plan.AnchorStageCode,
+                AnchorDate = plan.AnchorDate,
+                SkipWeekends = plan.SkipWeekends,
+                SkipHolidays = plan.SkipHolidays,
+                TransitionRule = plan.TransitionRule,
+                PncApplicable = plan.PncApplicable,
+                StagePlans = plan.StagePlans.Select(row => new StagePlan
+                {
+                    StageCode = row.StageCode, DurationDays = row.DurationDays,
+                    PlannedStart = row.PlannedStart, PlannedDue = row.PlannedDue,
+                    SortOrder = row.SortOrder
+                }).ToList()
+            };
+            _db.PlanVersions.Add(correction);
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
