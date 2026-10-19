@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Routing;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
@@ -9,6 +13,8 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Pages.Projects.Timeline;
+using ProjectManagement.ViewModels;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Stages;
@@ -29,6 +35,8 @@ internal static class PlanRevisionConcurrencyPostgresFixture
         await DraftAndRealignmentAllocateDistinctVersionsAsync(options);
         await DraftBaselineFollowsCommittedPublicationAsync(options);
         await MaterialReplacementBeatsConcurrentDecisionAsync(options);
+        await EditorSubmitKeepsGateThroughReviewDecisionAsync(options);
+        await EditorFailedReplacementRollsBackDraftAsync(options);
     }
 
     private static async Task ConcurrentSubmissionsAsync(DbContextOptions<ApplicationDbContext> options)
@@ -374,6 +382,222 @@ internal static class PlanRevisionConcurrencyPostgresFixture
             log => log.PlanVersionId == reviewed.Id && log.Action == "Superseded"));
         Assert.False(await seed.Projects.AsNoTracking().AnyAsync(p =>
             p.Id == project.Id && p.ActivePlanVersionNo.HasValue));
+    }
+
+    // Exercise the real Razor handler's critical seam: the PO has SAVED
+    // modified proposal inputs, but has not yet invoked SubmitAsync. An HoD
+    // attempting to approve N at this point must block on the project gate,
+    // then lose to the exact N+1 submitted revision.
+    private static async Task EditorSubmitKeepsGateThroughReviewDecisionAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        await using var seed = new ApplicationDbContext(options);
+        var old = await SeedEditorReviewAsync(seed, "C2 page submission gate race");
+        var originalSubmittedOn = old.SubmittedOn;
+
+        await using var actorDb = new ApplicationDbContext(options);
+        var audit = new PausingEditorAudit();
+        var page = CreateExactSubmitPage(actorDb, old.ProjectId, audit, new AlwaysValidTimeline());
+        var editorSubmission = page.OnPostAsync(old.ProjectId, CancellationToken.None);
+        await audit.Entered.WaitAsync(TimeSpan.FromSeconds(30));
+
+        // At this point the real handler has written N+1's StagePlans and
+        // entered its audit, but has not started the approval service.
+        await using var reviewerDb = new ApplicationDbContext(options);
+        var reviewer = new PlanApprovalService(reviewerDb, new FixedClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(reviewerDb),
+            new NoNotifications(), new AlwaysValidTimeline());
+        var staleDecision = reviewer.ApproveVersionAsync(
+            old.Id, "revision-actor-b", false, true, expectedProjectId: old.ProjectId,
+            verifySubmissionIdentity: true, expectedSubmittedOn: originalSubmittedOn);
+        try
+        {
+            await Task.Delay(150);
+            Assert.False(staleDecision.IsCompleted);
+        }
+        finally
+        {
+            audit.Release();
+        }
+
+        var posted = await editorSubmission.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.IsType<RedirectToPageResult>(posted);
+        Assert.False(await staleDecision.WaitAsync(TimeSpan.FromSeconds(30)));
+
+        seed.ChangeTracker.Clear();
+        var revisions = await seed.PlanVersions.AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == old.ProjectId)
+            .OrderBy(p => p.VersionNo).ToListAsync();
+        Assert.Equal(new[] { PlanVersionStatus.Superseded, PlanVersionStatus.PendingApproval },
+            revisions.Select(p => p.Status));
+        Assert.Equal(new DateOnly(2026, 11, 4), revisions[0].StagePlans.Single().PlannedDue);
+        Assert.Equal(new DateOnly(2026, 11, 9), revisions[1].StagePlans.Single().PlannedDue);
+        Assert.Equal("revision-actor-a", revisions[1].SubmittedByUserId);
+        Assert.True(await seed.PlanApprovalLogs.AsNoTracking().AnyAsync(log =>
+            log.PlanVersionId == old.Id && log.Action == "Superseded"));
+        Assert.True(await seed.PlanApprovalLogs.AsNoTracking().AnyAsync(log =>
+            log.PlanVersionId == revisions[1].Id && log.Action == "Submitted"));
+        Assert.Equal(new DateOnly(2026, 11, 4),
+            (await seed.ProjectStages.AsNoTracking().SingleAsync(p =>
+                p.ProjectId == old.ProjectId && p.StageCode == StageCodes.FS)).PlannedDue);
+        Assert.False(await seed.ProjectPlanSnapshots.AsNoTracking()
+            .AnyAsync(snapshot => snapshot.ProjectId == old.ProjectId));
+    }
+
+    // If validation rejects a submitted replacement, both the temporary
+    // new Draft and its modified StagePlans roll back. N stays actionable.
+    private static async Task EditorFailedReplacementRollsBackDraftAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        await using var seed = new ApplicationDbContext(options);
+        var old = await SeedEditorReviewAsync(seed, "C2 failed replacement rollback");
+
+        await using var actorDb = new ApplicationDbContext(options);
+        var page = CreateExactSubmitPage(actorDb, old.ProjectId,
+            new NullAudit(), new RejectEditorTimeline());
+        Assert.IsType<RedirectToPageResult>(
+            await page.OnPostAsync(old.ProjectId, CancellationToken.None));
+
+        seed.ChangeTracker.Clear();
+        var persisted = await seed.PlanVersions.AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == old.ProjectId).ToListAsync();
+        var reviewed = Assert.Single(persisted);
+        Assert.Equal(old.Id, reviewed.Id);
+        Assert.Equal(PlanVersionStatus.PendingApproval, reviewed.Status);
+        Assert.Equal(old.SubmittedOn, reviewed.SubmittedOn);
+        Assert.Equal(new DateOnly(2026, 11, 4), reviewed.StagePlans.Single().PlannedDue);
+        Assert.Empty(await seed.PlanApprovalLogs.AsNoTracking()
+            .Where(log => log.PlanVersionId == old.Id).ToListAsync());
+        Assert.Equal(new DateOnly(2026, 11, 4),
+            (await seed.ProjectStages.AsNoTracking().SingleAsync(p =>
+                p.ProjectId == old.ProjectId && p.StageCode == StageCodes.FS)).PlannedDue);
+    }
+
+    private static async Task<PlanVersion> SeedEditorReviewAsync(
+        ApplicationDbContext db, string projectName)
+    {
+        var project = new Project
+        {
+            Name = projectName,
+            CreatedByUserId = "revision-actor-a",
+            LeadPoUserId = "revision-actor-a",
+            RowVersion = Array.Empty<byte>(),
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        };
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = project.Id, StageCode = StageCodes.FS,
+            Status = StageStatus.NotStarted, SortOrder = 10,
+            PlannedStart = new DateOnly(2026, 11, 1),
+            PlannedDue = new DateOnly(2026, 11, 4)
+        });
+        var reviewed = new PlanVersion
+        {
+            ProjectId = project.Id, VersionNo = 1,
+            Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "revision-actor-a",
+            OwnerUserId = "revision-actor-a",
+            SubmittedByUserId = "revision-actor-a",
+            SubmittedOn = new DateTimeOffset(2026, 10, 17, 12, 0, 0, TimeSpan.Zero),
+            PlanningInputVersion = PlanningInputVersions.Current,
+            PncApplicable = false
+        };
+        reviewed.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS, SortOrder = 10, DurationDays = 4,
+            PlannedStart = new DateOnly(2026, 11, 1),
+            PlannedDue = new DateOnly(2026, 11, 4)
+        });
+        db.PlanVersions.Add(reviewed);
+        await db.SaveChangesAsync();
+        return reviewed;
+    }
+
+    private static EditPlanModel CreateExactSubmitPage(
+        ApplicationDbContext db, int projectId, IAuditService audit,
+        IPlannedTimelineValidationService validator)
+    {
+        var clock = new FixedClock();
+        var actor = new ProjectOfficerContext("revision-actor-a");
+        var draft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance,
+            audit, actor);
+        var approval = new PlanApprovalService(db, clock,
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db),
+            new NoNotifications(), validator);
+        var page = new EditPlanModel(db, audit, new PlanGenerationService(db),
+            draft, approval, NullLogger<EditPlanModel>.Instance,
+            actor, timelineValidation: validator)
+        {
+            Input = new PlanEditInput
+            {
+                ProjectId = projectId, Mode = PlanEditorModes.Exact,
+                Action = PlanEditActions.Submit,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new()
+                    {
+                        Code = StageCodes.FS, Name = "FS",
+                        PlannedStart = new DateOnly(2026, 11, 1),
+                        PlannedDue = new DateOnly(2026, 11, 9)
+                    }
+                }
+            }
+        };
+        var http = new DefaultHttpContext { User = actor.User };
+        page.PageContext = new PageContext(new ActionContext(
+            http, new RouteData(), new PageActionDescriptor()));
+        page.TempData = new TempDataDictionary(http, new EmptyTempDataProvider());
+        return page;
+    }
+
+    private sealed class ProjectOfficerContext(string actor) : IUserContext
+    {
+        public string? UserId => actor;
+        public ClaimsPrincipal User => new(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, actor),
+            new Claim(ClaimTypes.Name, actor),
+            new Claim(ClaimTypes.Role, "Project Officer")
+        }, "Test"));
+    }
+
+    private sealed class EmptyTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object?> LoadTempData(HttpContext context)
+            => new Dictionary<string, object?>();
+        public void SaveTempData(HttpContext context, IDictionary<string, object?> values) { }
+    }
+
+    private sealed class PausingEditorAudit : IAuditService
+    {
+        private readonly TaskCompletionSource<bool> _entered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _resume =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Entered => _entered.Task;
+        public void Release() => _resume.TrySetResult(true);
+
+        public async Task LogAsync(string action, string? message = null,
+            string level = "Info", string? userId = null, string? userName = null,
+            IDictionary<string, string?>? data = null, HttpContext? http = null)
+        {
+            if (action != "Projects.PlanUpdated")
+                return;
+            _entered.TrySetResult(true);
+            await _resume.Task;
+        }
+    }
+
+    private sealed class RejectEditorTimeline : IPlannedTimelineValidationService
+    {
+        public Task<PlannedTimelineValidationResult> ValidateAsync(
+            PlannedTimelineCandidate candidate, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlannedTimelineValidationResult(
+                new[] { "Injected invalid replacement timeline." }));
     }
 
     private static async Task<bool> TrySubmitAsync(
