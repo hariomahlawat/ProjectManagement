@@ -409,6 +409,62 @@ public sealed class UserNotificationServiceTests
         Assert.Equal(1, mutedCount.TotalCount);
     }
 
+    [Theory]
+    [InlineData(NotificationKind.PlanWithdrawn, false)]
+    [InlineData(NotificationKind.PlanWithdrawn, true)]
+    [InlineData(NotificationKind.PlanSuperseded, false)]
+    [InlineData(NotificationKind.PlanSuperseded, true)]
+    public async Task ListPageAsync_TerminalPlanNoticesStayInApprovalsButNotActionRequired(
+        NotificationKind terminalKind, bool isRead)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 6, 30, 12, 0, 0, TimeSpan.Zero));
+        var service = new UserNotificationService(context, clock);
+        var principal = CreatePrincipal("user-1");
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Projects.Add(new Project { Id = 1, Name = "Project", LeadPoUserId = "user-1" });
+        context.Notifications.AddRange(
+            new Notification
+            {
+                Id = 1, RecipientUserId = "user-1", ProjectId = 1,
+                Kind = terminalKind, CreatedUtc = now,
+                ReadUtc = isRead ? now : null,
+            },
+            new Notification
+            {
+                Id = 2, RecipientUserId = "user-1", ProjectId = 1,
+                Kind = NotificationKind.PlanSubmitted, CreatedUtc = now.AddMinutes(-1),
+            },
+            new Notification
+            {
+                Id = 3, RecipientUserId = "user-1", ProjectId = 1,
+                Kind = NotificationKind.PlanRejected, CreatedUtc = now.AddMinutes(-2), ReadUtc = now,
+            });
+        await context.SaveChangesAsync();
+
+        var action = await service.ListPageAsync(principal, "user-1",
+            new NotificationListOptions { Folder = "action", IncludeFilterOptions = true });
+        var approvals = await service.ListPageAsync(principal, "user-1",
+            new NotificationListOptions { Folder = "approvals", IncludeFilterOptions = true });
+
+        Assert.Equal(new[] { 2, 3 }, action.Items.Select(item => item.Id));
+        Assert.Equal(2, action.TotalCount);
+        var actionCount = Assert.Single(action.Folders.Where(folder => folder.Key == "action"));
+        Assert.Equal(2, actionCount.TotalCount);
+        Assert.Equal(1, actionCount.UnreadCount);
+
+        Assert.Equal(new[] { 1, 2, 3 }, approvals.Items.Select(item => item.Id));
+        Assert.Equal(3, approvals.TotalCount);
+        var approvalCount = Assert.Single(approvals.Folders.Where(folder => folder.Key == "approvals"));
+        Assert.Equal(3, approvalCount.TotalCount);
+        Assert.Equal(isRead ? 1 : 2, approvalCount.UnreadCount);
+    }
+
     [Fact]
     public async Task CollaborationFolder_IncludesNotebookCollaborationNotifications()
     {

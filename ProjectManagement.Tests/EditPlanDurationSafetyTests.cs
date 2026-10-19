@@ -1814,19 +1814,69 @@ public class EditPlanDurationSafetyTests
     }
 
     [Fact]
-    public async Task PendingDraftLock_ReturnsConflictBeforeWorkingInputsChange()
+    public async Task PendingOwner_AutosaveLeavesReviewActiveUntilExplicitMaterialSave()
     {
         await using var f = await Fixture.CreateAsync("Project Officer", "Autosave");
-        f.Db.PlanVersions.Add(new PlanVersion
+        var submitted = new PlanVersion
         {
             ProjectId = 1, VersionNo = 1, Title = PlanVersion.ProjectTimelineTitle,
             OwnerUserId = "po-user", CreatedByUserId = "po-user",
+            SubmittedByUserId = "po-user", SubmittedOn = DateTimeOffset.UtcNow.AddHours(-1),
             Status = PlanVersionStatus.PendingApproval
-        });
+        };
+        f.Db.PlanVersions.Add(submitted);
         await f.Db.SaveChangesAsync();
-        AssertJson(await f.Page.OnPostAsync(1, default), 409, false);
+        AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        Assert.Equal(PlanVersionStatus.PendingApproval, submitted.Status);
+        var successor = await f.Db.PlanVersions.SingleAsync(p => p.VersionNo == 2);
+        Assert.Equal(PlanVersionStatus.Draft, successor.Status);
+        Assert.Equal("po-user", successor.OwnerUserId);
+        Assert.Empty(await f.Db.PlanApprovalLogs.ToListAsync());
+
+        // Pre-C2 cached clients sent AJAX SaveDraft instead of Autosave.
+        // This compatibility path must also leave HoD's review actionable.
+        f.Page.Input.Action = "SaveDraft";
+        f.Page.HttpContext.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        f.Page.Input.Rows[0].DurationDays += 2;
+        AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        Assert.Equal(PlanVersionStatus.PendingApproval, submitted.Status);
+        Assert.Empty(await f.Db.PlanApprovalLogs.ToListAsync());
+
+        f.Page.HttpContext.Request.Headers.Remove("X-Requested-With");
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
+        Assert.Single(await f.Db.PlanApprovalLogs.Where(l => l.PlanVersionId == submitted.Id &&
+            l.Action == "Superseded").ToListAsync());
         Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
         Assert.Empty(await f.Db.ProjectScheduleSettings.ToListAsync());
+        await f.AssertLiveDatesUnchangedAsync();
+    }
+
+    [Fact]
+    public async Task C2_StaleDurationTabCannotOverwriteAnotherSavedRevision()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "SaveDraft", relational: true);
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        var saved = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        var previousToken = PlanEditFingerprint.Compute(saved);
+
+        f.Page.Input.Action = "Autosave";
+        f.Page.Input.EditToken = previousToken;
+        f.Page.Input.Rows[0].DurationDays = 5;
+        var successful = AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        var nextToken = successful.GetProperty("editToken").GetString();
+        Assert.NotNull(nextToken);
+        Assert.NotEqual(previousToken, nextToken);
+
+        f.Page.Input.Rows[0].DurationDays = 8;
+        AssertJson(await f.Page.OnPostAsync(1, default), 409, false);
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(5, (await f.Db.StagePlans.SingleAsync()).DurationDays);
+
+        f.Page.Input.EditToken = nextToken;
+        AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(8, (await f.Db.StagePlans.SingleAsync()).DurationDays);
         await f.AssertLiveDatesUnchangedAsync();
     }
 
@@ -1907,7 +1957,7 @@ public class EditPlanDurationSafetyTests
         Assert.Equal(f.Page.Input.AnchorStart, own.Durations.AnchorStart);
         Assert.False(own.Durations.SkipHolidays);
         Assert.Equal(12, own.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
-        Assert.Equal(action == "Submit", own.State.IsLocked);
+        Assert.False(own.State.IsLocked);
         var outsider = await new PlanReadService(f.Db).GetAsync(1, "no-proposal-user");
         Assert.Equal(new DateOnly(2026, 10, 5), outsider.Durations.AnchorStart);
         Assert.True(outsider.Durations.SkipHolidays);
@@ -2091,7 +2141,7 @@ public class EditPlanDurationSafetyTests
         Assert.Equal(f.Page.Input.Rows[0].PlannedStart, row.PlannedStart);
         Assert.Equal(f.Page.Input.Rows[0].PlannedDue, row.PlannedDue);
         Assert.Equal(status, view.State.Status);
-        Assert.Equal(action == "Submit", view.State.IsLocked);
+        Assert.False(view.State.IsLocked);
         Assert.Equal(action == "SaveDraft", view.State.HasMyDraft);
         var proposal = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
         Assert.Equal(status, proposal.Status);

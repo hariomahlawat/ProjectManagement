@@ -50,7 +50,7 @@ public class PlanReadServiceIsolationTests
         Assert.Null(vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).PreviewStart);
         Assert.Equal(new[] { "EXT-A", "EXT-B" }, vm.Durations.Rows.Where(r => r.Code.StartsWith("EXT-")).Select(r => r.Code));
         Assert.True(vm.State.HasPendingSubmission);
-        Assert.Equal(status == PlanVersionStatus.PendingApproval, vm.State.IsLocked);
+        Assert.False(vm.State.IsLocked);
         Assert.Equal(PlanEditorModes.Durations, vm.ActiveMode);
     }
 
@@ -185,7 +185,7 @@ public class PlanReadServiceIsolationTests
         Assert.Equal(status == PlanVersionStatus.Draft ? 81 : 5, vm.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
         Assert.Equal(new DateOnly(2027, 1, 4), vm.Exact.Rows.Single(r => r.Code == StageCodes.FS).PlannedStart);
         Assert.Equal(proposalPnc, vm.State.PncApplicable);
-        Assert.Equal(status == PlanVersionStatus.PendingApproval, vm.State.IsLocked);
+        Assert.False(vm.State.IsLocked);
     }
 
     [Theory]
@@ -301,7 +301,7 @@ public class PlanReadServiceIsolationTests
 
         var vm = await new PlanReadService(db).GetAsync(1, "third-user");
         Assert.True(race.Submitted);
-        Assert.True(vm.State.IsLocked);
+        Assert.False(vm.State.IsLocked);
         Assert.True(vm.State.HasPendingSubmission);
         Assert.True(vm.State.PendingOwnedByCurrentUser);
         Assert.Equal(5, vm.State.VersionNo);

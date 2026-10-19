@@ -146,7 +146,7 @@ public sealed class ProposalOwnedPlanningCoreTests
     }
 
     [Fact]
-    public async Task PendingOwner_CannotAdoptAnOwnerlessDraftToBypassEditingLock()
+    public async Task PendingOwner_MayClaimOwnOrphanButMustKeepSubmittedRevisionIntact()
     {
         await using var db = CreateDb();
         await SeedPublishedAsync(db);
@@ -154,7 +154,11 @@ public sealed class ProposalOwnedPlanningCoreTests
             new PlanVersion { ProjectId = 1, VersionNo = 1, CreatedByUserId = "actor", OwnerUserId = "actor", Status = PlanVersionStatus.PendingApproval },
             new PlanVersion { ProjectId = 1, VersionNo = 2, CreatedByUserId = "actor" });
         await db.SaveChangesAsync();
-        await Assert.ThrowsAsync<PlanDraftLockedException>(() => Service(db, "actor").CreateOrGetDraftAsync(1));
+        var reclaimed = await Service(db, "actor").CreateOrGetDraftAsync(1);
+        Assert.Equal(2, reclaimed.VersionNo);
+        Assert.Equal("actor", reclaimed.OwnerUserId);
+        Assert.Equal(PlanVersionStatus.PendingApproval,
+            (await db.PlanVersions.SingleAsync(p => p.VersionNo == 1)).Status);
     }
 
     [Fact]

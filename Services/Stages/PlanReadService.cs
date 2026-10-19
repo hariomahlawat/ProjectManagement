@@ -65,6 +65,8 @@ public sealed class PlanReadService
             .Include(p => p.ApprovalLogs).ThenInclude(log => log.PerformedByUser)
             .Where(p => p.ProjectId == projectId &&
                         (p.Status == PlanVersionStatus.Draft ||
+                         (p.Status == PlanVersionStatus.Rejected && currentUserId != null &&
+                          (p.OwnerUserId == currentUserId || p.SubmittedByUserId == currentUserId)) ||
                          (p.Status == PlanVersionStatus.PendingApproval && actionablePending.Any(pending => pending.Id == p.Id))))
             .ToListAsync(cancellationToken);
 
@@ -91,6 +93,11 @@ public sealed class PlanReadService
             .ThenByDescending(plan => plan.VersionNo)
             .FirstOrDefault();
         var draftPlan = myDraft ?? myPending;
+        var latestRejected = string.IsNullOrWhiteSpace(currentUserId) ? null : planCandidates
+            .Where(plan => plan.Status == PlanVersionStatus.Rejected &&
+                           string.Equals(plan.OwnerUserId ?? plan.SubmittedByUserId, currentUserId,
+                                         StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(plan => plan.VersionNo).FirstOrDefault();
         var ownsInputs = draftPlan?.PlanningInputVersion >= PlanningInputVersions.Current;
         var presentsLegacyDraftInputs = draftPlan is
             { Status: PlanVersionStatus.Draft, PlanningInputVersion: PlanningInputVersions.Legacy };
@@ -259,17 +266,23 @@ public sealed class PlanReadService
         var state = new PlanEditorStateVm
         {
             HasDraft = myDraft is not null,
-            IsLocked = myPending is not null,
+            EditToken = PlanEditFingerprint.Compute(draftPlan),
+            // Reviewed content remains immutable, but PO successor edits are allowed.
+            IsLocked = false,
             Status = draftPlan?.Status ?? pendingPlan?.Status,
             VersionNo = draftPlan?.VersionNo ?? pendingPlan?.VersionNo,
             CreatedOn = draftPlan?.CreatedOn ?? pendingPlan?.CreatedOn,
             SubmittedOn = draftPlan?.SubmittedOn ?? pendingPlan?.SubmittedOn,
             SubmittedBy = DisplayName(draftPlan?.SubmittedByUser) ?? pendingSubmittedBy,
-            RejectedOn = draftPlan?.RejectedOn,
-            RejectedBy = DisplayName(draftPlan?.RejectedByUser),
-            RejectionNote = draftPlan?.RejectionNote,
+            RejectedOn = draftPlan?.RejectedOn ?? latestRejected?.RejectedOn,
+            RejectedBy = DisplayName(draftPlan?.RejectedByUser ?? latestRejected?.RejectedByUser),
+            RejectionNote = draftPlan?.RejectionNote ?? latestRejected?.RejectionNote,
             HasMyDraft = myDraft is not null,
+            CanDiscardDraft = myDraft is not null &&
+                !myDraft.RejectedOn.HasValue && !myDraft.SubmittedOn.HasValue &&
+                !myDraft.ApprovalLogs.Any(),
             HasPendingSubmission = pendingPlan is not null,
+            PendingPlanVersionId = pendingPlan?.Id,
             PendingOwnedByCurrentUser = isPendingMine,
             PendingSubmittedOn = pendingPlan?.SubmittedOn,
             PendingSubmittedBy = pendingSubmittedBy,
@@ -279,7 +292,7 @@ public sealed class PlanReadService
                 : null,
             PncApplicable = pncApplicable,
             LastSavedOn = lastSavedOn,
-            ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan)
+            ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan ?? latestRejected)
         };
 
         return new PlanEditorVm

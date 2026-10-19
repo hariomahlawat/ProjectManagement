@@ -110,6 +110,26 @@ public sealed class PlanNotificationService : IPlanNotificationService
                     plan.VersionNo)),
             cancellationToken);
 
+    public Task NotifyPlanWithdrawnAsync(
+        PlanVersion plan, Project project, string actorUserId,
+        CancellationToken cancellationToken = default)
+        => NotifyAsync(
+            NotificationKind.PlanWithdrawn, plan, project, actorUserId,
+            recipients => AddRecipient(recipients, project.HodUserId),
+            BuildMetadata(plan, project, actorUserId, "PlanWithdrawn", "withdrawn",
+                _ => $"Plan version {plan.VersionNo} withdrawn from review."),
+            cancellationToken);
+
+    public Task NotifyPlanSupersededAsync(
+        PlanVersion plan, Project project, string actorUserId,
+        CancellationToken cancellationToken = default)
+        => NotifyAsync(
+            NotificationKind.PlanSuperseded, plan, project, actorUserId,
+            recipients => AddRecipient(recipients, project.HodUserId),
+            BuildMetadata(plan, project, actorUserId, "PlanSuperseded", "superseded",
+                _ => $"Plan version {plan.VersionNo} replaced by a newer revision."),
+            cancellationToken);
+
     private async Task NotifyAsync(
         NotificationKind kind,
         PlanVersion plan,

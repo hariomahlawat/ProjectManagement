@@ -21,6 +21,7 @@ public sealed class PlanEditorVm
 public sealed class PlanEditorStateVm
 {
     public bool HasDraft { get; init; }
+    public string EditToken { get; init; } = "none";
     public bool IsLocked { get; init; }
     public PlanVersionStatus? Status { get; init; }
     public int? VersionNo { get; init; }
@@ -31,7 +32,9 @@ public sealed class PlanEditorStateVm
     public string? RejectedBy { get; init; }
     public string? RejectionNote { get; init; }
     public bool HasMyDraft { get; init; }
+    public bool CanDiscardDraft { get; init; }
     public bool HasPendingSubmission { get; init; }
+    public int? PendingPlanVersionId { get; init; }
     public bool PendingOwnedByCurrentUser { get; init; }
     public DateTimeOffset? PendingSubmittedOn { get; init; }
     public string? PendingSubmittedBy { get; init; }

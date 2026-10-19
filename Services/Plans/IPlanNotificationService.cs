@@ -24,4 +24,13 @@ public interface IPlanNotificationService
         Project project,
         string actorUserId,
         CancellationToken cancellationToken = default);
+
+    // Defaults preserve existing test/delivery adapters during the additive C2 rollout.
+    Task NotifyPlanWithdrawnAsync(
+        PlanVersion plan, Project project, string actorUserId,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    Task NotifyPlanSupersededAsync(
+        PlanVersion plan, Project project, string actorUserId,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

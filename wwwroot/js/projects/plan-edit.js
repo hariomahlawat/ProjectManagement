@@ -67,6 +67,16 @@
         if (!response.ok || data?.ok !== true || !data.savedAt) {
           throw new Error(data?.message || 'Validation failed. Check the entered values.');
         }
+        // The server snapshots the saved proposal under the project gate.
+        // Refresh the token even when the user has made subsequent local edits:
+        // the next autosave must compare against the last COMMITTED proposal.
+        if (typeof data.editToken === 'string') {
+          // Exact dates in the other tab were NOT refreshed with the Duration
+          // calculation. Keep that tab's old fingerprint so its stale payload
+          // cannot silently undo newer saved Duration proposal values.
+          const token = durationsForm.querySelector('input[name="Input.EditToken"]');
+          if (token) token.value = data.editToken;
+        }
         if (version === editVersion && !submitting && !paused) {
           savedAt.textContent = `Saved at ${new Date(data.savedAt).toLocaleTimeString()}`;
         }

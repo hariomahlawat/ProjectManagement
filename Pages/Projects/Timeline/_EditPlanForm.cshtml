@@ -20,6 +20,13 @@
 }
 
 <div class="d-flex flex-column h-100">
+    @if (!isDirectSaveRole && state.HasPendingSubmission && state.PendingOwnedByCurrentUser)
+    {
+        <div class="alert alert-info mb-3" role="status">
+            <div class="fw-semibold">Submitted plan under HoD review</div>
+            <div class="small">You can continue editing privately. An explicit Save draft with material changes, or a successful replacement submission, supersedes the existing review. Autosave and Calculate do not.</div>
+        </div>
+    }
     @if (isLocked)
     {
         <div class="alert alert-info mb-3" role="status">
@@ -54,7 +61,7 @@
         </div>
     }
 
-    @if (!isDirectSaveRole && !isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+    @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
     {
         <div class="alert alert-secondary mb-3" role="status">
             <div class="fw-semibold">Draft saved</div>
@@ -120,6 +127,7 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Input.Mode" value="@PlanEditorModes.Exact" />
                 <input type="hidden" name="Input.ProjectId" value="@Model.Exact.ProjectId" />
+                <input type="hidden" name="Input.EditToken" value="@state.EditToken" />
 
                 <div class="flex-grow-1 overflow-auto pe-1">
                     <div class="plan-editor-guidance mb-3">
@@ -161,7 +169,7 @@
                 </div>
 
                 <div class="pt-3 mt-3 border-top d-flex justify-content-end gap-2">
-                    @if (!isDirectSaveRole && !isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+                    @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
                     {
                         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#discardDraftModal">Discard draft</button>
                     }
@@ -183,6 +191,7 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Input.Mode" value="@PlanEditorModes.Durations" />
                 <input type="hidden" name="Input.ProjectId" value="@Model.Durations.ProjectId" />
+                <input type="hidden" name="Input.EditToken" value="@state.EditToken" />
 
                 <div class="flex-grow-1 overflow-auto pe-1">
                     <div class="row g-3">
@@ -255,7 +264,7 @@
 
                 <div class="d-flex gap-2 justify-content-end mt-3 pt-3 border-top">
                     <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="@PlanEditActions.Calculate" @(disableAttr)>Calculate</button>
-                    @if (!isDirectSaveRole && !isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+                    @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
                     {
                         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#discardDraftModal">Discard draft</button>
                     }

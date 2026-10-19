@@ -70,6 +70,12 @@ public class EditPlanModel : PageModel
     [BindProperty]
     public PlanEditInput Input { get; set; } = new();
 
+    [BindProperty]
+    public int WithdrawPlanVersionId { get; set; }
+
+    [BindProperty]
+    public DateTimeOffset? WithdrawSubmittedOn { get; set; }
+
     public IActionResult OnGet(int id) => NotFound();
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
@@ -181,6 +187,26 @@ public class EditPlanModel : PageModel
         return new JsonResult(new { ok = errors.Count == 0, errors });
     }
 
+    public async Task<IActionResult> OnPostWithdrawAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = _userContext.UserId;
+        if (string.IsNullOrWhiteSpace(userId) ||
+            !_userContext.User.IsInRole(RoleNames.ProjectOfficer))
+            return Forbid();
+
+        var isAssigned = await _db.Projects.AsNoTracking().AnyAsync(
+            p => p.Id == id && p.LeadPoUserId == userId, cancellationToken);
+        if (!isAssigned)
+            return Forbid();
+
+        var withdrawn = await _planApproval.WithdrawVersionAsync(
+            id, WithdrawPlanVersionId, WithdrawSubmittedOn, userId, cancellationToken);
+        TempData[withdrawn ? "Flash" : "Error"] = withdrawn
+            ? "Timeline submission withdrawn. Its review history is retained."
+            : "The submission changed or is no longer actionable. Refresh the timeline.";
+        return RedirectToPage("/Projects/Overview", new { id });
+    }
+
     public async Task<IActionResult> OnPostDeleteDraftAsync(int id, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -259,6 +285,15 @@ public class EditPlanModel : PageModel
 
         var submitForApproval = intent == PlanIntent.Submit;
 
+        // Working PO input and durable replacement are one authoritative
+        // transaction. An incomplete save cannot strand the prior review.
+        await using var revisionSave = await RelationalTransactionScope.CreateAsync(
+            _db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, id, cancellationToken);
+        if (Input.EditToken is not null &&
+            !await _planDraft.MatchesEditorTokenAsync(id, Input.EditToken, cancellationToken))
+            return RejectPlanRequest(id, "This timeline draft changed in another session. Reload before saving.", 409);
+
         PlanVersion draft;
         try
         {
@@ -334,6 +369,14 @@ public class EditPlanModel : PageModel
             await _db.SaveChangesAsync(cancellationToken);
         }
 
+        // Only an explicit SaveDraft makes a material private replacement
+        // authoritative. Autosave/Calculate remain non-authoritative; Submit
+        // validates and supersedes atomically in PlanApprovalService.
+        if (intent == PlanIntent.SaveDraft)
+            await _planDraft.SupersedePendingAfterSaveAsync(draft, cancellationToken);
+
+        // Do not commit before the exact replacement has been validated and
+        // submitted. The HoD decision must remain blocked on this same gate.
         if (changes.Count > 0)
         {
             _logger.LogInformation(
@@ -397,7 +440,12 @@ public class EditPlanModel : PageModel
 
             TempData["Flash"] = "Plan submitted for HoD review.";
         }
-        else
+
+        // Audit and replacement must commit together. Any failed submission
+        // returns before this point; disposal rolls back the proposed edit.
+        await revisionSave.CommitAsync(cancellationToken);
+
+        if (!submitForApproval)
         {
             TempData["OpenOffcanvas"] = "plan-edit";
 
@@ -686,6 +734,11 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
+        await using var revisionSave = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
+        await PlanRevisionConsistency.LockProjectAsync(_db, id, ct);
+        if (Input.EditToken is not null &&
+            !await _planDraft.MatchesEditorTokenAsync(id, Input.EditToken, ct))
+            return RejectPlanRequest(id, "This timeline draft changed in another session. Reload before saving.", 409);
         PlanVersion draft;
         try
         {
@@ -700,7 +753,14 @@ public class EditPlanModel : PageModel
         SetDurationProposalInputs(draft, rows, workflowVersion);
         await _db.SaveChangesAsync(ct);
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
+        // Autosave and Calculate never revoke an active HoD review.
+        // Explicit SaveDraft may supersede it; Submit supersedes only after
+        // approval validation succeeds in the same submission transaction.
+        if (intent == PlanIntent.SaveDraft && !IsAutosaveRequest)
+            await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
 
+        // Submit is nested in revisionSave, so the project gate is retained
+        // until validation, durable replacement and the outer commit finish.
         if (submitForApproval)
         {
             try
@@ -739,9 +799,19 @@ public class EditPlanModel : PageModel
                 ["Action"] = action
             });
 
+        // Commit before acknowledging an autosave. Otherwise disposal would
+        // roll it back while returning a false "Saved" confirmation.
+        // For Submit this is still AFTER nested approval validation/replacement.
+        await revisionSave.CommitAsync(ct);
+
         if (IsAutosaveRequest)
         {
-            return new JsonResult(new { ok = true, savedAt = DateTimeOffset.UtcNow });
+            return new JsonResult(new
+            {
+                ok = true,
+                savedAt = DateTimeOffset.UtcNow,
+                editToken = PlanEditFingerprint.Compute(draft)
+            });
         }
 
         if (submitForApproval)

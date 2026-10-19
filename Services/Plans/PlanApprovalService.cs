@@ -75,6 +75,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
+            .Include(p => p.ApprovalLogs)
             .Include(p => p.Project)
             .FirstOrDefaultAsync(p => p.ProjectId == projectId &&
                                       p.Status == PlanVersionStatus.Draft &&
@@ -92,17 +93,33 @@ public class PlanApprovalService
             throw new DomainException("This revision was superseded by a later timeline submission.");
         }
 
-        var alreadyPending = await PlanRevisionConsistency.ActionablePending(_db)
-            .AnyAsync(p => p.ProjectId == projectId, cancellationToken);
-        if (alreadyPending)
-        {
+        var pending = await PlanRevisionConsistency.ActionablePending(_db)
+            .Include(p => p.StagePlans)
+            .Include(p => p.Project)
+            .Where(p => p.ProjectId == projectId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (pending is not null &&
+            (!string.Equals(pending.OwnerUserId ?? pending.SubmittedByUserId,
+                            userId, StringComparison.OrdinalIgnoreCase) ||
+             pending.VersionNo >= plan.VersionNo))
             throw new DomainException("Another submission is already pending approval.");
-        }
+
+        if (pending is not null && !PlanRevisionConsistency.HasMaterialChanges(pending, plan))
+            throw new DomainException("Make a change to the reviewed plan before submitting a replacement.");
 
         var errors = await ValidatePlanAsync(plan, cancellationToken);
         if (errors.Count > 0)
         {
             throw new PlanApprovalValidationException(errors);
+        }
+
+        if (pending is not null)
+        {
+            // Successful replacement is one atomic transition: the prior review
+            // becomes permanently stale before the new submission is visible.
+            await PlanRevisionConsistency.SupersedeOwnedPendingIfChangedAsync(
+                _db, plan, userId, _clock.UtcNow, cancellationToken);
         }
 
         plan.Status = PlanVersionStatus.PendingApproval;
@@ -119,15 +136,112 @@ public class PlanApprovalService
         plan.RejectedByUserId = null;
         plan.RejectedOn = null;
         plan.RejectionNote = null;
+        // New submissions carry their own immutable review-epoch evidence.
+        // Historical pre-C2 Pending rows without this event retain the legacy
+        // reject-to-Draft fallback; new rejection never edits submitted inputs.
+        plan.ApprovalLogs.Add(new PlanApprovalLog
+        {
+            PlanVersionId = plan.Id,
+            Action = "Submitted",
+            PerformedByUserId = userId,
+            PerformedOn = submittedOn
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+        // A page-level Submit is nested under the editor's project gate.
+        // Releasing its savepoint must not emit notifications before the
+        // outer edit + replacement transaction actually commits.
+        if (pending?.Project is not null)
+        {
+            var replaced = pending;
+            var project = pending.Project;
+            transaction.RegisterAfterCommit(ct =>
+                _notifications.NotifyPlanSupersededAsync(replaced, project, userId, ct));
+        }
+        if (plan.Project is not null)
+        {
+            var project = plan.Project;
+            transaction.RegisterAfterCommit(ct =>
+                _notifications.NotifyPlanSubmittedAsync(plan, project, userId, ct));
+        }
+        await transaction.CommitAsync(cancellationToken);
+        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
+    }
+
+    /// <summary>
+    /// Withdraws the exact currently actionable submission without rewriting the
+    /// reviewed content. A stale tab cannot withdraw a newer submission.
+    /// </summary>
+    public async Task<bool> WithdrawVersionAsync(
+        int projectId, int planVersionId, DateTimeOffset? submittedOn,
+        string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId) || !submittedOn.HasValue)
+            return false;
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
+        var plan = await PlanRevisionConsistency.ActionablePending(_db)
+            .Include(p => p.Project)
+            .Include(p => p.StagePlans)
+            .SingleOrDefaultAsync(p => p.ProjectId == projectId && p.Id == planVersionId &&
+                                       p.SubmittedOn == submittedOn, cancellationToken);
+        if (plan is null ||
+            !string.Equals(plan.OwnerUserId ?? plan.SubmittedByUserId,
+                           userId, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        plan.Status = PlanVersionStatus.Withdrawn;
+        var withdrawnOn = _clock.UtcNow;
+        _db.PlanApprovalLogs.Add(new PlanApprovalLog
+        {
+            PlanVersionId = plan.Id,
+            Action = "Withdrawn",
+            Note = "Submission withdrawn by its owner.",
+            PerformedByUserId = userId,
+            PerformedOn = withdrawnOn
+        });
+
+        // Withdrawal closes the review but must not make the PO reconstruct
+        // their proposed dates/durations from an older official baseline.
+        // Preserve submitted N and start a new private N+1 if none exists.
+        if (!await _db.PlanVersions.AnyAsync(p =>
+                p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
+                p.OwnerUserId == userId, cancellationToken))
+        {
+            var maxVersion = await _db.PlanVersions.Where(p => p.ProjectId == projectId)
+                .MaxAsync(p => (int?)p.VersionNo, cancellationToken) ?? 0;
+            var successor = new PlanVersion
+            {
+                ProjectId = projectId,
+                VersionNo = maxVersion + 1,
+                Title = PlanVersion.ProjectTimelineTitle,
+                Status = PlanVersionStatus.Draft,
+                CreatedByUserId = userId,
+                OwnerUserId = userId,
+                CreatedOn = withdrawnOn,
+                PlanningInputVersion = plan.PlanningInputVersion,
+                AnchorStageCode = plan.AnchorStageCode,
+                AnchorDate = plan.AnchorDate,
+                SkipWeekends = plan.SkipWeekends,
+                SkipHolidays = plan.SkipHolidays,
+                TransitionRule = plan.TransitionRule,
+                PncApplicable = plan.PncApplicable,
+                StagePlans = plan.StagePlans.Select(row => new StagePlan
+                {
+                    StageCode = row.StageCode, PlannedStart = row.PlannedStart,
+                    PlannedDue = row.PlannedDue, DurationDays = row.DurationDays,
+                    SortOrder = row.SortOrder
+                }).ToList()
+            };
+            _db.PlanVersions.Add(successor);
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
-
         if (plan.Project is not null)
-        {
-            await _notifications.NotifyPlanSubmittedAsync(plan, plan.Project, userId, cancellationToken);
-        }
+            await _notifications.NotifyPlanWithdrawnAsync(plan, plan.Project, userId, cancellationToken);
+        return true;
     }
 
     public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -417,6 +531,7 @@ public class PlanApprovalService
 
         var plan = await PlanRevisionConsistency.ActionablePending(_db)
             .Include(p => p.ApprovalLogs)
+            .Include(p => p.StagePlans)
             .Include(p => p.Project)
             .Where(p => p.ProjectId == projectId)
             .OrderByDescending(p => p.SubmittedOn)
@@ -444,6 +559,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.ApprovalLogs)
+            .Include(p => p.StagePlans)
             .Include(p => p.Project)
             .SingleOrDefaultAsync(
                 p => p.Id == planVersionId &&
@@ -470,16 +586,24 @@ public class PlanApprovalService
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, plan.ProjectId, cancellationToken);
+        var preserveSubmittedRevision = plan.ApprovalLogs.Any(log =>
+            log.Action == "CreatedAsReplacement" || log.Action == "Submitted");
+        var rejectionStatus = preserveSubmittedRevision ? PlanVersionStatus.Rejected : PlanVersionStatus.Draft;
         if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
-            !await TryClaimPendingDecisionAsync(plan, PlanVersionStatus.Draft, cancellationToken))
+            !await TryClaimPendingDecisionAsync(plan, rejectionStatus, cancellationToken))
             return false;
 
         var trimmedNote = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         var rejectedOn = _clock.UtcNow;
 
-        plan.Status = PlanVersionStatus.Draft;
-        plan.SubmittedByUserId = null;
-        plan.SubmittedOn = null;
+        plan.Status = rejectionStatus;
+        // Legacy C1 rejected drafts preserve the existing resubmission path.
+        // C2 successors remain immutable and keep the reviewed submission epoch.
+        if (!preserveSubmittedRevision)
+        {
+            plan.SubmittedByUserId = null;
+            plan.SubmittedOn = null;
+        }
         plan.ApprovedByUserId = null;
         plan.ApprovedOn = null;
         plan.RejectedByUserId = hodUserId;
@@ -494,6 +618,40 @@ public class PlanApprovalService
             PerformedByUserId = hodUserId,
             PerformedOn = rejectedOn
         });
+
+        if (preserveSubmittedRevision && !string.IsNullOrWhiteSpace(plan.OwnerUserId) &&
+            !await _db.PlanVersions.AnyAsync(candidate =>
+                candidate.ProjectId == plan.ProjectId &&
+                candidate.Status == PlanVersionStatus.Draft &&
+                candidate.OwnerUserId == plan.OwnerUserId, cancellationToken))
+        {
+            var latest = await _db.PlanVersions.Where(p => p.ProjectId == plan.ProjectId)
+                .MaxAsync(p => (int?)p.VersionNo, cancellationToken) ?? 0;
+            var correction = new PlanVersion
+            {
+                ProjectId = plan.ProjectId,
+                VersionNo = latest + 1,
+                Status = PlanVersionStatus.Draft,
+                Title = PlanVersion.ProjectTimelineTitle,
+                CreatedByUserId = plan.OwnerUserId!,
+                OwnerUserId = plan.OwnerUserId,
+                CreatedOn = rejectedOn,
+                PlanningInputVersion = plan.PlanningInputVersion,
+                AnchorStageCode = plan.AnchorStageCode,
+                AnchorDate = plan.AnchorDate,
+                SkipWeekends = plan.SkipWeekends,
+                SkipHolidays = plan.SkipHolidays,
+                TransitionRule = plan.TransitionRule,
+                PncApplicable = plan.PncApplicable,
+                StagePlans = plan.StagePlans.Select(row => new StagePlan
+                {
+                    StageCode = row.StageCode, DurationDays = row.DurationDays,
+                    PlannedStart = row.PlannedStart, PlannedDue = row.PlannedDue,
+                    SortOrder = row.SortOrder
+                }).ToList()
+            };
+            _db.PlanVersions.Add(correction);
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

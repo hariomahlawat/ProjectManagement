@@ -11,13 +11,12 @@ public partial class OverviewModel
     {
         get
         {
-            var planLocked = PlanEdit?.State?.IsLocked ?? false;
             return new ProjectOverviewAccessVm
             {
                 IsAdmin = Roles.IsAdmin,
                 IsHoD = Roles.IsHoD,
                 IsAssignedProjectOfficer = Roles.IsAssignedProjectOfficer,
-                CanEditTimeline = (Roles.IsAdmin || Roles.IsHoD || Roles.IsAssignedProjectOfficer) && !planLocked
+                CanEditTimeline = Roles.IsAdmin || Roles.IsHoD || Roles.IsAssignedProjectOfficer
             };
         }
     }

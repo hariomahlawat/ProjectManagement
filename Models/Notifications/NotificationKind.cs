@@ -7,6 +7,8 @@ public enum NotificationKind
     PlanSubmitted = 10,
     PlanApproved = 11,
     PlanRejected = 12,
+    PlanWithdrawn = 13,
+    PlanSuperseded = 14,
     StageStatusChanged = 20,
     StageAssigned = 21,
     DocumentPublished = 30,

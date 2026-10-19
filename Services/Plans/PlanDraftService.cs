@@ -24,6 +24,7 @@ public class PlanDraftService
     private readonly IAuditService _audit;
     private readonly IUserContext _userContext;
     private readonly IOfficeCalendarService? _officeCalendar;
+    private readonly IPlanNotificationService? _notifications;
 
     public PlanDraftService(
         ApplicationDbContext db,
@@ -32,6 +33,18 @@ public class PlanDraftService
         IAuditService audit,
         IUserContext userContext,
         IOfficeCalendarService? officeCalendar = null)
+        : this(db, clock, logger, audit, userContext, officeCalendar, null)
+    {
+    }
+
+    public PlanDraftService(
+        ApplicationDbContext db,
+        IClock clock,
+        ILogger<PlanDraftService> logger,
+        IAuditService audit,
+        IUserContext userContext,
+        IOfficeCalendarService? officeCalendar,
+        IPlanNotificationService? notifications)
     {
         _db = db;
         _clock = clock;
@@ -39,6 +52,7 @@ public class PlanDraftService
         _audit = audit;
         _userContext = userContext;
         _officeCalendar = officeCalendar;
+        _notifications = notifications;
     }
 
     public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, CancellationToken cancellationToken = default)
@@ -58,16 +72,8 @@ public class PlanDraftService
             return myDraft;
         }
 
-        var hasPending = await PlanRevisionConsistency.ActionablePending(_db)
-            .AsNoTracking()
-            .AnyAsync(p => p.ProjectId == projectId &&
-                           (p.OwnerUserId == userId || (p.OwnerUserId == null && p.CreatedByUserId == userId)),
-                cancellationToken);
-
-        if (hasPending)
-        {
-            throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
-        }
+        // A submitted proposal is immutable. If its owner returns to edit,
+        // CreateDraftAsync creates an isolated successor under the project gate.
 
         // Only a creator may recover their own pre-ownership draft. An ownerless
         // row is not a published baseline and cannot be claimed by another actor.
@@ -87,6 +93,61 @@ public class PlanDraftService
         }
 
         return await CreateDraftAsync(projectId, userId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Finalize replacement only after material inputs have been persisted.
+    /// Page handlers keep the whole edit/generation and this transition under
+    /// one outer transaction and project gate; nested callers use a savepoint.
+    /// </summary>
+    public async Task<bool> SupersedePendingAfterSaveAsync(
+        PlanVersion draft, CancellationToken cancellationToken = default)
+    {
+        var actorId = GetCurrentUserId();
+        await using var transaction = await RelationalTransactionScope.CreateAsync(
+            _db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, draft.ProjectId, cancellationToken);
+        var superseded = await PlanRevisionConsistency.SupersedeOwnedPendingIfChangedAsync(
+            _db, draft, actorId, _clock.UtcNow, cancellationToken);
+        if (superseded && _notifications is not null)
+        {
+            var previous = await _db.PlanVersions.AsNoTracking().Include(p => p.Project)
+                .Where(p => p.ProjectId == draft.ProjectId &&
+                            p.VersionNo < draft.VersionNo &&
+                            p.Status == PlanVersionStatus.Superseded)
+                .OrderByDescending(p => p.VersionNo)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (previous?.Project is not null)
+                transaction.RegisterAfterCommit(ct =>
+                    _notifications.NotifyPlanSupersededAsync(previous, previous.Project, actorId, ct));
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return superseded;
+    }
+
+    /// <summary>
+    /// Caller holds the project transaction gate when verifying an editing POST.
+    /// A second browser tab cannot silently overwrite a different revision or
+    /// different already-saved proposal inputs.
+    /// </summary>
+    public async Task<bool> MatchesEditorTokenAsync(
+        int projectId, string expectedToken, CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserId();
+        var current = await _db.PlanVersions.AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
+            .OrderByDescending(p => p.VersionNo).FirstOrDefaultAsync(cancellationToken);
+
+        current ??= await PlanRevisionConsistency.ActionablePending(_db).AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.OwnerUserId == userId || p.SubmittedByUserId == userId))
+            .OrderByDescending(p => p.VersionNo).FirstOrDefaultAsync(cancellationToken);
+
+        return string.Equals(PlanEditFingerprint.Compute(current), expectedToken,
+            StringComparison.Ordinal);
     }
 
     public async Task<PlanVersion?> GetMyDraftAsync(int projectId, CancellationToken cancellationToken = default)
@@ -170,13 +231,12 @@ public class PlanDraftService
             return existing;
         }
 
-        var pendingMine = await PlanRevisionConsistency.ActionablePending(_db)
-            .AnyAsync(p => p.ProjectId == projectId &&
-                           (p.OwnerUserId == userId ||
-                            (p.OwnerUserId == null && p.CreatedByUserId == userId)),
-                cancellationToken);
-        if (pendingMine)
-            throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
+        var myPending = await PlanRevisionConsistency.ActionablePending(_db)
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.OwnerUserId == userId || p.SubmittedByUserId == userId))
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var orphan = await _db.PlanVersions.Include(p => p.StagePlans)
             .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
@@ -204,7 +264,31 @@ public class PlanDraftService
             CreatedOn = _clock.UtcNow,
             PlanningInputVersion = PlanningInputVersions.Current
         };
-        await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
+        if (myPending is not null)
+        {
+            // Copy the exact submitted inputs, not globals or the current official
+            // baseline. The pending N stays immutable and actionable until a
+            // material successor is saved or explicitly submitted.
+            plan.PlanningInputVersion = myPending.PlanningInputVersion;
+            plan.AnchorStageCode = myPending.AnchorStageCode;
+            plan.AnchorDate = myPending.AnchorDate;
+            plan.SkipWeekends = myPending.SkipWeekends;
+            plan.SkipHolidays = myPending.SkipHolidays;
+            plan.TransitionRule = myPending.TransitionRule;
+            plan.PncApplicable = myPending.PncApplicable;
+            plan.StagePlans = myPending.StagePlans.Select(stage => new StagePlan
+            {
+                StageCode = stage.StageCode,
+                PlannedStart = stage.PlannedStart,
+                PlannedDue = stage.PlannedDue,
+                DurationDays = stage.DurationDays,
+                SortOrder = stage.SortOrder
+            }).ToList();
+        }
+        else
+        {
+            await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
+        }
 
         var latestVersion = await _db.PlanVersions
             .Where(p => p.ProjectId == projectId)

@@ -56,6 +56,8 @@ public sealed class UserNotificationService
         NotificationKind.PlanSubmitted,
         NotificationKind.PlanApproved,
         NotificationKind.PlanRejected,
+        NotificationKind.PlanWithdrawn,
+        NotificationKind.PlanSuperseded,
         NotificationKind.TrainingDeleteRequested,
         NotificationKind.TrainingDeleteApproved,
         NotificationKind.TrainingDeleteRejected,
