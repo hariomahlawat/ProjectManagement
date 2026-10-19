@@ -580,44 +580,65 @@ public sealed class DirectActualsPublicationTests
     }
 
     [Fact]
-    public void BackfillForm_PostsTheValuesOfTheSameSnapshotAsItsToken()
+    public void BackfillForm_PostsTheValuesOfTheSameStoredRowAsItsToken()
     {
-        // The timeline read is older than the editor read: a concurrent correction
-        // moved the start from 1 Feb to 2 Feb between the two queries.
+        // The timeline read is older than the stored-row read: a concurrent
+        // correction moved the start from 1 Feb to 2 Feb in between.
         var timeline = new[]
         {
             new TimelineItemVm { Code = StageCodes.BID, Name = "Bidding", RequiresBackfill = true, ActualStart = Feb(1) }
         };
-        var editor = new ActualsEditorVm
-        {
-            ProjectId = ProjectId,
-            Rows = new[]
-            {
-                new ActualsEditorRowVm { StageCode = StageCodes.BID, ActualStart = Feb(2), StageToken = "TOKEN-OF-2-FEB" }
-            }
-        };
+        var stored = AwaitingBackfill(StageCodes.BID, Feb(2));
 
-        var form = ProjectManagement.Features.Backfill.BackfillViewModel.Create(ProjectId, Today, timeline, editor);
+        var form = ProjectManagement.Features.Backfill.BackfillViewModel.Create(ProjectId, Today, timeline, new[] { stored });
 
         var row = Assert.Single(form.Stages);
         Assert.Equal(Feb(2), row.ActualStart);
-        Assert.Equal("TOKEN-OF-2-FEB", row.StageToken);
+        Assert.Equal(ActualStageToken.Compute(stored), row.StageToken);
         Assert.Equal(ActualStageToken.BaselineVersion, form.BaselineVersion);
     }
 
     [Fact]
-    public void BackfillForm_WithoutAnEditorSnapshotForARow_DoesNotClaimStaleProtection()
+    public void BackfillForm_KeepsStaleProtection_WhenARowHasNoStoredStage()
     {
         var form = ProjectManagement.Features.Backfill.BackfillViewModel.Create(
             ProjectId,
             Today,
-            new[] { new TimelineItemVm { Code = "EXT1", Name = "Extension", RequiresBackfill = true, ActualStart = Feb(1) } },
-            new ActualsEditorVm { ProjectId = ProjectId, Rows = Array.Empty<ActualsEditorRowVm>() });
+            new[]
+            {
+                new TimelineItemVm { Code = StageCodes.BID, Name = "Bidding", RequiresBackfill = true },
+                new TimelineItemVm { Code = "EXT1", Name = "Extension", RequiresBackfill = true }
+            },
+            new[] { AwaitingBackfill(StageCodes.BID, Feb(1)) });
 
-        var row = Assert.Single(form.Stages);
-        Assert.Null(row.StageToken);
-        Assert.Equal(Feb(1), row.ActualStart);
-        Assert.Equal(0, form.BaselineVersion);
+        // One tokenless row must not downgrade the whole form to the legacy contract.
+        Assert.Equal(ActualStageToken.BaselineVersion, form.BaselineVersion);
+        Assert.NotNull(form.Stages.Single(stage => stage.StageCode == StageCodes.BID).StageToken);
+        Assert.Null(form.Stages.Single(stage => stage.StageCode == "EXT1").StageToken);
+    }
+
+    [Fact]
+    public async Task BaselineAwareBackfill_WithAMissingToken_IsRefusedAsStaleWithoutWrites()
+    {
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db,
+            AwaitingBackfill(StageCodes.BID, Feb(1)),
+            AwaitingBackfill(StageCodes.TEC, Feb(1))));
+        await using var db = fixture.NewContext();
+
+        var stale = await Assert.ThrowsAsync<StageBackfillStaleException>(() => fixture.Backfill(db).ApplyAsync(
+            ProjectId,
+            new[]
+            {
+                new StageBackfillUpdate(StageCodes.BID, null, Feb(5), Token(db, StageCodes.BID)),
+                new StageBackfillUpdate(StageCodes.TEC, null, Feb(5), StageToken: null)
+            },
+            TestActors.Hod("actor"),
+            baselineVersion: ActualStageToken.BaselineVersion));
+
+        Assert.Equal(new[] { StageCodes.TEC }, stale.StaleStages);
+        await using var verify = fixture.NewContext();
+        Assert.All(await verify.ProjectStages.ToListAsync(), stage => Assert.Null(stage.CompletedOn));
+        await AssertNoHistoryAsync(fixture);
     }
 
     // SECTION: Rollback and post-commit effects

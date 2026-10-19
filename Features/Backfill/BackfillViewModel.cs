@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
@@ -10,41 +11,42 @@ namespace ProjectManagement.Features.Backfill;
 public sealed class BackfillViewModel
 {
     /// <summary>
-    /// Builds the backfill form. The values posted back (Actual start and
-    /// completion) and each row's stale token come from the same stored-row
-    /// snapshot, the actuals editor's read. Pairing Timeline dates with a token
-    /// from a later read could let a backfill post stale dates under a current
-    /// token and overwrite a concurrent correction. Display-only fields still come
-    /// from the timeline.
+    /// Builds the backfill form. Each row's posted values (Actual start and
+    /// completion) and its stale token come from the same stored row, read in
+    /// one query, so a correction committed between reads can never pair stale
+    /// dates with a current token. Display-only fields come from the timeline.
+    /// The form always claims baseline protection: a row without a stored row
+    /// has no token and is refused by the server rather than disabling the
+    /// stale check for every other row.
     /// </summary>
     public static BackfillViewModel Create(
         int projectId,
         DateOnly today,
         IEnumerable<TimelineItemVm> timelineItems,
-        ActualsEditorVm actualsEditor)
+        IEnumerable<ProjectStage> storedStages)
     {
         ArgumentNullException.ThrowIfNull(timelineItems);
-        ArgumentNullException.ThrowIfNull(actualsEditor);
+        ArgumentNullException.ThrowIfNull(storedStages);
 
-        var editorRows = actualsEditor.Rows
-            .Where(row => !string.IsNullOrWhiteSpace(row.StageToken))
-            .GroupBy(row => row.StageCode, StringComparer.OrdinalIgnoreCase)
+        var stored = storedStages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .GroupBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         var stages = timelineItems
             .Where(item => item.RequiresBackfill)
             .Select(item =>
             {
-                var snapshot = editorRows.GetValueOrDefault(item.Code);
+                var row = stored.GetValueOrDefault(item.Code);
                 return new BackfillStageViewModel
                 {
                     StageCode = item.Code,
                     StageName = item.Name,
-                    ActualStart = snapshot is null ? item.ActualStart : snapshot.ActualStart,
-                    CompletedOn = snapshot is null ? item.CompletedOn : snapshot.CompletedOn,
+                    ActualStart = row is null ? item.ActualStart : row.ActualStart,
+                    CompletedOn = row is null ? item.CompletedOn : row.CompletedOn,
                     IsAutoCompleted = item.IsAutoCompleted,
                     AutoCompletedFromCode = item.AutoCompletedFromCode,
-                    StageToken = snapshot?.StageToken
+                    StageToken = row is null ? null : ActualStageToken.Compute(row)
                 };
             })
             .ToArray();
@@ -53,11 +55,7 @@ public sealed class BackfillViewModel
         {
             ProjectId = projectId,
             Today = today,
-            // Claim stale protection only when every rendered row carries a token;
-            // otherwise a tokenless row would always be refused as stale.
-            BaselineVersion = stages.All(stage => !string.IsNullOrWhiteSpace(stage.StageToken))
-                ? ActualStageToken.BaselineVersion
-                : 0,
+            BaselineVersion = ActualStageToken.BaselineVersion,
             Stages = stages
         };
     }
