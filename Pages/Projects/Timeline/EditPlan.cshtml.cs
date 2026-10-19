@@ -366,7 +366,11 @@ public class EditPlanModel : PageModel
             await _db.SaveChangesAsync(cancellationToken);
         }
 
-        await _planDraft.SupersedePendingAfterSaveAsync(draft, cancellationToken);
+        // Only an explicit SaveDraft makes a material private replacement
+        // authoritative. Autosave/Calculate remain non-authoritative; Submit
+        // validates and supersedes atomically in PlanApprovalService.
+        if (intent == PlanIntent.SaveDraft)
+            await _planDraft.SupersedePendingAfterSaveAsync(draft, cancellationToken);
         await revisionSave.CommitAsync(cancellationToken);
 
         if (changes.Count > 0)
@@ -737,8 +741,11 @@ public class EditPlanModel : PageModel
         SetDurationProposalInputs(draft, rows, workflowVersion);
         await _db.SaveChangesAsync(ct);
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
-        // Only changed proposal content supersedes an existing review.
-        await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
+        // Autosave and Calculate never revoke an active HoD review.
+        // Explicit SaveDraft may supersede it; Submit supersedes only after
+        // approval validation succeeds in the same submission transaction.
+        if (intent == PlanIntent.SaveDraft)
+            await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
         await revisionSave.CommitAsync(ct);
 
         if (submitForApproval)
