@@ -148,15 +148,24 @@ public class PlanApprovalService
         });
 
         await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
+        // A page-level Submit is nested under the editor's project gate.
+        // Releasing its savepoint must not emit notifications before the
+        // outer edit + replacement transaction actually commits.
         if (pending?.Project is not null)
-            await _notifications.NotifyPlanSupersededAsync(pending, pending.Project, userId, cancellationToken);
-
+        {
+            var replaced = pending;
+            var project = pending.Project;
+            transaction.RegisterAfterCommit(ct =>
+                _notifications.NotifyPlanSupersededAsync(replaced, project, userId, ct));
+        }
         if (plan.Project is not null)
         {
-            await _notifications.NotifyPlanSubmittedAsync(plan, plan.Project, userId, cancellationToken);
+            var project = plan.Project;
+            transaction.RegisterAfterCommit(ct =>
+                _notifications.NotifyPlanSubmittedAsync(plan, project, userId, ct));
         }
+        await transaction.CommitAsync(cancellationToken);
+        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
     }
 
     /// <summary>
