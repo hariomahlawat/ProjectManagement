@@ -388,14 +388,17 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.Configure<LoginRateLimitOptions>(builder.Configuration.GetSection(LoginRateLimitOptions.SectionName));
 builder.Services.Configure<DocumentUploadRateLimitOptions>(builder.Configuration.GetSection(DocumentUploadRateLimitOptions.SectionName));
+builder.Services.AddSingleton<SharedRateLimiters>();
 
 builder.Services.AddRateLimiter(options =>
 {
-    // Sign-in attempts are throttled per client address; opening the login page is not.
+    // Sign-in attempts are throttled per client address, then against a server-wide allowance
+    // (SharedRateLimiters); opening the login page is not throttled.
     options.AddPolicy(LoginRateLimiting.PolicyName, context =>
         LoginRateLimiting.GetPartition(
             context,
-            context.RequestServices.GetRequiredService<IOptions<LoginRateLimitOptions>>().Value));
+            context.RequestServices.GetRequiredService<IOptions<LoginRateLimitOptions>>().Value,
+            context.RequestServices.GetRequiredService<SharedRateLimiters>().Login));
 
     options.OnRejected = (context, _) =>
     {
@@ -403,7 +406,7 @@ builder.Services.AddRateLimiter(options =>
         {
             context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
                 .CreateLogger("ProjectManagement.LoginRateLimit")
-                .LogWarning("Sign-in attempts throttled for client {ClientIp}.", LoginRateLimiting.ClientLabel(context.HttpContext));
+                .LogWarning("Sign-in attempts throttled (client {ClientIp}).", LoginRateLimiting.ClientLabel(context.HttpContext));
             context.HttpContext.Response.Redirect(LoginRateLimiting.BuildThrottledRedirect(context.HttpContext));
         }
         else if (DocumentUploadRateLimiting.IsUploadRequest(context.HttpContext))
@@ -421,7 +424,8 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy(DocumentUploadRateLimiting.PolicyName, context =>
         DocumentUploadRateLimiting.GetPartition(
             context,
-            context.RequestServices.GetRequiredService<IOptions<DocumentUploadRateLimitOptions>>().Value));
+            context.RequestServices.GetRequiredService<IOptions<DocumentUploadRateLimitOptions>>().Value,
+            context.RequestServices.GetRequiredService<SharedRateLimiters>().DocumentUpload));
 });
 
 builder.Services.AddHsts(o =>

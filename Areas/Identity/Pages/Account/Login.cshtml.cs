@@ -63,7 +63,9 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         // Set when a throttled sign-in was redirected back here (see LoginRateLimiting).
         public bool Throttled { get; private set; }
 
-        public int ThrottleWindowMinutes => (int)_rateLimitOptions.EffectiveWindow.TotalMinutes;
+        public int ThrottleWindowMinutes => _rateLimitOptions.EffectiveWindowMinutes;
+
+        public string ThrottleWaitText => ThrottleWindowMinutes == 1 ? "1 minute" : $"{ThrottleWindowMinutes} minutes";
 
         public void OnGet(bool throttled = false)
         {

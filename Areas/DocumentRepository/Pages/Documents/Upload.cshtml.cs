@@ -91,7 +91,9 @@ public class UploadModel : PageModel
     // Set when a throttled upload was redirected back here (see DocumentUploadRateLimiting).
     public bool Throttled { get; private set; }
 
-    public int ThrottleWindowMinutes => (int)_rateLimitOptions.EffectiveWindow.TotalMinutes;
+    public int ThrottleWindowMinutes => _rateLimitOptions.EffectiveWindowMinutes;
+
+    public string ThrottleWaitText => ThrottleWindowMinutes == 1 ? "1 minute" : $"{ThrottleWindowMinutes} minutes";
 
     public async Task OnGetAsync(CancellationToken cancellationToken, bool throttled = false)
     {

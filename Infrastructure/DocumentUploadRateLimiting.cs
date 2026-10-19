@@ -12,6 +12,7 @@ public sealed class DocumentUploadRateLimitOptions : RateLimitWindowOptions
     public DocumentUploadRateLimitOptions()
     {
         PermitLimit = 20;
+        ServerPermitLimit = 200;
         WindowMinutes = 1;
     }
 }
@@ -25,28 +26,30 @@ public static class DocumentUploadRateLimiting
     public const string UploadPath = "/DocumentRepository/Documents/Upload";
     public const string ThrottledQueryKey = "throttled";
 
-    public static RateLimitPartition<string> GetPartition(HttpContext context, DocumentUploadRateLimitOptions options)
+    public static RateLimitPartition<string> GetPartition(HttpContext context, DocumentUploadRateLimitOptions options, RateLimiter shared)
     {
         if (!HttpMethods.IsPost(context.Request.Method))
         {
             return RateLimitPartition.GetNoLimiter("docUpload:read");
         }
 
-        return RateLimitPartition.GetFixedWindowLimiter("docUpload:" + UploaderLabel(context), _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = options.EffectivePermitLimit,
-            Window = options.EffectiveWindow,
-            QueueLimit = 0,
-            AutoReplenishment = true
-        });
+        return RateLimitPartition.Get("docUpload:" + UploaderLabel(context), _ => new GatedRateLimiter(
+            new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = options.EffectivePermitLimit,
+                Window = options.EffectiveWindow,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }),
+            shared));
     }
 
+    // Signed-out requests share one partition: authorization rejects them anyway, and keying
+    // them by (forgeable) client address would let anyone create unbounded limiter state.
     public static string UploaderLabel(HttpContext context)
     {
         var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return string.IsNullOrEmpty(userId)
-            ? "client:" + LoginRateLimiting.ClientLabel(context)
-            : "user:" + userId;
+        return string.IsNullOrEmpty(userId) ? "anonymous" : "user:" + userId;
     }
 
     public static bool IsUploadRequest(HttpContext context)
