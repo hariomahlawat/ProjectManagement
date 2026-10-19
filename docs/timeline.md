@@ -312,7 +312,14 @@ Partial plans remain supported. A dependency is checked only when predecessor PD
 
 Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. The current editor and completion backfill paths publish authorised PO corrections directly; those are recorded implementation deviations from rules 22-24, which require PO corrections to be proposed for HoD approval.
 
-Phase D-1 (D-1a … D-1d, merged; deployment unverified) hardens the current direct paths and the lifecycle writers. It does **not** yet change who may publish: an assigned Project Officer still publishes Actual corrections and backfill directly. The approved target (K-1, K-14) is that D-2 removes PO-only direct publication and D-3 routes PO-only corrections, through the same editor, to proposals decided by a HoD or Admin; D-2 and D-3 are to be deployed together. Neither is implemented yet.
+Phase D-1 (D-1a … D-1e, merged; deployment unverified) hardens the current direct paths and the lifecycle writers.
+
+**Phase D-2 (authority cut-off).** Only Admin and HoD publish Actual corrections and completion backfill directly. That authority supersedes the Project Officer role, so a HoD or Admin who is also the assigned PO still publishes directly.
+- An assigned PO-only user's save is refused before any write with "Actual-date corrections now require HoD or Admin approval…". `EditActuals` shows this as a flash; `BackfillApply` returns `403 { ok:false, error:"approval-required" }`. Both editors render read-only for that user.
+- An unassigned PO-only user is forbidden.
+- The rule is enforced in the page models and again inside the publication transaction (`ActualWriteAuthority`).
+
+D-2 is **not** a standalone release. D-3 (PO proposals through the same editor, decided by a HoD or Admin; K-1) must be deployed with it in the same maintenance window (K-14). D-2 on its own is only the emergency recovery floor.
 
 **Actual correction versus lifecycle publication.** Actual correction (`Edit actual dates`) and completion-date backfill change only a stage's Actual facts; they are governed by the shared Actual validator and are refused when the result is invalid. Lifecycle publication (HoD direct stage apply, an approved lifecycle request, historical reconstruction of a closed legacy project) changes a stage's status under its existing lifecycle rules, which stay as they were: Phase D only observes the resulting chronology.
 

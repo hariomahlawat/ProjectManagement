@@ -4,6 +4,8 @@
 @{
     var rows = Model?.Rows ?? Array.Empty<ActualsEditorRowVm>();
     var todayIso = Model?.Today.ToString("yyyy-MM-dd") ?? string.Empty;
+    // Phase D-2: a PO-only user cannot publish directly; the page and service refuse it.
+    var directPublication = ViewData["ActualsDirectPublication"] as bool? ?? true;
 }
 
 <form method="post"
@@ -21,8 +23,15 @@
         Record actual stage dates. For completed stages, the recorded start is optional and can be explicitly cleared; displayed duration may use an estimated start. An InProgress stage requires its actual start. Complete stages through the stage-transition workflow.
     </div>
 
+    @if (!directPublication)
+    {
+        <div class="alert alert-info mb-0" role="status" data-actuals-approval-required>
+            Actual-date corrections now require HoD or Admin approval. Ask a HoD or Admin to apply Actual-date corrections for this project.
+        </div>
+    }
+
     <!-- SECTION: Actuals list -->
-    <div class="actuals-editor__list flex-grow-1" data-actuals-list>
+    <fieldset class="actuals-editor__list flex-grow-1 border-0 p-0 m-0" data-actuals-list disabled="@(!directPublication)">
         <div class="d-grid gap-3">
             @for (var i = 0; i < rows.Count; i++)
             {
@@ -142,11 +151,14 @@
                 </section>
             }
         </div>
-    </div>
+    </fieldset>
 
     <!-- SECTION: Footer actions -->
     <div class="border-top pt-3 d-flex justify-content-end gap-2">
         <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
-        <button class="btn btn-primary" type="submit" data-actuals-save disabled>Save changes</button>
+        @if (directPublication)
+        {
+            <button class="btn btn-primary" type="submit" data-actuals-save disabled>Save changes</button>
+        }
     </div>
 </form>

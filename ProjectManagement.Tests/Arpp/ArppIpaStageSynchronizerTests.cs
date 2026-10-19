@@ -395,7 +395,7 @@ public sealed class ArppIpaStageSynchronizerTests
             {
                 ProjectId = 1,
                 Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, CompletedOn = legacyCompletion }]
-            }, TestActors.ProjectOfficer("assigned-po"), "Assigned PO"));
+            }, TestActors.Hod("hod"), "HoD"));
 
         Assert.Contains(exception.Errors, message => message.Contains("ARPP", StringComparison.OrdinalIgnoreCase));
         // Rejected generic edits do not silently repair existing production data.
@@ -457,7 +457,7 @@ public sealed class ArppIpaStageSynchronizerTests
         var result = await service.UpdateAsync(new ActualsEditInput
         {
             ProjectId = 1, Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA }]
-        }, TestActors.ProjectOfficer("assigned-po"), "Assigned PO");
+        }, TestActors.Hod("hod"), "HoD");
 
         Assert.Equal(0, result.UpdatedCount);
         var ipa = await db.ProjectStages.SingleAsync();

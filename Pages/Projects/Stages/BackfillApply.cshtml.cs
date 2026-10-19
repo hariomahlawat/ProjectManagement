@@ -107,14 +107,36 @@ public class BackfillApplyModel : PageModel
         var isAdminOrHod = principal.IsInRole(RoleNames.Admin) || principal.IsInRole(RoleNames.HoD);
         if (!isAdminOrHod)
         {
-            var isAssignedProjectOfficer = await _db.Projects
-                .AsNoTracking()
-                .AnyAsync(project => project.Id == input.ProjectId && project.LeadPoUserId == userId, ct);
-
-            if (!isAssignedProjectOfficer)
+            if (!principal.IsInRole(RoleNames.ProjectOfficer))
             {
                 return Forbid();
             }
+
+            var project = await _db.Projects
+                .AsNoTracking()
+                .Where(item => item.Id == input.ProjectId)
+                .Select(item => new { item.IsDeleted, item.LeadPoUserId })
+                .SingleOrDefaultAsync(ct);
+
+            // A missing or deleted project is NotFound for every actor (D-1b contract).
+            if (project is null || project.IsDeleted)
+            {
+                return NotFound(new
+                {
+                    ok = false,
+                    error = "not-found"
+                });
+            }
+
+            if (!string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
+            {
+                return Forbid();
+            }
+
+            // Phase D-2: only Admin and HoD publish backfill dates directly. The assigned
+            // PO-only user is refused before any write (D-3 routes this to a proposal).
+            // The service enforces the same rule.
+            return ApprovalRequired();
         }
 
         try
@@ -165,6 +187,11 @@ public class BackfillApplyModel : PageModel
                 stages = ex.ConflictingStages,
                 message = "One or more stages no longer require backfill."
             });
+        }
+        catch (ActualsApprovalRequiredException)
+        {
+            // Roles changed between the page check and the transaction.
+            return ApprovalRequired();
         }
         catch (ActualsWriteForbiddenException)
         {
@@ -245,6 +272,13 @@ public class BackfillApplyModel : PageModel
 
         return null;
     }
+
+    private ObjectResult ApprovalRequired() => StatusCode(StatusCodes.Status403Forbidden, new
+    {
+        ok = false,
+        error = "approval-required",
+        message = ActualsApprovalRequiredException.UserMessage
+    });
 
     private static UnprocessableEntityObjectResult ValidationFailure(IEnumerable<string> details)
     {

@@ -161,6 +161,8 @@ public sealed class PostgresMigrationIntegrationTests
         // Phase D-1d: lifecycle chronology observability is warning-only and its
         // failure, even one that aborts a PostgreSQL statement, never blocks the write.
         await LifecycleChronologyObservabilityPostgresFixture.RunAsync(applicationOptions);
+        // Phase D-2: the Actual-correction proposal schema, its constraints and purge.
+        await ActualCorrectionSchemaPostgresFixture.RunAsync(applicationOptions);
     }
 
 
