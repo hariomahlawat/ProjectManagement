@@ -1,6 +1,8 @@
 # Phase D handoff — approved Actual correction and completion backfill
 
 > **Status:** design/investigation handoff, not implementation authorization. Baseline: `master` after merged C2 PR #2670 (merge commit `4eb9ec5b7db91fcc099344fe2e3d18c18b24c184`). Source control merge is **not** evidence that C2 has been deployed. Verify the current branch, running deployment and applicable migration lineage before making release claims.
+>
+> **Implementation status:** Phase D-1a–D-1d have since been merged (#2675–#2678) and D-1e is in review (#2679); D-2 and D-3 are not started. The owner has since resolved K-1 (HoD **or Admin** may decide PO Actual proposals; no self-approval) and K-14 (PO-only direct publication removed in D-2; D-2 and D-3 deployed together), and set role precedence (HoD/Admin authority supersedes PO). Where this brief says only HoD approves, read it with that resolution. The current record is the [Phase D plan implementation status](phase-d-implementation-plan.md#implementation-status); this handoff is kept as the investigation brief.
 
 ## How to read the repository
 

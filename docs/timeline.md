@@ -141,7 +141,7 @@ Changes to authoritative IPA completion must use the ARPP source/linkage workflo
 
 ### 18. Pending lifecycle decisions
 
-A proposal must not contradict a pending lifecycle decision that could still publish. Resolve coordinated changes through the final proposed state and supersede incompatible earlier revisions; do not bypass conflict protection by directly mutating official facts. Pending review must never lock the PO out of creating, revising, withdrawing or replacing proposals. Current generic actual-date mutation guards are an implementation constraint, not permission to freeze proposal editing; see rules 22-25 and the [implementation gaps](timeline-proposal-roadmap.md#current-implementation-gaps).
+A proposal must not contradict a pending lifecycle decision that could still publish. Resolve coordinated changes through the final proposed state and supersede incompatible earlier revisions; do not bypass conflict protection by directly mutating official facts. Pending review must never lock the PO out of creating, revising, withdrawing or replacing proposals. Current generic actual-date mutation guards are an implementation constraint, not permission to freeze proposal editing; see rules 22-25 and the [implementation gaps](timeline-proposal-roadmap.md#current-status-and-historical-gap-evidence).
 
 ### 19. Authority
 
@@ -149,6 +149,7 @@ A proposal must not contradict a pending lifecycle decision that could still pub
 - **HoD:** may review, approve or reject plan submissions; may directly modify timeline/stage state where current product permissions allow; may use authorised completion-without-date/backfill behaviour.
 - **Admin:** has timeline modification authority, including direct planned-date edits where current product permissions allow. Admin authority must not weaken date-validity rules. This does not grant unrelated plan-approval rights.
 - **Viewer/read-only roles:** have no mutation authority.
+- **Role precedence for Actual corrections (owner decision, 2026-10-19; takes effect with D-2/D-3, not yet implemented).** Admin and HoD authority supersedes Project Officer authority. A user who holds HoD or Admin as well as PO publishes Actual corrections directly under that authority. Only a PO-only user submits Actual correction proposals, and only for a project they are assigned to; an unassigned PO-only user has no correction authority. Nobody may approve their own proposal.
 
 These rules do not extend unrelated approval or security policy.
 
@@ -177,6 +178,8 @@ All three categories below require HoD approval for a PO submission before autho
 | Lifecycle | Start, complete, block/resume, skip, reopen, permitted reset and other status transitions. |
 
 For a PO, completion backfill is an actual fact correction with the same approval authority, not a separate publication privilege. The UI may highlight **Completion date required**, but the missing fact remains unresolved until an authorised decision publishes it. Authorised HoD completion without a date remains valid under rule 2. HoD/Admin direct behavior remains separately authorised only where existing product permissions allow, with identical business/date validity; this contract grants no new Admin approval rights.
+
+**Owner decision K-1 (2026-10-19).** For the **Actual fact correction** category only, an Admin as well as a HoD may approve or reject a PO proposal, and self-approval is prohibited. This supersedes the "no new Admin approval rights" sentence above for that category; Plan and Lifecycle approval are unchanged. It applies once PO Actual proposals exist (D-3), which is not yet implemented. See the [Phase D plan](phase-d-implementation-plan.md#k-open-decisions).
 
 ### 23. Official and proposed state
 
@@ -309,6 +312,10 @@ Partial plans remain supported. A dependency is checked only when predecessor PD
 
 Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. The current editor and completion backfill paths publish authorised PO corrections directly; those are recorded implementation deviations from rules 22-24, which require PO corrections to be proposed for HoD approval.
 
+Phase D-1 (D-1a … D-1d, merged; deployment unverified) hardens the current direct paths and the lifecycle writers. It does **not** yet change who may publish: an assigned Project Officer still publishes Actual corrections and backfill directly. The approved target (K-1, K-14) is that D-2 removes PO-only direct publication and D-3 routes PO-only corrections, through the same editor, to proposals decided by a HoD or Admin; D-2 and D-3 are to be deployed together. Neither is implemented yet.
+
+**Actual correction versus lifecycle publication.** Actual correction (`Edit actual dates`) and completion-date backfill change only a stage's Actual facts; they are governed by the shared Actual validator and are refused when the result is invalid. Lifecycle publication (HoD direct stage apply, an approved lifecycle request, historical reconstruction of a closed legacy project) changes a stage's status under its existing lifecycle rules, which stay as they were: Phase D only observes the resulting chronology.
+
 Both direct paths (`StageActualsUpdateService`, `StageBackfillService`) validate the complete final state with the shared `IActualTimelineValidationService` (Phase D-1b):
 
 - **Scope.** Whole-lifecycle chronology, configured workflow dependencies including extension stages, transparent skipped ancestry, per-branch convergence, PNC only while applicable, the IST non-future limit and published ARPP IPA authority. A violation already present in untouched records is reported as a note and does not block an unrelated correction.
@@ -316,6 +323,20 @@ Both direct paths (`StageActualsUpdateService`, `StageBackfillService`) validate
 - **Authority.** After the gate, the services re-read the project under a share lock and refuse writes for missing or deleted projects for every actor. A Project Officer who is not the current lead is also refused; Admin and HoD authority is unchanged. Lead-PO reassignment and moving a project to Trash update that row, so they cannot change the checked state before commit.
 - **Stale edits.** Forms post a per-stage token; a save that would change a row which changed after the form was rendered is refused without writes. Posts from forms without the baseline marker keep the previous contract during Phase D-1.
 - **Backfill flag.** A date correction on a stage that already had a completion date keeps a raised `RequiresBackfill` flag (missing mandatory facts). Supplying a missing completion date clears it.
+- **Publication.** Both paths publish through one routine (`ActualFactPublisher`), so a stage's facts and its `StageChangeLog` row are always written together and agree.
+
+Lifecycle decisions and submissions (Phase D-1c):
+
+- **One terminal decision per request.** `StageDecisionService` takes the transaction and project gate before any decision-critical read, locks the project's stage rows `FOR UPDATE`, then claims the request with a compare-and-set on `Pending` for approval and rejection alike. A second decision on the same request is told it was already decided.
+- **Atomic decision evidence.** The claim, the stage transition (including any completion cascade) and the `Approved`/`Applied` or `Rejected` history commit together. The stage-change audit and notification run only after commit; their failure never undoes or misreports the decision.
+- **Submission.** `StageRequestService` takes the project gate and the stage row locks before its reads, and supersedes a same-stage request only while it is still `Pending`, so a submission never overwrites a decided or ARPP-superseded request. Validation rules are unchanged.
+
+Lifecycle chronology warnings (Phase D-1d):
+
+- `StageDirectApplyService`, `StageDecisionService` (approval) and `HistoricalStageRecordService` evaluate the final stage facts with the shared validator before committing. A chronology violation that the write introduced is logged as `Stages.ActualChronologyWarning` after commit. These writers are **never blocked** by chronology; their existing `StageValidationService`, eligibility and ARPP checks stay enforced as before.
+- If the observation itself fails, `Stages.ActualChronologyWarningFailed` is logged and the lifecycle change proceeds. If the writer runs inside a transaction its caller owns, the commit cannot be confirmed and `Stages.ActualChronologyWarningUnconfirmed` is logged instead.
+
+Published ARPP IPA authority (rule 17) is checked by the Actual correction, backfill and lifecycle paths (one residual race with HoD direct apply is recorded in the [D-1 verification findings](phase-d-implementation-plan.md#d-1-verification-findings); its correction, [#2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680), merged into `master` as `207acd82`) and is **exempt** from chronology enforcement: ARPP synchronization does not take the project gate, locks the IPA rows it updates before reading them, keeps a recorded `ActualStart`, and supersedes only requests still `Pending`. Conflicts with surrounding chronology are surfaced as data-quality audit entries, not corrected.
 
 ### Project Officer projected lifecycle
 
