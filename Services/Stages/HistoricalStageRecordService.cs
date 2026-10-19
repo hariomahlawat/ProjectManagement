@@ -35,6 +35,7 @@ public sealed class HistoricalStageRecordService
     private readonly IAuditService _audit;
     private readonly ILogger<HistoricalStageRecordService> _logger;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly LifecycleChronologyObserver _chronology;
 
     public HistoricalStageRecordService(
         ApplicationDbContext db,
@@ -42,7 +43,8 @@ public sealed class HistoricalStageRecordService
         IClock clock,
         IAuditService audit,
         ILogger<HistoricalStageRecordService> logger,
-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
+        IProjectStageWorkflowPolicy? workflowPolicy = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _metadataProvider = metadataProvider ?? throw new ArgumentNullException(nameof(metadataProvider));
@@ -50,6 +52,11 @@ public sealed class HistoricalStageRecordService
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _chronology = new LifecycleChronologyObserver(
+            db,
+            workflowPolicy ?? new ProjectStageWorkflowPolicy(db, metadataProvider),
+            _arppIpaStageAuthority,
+            logger);
     }
 
     public async Task<HistoricalStageEditorVm> GetEditorAsync(
@@ -291,6 +298,10 @@ public sealed class HistoricalStageRecordService
             _db.Database,
             cancellationToken);
 
+        // Baseline for D-1d observability, before any stage is mutated or added.
+        var stagesBefore = LifecycleChronologyObserver.Snapshot(stages);
+        var finalStages = new List<ProjectStage>(stages);
+
         foreach (var change in changes)
         {
             var stage = change.Stage;
@@ -306,6 +317,7 @@ public sealed class HistoricalStageRecordService
                     StageCode = change.Definition.Code
                 };
                 await _db.ProjectStages.AddAsync(stage, cancellationToken);
+                finalStages.Add(stage);
             }
 
             stage.SortOrder = change.Definition.SortOrder;
@@ -355,6 +367,11 @@ public sealed class HistoricalStageRecordService
             userId: userId,
             userName: userName,
             data: auditData);
+
+        // D-1d: warning-only; it never changes the reconstruction or its eligibility.
+        await _chronology.ObserveBeforeCommitAsync(
+            transaction, "HistoricalReconstruction", project.Id, string.Join(",", changedCodes),
+            stagesBefore, finalStages, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 

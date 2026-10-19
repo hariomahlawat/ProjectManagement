@@ -67,6 +67,12 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
     public bool IsRolledBack => _completionState == CompletionState.RolledBack;
 
     /// <summary>
+    /// False for a savepoint inside a transaction this type did not create: its
+    /// commit is owned by the caller, so no post-commit callback can be registered.
+    /// </summary>
+    public bool CanRegisterAfterCommit => !(_kind == ScopeKind.Savepoint && !_state.HasManagedOwner);
+
+    /// <summary>
     /// Best-effort post-commit callback failures. Database commit is never reported
     /// as failed merely because a secondary post-commit action failed.
     /// </summary>

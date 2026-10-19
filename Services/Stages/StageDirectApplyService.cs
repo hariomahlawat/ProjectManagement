@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
@@ -36,6 +38,7 @@ public sealed class StageDirectApplyService
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IPlanRealignment _planRealignment;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly LifecycleChronologyObserver _chronology;
 
     public StageDirectApplyService(
         ApplicationDbContext db,
@@ -44,7 +47,8 @@ public sealed class StageDirectApplyService
         StageRulesService stageRules,
         IProjectStageWorkflowPolicy workflowPolicy,
         IPlanRealignment? planRealignment = null,
-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
+        ILogger<StageDirectApplyService>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -53,6 +57,9 @@ public sealed class StageDirectApplyService
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _planRealignment = planRealignment ?? new NullPlanRealignment();
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _chronology = new LifecycleChronologyObserver(
+            db, workflowPolicy, _arppIpaStageAuthority,
+            (ILogger?)logger ?? NullLogger<StageDirectApplyService>.Instance);
     }
 
 
@@ -333,6 +340,11 @@ public sealed class StageDirectApplyService
         var now = _clock.UtcNow;
         var today = DateOnly.FromDateTime(IstClock.ToIst(now).DateTime);
 
+        // Baseline for D-1d observability: every project stage is tracked here
+        // (including any just materialized), and forced predecessor backfill
+        // below mutates these same rows.
+        var stagesBefore = LifecycleChronologyObserver.Snapshot(project.ProjectStages);
+
         var pendingRequest = await _db.StageChangeRequests
             .SingleOrDefaultAsync(
                 r => r.ProjectId == stage.ProjectId
@@ -605,6 +617,11 @@ public sealed class StageDirectApplyService
         {
             warnings.Add("Pending request was superseded by this change.");
         }
+
+        // D-1d: warning-only; it never changes the outcome or the published state.
+        await _chronology.ObserveBeforeCommitAsync(
+            transaction, "DirectApply", projectId, stage.StageCode,
+            stagesBefore, project.ProjectStages, ct);
 
         // Stage materialisation, predecessor backfill, request supersession, audit logs
         // and any realignment draft are one atomic operation.
