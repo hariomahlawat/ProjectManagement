@@ -66,6 +66,7 @@ internal static class StageDecisionConcurrencyPostgresFixture
         await ArppCreatingTheIpaStageSupersedesTheUndecidableRequestAsync(options);
         await SubmissionAfterArppPublicationIsRefusedAndLeavesOneSupersessionAsync(options);
         await ArppAfterSubmissionSupersedesTheReplacementOnceAsync(options);
+        await SubmissionDuringArppCreationOfTheIpaStageCannotPublishAPendingRequestAsync(options);
     }
 
     // SECTION: Scenario A — approval vs approval
@@ -554,6 +555,47 @@ internal static class StageDecisionConcurrencyPostgresFixture
             new[] { ("Superseded", LeadPo), ("Requested", LeadPo), ("Superseded", "PRISM system") },
             await HistoryWithActorsAsync(options, projectId));
         await AssertArppCompletionAsync(options, projectId);
+    }
+
+    /// <summary>
+    /// Codex review: with no IPA stage row, synchronization's FOR UPDATE locks
+    /// nothing. Submission is the only writer of lifecycle requests and refuses a
+    /// stage it cannot see, so while the ARPP verify's IPA insert is uncommitted
+    /// it returns StageNotFound without waiting and writes nothing. The verify then
+    /// commits the completed stage and supersedes the legacy pending request; no
+    /// pending IPA request survives under the published authority.
+    /// </summary>
+    private static async Task SubmissionDuringArppCreationOfTheIpaStageCannotPublishAPendingRequestAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaStartRequestAsync(options, "D-1c submission during ARPP IPA creation", withIpaStage: false);
+
+        await using var pause = new PauseAtStageWrite();
+        await using var synchronizerDb = Context(options, pause);
+        await using var verify = await RelationalTransactionScope.CreateAsync(synchronizerDb.Database);
+        await PublishArppAsync(synchronizerDb, projectId);
+        var synchronization = Task.Run(() => PublishedSynchronizer(synchronizerDb).SynchronizeProjectsAsync(new[] { projectId }));
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var submitterDb = Context(options);
+        var submitted = await Task.Run(() => Submission(submitterDb).CreateAsync(IpaCompletionInput(projectId, Jan(26)), LeadPo))
+            .WaitAsync(Timeout);
+        Assert.Equal(StageRequestOutcome.StageNotFound, submitted.Outcome);
+
+        pause.Release();
+        var synchronized = await synchronization.WaitAsync(Timeout);
+        await verify.CommitAsync();
+
+        Assert.Single(synchronized.Changes, change => change.StageCreated);
+        Assert.Equal(1, synchronized.SupersededRequestCount);
+        Assert.Equal("Superseded", (await RequestAsync(options, requestId)).DecisionStatus);
+        Assert.Equal(1, await IpaRequestCountAsync(options, projectId));
+        Assert.Equal(0, await PendingIpaRequestCountAsync(options, projectId));
+        Assert.Equal(new[] { ("Superseded", "PRISM system") }, await HistoryWithActorsAsync(options, projectId));
+        var ipa = await IpaAsync(options, projectId);
+        Assert.Equal(StageStatus.Completed, ipa.Status);
+        Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+        Assert.Null(ipa.ActualStart);
     }
 
     // SECTION: Helpers

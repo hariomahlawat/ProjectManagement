@@ -277,6 +277,10 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
     /// Loads the projects' IPA stages under a row lock on PostgreSQL, in a fixed
     /// <c>Id</c> order shared with every other multi-row stage writer, so a
     /// lifecycle decision holding a stage row is waited for rather than raced.
+    /// A project without an IPA row locks nothing here, which is sufficient:
+    /// lifecycle submission (the only writer of requests) refuses a stage row it
+    /// cannot see, and a concurrently committed IPA row makes the insert below
+    /// fail on the (ProjectId, StageCode) unique index, rolling the batch back.
     /// </summary>
     private async Task<List<ProjectStage>> LoadIpaStagesForUpdateAsync(
         int[] projectIds,
