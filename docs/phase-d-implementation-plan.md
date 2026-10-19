@@ -177,7 +177,7 @@ None of them may read proposals. Phase D keeps every reader on official `Project
 | 3 | Rules 19 and 22 frame HoD as the approver and say Admin gains no new approval rights. Code lets Admin decide stage and plan requests. | Open decision K-1. |
 | 4 | `StageDateSuggestionResolver` suppresses every boundary when any convergence branch is undated. | Validity gap versus rules 6/8 (F.3). |
 | 5 | `StageDecisionService.DecideAsync` runs `StageValidationService` before `LockProjectAsync` (lines ~295 and ~312). | A stale validation window against concurrent Actual publication. Fixed in D-1c (E.4). |
-| 6 | `Pages/Projects/Procurement/Edit.cshtml.cs` has no project-assignment check, yet can clear `RequiresBackfill`. `Project` has no global `IsDeleted` query filter, so `EditActualsModel` does not exclude soft-deleted projects. | Resource-authorization defects outside Phase D's core. The second is fixed in D-1. The first is fixed separately in hariomahlawat/ProjectManagement#2673 (open, not yet merged). |
+| 6 | `Pages/Projects/Procurement/Edit.cshtml.cs` has no project-assignment check, yet can clear `RequiresBackfill`. `Project` has no global `IsDeleted` query filter, so `EditActualsModel` does not exclude soft-deleted projects. | Resource-authorization defects outside Phase D's core. The second is fixed in D-1. The first is fixed separately in hariomahlawat/ProjectManagement#2673, merged to `master` as `abf396df`. |
 | 7 | `StageProgressService` and `HistoricalStageRecordService` call `IAuditService.LogAsync` inside a PostgreSQL transaction (B.4). `AuditService.PersistDailyActionSummaryAsync` swallows its own failure. | A latent pre-existing risk: a swallowed statement failure aborts the surrounding PostgreSQL transaction. Phase D does not copy this pattern (E.1). Fixing the existing callers is a separate follow-up, not Phase D. |
 | 8 | `CreateModel.OnPostAsync` creates the "last completed" stage with `ActualStart = CompletedOn`. | Deviates from rule 3 (do not invent an Actual start). It runs only at project creation, so it cannot race a proposal. Recorded as a separate defect (F.5). |
 
@@ -260,9 +260,12 @@ The input is:
 7. If the candidate equals the current pending revision's content, do nothing and return **Unchanged**. The HoD's review stays valid, as in C2.
 8. If the candidate is empty, return Validation ("No changes. Use Withdraw to cancel a pending update.").
 9. Otherwise, in the same transaction:
-   - Conditionally close the previous pending revision with `UPDATE … SET Status = 'Superseded', SupersededByRevisionId, ClosedByUserId, ClosedOn WHERE Id = @prev AND Status = 'Pending'`. It must affect exactly one row; otherwise roll back and return **Stale**.
-   - Insert the new revision and its items, with `Before*` values snapshotted from the locked official rows and `SupersedesRevisionId` set.
-   - `SaveChanges` then `CommitAsync`. The supersession, the new revision and its items are the required evidence (E.1). They commit together or not at all.
+   - **Write order.** The filtered one-`Pending` index is checked per statement, and `SupersededByRevisionId` needs the new row's database-generated `Id`. A single `SaveChanges` therefore cannot satisfy both constraints. Use three statements in the same transaction:
+     1. Close the previous pending revision **without** the forward link: `UPDATE … SET Status = 'Superseded', ClosedByUserId, ClosedOn WHERE Id = @prev AND Status = 'Pending'`. It must affect exactly one row; otherwise roll back and return **Stale**. No `Pending` row remains, so step 2 cannot violate the index.
+     2. Insert the new revision, with `SupersedesRevisionId = @prev`, and its items, with `Before*` values snapshotted from the locked official rows. `SaveChanges` assigns the new `Id`. The backward link references an existing row, so the self-FK holds.
+     3. Set the forward link: `UPDATE … SET SupersededByRevisionId = @new WHERE Id = @prev`. It must affect exactly one row.
+     - With no previous revision, only step 2 runs.
+   - `CommitAsync`. The supersession (both links and the closure fields), the new revision and its items are the required evidence (E.1). They commit together or not at all; a failure at any step rolls back all three.
    - Register the secondary `AuditLogs` entry (`Projects.ActualCorrectionSubmitted`) and the optional HoD notification with `RegisterAfterCommit`. Their failure never undoes the submission.
 
 Official `ProjectStage` rows are never written on this path, which is the core invariant.
@@ -282,7 +285,7 @@ Official `ProjectStage` rows are never written on this path, which is the core i
   2. Open the transaction, take the gate, then `SELECT … FOR UPDATE` the project's `ProjectStages` rows (E.3).
   3. Re-read the revision. It must be `Pending` with matching `SubmittedOn` and project; otherwise return **Stale** ("A newer revision is available. Review the latest update before deciding.").
   4. **Baseline check:** for each item, the locked official `Status`, `ActualStart`, `CompletedOn` and `RequiresBackfill` must equal the item's `Before*` values. Any difference returns **SourceChanged**, and nothing is mutated.
-  5. Resolve ARPP authority *after* the row lock. Validate the final state (official plus items) with source `Approval`.
+  5. Resolve ARPP authority *after* the row lock. Validate the final state (official plus items) with source `Approval`, and re-run the pending-lifecycle contradiction check (F.6) against the `StageChangeRequests` read inside the gate. A contradiction returns **ValidationFailed** with no mutation.
   6. Compare-and-set claim: `UPDATE … SET Status = 'Approved', ClosedByUserId, ClosedOn, DecisionNote WHERE Id AND Status = 'Pending' AND SubmittedOn = expected`. It must affect exactly one row.
   7. Publish through `ActualFactPublisher.Apply` (C.7), which writes the stage fields and one `StageChangeLog` per stage.
      - The action is `Backfill` or `ActualsUpdated`, and `UserId` is the approver.
@@ -338,7 +341,7 @@ A direct HoD/Admin publication **does not** modify a pending PO revision. That r
 - **Pending lifecycle requests (rule 18).**
   - Today, `EditActuals` refuses stages with a pending `StageChangeRequest`. For **PO proposals**, Phase D replaces this lock with a contradiction check against the *projected* lifecycle state (F.6). The PO is never frozen, but cannot propose something incompatible with a pending lifecycle request that could still publish.
   - For **direct** HoD/Admin saves, keep the current conflict refusal unchanged, to avoid altering lifecycle precedence in Phase D.
-  - Lifecycle decisions remain independent. If a lifecycle approval changes a stage covered by a pending Actual revision, that revision becomes `SourceChanged` at decision time.
+  - Lifecycle decisions remain independent. If a lifecycle approval changes a stage covered by a pending Actual revision, that revision becomes `SourceChanged` at decision time. A lifecycle request created after the revision was submitted is caught by the approval-time F.6 recheck. `StageRequestService.CreateBatchAsync` takes the project gate from D-3a, so it cannot slip in between that recheck and publication.
 - **ARPP.**
   - At submission and at approval, an IPA `CompletedOn` item is rejected while a published authority exists. The existing message is `ArppManagedIpaStageException.UserMessage`.
   - An IPA `ActualStart` item remains allowed (rule 23) and is validated against the effective `IssueDate`.
@@ -414,7 +417,8 @@ No changes are made to `ProjectStages`, `StageChangeLogs` or `StageChangeRequest
 ### D.5 Offline deployment and rollback (detail in section I)
 
 - The migration is additive; tables are unused until D-3.
-- The startup gate refuses older binaries after the migration. Rolling back D-2 therefore requires the database backup or a reviewed reverse script.
+- The startup gate refuses older binaries after the migration. Rolling back D-2 therefore requires restoring a database backup taken before R-D2.
+- A reverse DDL script is **not** a supported option. The D-2 migration identifier would remain in `__EFMigrationsHistory`, so `DatabaseStartupMigrator.EnsureNoUnknownAppliedMigrations` would still reject the older binary. Removing that history row is prohibited by `docs/engineering/migrations.md`.
 - Rolling back D-3 is a binary swap to D-2. It is *governance-safe* only because R-D2 already refuses PO direct publication (C.7). Section I distinguishes technical, governance and emergency-recovery compatibility.
 
 ---
@@ -564,6 +568,7 @@ The server-issued baseline is the whole versioning mechanism. It reuses existing
 | R11 | Old and new binary overlap | Not supported. Prevented by the outage SOP (section I) | Operational |
 | R12 | HoD direct save of stage X commits while the PO's submit touching X waits on the gate (S3) | PO Stale on X's token; no revision written | PG |
 | R13 | Post-commit `AuditLogs` or notification callback throws after a successful approval | Approval stays committed and is reported as success; all required evidence is present; error recorded in `PostCommitErrors` and logged | SQLite |
+| R14 | PO creates a contradictory lifecycle request (for example reopen to `NotStarted`) while a HoD approves an Actual revision for the same stage | Serialized by the gate. Either approval sees the request and refuses with no mutation, or the request commits second and is validated against the published facts. An Actual publication and a contradictory still-unseen request never both commit | PG |
 
 ---
 
@@ -657,7 +662,7 @@ This matrix covers every authoritative writer found (B.1), as it will stand afte
 | 6 | `StageDecisionService.DecideAsync` → `StageProgressService.UpdateStageStatusAsync` (approved lifecycle request) | same as #5, plus the completion cascade | yes, observability (D-1d) | **warning-only** | Admin or HoD (`ApprovalAuthorization`) | tx, gate, compare-and-set claim; validation moved after the gate in D-1c | Same as #5 |
 | 7 | `HistoricalStageRecordService.SaveAsync` (legacy terminal reconstruction) | `Status`, both dates, `RequiresBackfill` | yes, observability (D-1d) | **warning-only** | Admin or HoD; legacy projects that are `Completed`/`Cancelled` only (`EnsureEligible`) | tx, no gate | Evidence-backed reconstruction of closed legacy projects. It keeps its own intrinsic checks (future dates, lifecycle-date bound, ARPP). These projects are excluded from Phase D proposals (C.4 step 2), so the paths cannot interact except through a stale approval, which the per-item baseline blocks. |
 | 8 | `ArppIpaStageSynchronizer` (ARPP verify/reconcile, startup) | IPA `Status`, `CompletedOn`, flags | no | **exempt** | System (`VerifyArpp`, `ManageArpp` policies upstream) | caller's tx, no gate | Rule 17 makes the published ARPP date authoritative even when it conflicts with chronology; conflicts are surfaced as data-quality audit entries. Validating would contradict the rule. Phase D approval is protected by the row lock (E.3). |
-| 9 | `ProjectFactsService.ClearBackfillFlagAsync` (via `Procurement/Edit`) | `RequiresBackfill = false` only, and only when the stage's dates are already present | n/a (no dates written) | n/a | Admin, HoD, assigned PO, after hariomahlawat/ProjectManagement#2673 | page-level tx | Cannot hide a missing completion date (it returns early when `IsMissingRequiredDates`). Containment: **merge #2673 before R-D3**, so that a PO-only user cannot affect another project's backfill state. |
+| 9 | `ProjectFactsService.ClearBackfillFlagAsync` (via `Procurement/Edit`) | `RequiresBackfill = false` only, and only when the stage's dates are already present | n/a (no dates written) | n/a | Admin, HoD, assigned PO, after hariomahlawat/ProjectManagement#2673 | page-level tx | Cannot hide a missing completion date (it returns early when `IsMissingRequiredDates`). This is the facts part of backfill, not an Actual-date fact, so it is an explicit, bounded exception to J-1, not proposal-governed. Containment: #2673 (merged in `abf396df`) restricts it to the assigned PO. D-2 adds a regression test that an assigned PO cannot clear the flag while `CompletedOn` is missing. |
 | 10 | `CreateModel.OnPostAsync` (project creation) | initial `Completed` stage with `ActualStart = CompletedOn` | no | n/a | `Project.Create` (Admin, HoD) | none | Runs only when the project is created, so no successors or proposals exist. The invented start deviates from rule 3 (B.6 #8); that is a separate defect, not Phase D. |
 | 11 | `PlanApprovalService` / `EditPlan` stage materialization | no (creates `NotStarted` rows with planned dates) | n/a | n/a | existing | existing gate | — |
 | 12 | `ProjectModerationService.PurgeCoreAsync` | deletes stage rows | n/a | n/a | `AdminPolicies.RecoveryManage`, retention worker | existing | D-2 adds deletion of revision and item rows (G). |
@@ -671,7 +676,7 @@ This matrix covers every authoritative writer found (B.1), as it will stand afte
   - Approval revalidates against whatever they committed.
   - The only additional containment needed is #2673 (row 9).
 
-### F.6 Pending-lifecycle contradiction check (proposal submission only)
+### F.6 Pending-lifecycle contradiction check (proposal submission and approval)
 
 Build the projected state as official plus the latest pending `StageChangeRequest` per stage. Reuse the projection semantics of `StageRequestService.BuildProjectedStates`/`ApplyProjection`; extract them into an internal static helper rather than duplicating them.
 
@@ -679,7 +684,14 @@ Then apply the Actual changes, and run F.2–F.4 on that projection as well.
 
 - An error that exists only in the projection is reported as: "Conflicts with the pending {stage} lifecycle update awaiting HoD approval. Revise or include it." The submission is not saved.
 - If a pending lifecycle request on a stage would make that stage's correction meaningless, the item is also rejected with that message. Examples: a reopen to `NotStarted` while a start correction is proposed, or a skip.
-- Approval does **not** re-run against pending lifecycle state. Only official facts can publish. The baseline check covers lifecycle approvals that land first.
+- **Approval re-runs this check** against the pending lifecycle requests it reads *inside the gate* (C.6 step 5).
+  - A lifecycle request can be created after the Actual revision was submitted. It changes neither `ProjectStage` nor the revision's baseline, so the baseline check alone would miss it.
+  - On a contradiction, approval returns **ValidationFailed** with no mutation: "Conflicts with the pending {stage} lifecycle update. Decide that update first, or ask the Project Officer to revise." Rejection is unaffected.
+  - Only official facts plus the reviewed items can publish; pending lifecycle state is read only to refuse contradictions (rule 18).
+- **Lifecycle submission takes the same gate.** Today `StageRequestService.CreateBatchAsync` reads pending requests and stages before opening its transaction, and never calls `LockProjectAsync`. A request could therefore be committed between approval's read and its publication.
+  - D-3a moves `CreateBatchAsync`'s reads and writes inside one transaction that first calls `PlanRevisionConsistency.LockProjectAsync`. It changes no lifecycle validation rule, so the existing `StageRequestServiceTests` must pass unchanged.
+  - Approval and lifecycle submission for a project are then serialized. Whichever commits second sees the first: either approval's in-gate read sees the new request and refuses, or the request is validated against the already-published Actual facts.
+  - A symmetric check at lifecycle submission against a pending Actual revision is **not** added in Phase D. The approval-time refusal is sufficient for rule 18, and adding it would change lifecycle submission rules (a Phase E concern).
 
 ---
 
@@ -765,6 +777,7 @@ Tests:
 - **Authority:** rewrite the PO cases of `EditActualsAuthorizationTests`: `OnPostAsync_PreservesCurrentAuthority`, `OnPostAsync_IpaCompletionCorrectionUsesConditionalPublishedAuthority` and `OnPostAsync_IpaStartRemainsSeparatelyCorrectableUnderNormalRoleAuthority`. An assigned PO is now refused, and `ProjectStage` and `StageChangeLog` are unchanged. Admin and HoD stay unchanged.
 - **Backfill authority:** add `StageBackfillAuthorizationTests` cases: assigned PO gets `approval-required`; HoD and Admin apply directly.
 - **Roles:** a user with both PO and HoD roles keeps direct authority.
+- **Facts-only exception (J-1):** a `ProcurementEditAuthorizationTests` case where an assigned PO saves a fact for a `Completed` stage with `CompletedOn == null`. `RequiresBackfill` stays `true`.
 
 ### D-3a — Proposal service
 
@@ -772,14 +785,17 @@ Tests:
 | --- | --- |
 | **New** `Services/Stages/ActualCorrectionProposalService.cs` | `SubmitAsync`, `WithdrawAsync`, `ApproveAsync`, `RejectAsync`, `GetActionableAsync` (C.4–C.6). Result types are a discriminated record (`Success`, `Unchanged`, `Stale`, `SourceChanged`, `Validation`, `Conflict`, `Forbidden`, `NotFound`) |
 | **New** `Services/Stages/ProjectedLifecycleState.cs` | Extracted from `StageRequestService` private types. `StageRequestService` is refactored to use it with no behaviour change, proven by its existing 18 tests |
+| `Services/Stages/StageRequestService.cs` (`CreateBatchAsync`) | Open the transaction first and call `PlanRevisionConsistency.LockProjectAsync`, then perform the existing reads (stages, pending requests, start history, ARPP authority), validation and writes inside it. Validation rules are unchanged (F.6) |
 | `Services/Stages/IStageNotificationService.cs` or a new `IActualCorrectionNotificationService` | After-commit notifications (K-8). Optional |
 
-Tests (SQLite, plus PG in `ActualCorrectionConcurrencyPostgresFixture`, wired into `PostgresMigrationIntegrationTests.CompleteStartupBoundary_MigratesAndValidatesBothContexts`, R1–R13):
+Tests (SQLite, plus PG in `ActualCorrectionConcurrencyPostgresFixture`, wired into `PostgresMigrationIntegrationTests.CompleteStartupBoundary_MigratesAndValidatesBothContexts`, R1–R14):
 
 - Submit writes no `ProjectStage` values.
 - Supersede, withdraw, unchanged, empty, backfill carry-forward, kind derivation.
 - Approval publishes the exact values; baseline change gives `SourceChanged`; ARPP published mid-flight.
 - Self-approval; reject without validity check (but with the epoch check); immutability of items.
+- **Resubmission write order (C.4 step 9)** on SQLite and PostgreSQL. The resubmission succeeds with the one-`Pending` filtered index and the self-FK in force, and both links are set. A failure injected at step 3 rolls back the closure and the new row.
+- **Approval-time lifecycle recheck:** a contradictory lifecycle request created after submission makes approval fail with no mutation; rejection still succeeds.
 - **Editor baseline, service level, S1–S6:** first submission from "none"; stale "none" after a revision exists; stale token on a touched stage; unrelated-stage change accepted; old form after approve, reject, withdraw or supersede; reassigned PO forbidden; missing marker refused with no write.
 - **Failure injection, SQLite with a PG variant for approve.** Use a `SaveChangesInterceptor` or command interceptor to make one write fail:
 
@@ -849,17 +865,17 @@ Update `docs/timeline.md` rules-to-implementation notes, the roadmap (G03/G04 cl
 | Final state | Predecessor change breaks an untouched successor (error); coordinated fix (pass); pre-existing violation (warning) | Unit plus service |
 | Backfill | Kind derivation; carry-forward with pending corrections; carried item with changed baseline gives Stale; 409 when no longer needed; auto-completed stage; facts-only flag untouched | Service |
 | ARPP | None, draft or published × IPA start or completion; publication between submit and approve; startup sync | Service plus PG (R5) |
-| Lifecycle interplay | Pending reopen, skip or completion contradiction at submit; lifecycle approval first then actual approval (SourceChanged); actual approval first then lifecycle decision revalidates; D-1d warning emitted without changing the outcome | Service |
+| Lifecycle interplay | Pending reopen, skip or completion contradiction at submit; lifecycle approval first then actual approval (SourceChanged); contradictory lifecycle request created after submission refuses approval (F.6); `StageRequestServiceTests` unchanged after gating; actual approval first then lifecycle decision revalidates; D-1d warning emitted without changing the outcome | Service |
 | Rejection / withdrawal / supersession | Stale epoch on approve **and** reject; superseded N not decidable; withdraw by a non-owner refused | Service |
 | **Editor baseline (E.4)** | S1–S6 at service level and page level (`EditActuals`, `BackfillApply`) | Service plus page |
 | **Evidence atomicity (E.1)** | Failure injection on each required-evidence write for approve, submit, withdraw, reject and direct save: no state change, no evidence, no `AuditLogs`, no notification, non-success result | SQLite, plus PG for approve |
 | **Post-commit failure** | Throwing audit or notification fake: action committed, evidence complete, error logged (R13) | SQLite |
-| Concurrency | R1–R8 and R12 with two `ApplicationDbContext` connections and a held lock, following `PlanRevisionConcurrencyPostgresFixture` | **PostgreSQL** |
+| Concurrency | R1–R8, R12 and R14 with two `ApplicationDbContext` connections and a held lock, following `PlanRevisionConcurrencyPostgresFixture` | **PostgreSQL** |
 | Recovery | R-D3 → R-D2 smoke script (I.3) on a staging copy: PO refused, HoD direct works, pending revisions inert; re-upgrade marks changed revisions `SourceChanged` | Manual (`docs/manual-tests`) |
 | Regression (unchanged) | All B1/B2/C1/C2 suites; `StageRequestServiceTests`; `StageDirectApplyServiceTests`; ARPP suites | Existing |
 | Front-end | `npm test` (actuals JS), `npm run lint:views` | CI |
 
-Green SQLite tests do not prove relational locking or real rollback. R1–R8, R12 and the PostgreSQL approve failure-injection case must run in the `.github/workflows/database-migrations.yml` PostgreSQL job before R-D3 is released.
+Green SQLite tests do not prove relational locking or real rollback. R1–R8, R12, R14, the resubmission write order and the PostgreSQL approve failure-injection case must run in the `.github/workflows/database-migrations.yml` PostgreSQL job before R-D3 is released.
 
 ---
 
@@ -909,7 +925,7 @@ The plan distinguishes three questions for each rollback target.
 | --- | --- | --- | --- |
 | R-D1 → previous release | Binary swap; no schema change | Restores pre-D validation only; PO authority is the same as R-D1 (today's behaviour) | Normal rollback for D-1 defects |
 | R-D3 → R-D2 | Binary swap; same schema and migration head | **Safe.** R-D2 refuses PO direct publication, so the Phase D authority boundary holds. Proposals become unavailable; HoD/Admin direct correction continues | Emergency floor only, when R-D3 cannot run safely |
-| R-D2 (or R-D3) → R-D1 or earlier | **Blocked** by the startup gate. It needs a database restore from before R-D2, or a reviewed reverse script | **Unsafe.** It reinstates direct PO publication, and restoring the backup discards every change since it was taken | Only for a catastrophic schema defect, by explicit owner decision; not a routine rollback |
+| R-D2 (or R-D3) → R-D1 or earlier | **Blocked** by the startup gate. The only supported path is restoring a database backup taken before R-D2 (`ops/restore-db.ps1`). A reverse DDL script would leave the D-2 identifier in `__EFMigrationsHistory`, and the gate would still reject R-D1; deleting history rows is prohibited (`docs/engineering/migrations.md`) | **Unsafe.** It reinstates direct PO publication, and restoring the backup discards every change since it was taken | Only for a catastrophic schema defect, by explicit owner decision; not a routine rollback |
 
 **Preferred recovery is a fix-forward to a corrected R-D3** (D-3.1). Use it for defects in proposal UI, read models, the Decision Centre or notifications, and for any defect that does not let approval publish wrong values. Use the R-D2 floor only when:
 
@@ -951,10 +967,18 @@ and a fix-forward cannot be produced within the outage window.
 
 Phase D is complete when all of the following hold:
 
-1. **No PO write path to official facts.**
-   - From R-D2, no code path lets a user holding only the `Project Officer` role change `ProjectStage.ActualStart`, `CompletedOn`, `RequiresBackfill` or the auto-completion flags.
-   - Proven by tests for `EditActuals` and `BackfillApply`.
-   - The F.5 matrix confirms that every other writer requires Admin/HoD, system or creation authority. Row 9 (`Procurement/Edit`) writes only the backfill flag, and only for stages whose dates exist; it is covered by hariomahlawat/ProjectManagement#2673, which is merged before R-D3.
+1. **No PO write path to official Actual dates or date backfill.**
+   - From R-D2, no code path lets a user holding only the `Project Officer` role:
+     - change `ProjectStage.ActualStart`, `CompletedOn`, `IsAutoCompleted` or `AutoCompletedFromCode`; or
+     - clear `RequiresBackfill` on a stage whose completion date is missing.
+   - **One explicit, bounded exception** (F.5 row 9). The assigned PO's `Procurement/Edit` may still clear `RequiresBackfill` through `ProjectFactsService.ClearBackfillFlagAsync`, but only on a stage whose dates are already present.
+     - That is the *facts* part of backfill (rule 2: "any other mandatory stage facts must also be backfilled"). It writes no Actual date and cannot resolve a missing completion date, because the method returns early when `StageBackfillRules.IsMissingRequiredDates` holds.
+     - Routing facts capture through HoD approval is not part of Phase D; that would be a separate policy decision.
+   - Proven by:
+     - tests for `EditActuals` and `BackfillApply`;
+     - a `Procurement/Edit` test showing that an assigned PO leaves `RequiresBackfill = true` on a `Completed` stage with `CompletedOn == null`;
+     - the existing #2673 tests showing an unassigned PO is forbidden.
+   - The F.5 matrix confirms every other writer requires Admin/HoD, system or creation authority.
 2. **Approval publishes exactly what was reviewed.** HoD approval of revision N publishes exactly N's proposed values. `StageChangeLog` To-values, revision items and `ProjectStage` agree, asserted in tests.
 3. **Stale decisions are rejected without mutation.** Approve or reject against a superseded, withdrawn, decided, epoch-mismatched or other-project revision fails with no mutation. Approve against a changed baseline fails with no mutation.
 4. **Stale edits are rejected without mutation.**
@@ -973,7 +997,7 @@ Phase D is complete when all of the following hold:
 7. **The rule 8 and 25 examples hold.** FS completion 10→20 Jan with SOW start 11 Jan is rejected alone and accepted when SOW is also moved to 20 Jan. Convergence uses the latest dated branch. Skipped stages are transparent. Same-day is accepted.
 8. **ARPP rule 17 holds.** Published-ARPP IPA completion cannot be changed by any Phase D path, including a race with publication (R5 on PostgreSQL). Draft ARPP does not lock.
 9. **Lifecycle status is never changed by an Actual correction**, except the documented ARPP-effective IPA case.
-10. **Concurrency and rollback are proven on PostgreSQL.** R1–R8, R12 and the approve failure-injection case pass in the PostgreSQL CI job.
+10. **Concurrency and rollback are proven on PostgreSQL.** R1–R8, R12, R14, the resubmission write order and the approve failure-injection case pass in the PostgreSQL CI job.
 11. **Recovery is rehearsed.** The I.3 R-D3 → R-D2 checklist has been executed once on a non-production copy and recorded in `docs/manual-tests`.
 12. **Existing suites still pass:** B1/B2/C1/C2, lifecycle and ARPP. The CI checks are `npm test`, `npm run check:notebook-assets`, `dotnet build`, `dotnet test`, `lint:views` and the migration gate.
 13. **Documentation is updated:** `docs/timeline.md`, `docs/timeline-proposal-roadmap.md` (G03, G04, G12, G13 closed; G11 status), `docs/data-domain.md` and `docs/phase-d-handoff.md`.
@@ -1020,7 +1044,7 @@ Each decision is classified as either a **policy** decision for the business own
   - Every new handler re-reads assignment on the server, inside the gate. Decide paths re-check role and self-approval; withdraw checks the current assignee.
   - From R-D2 no PO-only path publishes Actual dates, including in emergency recovery.
   - Read models expose proposals only to users who can view the project (inherited from Overview access).
-  - The `Procurement/Edit` gap (B.6 #6) is fixed separately in hariomahlawat/ProjectManagement#2673 and is a prerequisite for R-D3.
+  - The `Procurement/Edit` gap (B.6 #6) is fixed separately in hariomahlawat/ProjectManagement#2673 (merged as `abf396df`). Its residual facts-only flag clearing is an explicit, bounded exception to J-1 (F.5 row 9).
 - **Evidence.**
   - Required history is written in the same transaction as the change. Secondary `AuditLogs` and notifications run after commit.
   - Phase D does not adopt the in-transaction `IAuditService` pattern that carries a PostgreSQL abort risk (B.6 #7).
@@ -1028,8 +1052,8 @@ Each decision is classified as either a **policy** decision for the business own
   - Every decision-time and submit-time read happens after the gate (and the row lock where publishing).
   - The editor baseline covers first submissions as well as replacements.
   - The one writer outside the gate that matters for IPA (the ARPP synchronizer) is covered by the row lock.
-  - R1–R8 and R12 are mandated on PostgreSQL.
+  - R1–R8, R12 and R14 are mandated on PostgreSQL.
 - **Validation scope.** Enforced on correction and backfill boundaries only; lifecycle writers are warning-only; ARPP is exempt by rule. This is stated in F.5 and J-6, not over-claimed.
 - **Phase E creep.**
-  - There is no cross-category identity, and lifecycle publication is untouched apart from observability. Plan services are not modified.
-  - The only cross-category element is a read-only contradiction check at submission, which rule 18 already demands.
+  - There is no cross-category identity, and lifecycle publication is untouched apart from observability. Plan services are not modified. `StageRequestService.CreateBatchAsync` only gains the existing project gate around unchanged validation.
+  - The only cross-category element is a read-only contradiction check at submission and approval, which rule 18 already demands.
