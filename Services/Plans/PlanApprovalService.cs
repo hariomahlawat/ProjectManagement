@@ -75,6 +75,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
+            .Include(p => p.ApprovalLogs)
             .Include(p => p.Project)
             .FirstOrDefaultAsync(p => p.ProjectId == projectId &&
                                       p.Status == PlanVersionStatus.Draft &&
@@ -134,6 +135,16 @@ public class PlanApprovalService
         plan.RejectedByUserId = null;
         plan.RejectedOn = null;
         plan.RejectionNote = null;
+        // New submissions carry their own immutable review-epoch evidence.
+        // Historical pre-C2 Pending rows without this event retain the legacy
+        // reject-to-Draft fallback; new rejection never edits submitted inputs.
+        plan.ApprovalLogs.Add(new PlanApprovalLog
+        {
+            PlanVersionId = plan.Id,
+            Action = "Submitted",
+            PerformedByUserId = userId,
+            PerformedOn = submittedOn
+        });
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -522,7 +533,8 @@ public class PlanApprovalService
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, plan.ProjectId, cancellationToken);
-        var preserveSubmittedRevision = plan.ApprovalLogs.Any(log => log.Action == "CreatedAsReplacement");
+        var preserveSubmittedRevision = plan.ApprovalLogs.Any(log =>
+            log.Action == "CreatedAsReplacement" || log.Action == "Submitted");
         var rejectionStatus = preserveSubmittedRevision ? PlanVersionStatus.Rejected : PlanVersionStatus.Draft;
         if (!await IsCurrentReviewTargetAsync(plan, cancellationToken) ||
             !await TryClaimPendingDecisionAsync(plan, rejectionStatus, cancellationToken))
