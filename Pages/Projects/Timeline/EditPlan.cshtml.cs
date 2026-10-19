@@ -70,6 +70,12 @@ public class EditPlanModel : PageModel
     [BindProperty]
     public PlanEditInput Input { get; set; } = new();
 
+    [BindProperty]
+    public int WithdrawPlanVersionId { get; set; }
+
+    [BindProperty]
+    public DateTimeOffset? WithdrawSubmittedOn { get; set; }
+
     public IActionResult OnGet(int id) => NotFound();
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
@@ -179,6 +185,26 @@ public class EditPlanModel : PageModel
 
         var errors = await _planApproval.GetValidationErrorsAsync(draft.Id, cancellationToken);
         return new JsonResult(new { ok = errors.Count == 0, errors });
+    }
+
+    public async Task<IActionResult> OnPostWithdrawAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = _userContext.UserId;
+        if (string.IsNullOrWhiteSpace(userId) ||
+            !_userContext.User.IsInRole(RoleNames.ProjectOfficer))
+            return Forbid();
+
+        var isAssigned = await _db.Projects.AsNoTracking().AnyAsync(
+            p => p.Id == id && p.LeadPoUserId == userId, cancellationToken);
+        if (!isAssigned)
+            return Forbid();
+
+        var withdrawn = await _planApproval.WithdrawVersionAsync(
+            id, WithdrawPlanVersionId, WithdrawSubmittedOn, userId, cancellationToken);
+        TempData[withdrawn ? "Flash" : "Error"] = withdrawn
+            ? "Timeline submission withdrawn. Its review history is retained."
+            : "The submission changed or is no longer actionable. Refresh the timeline.";
+        return RedirectToPage("/Projects/Overview", new { id });
     }
 
     public async Task<IActionResult> OnPostDeleteDraftAsync(int id, CancellationToken cancellationToken)
