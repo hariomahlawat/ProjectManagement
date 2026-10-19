@@ -78,6 +78,23 @@ public class PlanDraftAndApprovalServiceTests
         Assert.Equal(PlanVersionStatus.PendingApproval, successor.Status);
         Assert.Equal(successor.Id, (await PlanRevisionConsistency.ActionablePending(db)
             .SingleAsync(p => p.ProjectId == 91)).Id);
+
+        // Rejection of a C2 submission must not rewrite its reviewed payload.
+        var reviewedEpoch = successor.SubmittedOn;
+        Assert.True(await approval.RejectVersionAsync(successor.Id,
+            "hod-user", false, true, "Revise timeline", expectedProjectId: 91));
+        Assert.Equal(PlanVersionStatus.Rejected, successor.Status);
+        Assert.Equal(reviewedEpoch, successor.SubmittedOn);
+        Assert.Equal(new DateOnly(2026, 12, 9), successor.StagePlans[0].PlannedDue);
+        var correction = await db.PlanVersions.Include(p => p.StagePlans)
+            .SingleAsync(p => p.ProjectId == 91 && p.Status == PlanVersionStatus.Draft);
+        Assert.Equal(3, correction.VersionNo);
+        Assert.Equal(new DateOnly(2026, 12, 9), correction.StagePlans[0].PlannedDue);
+        Assert.Equal("po-owner", correction.OwnerUserId);
+        Assert.Equal(1, await db.PlanApprovalLogs.CountAsync(log =>
+            log.PlanVersionId == successor.Id && log.Action == "Rejected"));
+        Assert.Empty(await PlanRevisionConsistency.ActionablePending(db)
+            .Where(p => p.ProjectId == 91).ToListAsync());
     }
 
     [Fact]
