@@ -14,11 +14,12 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents;
 
 [Authorize(Policy = "DocRepo.Upload")]
-[EnableRateLimiting("docUpload")]
+[EnableRateLimiting(DocumentUploadRateLimiting.PolicyName)]
 public class UploadModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -27,6 +28,7 @@ public class UploadModel : PageModel
     private readonly IDocRepoAuditService _audit;
     private readonly IAuthorizationService _authorizationService;
     private readonly ProjectDocumentOptions _documentOptions;
+    private readonly DocumentUploadRateLimitOptions _rateLimitOptions;
 
     public UploadModel(
         ApplicationDbContext db,
@@ -34,8 +36,10 @@ public class UploadModel : PageModel
         IFileScanner scanner,
         IDocRepoAuditService audit,
         IAuthorizationService authorizationService,
-        IOptions<ProjectDocumentOptions> documentOptions)
+        IOptions<ProjectDocumentOptions> documentOptions,
+        IOptions<DocumentUploadRateLimitOptions> rateLimitOptions)
     {
+        _rateLimitOptions = rateLimitOptions.Value;
         _db = db;
         _storage = storage;
         _scanner = scanner;
@@ -84,8 +88,16 @@ public class UploadModel : PageModel
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    // Set when a throttled upload was redirected back here (see DocumentUploadRateLimiting).
+    public bool Throttled { get; private set; }
+
+    public int ThrottleWindowMinutes => _rateLimitOptions.EffectiveWindowMinutes;
+
+    public string ThrottleWaitText => ThrottleWindowMinutes == 1 ? "1 minute" : $"{ThrottleWindowMinutes} minutes";
+
+    public async Task OnGetAsync(CancellationToken cancellationToken, bool throttled = false)
     {
+        Throttled = throttled;
         CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
         await PopulateLookupsAsync(cancellationToken);
     }

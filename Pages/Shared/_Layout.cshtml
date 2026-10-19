@@ -51,6 +51,9 @@
     <link rel="manifest" href="~/site.webmanifest" asp-append-version="true" />
     <meta name="msapplication-TileColor" content="#10213f" />
     <meta name="msapplication-config" content="@Url.Content("~/browserconfig.xml")" />
+    @* Loaded early, without defer: it only adds document-level listeners, and confirmations
+       must be active before a user can click a destructive button on a slow page. *@
+    <script src="~/js/core/declarative-actions.js" asp-append-version="true"></script>
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
@@ -386,7 +389,6 @@
     }
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
-    <script src="~/js/project-media-tabs.js" asp-append-version="true" defer></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" asp-append-version="true" defer></script>
 </body>

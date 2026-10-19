@@ -48,6 +48,8 @@ For view guardrails on a Unix-compatible shell:
 npm run lint:views
 ```
 
+`tools/check-views.sh` requires `bash` and ripgrep (`rg`) built with PCRE2. Because the Content-Security-Policy `script-src` has no `'unsafe-inline'`, it rejects inline `<script>` blocks, inline `on*` event handler attributes and `javascript:` URLs, matching across lines. It also rejects `<style>` elements, which `style-src-elem` blocks outside Development and a few routes. Script tags with `src` or `asp-src-include`, and data blocks (`application/json`, `application/ld+json`, `text/template`, `text/x-template`, `text/html`), are allowed. It exits 1 on a violation and 2 when it cannot run (missing path, ripgrep missing, without PCRE2, or failing), so a broken check never passes silently. Not checked: `style` attributes (allowed by `style-src-attr 'unsafe-inline'`), unquoted handler values, and markup inside comments. Its fixture tests run in the Lint Views workflow and as part of `npm test`; they are skipped, not failed, where bash or a PCRE2 ripgrep is unavailable (for example plain Windows).
+
 ## Notebook assets
 
 Notebook source inputs include JavaScript under `wwwroot/js`, the Notebook build tooling and the npm manifests. Committed outputs include the Notebook bundle, source map and manifest under `wwwroot/dist`.

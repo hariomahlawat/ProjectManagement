@@ -143,7 +143,7 @@
           <form method="post" asp-page-handler="BulkDelete" class="bulk-action-form d-inline">
             @Html.AntiForgeryToken()
             <div class="bulk-selected-inputs"></div>
-            <button type="submit" class="btn btn-sm btn-outline-danger js-confirm-delete" data-confirm="Delete selected tasks?">Delete</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger js-confirm-delete" data-page-handled data-confirm="Delete selected tasks?">Delete</button>
           </form>
         </div>
       </div>

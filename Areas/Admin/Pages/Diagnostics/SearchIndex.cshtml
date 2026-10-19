@@ -15,7 +15,7 @@
         <a asp-area="Admin" asp-page="/Diagnostics/DbHealth" class="btn btn-outline-secondary"><i class="bi bi-heart-pulse me-1"></i>System health</a>
         @if (Model.CanMaintain)
         {
-            <form method="post" asp-page-handler="Rebuild" onsubmit="return confirm('Queue a full Search V2 rebuild? The existing active generation will remain live until the new generation is ready.');">
+            <form method="post" asp-page-handler="Rebuild" data-confirm="Queue a full Search V2 rebuild? The existing active generation will remain live until the new generation is ready.">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Rebuild search index</button>
             </form>
         }

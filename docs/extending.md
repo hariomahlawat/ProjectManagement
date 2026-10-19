@@ -24,7 +24,7 @@ Follow these guardrails when introducing new capabilities. Keeping to these patt
 ## Razor Pages and APIs
 
 * Keep Razor Page models thin—delegate business logic to services. Enforce authorization at both the page attribute level and service layer.
-* Avoid inline `<script>` or `style` attributes; rely on static assets initialised via `wwwroot/js/*.js`. Run `npm run lint:views` before committing.
+* Do not use inline `<script>` blocks or `on*` event handler attributes: the Content-Security-Policy blocks them. Put code in static assets under `wwwroot/js`, and use the shared behaviours in `wwwroot/js/core/declarative-actions.js` (loaded by `_Layout`) for the common cases: `data-confirm="…"` on a form, submit button or link; `data-auto-submit` on a form control; `data-auto-navigate` on a `<select>` of same-origin URLs; `data-print`; `data-close-window`. A page script that implements its own confirmation or auto-submit for an element marks it `data-page-handled`. Pages with `Layout = null` must include the script themselves. Auto-submit and auto-navigate `<select>` elements wait for Enter or for focus to leave when the user browses with arrow keys. Every view that uses `data-page-handled` must be registered in `wwwroot/js/core/page-handled-contract.test.js`. Run `npm run lint:views` before committing.
 * When exposing new minimal APIs, place them in `Program.cs` near related routes, apply appropriate `[Authorize]` policies, and document them in [docs/architecture.md](architecture.md).
 
 ## Database changes

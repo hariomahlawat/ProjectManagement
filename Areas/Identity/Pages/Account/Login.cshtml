@@ -52,6 +52,12 @@
                 </div>
 
                 <form method="post" class="auth-form" novalidate>
+                    @if (Model.Throttled)
+                    {
+                        <div class="auth-validation-summary text-danger" role="alert">
+                            Too many sign-in attempts. Wait up to @Model.ThrottleWaitText, then try again.
+                        </div>
+                    }
                     <div asp-validation-summary="ModelOnly"
                          class="auth-validation-summary text-danger"
                          role="alert"></div>

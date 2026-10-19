@@ -386,23 +386,46 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
+builder.Services.Configure<LoginRateLimitOptions>(builder.Configuration.GetSection(LoginRateLimitOptions.SectionName));
+builder.Services.Configure<DocumentUploadRateLimitOptions>(builder.Configuration.GetSection(DocumentUploadRateLimitOptions.SectionName));
+builder.Services.AddSingleton<SharedRateLimiters>();
+
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("login", o =>
-    {
-        o.PermitLimit = 10;
-        o.Window = TimeSpan.FromMinutes(5);
-        o.QueueLimit = 0;
-        o.AutoReplenishment = true;
-    });
+    // Sign-in attempts are throttled per client address, then against a server-wide allowance
+    // (SharedRateLimiters); opening the login page is not throttled.
+    options.AddPolicy(LoginRateLimiting.PolicyName, context =>
+        LoginRateLimiting.GetPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptions<LoginRateLimitOptions>>().Value,
+            context.RequestServices.GetRequiredService<SharedRateLimiters>().Login));
 
-    options.AddFixedWindowLimiter("docUpload", o =>
+    options.OnRejected = (context, _) =>
     {
-        o.PermitLimit = 10;
-        o.Window = TimeSpan.FromMinutes(1);
-        o.QueueLimit = 0;
-        o.AutoReplenishment = true;
-    });
+        if (LoginRateLimiting.IsLoginRequest(context.HttpContext))
+        {
+            context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ProjectManagement.LoginRateLimit")
+                .LogWarning("Sign-in attempts throttled (client {ClientIp}).", LoginRateLimiting.ClientLabel(context.HttpContext));
+            context.HttpContext.Response.Redirect(LoginRateLimiting.BuildThrottledRedirect(context.HttpContext));
+        }
+        else if (DocumentUploadRateLimiting.IsUploadRequest(context.HttpContext))
+        {
+            context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ProjectManagement.DocumentUploadRateLimit")
+                .LogWarning("Document uploads throttled for {Uploader}.", DocumentUploadRateLimiting.UploaderLabel(context.HttpContext));
+            context.HttpContext.Response.Redirect(DocumentUploadRateLimiting.BuildThrottledRedirect(context.HttpContext));
+        }
+
+        return ValueTask.CompletedTask;
+    };
+
+    // Document uploads are throttled per signed-in user; opening the upload page is not.
+    options.AddPolicy(DocumentUploadRateLimiting.PolicyName, context =>
+        DocumentUploadRateLimiting.GetPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptions<DocumentUploadRateLimitOptions>>().Value,
+            context.RequestServices.GetRequiredService<SharedRateLimiters>().DocumentUpload));
 });
 
 builder.Services.AddHsts(o =>
@@ -1348,9 +1371,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseRateLimiter();
-
 app.UseAuthentication();
+
+// After authentication so per-user policies (document uploads) can see the signed-in user.
+app.UseRateLimiter();
 app.UseAuthorization();
 app.UseMiddleware<ErpUsageMiddleware>();
 app.UseAntiforgery();

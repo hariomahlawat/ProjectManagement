@@ -30,10 +30,10 @@ Most Razor Pages depend on interfaces defined in `Services/`. These interfaces a
 2. **Data protection** – Persists key rings to `DP_KEYS_DIR` (env override) so authentication cookies survive restarts. (see Program.cs lines 29-45)
 3. **Database** – Configures `ApplicationDbContext` with PostgreSQL and applies migrations automatically at startup. (see Program.cs lines 47-244)
 4. **Identity** – Registers ASP.NET Core Identity with relaxed password rules, username-based accounts, and custom policies (`Project.Create`, `Checklist.View`, `Checklist.Edit`). Cookie settings enforce secure, HttpOnly cookies scoped to the host. (see Program.cs lines 82-148)
-5. **Security headers** – Enables HSTS, rate limiting for the login endpoint, forwarded headers for proxy scenarios, and a global middleware that sets CSP/COOP/CORP headers. Document preview routes relax these headers to allow embedded PDF viewers. (see Program.cs lines 125-310)
+5. **Security headers** – Enables HSTS, rate limiting for sign-in attempts (per client address) and document uploads (per signed-in user), each also capped server-wide, forwarded headers for proxy scenarios, and a global middleware that sets CSP/COOP/CORP headers. Document preview routes relax these headers to allow embedded PDF viewers. (see Program.cs lines 125-310)
 6. **Services** – Wires every service, options binding, and hosted worker. Notable registrations include plan/timeline services, document pipeline, remark notifications, SignalR hub, and upload providers. (see Program.cs lines 108-236)
 7. **Razor Pages** – Applies global authorization conventions, enables antiforgery, and attaches `EnforcePasswordChangeFilter` so users flagged with `MustChangePassword` are redirected to the change-password page. (see Program.cs lines 215-236) (see Infrastructure/EnforcePasswordChangeFilter.cs lines 6-42)
-8. **Middleware** – After building the app, the pipeline enforces HTTPS, security headers, static files, routing, rate limiting, authentication, and authorization. Minimal APIs handle calendar events, notifications, and process checklists alongside the Razor Pages endpoints. (see Program.cs lines 229-760)
+8. **Middleware** – After building the app, the pipeline enforces HTTPS, security headers, static files, routing, authentication, rate limiting (after authentication so upload limits can be per user), and authorization. Minimal APIs handle calendar events, notifications, and process checklists alongside the Razor Pages endpoints. (see Program.cs lines 229-760)
 
 ### Environment awareness
 

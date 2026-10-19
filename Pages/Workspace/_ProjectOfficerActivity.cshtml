@@ -73,7 +73,7 @@
                             <input type="hidden" name="mode" value="@activityRouteMode" />
                             <input type="hidden" name="view" value="@activityRouteView" />
                             <label for="po-activity-older-year" class="visually-hidden">Older calendar year</label>
-                            <select id="po-activity-older-year" name="activityPeriod" onchange="this.form.submit()">
+                            <select id="po-activity-older-year" name="activityPeriod" data-auto-submit>
                                 <option value="">Older years</option>
                                 @foreach (var option in activityYear.OlderPeriodOptions)
                                 {
