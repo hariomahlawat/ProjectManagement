@@ -2,7 +2,7 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
-> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding has an open corrective PR, [#2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680). D-2 and D-3 are approved (K-1, K-14 resolved) but not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 and D-3 are approved (K-1, K-14 resolved) but not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
 >
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
@@ -56,7 +56,7 @@ Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production D
 
 ### D-1 verification findings
 
-D-1e verification found one residual race. D-1e is documentation only, so it is fixed separately, in an **open corrective PR**:
+D-1e verification identified a race in the D-1d baseline; the correction was merged separately in **PR #2680** (`207acd82`). D-1e remains documentation-only:
 
 - **HoD direct apply versus ARPP verify on IPA.** `StageDirectApplyService` takes the project gate but does not lock stage rows. Its ARPP check reads committed data, and it supersedes a same-stage pending request with a tracked update. ARPP synchronization does not take the gate.
   - A direct apply on IPA that runs while an ARPP verify is synchronizing can pass the ARPP check, because the publication is not yet committed. It then waits on ARPP's IPA row lock and applies the columns it computed from its earlier snapshot, which can overwrite the published completion (rule 17).
