@@ -152,6 +152,9 @@ public sealed class PostgresMigrationIntegrationTests
         // Exercise the actual Npgsql two-connection advisory-lock behavior, not
         // merely SQLite's database-wide write serialization.
         await PlanRevisionConcurrencyPostgresFixture.RunAsync(applicationOptions);
+        // Phase D-1b: direct Actual correction validates and publishes behind the
+        // project gate and stage row locks, and rolls back with its history.
+        await StageActualsConcurrencyPostgresFixture.RunAsync(applicationOptions);
     }
 
 

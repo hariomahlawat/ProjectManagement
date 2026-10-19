@@ -21,6 +21,7 @@
             <div class="modal-body">
                 <form data-backfill-form novalidate>
                     <input type="hidden" name="projectId" value="@Model?.ProjectId" data-backfill-project />
+                    <input type="hidden" name="baselineVersion" value="@Model?.BaselineVersion" data-backfill-baseline />
                     <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" data-backfill-token />
 
                     <div class="alert alert-danger d-none" role="alert" data-backfill-errors></div>

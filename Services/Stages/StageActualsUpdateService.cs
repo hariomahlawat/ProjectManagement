@@ -12,22 +12,26 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Services.Stages;
 
 // SECTION: Stage actuals updater
+/// <summary>
+/// Authoritative (HoD/Admin and, until Phase D-2, assigned PO) Actual-date
+/// correction. Validation, publication and stage history run inside one
+/// transaction under the project gate, against row-locked stage state.
+/// </summary>
 public sealed class StageActualsUpdateService
 {
     private const string PendingDecisionStatus = "Pending";
-    private const string ActualsUpdatedLogAction = "ActualsUpdated";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IAuditService _audit;
     private readonly ILogger<StageActualsUpdateService> _logger;
-    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
-    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
+    private readonly IActualTimelineValidationService _validator;
 
     public StageActualsUpdateService(
         ApplicationDbContext db,
@@ -35,14 +39,17 @@ public sealed class StageActualsUpdateService
         IAuditService audit,
         ILogger<StageActualsUpdateService> logger,
         IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
-        IProjectStageWorkflowPolicy? workflowPolicy = null)
+        IProjectStageWorkflowPolicy? workflowPolicy = null,
+        IActualTimelineValidationService? validator = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
-        _workflowPolicy = workflowPolicy ?? new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider());
+        _validator = validator ?? new ActualTimelineValidationService(
+            workflowPolicy ?? new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider()),
+            arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db),
+            clock);
     }
 
     public async Task<StageActualsUpdateResult> UpdateAsync(
@@ -82,284 +89,184 @@ public sealed class StageActualsUpdateService
             throw new StageActualsValidationException(new[] { "At least one stage update is required." });
         }
 
-        var codes = normalized.Select(r => r.StageCode).ToArray();
+        // SECTION: Protected read
+        // Every decision-critical read happens after the project gate and the row
+        // lock, so validation and publication see the same committed state.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, input.ProjectId, cancellationToken);
 
-        var allProjectStages = await _db.ProjectStages
-            .Where(s => s.ProjectId == input.ProjectId)
-            .ToListAsync(cancellationToken);
+        var allProjectStages = await ActualFactPublisher.LoadProjectStagesForUpdateAsync(
+            _db,
+            input.ProjectId,
+            cancellationToken);
 
         var stageLookup = allProjectStages
-            .Where(s => codes.Contains(s.StageCode))
-            .ToDictionary(s => s.StageCode!, StringComparer.OrdinalIgnoreCase);
+            .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+            .ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
 
-        if (stageLookup.Count != codes.Length)
+        var missing = normalized
+            .Select(row => row.StageCode)
+            .Where(code => !stageLookup.ContainsKey(code))
+            .ToArray();
+        if (missing.Length > 0)
         {
-            var missing = codes.Where(code => !stageLookup.ContainsKey(code)).ToArray();
             throw new StageActualsNotFoundException(missing);
         }
 
-        // IPA may be an unsubmitted predecessor. Its published completion still
-        // controls every downstream chronology calculation.
-        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken);
+        // SECTION: Stale-editor protection
+        var stale = FindStaleRows(input, normalized, stageLookup);
+        if (stale.Count > 0)
+        {
+            throw new StageActualsStaleException(stale);
+        }
 
-        var workflow = await _workflowPolicy.GetAsync(input.ProjectId, cancellationToken);
-        var submittedByCode = normalized.ToDictionary(row => row.StageCode, StringComparer.OrdinalIgnoreCase);
-        var projectedStages = allProjectStages
-            .Select(stage =>
-            {
-                var projectedCompletion = stage.CompletedOn;
-                if (submittedByCode.TryGetValue(stage.StageCode, out var submittedRow))
-                {
-                    var isArppManaged = ipaAuthority is not null
-                        && string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
-                    var submittedStart = submittedRow.ClearActualStart
-                        ? null
-                        : submittedRow.ActualStart ?? stage.ActualStart;
-                    if (isArppManaged && submittedStart != stage.ActualStart)
-                    {
-                        projectedCompletion = ipaAuthority!.IssueDate;
-                    }
-                    else if (!isArppManaged && submittedRow.CompletedOn.HasValue)
-                    {
-                        projectedCompletion = submittedRow.CompletedOn;
-                    }
-                }
+        // SECTION: Final-state validation
+        var validation = await _validator.ValidateAsync(
+            new ActualTimelineCandidate(
+                input.ProjectId,
+                allProjectStages.Select(ActualStageState.From).ToArray(),
+                normalized
+                    .Select(row => new ActualStageChange(row.StageCode, row.ActualStart, row.ClearActualStart, row.CompletedOn))
+                    .ToArray(),
+                ActualChangeEntryPoint.Editor),
+            cancellationToken);
 
-                return new ProjectStage
-                {
-                    StageCode = stage.StageCode,
-                    Status = stage.Status,
-                    CompletedOn = projectedCompletion
-                };
-            })
+        var changedCodes = validation.Changes
+            .Select(change => change.StageCode)
             .ToArray();
 
         var lockedStages = await _db.StageChangeRequests
             .AsNoTracking()
-            .Where(r => r.ProjectId == input.ProjectId && r.DecisionStatus == PendingDecisionStatus && codes.Contains(r.StageCode))
+            .Where(r => r.ProjectId == input.ProjectId
+                && r.DecisionStatus == PendingDecisionStatus
+                && changedCodes.Contains(r.StageCode))
             .Select(r => r.StageCode)
             .Distinct()
             .ToArrayAsync(cancellationToken);
 
-        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
-        var now = _clock.UtcNow;
-        var validationErrors = new List<string>();
-        var changes = new List<StageActualChange>();
-
-        foreach (var row in normalized)
-        {
-            var stage = stageLookup[row.StageCode];
-            var start = row.ActualStart;
-            var completed = row.CompletedOn;
-            var isArppManagedIpa = ipaAuthority is not null &&
-                                   string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
-
-            var effectiveStatus = StageEffectiveState.Resolve(stage.StageCode,
-                new StageChronologyState(stage.Status, stage.CompletedOn), ipaAuthority)!.Status;
-
-            if (isArppManagedIpa && completed.HasValue && completed != ipaAuthority!.IssueDate)
-            {
-                validationErrors.Add($"{row.StageCode}: Completion date is controlled by the published ARPP record and cannot be edited here.");
-                continue;
-            }
-
-            if (row.ClearActualStart && start.HasValue)
-            {
-                validationErrors.Add($"{row.StageCode}: Supply a start date or explicitly clear it, not both.");
-                continue;
-            }
-
-            if (row.ClearActualStart && effectiveStatus == StageStatus.InProgress)
-            {
-                validationErrors.Add($"{row.StageCode}: Actual start is required while the stage is InProgress. Transition the stage before clearing it.");
-                continue;
-            }
-
-            // A missing value is not a clear command, including for managed IPA.
-            // The additive flag distinguishes intentional clearing from older or omitted fields.
-            var proposedStart = row.ClearActualStart ? null : start ?? stage.ActualStart;
-            var startChanged = proposedStart != stage.ActualStart;
-            // A valid requested start correction must retain the published source's
-            // completion, even if the stored value is stale. Unchanged rows are not
-            // an implicit reconciliation job for pre-existing data.
-            var proposedCompleted = isArppManagedIpa
-                ? (startChanged ? ipaAuthority!.IssueDate : stage.CompletedOn)
-                : completed ?? stage.CompletedOn;
-            var isChanged = startChanged || proposedCompleted != stage.CompletedOn;
-
-            if (!isChanged)
-            {
-                continue;
-            }
-
-            if (effectiveStatus is not StageStatus.InProgress and not StageStatus.Completed)
-            {
-                validationErrors.Add($"{row.StageCode}: Actual dates can only be edited when the stage is InProgress or Completed.");
-                continue;
-            }
-
-            if (effectiveStatus == StageStatus.InProgress)
-            {
-                if (!proposedStart.HasValue)
-                {
-                    validationErrors.Add($"{row.StageCode}: Actual start is required while the stage is InProgress.");
-                }
-
-                if (proposedCompleted.HasValue)
-                {
-                    validationErrors.Add($"{row.StageCode}: Use the stage-transition workflow to complete this stage; an InProgress stage cannot carry a completion date.");
-                }
-            }
-
-            if (proposedStart is not null && proposedStart > today)
-            {
-                validationErrors.Add($"{row.StageCode}: Start date cannot be in the future.");
-            }
-
-            if (proposedCompleted is not null && proposedCompleted > today)
-            {
-                validationErrors.Add($"{row.StageCode}: Completion date cannot be in the future.");
-            }
-
-            if (proposedStart is not null && proposedCompleted is not null && proposedStart > proposedCompleted)
-            {
-                validationErrors.Add($"{row.StageCode}: Completion date must be on or after the start date.");
-            }
-
-            var chronologyDate = proposedStart ?? proposedCompleted;
-            var chronologyLabel = proposedStart.HasValue ? "Start date" : "Completion date";
-            var startBoundary = StageDateSuggestionResolver.Resolve(workflow, projectedStages, row.StageCode, ipaAuthority);
-            if (chronologyDate.HasValue
-                && startBoundary.EarliestAllowedStartDate.HasValue
-                && chronologyDate.Value < startBoundary.EarliestAllowedStartDate.Value)
-            {
-                var predecessorName = string.IsNullOrWhiteSpace(startBoundary.SourceStageName)
-                    ? "the effective predecessor"
-                    : startBoundary.SourceStageName;
-                validationErrors.Add(
-                    $"{row.StageCode}: {chronologyLabel} must be on or after " +
-                    $"{startBoundary.EarliestAllowedStartDate.Value:dd MMM yyyy}, when {predecessorName} was completed. " +
-                    "Same-day commencement is permitted.");
-            }
-
-            var updatedStart = proposedStart;
-            var updatedCompleted = proposedCompleted;
-
-            changes.Add(new StageActualChange(stage, effectiveStatus, updatedStart, updatedCompleted));
-        }
-
         if (lockedStages.Length > 0)
         {
-            var lockedLookup = new HashSet<string>(lockedStages, StringComparer.OrdinalIgnoreCase);
-            var blocked = changes
-                .Where(c => lockedLookup.Contains(c.Stage.StageCode))
-                .Select(c => c.Stage.StageCode)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            if (blocked.Length > 0)
-            {
-                throw new StageActualsConflictException(blocked);
-            }
+            throw new StageActualsConflictException(lockedStages);
         }
 
-        if (validationErrors.Count > 0)
+        if (!validation.IsValid)
         {
-            throw new StageActualsValidationException(validationErrors);
+            throw new StageActualsValidationException(validation.Errors.Select(error => error.Message).ToArray());
         }
 
-        if (changes.Count == 0)
+        if (validation.Changes.Count == 0)
         {
             return StageActualsUpdateResult.NoChanges();
         }
 
+        // SECTION: Atomic publication (facts and mandatory history)
         var auditData = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["ProjectId"] = input.ProjectId.ToString(CultureInfo.InvariantCulture),
-            ["UpdatedCount"] = changes.Count.ToString(CultureInfo.InvariantCulture)
+            ["UpdatedCount"] = validation.Changes.Count.ToString(CultureInfo.InvariantCulture)
         };
 
-        for (var i = 0; i < changes.Count; i++)
+        var now = _clock.UtcNow;
+        for (var i = 0; i < validation.Changes.Count; i++)
         {
-            var change = changes[i];
+            var change = validation.Changes[i];
             var prefix = $"Stage[{i}]";
-            auditData[$"{prefix}.Code"] = change.Stage.StageCode;
-            auditData[$"{prefix}.From.Start"] = FormatDate(change.Stage.ActualStart);
-            auditData[$"{prefix}.From.Completed"] = FormatDate(change.Stage.CompletedOn);
-            auditData[$"{prefix}.To.Start"] = FormatDate(change.NewStart);
-            auditData[$"{prefix}.To.Completed"] = FormatDate(change.NewCompleted);
-        }
+            auditData[$"{prefix}.Code"] = change.StageCode;
+            auditData[$"{prefix}.From.Start"] = FormatDate(change.Official.ActualStart);
+            auditData[$"{prefix}.From.Completed"] = FormatDate(change.Official.CompletedOn);
+            auditData[$"{prefix}.To.Start"] = FormatDate(change.Final.ActualStart);
+            auditData[$"{prefix}.To.Completed"] = FormatDate(change.Final.CompletedOn);
 
-        foreach (var change in changes)
-        {
-            var stage = change.Stage;
-            var log = new StageChangeLog
-            {
-                ProjectId = stage.ProjectId,
-                StageCode = stage.StageCode,
-                Action = ActualsUpdatedLogAction,
-                FromStatus = stage.Status.ToString(),
-                ToStatus = change.NewStatus.ToString(),
-                FromActualStart = stage.ActualStart,
-                ToActualStart = change.NewStart,
-                FromCompletedOn = stage.CompletedOn,
-                ToCompletedOn = change.NewCompleted,
-                UserId = userId,
-                At = now,
-                Note = "Actual dates updated via bulk editor."
-            };
-
-            // An explicit authorised correction uses the published lifecycle state.
-            // Unchanged rows and read/validation projections never reconcile data.
-            stage.Status = change.NewStatus;
-            stage.ActualStart = change.NewStart;
-            stage.CompletedOn = change.NewCompleted;
-
-            // SECTION: Completed stage backfill state
-            if (stage.Status == StageStatus.Completed)
-            {
-                var isArppManagedIpa = ipaAuthority is not null &&
-                                       string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
-                stage.RequiresBackfill = isArppManagedIpa
-                    ? false
-                    : !stage.CompletedOn.HasValue;
-            }
-
-            stage.IsAutoCompleted = false;
-            stage.AutoCompletedFromCode = null;
-
+            var log = ActualFactPublisher.Apply(
+                stageLookup[change.StageCode],
+                change,
+                userId,
+                now,
+                change.IsBackfill ? ActualFactPublisher.BackfillAction : ActualFactPublisher.ActualsUpdatedAction,
+                change.IsBackfill
+                    ? "Completion date supplied via the actual-dates editor."
+                    : "Actual dates updated via bulk editor.");
             await _db.StageChangeLogs.AddAsync(log, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _audit.LogAsync(
+        // Secondary security/usage audit only after the facts and history commit;
+        // it must never decide whether they commit.
+        transaction.RegisterAfterCommit(_ => _audit.LogAsync(
             "Projects.ActualsUpdated",
             userId: userId,
             userName: userName,
-            data: auditData);
+            data: auditData));
+
+        await transaction.CommitAsync(cancellationToken);
+
+        foreach (var error in transaction.PostCommitErrors)
+        {
+            _logger.LogError(error, "Post-commit audit failed after updating actual dates for project {ProjectId}.", input.ProjectId);
+        }
 
         _logger.LogInformation(
             "Updated actual dates for {Count} stage(s) in project {ProjectId} by user {UserId}",
-            changes.Count,
+            validation.Changes.Count,
             input.ProjectId,
             userId);
 
-        var updatedCodes = changes.Select(c => c.Stage.StageCode).ToArray();
-        return new StageActualsUpdateResult(updatedCodes.Length, updatedCodes);
+        return new StageActualsUpdateResult(
+            validation.Changes.Count,
+            changedCodes,
+            validation.Warnings.Select(warning => warning.Message).ToArray());
     }
 
     // SECTION: Helpers
+    private IReadOnlyList<string> FindStaleRows(
+        ActualsEditInput input,
+        IReadOnlyList<ActualsEditRowInput> rows,
+        IReadOnlyDictionary<string, ProjectStage> stageLookup)
+    {
+        var wouldChange = rows
+            .Where(row => WouldChange(row, stageLookup[row.StageCode]))
+            .ToArray();
+
+        if (input.BaselineVersion != ActualStageToken.BaselineVersion)
+        {
+            // Forms rendered before baseline tokens existed keep the previous
+            // contract (Phase D-1 compatibility); log so the gap is observable.
+            if (wouldChange.Length > 0)
+            {
+                _logger.LogWarning(
+                    "Accepted a legacy actual-dates post without a baseline marker for project {ProjectId}.",
+                    input.ProjectId);
+            }
+
+            return Array.Empty<string>();
+        }
+
+        return wouldChange
+            .Where(row => !ActualStageToken.Matches(row.StageToken, stageLookup[row.StageCode]))
+            .Select(row => stageLookup[row.StageCode].StageCode)
+            .ToArray();
+    }
+
+    // A row "would change" when any posted value differs from the stored row.
+    // Rows whose posted values equal the stored facts never need a token, so
+    // non-overlapping edits to other stages can both succeed.
+    private static bool WouldChange(ActualsEditRowInput row, ProjectStage stage) =>
+        (row.ClearActualStart && stage.ActualStart.HasValue)
+        || (row.ActualStart.HasValue && row.ActualStart != stage.ActualStart)
+        || (row.CompletedOn.HasValue && row.CompletedOn != stage.CompletedOn);
+
     private static string? FormatDate(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
 // SECTION: Result records and exceptions
-public sealed record StageActualsUpdateResult(int UpdatedCount, IReadOnlyList<string> StageCodes)
+public sealed record StageActualsUpdateResult(
+    int UpdatedCount,
+    IReadOnlyList<string> StageCodes,
+    IReadOnlyList<string>? Warnings = null)
 {
     public static StageActualsUpdateResult NoChanges() => new(0, Array.Empty<string>());
 }
-
-internal sealed record StageActualChange(ProjectStage Stage, StageStatus NewStatus, DateOnly? NewStart, DateOnly? NewCompleted);
 
 public sealed class StageActualsValidationException : Exception
 {
@@ -376,6 +283,18 @@ public sealed class StageActualsConflictException : Exception
 {
     public StageActualsConflictException(IReadOnlyList<string> stageCodes)
         : base("One or more stages cannot be edited while pending approval.")
+    {
+        StageCodes = stageCodes ?? Array.Empty<string>();
+    }
+
+    public IReadOnlyList<string> StageCodes { get; }
+}
+
+/// <summary>A stage changed after the editor was rendered; nothing was saved.</summary>
+public sealed class StageActualsStaleException : Exception
+{
+    public StageActualsStaleException(IReadOnlyList<string> stageCodes)
+        : base("One or more stages changed since the editor was opened.")
     {
         StageCodes = stageCodes ?? Array.Empty<string>();
     }

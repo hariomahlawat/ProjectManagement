@@ -1,39 +1,60 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Services.Plans;
 
 namespace ProjectManagement.Services.Stages;
 
+/// <summary>
+/// Authoritative mandatory completion-date backfill. Validation, publication and
+/// stage history run inside one transaction under the project gate, against
+/// row-locked stage state, using the shared final-state Actual validator.
+/// </summary>
 public sealed class StageBackfillService
 {
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
-    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly IActualTimelineValidationService _validator;
+    private readonly IAuditService? _audit;
+    private readonly ILogger<StageBackfillService> _logger;
 
     public StageBackfillService(
         ApplicationDbContext db,
         IClock clock,
-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
+        IProjectStageWorkflowPolicy? workflowPolicy = null,
+        IActualTimelineValidationService? validator = null,
+        IAuditService? audit = null,
+        ILogger<StageBackfillService>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _validator = validator ?? new ActualTimelineValidationService(
+            workflowPolicy ?? new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider()),
+            arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db),
+            clock);
+        _audit = audit;
+        _logger = logger ?? NullLogger<StageBackfillService>.Instance;
     }
 
     public async Task<StageBackfillResult> ApplyAsync(
         int projectId,
         IReadOnlyCollection<StageBackfillUpdate> updates,
         string userId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? baselineVersion = null)
     {
         if (projectId <= 0)
         {
@@ -56,14 +77,7 @@ public sealed class StageBackfillService
         var distinctUpdates = updates
             .Where(u => u is not null && !string.IsNullOrWhiteSpace(u.StageCode))
             .GroupBy(u => u.StageCode!, StringComparer.OrdinalIgnoreCase)
-            .Select(group =>
-            {
-                var item = group.Last();
-                return new StageBackfillUpdate(
-                    group.Key,
-                    item.ActualStart,
-                    item.CompletedOn);
-            })
+            .Select(group => group.Last() with { StageCode = group.Key })
             .ToArray();
 
         if (distinctUpdates.Length == 0)
@@ -74,130 +88,123 @@ public sealed class StageBackfillService
             });
         }
 
-        var stageCodes = distinctUpdates.Select(u => u.StageCode).ToArray();
+        // SECTION: Protected read
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, ct);
 
-        if (stageCodes.Any(code => string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)) &&
-            await _arppIpaStageAuthority.IsManagedAsync(projectId, ct))
+        var allProjectStages = await ActualFactPublisher.LoadProjectStagesForUpdateAsync(_db, projectId, ct);
+        var stageLookup = allProjectStages
+            .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+            .ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+
+        var missing = distinctUpdates
+            .Select(update => update.StageCode)
+            .Where(code => !stageLookup.ContainsKey(code))
+            .ToArray();
+        if (missing.Length > 0)
         {
-            throw new StageBackfillValidationException(new[]
-            {
-                ArppManagedIpaStageException.UserMessage
-            });
-        }
-
-        var stageLookup = await _db.ProjectStages
-            .Where(s => s.ProjectId == projectId && stageCodes.Contains(s.StageCode))
-            .ToDictionaryAsync(s => s.StageCode!, StringComparer.OrdinalIgnoreCase, ct);
-
-        if (stageLookup.Count != stageCodes.Length)
-        {
-            var missing = stageCodes
-                .Where(code => !stageLookup.ContainsKey(code))
-                .ToArray();
-
             throw new StageBackfillNotFoundException(missing);
         }
 
-        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
-        var validationErrors = new List<string>();
-        var conflicts = new List<string>();
-
-        foreach (var update in distinctUpdates)
+        // SECTION: Stale-editor protection (every backfill row writes)
+        if (baselineVersion == ActualStageToken.BaselineVersion)
         {
-            var stage = stageLookup[update.StageCode];
-
-            if (stage.Status != StageStatus.Completed)
+            var stale = distinctUpdates
+                .Where(update => !ActualStageToken.Matches(update.StageToken, stageLookup[update.StageCode]))
+                .Select(update => stageLookup[update.StageCode].StageCode)
+                .ToArray();
+            if (stale.Length > 0)
             {
-                conflicts.Add(update.StageCode);
-                continue;
-            }
-
-            if (!StageBackfillRules.RequiresBackfill(stage))
-            {
-                conflicts.Add(update.StageCode);
-                continue;
-            }
-
-            var start = update.ActualStart ?? stage.ActualStart;
-            var completed = update.CompletedOn ?? stage.CompletedOn;
-
-            if (start is not null && start > today)
-            {
-                validationErrors.Add($"Stage {update.StageCode}: actual start date cannot be in the future.");
-            }
-
-            if (completed is null)
-            {
-                validationErrors.Add($"Stage {update.StageCode}: completion date is required.");
-            }
-            else if (completed > today)
-            {
-                validationErrors.Add($"Stage {update.StageCode}: completion date cannot be in the future.");
-            }
-
-            if (start is not null && completed is not null && start > completed)
-            {
-                validationErrors.Add($"Stage {update.StageCode}: completion date must be on or after the start date.");
+                throw new StageBackfillStaleException(stale);
             }
         }
+        else
+        {
+            _logger.LogWarning(
+                "Accepted a legacy backfill post without a baseline marker for project {ProjectId}.",
+                projectId);
+        }
 
-        if (validationErrors.Count > 0)
+        // SECTION: Final-state validation
+        var validation = await _validator.ValidateAsync(
+            new ActualTimelineCandidate(
+                projectId,
+                allProjectStages.Select(ActualStageState.From).ToArray(),
+                distinctUpdates
+                    .Select(update => new ActualStageChange(update.StageCode, update.ActualStart, CompletedOn: update.CompletedOn))
+                    .ToArray(),
+                ActualChangeEntryPoint.Backfill),
+            ct);
+
+        // Preserve the existing response contract: validation failures (422)
+        // take precedence over stages that no longer need backfill (409).
+        var validationErrors = validation.Errors
+            .Where(error => error.Rule != ActualValidationRule.NotAwaitingBackfill)
+            .Select(error => error.Message)
+            .ToArray();
+        if (validationErrors.Length > 0)
         {
             throw new StageBackfillValidationException(validationErrors);
         }
 
-        if (conflicts.Count > 0)
+        var conflicts = validation.Errors
+            .Where(error => error.Rule == ActualValidationRule.NotAwaitingBackfill)
+            .Select(error => error.StageCode)
+            .ToArray();
+        if (conflicts.Length > 0)
         {
-            throw new StageBackfillConflictException(conflicts.ToArray());
+            throw new StageBackfillConflictException(conflicts);
         }
 
+        // SECTION: Atomic publication (facts and mandatory history)
         var now = _clock.UtcNow;
-        var updatedCodes = new List<string>(distinctUpdates.Length);
-
-        foreach (var update in distinctUpdates)
+        var updatedCodes = new List<string>(validation.Changes.Count);
+        foreach (var change in validation.Changes)
         {
-            var stage = stageLookup[update.StageCode];
-            var originalActualStart = stage.ActualStart;
-            var originalCompletedOn = stage.CompletedOn;
-
-            var resolvedStart = update.ActualStart ?? stage.ActualStart;
-            var resolvedCompleted = update.CompletedOn ?? stage.CompletedOn;
-
-            stage.ActualStart = resolvedStart;
-            stage.CompletedOn = resolvedCompleted;
-            stage.RequiresBackfill = false;
-            stage.IsAutoCompleted = false;
-            stage.AutoCompletedFromCode = null;
-
-            var log = new StageChangeLog
-            {
-                ProjectId = stage.ProjectId,
-                StageCode = stage.StageCode,
-                Action = StageBackfillLogAction,
-                FromStatus = stage.Status.ToString(),
-                ToStatus = stage.Status.ToString(),
-                FromActualStart = originalActualStart,
-                ToActualStart = resolvedStart,
-                FromCompletedOn = originalCompletedOn,
-                ToCompletedOn = resolvedCompleted,
-                UserId = userId,
-                At = now,
-                Note = "Dates supplied via backfill workflow."
-            };
-
+            var log = ActualFactPublisher.Apply(
+                stageLookup[change.StageCode],
+                change,
+                userId,
+                now,
+                ActualFactPublisher.BackfillAction,
+                "Dates supplied via backfill workflow.");
             await _db.StageChangeLogs.AddAsync(log, ct);
-            updatedCodes.Add(stage.StageCode);
+            updatedCodes.Add(change.StageCode);
         }
 
         await _db.SaveChangesAsync(ct);
 
+        if (_audit is not null && updatedCodes.Count > 0)
+        {
+            var auditData = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["StageCodes"] = string.Join(",", updatedCodes)
+            };
+
+            // Secondary audit only after the facts and their history commit.
+            transaction.RegisterAfterCommit(_ => _audit.LogAsync(
+                "Projects.StageBackfilled",
+                userId: userId,
+                data: auditData));
+        }
+
+        await transaction.CommitAsync(ct);
+
+        foreach (var error in transaction.PostCommitErrors)
+        {
+            _logger.LogError(error, "Post-commit audit failed after stage backfill for project {ProjectId}.", projectId);
+        }
+
         return new StageBackfillResult(updatedCodes.Count, updatedCodes.ToArray());
     }
-
-    private const string StageBackfillLogAction = "Backfill";
 }
 
-public sealed record StageBackfillUpdate(string StageCode, DateOnly? ActualStart, DateOnly? CompletedOn);
+public sealed record StageBackfillUpdate(
+    string StageCode,
+    DateOnly? ActualStart,
+    DateOnly? CompletedOn,
+    string? StageToken = null);
 
 public sealed record StageBackfillResult(int UpdatedCount, IReadOnlyList<string> StageCodes);
 
@@ -221,6 +228,18 @@ public sealed class StageBackfillConflictException : Exception
     }
 
     public IReadOnlyList<string> ConflictingStages { get; }
+}
+
+/// <summary>A stage changed after the backfill form was rendered; nothing was saved.</summary>
+public sealed class StageBackfillStaleException : Exception
+{
+    public StageBackfillStaleException(IReadOnlyList<string> staleStages)
+        : base("One or more stages changed since the backfill form was opened.")
+    {
+        StaleStages = staleStages ?? Array.Empty<string>();
+    }
+
+    public IReadOnlyList<string> StaleStages { get; }
 }
 
 public sealed class StageBackfillNotFoundException : Exception

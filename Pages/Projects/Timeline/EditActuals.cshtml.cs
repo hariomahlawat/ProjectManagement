@@ -68,7 +68,7 @@ public class EditActualsModel : PageModel
 
         var project = await _db.Projects
             .AsNoTracking()
-            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+            .SingleOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
 
         if (project is null)
         {
@@ -90,7 +90,11 @@ public class EditActualsModel : PageModel
 
             if (result.UpdatedCount > 0)
             {
-                TempData["Flash"] = "Actual dates updated successfully.";
+                // Pre-existing chronology issues in untouched records do not block a
+                // save, but the user should see them.
+                TempData["Flash"] = result.Warnings is { Count: > 0 } warnings
+                    ? "Actual dates updated successfully. Note: " + string.Join(" ", warnings)
+                    : "Actual dates updated successfully.";
             }
             else
             {
@@ -106,6 +110,13 @@ public class EditActualsModel : PageModel
                 : vex.Message;
 
             TempData["Error"] = message;
+            TempData["OpenOffcanvas"] = "actuals-edit";
+            return RedirectToPage("/Projects/Overview", new { id });
+        }
+        catch (StageActualsStaleException sex)
+        {
+            TempData["Error"] =
+                $"These stages changed since you opened the editor: {string.Join(", ", sex.StageCodes)}. Nothing was saved. Reload and review the current dates.";
             TempData["OpenOffcanvas"] = "actuals-edit";
             return RedirectToPage("/Projects/Overview", new { id });
         }

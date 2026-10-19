@@ -10,7 +10,7 @@
     {
         var startValue = stage.ActualStart?.ToString("yyyy-MM-dd");
         var completedValue = stage.CompletedOn?.ToString("yyyy-MM-dd");
-        <section class="border rounded p-3" data-backfill-row data-stage-code="@stage.StageCode">
+        <section class="border rounded p-3" data-backfill-row data-stage-code="@stage.StageCode" data-stage-token="@stage.StageToken">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
                 <div>
                     <div class="fw-semibold">@stage.StageName</div>

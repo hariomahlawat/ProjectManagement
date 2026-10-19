@@ -14,6 +14,7 @@
       data-today="@todayIso">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
+    <input type="hidden" name="Input.BaselineVersion" value="@Model?.BaselineVersion" />
 
     <!-- SECTION: Introduction -->
     <div class="small text-muted">
@@ -137,6 +138,7 @@
                     <input type="hidden" name="Input.Rows[@i].ClearActualStart" value="false" data-clear-start />
                     <input type="hidden" name="Input.Rows[@i].StageCode" value="@row.StageCode" />
                     <input type="hidden" name="Input.Rows[@i].StageName" value="@row.StageName" />
+                    <input type="hidden" name="Input.Rows[@i].StageToken" value="@row.StageToken" />
                 </section>
             }
         </div>

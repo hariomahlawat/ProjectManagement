@@ -309,6 +309,13 @@ Partial plans remain supported. A dependency is checked only when predecessor PD
 
 Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. The current editor and completion backfill paths publish authorised PO corrections directly; those are recorded implementation deviations from rules 22-24, which require PO corrections to be proposed for HoD approval.
 
+Both direct paths (`StageActualsUpdateService`, `StageBackfillService`) validate the complete final state with the shared `IActualTimelineValidationService` (Phase D-1b):
+
+- **Scope.** Whole-lifecycle chronology, configured workflow dependencies including extension stages, transparent skipped ancestry, per-branch convergence, PNC only while applicable, the IST non-future limit and published ARPP IPA authority. A violation already present in untouched records is reported as a note and does not block an unrelated correction.
+- **Atomicity.** Validation, publication and the mandatory `StageChangeLog` rows run in one transaction, behind the project gate and stage row locks. The `AuditLogs` entry is written only after commit.
+- **Stale edits.** Forms post a per-stage token; a save that would change a row which changed after the form was rendered is refused without writes. Posts from forms without the baseline marker keep the previous contract during Phase D-1.
+- **Backfill flag.** A date correction on a stage that already had a completion date keeps a raised `RequiresBackfill` flag (missing mandatory facts). Supplying a missing completion date clears it.
+
 ### Project Officer projected lifecycle
 
 The assigned Project Officer can submit and revise updates for multiple stages while earlier updates await HoD approval. The update modal renders the complete projected lifecycle, distinguishing existing pending updates, new updates and the current revision. If a stage start is already pending and the officer later records completion, that proposed start is retained without adding database columns; it is recovered from the superseded request history and applied when the completion is approved. Official lifecycle progress remains based on approved stage records.

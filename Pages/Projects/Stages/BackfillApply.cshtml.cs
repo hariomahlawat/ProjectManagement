@@ -45,6 +45,10 @@ public class BackfillApplyModel : PageModel
         public DateOnly? ActualStart { get; set; }
 
         public DateOnly? CompletedOn { get; set; }
+
+        // Stored row token when the form was rendered (stale protection).
+        [StringLength(64)]
+        public string? StageToken { get; set; }
     }
 
     public class BackfillApplyInput
@@ -54,6 +58,9 @@ public class BackfillApplyModel : PageModel
 
         [MinLength(1)]
         public List<BackfillStageInput> Stages { get; set; } = new();
+
+        // Absent on forms rendered before stale protection.
+        public int? BaselineVersion { get; set; }
     }
 
     public async Task<IActionResult> OnPostAsync([FromBody] BackfillApplyInput input, CancellationToken ct)
@@ -114,7 +121,7 @@ public class BackfillApplyModel : PageModel
         {
             var updates = input.Stages
                 .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
-                .Select(stage => new StageBackfillUpdate(stage.StageCode, stage.ActualStart, stage.CompletedOn))
+                .Select(stage => new StageBackfillUpdate(stage.StageCode, stage.ActualStart, stage.CompletedOn, stage.StageToken))
                 .ToArray();
 
             if (updates.Length == 0)
@@ -122,7 +129,7 @@ public class BackfillApplyModel : PageModel
                 return ValidationFailure(new[] { "At least one stage update must be provided." });
             }
 
-            var result = await _backfillService.ApplyAsync(input.ProjectId, updates, userId, ct);
+            var result = await _backfillService.ApplyAsync(input.ProjectId, updates, userId, ct, input.BaselineVersion);
 
             return new JsonResult(new
             {
@@ -137,6 +144,16 @@ public class BackfillApplyModel : PageModel
         catch (StageBackfillValidationException ex)
         {
             return ValidationFailure(ex.Details);
+        }
+        catch (StageBackfillStaleException ex)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new
+            {
+                ok = false,
+                error = "stale",
+                stages = ex.StaleStages,
+                message = $"These stages changed since you opened the form: {string.Join(", ", ex.StaleStages)}. Nothing was saved. Refresh the page and review the current dates."
+            });
         }
         catch (StageBackfillConflictException ex)
         {

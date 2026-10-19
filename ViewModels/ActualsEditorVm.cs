@@ -17,6 +17,9 @@ public sealed class ActualsEditorVm
     public DateOnly Today { get; init; }
 
     public IReadOnlyList<ActualsEditorRowVm> Rows { get; init; } = Array.Empty<ActualsEditorRowVm>();
+
+    // Posted back as Input.BaselineVersion; marks a stale-protected (baseline-aware) form.
+    public int BaselineVersion { get; init; }
 }
 
 public sealed class ActualsEditorRowVm
@@ -48,6 +51,9 @@ public sealed class ActualsEditorRowVm
     public string? ArppSourceLabel { get; init; }
 
     public DateOnly? ArppCompletionDate { get; init; }
+
+    // Optimistic identity of the stored row (ActualStageToken); null when no row exists.
+    public string? StageToken { get; init; }
 }
 
 public sealed class ActualsEditInput
@@ -55,6 +61,9 @@ public sealed class ActualsEditInput
     public int ProjectId { get; set; }
 
     public IList<ActualsEditRowInput> Rows { get; set; } = new List<ActualsEditRowInput>();
+
+    // Absent on forms rendered before stale protection; see ActualStageToken.
+    public int? BaselineVersion { get; set; }
 }
 
 public sealed class ActualsEditRowInput
@@ -69,4 +78,7 @@ public sealed class ActualsEditRowInput
     public bool ClearActualStart { get; set; }
 
     public DateOnly? CompletedOn { get; set; }
+
+    // The stored row's token when the form was rendered.
+    public string? StageToken { get; set; }
 }

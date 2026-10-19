@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Stages;
@@ -181,6 +182,10 @@ public class StageBackfillServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
-        return new ApplicationDbContext(options);
+        // Every stage belongs to a project; the shared validator resolves its workflow.
+        var db = new ApplicationDbContext(options);
+        db.Projects.Add(new Project { Id = 1, Name = "Backfill project", CreatedByUserId = "seed" });
+        db.SaveChanges();
+        return db;
     }
 }

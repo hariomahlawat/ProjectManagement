@@ -16,6 +16,9 @@ public sealed class BackfillViewModel
 
     public DateOnly Today { get; init; }
 
+    // Posted back as baselineVersion; marks a stale-protected form.
+    public int BaselineVersion { get; init; }
+
     public IReadOnlyList<BackfillStageViewModel> Stages { get; init; } = Array.Empty<BackfillStageViewModel>();
 
     public bool HasStages => Stages.Count > 0;
@@ -34,6 +37,9 @@ public sealed class BackfillStageViewModel
     public bool IsAutoCompleted { get; init; }
 
     public string? AutoCompletedFromCode { get; init; }
+
+    // Stored row token when rendered (ActualStageToken).
+    public string? StageToken { get; init; }
 
     public string? AutoCompletedFromName =>
         string.IsNullOrWhiteSpace(AutoCompletedFromCode)
