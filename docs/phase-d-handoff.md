@@ -6,7 +6,7 @@
 
 1. Read [AGENTS.md](../AGENTS.md), [engineering invariants](engineering-invariants.md), [current state](current-state.md), and [build/test guidance](build-and-test.md).
 2. Read [canonical timeline business rules](timeline.md#canonical-timeline-business-rules) **in full**, including status/date matrix, explicit versus suggested chronology, skipped predecessors, ARPP-managed IPA, revision identity, audit, and final-state evaluation.
-3. Read the [timeline roadmap](timeline-proposal-roadmap.md). Its gap table contains historical evidence; only items explicitly labelled open remain implementation gaps. Review code and tests if text conflicts.
+3. Read the [timeline roadmap](timeline-proposal-roadmap.md). Its gap table contains historical evidence: entries marked **open** still require investigation, and entries marked **closed** record completed fixes. Confirm each status against current code and tests rather than treating historical prose or phase labels alone as proof.
 4. Inspect executable services, pages, EF model/migrations, service registration, and tests before proposing a design. Never treat this guide as proof that runtime behavior is already correct.
 
 ## Completed baseline — do not reimplement
