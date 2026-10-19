@@ -127,4 +127,20 @@ public sealed class DocumentUploadRateLimitingTests
         Assert.True(limiter.AttemptAcquire().IsAcquired);
         Assert.True(limiter.AttemptAcquire().IsAcquired);
     }
+
+    [Fact]
+    public void Gated_limiter_does_not_spend_the_own_allowance_when_the_shared_allowance_refuses()
+    {
+        using var shared = new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions { PermitLimit = 1, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+        var own = new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+        using var limiter = new GatedRateLimiter(own, shared);
+        using var spendShared = shared.AttemptAcquire();
+
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.False(limiter.AttemptAcquire().IsAcquired); // refused by the shared allowance
+        }
+
+        Assert.Equal(5, own.GetStatistics()!.CurrentAvailablePermits);
+    }
 }

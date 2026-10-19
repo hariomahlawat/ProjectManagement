@@ -34,8 +34,9 @@ public sealed class SharedRateLimiters : IDisposable
     }
 }
 
-// Takes a permit from a partition's own limiter first and only then from the shared limiter.
-// The shared limiter belongs to SharedRateLimiters and is never disposed here.
+// Admits a request only when both the partition's own limiter and the shared limiter have
+// room, without letting a refusal on one side spend a permit on the other. The shared limiter
+// belongs to SharedRateLimiters and is never disposed here.
 public sealed class GatedRateLimiter : RateLimiter
 {
     private readonly RateLimiter _own;
@@ -53,21 +54,23 @@ public sealed class GatedRateLimiter : RateLimiter
 
     protected override RateLimitLease AttemptAcquireCore(int permitCount)
     {
-        var own = _own.AttemptAcquire(permitCount);
-        if (!own.IsAcquired)
+        // Fixed-window permits are not refunded when a lease is disposed, so neither side may
+        // spend a permit when the other refuses. Check the own allowance without spending it,
+        // then spend shared, then own. A concurrent request can empty the own window between
+        // the check and the final acquire; that wastes at most one shared permit.
+        if (_own.GetStatistics() is { } own && own.CurrentAvailablePermits < permitCount)
         {
-            return own;
+            return _own.AttemptAcquire(permitCount);
         }
 
         var shared = _shared.AttemptAcquire(permitCount);
         if (!shared.IsAcquired)
         {
-            own.Dispose();
             return shared;
         }
 
         shared.Dispose();
-        return own;
+        return _own.AttemptAcquire(permitCount);
     }
 
     // Nothing queues (QueueLimit is 0). The rate-limiting middleware calls this after a failed
