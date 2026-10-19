@@ -65,7 +65,8 @@ public sealed class PlanReadService
             .Include(p => p.ApprovalLogs).ThenInclude(log => log.PerformedByUser)
             .Where(p => p.ProjectId == projectId &&
                         (p.Status == PlanVersionStatus.Draft ||
-                         p.Status == PlanVersionStatus.Rejected ||
+                         (p.Status == PlanVersionStatus.Rejected && currentUserId != null &&
+                          (p.OwnerUserId == currentUserId || p.SubmittedByUserId == currentUserId)) ||
                          (p.Status == PlanVersionStatus.PendingApproval && actionablePending.Any(pending => pending.Id == p.Id))))
             .ToListAsync(cancellationToken);
 
