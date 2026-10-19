@@ -174,6 +174,7 @@ public class PlanApprovalService
         await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
         var plan = await PlanRevisionConsistency.ActionablePending(_db)
             .Include(p => p.Project)
+            .Include(p => p.StagePlans)
             .SingleOrDefaultAsync(p => p.ProjectId == projectId && p.Id == planVersionId &&
                                        p.SubmittedOn == submittedOn, cancellationToken);
         if (plan is null ||
@@ -182,14 +183,51 @@ public class PlanApprovalService
             return false;
 
         plan.Status = PlanVersionStatus.Withdrawn;
+        var withdrawnOn = _clock.UtcNow;
         _db.PlanApprovalLogs.Add(new PlanApprovalLog
         {
             PlanVersionId = plan.Id,
             Action = "Withdrawn",
             Note = "Submission withdrawn by its owner.",
             PerformedByUserId = userId,
-            PerformedOn = _clock.UtcNow
+            PerformedOn = withdrawnOn
         });
+
+        // Withdrawal closes the review but must not make the PO reconstruct
+        // their proposed dates/durations from an older official baseline.
+        // Preserve submitted N and start a new private N+1 if none exists.
+        if (!await _db.PlanVersions.AnyAsync(p =>
+                p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
+                p.OwnerUserId == userId, cancellationToken))
+        {
+            var maxVersion = await _db.PlanVersions.Where(p => p.ProjectId == projectId)
+                .MaxAsync(p => (int?)p.VersionNo, cancellationToken) ?? 0;
+            var successor = new PlanVersion
+            {
+                ProjectId = projectId,
+                VersionNo = maxVersion + 1,
+                Title = PlanVersion.ProjectTimelineTitle,
+                Status = PlanVersionStatus.Draft,
+                CreatedByUserId = userId,
+                OwnerUserId = userId,
+                CreatedOn = withdrawnOn,
+                PlanningInputVersion = plan.PlanningInputVersion,
+                AnchorStageCode = plan.AnchorStageCode,
+                AnchorDate = plan.AnchorDate,
+                SkipWeekends = plan.SkipWeekends,
+                SkipHolidays = plan.SkipHolidays,
+                TransitionRule = plan.TransitionRule,
+                PncApplicable = plan.PncApplicable,
+                StagePlans = plan.StagePlans.Select(row => new StagePlan
+                {
+                    StageCode = row.StageCode, PlannedStart = row.PlannedStart,
+                    PlannedDue = row.PlannedDue, DurationDays = row.DurationDays,
+                    SortOrder = row.SortOrder
+                }).ToList()
+            };
+            _db.PlanVersions.Add(successor);
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         if (plan.Project is not null)
