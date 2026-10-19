@@ -313,6 +313,7 @@ Both direct paths (`StageActualsUpdateService`, `StageBackfillService`) validate
 
 - **Scope.** Whole-lifecycle chronology, configured workflow dependencies including extension stages, transparent skipped ancestry, per-branch convergence, PNC only while applicable, the IST non-future limit and published ARPP IPA authority. A violation already present in untouched records is reported as a note and does not block an unrelated correction.
 - **Atomicity.** Validation, publication and the mandatory `StageChangeLog` rows run in one transaction, behind the project gate and stage row locks. The `AuditLogs` entry is written only after commit.
+- **Authority.** After the gate, the services re-read the project under a share lock and refuse writes for missing or deleted projects for every actor. A Project Officer who is not the current lead is also refused; Admin and HoD authority is unchanged. Lead-PO reassignment and moving a project to Trash update that row, so they cannot change the checked state before commit.
 - **Stale edits.** Forms post a per-stage token; a save that would change a row which changed after the form was rendered is refused without writes. Posts from forms without the baseline marker keep the previous contract during Phase D-1.
 - **Backfill flag.** A date correction on a stage that already had a completion date keeps a raised `RequiresBackfill` flag (missing mandatory facts). Supplying a missing completion date clears it.
 

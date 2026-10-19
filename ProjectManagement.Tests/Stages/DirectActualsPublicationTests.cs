@@ -99,6 +99,158 @@ public sealed class DirectActualsPublicationTests
         await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
     }
 
+    // SECTION: Service-level authority (re-established inside the transaction)
+    [Fact]
+    public async Task AssignedProjectOfficer_StillAssigned_CanPublish()
+    {
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db, InProgress(StageCodes.FS, Jan(5))));
+        await using var db = fixture.NewContext();
+
+        var result = await fixture.Actuals(db).UpdateAsync(
+            await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6))),
+            TestActors.ProjectOfficer("assigned-po"),
+            "PO");
+
+        Assert.Equal(1, result.UpdatedCount);
+    }
+
+    [Fact]
+    public async Task UnassignedProjectOfficer_IsRefusedByTheService_WithoutHistoryOrAudit()
+    {
+        var audit = new RecordingAudit();
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db, InProgress(StageCodes.FS, Jan(5))));
+        await using var db = fixture.NewContext();
+        var input = await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6)));
+
+        await Assert.ThrowsAsync<ActualsWriteForbiddenException>(() =>
+            fixture.Actuals(db, audit).UpdateAsync(input, TestActors.ProjectOfficer("someone-else"), "PO"));
+
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
+        await AssertNoHistoryAsync(fixture);
+        Assert.Empty(audit.Entries);
+    }
+
+    [Fact]
+    public async Task ProjectOfficerReassignedAwayBeforePublication_IsRefused_AndTheNewLeadIsAuthorised()
+    {
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db, InProgress(StageCodes.FS, Jan(5))));
+        await using var db = fixture.NewContext();
+        var input = await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6)));
+        await ReassignLeadAsync(fixture, "someone-else"); // after the page-level check, before publication
+
+        await Assert.ThrowsAsync<ActualsWriteForbiddenException>(() =>
+            fixture.Actuals(db).UpdateAsync(input, TestActors.ProjectOfficer("assigned-po"), "PO"));
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
+
+        await using var newLead = fixture.NewContext();
+        var result = await fixture.Actuals(newLead).UpdateAsync(
+            await EditorInputAsync(newLead, Row(StageCodes.FS, actualStart: Jan(6))),
+            TestActors.ProjectOfficer("someone-else"),
+            "New PO");
+        Assert.Equal(1, result.UpdatedCount);
+    }
+
+    [Fact]
+    public async Task CrossProjectSubmission_IsRefused()
+    {
+        await using var fixture = await Fixture.CreateAsync(db =>
+        {
+            Stages(db, InProgress(StageCodes.FS, Jan(5)));
+            db.Projects.Add(new Project
+            {
+                Id = 2,
+                Name = "Someone else's project",
+                CreatedByUserId = "seed",
+                LeadPoUserId = "someone-else",
+                WorkflowVersion = ProcurementWorkflow.VersionV1
+            });
+            db.ProjectStages.Add(new ProjectStage { ProjectId = 2, StageCode = StageCodes.FS, Status = StageStatus.InProgress, ActualStart = Jan(5) });
+        });
+        await using var db = fixture.NewContext();
+
+        var actuals = new ActualsEditInput
+        {
+            ProjectId = 2,
+            Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.FS, ActualStart = Jan(6) } }
+        };
+        await Assert.ThrowsAsync<ActualsWriteForbiddenException>(() =>
+            fixture.Actuals(db).UpdateAsync(actuals, TestActors.ProjectOfficer("assigned-po"), "PO"));
+        await Assert.ThrowsAsync<ActualsWriteForbiddenException>(() =>
+            fixture.Backfill(db).ApplyAsync(2, new[] { new StageBackfillUpdate(StageCodes.FS, null, Jan(6)) }, TestActors.ProjectOfficer("assigned-po")));
+
+        await using var verify = fixture.NewContext();
+        Assert.Equal(Jan(5), (await verify.ProjectStages.SingleAsync(s => s.ProjectId == 2)).ActualStart);
+        await AssertNoHistoryAsync(fixture);
+    }
+
+    // SECTION: Deleted and missing projects
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("Admin")]
+    [InlineData("Project Officer")]
+    public async Task Backfill_OnADeletedProject_IsNotFoundForEveryActor_WithoutWrites(string role)
+    {
+        await using var fixture = await Fixture.CreateAsync(
+            db => Stages(db, AwaitingBackfill(StageCodes.BID, Feb(1))),
+            project => project.IsDeleted = true);
+        await using var db = fixture.NewContext();
+        var userId = role == "Project Officer" ? "assigned-po" : "actor";
+
+        var page = new BackfillApplyModel(fixture.Backfill(db), db, NullLogger<BackfillApplyModel>.Instance)
+        {
+            PageContext = PageContextFor(role, userId)
+        };
+        var result = await page.OnPostAsync(new BackfillApplyModel.BackfillApplyInput
+        {
+            ProjectId = ProjectId,
+            Stages = new List<BackfillApplyModel.BackfillStageInput> { new() { StageCode = StageCodes.BID, CompletedOn = Feb(5) } }
+        }, CancellationToken.None);
+
+        Assert.IsType<NotFoundObjectResult>(result);
+        await using var verify = fixture.NewContext();
+        var stage = await verify.ProjectStages.SingleAsync();
+        Assert.Null(stage.CompletedOn);
+        Assert.True(stage.RequiresBackfill);
+        await AssertNoHistoryAsync(fixture);
+    }
+
+    [Fact]
+    public async Task DirectCorrection_OnADeletedProject_IsRefusedByTheService()
+    {
+        await using var fixture = await Fixture.CreateAsync(
+            db => Stages(db, InProgress(StageCodes.FS, Jan(5))),
+            project => project.IsDeleted = true);
+        await using var db = fixture.NewContext();
+        var input = await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6)));
+
+        await Assert.ThrowsAsync<ActualsProjectUnavailableException>(() =>
+            fixture.Actuals(db).UpdateAsync(input, TestActors.Admin("actor"), "Admin"));
+
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
+        await AssertNoHistoryAsync(fixture);
+    }
+
+    [Fact]
+    public async Task NonexistentProject_IsRefusedOnBothPaths()
+    {
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db, InProgress(StageCodes.FS, Jan(5))));
+        await using var db = fixture.NewContext();
+
+        await Assert.ThrowsAsync<ActualsProjectUnavailableException>(() => fixture.Actuals(db).UpdateAsync(
+            new ActualsEditInput
+            {
+                ProjectId = 999,
+                Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.FS, ActualStart = Jan(6) } }
+            },
+            TestActors.Hod("actor"),
+            "HoD"));
+        await Assert.ThrowsAsync<ActualsProjectUnavailableException>(() =>
+            fixture.Backfill(db).ApplyAsync(999, new[] { new StageBackfillUpdate(StageCodes.FS, null, Jan(6)) }, TestActors.Hod("actor")));
+
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
+        await AssertNoHistoryAsync(fixture);
+    }
+
     // SECTION: Final-state validation at the authoritative boundary
     [Fact]
     public async Task PredecessorCorrection_InvalidatingAnUntouchedSuccessor_IsRejectedWithoutWrites()
@@ -217,7 +369,7 @@ public sealed class DirectActualsPublicationTests
         await AssertUnchangedAsync(fixture, StageCodes.IPA, Jan(11), Jan(25));
 
         var backfill = await Assert.ThrowsAsync<StageBackfillValidationException>(() =>
-            fixture.Backfill(db).ApplyAsync(ProjectId, new[] { new StageBackfillUpdate(StageCodes.IPA, null, Jan(20)) }, "actor"));
+            fixture.Backfill(db).ApplyAsync(ProjectId, new[] { new StageBackfillUpdate(StageCodes.IPA, null, Jan(20)) }, TestActors.Hod("actor")));
         Assert.Contains(backfill.Details, detail => detail.Contains("ARPP", StringComparison.Ordinal));
     }
 
@@ -314,7 +466,7 @@ public sealed class DirectActualsPublicationTests
         var result = await fixture.Backfill(db, audit).ApplyAsync(
             ProjectId,
             new[] { new StageBackfillUpdate(StageCodes.BID, null, Feb(5), Token(db, StageCodes.BID)) },
-            "actor",
+            TestActors.Hod("actor"),
             baselineVersion: ActualStageToken.BaselineVersion);
 
         Assert.Equal(1, result.UpdatedCount);
@@ -335,7 +487,7 @@ public sealed class DirectActualsPublicationTests
         await using var db = fixture.NewContext();
 
         var exception = await Assert.ThrowsAsync<StageBackfillValidationException>(() =>
-            fixture.Backfill(db).ApplyAsync(ProjectId, new[] { new StageBackfillUpdate(StageCodes.FS, null, Jan(20)) }, "actor"));
+            fixture.Backfill(db).ApplyAsync(ProjectId, new[] { new StageBackfillUpdate(StageCodes.FS, null, Jan(20)) }, TestActors.Hod("actor")));
 
         Assert.Contains(exception.Details, detail => detail.StartsWith("IPA:", StringComparison.Ordinal));
         await using var verify = fixture.NewContext();
@@ -374,7 +526,7 @@ public sealed class DirectActualsPublicationTests
         var input = await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(2)));
         await ChangeStoredStartAsync(fixture, StageCodes.BID, Feb(2));
 
-        var result = await fixture.Actuals(db).UpdateAsync(input, "actor", "Actor");
+        var result = await fixture.Actuals(db).UpdateAsync(input, TestActors.Hod("actor"), "Actor");
 
         Assert.Equal(1, result.UpdatedCount);
     }
@@ -391,7 +543,7 @@ public sealed class DirectActualsPublicationTests
                 ProjectId = ProjectId,
                 Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.FS, ActualStart = Jan(6) } }
             },
-            "actor",
+            TestActors.Hod("actor"),
             "Actor");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -436,7 +588,7 @@ public sealed class DirectActualsPublicationTests
         await using var db = fixture.NewContext(failStageHistory: true);
 
         var input = await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6)));
-        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Actuals(db, audit).UpdateAsync(input, "actor", "Actor"));
+        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Actuals(db, audit).UpdateAsync(input, TestActors.Hod("actor"), "Actor"));
 
         await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
         Assert.Empty(audit.Entries);
@@ -449,7 +601,7 @@ public sealed class DirectActualsPublicationTests
         await using var db = fixture.NewContext(failStageHistory: true);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Backfill(db).ApplyAsync(
-            ProjectId, new[] { new StageBackfillUpdate(StageCodes.BID, null, Feb(5)) }, "actor"));
+            ProjectId, new[] { new StageBackfillUpdate(StageCodes.BID, null, Feb(5)) }, TestActors.Hod("actor")));
 
         await using var verify = fixture.NewContext();
         var stage = await verify.ProjectStages.SingleAsync();
@@ -464,7 +616,7 @@ public sealed class DirectActualsPublicationTests
         await using var db = fixture.NewContext();
 
         var result = await fixture.Actuals(db, new ThrowingAudit()).UpdateAsync(
-            await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6))), "actor", "Actor");
+            await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6))), TestActors.Hod("actor"), "Actor");
 
         Assert.Equal(1, result.UpdatedCount);
         await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(6), null);
@@ -477,7 +629,7 @@ public sealed class DirectActualsPublicationTests
         Fixture fixture,
         ApplicationDbContext db,
         params ActualsEditRowInput[] rows) =>
-        await fixture.Actuals(db).UpdateAsync(await EditorInputAsync(db, rows), "actor", "Actor");
+        await fixture.Actuals(db).UpdateAsync(await EditorInputAsync(db, rows), TestActors.Hod("actor"), "Actor");
 
     // Builds the post the editor would send: the baseline marker plus the token of
     // each stored row as rendered now.
@@ -515,6 +667,20 @@ public sealed class DirectActualsPublicationTests
         var stage = await other.ProjectStages.SingleAsync(s => s.StageCode == code);
         stage.ActualStart = start;
         await other.SaveChangesAsync();
+    }
+
+    private static async Task ReassignLeadAsync(Fixture fixture, string leadPoUserId)
+    {
+        await using var other = fixture.NewContext();
+        var project = await other.Projects.SingleAsync(p => p.Id == ProjectId);
+        project.LeadPoUserId = leadPoUserId;
+        await other.SaveChangesAsync();
+    }
+
+    private static async Task AssertNoHistoryAsync(Fixture fixture)
+    {
+        await using var verify = fixture.NewContext();
+        Assert.Empty(await verify.StageChangeLogs.ToListAsync());
     }
 
     private static async Task AssertUnchangedAsync(Fixture fixture, string code, DateOnly? start, DateOnly? completed)

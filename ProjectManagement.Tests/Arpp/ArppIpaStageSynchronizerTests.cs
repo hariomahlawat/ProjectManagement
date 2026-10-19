@@ -378,7 +378,7 @@ public sealed class ArppIpaStageSynchronizerTests
     public async Task ActualsEdit_RejectsLegacyStoredCompletionThatDiffersFromPublishedAuthority()
     {
         await using var db = CreateContext();
-        db.Projects.Add(new Project { Id = 1, Name = "Project One", CreatedByUserId = "seed" });
+        db.Projects.Add(new Project { Id = 1, Name = "Project One", CreatedByUserId = "seed", LeadPoUserId = "assigned-po" });
         var legacyCompletion = new DateOnly(2026, 4, 20);
         db.ProjectStages.Add(new ProjectStage
         {
@@ -395,7 +395,7 @@ public sealed class ArppIpaStageSynchronizerTests
             {
                 ProjectId = 1,
                 Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, CompletedOn = legacyCompletion }]
-            }, "assigned-po", "Assigned PO"));
+            }, TestActors.ProjectOfficer("assigned-po"), "Assigned PO"));
 
         Assert.Contains(exception.Errors, message => message.Contains("ARPP", StringComparison.OrdinalIgnoreCase));
         // Rejected generic edits do not silently repair existing production data.
@@ -426,7 +426,7 @@ public sealed class ArppIpaStageSynchronizerTests
         {
             ProjectId = 1,
             Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, ActualStart = correctedStart }]
-        }, "admin-1", "Administrator");
+        }, TestActors.Admin("admin-1"), "Administrator");
 
         Assert.Equal(1, result.UpdatedCount);
         var ipa = await db.ProjectStages.SingleAsync();
@@ -443,7 +443,7 @@ public sealed class ArppIpaStageSynchronizerTests
     public async Task ActualsEdit_UnchangedUnknownStartDoesNotRepairLegacyCompletionAsSideEffect()
     {
         await using var db = CreateContext();
-        db.Projects.Add(new Project { Id = 1, Name = "Project One", CreatedByUserId = "seed" });
+        db.Projects.Add(new Project { Id = 1, Name = "Project One", CreatedByUserId = "seed", LeadPoUserId = "assigned-po" });
         var legacyDate = new DateOnly(2026, 4, 20);
         db.ProjectStages.Add(new ProjectStage
         {
@@ -457,7 +457,7 @@ public sealed class ArppIpaStageSynchronizerTests
         var result = await service.UpdateAsync(new ActualsEditInput
         {
             ProjectId = 1, Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA }]
-        }, "assigned-po", "Assigned PO");
+        }, TestActors.ProjectOfficer("assigned-po"), "Assigned PO");
 
         Assert.Equal(0, result.UpdatedCount);
         var ipa = await db.ProjectStages.SingleAsync();
@@ -577,7 +577,7 @@ public sealed class ArppIpaStageSynchronizerTests
         var service = new StageBackfillService(db, FakeClock.ForIstDate(2026, 8, 1));
 
         var exception = await Assert.ThrowsAsync<StageBackfillValidationException>(() => service.ApplyAsync(1,
-            [new StageBackfillUpdate(StageCodes.IPA, null, authorityDate.AddDays(2))], "hod-1"));
+            [new StageBackfillUpdate(StageCodes.IPA, null, authorityDate.AddDays(2))], TestActors.Hod("hod-1")));
 
         Assert.Contains(exception.Details, message => message.Contains("ARPP", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(authorityDate, ipa.CompletedOn);
@@ -637,7 +637,7 @@ public sealed class ArppIpaStageSynchronizerTests
         var completion = new DateOnly(2026, 4, 12);
 
         await new StageBackfillService(db, FakeClock.ForIstDate(2026, 8, 1)).ApplyAsync(
-            1, [new StageBackfillUpdate(StageCodes.IPA, null, completion)], "hod-1");
+            1, [new StageBackfillUpdate(StageCodes.IPA, null, completion)], TestActors.Hod("hod-1"));
 
         var ipa = await db.ProjectStages.SingleAsync();
         Assert.Equal(completion, ipa.CompletedOn);

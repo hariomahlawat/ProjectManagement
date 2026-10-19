@@ -54,7 +54,7 @@ public sealed class StageActualsUpdateService
 
     public async Task<StageActualsUpdateResult> UpdateAsync(
         ActualsEditInput input,
-        string userId,
+        ActualWriteActor actor,
         string? userName,
         CancellationToken cancellationToken = default)
     {
@@ -63,9 +63,11 @@ public sealed class StageActualsUpdateService
             throw new ArgumentNullException(nameof(input));
         }
 
+        ArgumentNullException.ThrowIfNull(actor);
+        var userId = actor.UserId;
         if (string.IsNullOrWhiteSpace(userId))
         {
-            throw new ArgumentException("A valid user identifier is required.", nameof(userId));
+            throw new ArgumentException("A valid user identifier is required.", nameof(actor));
         }
 
         if (input.ProjectId <= 0)
@@ -94,6 +96,11 @@ public sealed class StageActualsUpdateService
         // lock, so validation and publication see the same committed state.
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, input.ProjectId, cancellationToken);
+
+        // The page authorized before this transaction; authority is re-established
+        // here against the locked project row so a reassignment or deletion cannot
+        // slip in between the check and publication.
+        await ActualWriteAuthority.EnsureAsync(_db, input.ProjectId, actor, cancellationToken);
 
         var allProjectStages = await ActualFactPublisher.LoadProjectStagesForUpdateAsync(
             _db,

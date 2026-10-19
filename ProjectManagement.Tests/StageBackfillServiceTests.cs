@@ -41,7 +41,7 @@ public class StageBackfillServiceTests
             {
                 new StageBackfillUpdate(StageCodes.IPA, new DateOnly(2024, 11, 20), new DateOnly(2024, 11, 25))
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             ct: CancellationToken.None);
 
         Assert.Equal(1, result.UpdatedCount);
@@ -86,7 +86,7 @@ public class StageBackfillServiceTests
             {
                 new StageBackfillUpdate(StageCodes.IPA, null, new DateOnly(2024, 11, 6))
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             ct: CancellationToken.None);
 
         var stage = await db.ProjectStages.SingleAsync();
@@ -123,7 +123,7 @@ public class StageBackfillServiceTests
             {
                 new StageBackfillUpdate(StageCodes.IPA, new DateOnly(2024, 10, 1), new DateOnly(2024, 10, 5))
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             ct: CancellationToken.None));
 
         Assert.Contains(StageCodes.IPA, ex.ConflictingStages);
@@ -153,7 +153,7 @@ public class StageBackfillServiceTests
             {
                 new StageBackfillUpdate(StageCodes.SOW, null, null)
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             ct: CancellationToken.None));
 
         Assert.Contains(ex.Details, detail => detail.Contains(StageCodes.SOW, StringComparison.OrdinalIgnoreCase));
@@ -172,7 +172,7 @@ public class StageBackfillServiceTests
             {
                 new StageBackfillUpdate(StageCodes.PNC, new DateOnly(2025, 1, 2), new DateOnly(2025, 1, 5))
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             ct: CancellationToken.None));
     }
 

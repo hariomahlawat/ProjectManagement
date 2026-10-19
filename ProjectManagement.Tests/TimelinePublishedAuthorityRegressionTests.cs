@@ -80,8 +80,8 @@ public sealed class TimelinePublishedAuthorityRegressionTests
         await using var db = await SeedAsync(StageStatus.Completed, localDay, published: true);
         var service = new StageActualsUpdateService(db, FakeClock.ForIstDate(new DateOnly(2026, 2, 1)), new NoAudit(), NullLogger<StageActualsUpdateService>.Instance);
         var input = new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput>() { new() { StageCode = StageCodes.SOW, ActualStart = new DateOnly(2026, 1, startDay) } } };
-        if (valid) Assert.Equal(1, (await service.UpdateAsync(input, "hod", "HoD")).UpdatedCount);
-        else await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "hod", "HoD"));
+        if (valid) Assert.Equal(1, (await service.UpdateAsync(input, TestActors.Hod("hod"), "HoD")).UpdatedCount);
+        else await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, TestActors.Hod("hod"), "HoD"));
         await AssertUnchangedIpaAsync(db, StageStatus.Completed, localDay);
     }
 
@@ -106,7 +106,7 @@ public sealed class TimelinePublishedAuthorityRegressionTests
     {
         await using var db = await SeedAsync(StageStatus.Completed, 10, published: false);
         var service = new StageActualsUpdateService(db, FakeClock.ForIstDate(new DateOnly(2026, 2, 1)), new NoAudit(), NullLogger<StageActualsUpdateService>.Instance);
-        await service.UpdateAsync(new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput>() { new() { StageCode = StageCodes.IPA, CompletedOn = new DateOnly(2026, 1, 15) } } }, "hod", "HoD");
+        await service.UpdateAsync(new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput>() { new() { StageCode = StageCodes.IPA, CompletedOn = new DateOnly(2026, 1, 15) } } }, TestActors.Hod("hod"), "HoD");
         var validation = new StageValidationService(db, FakeClock.ForIstDate(new DateOnly(2026, 2, 1)), StageWorkflowTestFactory.CreatePolicy(db));
         Assert.True((await validation.ValidateAsync(1, StageCodes.SOW, "InProgress", new DateOnly(2026, 1, 15), isHoD: false)).IsValid);
         Assert.False(await new ArppIpaStageAuthorityService(db).IsManagedAsync(1));
@@ -188,7 +188,7 @@ public sealed class TimelinePublishedAuthorityRegressionTests
         await using var db = await SeedAsync(status, 0, published: true);
         var service = new StageActualsUpdateService(db, FakeClock.ForIstDate(new DateOnly(2026, 2, 1)), new NoAudit(), NullLogger<StageActualsUpdateService>.Instance);
         Assert.Equal(1, (await service.UpdateAsync(new ActualsEditInput { ProjectId = 1,
-            Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA, ActualStart = new DateOnly(2026, 1, 10) } } }, "hod", "HoD")).UpdatedCount);
+            Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA, ActualStart = new DateOnly(2026, 1, 10) } } }, TestActors.Hod("hod"), "HoD")).UpdatedCount);
         var ipa = await db.ProjectStages.AsNoTracking().SingleAsync(row => row.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.Completed, ipa.Status);
         Assert.Equal(PublishedDate, ipa.CompletedOn);

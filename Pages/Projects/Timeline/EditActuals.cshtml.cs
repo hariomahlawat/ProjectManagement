@@ -86,7 +86,8 @@ public class EditActualsModel : PageModel
 
         try
         {
-            var result = await _actualsUpdateService.UpdateAsync(Input, userId, userName, cancellationToken);
+            var actor = ActualWriteActor.FromPrincipal(principal, userId);
+            var result = await _actualsUpdateService.UpdateAsync(Input, actor, userName, cancellationToken);
 
             if (result.UpdatedCount > 0)
             {
@@ -112,6 +113,15 @@ public class EditActualsModel : PageModel
             TempData["Error"] = message;
             TempData["OpenOffcanvas"] = "actuals-edit";
             return RedirectToPage("/Projects/Overview", new { id });
+        }
+        catch (ActualsWriteForbiddenException)
+        {
+            _logger.LogWarning("User {UserId} lost write authority over project {ProjectId} before actual dates were saved.", userId, id);
+            return Forbid();
+        }
+        catch (ActualsProjectUnavailableException)
+        {
+            return NotFound();
         }
         catch (StageActualsStaleException sex)
         {

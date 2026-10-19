@@ -52,7 +52,7 @@ public sealed class StageBackfillService
     public async Task<StageBackfillResult> ApplyAsync(
         int projectId,
         IReadOnlyCollection<StageBackfillUpdate> updates,
-        string userId,
+        ActualWriteActor actor,
         CancellationToken ct = default,
         int? baselineVersion = null)
     {
@@ -61,9 +61,11 @@ public sealed class StageBackfillService
             throw new ArgumentOutOfRangeException(nameof(projectId));
         }
 
+        ArgumentNullException.ThrowIfNull(actor);
+        var userId = actor.UserId;
         if (string.IsNullOrWhiteSpace(userId))
         {
-            throw new ArgumentException("A valid user identifier is required.", nameof(userId));
+            throw new ArgumentException("A valid user identifier is required.", nameof(actor));
         }
 
         if (updates is null || updates.Count == 0)
@@ -91,6 +93,10 @@ public sealed class StageBackfillService
         // SECTION: Protected read
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
         await PlanRevisionConsistency.LockProjectAsync(_db, projectId, ct);
+
+        // Authority and active-project status are re-established against the
+        // locked project row, for every actor including Admin and HoD.
+        await ActualWriteAuthority.EnsureAsync(_db, projectId, actor, ct);
 
         var allProjectStages = await ActualFactPublisher.LoadProjectStagesForUpdateAsync(_db, projectId, ct);
         var stageLookup = allProjectStages

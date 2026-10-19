@@ -129,7 +129,8 @@ public class BackfillApplyModel : PageModel
                 return ValidationFailure(new[] { "At least one stage update must be provided." });
             }
 
-            var result = await _backfillService.ApplyAsync(input.ProjectId, updates, userId, ct, input.BaselineVersion);
+            var actor = ActualWriteActor.FromPrincipal(principal, userId);
+            var result = await _backfillService.ApplyAsync(input.ProjectId, updates, actor, ct, input.BaselineVersion);
 
             return new JsonResult(new
             {
@@ -163,6 +164,19 @@ public class BackfillApplyModel : PageModel
                 error = "conflict",
                 stages = ex.ConflictingStages,
                 message = "One or more stages no longer require backfill."
+            });
+        }
+        catch (ActualsWriteForbiddenException)
+        {
+            _logger.LogWarning("User {UserId} lost write authority over project {ProjectId} before backfill was saved.", userId, input.ProjectId);
+            return Forbid();
+        }
+        catch (ActualsProjectUnavailableException)
+        {
+            return NotFound(new
+            {
+                ok = false,
+                error = "not-found"
             });
         }
         catch (StageBackfillNotFoundException)
