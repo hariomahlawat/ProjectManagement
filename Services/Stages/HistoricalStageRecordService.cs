@@ -56,7 +56,6 @@ public sealed class HistoricalStageRecordService
             db,
             workflowPolicy ?? new ProjectStageWorkflowPolicy(db, metadataProvider),
             _arppIpaStageAuthority,
-            clock,
             logger);
     }
 

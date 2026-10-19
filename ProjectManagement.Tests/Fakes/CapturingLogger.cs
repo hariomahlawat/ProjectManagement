@@ -29,6 +29,9 @@ internal sealed class CapturingLogger<T>(ApplicationDbContext db) : ILogger<T>
     public IReadOnlyList<LogEntry> Warnings =>
         _entries.Where(entry => entry.EventId.Name == "Stages.ActualChronologyWarning").ToArray();
 
+    public IReadOnlyList<LogEntry> Unconfirmed =>
+        _entries.Where(entry => entry.EventId.Name == "Stages.ActualChronologyWarningUnconfirmed").ToArray();
+
     public IReadOnlyList<LogEntry> Errors =>
         _entries.Where(entry => entry.EventId.Name == "Stages.ActualChronologyWarningFailed").ToArray();
 

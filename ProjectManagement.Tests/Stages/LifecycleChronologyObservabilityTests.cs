@@ -248,8 +248,122 @@ public sealed class LifecycleChronologyObservabilityTests
         AssertFailure(Assert.Single(logger.Errors), "HistoricalReconstruction", fixture.ProjectId);
     }
 
+    // SECTION: A2. A new violation behind an unchanged controlling predecessor (Codex review)
+    [Fact]
+    public async Task DirectApply_NewBranchViolationBehindAnUnchangedControllingPredecessor_IsReported()
+    {
+        // COB depends on TEC and BM. COB already starts before TEC's Jan 10
+        // completion; completing BM on Jan 7 adds a second, new violation (BM->COB)
+        // while TEC stays the controlling predecessor.
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db,
+            Completed(StageCodes.FS, 1, Dec(1), Dec(1)),
+            Completed(StageCodes.IPA, 2, Dec(2), Dec(2)),
+            Completed(StageCodes.SOW, 3, Dec(3), Dec(3)),
+            Completed(StageCodes.AON, 4, Dec(4), Dec(4)),
+            Completed(StageCodes.BID, 5, Dec(5), Dec(5)),
+            Completed(StageCodes.TEC, 6, Dec(10), Jan(10)),
+            InProgress(StageCodes.BM, 7, Dec(10)),
+            InProgress(StageCodes.COB, 8, Jan(5))));
+        await using var db = fixture.NewContext();
+        var logger = new CapturingLogger<StageDirectApplyService>(db);
+
+        var result = await DirectApply(db, logger).ApplyAsync(
+            fixture.ProjectId, StageCodes.BM, "Completed", Jan(7), null, "hod", false, CancellationToken.None);
+
+        Assert.Equal("Completed", result.UpdatedStatus);
+        AssertWarning(Assert.Single(logger.Warnings), "DirectApply", fixture.ProjectId, StageCodes.BM,
+            affected: StageCodes.COB, source: StageCodes.BM);
+    }
+
+    // SECTION: E. A transaction owned by the caller (independent review)
+    [Fact]
+    public async Task DirectApply_InACallerTransactionThatRollsBack_NeverClaimsACommittedChange()
+    {
+        await using var fixture = await Fixture.CreateAsync(PredecessorInProgressSuccessorStarted);
+        await using var db = fixture.NewContext();
+        var logger = new CapturingLogger<StageDirectApplyService>(db);
+
+        await using (var external = await db.Database.BeginTransactionAsync())
+        {
+            var result = await DirectApply(db, logger).ApplyAsync(
+                fixture.ProjectId, StageCodes.FS, "Completed", Jan(10), null, "hod", false, CancellationToken.None);
+            Assert.Equal("Completed", result.UpdatedStatus);
+            await external.RollbackAsync();
+        }
+
+        await using var verify = fixture.NewContext();
+        Assert.Equal(StageStatus.InProgress, (await StageAsync(verify, StageCodes.FS)).Status);
+        Assert.Empty(await LogActionsAsync(verify));
+        Assert.Empty(logger.Warnings);
+        AssertUnconfirmed(Assert.Single(logger.Unconfirmed), "DirectApply", fixture.ProjectId);
+    }
+
+    [Fact]
+    public async Task DirectApply_InACallerTransactionThatCommits_PublishesAndReportsTheObservationAsUnconfirmed()
+    {
+        await using var fixture = await Fixture.CreateAsync(PredecessorInProgressSuccessorStarted);
+        await using var db = fixture.NewContext();
+        var logger = new CapturingLogger<StageDirectApplyService>(db);
+
+        await using (var external = await db.Database.BeginTransactionAsync())
+        {
+            await DirectApply(db, logger).ApplyAsync(
+                fixture.ProjectId, StageCodes.FS, "Completed", Jan(10), null, "hod", false, CancellationToken.None);
+            await external.CommitAsync();
+        }
+
+        await using var verify = fixture.NewContext();
+        Assert.Equal(Jan(10), (await StageAsync(verify, StageCodes.FS)).CompletedOn);
+        Assert.Equal(new[] { "DirectApply", "Applied" }, await LogActionsAsync(verify));
+        Assert.Empty(logger.Warnings);
+        AssertUnconfirmed(Assert.Single(logger.Unconfirmed), "DirectApply", fixture.ProjectId);
+    }
+
+    [Fact]
+    public async Task HistoricalReconstruction_InACallerTransactionThatRollsBack_NeverClaimsACommittedChange()
+    {
+        await using var fixture = await Fixture.CreateAsync(_ => { }, LegacyCompletedProject);
+        await using var db = fixture.NewContext();
+        var logger = new CapturingLogger<HistoricalStageRecordService>(db);
+
+        await using (var external = await db.Database.BeginTransactionAsync())
+        {
+            await Historical(db, logger).SaveAsync(HistoricalInput(fixture.ProjectId, ipaStart: Jan(5)), "hod", "HoD");
+            await external.RollbackAsync();
+        }
+
+        await using var verify = fixture.NewContext();
+        Assert.Empty(await verify.ProjectStages.ToListAsync());
+        Assert.Empty(await LogActionsAsync(verify));
+        Assert.Empty(logger.Warnings);
+        AssertUnconfirmed(Assert.Single(logger.Unconfirmed), "HistoricalReconstruction", fixture.ProjectId);
+    }
+
+    [Fact]
+    public async Task DirectApply_ObservationFailureInACallerTransaction_IsLoggedWithoutClaimingACommit()
+    {
+        await using var fixture = await Fixture.CreateAsync(PredecessorInProgressSuccessorStarted);
+        await using var db = fixture.NewContext(new FailObservationRead());
+        var logger = new CapturingLogger<StageDirectApplyService>(db);
+
+        await using (var external = await db.Database.BeginTransactionAsync())
+        {
+            var result = await DirectApply(db, logger).ApplyAsync(
+                fixture.ProjectId, StageCodes.FS, "Completed", Jan(10), null, "hod", false, CancellationToken.None);
+            Assert.Equal("Completed", result.UpdatedStatus);
+            await external.RollbackAsync();
+        }
+
+        var failure = Assert.Single(logger.Errors);
+        AssertFailure(failure, "DirectApply", fixture.ProjectId);
+        Assert.Equal("the lifecycle change was not affected, and its commit is owned by the caller", failure.Field("Outcome"));
+        Assert.Empty(logger.Warnings);
+    }
+
     // SECTION: Helpers
     private static DateOnly Jan(int day) => new(2026, 1, day);
+
+    private static DateOnly Dec(int day) => new(2025, 12, day);
 
     private static void PredecessorInProgressSuccessorStarted(ApplicationDbContext db) => Stages(db,
         InProgress(StageCodes.FS, 1, Jan(1)),
@@ -333,6 +447,16 @@ public sealed class LifecycleChronologyObservabilityTests
         Assert.Equal(new[] { affected }, (string[])entry.Field("AffectedStageCodes")!);
         Assert.Equal(new[] { source }, (string?[])entry.Field("SourceStageCodes")!);
         Assert.Single((string[])entry.Field("Violations")!);
+    }
+
+    private static void AssertUnconfirmed(LogEntry entry, string operation, int projectId)
+    {
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal("Stages.ActualChronologyWarningUnconfirmed", entry.EventId.Name);
+        Assert.Equal(operation, entry.Field("Operation"));
+        Assert.Equal(projectId, entry.Field("ProjectId"));
+        Assert.Equal(1, entry.Field("ViolationCount"));
+        Assert.True(entry.TransactionOpen);
     }
 
     private static void AssertFailure(LogEntry entry, string operation, int projectId)

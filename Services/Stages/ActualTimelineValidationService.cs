@@ -175,6 +175,37 @@ public sealed class ActualTimelineValidationService : IActualTimelineValidationS
             InWorkflowOrder(affected, workflow, code => code).ToArray());
     }
 
+    /// <summary>
+    /// Every chronology violation in a stage set, one issue per predecessor bound,
+    /// for D-1d lifecycle observability. Unlike <see cref="Evaluate"/>, violations
+    /// are not collapsed to the controlling predecessor, so comparing two stage sets
+    /// also reveals a new violation behind an unchanged controlling one.
+    /// </summary>
+    internal static IReadOnlyList<ActualValidationIssue> ListChronologyViolations(
+        ProjectStageWorkflowSnapshot workflow,
+        ArppIpaStageAuthority? ipaAuthority,
+        IEnumerable<ActualStageState> stages)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(stages);
+
+        var states = stages
+            .Where(stage => stage is not null && !string.IsNullOrWhiteSpace(stage.StageCode))
+            .GroupBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var stageNames = workflow.Stages
+            .GroupBy(stage => stage.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Name, StringComparer.OrdinalIgnoreCase);
+
+        return InWorkflowOrder(FindViolations(workflow, states, ipaAuthority).Distinct(), workflow, violation => violation.StageCode)
+            .Select(violation => new ActualValidationIssue(
+                violation.StageCode,
+                ActualValidationRule.Chronology,
+                RecordedViolationMessage(violation, stageNames),
+                violation.SourceStageCode))
+            .ToArray();
+    }
+
     // SECTION: Per-row projection (generic correction)
     private static ActualStageState? ProjectCorrection(
         ActualStageState stage,
@@ -465,6 +496,12 @@ public sealed class ActualTimelineValidationService : IActualTimelineValidationS
         $"{violation.StageCode}: The recorded Actual {(violation.IsStart ? "start" : "completion")} " +
         $"{Display(violation.Date)} is already before {NameOf(violation.SourceStageCode, stageNames)} " +
         $"Actual completion {Display(violation.SourceCompletionDate)}. This existing record was not changed by this update.";
+
+    private static string RecordedViolationMessage(
+        ChronologyViolation violation,
+        IReadOnlyDictionary<string, string> stageNames) =>
+        $"{violation.StageCode}: Actual {(violation.IsStart ? "start" : "completion")} {Display(violation.Date)} " +
+        $"is before {NameOf(violation.SourceStageCode, stageNames)} Actual completion {Display(violation.SourceCompletionDate)}.";
 
     private static string Display(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 

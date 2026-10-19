@@ -17,36 +17,41 @@ namespace ProjectManagement.Services.Stages;
 /// lifecycle transition is not an Actual correction, so these writers never block
 /// on chronology; they report what their committed state introduced.
 ///
-/// The shared validator evaluates the project's stage facts before and after the
-/// writer's mutation with the same workflow, ARPP authority and operational date.
-/// Violations present only afterwards are reported as
-/// <c>Stages.ActualChronologyWarning</c>; violations already in the record are
-/// existing data, as they are for Actual corrections, and are not repeated.
+/// The shared validator lists every chronology violation in the project's stage
+/// facts before and after the writer's mutation, with the same workflow, ARPP
+/// authority and operational date. Violations present only afterwards are
+/// reported; violations already in the record are existing data, as they are for
+/// Actual corrections, and are not repeated.
+///
+/// <c>Stages.ActualChronologyWarning</c> is written only once the writer's managed
+/// transaction has committed. A writer nested in a transaction its caller owns
+/// cannot be confirmed as committed, so it reports
+/// <c>Stages.ActualChronologyWarningUnconfirmed</c> instead and never claims a
+/// committed change.
 /// </summary>
 internal sealed class LifecycleChronologyObserver
 {
     internal const string WarningEventName = "Stages.ActualChronologyWarning";
     internal const string FailureEventName = "Stages.ActualChronologyWarningFailed";
+    internal const string UnconfirmedEventName = "Stages.ActualChronologyWarningUnconfirmed";
     internal static readonly EventId WarningEvent = new(4101, WarningEventName);
     internal static readonly EventId FailureEvent = new(4102, FailureEventName);
+    internal static readonly EventId UnconfirmedEvent = new(4103, UnconfirmedEventName);
 
     private readonly ApplicationDbContext _db;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
-    private readonly IClock _clock;
     private readonly ILogger _logger;
 
     public LifecycleChronologyObserver(
         ApplicationDbContext db,
         IProjectStageWorkflowPolicy workflowPolicy,
         IArppIpaStageAuthorityService arppIpaStageAuthority,
-        IClock clock,
         ILogger logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? throw new ArgumentNullException(nameof(arppIpaStageAuthority));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -95,24 +100,49 @@ internal sealed class LifecycleChronologyObserver
             return;
         }
 
-        Action report = failure is null
-            ? () => LogWarning(operation, projectId, stageCode, introduced)
-            : () => LogFailure(operation, projectId, stageCode, failure);
+        if (!transaction.CanRegisterAfterCommit)
+        {
+            // The caller owns the commit and may still roll back: report the
+            // observation now, without claiming the change was committed.
+            Report(confirmed: false, operation, projectId, stageCode, introduced, failure);
+            return;
+        }
 
         try
         {
             // Report only what was actually committed: a rolled-back write logs nothing.
             transaction.RegisterAfterCommit(_ =>
             {
-                report();
+                Report(confirmed: true, operation, projectId, stageCode, introduced, failure);
                 return Task.CompletedTask;
             });
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException exception)
         {
-            // The writer runs inside a transaction RelationalTransactionScope did not
-            // create, so no post-commit hook exists; report now rather than lose it.
-            report();
+            // Not reachable for an active managed scope; never let it block the write.
+            Report(confirmed: false, operation, projectId, stageCode, introduced, failure ?? exception);
+        }
+    }
+
+    private void Report(
+        bool confirmed,
+        string operation,
+        int projectId,
+        string stageCode,
+        IReadOnlyList<ActualValidationIssue> introduced,
+        Exception? failure)
+    {
+        if (failure is not null)
+        {
+            LogFailure(confirmed, operation, projectId, stageCode, failure);
+        }
+        else if (confirmed)
+        {
+            LogWarning(operation, projectId, stageCode, introduced);
+        }
+        else
+        {
+            LogUnconfirmed(operation, projectId, stageCode, introduced);
         }
     }
 
@@ -134,15 +164,12 @@ internal sealed class LifecycleChronologyObserver
             await savepoint.CommitAsync(cancellationToken);
         }
 
-        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
-        var existing = ActualTimelineValidationService.Evaluate(
-                workflow, ipaAuthority, today, new ActualTimelineCandidate(projectId, before, Array.Empty<ActualStageChange>()))
-            .Warnings
+        // Compare every violation, not the controlling one per stage: a write can add
+        // a violation behind an unchanged controlling predecessor.
+        var existing = ActualTimelineValidationService.ListChronologyViolations(workflow, ipaAuthority, before)
             .ToHashSet();
 
-        return ActualTimelineValidationService.Evaluate(
-                workflow, ipaAuthority, today, new ActualTimelineCandidate(projectId, after, Array.Empty<ActualStageChange>()))
-            .Warnings
+        return ActualTimelineValidationService.ListChronologyViolations(workflow, ipaAuthority, after)
             .Where(issue => !existing.Contains(issue))
             .ToArray();
     }
@@ -165,14 +192,35 @@ internal sealed class LifecycleChronologyObserver
             introduced.Select(issue => issue.Message).ToArray());
     }
 
-    private void LogFailure(string operation, int projectId, string stageCode, Exception failure)
+    private void LogUnconfirmed(
+        string operation,
+        int projectId,
+        string stageCode,
+        IReadOnlyList<ActualValidationIssue> introduced)
+    {
+        _logger.LogWarning(
+            UnconfirmedEvent,
+            UnconfirmedEventName + ": {Operation} on project {ProjectId} stage {StageCode} would introduce {ViolationCount} new Actual chronology violation(s) on {AffectedStageCodes} (sources {SourceStageCodes}): {Violations}. The enclosing transaction is owned by the caller, so whether this change was committed is not confirmed.",
+            operation,
+            projectId,
+            stageCode,
+            introduced.Count,
+            introduced.Select(issue => issue.StageCode).ToArray(),
+            introduced.Select(issue => issue.RelatedStageCode).ToArray(),
+            introduced.Select(issue => issue.Message).ToArray());
+    }
+
+    private void LogFailure(bool confirmed, string operation, int projectId, string stageCode, Exception failure)
     {
         _logger.LogError(
             FailureEvent,
             failure,
-            FailureEventName + ": Actual chronology observation failed for {Operation} on project {ProjectId} stage {StageCode}; the lifecycle change was committed unchanged.",
+            FailureEventName + ": Actual chronology observation failed for {Operation} on project {ProjectId} stage {StageCode}; {Outcome}.",
             operation,
             projectId,
-            stageCode);
+            stageCode,
+            confirmed
+                ? "the lifecycle change was committed unchanged"
+                : "the lifecycle change was not affected, and its commit is owned by the caller");
     }
 }

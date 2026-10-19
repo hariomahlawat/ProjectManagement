@@ -60,7 +60,7 @@ public sealed class StageDecisionService
         _planRealignment = planRealignment ?? new NullPlanRealignment();
         _sequenceService = sequenceService;
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
-        _chronology = new LifecycleChronologyObserver(db, workflowPolicy, _arppIpaStageAuthority, clock, logger);
+        _chronology = new LifecycleChronologyObserver(db, workflowPolicy, _arppIpaStageAuthority, logger);
     }
 
     public async Task<StageDecisionResult> DecideAsync(

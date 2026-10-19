@@ -58,7 +58,7 @@ public sealed class StageDirectApplyService
         _planRealignment = planRealignment ?? new NullPlanRealignment();
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
         _chronology = new LifecycleChronologyObserver(
-            db, workflowPolicy, _arppIpaStageAuthority, clock,
+            db, workflowPolicy, _arppIpaStageAuthority,
             (ILogger?)logger ?? NullLogger<StageDirectApplyService>.Instance);
     }
 
