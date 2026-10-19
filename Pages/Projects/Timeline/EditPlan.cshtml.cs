@@ -290,6 +290,9 @@ public class EditPlanModel : PageModel
         await using var revisionSave = await RelationalTransactionScope.CreateAsync(
             _db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, id, cancellationToken);
+        if (Input.EditToken is not null &&
+            !await _planDraft.MatchesEditorTokenAsync(id, Input.EditToken, cancellationToken))
+            return RejectPlanRequest(id, "This timeline draft changed in another session. Reload before saving.", 409);
 
         PlanVersion draft;
         try
@@ -727,6 +730,9 @@ public class EditPlanModel : PageModel
 
         await using var revisionSave = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
         await PlanRevisionConsistency.LockProjectAsync(_db, id, ct);
+        if (Input.EditToken is not null &&
+            !await _planDraft.MatchesEditorTokenAsync(id, Input.EditToken, ct))
+            return RejectPlanRequest(id, "This timeline draft changed in another session. Reload before saving.", 409);
         PlanVersion draft;
         try
         {
@@ -788,7 +794,12 @@ public class EditPlanModel : PageModel
 
         if (IsAutosaveRequest)
         {
-            return new JsonResult(new { ok = true, savedAt = DateTimeOffset.UtcNow });
+            return new JsonResult(new
+            {
+                ok = true,
+                savedAt = DateTimeOffset.UtcNow,
+                editToken = PlanEditFingerprint.Compute(draft)
+            });
         }
 
         if (submitForApproval)
