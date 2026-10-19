@@ -23,6 +23,127 @@ namespace ProjectManagement.Tests;
 public class PlanDraftAndApprovalServiceTests
 {
     [Fact]
+    public async Task C2_OpeningAndSavingUnchangedSuccessorPreservesExactPendingReview()
+    {
+        await using var db = NewC2Database();
+        var submitted = await SeedC2PendingAsync(db);
+        var drafts = new PlanDraftService(db, new TestClock(),
+            NullLogger<PlanDraftService>.Instance, new FakeAudit(), new StubUserContext("po-owner"));
+
+        var successor = await drafts.CreateOrGetDraftAsync(91);
+        Assert.Equal(2, successor.VersionNo);
+        Assert.Equal(PlanVersionStatus.Draft, successor.Status);
+        Assert.Equal(submitted.AnchorDate, successor.AnchorDate);
+        Assert.Equal(submitted.PncApplicable, successor.PncApplicable);
+        Assert.Equal(submitted.SkipHolidays, successor.SkipHolidays);
+        Assert.Equal(submitted.StagePlans[0].PlannedDue, successor.StagePlans[0].PlannedDue);
+        Assert.NotEqual(submitted.StagePlans[0].Id, successor.StagePlans[0].Id);
+        Assert.False(await drafts.SupersedePendingAfterSaveAsync(successor));
+        Assert.Equal(PlanVersionStatus.PendingApproval, submitted.Status);
+        Assert.Equal(submitted.Id, (await PlanRevisionConsistency.ActionablePending(db)
+            .SingleAsync(p => p.ProjectId == 91)).Id);
+        Assert.Empty(await db.PlanApprovalLogs.ToListAsync());
+        Assert.Equal(successor.Id, (await drafts.CreateOrGetDraftAsync(91)).Id);
+    }
+
+    [Fact]
+    public async Task C2_MaterialReplacementSupersedesExactReviewAndPreservesHistory()
+    {
+        await using var db = NewC2Database();
+        var submitted = await SeedC2PendingAsync(db);
+        var notifications = new NullPlanNotificationService();
+        var drafts = new PlanDraftService(db, new TestClock(),
+            NullLogger<PlanDraftService>.Instance, new FakeAudit(), new StubUserContext("po-owner"));
+        var successor = await drafts.CreateOrGetDraftAsync(91);
+        successor.StagePlans[0].PlannedDue = new DateOnly(2026, 12, 9);
+        await db.SaveChangesAsync();
+        Assert.True(await drafts.SupersedePendingAfterSaveAsync(successor));
+        Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
+        Assert.Equal(new DateOnly(2026, 11, 4), submitted.StagePlans[0].PlannedDue);
+        Assert.Contains(await db.PlanApprovalLogs.ToListAsync(),
+            log => log.PlanVersionId == submitted.Id && log.Action == "Superseded");
+        Assert.Contains(await db.PlanApprovalLogs.ToListAsync(),
+            log => log.PlanVersionId == successor.Id && log.Action == "CreatedAsReplacement");
+
+        var approval = new PlanApprovalService(db, new TestClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db),
+            notifications, new C2AlwaysValidTimeline());
+        Assert.False(await approval.ApproveVersionAsync(
+            submitted.Id, "hod-user", false, true, expectedProjectId: 91));
+        Assert.False(await approval.RejectVersionAsync(
+            submitted.Id, "hod-user", false, true, "Old tab", expectedProjectId: 91));
+        Assert.False(await db.PlanVersions.AsNoTracking().AnyAsync(
+            p => p.ProjectId == 91 && p.Status == PlanVersionStatus.Approved));
+        await approval.SubmitAsync(91, "po-owner");
+        Assert.Equal(PlanVersionStatus.PendingApproval, successor.Status);
+        Assert.Equal(successor.Id, (await PlanRevisionConsistency.ActionablePending(db)
+            .SingleAsync(p => p.ProjectId == 91)).Id);
+    }
+
+    [Fact]
+    public async Task C2_WithdrawalRequiresExactOwnerAndSubmissionEpoch()
+    {
+        await using var db = NewC2Database();
+        var submitted = await SeedC2PendingAsync(db);
+        var approval = new PlanApprovalService(db, new TestClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db),
+            new NullPlanNotificationService(), new C2AlwaysValidTimeline());
+        Assert.False(await approval.WithdrawVersionAsync(91, submitted.Id,
+            submitted.SubmittedOn, "another-po"));
+        Assert.False(await approval.WithdrawVersionAsync(91, submitted.Id,
+            submitted.SubmittedOn!.Value.AddSeconds(-1), "po-owner"));
+        Assert.True(await approval.WithdrawVersionAsync(91, submitted.Id,
+            submitted.SubmittedOn, "po-owner"));
+        Assert.Equal(PlanVersionStatus.Withdrawn, submitted.Status);
+        Assert.Equal(new DateOnly(2026, 11, 4), submitted.StagePlans[0].PlannedDue);
+        Assert.Equal(1, await db.PlanApprovalLogs.CountAsync(l =>
+            l.PlanVersionId == submitted.Id && l.Action == "Withdrawn"));
+        Assert.False(await approval.WithdrawVersionAsync(91, submitted.Id,
+            submitted.SubmittedOn, "po-owner"));
+        Assert.Empty(await PlanRevisionConsistency.ActionablePending(db)
+            .Where(p => p.ProjectId == 91).ToListAsync());
+    }
+
+    private static ApplicationDbContext NewC2Database() =>
+        new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+    private static async Task<PlanVersion> SeedC2PendingAsync(ApplicationDbContext db)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = 91, Name = "C2 revisions", LeadPoUserId = "po-owner",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+        var submitted = new PlanVersion
+        {
+            ProjectId = 91, VersionNo = 1, Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "po-owner", OwnerUserId = "po-owner",
+            SubmittedByUserId = "po-owner",
+            SubmittedOn = new DateTimeOffset(2026, 10, 17, 12, 0, 0, TimeSpan.Zero),
+            AnchorDate = new DateOnly(2026, 11, 1),
+            SkipHolidays = false, PncApplicable = false,
+            PlanningInputVersion = PlanningInputVersions.Current
+        };
+        submitted.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS, SortOrder = 10, DurationDays = 4,
+            PlannedStart = new DateOnly(2026, 11, 1),
+            PlannedDue = new DateOnly(2026, 11, 4)
+        });
+        db.PlanVersions.Add(submitted);
+        await db.SaveChangesAsync();
+        return submitted;
+    }
+
+    private sealed class C2AlwaysValidTimeline : IPlannedTimelineValidationService
+    {
+        public Task<PlannedTimelineValidationResult> ValidateAsync(
+            PlannedTimelineCandidate candidate, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PlannedTimelineValidationResult(Array.Empty<string>()));
+    }
+
+    [Fact]
     public async Task SubmitForApproval_RejectsOfficeHolidayChronologyAndLeavesDraftUntouched()
     {
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
