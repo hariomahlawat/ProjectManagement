@@ -72,18 +72,71 @@
         window.location.assign(target.href);
     };
 
+    const commit = element => {
+        if (element.hasAttribute("data-auto-submit")) {
+            if (element.form) submitForm(element.form);
+        } else if (element.hasAttribute("data-auto-navigate")) {
+            navigateTo(element.value);
+        }
+    };
+
+    // Keyboard users browse a <select> with arrow keys, and some browsers fire "change" on
+    // every step. Hold those changes and apply them on Enter or when focus leaves, so the page
+    // does not reload or navigate while someone is still choosing (WCAG 3.2.2).
+    const browseKeys = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
+    const browsing = new WeakSet();
+    const pending = new WeakSet();
+
+    const isKeyboardSafeSelect = element => element instanceof HTMLSelectElement
+        && (element.hasAttribute("data-auto-submit") || element.hasAttribute("data-auto-navigate"))
+        && !isPageHandled(element);
+
+    document.addEventListener("keydown", event => {
+        const element = event.target;
+        if (!isKeyboardSafeSelect(element)) return;
+
+        if (browseKeys.has(event.key)) {
+            browsing.add(element);
+        } else if (event.key === "Enter") {
+            browsing.delete(element);
+            if (pending.has(element)) {
+                pending.delete(element);
+                event.preventDefault();
+                commit(element);
+            }
+        }
+    });
+
+    // A pointer pick is a deliberate choice, even after some arrow-key browsing.
+    document.addEventListener("pointerdown", event => {
+        if (isKeyboardSafeSelect(event.target)) browsing.delete(event.target);
+    }, true);
+
+    document.addEventListener("focusout", event => {
+        const element = event.target;
+        if (!isKeyboardSafeSelect(element)) return;
+
+        browsing.delete(element);
+        if (pending.has(element)) {
+            pending.delete(element);
+            commit(element);
+        }
+    });
+
     const onValueEvent = event => {
         const element = event.target;
         if (!(element instanceof Element) || isPageHandled(element)) return;
 
-        if (element.hasAttribute("data-auto-submit") && autoSubmitEvent(element) === event.type) {
-            if (element.form) submitForm(element.form);
+        const autoSubmit = element.hasAttribute("data-auto-submit") && autoSubmitEvent(element) === event.type;
+        const autoNavigate = event.type === "change" && element.hasAttribute("data-auto-navigate");
+        if (!autoSubmit && !autoNavigate) return;
+
+        if (browsing.has(element)) {
+            pending.add(element);
             return;
         }
 
-        if (event.type === "change" && element.hasAttribute("data-auto-navigate")) {
-            navigateTo(element.value);
-        }
+        commit(element);
     };
 
     document.addEventListener("change", onValueEvent);

@@ -105,7 +105,7 @@
                       asp-route-id="@activity.Id"
                       class="d-inline"
                       data-activities-delete-form
-                      data-page-handled data-confirm="Request deletion of this activity?">
+                      data-confirm="Request deletion of this activity?">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-outline-danger btn-sm">
                         <i class="bi bi-trash" aria-hidden="true"></i>Request delete
@@ -241,7 +241,7 @@
                                             </a>
                                             @if (Model.CanManage)
                                             {
-                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@photo.Id" data-activities-delete-form data-page-handled data-confirm="Remove this attachment?">
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@photo.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="activity-icon-action activity-icon-action--danger" title="Remove @photo.FileName" aria-label="Remove @photo.FileName">
                                                         <i class="bi bi-trash" aria-hidden="true"></i>
@@ -282,7 +282,7 @@
                                             <a class="btn btn-sm btn-outline-secondary" href="@video.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
                                             @if (Model.CanManage)
                                             {
-                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@video.Id" data-activities-delete-form data-page-handled data-confirm="Remove this attachment?">
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@video.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                                 </form>
@@ -315,7 +315,7 @@
                                         <a class="btn btn-sm btn-outline-secondary" href="@document.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
                                         @if (Model.CanManage)
                                         {
-                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@document.Id" data-activities-delete-form data-page-handled data-confirm="Remove this attachment?">
+                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@document.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>
@@ -347,7 +347,7 @@
                                         <a class="btn btn-sm btn-outline-secondary" href="@file.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
                                         @if (Model.CanManage)
                                         {
-                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@file.Id" data-activities-delete-form data-page-handled data-confirm="Remove this attachment?">
+                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@file.Id" data-activities-delete-form data-confirm="Remove this attachment?">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>

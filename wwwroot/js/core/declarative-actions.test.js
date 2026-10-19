@@ -26,11 +26,12 @@ function createDom(body, { confirmResult = true } = {}) {
   };
   window.print = () => { calls.print += 1; };
   window.close = () => { calls.close += 1; };
-  window.HTMLFormElement.prototype.requestSubmit = function requestSubmit(submitter) {
-    const event = new window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: submitter ?? null });
-    if (this.dispatchEvent(event)) calls.submits += 1;
-  };
   window.eval(script);
+  // jsdom's native requestSubmit runs validation and fires submit (it does not navigate);
+  // count the submissions that reach the document without being cancelled.
+  window.document.addEventListener('submit', (event) => {
+    if (!event.defaultPrevented) calls.submits += 1;
+  });
   return { window, document: window.document, calls };
 }
 
@@ -132,4 +133,73 @@ test('data-auto-navigate follows same-origin values and ignores empty or cross-o
 
   choose('/Photos/People/Review?sort=newest');
   assert.equal(calls.navigations, 1);
+});
+
+test('data-auto-navigate ignores javascript:, data: and protocol-relative values', () => {
+  const { window, document, calls } = createDom(`<select data-auto-navigate>
+      <option value="">Pick</option>
+      <option value="javascript:alert(1)">js</option>
+      <option value="data:text/html,hi">data</option>
+      <option value="//elsewhere.example/x">proto-relative</option></select>`);
+  const select = document.querySelector('select');
+
+  for (const value of ['javascript:alert(1)', 'data:text/html,hi', '//elsewhere.example/x']) {
+    select.value = value;
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  }
+
+  assert.equal(calls.navigations, 0);
+});
+
+test('requestSubmit keeps native constraint validation for auto-submitted forms', () => {
+  const { window, document, calls } = createDom(`<form>
+      <input name="q" required>
+      <select data-auto-submit><option>1</option><option>2</option></select></form>`);
+  const select = document.querySelector('select');
+
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(calls.submits, 0); // required field empty: the browser blocks the submit
+
+  document.querySelector('input').value = 'x';
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(calls.submits, 1);
+});
+
+test('arrow-key browsing in an auto-submit select waits for Enter', () => {
+  const { window, document, calls } = createDom('<form><select data-auto-submit><option>1</option><option>2</option><option>3</option></select></form>');
+  const select = document.querySelector('select');
+  const key = (k) => select.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  const change = () => select.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+  key('ArrowDown'); change();
+  key('ArrowDown'); change();
+  assert.equal(calls.submits, 0);
+
+  key('Enter');
+  assert.equal(calls.submits, 1);
+});
+
+test('arrow-key browsing commits when focus leaves the select', () => {
+  const { window, document, calls } = createDom(`<select data-auto-navigate>
+      <option value="/a">A</option><option value="/b">B</option></select><button>next</button>`);
+  const select = document.querySelector('select');
+
+  select.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  select.value = '/b';
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(calls.navigations, 0);
+
+  select.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true }));
+  assert.equal(calls.navigations, 1);
+});
+
+test('a pointer pick after arrow browsing applies immediately', () => {
+  const { window, document, calls } = createDom('<form><select data-auto-submit><option>1</option><option>2</option></select></form>');
+  const select = document.querySelector('select');
+
+  select.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  select.dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+  assert.equal(calls.submits, 1);
 });

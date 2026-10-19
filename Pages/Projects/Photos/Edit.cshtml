@@ -239,10 +239,7 @@
                     <input asp-for="Input.CropHeight" type="hidden" data-photo-editor-field="height" />
                 </div>
                 <noscript>
-                    <style>
-                        .project-photo-editor { display: none !important; }
-                        .project-photo-editor__fallback { display: block !important; }
-                    </style>
+                    <link rel="stylesheet" href="~/css/pages/project-photos-noscript.css" asp-append-version="true" />
                 </noscript>
             </div>
         </section>

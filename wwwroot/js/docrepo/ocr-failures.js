@@ -9,7 +9,7 @@
             allBtn.disabled = true;
             allBtn.textContent = 'Re-queuing…';
             if (allStatus) {
-                allStatus.style.display = 'inline';
+                allStatus.classList.remove('d-none');
             }
         });
     }

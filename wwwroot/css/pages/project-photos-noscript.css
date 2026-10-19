@@ -1,0 +1,6 @@
+/* Loaded only inside <noscript>: without JavaScript there is no cropper, so show the plain
+   file input and the fallback notice instead of the editor and drop zone. */
+#Input_File { position: static !important; width: 100% !important; height: auto !important; clip: auto !important; white-space: normal !important; overflow: visible !important; }
+[data-photo-dropzone], [data-photo-file-summary] { display: none !important; }
+.project-photo-editor { display: none !important; }
+.project-photo-editor__fallback { display: block !important; }

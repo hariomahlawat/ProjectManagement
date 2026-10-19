@@ -166,26 +166,7 @@ else
 }
 
 @section Styles {
-    <style>
-        /* keep sidebar sticky on wide screens */
-        .visit-form-layout__sidebar--sticky {
-            position: sticky;
-            top: 1.25rem;
-        }
-
-        /* Razor-safe media query (note the @@) */
-        @@media (max-width: 991.98px) {
-            .visit-form-layout__sidebar--sticky {
-                position: static;
-            }
-        }
-
-        /* tiny WCAG helper for focus in sidebar cards */
-        .visit-intel-card :is(a, button, input, select, textarea):focus-visible {
-            outline: 3px solid rgba(13, 110, 253, 0.35);
-            outline-offset: 2px;
-        }
-    </style>
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-new.css" asp-append-version="true" />
 }
 
 @section Scripts {
