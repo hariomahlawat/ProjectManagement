@@ -84,6 +84,14 @@ internal static class PlanRevisionConsistency
             PerformedByUserId = actorUserId,
             PerformedOn = decidedOn
         });
+        db.PlanApprovalLogs.Add(new PlanApprovalLog
+        {
+            PlanVersionId = successor.Id,
+            Action = "CreatedAsReplacement",
+            Note = $"Replaces submitted revision {previous.VersionNo} (ID {previous.Id}).",
+            PerformedByUserId = actorUserId,
+            PerformedOn = decidedOn
+        });
         await db.SaveChangesAsync(ct);
         return true;
     }
