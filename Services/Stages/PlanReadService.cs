@@ -265,6 +265,7 @@ public sealed class PlanReadService
         var state = new PlanEditorStateVm
         {
             HasDraft = myDraft is not null,
+            EditToken = PlanEditFingerprint.Compute(draftPlan),
             // Reviewed content remains immutable, but PO successor edits are allowed.
             IsLocked = false,
             Status = draftPlan?.Status ?? pendingPlan?.Status,
