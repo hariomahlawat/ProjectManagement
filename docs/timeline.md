@@ -240,10 +240,10 @@ Support a single-stage quick update for one PDC or other stage change; do not re
 
 ## Timeline workflow reference
 
-The workflow and page descriptions below describe current implementation paths and labels, including known deviations. They do not override the canonical target rules above or certify compliance. In particular, current plan locks and direct PO actual-date/backfill writes are not the intended governance. See the [implementation gaps and phased roadmap](timeline-proposal-roadmap.md).
+The workflow and page descriptions below describe current implementation paths and labels, including known deviations. They do not override the canonical target rules above or certify compliance. The previous PO pending-plan edit lock was removed in C2. Direct PO actual-date/backfill writes remain an unimplemented Phase D governance boundary. See the [implementation gaps and phased roadmap](timeline-proposal-roadmap.md).
 
 ### Roles
-- **Project Officer (PO)**: may edit only assigned projects; maintains their own private Draft; **Save** keeps their personal draft; **Save & request approval** → PendingApproval (if none already pending).
+- **Project Officer (PO)**: may edit only assigned projects; maintains their own private Draft; **Save** keeps their personal draft; **Save & request approval** submits an eligible Draft; when this PO owns the actionable pending revision, a materially changed, validated successor may replace it atomically. Merely opening or privately editing a successor does not supersede the pending revision. Submission does not grant authority to replace another actor's revision.
 - **HoD**: can create a private Draft, review plan submissions, approve or reject plans, and directly apply a stage transition to any project. Direct completion without a completion date is an authorised override that advances the workflow and creates mandatory backfill.
 - **Admin**: can view all and has timeline modification authority, including direct planned-date edits where current product permissions allow; this does not grant unrelated approval rights or relax date validity.
 - **Viewer**: read-only.
