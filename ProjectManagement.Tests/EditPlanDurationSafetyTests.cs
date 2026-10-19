@@ -1843,6 +1843,34 @@ public class EditPlanDurationSafetyTests
         await f.AssertLiveDatesUnchangedAsync();
     }
 
+    [Fact]
+    public async Task C2_StaleDurationTabCannotOverwriteAnotherSavedRevision()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "SaveDraft", relational: true);
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+        var saved = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        var previousToken = PlanEditFingerprint.Compute(saved);
+
+        f.Page.Input.Action = "Autosave";
+        f.Page.Input.EditToken = previousToken;
+        f.Page.Input.Rows[0].DurationDays = 5;
+        var successful = AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        var nextToken = successful.GetProperty("editToken").GetString();
+        Assert.NotNull(nextToken);
+        Assert.NotEqual(previousToken, nextToken);
+
+        f.Page.Input.Rows[0].DurationDays = 8;
+        AssertJson(await f.Page.OnPostAsync(1, default), 409, false);
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(5, (await f.Db.StagePlans.SingleAsync()).DurationDays);
+
+        f.Page.Input.EditToken = nextToken;
+        AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(8, (await f.Db.StagePlans.SingleAsync()).DurationDays);
+        await f.AssertLiveDatesUnchangedAsync();
+    }
+
     [Theory]
     [InlineData("mismatched-project", 400)]
     [InlineData("missing-project", 404)]
