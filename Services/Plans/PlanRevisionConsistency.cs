@@ -26,9 +26,6 @@ internal static class PlanRevisionConsistency
                 later.VersionNo > plan.VersionNo &&
                 (later.Status == PlanVersionStatus.PendingApproval ||
                  later.Status == PlanVersionStatus.Approved ||
-             later.Status == PlanVersionStatus.Superseded ||
-             later.Status == PlanVersionStatus.Withdrawn ||
-             later.Status == PlanVersionStatus.Rejected ||
                  later.Status == PlanVersionStatus.Superseded ||
                  later.Status == PlanVersionStatus.Withdrawn ||
                  later.Status == PlanVersionStatus.Rejected ||
@@ -45,6 +42,9 @@ internal static class PlanRevisionConsistency
             later.VersionNo > versionNo &&
             (later.Status == PlanVersionStatus.PendingApproval ||
              later.Status == PlanVersionStatus.Approved ||
+             later.Status == PlanVersionStatus.Superseded ||
+             later.Status == PlanVersionStatus.Withdrawn ||
+             later.Status == PlanVersionStatus.Rejected ||
              later.RejectedOn != null ||
              later.ApprovalLogs.Any()), ct);
     }
