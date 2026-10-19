@@ -2,6 +2,8 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
+> **Implementation status (D-1e):** Release D-1 (D-1a … D-1e) is engineering-complete and merged; D-2 and D-3 are not started; nothing has been deployed by this work. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+>
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
 > **Scope:** Investigation and design only. No production code, migration or PR is part of this document. Production deployment state, database version and configuration were **not** inspected and remain unverified.
@@ -13,6 +15,63 @@
 > - **Concurrency.** A server-issued editor baseline covers first submissions as well as replacement of a pending revision (E.4).
 > - **Validation scope.** A complete mutation-boundary matrix, with acceptance criteria scoped to it (F.5, J).
 > - **Open decisions.** Reconciled, with only true blockers marked (K).
+
+---
+
+## Implementation status
+
+Recorded by D-1e against `master` at `119d6cf3d9dd31d64dc4d3ae5c5d26c738e6c062` (D-1d merge). **Merged is not deployed:** production release, database version and configuration have not been inspected, and R-D1 has not been released by this work.
+
+### D-1 milestone acceptance
+
+| Milestone | Deliverable | Implementation evidence | Status |
+| --- | --- | --- | --- |
+| D-1a | Shared Actual final-state validator (`IActualTimelineValidationService`): whole-graph chronology, skipped ancestry, per-branch convergence (K-11), existing-versus-new violations (F.4), IST, ARPP IPA | #2675, merge `b5ef8030`; `Services/Stages/ActualTimelineValidationService.cs`; `ProjectManagement.Tests/Stages/ActualTimelineValidationServiceTests.cs` | Complete |
+| D-1b | Direct correction and backfill safety: validation inside the gate and stage row locks, authority re-read (`FOR SHARE`), per-stage `ActualStageToken`, one publication routine, atomic `StageChangeLog`, post-commit audit | #2676, merge `07313590`; `StageActualsUpdateService`, `StageBackfillService`, `ActualFactPublisher`, `ActualStageToken`, `ActualWriteAuthority`; `DirectActualsPublicationTests`, `StageActualsUpdateServiceTests`, `StageBackfillServiceTests`, PostgreSQL `StageActualsConcurrencyPostgresFixture` | Complete |
+| D-1c | Lifecycle decision and ARPP concurrency safety: gate → stage rows → request lock order, compare-and-set terminal transitions, atomic decision evidence, post-commit audit/notification, gated submission, ARPP lock-before-read and conditional supersession | #2677, merge `307542b2`; `StageDecisionService`, `StageProgressService`, `StageRequestService`, `ArppIpaStageSynchronizer`, `RelationalTransactionScope`; `StageDecisionTransactionTests`, `StageRequestSupersessionTests`, `ArppIpaStageSynchronizerStaleSnapshotTests`, PostgreSQL `StageDecisionConcurrencyPostgresFixture` (races shown failing on regression-only commits before each fix) | Complete |
+| D-1d | Warning-only lifecycle chronology observability for direct apply, approval and historical reconstruction; savepoint-isolated observation; post-commit `Stages.ActualChronologyWarning`, `…Unconfirmed` for caller-owned transactions, `…Failed` on observation failure | #2678, merge `119d6cf3`; `Services/Stages/LifecycleChronologyObserver.cs`; `LifecycleChronologyObservabilityTests`, PostgreSQL `LifecycleChronologyObservabilityPostgresFixture` | Complete |
+| D-1e | Documentation reconciliation | This change: `docs/timeline.md`, `docs/timeline-proposal-roadmap.md`, `docs/data-domain.md`, this plan, a status note in `docs/phase-d-handoff.md` | Complete once reviewed |
+
+Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production Database Migration Gate, whose PostgreSQL integration test executed (not skipped). Pre-existing Windows-only local failures (two ARPP CSS line-ending contract tests and `UploadRootProviderTests.UsesFallbackWhenPrimaryCreationFails`) are unrelated and untouched.
+
+**Scope beyond the original D-1c row (G).** D-1c also brought forward the D-3a `StageRequestService.CreateBatchAsync` gate change, made submission lock stage rows before its ARPP check and supersede by compare-and-set, and fixed two ARPP races found in review (stale IPA snapshot; submission versus ARPP supersession). The plan's D-1c and D-3a rows record this.
+
+### Acceptance criteria (J) after D-1
+
+| J | Criterion | Status after D-1 |
+| --- | --- | --- |
+| 1 | No PO write path to official Actual dates | **Pending D-2.** Assigned POs still publish directly (validated). |
+| 2, 3 | Approval publishes exactly what was reviewed; stale decisions rejected | **Pending D-3** (proposal decisions). |
+| 4 | Stale edits rejected without mutation | **Partly met.** Direct saves refuse stale per-stage tokens (service and page level). Refusing posts without the baseline marker is deferred to R-D3; proposal S1–S6 pending D-3. |
+| 5 | Required evidence atomic with the change | **Met for direct save, backfill and lifecycle decisions** (failure injection, SQLite and PostgreSQL). Submit/supersede/withdraw/reject of Actual proposals pending D-3. |
+| 6 | Shared validation on every correction/backfill boundary (F.5) | **Rows 1–2 enforced; rows 5–7 warning-only; row 8 exempt.** Rows 3–4 (submission, approval) and the cross-source parameterized test pending D-3. |
+| 7 | Rule 8 and 25 examples | **Met** in `ActualTimelineValidationServiceTests` (FS→IPA form of the example, convergence, skipped transparency, same day). |
+| 8 | ARPP rule 17 | **Met for D-1 paths** (correction, backfill, decisions, submission, ARPP races on PostgreSQL). R5 (proposal approval vs publication) pending D-3. |
+| 9 | Lifecycle status never changed by an Actual correction | **Met** (`StatusNotEditable`; ARPP-effective IPA exception preserved). |
+| 10 | Concurrency and rollback on PostgreSQL | **Met for D-1 races**; proposal races R1–R8/R12/R14 pending D-3. |
+| 11 | Recovery rehearsed (I.3) | **Pending** R-D2/R-D3. |
+| 12 | Existing suites pass | **Met** on every D-1 merge. |
+| 13 | Documentation updated | **Met for D-1** by D-1e. G03/G04 close only with D-2/D-3. |
+| 14 | Release notes | **Pending.** No R-D1 release notes were produced by this work. |
+
+### D-1 verification findings
+
+D-1e verification found one residual race, recorded here rather than fixed (D-1e is documentation only):
+
+- **HoD direct apply versus ARPP verify on IPA.** `StageDirectApplyService` takes the project gate but does not lock stage rows. Its ARPP check reads committed data, and it supersedes a same-stage pending request with a tracked update. ARPP synchronization does not take the gate.
+  - A direct apply on IPA that runs while an ARPP verify is synchronizing can pass the ARPP check, because the publication is not yet committed. It then waits on ARPP's IPA row lock and applies the columns it computed from its earlier snapshot, which can overwrite the published completion (rule 17).
+  - It can also re-supersede a request ARPP already superseded, writing a second `Superseded` row.
+  - This is the pattern D-1c fixed for submission. It is narrow: an HoD acting on IPA concurrently with an ARPP verify for the same project.
+  - **Proposed follow-up:** lock the project's stage rows before the ARPP check, and supersede by compare-and-set. This needs its own change and review.
+- `HistoricalStageRecordService` takes no gate, by design (F.5 row 7), and writes its audit entry inside its transaction. It applies only to closed legacy projects.
+
+### Deferred work and decisions
+
+- **D-2** (unused tables, PO direct-publication cut-off) and **D-3a–D-3e** (PO proposals, Decision Centre, read models) are not started.
+- **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
+- **K-11** was accepted before D-1a and is implemented as per-branch convergence.
+- **K-1** (Admin approval of PO Actual corrections) and **K-14** (PO cut-off in R-D2, and R-D2/R-D3 in one window) remain **open**. D-1 assumes neither.
+- **K-12** and **K-13** remain operational questions for R-D2.
 
 ---
 
@@ -769,6 +828,8 @@ Implemented by `Services/Stages/LifecycleChronologyObserver.cs`:
 ### D-1e — Documentation
 
 Update `docs/timeline.md` ("Actual-date editing and backfill"), the `docs/timeline-proposal-roadmap.md` G12/G13 status (closed for direct paths), `docs/data-domain.md` (stale backfill and lock text), and this plan's status.
+
+Delivered: see [Implementation status](#implementation-status).
 
 ### D-2 — Schema (unused) and PO direct-publication cut-off
 
