@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -63,6 +64,8 @@ internal static class StageDecisionConcurrencyPostgresFixture
         await ArppReadBeforeAReopenCannotPublishAStaleStageAsync(options, nested: true);
         await ArppReadBeforeAStartApprovalKeepsStageRequestAndHistoryConsistentAsync(options);
         await ArppCreatingTheIpaStageSupersedesTheUndecidableRequestAsync(options);
+        await SubmissionAfterArppPublicationIsRefusedAndLeavesOneSupersessionAsync(options);
+        await ArppAfterSubmissionSupersedesTheReplacementOnceAsync(options);
     }
 
     // SECTION: Scenario A — approval vs approval
@@ -460,8 +463,232 @@ internal static class StageDecisionConcurrencyPostgresFixture
         Assert.Equal(new[] { "Superseded" }, await HistoryAsync(options, projectId));
     }
 
+    // SECTION: Submission vs ARPP supersession (real published ARPP authority)
+    /// <summary>
+    /// Independent-review P2, ARPP first. An ARPP verify publishes the IPA
+    /// position and synchronization has superseded pending request R, but has not
+    /// committed. A project officer then submits a replacement for R. Submission
+    /// must wait for the IPA row, see the committed ARPP authority and refuse; R
+    /// keeps the single system supersession and no ineligible pending IPA request
+    /// is published.
+    /// </summary>
+    private static async Task SubmissionAfterArppPublicationIsRefusedAndLeavesOneSupersessionAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaCompletionRequestAsync(options, "D-1c ARPP before submission");
+
+        await using var pause = new PauseAtStageWrite();
+        await using var synchronizerDb = Context(options, pause);
+        await using var verify = await RelationalTransactionScope.CreateAsync(synchronizerDb.Database);
+        await PublishArppAsync(synchronizerDb, projectId);
+        var synchronization = Task.Run(() => PublishedSynchronizer(synchronizerDb).SynchronizeProjectsAsync(new[] { projectId }));
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var submitterDb = Context(options);
+        var submission = Task.Run(() => Submission(submitterDb).CreateAsync(IpaCompletionInput(projectId, Jan(26)), LeadPo));
+        await WaitUntilCompletedOrBlockedOnALockAsync(options, submission);
+        pause.Release();
+        Assert.Equal(1, (await synchronization.WaitAsync(Timeout)).SupersededRequestCount);
+        await verify.CommitAsync();
+
+        var submitted = await submission.WaitAsync(Timeout);
+        Assert.Equal(StageRequestOutcome.ValidationFailed, submitted.Outcome);
+        Assert.Contains(ArppManagedIpaStageException.UserMessage, submitted.Errors);
+
+        var request = await RequestAsync(options, requestId);
+        Assert.Equal("Superseded", request.DecisionStatus);
+        Assert.Equal("PRISM system", request.DecidedByUserId);
+        Assert.Equal(1, await IpaRequestCountAsync(options, projectId));
+        Assert.Equal(0, await PendingIpaRequestCountAsync(options, projectId));
+        Assert.Equal(new[] { ("Superseded", "PRISM system") }, await HistoryWithActorsAsync(options, projectId));
+        await AssertArppCompletionAsync(options, projectId);
+    }
+
+    /// <summary>
+    /// Independent-review P2, submission first. The project officer's replacement
+    /// has read R as pending and is about to supersede it when an ARPP verify
+    /// publishes the IPA position. Before D-1c review, ARPP superseded R and then
+    /// submission overwrote R's terminal attribution, wrote a second Superseded
+    /// row for it and left its replacement pending under ARPP authority. Now ARPP
+    /// waits for the IPA row, then supersedes the replacement: each request gets
+    /// exactly one terminal transition and one Superseded row, and nothing stays
+    /// pending against published authority.
+    /// </summary>
+    private static async Task ArppAfterSubmissionSupersedesTheReplacementOnceAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaCompletionRequestAsync(options, "D-1c submission before ARPP");
+
+        await using var pause = new PauseAtRequestWrite();
+        await using var submitterDb = Context(options, pause);
+        var submission = Task.Run(() => Submission(submitterDb).CreateAsync(IpaCompletionInput(projectId, Jan(26)), LeadPo));
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var synchronizerDb = Context(options);
+        var synchronization = Task.Run(async () =>
+        {
+            await using var verify = await RelationalTransactionScope.CreateAsync(synchronizerDb.Database);
+            await PublishArppAsync(synchronizerDb, projectId);
+            var result = await PublishedSynchronizer(synchronizerDb).SynchronizeProjectsAsync(new[] { projectId });
+            await verify.CommitAsync();
+            return result;
+        });
+        await WaitUntilCompletedOrBlockedOnALockAsync(options, synchronization);
+        pause.Release();
+
+        var submitted = await submission.WaitAsync(Timeout);
+        var synchronized = await synchronization.WaitAsync(Timeout);
+        Assert.Equal(StageRequestOutcome.Success, submitted.Outcome);
+        Assert.Equal(1, synchronized.SupersededRequestCount);
+
+        var original = await RequestAsync(options, requestId);
+        Assert.Equal("Superseded", original.DecisionStatus);
+        Assert.Equal(LeadPo, original.DecidedByUserId);
+        Assert.Equal("Superseded by newer stage update", original.DecisionNote);
+        var replacement = await RequestAsync(options, submitted.RequestId!.Value);
+        Assert.Equal("Superseded", replacement.DecisionStatus);
+        Assert.Equal("PRISM system", replacement.DecidedByUserId);
+        Assert.Equal(2, await IpaRequestCountAsync(options, projectId));
+        Assert.Equal(0, await PendingIpaRequestCountAsync(options, projectId));
+        Assert.Equal(
+            new[] { ("Superseded", LeadPo), ("Requested", LeadPo), ("Superseded", "PRISM system") },
+            await HistoryWithActorsAsync(options, projectId));
+        await AssertArppCompletionAsync(options, projectId);
+    }
+
     // SECTION: Helpers
     private static readonly DateOnly ArppIssueDate = new(2026, 2, 1);
+
+    private static StageRequestService Submission(ApplicationDbContext db)
+    {
+        var clock = FakeClock.ForIstDate(Today);
+        var policy = StageWorkflowTestFactory.CreatePolicy(db);
+        // Real ARPP authority: submission must observe what an ARPP verify committed.
+        return new StageRequestService(db, clock, new StageValidationService(db, clock, policy), policy);
+    }
+
+    private static StageChangeRequestInput IpaCompletionInput(int projectId, DateOnly completedOn) => new()
+    {
+        ProjectId = projectId,
+        StageCode = StageCodes.IPA,
+        RequestedStatus = StageStatus.Completed.ToString(),
+        RequestedDate = completedOn
+    };
+
+    /// <summary>Synchronizer resolving authority from the published ARPP rows it can see.</summary>
+    private static ArppIpaStageSynchronizer PublishedSynchronizer(ApplicationDbContext db) =>
+        new(db, clock: FakeClock.ForIstDate(Today));
+
+    /// <summary>What an ARPP verify saves before synchronizing: a published position for the project.</summary>
+    private static async Task PublishArppAsync(ApplicationDbContext db, int projectId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var issue = new ArppIssue
+        {
+            FinancialYearStart = 3000 + projectId,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP D-1c",
+            IssueDate = ArppIssueDate,
+            IsVerified = true,
+            VerifiedAtUtc = now,
+            VerifiedByUserId = Seeder,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now,
+            CreatedByUserId = Seeder,
+            UpdatedByUserId = Seeder,
+            RowVersion = new byte[] { 1 }
+        };
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = ArppIssueDate,
+            PublishedAtUtc = now,
+            PublishedByUserId = Seeder,
+            AttachmentStorageKey = $"arpp/d1c-{projectId}.pdf",
+            AttachmentOriginalFileName = $"ARPP-d1c-{projectId}.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    SourceEntryId = 900_000 + projectId,
+                    SortOrder = 1,
+                    SerialNumber = "33",
+                    PppNumber = "ARPP/D-1c/33",
+                    ProjectReference = $"Project {projectId}",
+                    ProjectId = projectId,
+                    Category = ArppCategory.New,
+                    IpaCost = 40_000_000m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3"
+                }
+            }
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>FS completed, IPA in progress since Jan 12, and a pending IPA completion request for Jan 25.</summary>
+    private static async Task<(int ProjectId, int RequestId)> SeedIpaCompletionRequestAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        string name)
+    {
+        var (projectId, requestId) = await SeedIpaRequestAsync(
+            options,
+            name,
+            new ProjectStage
+            {
+                StageCode = StageCodes.IPA, SortOrder = 2, Status = StageStatus.InProgress, ActualStart = Jan(12)
+            },
+            requestedStatus: StageStatus.Completed);
+        await using var db = new ApplicationDbContext(options);
+        await db.StageChangeRequests
+            .Where(item => item.Id == requestId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.RequestedDate, Jan(25)));
+        return (projectId, requestId);
+    }
+
+    private static async Task AssertArppCompletionAsync(DbContextOptions<ApplicationDbContext> options, int projectId)
+    {
+        var ipa = await IpaAsync(options, projectId);
+        Assert.Equal(StageStatus.Completed, ipa.Status);
+        Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+        Assert.Equal(Jan(12), ipa.ActualStart);
+    }
+
+    private static async Task<int> IpaRequestCountAsync(DbContextOptions<ApplicationDbContext> options, int projectId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        return await db.StageChangeRequests.CountAsync(item => item.ProjectId == projectId && item.StageCode == StageCodes.IPA);
+    }
+
+    private static async Task<int> PendingIpaRequestCountAsync(DbContextOptions<ApplicationDbContext> options, int projectId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        return await db.StageChangeRequests.CountAsync(item =>
+            item.ProjectId == projectId && item.StageCode == StageCodes.IPA && item.DecisionStatus == "Pending");
+    }
+
+    private static async Task<(string Action, string UserId)[]> HistoryWithActorsAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        int projectId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        var rows = await db.StageChangeLogs.AsNoTracking()
+            .Where(log => log.ProjectId == projectId)
+            .OrderBy(log => log.Id)
+            .Select(log => new { log.Action, log.UserId })
+            .ToListAsync();
+        return rows.Select(row => (row.Action, row.UserId)).ToArray();
+    }
 
     private static Task<StageDecisionResult> Decide(
         ApplicationDbContext db,
@@ -727,6 +954,59 @@ internal static class StageDecisionConcurrencyPostgresFixture
             }
 
             return await base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Release();
+            _reached.Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Holds a lifecycle submission at its first write to a request row: after
+    /// it has read and validated, before it supersedes or inserts anything.
+    /// </summary>
+    private sealed class PauseAtRequestWrite : DbCommandInterceptor, IAsyncDisposable
+    {
+        private readonly SemaphoreSlim _reached = new(0);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _paused;
+
+        public SemaphoreSlim Reached => _reached;
+
+        public void Release() => _release.TrySetResult();
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            await PauseIfRequestWriteAsync(command, cancellationToken);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            await PauseIfRequestWriteAsync(command, cancellationToken);
+            return result;
+        }
+
+        private async Task PauseIfRequestWriteAsync(DbCommand command, CancellationToken cancellationToken)
+        {
+            var requestWrite = command.CommandText.Contains("UPDATE \"StageChangeRequests\"", StringComparison.Ordinal)
+                || command.CommandText.Contains("INSERT INTO \"StageChangeRequests\"", StringComparison.Ordinal);
+            if (requestWrite && Interlocked.Exchange(ref _paused, 1) == 0)
+            {
+                _reached.Release();
+                await _release.Task.WaitAsync(Timeout, cancellationToken);
+            }
         }
 
         public ValueTask DisposeAsync()
