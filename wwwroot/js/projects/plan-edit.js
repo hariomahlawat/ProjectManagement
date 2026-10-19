@@ -71,10 +71,11 @@
         // Refresh the token even when the user has made subsequent local edits:
         // the next autosave must compare against the last COMMITTED proposal.
         if (typeof data.editToken === 'string') {
-          forms.forEach((form) => {
-            const token = form.querySelector('input[name="Input.EditToken"]');
-            if (token) token.value = data.editToken;
-          });
+          // Exact dates in the other tab were NOT refreshed with the Duration
+          // calculation. Keep that tab's old fingerprint so its stale payload
+          // cannot silently undo newer saved Duration proposal values.
+          const token = durationsForm.querySelector('input[name="Input.EditToken"]');
+          if (token) token.value = data.editToken;
         }
         if (version === editVersion && !submitting && !paused) {
           savedAt.textContent = `Saved at ${new Date(data.savedAt).toLocaleTimeString()}`;
