@@ -112,11 +112,13 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
             })
             .ToListAsync(cancellationToken);
 
-        var existingStages = await _db.ProjectStages
-            .Where(stage =>
-                authoritativeProjectIds.Contains(stage.ProjectId) &&
-                stage.StageCode == StageCodes.IPA)
-            .ToDictionaryAsync(stage => stage.ProjectId, cancellationToken);
+        // Locked before they are read, so every value projected below is the
+        // current committed row. EF writes only the columns that differ from the
+        // loaded values; projecting from a stale snapshot could leave a stage that
+        // a concurrent decision changed half-updated (e.g. InProgress carrying the
+        // ARPP CompletedOn).
+        var existingStages = (await LoadIpaStagesForUpdateAsync(authoritativeProjectIds, cancellationToken))
+            .ToDictionary(stage => stage.ProjectId);
 
         var pendingRequests = await _db.StageChangeRequests
             .Where(request =>
@@ -224,7 +226,7 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
                 authority.DocumentLabel));
         }
 
-        // Lock order matches lifecycle decisions: stage row first, request row second.
+        // Lock order matches lifecycle decisions: stage rows (locked above), then request rows.
         if (changes.Count > 0 || dataQualityIssues.Count > 0 || supersedeCandidates.Count > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -269,6 +271,42 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
             changes,
             dataQualityIssues,
             supersededRequestCount);
+    }
+
+    /// <summary>
+    /// Loads the projects' IPA stages under a row lock on PostgreSQL, in a fixed
+    /// <c>Id</c> order shared with every other multi-row stage writer, so a
+    /// lifecycle decision holding a stage row is waited for rather than raced.
+    /// </summary>
+    private async Task<List<ProjectStage>> LoadIpaStagesForUpdateAsync(
+        int[] projectIds,
+        CancellationToken cancellationToken)
+    {
+        // Identity resolution keeps the values of an entity this context already
+        // tracks (for example one loaded earlier in an enclosing ARPP transaction),
+        // so those are refreshed from the row once it is locked.
+        var alreadyTracked = _db.ChangeTracker.Entries<ProjectStage>()
+            .Where(entry => entry.State == EntityState.Unchanged &&
+                            projectIds.Contains(entry.Entity.ProjectId) &&
+                            entry.Entity.StageCode == StageCodes.IPA)
+            .Select(entry => entry.Entity)
+            .ToList();
+
+        var stages = _db.Database.IsNpgsql()
+            ? await _db.ProjectStages
+                .FromSqlInterpolated(
+                    $"SELECT * FROM \"ProjectStages\" WHERE \"ProjectId\" = ANY({projectIds}) AND \"StageCode\" = {StageCodes.IPA} ORDER BY \"Id\" FOR UPDATE")
+                .ToListAsync(cancellationToken)
+            : await _db.ProjectStages
+                .Where(stage => projectIds.Contains(stage.ProjectId) && stage.StageCode == StageCodes.IPA)
+                .ToListAsync(cancellationToken);
+
+        foreach (var stage in alreadyTracked)
+        {
+            await _db.Entry(stage).ReloadAsync(cancellationToken);
+        }
+
+        return stages;
     }
 
     private async Task<bool> SupersedeIfStillPendingAsync(

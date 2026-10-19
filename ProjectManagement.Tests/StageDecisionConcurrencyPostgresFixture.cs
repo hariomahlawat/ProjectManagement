@@ -57,6 +57,7 @@ internal static class StageDecisionConcurrencyPostgresFixture
         await HistoryFailureRollsBackTheWholeDecisionAsync(options, StageDecisionAction.Reject);
         await SubmissionCannotSupersedeARequestBeingApprovedAsync(options);
         await ArppSynchronizationCannotSupersedeARequestBeingApprovedAsync(options);
+        await ArppSynchronizationCannotSupersedeARequestBeingRejectedAsync(options);
         await DecisionCannotApproveARequestArppHasSupersededAsync(options);
         await ArppReadBeforeAReopenCannotPublishAStaleStageAsync(options, nested: false);
         await ArppReadBeforeAReopenCannotPublishAStaleStageAsync(options, nested: true);
@@ -269,6 +270,36 @@ internal static class StageDecisionConcurrencyPostgresFixture
         var ipa = await IpaAsync(options, projectId);
         Assert.Equal(StageStatus.Completed, ipa.Status);
         Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+    }
+
+    /// <summary>
+    /// The rejection counterpart: a rejection holding the IPA stage row makes
+    /// synchronization wait; synchronization then completes IPA but leaves the
+    /// rejected request and its single Rejected history row untouched.
+    /// </summary>
+    private static async Task ArppSynchronizationCannotSupersedeARequestBeingRejectedAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaStartRequestAsync(options, "D-1c ARPP vs rejection");
+
+        await using var pause = new PauseAtDecisionHistory();
+        await using var decider = Context(options, pause);
+        var decision = Decide(decider, requestId, StageDecisionAction.Reject, Hod);
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var synchronizerDb = Context(options);
+        var synchronization = Synchronizer(synchronizerDb, projectId).SynchronizeProjectsAsync(new[] { projectId });
+        await WaitUntilBlockedOnALockAsync(options, synchronization);
+        pause.Release();
+
+        Assert.Equal(StageDecisionOutcome.Success, (await decision.WaitAsync(Timeout)).Outcome);
+        Assert.Equal(0, (await synchronization.WaitAsync(Timeout)).SupersededRequestCount);
+        Assert.Equal("Rejected", (await RequestAsync(options, requestId)).DecisionStatus);
+        Assert.Equal(new[] { "Rejected" }, await HistoryAsync(options, projectId));
+        var ipa = await IpaAsync(options, projectId);
+        Assert.Equal(StageStatus.Completed, ipa.Status);
+        Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+        Assert.Null(ipa.ActualStart);
     }
 
     /// <summary>
