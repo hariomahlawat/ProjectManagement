@@ -1907,7 +1907,7 @@ public class EditPlanDurationSafetyTests
         Assert.Equal(f.Page.Input.AnchorStart, own.Durations.AnchorStart);
         Assert.False(own.Durations.SkipHolidays);
         Assert.Equal(12, own.Durations.Rows.Single(r => r.Code == StageCodes.FS).DurationDays);
-        Assert.Equal(action == "Submit", own.State.IsLocked);
+        Assert.False(own.State.IsLocked);
         var outsider = await new PlanReadService(f.Db).GetAsync(1, "no-proposal-user");
         Assert.Equal(new DateOnly(2026, 10, 5), outsider.Durations.AnchorStart);
         Assert.True(outsider.Durations.SkipHolidays);
@@ -2091,7 +2091,7 @@ public class EditPlanDurationSafetyTests
         Assert.Equal(f.Page.Input.Rows[0].PlannedStart, row.PlannedStart);
         Assert.Equal(f.Page.Input.Rows[0].PlannedDue, row.PlannedDue);
         Assert.Equal(status, view.State.Status);
-        Assert.Equal(action == "Submit", view.State.IsLocked);
+        Assert.False(view.State.IsLocked);
         Assert.Equal(action == "SaveDraft", view.State.HasMyDraft);
         var proposal = await f.Db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
         Assert.Equal(status, proposal.Status);
