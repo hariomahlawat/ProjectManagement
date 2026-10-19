@@ -37,8 +37,6 @@ public sealed class UserNotificationService
         NotificationKind.MentionedInRemark,
         NotificationKind.PlanSubmitted,
         NotificationKind.PlanRejected,
-        NotificationKind.PlanWithdrawn,
-        NotificationKind.PlanSuperseded,
         NotificationKind.StageAssigned,
         NotificationKind.RoleAssignmentsChanged,
         NotificationKind.ProjectAssignmentChanged,
