@@ -386,15 +386,28 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
+builder.Services.Configure<LoginRateLimitOptions>(builder.Configuration.GetSection(LoginRateLimitOptions.SectionName));
+
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("login", o =>
+    // Sign-in attempts are throttled per client address; opening the login page is not.
+    options.AddPolicy(LoginRateLimiting.PolicyName, context =>
+        LoginRateLimiting.GetPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptions<LoginRateLimitOptions>>().Value));
+
+    options.OnRejected = (context, _) =>
     {
-        o.PermitLimit = 10;
-        o.Window = TimeSpan.FromMinutes(5);
-        o.QueueLimit = 0;
-        o.AutoReplenishment = true;
-    });
+        if (LoginRateLimiting.IsLoginRequest(context.HttpContext))
+        {
+            context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ProjectManagement.LoginRateLimit")
+                .LogWarning("Sign-in attempts throttled for client {ClientIp}.", LoginRateLimiting.ClientLabel(context.HttpContext));
+            context.HttpContext.Response.Redirect(LoginRateLimiting.BuildThrottledRedirect(context.HttpContext));
+        }
+
+        return ValueTask.CompletedTask;
+    };
 
     options.AddFixedWindowLimiter("docUpload", o =>
     {

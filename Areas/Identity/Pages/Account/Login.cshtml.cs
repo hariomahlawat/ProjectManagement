@@ -7,16 +7,18 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
     [AllowAnonymous]
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-    [EnableRateLimiting("login")]
+    [EnableRateLimiting(LoginRateLimiting.PolicyName)]
     public class LoginModel : PageModel
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
@@ -24,13 +26,16 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly DefaultLandingPageResolver _landingPageResolver;
+        private readonly LoginRateLimitOptions _rateLimitOptions;
 
         public LoginModel(
             SignInManager<ApplicationUser> signInManager,
             ILogger<LoginModel> logger,
             ApplicationDbContext db,
-            DefaultLandingPageResolver landingPageResolver)
+            DefaultLandingPageResolver landingPageResolver,
+            IOptions<LoginRateLimitOptions> rateLimitOptions)
         {
+            _rateLimitOptions = rateLimitOptions.Value;
             _signInManager = signInManager;
             _logger = logger;
             _db = db;
@@ -55,7 +60,15 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             public bool RememberMe { get; set; }
         }
 
-        public void OnGet() { }
+        // Set when a throttled sign-in was redirected back here (see LoginRateLimiting).
+        public bool Throttled { get; private set; }
+
+        public int ThrottleWindowMinutes => (int)_rateLimitOptions.EffectiveWindow.TotalMinutes;
+
+        public void OnGet(bool throttled = false)
+        {
+            Throttled = throttled;
+        }
 
         private const string GenericLoginError = "Invalid username or password.";
 

@@ -34,6 +34,8 @@ This document lists every supported configuration value, its default, and how th
 | --- | --- | --- |
 | `UserLifecycle:HardDeleteWindowHours` | `72` | How long after a delete request the user purge worker waits before hard deleting an account. (see appsettings.json lines 23-28) (see Program.cs lines 108-148) |
 | `UserLifecycle:UndoWindowMinutes` | `15` | Time window in which administrators can undo a delete request before the user enters the hard-delete queue. |
+| `Security:LoginRateLimit:PermitLimit` | `100` | Sign-in attempts (POSTs to `/Identity/Account/Login`) allowed per client address in each window. Opening the login page is not throttled. Raise it where many users reach PRISM through one terminal server or proxy. Values are clamped to 1–100,000. (see Infrastructure/LoginRateLimiting.cs) |
+| `Security:LoginRateLimit:WindowMinutes` | `5` | Length of the sign-in throttling window, clamped to 1–1,440 minutes. A throttled client is sent back to the login page with a "too many sign-in attempts" message; per-account guessing is still bounded by Identity lockout after 5 failures. |
 
 ## Tasks
 
