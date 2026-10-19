@@ -62,9 +62,10 @@ D-1e verification identified a race in the D-1d baseline; the correction was mer
   - A direct apply on IPA that runs while an ARPP verify is synchronizing can pass the ARPP check, because the publication is not yet committed. It then waits on ARPP's IPA row lock and applies the columns it computed from its earlier snapshot, which can overwrite the published completion (rule 17).
   - It can also re-supersede a request ARPP already superseded, writing a second `Superseded` row.
   - This is the pattern D-1c fixed for submission. It is narrow: an HoD acting on IPA concurrently with an ARPP verify for the same project.
-  - **Correction:** [#2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (*Fix HoD direct apply racing ARPP verify on IPA*), **open and not merged**. Until it merges, `master` still has this race. The fix is narrow, confined to `StageDirectApplyService`:
+  - **Correction:** [#2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (*Fix HoD direct apply racing ARPP verify on IPA*), **merged** as `207acd82`; `master` contains the correction. The fix is narrow, confined to `StageDirectApplyService`:
     - lock every project stage row `FOR UPDATE` right after the project gate, before the ARPP authority check and any stage or request read (gate → stage rows → request rows, as in D-1c);
     - supersede the pending request by compare-and-set on `Pending`, refusing if it was already decided.
+  - **Remaining accepted limitation:** concurrent HoD/ARPP insertion when a legacy IPA row is absent can yield a handled unique-key conflict and require retry; both competing commit orders were reproduced on PostgreSQL with full rollback and no partial persisted state (test-only investigation `a1ad4c03`, CI run `39305713442`). PR #2680 did not alter missing-row insertion.
   - **Regression coverage:** a PostgreSQL scenario in `StageDecisionConcurrencyPostgresFixture`, plus a SQLite supersession test.
     - The PostgreSQL scenario failed on the regression-only commit: the IPA `CompletedOn` became the HoD's 25 Jan instead of the ARPP date of 1 Feb.
     - It passes with the fix, and the migration gate executed it.
