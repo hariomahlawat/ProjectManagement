@@ -92,6 +92,11 @@ public sealed class PlanReadService
             .ThenByDescending(plan => plan.VersionNo)
             .FirstOrDefault();
         var draftPlan = myDraft ?? myPending;
+        var latestRejected = string.IsNullOrWhiteSpace(currentUserId) ? null : planCandidates
+            .Where(plan => plan.Status == PlanVersionStatus.Rejected &&
+                           string.Equals(plan.OwnerUserId ?? plan.SubmittedByUserId, currentUserId,
+                                         StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(plan => plan.VersionNo).FirstOrDefault();
         var ownsInputs = draftPlan?.PlanningInputVersion >= PlanningInputVersions.Current;
         var presentsLegacyDraftInputs = draftPlan is
             { Status: PlanVersionStatus.Draft, PlanningInputVersion: PlanningInputVersions.Legacy };
@@ -267,10 +272,13 @@ public sealed class PlanReadService
             CreatedOn = draftPlan?.CreatedOn ?? pendingPlan?.CreatedOn,
             SubmittedOn = draftPlan?.SubmittedOn ?? pendingPlan?.SubmittedOn,
             SubmittedBy = DisplayName(draftPlan?.SubmittedByUser) ?? pendingSubmittedBy,
-            RejectedOn = draftPlan?.RejectedOn,
-            RejectedBy = DisplayName(draftPlan?.RejectedByUser),
-            RejectionNote = draftPlan?.RejectionNote,
+            RejectedOn = draftPlan?.RejectedOn ?? latestRejected?.RejectedOn,
+            RejectedBy = DisplayName(draftPlan?.RejectedByUser ?? latestRejected?.RejectedByUser),
+            RejectionNote = draftPlan?.RejectionNote ?? latestRejected?.RejectionNote,
             HasMyDraft = myDraft is not null,
+            CanDiscardDraft = myDraft is not null &&
+                !myDraft.RejectedOn.HasValue && !myDraft.SubmittedOn.HasValue &&
+                !myDraft.ApprovalLogs.Any(),
             HasPendingSubmission = pendingPlan is not null,
             PendingPlanVersionId = pendingPlan?.Id,
             PendingOwnedByCurrentUser = isPendingMine,
@@ -282,7 +290,7 @@ public sealed class PlanReadService
                 : null,
             PncApplicable = pncApplicable,
             LastSavedOn = lastSavedOn,
-            ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan)
+            ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan ?? latestRejected)
         };
 
         return new PlanEditorVm
