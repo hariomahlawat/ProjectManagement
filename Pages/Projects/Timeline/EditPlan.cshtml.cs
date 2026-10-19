@@ -750,7 +750,7 @@ public class EditPlanModel : PageModel
         // Autosave and Calculate never revoke an active HoD review.
         // Explicit SaveDraft may supersede it; Submit supersedes only after
         // approval validation succeeds in the same submission transaction.
-        if (intent == PlanIntent.SaveDraft)
+        if (intent == PlanIntent.SaveDraft && !IsAutosaveRequest)
             await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
         await revisionSave.CommitAsync(ct);
 
