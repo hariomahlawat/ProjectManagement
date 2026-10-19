@@ -32,8 +32,19 @@ public class PlanDraftService
         ILogger<PlanDraftService> logger,
         IAuditService audit,
         IUserContext userContext,
-        IOfficeCalendarService? officeCalendar = null,
-        IPlanNotificationService? notifications = null)
+        IOfficeCalendarService? officeCalendar = null)
+        : this(db, clock, logger, audit, userContext, officeCalendar, null)
+    {
+    }
+
+    public PlanDraftService(
+        ApplicationDbContext db,
+        IClock clock,
+        ILogger<PlanDraftService> logger,
+        IAuditService audit,
+        IUserContext userContext,
+        IOfficeCalendarService? officeCalendar,
+        IPlanNotificationService? notifications)
     {
         _db = db;
         _clock = clock;
