@@ -2447,37 +2447,7 @@ namespace ProjectManagement.Pages.Projects
 
             var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, TimeZoneHelper.GetIst()).Date);
 
-            // Stage tokens come from the stored rows behind the actuals editor.
-            var tokens = ActualsEditor.Rows
-                .Where(row => !string.IsNullOrWhiteSpace(row.StageToken))
-                .GroupBy(row => row.StageCode, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First().StageToken, StringComparer.OrdinalIgnoreCase);
-
-            var stages = Timeline.Items
-                .Where(item => item.RequiresBackfill)
-                .Select(item => new BackfillStageViewModel
-                {
-                    StageCode = item.Code,
-                    StageName = item.Name,
-                    ActualStart = item.ActualStart,
-                    CompletedOn = item.CompletedOn,
-                    IsAutoCompleted = item.IsAutoCompleted,
-                    AutoCompletedFromCode = item.AutoCompletedFromCode,
-                    StageToken = tokens.GetValueOrDefault(item.Code)
-                })
-                .ToArray();
-
-            return new BackfillViewModel
-            {
-                ProjectId = projectId,
-                Today = today,
-                // Claim stale protection only when every rendered row carries a
-                // token; otherwise a tokenless row would always be refused as stale.
-                BaselineVersion = stages.All(stage => !string.IsNullOrWhiteSpace(stage.StageToken))
-                    ? ActualStageToken.BaselineVersion
-                    : 0,
-                Stages = stages
-            };
+            return BackfillViewModel.Create(projectId, today, Timeline.Items, ActualsEditor);
         }
 
         private async Task<ProjectMetaChangeRequestVm?> BuildMetaChangeRequestVmAsync(Project project, ProjectMetaChangeRequest request, CancellationToken ct)

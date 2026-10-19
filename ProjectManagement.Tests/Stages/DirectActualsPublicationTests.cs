@@ -579,6 +579,47 @@ public sealed class DirectActualsPublicationTests
         Assert.Null((await verify.ProjectStages.SingleAsync()).CompletedOn);
     }
 
+    [Fact]
+    public void BackfillForm_PostsTheValuesOfTheSameSnapshotAsItsToken()
+    {
+        // The timeline read is older than the editor read: a concurrent correction
+        // moved the start from 1 Feb to 2 Feb between the two queries.
+        var timeline = new[]
+        {
+            new TimelineItemVm { Code = StageCodes.BID, Name = "Bidding", RequiresBackfill = true, ActualStart = Feb(1) }
+        };
+        var editor = new ActualsEditorVm
+        {
+            ProjectId = ProjectId,
+            Rows = new[]
+            {
+                new ActualsEditorRowVm { StageCode = StageCodes.BID, ActualStart = Feb(2), StageToken = "TOKEN-OF-2-FEB" }
+            }
+        };
+
+        var form = ProjectManagement.Features.Backfill.BackfillViewModel.Create(ProjectId, Today, timeline, editor);
+
+        var row = Assert.Single(form.Stages);
+        Assert.Equal(Feb(2), row.ActualStart);
+        Assert.Equal("TOKEN-OF-2-FEB", row.StageToken);
+        Assert.Equal(ActualStageToken.BaselineVersion, form.BaselineVersion);
+    }
+
+    [Fact]
+    public void BackfillForm_WithoutAnEditorSnapshotForARow_DoesNotClaimStaleProtection()
+    {
+        var form = ProjectManagement.Features.Backfill.BackfillViewModel.Create(
+            ProjectId,
+            Today,
+            new[] { new TimelineItemVm { Code = "EXT1", Name = "Extension", RequiresBackfill = true, ActualStart = Feb(1) } },
+            new ActualsEditorVm { ProjectId = ProjectId, Rows = Array.Empty<ActualsEditorRowVm>() });
+
+        var row = Assert.Single(form.Stages);
+        Assert.Null(row.StageToken);
+        Assert.Equal(Feb(1), row.ActualStart);
+        Assert.Equal(0, form.BaselineVersion);
+    }
+
     // SECTION: Rollback and post-commit effects
     [Fact]
     public async Task HistoryWriteFailure_RollsBackTheCorrection_AndSkipsTheAudit()
