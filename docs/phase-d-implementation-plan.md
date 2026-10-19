@@ -2,7 +2,7 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
-> **Implementation status (D-1e):** Release D-1 (D-1a … D-1e) is engineering-complete and merged; D-2 and D-3 are not started; nothing has been deployed by this work. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+> **Implementation status (D-1e):** Release D-1 (D-1a … D-1e) is engineering-complete and merged; D-2 and D-3 are approved (K-1, K-14 resolved) but not started; nothing has been deployed by this work. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
 >
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
@@ -65,12 +65,21 @@ D-1e verification found one residual race, recorded here rather than fixed (D-1e
   - **Proposed follow-up:** lock the project's stage rows before the ARPP check, and supersede by compare-and-set. This needs its own change and review.
 - `HistoricalStageRecordService` takes no gate, by design (F.5 row 7), and writes its audit entry inside its transaction. It applies only to closed legacy projects.
 
+### Approved governance for D-2/D-3
+
+Decided by the project owner on 2026-10-19, after this plan was written. These decisions are approved policy for D-2/D-3; **none of it is implemented yet**. The original K table below is kept as the decision record, with its resolution noted.
+
+- **Role precedence.** Admin and HoD authority supersedes Project Officer authority. A user who is both HoD and assigned PO publishes Actual corrections directly under HoD authority; a user who is both Admin and PO keeps Admin direct publication. Only PO-only users submit Actual correction proposals. An unassigned PO-only user has no correction authority. Self-approval is prohibited.
+- **K-1 (approval authority).** Both HoD and Admin may approve or reject PO Actual correction proposals.
+- **K-14 (authority transition and deployment).** PO-only direct Actual publication is removed in D-2. D-2 and D-3 are deployed together in one coordinated maintenance window, so assigned PO-only users always keep a working route to correct Actual dates. R-D2 on its own is only the emergency recovery floor (I.3), not a deployment state.
+- **PO experience.** The assigned PO opens the existing Actual editor, edits dates or backfill information, gets immediate validation feedback, submits for approval without re-entering data or extra paperwork, and can track and revise the proposal. Approval routing, immutable revision evidence, concurrency validation and audit history are handled by the system. This matches the design: proposals are made through the existing `EditActuals` and `BackfillApply` routes (D-3b), validated at submission (C.4), superseded by revision and shown with their status (D-3c).
+
 ### Deferred work and decisions
 
 - **D-2** (unused tables, PO direct-publication cut-off) and **D-3a–D-3e** (PO proposals, Decision Centre, read models) are not started.
 - **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
 - **K-11** was accepted before D-1a and is implemented as per-branch convergence.
-- **K-1** (Admin approval of PO Actual corrections) and **K-14** (PO cut-off in R-D2, and R-D2/R-D3 in one window) remain **open**. D-1 assumes neither.
+- **K-1 and K-14 are resolved** by the project owner (2026-10-19), together with role precedence; see [Approved governance for D-2/D-3](#approved-governance-for-d-2d-3). D-1 did not depend on either and implements neither.
 - **K-12** and **K-13** remain operational questions for R-D2.
 
 ---
@@ -233,7 +242,7 @@ None of them may read proposals. Phase D keeps every reader on official `Project
 | --- | --- | --- |
 | 1 | `docs/engineering/migrations.md` says startup applies both migration sets (verified in `DatabaseStartupMigrator`). `docs/deployment/offline-ws2022.md` §A3 says "do not auto-apply migrations; apply reviewed SQL". | The rollout plan must state which governs. Section I assumes the startup gate is authoritative and treats a reviewed SQL script as a pre-check artefact. |
 | 2 | `docs/data-domain.md` says backfill guards live in `PlanApprovalService.ApproveLatestDraftAsync`. `Services/Plans` contains no backfill reference. It also still describes a pre-C2 "read-only until HoD acts" lock. | The doc is stale. Correct it in D-1. |
-| 3 | Rules 19 and 22 frame HoD as the approver and say Admin gains no new approval rights. Code lets Admin decide stage and plan requests. | Open decision K-1. |
+| 3 | Rules 19 and 22 frame HoD as the approver and say Admin gains no new approval rights. Code lets Admin decide stage and plan requests. | Open decision K-1 at the time of writing; **resolved 2026-10-19**: HoD and Admin may decide PO Actual proposals ([approved governance](#approved-governance-for-d-2d-3)). |
 | 4 | `StageDateSuggestionResolver` suppresses every boundary when any convergence branch is undated. | Validity gap versus rules 6/8 (F.3). |
 | 5 | `StageDecisionService.DecideAsync` runs `StageValidationService` before `LockProjectAsync` (lines ~295 and ~312). | A stale validation window against concurrent Actual publication. Fixed in D-1c (E.4). |
 | 6 | `Pages/Projects/Procurement/Edit.cshtml.cs` has no project-assignment check, yet can clear `RequiresBackfill`. `Project` has no global `IsDeleted` query filter, so `EditActualsModel` does not exclude soft-deleted projects. | Resource-authorization defects outside Phase D's core. The second is fixed in D-1. The first is fixed separately in hariomahlawat/ProjectManagement#2673, merged to `master` as `abf396df`. |
@@ -848,7 +857,7 @@ Tests:
 - `ApplicationDatabaseMigrationsTests`, the `PostgresMigrationIntegrationTests` physical-schema assertions, and a purge test.
 - **Authority:** rewrite the PO cases of `EditActualsAuthorizationTests`: `OnPostAsync_PreservesCurrentAuthority`, `OnPostAsync_IpaCompletionCorrectionUsesConditionalPublishedAuthority` and `OnPostAsync_IpaStartRemainsSeparatelyCorrectableUnderNormalRoleAuthority`. An assigned PO is now refused, and `ProjectStage` and `StageChangeLog` are unchanged. Admin and HoD stay unchanged.
 - **Backfill authority:** add `StageBackfillAuthorizationTests` cases: assigned PO gets `approval-required`; HoD and Admin apply directly.
-- **Roles:** a user with both PO and HoD roles keeps direct authority.
+- **Roles:** a user with both PO and HoD roles, or both PO and Admin roles, keeps direct authority (approved role precedence).
 - **Facts-only exception (J-1):** a `ProcurementEditAuthorizationTests` case where an assigned PO saves a fact for a `Completed` stage with `CompletedOn == null`. `RequiresBackfill` stays `true`.
 
 ### D-3a — Proposal service
@@ -931,7 +940,7 @@ Update `docs/timeline.md` rules-to-implementation notes, the roadmap (G03/G04 cl
 | Area | Scenarios | Level |
 | --- | --- | --- |
 | No premature mutation | PO submit, resubmit, withdraw, reject: `ProjectStages` byte-identical and no `StageChangeLog` | SQLite |
-| Authorization | Assigned PO gets a proposal (refused in R-D2); unassigned PO is forbidden; Viewer is forbidden; HoD/Admin go direct; PO+HoD user goes direct; self-approval refused; Admin decide per K-1; soft-deleted project gives NotFound; reassigned PO forbidden at submit and withdraw | Page plus service |
+| Authorization | Assigned PO gets a proposal (refused in R-D2); unassigned PO is forbidden; Viewer is forbidden; HoD/Admin go direct; PO+HoD and PO+Admin users go direct; self-approval refused; HoD and Admin decide (K-1, approved); soft-deleted project gives NotFound; reassigned PO forbidden at submit and withdraw | Page plus service |
 | Status/date matrix | InProgress start required; no completion on InProgress; Completed start clearable; completion not clearable; future dates (IST 23:59/00:01); start > completion | Unit |
 | Graph | V1 vs V2 ordering; skipped ancestry; convergence (dated plus undated branch); PNC applicable on/off; same-day; next-day not enforced | Unit |
 | Final state | Predecessor change breaks an untouched successor (error); coordinated fix (pass); pre-existing violation (warning) | Unit plus service |
@@ -975,7 +984,7 @@ This plan adds no switch. A switch would create a second authority mode that cou
 | R-D2 | D-2: unused tables **plus the PO cut-off** | additive migration | **No direct publication.** Refused with "ask the HoD" (C.7). |
 | R-D3 | D-3a … D-3e, released together | none | Proposals for HoD approval. |
 
-**Recommended deployment:** R-D2 and R-D3 in **one maintenance window**. Apply R-D2 (migration plus cut-off), smoke-test it, then deploy R-D3 straight away. POs then never experience the R-D2 interruption in normal operation, and R-D2 exists as a tested emergency floor. If the owner instead wants R-D2 to run on its own for a period, POs cannot correct Actual dates themselves during that time; HoD/Admin can (K-14).
+**Recommended deployment:** R-D2 and R-D3 in **one maintenance window**. Apply R-D2 (migration plus cut-off), smoke-test it, then deploy R-D3 straight away. POs then never experience the R-D2 interruption in normal operation, and R-D2 exists as a tested emergency floor. **Approved (K-14, 2026-10-19):** R-D2 and R-D3 are deployed together; R-D2 alone is not a planned deployment state. If emergency recovery to R-D2 is ever needed (I.3), PO-only users cannot correct Actual dates during it; HoD/Admin can.
 
 ### I.2 Procedure for each release (offline SOP §D)
 
@@ -1083,7 +1092,7 @@ Each decision is classified as either a **policy** decision for the business own
 
 | # | Question | Governing rule / code today | Recommended default | Type | Needed before |
 | --- | --- | --- | --- | --- | --- |
-| **K-1** | May Admin approve or reject PO Actual corrections? | Rules 19/22 name HoD as the approver and grant "no new Admin approval rights". `ApprovalAuthorization.CanApproveProjectChanges` already lets Admin decide stage and plan requests, and Admin already has direct Actual authority (`EditActuals`) | Allow, via the existing helper. It grants no capability Admin lacks, since Admin can apply the same change directly | **Policy (authorization)** | **D-3d** |
+| **K-1** | May Admin approve or reject PO Actual corrections? | Rules 19/22 name HoD as the approver and grant "no new Admin approval rights". `ApprovalAuthorization.CanApproveProjectChanges` already lets Admin decide stage and plan requests, and Admin already has direct Actual authority (`EditActuals`) | Allow, via the existing helper. It grants no capability Admin lacks, since Admin can apply the same change directly. **Resolved 2026-10-19: allowed for HoD and Admin; self-approval prohibited.** | **Policy (authorization)** | **D-3d** (resolved) |
 | K-2 | Any HoD, or only `Project.HodUserId`? | Rule 19 says "HoD". Every path accepts any HoD; `StageDirectApplyService` documents this as deliberate | Any HoD, unchanged | Implementation (follows existing policy) | — |
 | K-3 | May a HoD reject a revision whose baseline has changed? | Rule 24 targets decisions on superseded revisions; that epoch check still applies | Yes. Nothing is published; approval stays blocked | Implementation | — |
 | K-4 | Should HoD direct edits or ARPP publication auto-close conflicting pending revisions? | Rule 17 requires superseding pending IPA *lifecycle* requests and gives ARPP value precedence. Direct apply supersedes lifecycle requests | No. Approval refuses (baseline and ARPP check), so precedence holds; "Needs revision" is shown. Automatic closure is a possible later refinement | Implementation (rule satisfied by refusal) | — |
@@ -1096,11 +1105,11 @@ Each decision is classified as either a **policy** decision for the business own
 | **K-11** | Accept per-branch convergence enforcement (F.3)? | Rule 6: the latest applicable predecessor completion controls. Today an undated branch disables all bounds | Accept. It blocks only violations that depend on changed values (F.4) | **Policy interpretation with production impact.** Direct HoD/Admin saves that pass today can be refused | **D-1a** |
 | K-12 | Deployment topology, and a full outage per release? | Unverified | Required by the SOP | Operational | Release R-D2 (not development) |
 | K-13 | Which governs migration application: the startup gate or the reviewed-SQL SOP (B.6 #1)? | The startup gate applies migrations | Operators confirm; fix the wrong doc | Operational / documentation | Release R-D2 (not development) |
-| **K-14** | Accept the PO cut-off in R-D2, and deploy R-D2 and R-D3 in one window? | Rule 19: direct PO publication is a deviation. There is no existing switch (I) | Yes. It makes the R-D3 → R-D2 floor governance-safe (I.3) | **Policy (business continuity and authorization)** | **D-2** |
+| **K-14** | Accept the PO cut-off in R-D2, and deploy R-D2 and R-D3 in one window? | Rule 19: direct PO publication is a deviation. There is no existing switch (I) | Yes. It makes the R-D3 → R-D2 floor governance-safe (I.3). **Resolved 2026-10-19: yes; PO-only direct publication removed in D-2, D-2 and D-3 deployed together.** | **Policy (business continuity and authorization)** | **D-2** (resolved) |
 
 **Blockers:**
 
-- **Before development:** K-11 blocks D-1a, K-14 blocks D-2 and K-1 blocks D-3d.
+- **Before development:** K-11 blocked D-1a, K-14 blocked D-2 and K-1 blocked D-3d. All three are now resolved (K-11 before D-1a; K-1 and K-14 on 2026-10-19, see [approved governance](#approved-governance-for-d-2d-3)).
 - **Before deployment:** K-12 and K-13 are needed before R-D2 is deployed.
 - **Not blocking:** all other rows proceed on their stated defaults.
 

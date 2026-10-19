@@ -149,6 +149,7 @@ A proposal must not contradict a pending lifecycle decision that could still pub
 - **HoD:** may review, approve or reject plan submissions; may directly modify timeline/stage state where current product permissions allow; may use authorised completion-without-date/backfill behaviour.
 - **Admin:** has timeline modification authority, including direct planned-date edits where current product permissions allow. Admin authority must not weaken date-validity rules. This does not grant unrelated plan-approval rights.
 - **Viewer/read-only roles:** have no mutation authority.
+- **Role precedence for Actual corrections (owner decision, 2026-10-19; takes effect with D-2/D-3, not yet implemented).** Admin and HoD authority supersedes Project Officer authority. A user who holds HoD or Admin as well as PO publishes Actual corrections directly under that authority. Only a PO-only user submits Actual correction proposals, and only for a project they are assigned to; an unassigned PO-only user has no correction authority. Nobody may approve their own proposal.
 
 These rules do not extend unrelated approval or security policy.
 
@@ -177,6 +178,8 @@ All three categories below require HoD approval for a PO submission before autho
 | Lifecycle | Start, complete, block/resume, skip, reopen, permitted reset and other status transitions. |
 
 For a PO, completion backfill is an actual fact correction with the same approval authority, not a separate publication privilege. The UI may highlight **Completion date required**, but the missing fact remains unresolved until an authorised decision publishes it. Authorised HoD completion without a date remains valid under rule 2. HoD/Admin direct behavior remains separately authorised only where existing product permissions allow, with identical business/date validity; this contract grants no new Admin approval rights.
+
+**Owner decision K-1 (2026-10-19).** For the **Actual fact correction** category only, an Admin as well as a HoD may approve or reject a PO proposal, and self-approval is prohibited. This supersedes the "no new Admin approval rights" sentence above for that category; Plan and Lifecycle approval are unchanged. It applies once PO Actual proposals exist (D-3), which is not yet implemented. See the [Phase D plan](phase-d-implementation-plan.md#k-open-decisions).
 
 ### 23. Official and proposed state
 
@@ -309,7 +312,7 @@ Partial plans remain supported. A dependency is checked only when predecessor PD
 
 Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. The current editor and completion backfill paths publish authorised PO corrections directly; those are recorded implementation deviations from rules 22-24, which require PO corrections to be proposed for HoD approval.
 
-Phase D-1 (D-1a … D-1d, merged; deployment unverified) hardens the current direct paths and the lifecycle writers. It does **not** yet change who may publish: an assigned Project Officer still publishes Actual corrections and backfill directly. Removing that (D-2) and routing PO corrections to HoD-approved proposals (D-3) are pending.
+Phase D-1 (D-1a … D-1d, merged; deployment unverified) hardens the current direct paths and the lifecycle writers. It does **not** yet change who may publish: an assigned Project Officer still publishes Actual corrections and backfill directly. The approved target (K-1, K-14) is that D-2 removes PO-only direct publication and D-3 routes PO-only corrections, through the same editor, to proposals decided by a HoD or Admin; D-2 and D-3 are to be deployed together. Neither is implemented yet.
 
 **Actual correction versus lifecycle publication.** Actual correction (`Edit actual dates`) and completion-date backfill change only a stage's Actual facts; they are governed by the shared Actual validator and are refused when the result is invalid. Lifecycle publication (HoD direct stage apply, an approved lifecycle request, historical reconstruction of a closed legacy project) changes a stage's status under its existing lifecycle rules, which stay as they were: Phase D only observes the resulting chronology.
 
