@@ -178,7 +178,8 @@ internal static class ActualCorrectionSchemaPostgresFixture
         {
             var failure = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
                 $"DELETE FROM \"ActualCorrectionRevisions\" WHERE \"Id\" = {standaloneRevisionId}"));
-            Assert.Equal(PostgresErrorCodes.RestrictViolation, failure.SqlState);
+            // PostgreSQL reports every foreign-key violation, ON DELETE RESTRICT included, as 23503.
+            Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, failure.SqlState);
             Assert.Equal("FK_ActualCorrectionItems_ActualCorrectionRevisions_RevisionId", failure.ConstraintName);
         }
 
