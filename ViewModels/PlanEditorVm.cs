@@ -21,6 +21,7 @@ public sealed class PlanEditorVm
 public sealed class PlanEditorStateVm
 {
     public bool HasDraft { get; init; }
+    public string EditToken { get; init; } = "none";
     public bool IsLocked { get; init; }
     public PlanVersionStatus? Status { get; init; }
     public int? VersionNo { get; init; }
