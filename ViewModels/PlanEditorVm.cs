@@ -32,6 +32,7 @@ public sealed class PlanEditorStateVm
     public string? RejectionNote { get; init; }
     public bool HasMyDraft { get; init; }
     public bool HasPendingSubmission { get; init; }
+    public int? PendingPlanVersionId { get; init; }
     public bool PendingOwnedByCurrentUser { get; init; }
     public DateTimeOffset? PendingSubmittedOn { get; init; }
     public string? PendingSubmittedBy { get; init; }
