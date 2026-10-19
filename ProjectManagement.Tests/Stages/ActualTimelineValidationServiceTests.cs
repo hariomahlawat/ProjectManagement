@@ -583,7 +583,214 @@ public sealed class ActualTimelineValidationServiceTests
         Assert.Equal(StageCodes.IPA, error.RelatedStageCode);
     }
 
+    // SECTION: Review coverage (topology, partial data, classification)
+    [Fact]
+    public void MultiLevelSkippedAncestry_IsTraversedToTheDatedAncestor()
+    {
+        var official = new[]
+        {
+            Completed(StageCodes.FS, Jan(1), Jan(10)),
+            Stage(StageCodes.IPA, StageStatus.Skipped),
+            Stage(StageCodes.SOW, StageStatus.Skipped),
+            InProgress(StageCodes.AON, Jan(12))
+        };
+
+        var error = Assert.Single(Evaluate(official, Change(StageCodes.AON, actualStart: Jan(9))).Errors);
+        Assert.Equal(StageCodes.FS, error.RelatedStageCode);
+
+        var bound = Assert.Single(StageDateSuggestionResolver.ResolveBranchBoundaries(
+            V1(),
+            StageCodes.AON,
+            code => official.FirstOrDefault(row => row.StageCode == code) is { } match
+                ? new StageChronologyState(match.Status, match.CompletedOn)
+                : null));
+        Assert.Equal(2, bound.SkippedStageCount);
+    }
+
+    [Fact]
+    public void PredecessorStartOnlyChange_LeavesSuccessorChronologyUnchanged()
+    {
+        var result = Evaluate(
+            new[]
+            {
+                Completed(StageCodes.FS, Jan(1), Jan(10)),
+                InProgress(StageCodes.IPA, Jan(5))
+            },
+            Change(StageCodes.FS, actualStart: Jan(2)));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(StageCodes.IPA, Assert.Single(result.Warnings).StageCode);
+    }
+
+    [Fact]
+    public void StagesOutsideTheWorkflow_GetIntrinsicChecksButNoInventedDependencies()
+    {
+        var official = new[]
+        {
+            Completed(StageCodes.FS, Jan(1), Jan(10)),
+            Completed("EXT1", Jan(1), Jan(5))
+        };
+
+        Assert.True(Evaluate(official, Change("EXT1", actualStart: Jan(2))).IsValid);
+        Assert.Equal(ActualValidationRule.FutureCompletion,
+            Assert.Single(Evaluate(official, Change("EXT1", completedOn: Today.AddDays(1))).Errors).Rule);
+    }
+
+    [Fact]
+    public void MissingPredecessorRow_SuppliesNoBound()
+    {
+        var result = Evaluate(
+            new[] { InProgress(StageCodes.IPA, Jan(11)) },
+            Change(StageCodes.IPA, actualStart: Jan(2)));
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void EditorCompletionOfAStageAwaitingBackfill_IsClassifiedAsBackfill()
+    {
+        var change = Assert.Single(Evaluate(
+            new[] { CompletedAwaitingBackfill(StageCodes.FS, start: Jan(1)) },
+            Change(StageCodes.FS, completedOn: Jan(10))).Changes);
+
+        Assert.True(change.IsBackfill);
+        Assert.False(change.Final.RequiresBackfill);
+    }
+
+    [Fact]
+    public void PublishedArpp_StartCorrectionOnStaleUndatedIpa_IsNotClassifiedAsBackfill()
+    {
+        var result = ActualTimelineValidationService.Evaluate(
+            V1(), Authority(Jan(25)), Today,
+            Candidate(
+                new[] { CompletedAwaitingBackfill(StageCodes.IPA, start: Jan(5)) },
+                Change(StageCodes.IPA, actualStart: Jan(6))));
+
+        var change = Assert.Single(result.Changes);
+        Assert.Equal(Jan(25), change.Final.CompletedOn);
+        Assert.False(change.Final.RequiresBackfill);
+        Assert.False(change.IsBackfill);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_FollowsTheSdd2Topology()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateDbAsync(connection, ProcurementWorkflow.VersionV2);
+
+        var result = await Service(db).ValidateAsync(Candidate(
+            new[]
+            {
+                Completed(StageCodes.FS, Jan(1), Jan(10)),
+                InProgress(StageCodes.SOW, Jan(11)),
+                Stage(StageCodes.IPA, StageStatus.NotStarted)
+            },
+            Change(StageCodes.FS, completedOn: Jan(20))));
+
+        var error = Assert.Single(result.Errors);
+        Assert.Equal(StageCodes.SOW, error.StageCode);
+        Assert.Equal(StageCodes.FS, error.RelatedStageCode);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_UsesConfiguredDependencies_WithoutInventingFallbackEdges()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateDbAsync(connection);
+        // Configured topology: IPA and SOW both depend only on FS (no SOW <- IPA edge).
+        db.StageDependencyTemplates.AddRange(
+            new StageDependencyTemplate { Version = ProcurementWorkflow.VersionV1, FromStageCode = StageCodes.IPA, DependsOnStageCode = StageCodes.FS },
+            new StageDependencyTemplate { Version = ProcurementWorkflow.VersionV1, FromStageCode = StageCodes.SOW, DependsOnStageCode = StageCodes.FS });
+        await db.SaveChangesAsync();
+
+        var official = new[]
+        {
+            Completed(StageCodes.FS, Jan(1), Jan(10)),
+            Completed(StageCodes.IPA, Jan(11), Jan(15)),
+            InProgress(StageCodes.SOW, Jan(12))
+        };
+
+        // Under the SDD-1.0 fallback this would invalidate SOW; configured topology does not.
+        Assert.True((await Service(db).ValidateAsync(Candidate(official, Change(StageCodes.IPA, completedOn: Jan(20))))).IsValid);
+
+        // Both configured successors of FS are invalidated: IPA (11 Jan) and SOW (12 Jan).
+        var errors = (await Service(db).ValidateAsync(
+            Candidate(official, Change(StageCodes.FS, completedOn: Jan(13))))).Errors;
+        Assert.Equal(new[] { StageCodes.IPA, StageCodes.SOW }, errors.Select(error => error.StageCode).OrderBy(code => code));
+        Assert.All(errors, error => Assert.Equal(StageCodes.FS, error.RelatedStageCode));
+    }
+
+    [Fact]
+    public async Task ValidateAsync_DraftArppEntry_DoesNotControlIpaCompletion()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Draft ARPP project",
+            CreatedByUserId = "seed",
+            WorkflowVersion = ProcurementWorkflow.VersionV1
+        });
+        db.ArppIssues.Add(new ArppIssue
+        {
+            FinancialYearStart = 2025,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "Working ARPP",
+            IssueDate = Jan(25),
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed",
+            Entries =
+            {
+                new ArppEntry
+                {
+                    SortOrder = 1,
+                    SerialNumber = "1",
+                    PppNumber = "ARPP/IR&D/N/2025-26/1",
+                    ProjectReference = "Draft ARPP project",
+                    ProjectId = 1,
+                    Category = ArppCategory.New,
+                    IpaCost = 1_000_000m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3",
+                    CreatedAtUtc = DateTimeOffset.UtcNow,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow,
+                    CreatedByUserId = "seed",
+                    UpdatedByUserId = "seed"
+                }
+            }
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ActualTimelineValidationService(
+            StageWorkflowTestFactory.CreatePolicy(db),
+            new ArppIpaStageAuthorityService(db),
+            FakeClock.ForIstDate(Today));
+
+        var result = await service.ValidateAsync(Candidate(
+            new[]
+            {
+                Completed(StageCodes.FS, Jan(1), Jan(10)),
+                Completed(StageCodes.IPA, Jan(11), Jan(20))
+            },
+            Change(StageCodes.IPA, completedOn: Jan(22))));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(Jan(22), Assert.Single(result.Changes).Final.CompletedOn);
+    }
+
     // SECTION: Helpers
+    private static ActualTimelineValidationService Service(ApplicationDbContext db) =>
+        new(StageWorkflowTestFactory.CreatePolicy(db), new StubArppAuthority(null), FakeClock.ForIstDate(Today));
+
     private static ActualTimelineValidationResult Evaluate(
         IReadOnlyList<ActualStageState> official,
         params ActualStageChange[] changes) =>
@@ -666,7 +873,9 @@ public sealed class ActualTimelineValidationServiceTests
 
     private static DateOnly Mar(int day) => new(2026, 3, day);
 
-    private static async Task<ApplicationDbContext> CreateDbAsync(SqliteConnection connection)
+    private static async Task<ApplicationDbContext> CreateDbAsync(
+        SqliteConnection connection,
+        string workflowVersion = ProcurementWorkflow.VersionV1)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlite(connection)
@@ -678,7 +887,7 @@ public sealed class ActualTimelineValidationServiceTests
             Id = 1,
             Name = "Actual validation project",
             CreatedByUserId = "seed",
-            WorkflowVersion = ProcurementWorkflow.VersionV1
+            WorkflowVersion = workflowVersion
         });
         await db.SaveChangesAsync();
         return db;

@@ -107,7 +107,10 @@ public sealed class ActualTimelineValidationService : IActualTimelineValidationS
                 stage.StageCode,
                 stage,
                 projected,
-                IsBackfill: stage.Status == StageStatus.Completed
+                // Adopting a published ARPP completion on a stale IPA row is ARPP
+                // reconciliation, not a user-supplied completion backfill.
+                IsBackfill: !IsManagedIpa(stage.StageCode, ipaAuthority)
+                    && stage.Status == StageStatus.Completed
                     && !stage.CompletedOn.HasValue
                     && projected.CompletedOn.HasValue));
         }
