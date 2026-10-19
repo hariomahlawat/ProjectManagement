@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using ProjectManagement.Infrastructure;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
@@ -87,6 +88,8 @@ public sealed class StageDecisionService
             connectionHash);
 
         // SECTION: Authorization guard
+        // Decision authority is role-based (Admin or any HoD) and does not depend
+        // on mutable project state, so it needs no in-transaction re-read.
         if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
         {
             _logger.LogWarning(
@@ -97,10 +100,15 @@ public sealed class StageDecisionService
             return StageDecisionResult.NotHeadOfDepartment();
         }
 
-        var request = await _db.StageChangeRequests
-            .SingleOrDefaultAsync(r => r.Id == input.RequestId, cancellationToken);
+        // Routing read only: the project to lock. Nothing decision-critical is
+        // taken from it; everything below is re-read under protection.
+        var projectId = await _db.StageChangeRequests
+            .AsNoTracking()
+            .Where(item => item.Id == input.RequestId)
+            .Select(item => (int?)item.ProjectId)
+            .SingleOrDefaultAsync(cancellationToken);
 
-        if (request is null)
+        if (projectId is null)
         {
             _logger.LogWarning(
                 "Stage decision request not found. RequestId={RequestId}, ConnHash={ConnHash}",
@@ -109,11 +117,27 @@ public sealed class StageDecisionService
             return StageDecisionResult.RequestNotFound();
         }
 
-        var stage = await _db.ProjectStages
-            .Include(s => s.Project)
-            .SingleOrDefaultAsync(
-                s => s.ProjectId == request.ProjectId && s.StageCode == request.StageCode,
-                cancellationToken);
+        // SECTION: Protection (lock order: project gate, then stage rows, then the request row)
+        // Approval and rejection both serialize with every gated timeline writer
+        // (plan publication, direct apply, direct Actual correction, lifecycle
+        // request submission). Stage rows are locked FOR UPDATE on PostgreSQL so
+        // writers outside the gate (ARPP synchronization) cannot change them
+        // between validation and publication. The rows are loaded here, inside the
+        // lock, so every later read of them in this context sees protected values.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId.Value, cancellationToken);
+        var projectStages = await ActualFactPublisher.LoadProjectStagesForUpdateAsync(_db, projectId.Value, cancellationToken);
+
+        var request = await _db.StageChangeRequests
+            .SingleOrDefaultAsync(r => r.Id == input.RequestId, cancellationToken);
+
+        if (request is null)
+        {
+            return StageDecisionResult.RequestNotFound();
+        }
+
+        var stage = projectStages.SingleOrDefault(
+            s => string.Equals(s.StageCode, request.StageCode, StringComparison.OrdinalIgnoreCase));
 
         if (stage is null)
         {
@@ -125,6 +149,8 @@ public sealed class StageDecisionService
                 connectionHash);
             return StageDecisionResult.StageNotFound();
         }
+
+        stage.Project ??= await _db.Projects.SingleOrDefaultAsync(p => p.Id == stage.ProjectId, cancellationToken);
 
         if (!string.Equals(request.DecisionStatus, PendingDecisionStatus, StringComparison.Ordinal))
         {
@@ -145,38 +171,13 @@ public sealed class StageDecisionService
 
         if (input.Action == StageDecisionAction.Reject)
         {
-            var useRejectTransaction = _db.Database.IsRelational();
-            await using var rejectTransaction = useRejectTransaction
-                ? await _db.Database.BeginTransactionAsync(cancellationToken)
-                : null;
-
-            if (useRejectTransaction)
+            if (!await TryClaimAsync(request, RejectedDecisionStatus, decisionUserId, now, trimmedNote, cancellationToken))
             {
-                var claimed = await _db.StageChangeRequests
-                    .Where(item => item.Id == request.Id && item.DecisionStatus == PendingDecisionStatus)
-                    .ExecuteUpdateAsync(
-                        setters => setters
-                            .SetProperty(item => item.DecisionStatus, RejectedDecisionStatus)
-                            .SetProperty(item => item.DecidedByUserId, decisionUserId)
-                            .SetProperty(item => item.DecidedOn, now)
-                            .SetProperty(item => item.DecisionNote, trimmedNote),
-                        cancellationToken);
-
-                if (claimed != 1)
-                {
-                    return StageDecisionResult.AlreadyDecided();
-                }
-
-                await _db.Entry(request).ReloadAsync(cancellationToken);
-            }
-            else
-            {
-                request.DecisionStatus = RejectedDecisionStatus;
-                request.DecidedByUserId = decisionUserId;
-                request.DecidedOn = now;
-                request.DecisionNote = trimmedNote;
+                return StageDecisionResult.AlreadyDecided();
             }
 
+            // Rejection publishes no lifecycle change; its history records the
+            // protected stage state it was decided against.
             var rejectionLog = new StageChangeLog
             {
                 ProjectId = stage.ProjectId,
@@ -195,11 +196,8 @@ public sealed class StageDecisionService
 
             await _db.StageChangeLogs.AddAsync(rejectionLog, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
-
-            if (rejectTransaction is not null)
-            {
-                await rejectTransaction.CommitAsync(cancellationToken);
-            }
+            await transaction.CommitAsync(cancellationToken);
+            LogPostCommitErrors(transaction, request.Id);
 
             _logger.LogInformation(
                 "Stage decision rejected. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ConnHash={ConnHash}",
@@ -212,6 +210,7 @@ public sealed class StageDecisionService
             return StageDecisionResult.Success(beforeStatus, beforeActualStart, beforeCompletedOn);
         }
 
+        // SECTION: Approval validation against protected state
         if (string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase) &&
             await _arppIpaStageAuthority.IsManagedAsync(stage.ProjectId, cancellationToken))
         {
@@ -289,9 +288,9 @@ public sealed class StageDecisionService
             }
         }
 
-        // Revalidate approved facts against published IPA authority immediately
-        // before claiming the request. This also rejects old reopen proposals that
-        // name a different start than the one this transition must preserve.
+        // Revalidate approved facts against published IPA authority. This also
+        // rejects old reopen proposals that name a different start than the one
+        // this transition must preserve.
         var validation = await new StageValidationService(_db, _clock, _workflowPolicy, _arppIpaStageAuthority)
             .ValidateAsync(stage.ProjectId, stage.StageCode, request.RequestedStatus,
                 effectiveDate, requestedStatus == StageStatus.Completed ? carriedForwardStart
@@ -303,35 +302,13 @@ public sealed class StageDecisionService
                 validation.MissingPredecessors.Select(code => $"Resolve required predecessor {code} first."))));
         }
 
-        var useTransaction = _db.Database.IsRelational();
-        await using var transaction = useTransaction
-            ? await _db.Database.BeginTransactionAsync(cancellationToken)
-            : null;
-        // Acquire before stage mutation, so a nested realignment cannot introduce
-        // a higher plan revision during concurrent timeline publication.
-        await PlanRevisionConsistency.LockProjectAsync(_db, stage.ProjectId, cancellationToken);
-
-        // Claim the still-pending request atomically before changing lifecycle state.
-        // This closes the race where two HoDs open the same request and approve it
-        // concurrently. The update remains inside this transaction and is rolled back
-        // automatically if stage application or final persistence fails.
-        if (useTransaction)
+        // SECTION: Atomic publication
+        // Claim the still-pending request before changing lifecycle state. Every
+        // write below (claim, stage state, cascade history, decision history and
+        // any realignment proposal) commits together or rolls back together.
+        if (!await TryClaimAsync(request, ApprovedDecisionStatus, decisionUserId, now, decisionNote: null, cancellationToken))
         {
-            var claimed = await _db.StageChangeRequests
-                .Where(item => item.Id == request.Id && item.DecisionStatus == PendingDecisionStatus)
-                .ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(item => item.DecisionStatus, ApprovedDecisionStatus)
-                        .SetProperty(item => item.DecidedByUserId, decisionUserId)
-                        .SetProperty(item => item.DecidedOn, now),
-                    cancellationToken);
-
-            if (claimed != 1)
-            {
-                return StageDecisionResult.AlreadyDecided();
-            }
-
-            await _db.Entry(request).ReloadAsync(cancellationToken);
+            return StageDecisionResult.AlreadyDecided();
         }
 
         if (requestedStatus == StageStatus.Completed && carriedForwardStart.HasValue)
@@ -354,6 +331,7 @@ public sealed class StageDecisionService
         }
         catch (InvalidOperationException ex)
         {
+            // Disposing the scope rolls back the claim and any partial changes.
             _logger.LogWarning(
                 ex,
                 "Stage decision validation failed. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}",
@@ -428,6 +406,9 @@ public sealed class StageDecisionService
             }
         }
 
+        await transaction.CommitAsync(cancellationToken);
+        LogPostCommitErrors(transaction, request.Id);
+
         _logger.LogInformation(
             "Stage decision approved. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ConnHash={ConnHash}, Warnings={WarningCount}",
             input.RequestId,
@@ -437,12 +418,61 @@ public sealed class StageDecisionService
             connectionHash,
             warnings.Count);
 
-        if (transaction is not null)
+        return StageDecisionResult.Success(afterStatus, afterActualStart, afterCompletedOn, warnings);
+    }
+
+    /// <summary>
+    /// Compare-and-set claim of a still-pending request inside the decision
+    /// transaction. On a relational store the conditional UPDATE also takes the
+    /// request row lock, so a competing decision or supersession that observed
+    /// the same Pending row cannot also succeed.
+    /// </summary>
+    private async Task<bool> TryClaimAsync(
+        StageChangeRequest request,
+        string decidedStatus,
+        string decisionUserId,
+        DateTimeOffset decidedOn,
+        string? decisionNote,
+        CancellationToken cancellationToken)
+    {
+        if (!_db.Database.IsRelational())
         {
-            await transaction.CommitAsync(cancellationToken);
+            // EF's in-memory provider has no ExecuteUpdate; it runs no concurrent writers.
+            request.DecisionStatus = decidedStatus;
+            request.DecidedByUserId = decisionUserId;
+            request.DecidedOn = decidedOn;
+            request.DecisionNote = decisionNote;
+            return true;
         }
 
-        return StageDecisionResult.Success(afterStatus, afterActualStart, afterCompletedOn, warnings);
+        var claimed = await _db.StageChangeRequests
+            .Where(item => item.Id == request.Id && item.DecisionStatus == PendingDecisionStatus)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.DecisionStatus, decidedStatus)
+                    .SetProperty(item => item.DecidedByUserId, decisionUserId)
+                    .SetProperty(item => item.DecidedOn, decidedOn)
+                    .SetProperty(item => item.DecisionNote, decisionNote),
+                cancellationToken);
+
+        if (claimed != 1)
+        {
+            return false;
+        }
+
+        await _db.Entry(request).ReloadAsync(cancellationToken);
+        return true;
+    }
+
+    private void LogPostCommitErrors(RelationalTransactionScope transaction, int requestId)
+    {
+        foreach (var error in transaction.PostCommitErrors)
+        {
+            _logger.LogError(
+                error,
+                "A post-commit side effect failed after stage decision {RequestId} committed; the decision stands.",
+                requestId);
+        }
     }
 
     private Task<DateOnly?> FindCarriedForwardStartAsync(

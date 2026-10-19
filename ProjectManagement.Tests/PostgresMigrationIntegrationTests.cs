@@ -155,6 +155,9 @@ public sealed class PostgresMigrationIntegrationTests
         // Phase D-1b: direct Actual correction validates and publishes behind the
         // project gate and stage row locks, and rolls back with its history.
         await StageActualsConcurrencyPostgresFixture.RunAsync(applicationOptions);
+        // Phase D-1c: lifecycle decisions decide once, revalidate behind the gate,
+        // roll back with their history, and are not overwritten by supersession.
+        await StageDecisionConcurrencyPostgresFixture.RunAsync(applicationOptions);
     }
 
 

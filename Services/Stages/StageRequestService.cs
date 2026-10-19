@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
@@ -166,6 +168,13 @@ public class StageRequestService
             return BatchStageRequestResult.Invalid(DistinctMessages(inputErrors));
         }
 
+        // Lifecycle request submission reads pending requests and stage state, then
+        // supersedes the same-stage pending request. It takes the project gate before
+        // those reads so it serializes with lifecycle decisions: a request being
+        // approved can never be overwritten as Superseded (or the reverse).
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, input.ProjectId, cancellationToken);
+
         var project = await _db.Projects
             .AsNoTracking()
             .Where(item => item.Id == input.ProjectId)
@@ -182,6 +191,16 @@ public class StageRequestService
             return BatchStageRequestResult.NotProjectOfficerResult();
         }
 
+        // Stage rows next (lock order: gate, stage rows, request rows). ARPP
+        // synchronization does not take the gate; it locks the IPA row before it
+        // supersedes pending IPA requests. Holding the row here makes the ARPP
+        // authority check and the pending-request reads below see either none of
+        // a concurrent ARPP verify or all of it.
+        var stages = (await ActualFactPublisher.LoadProjectStagesForUpdateAsync(_db, input.ProjectId, cancellationToken))
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.StageCode)
+            .ToList();
+
         if (preparedItems.Any(item =>
                 string.Equals(item.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)) &&
             await _arppIpaStageAuthority.IsManagedAsync(input.ProjectId, cancellationToken))
@@ -193,12 +212,6 @@ public class StageRequestService
         }
 
         var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken);
-
-        var stages = await _db.ProjectStages
-            .Where(item => item.ProjectId == input.ProjectId)
-            .OrderBy(item => item.SortOrder)
-            .ThenBy(item => item.StageCode)
-            .ToListAsync(cancellationToken);
 
         var stageLookup = stages
             .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
@@ -398,11 +411,6 @@ public class StageRequestService
             return BatchStageRequestResult.Invalid(untouchedPendingErrors);
         }
 
-        var useTransaction = _db.Database.IsRelational();
-        await using var transaction = useTransaction
-            ? await _db.Database.BeginTransactionAsync(cancellationToken)
-            : null;
-
         var now = _clock.UtcNow;
         var createdRequests = new List<(PreparedStageRequest Item, StageChangeRequest Request)>();
 
@@ -417,10 +425,16 @@ public class StageRequestService
 
             foreach (var pending in sameStagePending)
             {
-                pending.DecisionStatus = SupersededDecisionStatus;
-                pending.DecidedByUserId = userId;
-                pending.DecidedOn = now;
-                pending.DecisionNote = SupersededNote;
+                if (!await SupersedeIfStillPendingAsync(pending, userId, now, cancellationToken))
+                {
+                    // Already decided by another writer: never overwrite its terminal
+                    // state or add a second history row for it. Disposing the scope
+                    // rolls back this submission's earlier writes.
+                    return BatchStageRequestResult.Invalid(new[]
+                    {
+                        $"The pending {DisplayName(stageNames, item.StageCode)} update was decided while this update was being submitted. Reload and review the stage before submitting again."
+                    });
+                }
 
                 await _db.StageChangeLogs.AddAsync(
                     new StageChangeLog
@@ -482,10 +496,7 @@ public class StageRequestService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync(cancellationToken);
-        }
+        await transaction.CommitAsync(cancellationToken);
 
         var successfulItems = createdRequests
             .OrderBy(pair => pair.Item.InputOrder)
@@ -495,6 +506,42 @@ public class StageRequestService
             .ToArray();
 
         return BatchStageRequestResult.Success(successfulItems);
+    }
+
+    /// <summary>
+    /// Compare-and-set supersession of a same-stage request inside the submission
+    /// transaction: it changes the request only while it is still pending, so a
+    /// request another writer has already decided keeps that one terminal state.
+    /// </summary>
+    private async Task<bool> SupersedeIfStillPendingAsync(
+        StageChangeRequest pending,
+        string userId,
+        DateTimeOffset decidedOn,
+        CancellationToken cancellationToken)
+    {
+        if (!_db.Database.IsRelational())
+        {
+            // EF's in-memory provider has no ExecuteUpdate; it runs no concurrent writers.
+            pending.DecisionStatus = SupersededDecisionStatus;
+            pending.DecidedByUserId = userId;
+            pending.DecidedOn = decidedOn;
+            pending.DecisionNote = SupersededNote;
+            return true;
+        }
+
+        var superseded = await _db.StageChangeRequests
+            .Where(item => item.Id == pending.Id && item.DecisionStatus == PendingDecisionStatus)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.DecisionStatus, SupersededDecisionStatus)
+                    .SetProperty(item => item.DecidedByUserId, userId)
+                    .SetProperty(item => item.DecidedOn, decidedOn)
+                    .SetProperty(item => item.DecisionNote, SupersededNote),
+                cancellationToken);
+
+        // Keep the tracked request equal to the stored row so SaveChanges never rewrites it.
+        await _db.Entry(pending).ReloadAsync(cancellationToken);
+        return superseded == 1;
     }
 
     private static void ApplyPublishedAuthority(

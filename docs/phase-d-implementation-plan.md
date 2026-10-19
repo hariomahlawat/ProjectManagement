@@ -341,7 +341,7 @@ A direct HoD/Admin publication **does not** modify a pending PO revision. That r
 - **Pending lifecycle requests (rule 18).**
   - Today, `EditActuals` refuses stages with a pending `StageChangeRequest`. For **PO proposals**, Phase D replaces this lock with a contradiction check against the *projected* lifecycle state (F.6). The PO is never frozen, but cannot propose something incompatible with a pending lifecycle request that could still publish.
   - For **direct** HoD/Admin saves, keep the current conflict refusal unchanged, to avoid altering lifecycle precedence in Phase D.
-  - Lifecycle decisions remain independent. If a lifecycle approval changes a stage covered by a pending Actual revision, that revision becomes `SourceChanged` at decision time. A lifecycle request created after the revision was submitted is caught by the approval-time F.6 recheck. `StageRequestService.CreateBatchAsync` takes the project gate from D-3a, so it cannot slip in between that recheck and publication.
+  - Lifecycle decisions remain independent. If a lifecycle approval changes a stage covered by a pending Actual revision, that revision becomes `SourceChanged` at decision time. A lifecycle request created after the revision was submitted is caught by the approval-time F.6 recheck. `StageRequestService.CreateBatchAsync` takes the project gate from D-1c (brought forward from D-3a), so it cannot slip in between that recheck and publication.
 - **ARPP.**
   - At submission and at approval, an IPA `CompletedOn` item is rejected while a published authority exists. The existing message is `ArppManagedIpaStageException.UserMessage`.
   - An IPA `ActualStart` item remains allowed (rule 23) and is validated against the effective `IssueDate`.
@@ -689,7 +689,7 @@ Then apply the Actual changes, and run F.2–F.4 on that projection as well.
   - On a contradiction, approval returns **ValidationFailed** with no mutation: "Conflicts with the pending {stage} lifecycle update. Decide that update first, or ask the Project Officer to revise." Rejection is unaffected.
   - Only official facts plus the reviewed items can publish; pending lifecycle state is read only to refuse contradictions (rule 18).
 - **Lifecycle submission takes the same gate.** Today `StageRequestService.CreateBatchAsync` reads pending requests and stages before opening its transaction, and never calls `LockProjectAsync`. A request could therefore be committed between approval's read and its publication.
-  - D-3a moves `CreateBatchAsync`'s reads and writes inside one transaction that first calls `PlanRevisionConsistency.LockProjectAsync`. It changes no lifecycle validation rule, so the existing `StageRequestServiceTests` must pass unchanged.
+  - D-1c (brought forward from D-3a, because a submission's supersession could otherwise overwrite an approval) moves `CreateBatchAsync`'s reads and writes inside one transaction that first calls `PlanRevisionConsistency.LockProjectAsync`. It changes no lifecycle validation rule, so the existing `StageRequestServiceTests` must pass unchanged.
   - Approval and lifecycle submission for a project are then serialized. Whichever commits second sees the first: either approval's in-gate read sees the new request and refuses, or the request is validated against the already-published Actual facts.
   - A symmetric check at lifecycle submission against a pending Actual revision is **not** added in Phase D. The approval-time refusal is sufficient for rule 18, and adding it would change lifecycle submission rules (a Phase E concern).
 
@@ -743,9 +743,12 @@ Tests:
 
 | Files | Change |
 | --- | --- |
-| `Services/Stages/StageDecisionService.cs` | Move `LockProjectAsync` and the transaction above the validation block. Behaviour is otherwise identical |
+| `Services/Stages/StageDecisionService.cs` | Open the transaction and take `LockProjectAsync` before every decision-critical read, then load the stage rows `FOR UPDATE` and the request inside the lock. Approval and rejection both claim the request with a compare-and-set (`WHERE DecisionStatus = 'Pending'`), so a request is decided once. Validation, the claim, the stage transition and the decision history commit together. Behaviour is otherwise identical |
+| `Services/Stages/StageProgressService.cs` | `Stages.StageStatusChanged` / `Stages.StageAutoCompleted` audit and the stage notification move to `RegisterAfterCommit` (E.1). Its only caller is the decision service |
+| `Services/Stages/StageRequestService.cs` (`CreateBatchAsync`) | The D-3a gate change, brought forward: the transaction and `LockProjectAsync` come before the existing reads, so submission's same-stage supersession cannot overwrite a request being decided. Then the project's stage rows are locked `FOR UPDATE` (`Id` order) before the ARPP authority check and the pending-request reads, so an ARPP verify that does not take the gate is seen either entirely or not at all. The same-stage supersession is a compare-and-set on `Pending`, with its `Superseded` history written only when it transitions the request; if it loses, the submission is refused and rolled back. Validation rules unchanged |
+| `Services/Arpp/ArppIpaStageSynchronizer.cs` | Does not take the gate (row-level only). Locks the batch's existing IPA stage rows `FOR UPDATE` in `Id` order **before reading them**, and projects the ARPP completion from those locked rows (EF writes only the columns that differ from the loaded values, so a stale snapshot could leave a reopened stage `InProgress` with the ARPP `CompletedOn`). Then it supersedes each pending IPA request only while it is still `Pending`, writing the `Superseded` history only for a request it actually superseded. Same lock order as a decision: stage rows, then request rows. Each batch is one `RelationalTransactionScope` |
 
-Tests: SQLite ordering test, plus a PG scenario in a new `StageActualsConcurrencyPostgresFixture` (see H).
+Tests: `ProjectManagement.Tests/Stages/StageDecisionTransactionTests.cs` (SQLite: outcomes, authority, ARPP, rollback, post-commit failures) and `StageDecisionConcurrencyPostgresFixture` (approval vs approval, approval vs rejection in both orders, protected revalidation, rollback, submission and ARPP supersession races), wired into `PostgresMigrationIntegrationTests`.
 
 ### D-1d — Lifecycle observability (recommended)
 
@@ -785,7 +788,7 @@ Tests:
 | --- | --- |
 | **New** `Services/Stages/ActualCorrectionProposalService.cs` | `SubmitAsync`, `WithdrawAsync`, `ApproveAsync`, `RejectAsync`, `GetActionableAsync` (C.4–C.6). Result types are a discriminated record (`Success`, `Unchanged`, `Stale`, `SourceChanged`, `Validation`, `Conflict`, `Forbidden`, `NotFound`) |
 | **New** `Services/Stages/ProjectedLifecycleState.cs` | Extracted from `StageRequestService` private types. `StageRequestService` is refactored to use it with no behaviour change, proven by its existing 18 tests |
-| `Services/Stages/StageRequestService.cs` (`CreateBatchAsync`) | Open the transaction first and call `PlanRevisionConsistency.LockProjectAsync`, then perform the existing reads (stages, pending requests, start history, ARPP authority), validation and writes inside it. Validation rules are unchanged (F.6) |
+| `Services/Stages/StageRequestService.cs` (`CreateBatchAsync`) | **Done in D-1c.** The transaction and `PlanRevisionConsistency.LockProjectAsync` come first, then the existing reads (stages, pending requests, start history, ARPP authority), validation and writes inside it. Validation rules are unchanged (F.6) |
 | `Services/Stages/IStageNotificationService.cs` or a new `IActualCorrectionNotificationService` | After-commit notifications (K-8). Optional |
 
 Tests (SQLite, plus PG in `ActualCorrectionConcurrencyPostgresFixture`, wired into `PostgresMigrationIntegrationTests.CompleteStartupBoundary_MigratesAndValidatesBothContexts`, R1–R14):
