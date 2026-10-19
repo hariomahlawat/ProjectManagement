@@ -95,6 +95,7 @@ public class PlanApprovalService
 
         var pending = await PlanRevisionConsistency.ActionablePending(_db)
             .Include(p => p.StagePlans)
+            .Include(p => p.Project)
             .Where(p => p.ProjectId == projectId)
             .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
@@ -149,6 +150,8 @@ public class PlanApprovalService
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
+        if (pending?.Project is not null)
+            await _notifications.NotifyPlanSupersededAsync(pending, pending.Project, userId, cancellationToken);
 
         if (plan.Project is not null)
         {
@@ -170,6 +173,7 @@ public class PlanApprovalService
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
         var plan = await PlanRevisionConsistency.ActionablePending(_db)
+            .Include(p => p.Project)
             .SingleOrDefaultAsync(p => p.ProjectId == projectId && p.Id == planVersionId &&
                                        p.SubmittedOn == submittedOn, cancellationToken);
         if (plan is null ||
@@ -188,6 +192,8 @@ public class PlanApprovalService
         });
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        if (plan.Project is not null)
+            await _notifications.NotifyPlanWithdrawnAsync(plan, plan.Project, userId, cancellationToken);
         return true;
     }
 
