@@ -9,6 +9,7 @@ public sealed class PlanEditInput
     public int ProjectId { get; set; }
     public string Mode { get; set; } = PlanEditorModes.Exact;
     public string? Action { get; set; }
+    public string? EditToken { get; set; }
     public DateOnly? AnchorStart { get; set; }
     public bool IncludeWeekends { get; set; }
     public bool SkipHolidays { get; set; } = true;
