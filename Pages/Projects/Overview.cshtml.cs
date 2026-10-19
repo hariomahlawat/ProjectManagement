@@ -494,6 +494,8 @@ namespace ProjectManagement.Pages.Projects
             CanManageVideos = CanManagePhotos;
             CanUploadDocuments = isAdmin || isHoD || isThisProjectsPo;
             CanViewDocumentRecycleBin = isAdmin;
+            // Read by _ProjectProcurementAtAGlance; mirrors the Procurement/Edit server check.
+            ViewData["CanEditProcurement"] = isAdmin || isHoD || isThisProjectsPo;
 
             Roles = new ProjectRolesViewModel
             {

@@ -27,7 +27,8 @@
     string FullInr(decimal? value) => value.HasValue ? value.Value.ToString("C2", CultureInfo.GetCultureInfo("en-IN")) : "—";
     string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
 
-    var canEdit = User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Project Officer");
+    var canEdit = ViewData["CanEditProcurement"] as bool?
+        ?? (User.IsInRole("Admin") || User.IsInRole("HoD"));
     var hasAnyData = Model.IpaCost.HasValue ||
                      Model.AonCost.HasValue ||
                      Model.BenchmarkCost.HasValue ||

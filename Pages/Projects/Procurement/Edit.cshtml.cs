@@ -60,16 +60,38 @@ namespace ProjectManagement.Pages.Projects.Procurement
                 return BadRequest();
             }
 
-            if (!ModelState.IsValid)
-            {
-                TempData["Error"] = "Unable to save procurement details. Please review your input.";
-                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
-            }
-
             var userId = _users.GetUserId(User);
             if (userId is null)
             {
                 return Forbid();
+            }
+
+            var project = await _db.Projects
+                .AsNoTracking()
+                .Where(p => p.Id == id)
+                .Select(p => new { p.LeadPoUserId })
+                .SingleOrDefaultAsync(ct);
+
+            if (project is null)
+            {
+                return NotFound();
+            }
+
+            // A Project Officer may edit only the project they lead; the role alone is not enough.
+            var isAssignedProjectOfficer = string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+            if (!User.IsInRole("Admin") && !User.IsInRole("HoD") && !isAssignedProjectOfficer)
+            {
+                _logger.LogWarning(
+                    "User {UserId} attempted to edit procurement details for project {ProjectId} without permission.",
+                    userId,
+                    id);
+                return Forbid();
+            }
+
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Unable to save procurement details. Please review your input.";
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
 
             var stages = await _db.ProjectStages
