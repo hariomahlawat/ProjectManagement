@@ -501,7 +501,9 @@ public class PlanApprovalPublicationTests
             (await db.PlanVersions.SingleAsync(p => p.Id == newer.Id)).Status);
         Assert.Equal(baseline, await PublishedStateAsync(db));
         Assert.Empty(await db.ProjectPlanSnapshots.ToListAsync());
-        Assert.Single(await db.PlanApprovalLogs.ToListAsync());
+        var history = await db.PlanApprovalLogs.ToListAsync();
+        Assert.Single(history, log => log.Action == "Rejected");
+        Assert.Single(history, log => log.Action == "Submitted");
         Assert.Equal(0, notifications.Approvals);
         Assert.Equal(1, notifications.Rejections);
     }
