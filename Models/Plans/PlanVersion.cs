@@ -75,7 +75,10 @@ public enum PlanVersionStatus
 {
     Draft = 1,
     PendingApproval = 2,
-    Approved = 3
+    Approved = 3,
+    Superseded = 4,
+    Withdrawn = 5,
+    Rejected = 6
 }
 
 public enum PlanTransitionRule
