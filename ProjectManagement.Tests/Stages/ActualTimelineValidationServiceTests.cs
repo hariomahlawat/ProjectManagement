@@ -787,6 +787,18 @@ public sealed class ActualTimelineValidationServiceTests
         Assert.Equal(Jan(22), Assert.Single(result.Changes).Final.CompletedOn);
     }
 
+    // SECTION: RequiresBackfill semantics (Phase D-1b)
+    [Fact]
+    public void DateCorrection_OnADatedStageWithARaisedFlag_KeepsTheFlag()
+    {
+        var change = Assert.Single(Evaluate(
+            new[] { new ActualStageState(StageCodes.FS, StageStatus.Completed, Jan(1), Jan(10), RequiresBackfill: true) },
+            Change(StageCodes.FS, actualStart: Jan(2))).Changes);
+
+        Assert.True(change.Final.RequiresBackfill);
+        Assert.False(change.IsBackfill);
+    }
+
     // SECTION: Codex review regressions
     [Fact]
     public void NonApplicablePnc_RetainedDatedRow_NeitherBoundsNorIsBounded()

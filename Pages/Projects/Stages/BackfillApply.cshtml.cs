@@ -45,6 +45,10 @@ public class BackfillApplyModel : PageModel
         public DateOnly? ActualStart { get; set; }
 
         public DateOnly? CompletedOn { get; set; }
+
+        // Stored row token when the form was rendered (stale protection).
+        [StringLength(64)]
+        public string? StageToken { get; set; }
     }
 
     public class BackfillApplyInput
@@ -54,6 +58,9 @@ public class BackfillApplyModel : PageModel
 
         [MinLength(1)]
         public List<BackfillStageInput> Stages { get; set; } = new();
+
+        // Absent on forms rendered before stale protection.
+        public int? BaselineVersion { get; set; }
     }
 
     public async Task<IActionResult> OnPostAsync([FromBody] BackfillApplyInput input, CancellationToken ct)
@@ -114,7 +121,7 @@ public class BackfillApplyModel : PageModel
         {
             var updates = input.Stages
                 .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
-                .Select(stage => new StageBackfillUpdate(stage.StageCode, stage.ActualStart, stage.CompletedOn))
+                .Select(stage => new StageBackfillUpdate(stage.StageCode, stage.ActualStart, stage.CompletedOn, stage.StageToken))
                 .ToArray();
 
             if (updates.Length == 0)
@@ -122,7 +129,8 @@ public class BackfillApplyModel : PageModel
                 return ValidationFailure(new[] { "At least one stage update must be provided." });
             }
 
-            var result = await _backfillService.ApplyAsync(input.ProjectId, updates, userId, ct);
+            var actor = ActualWriteActor.FromPrincipal(principal, userId);
+            var result = await _backfillService.ApplyAsync(input.ProjectId, updates, actor, ct, input.BaselineVersion);
 
             return new JsonResult(new
             {
@@ -138,6 +146,16 @@ public class BackfillApplyModel : PageModel
         {
             return ValidationFailure(ex.Details);
         }
+        catch (StageBackfillStaleException ex)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new
+            {
+                ok = false,
+                error = "stale",
+                stages = ex.StaleStages,
+                message = $"These stages changed since you opened the form: {string.Join(", ", ex.StaleStages)}. Nothing was saved. Refresh the page and review the current dates."
+            });
+        }
         catch (StageBackfillConflictException ex)
         {
             return StatusCode(StatusCodes.Status409Conflict, new
@@ -146,6 +164,19 @@ public class BackfillApplyModel : PageModel
                 error = "conflict",
                 stages = ex.ConflictingStages,
                 message = "One or more stages no longer require backfill."
+            });
+        }
+        catch (ActualsWriteForbiddenException)
+        {
+            _logger.LogWarning("User {UserId} lost write authority over project {ProjectId} before backfill was saved.", userId, input.ProjectId);
+            return Forbid();
+        }
+        catch (ActualsProjectUnavailableException)
+        {
+            return NotFound(new
+            {
+                ok = false,
+                error = "not-found"
             });
         }
         catch (StageBackfillNotFoundException)

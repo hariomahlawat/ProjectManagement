@@ -582,7 +582,7 @@ namespace ProjectManagement.Pages.Projects
             PlanEdit = PlanEditorRecovery.Restore(
                 PlanEdit, TempData[PlanEditorRecovery.TempDataKey] as string, id, CurrentUserId, User);
             HasBackfill = Timeline.HasBackfill;
-            Backfill = BuildBackfillViewModel(id);
+            Backfill = await BuildBackfillViewModelAsync(id, ct);
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm
@@ -2438,7 +2438,7 @@ namespace ProjectManagement.Pages.Projects
             _ => "Request"
         };
 
-        private BackfillViewModel BuildBackfillViewModel(int projectId)
+        private async Task<BackfillViewModel> BuildBackfillViewModelAsync(int projectId, CancellationToken ct)
         {
             if (Timeline is null)
             {
@@ -2447,25 +2447,13 @@ namespace ProjectManagement.Pages.Projects
 
             var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, TimeZoneHelper.GetIst()).Date);
 
-            var stages = Timeline.Items
-                .Where(item => item.RequiresBackfill)
-                .Select(item => new BackfillStageViewModel
-                {
-                    StageCode = item.Code,
-                    StageName = item.Name,
-                    ActualStart = item.ActualStart,
-                    CompletedOn = item.CompletedOn,
-                    IsAutoCompleted = item.IsAutoCompleted,
-                    AutoCompletedFromCode = item.AutoCompletedFromCode
-                })
-                .ToArray();
+            // One read of the stored rows supplies both the posted values and the tokens.
+            var storedStages = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(stage => stage.ProjectId == projectId)
+                .ToListAsync(ct);
 
-            return new BackfillViewModel
-            {
-                ProjectId = projectId,
-                Today = today,
-                Stages = stages
-            };
+            return BackfillViewModel.Create(projectId, today, Timeline.Items, storedStages);
         }
 
         private async Task<ProjectMetaChangeRequestVm?> BuildMetaChangeRequestVmAsync(Project project, ProjectMetaChangeRequest request, CancellationToken ct)

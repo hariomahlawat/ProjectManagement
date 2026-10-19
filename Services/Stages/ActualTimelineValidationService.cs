@@ -270,10 +270,36 @@ public sealed class ActualTimelineValidationService : IActualTimelineValidationS
         // An explicit correction publishes the effective lifecycle state (this is
         // how a stale stored IPA row adopts published ARPP completion).
         var requiresBackfill = effectiveStatus == StageStatus.Completed
-            ? !isManagedIpa && !proposedCompleted.HasValue
+            ? CompletedStageRequiresBackfill(stage, proposedCompleted, isManagedIpa)
             : stage.RequiresBackfill;
 
         return new ActualStageState(code, effectiveStatus, proposedStart, proposedCompleted, requiresBackfill);
+    }
+
+    /// <summary>
+    /// A missing completion date always requires backfill, and published ARPP
+    /// authority never does. When the stage already had a completion date, a
+    /// raised flag records other missing mandatory stage facts (cleared by
+    /// <c>ProjectFactsService</c> when those facts are captured), so a date
+    /// correction must not clear it. Supplying the missing completion date
+    /// clears the date backfill, as the existing backfill workflow does.
+    /// </summary>
+    private static bool CompletedStageRequiresBackfill(
+        ActualStageState stage,
+        DateOnly? proposedCompleted,
+        bool isManagedIpa)
+    {
+        if (isManagedIpa)
+        {
+            return false;
+        }
+
+        if (!proposedCompleted.HasValue)
+        {
+            return true;
+        }
+
+        return stage.CompletedOn.HasValue && stage.RequiresBackfill;
     }
 
     // SECTION: Per-row projection (mandatory completion backfill)

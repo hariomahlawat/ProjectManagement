@@ -122,7 +122,9 @@ public sealed class ProjectTimelineReadService
                     ArppCompletionDate = ipaAuthority is not null &&
                         string.Equals(stage.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
                             ? ipaAuthority.IssueDate
-                            : null
+                            : null,
+                    // Stored facts, not the ARPP-effective projection shown above.
+                    StageToken = projectStage is null ? null : ActualStageToken.Compute(projectStage)
                 };
             })
             .ToArray();
@@ -131,6 +133,7 @@ public sealed class ProjectTimelineReadService
         {
             ProjectId = projectId,
             Today = today,
+            BaselineVersion = ActualStageToken.BaselineVersion,
             Rows = rows
         };
     }

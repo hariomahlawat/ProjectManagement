@@ -50,14 +50,19 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         var directApply = ReadRepoFile("Services", "Stages", "StageDirectApplyService.cs");
         var backfill = ReadRepoFile("Services", "Stages", "StageBackfillService.cs");
         var actuals = ReadRepoFile("Services", "Stages", "StageActualsUpdateService.cs");
+        var actualValidator = ReadRepoFile("Services", "Stages", "ActualTimelineValidationService.cs");
         var historical = ReadRepoFile("Services", "Stages", "HistoricalStageRecordService.cs");
 
         Assert.Contains("EnsureManualLifecycleMutationAllowedAsync", progress, StringComparison.Ordinal);
         Assert.Contains("ArppManagedIpaStageException.UserMessage", requests, StringComparison.Ordinal);
         Assert.Contains("ArppManagedIpaStageException.UserMessage", decisions, StringComparison.Ordinal);
         Assert.Contains("EnsureManualLifecycleMutationAllowedAsync", directApply, StringComparison.Ordinal);
-        Assert.Contains("ArppManagedIpaStageException.UserMessage", backfill, StringComparison.Ordinal);
-        Assert.Contains("Completion date is controlled by the published ARPP", actuals, StringComparison.Ordinal);
+        // Direct Actual correction and backfill enforce ARPP authority through the
+        // shared final-state validator (Phase D-1b).
+        Assert.Contains("_validator.ValidateAsync", backfill, StringComparison.Ordinal);
+        Assert.Contains("_validator.ValidateAsync", actuals, StringComparison.Ordinal);
+        Assert.Contains("ArppManagedIpaStageException.UserMessage", actualValidator, StringComparison.Ordinal);
+        Assert.Contains("Completion date is controlled by the published ARPP", actualValidator, StringComparison.Ordinal);
         Assert.Contains("managedIpaRow.CompletedOn != ipaAuthority.IssueDate", historical, StringComparison.Ordinal);
     }
 

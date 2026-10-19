@@ -13,6 +13,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Tests.Fakes;
 using ProjectManagement.ViewModels;
 using Xunit;
 
@@ -72,7 +73,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -165,7 +166,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -197,7 +198,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -221,7 +222,7 @@ public sealed class StageActualsUpdateServiceTests
             ProjectId = 1,
             Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA, CompletedOn = new DateOnly(2024, 1, 25) } }
         };
-        await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "user-1", "Tester"));
+        await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, TestActors.Hod("user-1"), "Tester"));
         var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
         Assert.Equal(StageStatus.InProgress, stage.Status);
         Assert.Equal(start, stage.ActualStart);
@@ -243,7 +244,7 @@ public sealed class StageActualsUpdateServiceTests
         var input = new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { row } };
         if (allowed)
         {
-            Assert.Equal(1, (await service.UpdateAsync(input, "user-1", "Tester")).UpdatedCount);
+            Assert.Equal(1, (await service.UpdateAsync(input, TestActors.Hod("user-1"), "Tester")).UpdatedCount);
             Assert.Null((await db.ProjectStages.AsNoTracking().SingleAsync()).ActualStart);
             var log = await db.StageChangeLogs.SingleAsync();
             Assert.Equal(new DateOnly(2024, 1, 10), log.FromActualStart);
@@ -251,7 +252,7 @@ public sealed class StageActualsUpdateServiceTests
         }
         else
         {
-            await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "user-1", "Tester"));
+            await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, TestActors.Hod("user-1"), "Tester"));
             Assert.Equal(new DateOnly(2024, 1, 10), (await db.ProjectStages.AsNoTracking().SingleAsync()).ActualStart);
             Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
         }
@@ -266,7 +267,7 @@ public sealed class StageActualsUpdateServiceTests
         await using var _ = connection;
         await using var __ = db;
         var result = await service.UpdateAsync(
-            new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA } } }, "user-1", "Tester");
+            new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA } } }, TestActors.Hod("user-1"), "Tester");
         Assert.Equal(0, result.UpdatedCount);
         var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
         Assert.Equal(new DateOnly(2024, 1, 10), stage.ActualStart);
@@ -290,7 +291,7 @@ public sealed class StageActualsUpdateServiceTests
                 new() { StageCode = StageCodes.IPA, ActualStart = DateOnly.Parse(startText), CompletedOn = DateOnly.Parse(completionText) }
             }
         };
-        await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, "user-1", "Tester"));
+        await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(input, TestActors.Hod("user-1"), "Tester"));
         var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
         Assert.Equal(new DateOnly(2024, 1, 10), stage.ActualStart);
         Assert.Equal(new DateOnly(2024, 1, 25), stage.CompletedOn);
@@ -305,7 +306,7 @@ public sealed class StageActualsUpdateServiceTests
         await using var _ = connection;
         await using var __ = db;
         var input = new ActualsEditInput { ProjectId = 1, Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.IPA } } };
-        Assert.Equal(0, (await service.UpdateAsync(input, "user-1", "Tester")).UpdatedCount);
+        Assert.Equal(0, (await service.UpdateAsync(input, TestActors.Hod("user-1"), "Tester")).UpdatedCount);
         var stage = await db.ProjectStages.AsNoTracking().SingleAsync();
         Assert.Equal(StageStatus.InProgress, stage.Status);
         Assert.Null(stage.ActualStart);
@@ -385,7 +386,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -457,7 +458,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -528,7 +529,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester"));
 
         Assert.Contains(exception.Errors, error =>
@@ -573,7 +574,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester");
 
         Assert.Equal(1, result.UpdatedCount);
@@ -600,7 +601,7 @@ public sealed class StageActualsUpdateServiceTests
         {
             ProjectId = 1,
             Rows = [new ActualsEditRowInput { StageCode = StageCodes.IPA, CompletedOn = completion }]
-        }, "user-1", "Tester");
+        }, TestActors.Hod("user-1"), "Tester");
         Assert.Equal(0, result.UpdatedCount);
         Assert.Equal(start, (await db.ProjectStages.SingleAsync()).ActualStart);
         Assert.Empty(await db.StageChangeLogs.ToListAsync());
@@ -638,7 +639,7 @@ public sealed class StageActualsUpdateServiceTests
                     }
                 }
             },
-            userId: "user-1",
+            actor: TestActors.Hod("user-1"),
             userName: "Tester"));
 
         Assert.Contains(exception.Errors, error => error.Contains("controlled by the published ARPP", StringComparison.OrdinalIgnoreCase));

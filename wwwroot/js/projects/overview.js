@@ -977,6 +977,7 @@
         const form = backfillModal.querySelector('[data-backfill-form]');
         const errorContainer = backfillModal.querySelector('[data-backfill-errors]');
         const projectInput = backfillModal.querySelector('[data-backfill-project]');
+        const baselineInput = backfillModal.querySelector('[data-backfill-baseline]');
         const tokenInput = backfillModal.querySelector('[data-backfill-token]');
         const emptyMessage = backfillModal.querySelector('[data-backfill-empty-message]');
 
@@ -1029,9 +1030,11 @@
 
         function collectPayload() {
             const projectId = Number.parseInt(projectInput?.value || '0', 10);
+            const baselineVersion = Number.parseInt(baselineInput?.value || '0', 10) || null;
             const stages = stageRows()
                 .map((row) => {
                     const stageCode = row.getAttribute('data-stage-code') || '';
+                    const stageToken = row.getAttribute('data-stage-token') || null;
                     const startInput = row.querySelector('[data-backfill-start]');
                     const completedInput = row.querySelector('[data-backfill-completed]');
                     const actualStart = startInput && startInput.value ? startInput.value : null;
@@ -1039,6 +1042,7 @@
 
                     return {
                         stageCode,
+                        stageToken,
                         actualStart,
                         completedOn
                     };
@@ -1047,6 +1051,7 @@
 
             return {
                 projectId,
+                baselineVersion,
                 stages
             };
         }
