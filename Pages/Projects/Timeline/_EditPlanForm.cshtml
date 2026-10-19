@@ -61,7 +61,7 @@
         </div>
     }
 
-    @if (!isDirectSaveRole && !isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+    @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
     {
         <div class="alert alert-secondary mb-3" role="status">
             <div class="fw-semibold">Draft saved</div>
@@ -168,7 +168,7 @@
                 </div>
 
                 <div class="pt-3 mt-3 border-top d-flex justify-content-end gap-2">
-                    @if (!isDirectSaveRole && !isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+                    @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
                     {
                         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#discardDraftModal">Discard draft</button>
                     }
@@ -262,7 +262,7 @@
 
                 <div class="d-flex gap-2 justify-content-end mt-3 pt-3 border-top">
                     <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="@PlanEditActions.Calculate" @(disableAttr)>Calculate</button>
-                    @if (!isDirectSaveRole && !isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+                    @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
                     {
                         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#discardDraftModal">Discard draft</button>
                     }
