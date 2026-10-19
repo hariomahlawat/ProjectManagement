@@ -787,6 +787,52 @@ public sealed class ActualTimelineValidationServiceTests
         Assert.Equal(Jan(22), Assert.Single(result.Changes).Final.CompletedOn);
     }
 
+    // SECTION: Codex review regressions
+    [Fact]
+    public void NonApplicablePnc_RetainedDatedRow_NeitherBoundsNorIsBounded()
+    {
+        var official = new[]
+        {
+            Completed(StageCodes.COB, Feb(1), Feb(10)),
+            Completed(StageCodes.PNC, Feb(11), Feb(25)),
+            InProgress(StageCodes.EAS, Feb(26))
+        };
+        // Moving COB completion past the retained PNC start must not be blocked
+        // when PNC is not applicable.
+        var change = Change(StageCodes.COB, completedOn: Feb(15));
+
+        var notApplicable = ActualTimelineValidationService.Evaluate(
+            V1(pncApplicable: false), null, Today, Candidate(official, change));
+        Assert.True(notApplicable.IsValid, string.Join(" | ", notApplicable.Errors.Select(e => e.Message)));
+        Assert.Empty(notApplicable.Warnings);
+
+        var applicable = ActualTimelineValidationService.Evaluate(
+            V1(pncApplicable: true), null, Today, Candidate(official, change));
+        var error = Assert.Single(applicable.Errors);
+        Assert.Equal(StageCodes.PNC, error.StageCode);
+        Assert.Equal(StageCodes.COB, error.RelatedStageCode);
+    }
+
+    [Fact]
+    public void ConfiguredExtensionStage_HonoursItsDependencies()
+    {
+        var workflow = V1(true, ("EXT1", StageCodes.FS));
+        var official = new[]
+        {
+            Completed(StageCodes.FS, Jan(1), Jan(10)),
+            InProgress("EXT1", Jan(12))
+        };
+
+        var own = Assert.Single(ActualTimelineValidationService.Evaluate(
+            workflow, null, Today, Candidate(official, Change("EXT1", actualStart: Jan(5)))).Errors);
+        Assert.Equal("EXT1", own.StageCode);
+        Assert.Equal(StageCodes.FS, own.RelatedStageCode);
+
+        var successor = Assert.Single(ActualTimelineValidationService.Evaluate(
+            workflow, null, Today, Candidate(official, Change(StageCodes.FS, completedOn: Jan(15)))).Errors);
+        Assert.Equal("EXT1", successor.StageCode);
+    }
+
     // SECTION: Helpers
     private static ActualTimelineValidationService Service(ApplicationDbContext db) =>
         new(StageWorkflowTestFactory.CreatePolicy(db), new StubArppAuthority(null), FakeClock.ForIstDate(Today));
@@ -821,9 +867,11 @@ public sealed class ActualTimelineValidationServiceTests
         new(code, actualStart, clearStart, completedOn);
 
     // The SDD-1.0 fallback topology used by ProjectStageWorkflowPolicy.
-    private static ProjectStageWorkflowSnapshot V1(bool pncApplicable = true)
+    private static ProjectStageWorkflowSnapshot V1(
+        bool pncApplicable = true,
+        params (string Stage, string Predecessor)[] extraDependencies)
     {
-        var dependencies = new (string Stage, string Predecessor)[]
+        var dependencies = extraDependencies.Concat(new (string Stage, string Predecessor)[]
         {
             (StageCodes.IPA, StageCodes.FS),
             (StageCodes.SOW, StageCodes.IPA),
@@ -836,7 +884,7 @@ public sealed class ActualTimelineValidationServiceTests
             (StageCodes.PNC, StageCodes.COB),
             (StageCodes.EAS, StageCodes.COB),
             (StageCodes.SO, StageCodes.EAS)
-        };
+        });
 
         return new ProjectStageWorkflowSnapshot(
             ProcurementWorkflow.VersionV1,

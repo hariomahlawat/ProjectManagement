@@ -349,6 +349,14 @@ public sealed class ActualTimelineValidationService : IActualTimelineValidationS
 
         foreach (var state in states.Values)
         {
+            // A retained PNC row is outside the effective graph while PNC is not
+            // applicable: its stale dates neither bound nor are bounded by others.
+            if (!workflow.PncApplicable
+                && string.Equals(state.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var effective = StageEffectiveState.Resolve(
                 state.StageCode,
                 new StageChronologyState(state.Status, state.CompletedOn),

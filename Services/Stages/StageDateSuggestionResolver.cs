@@ -141,7 +141,10 @@ public static class StageDateSuggestionResolver
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(stateAccessor);
 
-        if (string.IsNullOrWhiteSpace(stageCode) || !workflow.ContainsStage(stageCode))
+        // Graph membership comes from the effective dependencies, not the built-in
+        // stage metadata: a configured extension stage keeps its real boundaries,
+        // and an unconfigured stage simply has no required predecessors.
+        if (string.IsNullOrWhiteSpace(stageCode))
         {
             return Array.Empty<StageChronologyBoundary>();
         }
