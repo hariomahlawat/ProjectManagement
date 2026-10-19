@@ -1814,17 +1814,25 @@ public class EditPlanDurationSafetyTests
     }
 
     [Fact]
-    public async Task PendingDraftLock_ReturnsConflictBeforeWorkingInputsChange()
+    public async Task PendingOwner_AutosaveCreatesMaterialSuccessorWithoutPublishing()
     {
         await using var f = await Fixture.CreateAsync("Project Officer", "Autosave");
-        f.Db.PlanVersions.Add(new PlanVersion
+        var submitted = new PlanVersion
         {
             ProjectId = 1, VersionNo = 1, Title = PlanVersion.ProjectTimelineTitle,
             OwnerUserId = "po-user", CreatedByUserId = "po-user",
+            SubmittedByUserId = "po-user", SubmittedOn = DateTimeOffset.UtcNow.AddHours(-1),
             Status = PlanVersionStatus.PendingApproval
-        });
+        };
+        f.Db.PlanVersions.Add(submitted);
         await f.Db.SaveChangesAsync();
-        AssertJson(await f.Page.OnPostAsync(1, default), 409, false);
+        AssertJson(await f.Page.OnPostAsync(1, default), 200, true);
+        Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
+        var successor = await f.Db.PlanVersions.SingleAsync(p => p.VersionNo == 2);
+        Assert.Equal(PlanVersionStatus.Draft, successor.Status);
+        Assert.Equal("po-user", successor.OwnerUserId);
+        Assert.Single(await f.Db.PlanApprovalLogs.Where(l => l.PlanVersionId == submitted.Id &&
+            l.Action == "Superseded").ToListAsync());
         Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
         Assert.Empty(await f.Db.ProjectScheduleSettings.ToListAsync());
         await f.AssertLiveDatesUnchangedAsync();
