@@ -259,7 +259,8 @@ public sealed class PlanReadService
         var state = new PlanEditorStateVm
         {
             HasDraft = myDraft is not null,
-            IsLocked = myPending is not null,
+            // Reviewed content remains immutable, but PO successor edits are allowed.
+            IsLocked = false,
             Status = draftPlan?.Status ?? pendingPlan?.Status,
             VersionNo = draftPlan?.VersionNo ?? pendingPlan?.VersionNo,
             CreatedOn = draftPlan?.CreatedOn ?? pendingPlan?.CreatedOn,
@@ -270,6 +271,7 @@ public sealed class PlanReadService
             RejectionNote = draftPlan?.RejectionNote,
             HasMyDraft = myDraft is not null,
             HasPendingSubmission = pendingPlan is not null,
+            PendingPlanVersionId = pendingPlan?.Id,
             PendingOwnedByCurrentUser = isPendingMine,
             PendingSubmittedOn = pendingPlan?.SubmittedOn,
             PendingSubmittedBy = pendingSubmittedBy,
