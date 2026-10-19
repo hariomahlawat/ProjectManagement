@@ -127,6 +127,7 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Input.Mode" value="@PlanEditorModes.Exact" />
                 <input type="hidden" name="Input.ProjectId" value="@Model.Exact.ProjectId" />
+                <input type="hidden" name="Input.EditToken" value="@state.EditToken" />
 
                 <div class="flex-grow-1 overflow-auto pe-1">
                     <div class="plan-editor-guidance mb-3">
@@ -190,6 +191,7 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Input.Mode" value="@PlanEditorModes.Durations" />
                 <input type="hidden" name="Input.ProjectId" value="@Model.Durations.ProjectId" />
+                <input type="hidden" name="Input.EditToken" value="@state.EditToken" />
 
                 <div class="flex-grow-1 overflow-auto pe-1">
                     <div class="row g-3">
