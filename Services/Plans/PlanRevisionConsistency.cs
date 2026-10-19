@@ -18,6 +18,7 @@ internal static class PlanRevisionConsistency
     internal static IQueryable<PlanVersion> ActionablePending(ApplicationDbContext db) =>
         db.PlanVersions.Where(plan =>
             plan.Status == PlanVersionStatus.PendingApproval &&
+            !plan.ApprovalLogs.Any(log => log.Action == "Superseded" || log.Action == "Withdrawn") &&
             !db.Projects.Any(project => project.Id == plan.ProjectId &&
                                         project.ActivePlanVersionNo >= plan.VersionNo) &&
             !db.PlanVersions.Any(later =>
@@ -25,6 +26,12 @@ internal static class PlanRevisionConsistency
                 later.VersionNo > plan.VersionNo &&
                 (later.Status == PlanVersionStatus.PendingApproval ||
                  later.Status == PlanVersionStatus.Approved ||
+             later.Status == PlanVersionStatus.Superseded ||
+             later.Status == PlanVersionStatus.Withdrawn ||
+             later.Status == PlanVersionStatus.Rejected ||
+                 later.Status == PlanVersionStatus.Superseded ||
+                 later.Status == PlanVersionStatus.Withdrawn ||
+                 later.Status == PlanVersionStatus.Rejected ||
                  later.RejectedOn != null ||
                  later.ApprovalLogs.Any())));
 
