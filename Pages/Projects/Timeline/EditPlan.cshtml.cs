@@ -259,6 +259,12 @@ public class EditPlanModel : PageModel
 
         var submitForApproval = intent == PlanIntent.Submit;
 
+        // Working PO input and durable replacement are one authoritative
+        // transaction. An incomplete save cannot strand the prior review.
+        await using var revisionSave = await RelationalTransactionScope.CreateAsync(
+            _db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, id, cancellationToken);
+
         PlanVersion draft;
         try
         {
@@ -333,6 +339,9 @@ public class EditPlanModel : PageModel
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        await _planDraft.SupersedePendingAfterSaveAsync(draft, cancellationToken);
+        await revisionSave.CommitAsync(cancellationToken);
 
         if (changes.Count > 0)
         {
@@ -686,6 +695,8 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
+        await using var revisionSave = await RelationalTransactionScope.CreateAsync(_db.Database, ct);
+        await PlanRevisionConsistency.LockProjectAsync(_db, id, ct);
         PlanVersion draft;
         try
         {
@@ -700,6 +711,9 @@ public class EditPlanModel : PageModel
         SetDurationProposalInputs(draft, rows, workflowVersion);
         await _db.SaveChangesAsync(ct);
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
+        // Only changed proposal content supersedes an existing review.
+        await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
+        await revisionSave.CommitAsync(ct);
 
         if (submitForApproval)
         {
