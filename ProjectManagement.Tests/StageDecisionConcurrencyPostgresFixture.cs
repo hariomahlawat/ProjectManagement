@@ -67,6 +67,7 @@ internal static class StageDecisionConcurrencyPostgresFixture
         await SubmissionAfterArppPublicationIsRefusedAndLeavesOneSupersessionAsync(options);
         await ArppAfterSubmissionSupersedesTheReplacementOnceAsync(options);
         await SubmissionDuringArppCreationOfTheIpaStageCannotPublishAPendingRequestAsync(options);
+        await DirectApplyDuringAnArppVerifyCannotOverwriteThePublishedIpaAsync(options);
     }
 
     // SECTION: Scenario A — approval vs approval
@@ -598,6 +599,62 @@ internal static class StageDecisionConcurrencyPostgresFixture
         Assert.Null(ipa.ActualStart);
     }
 
+    // SECTION: HoD direct apply vs ARPP verify (D-1e verification finding)
+    /// <summary>
+    /// An ARPP verify has published the IPA position and synchronized it (IPA
+    /// completed on the ARPP date, the pending IPA request superseded) but not yet
+    /// committed. A HoD then direct-applies an IPA completion. Direct apply must
+    /// wait for the IPA row and then see the published authority and refuse.
+    /// Before the fix it read only committed rows, passed its ARPP check, waited on
+    /// ARPP's row locks and then wrote its stale-snapshot columns: the IPA ended on
+    /// the HoD's date instead of the ARPP date, and the request was superseded a
+    /// second time under the HoD's name. Every workflow stage is materialized, as on
+    /// a normal project, so direct apply makes no early write that could wait for
+    /// the verify before its own reads.
+    /// </summary>
+    private static async Task DirectApplyDuringAnArppVerifyCannotOverwriteThePublishedIpaAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaCompletionRequestAsync(options, "Direct apply during ARPP verify");
+        await MaterializeRemainingStagesAsync(options, projectId);
+
+        await using var synchronizerDb = Context(options);
+        await using var verify = await RelationalTransactionScope.CreateAsync(synchronizerDb.Database);
+        await PublishArppAsync(synchronizerDb, projectId);
+        Assert.Equal(1, (await PublishedSynchronizer(synchronizerDb).SynchronizeProjectsAsync(new[] { projectId })).SupersededRequestCount);
+
+        await using var hodDb = Context(options);
+        var clock = FakeClock.ForIstDate(Today);
+        var policy = StageWorkflowTestFactory.CreatePolicy(hodDb);
+        var directApply = Task.Run(() => new StageDirectApplyService(
+                hodDb, clock, new StageValidationService(hodDb, clock, policy), new StageRulesService(hodDb, policy), policy)
+            .ApplyAsync(projectId, StageCodes.IPA, "Completed", Jan(25), null, Hod, false, CancellationToken.None));
+        await WaitUntilBlockedOnALockAsync(options, directApply);
+        await verify.CommitAsync();
+
+        Exception? refusal = null;
+        try
+        {
+            await directApply.WaitAsync(Timeout);
+        }
+        catch (StageDirectApplyValidationException exception)
+        {
+            refusal = exception;
+        }
+
+        // Published ARPP authority holds, the genuine start survives, and the
+        // request keeps its one ARPP supersession.
+        await AssertArppCompletionAsync(options, projectId);
+        var request = await RequestAsync(options, requestId);
+        Assert.Equal("Superseded", request.DecisionStatus);
+        Assert.Equal("PRISM system", request.DecidedByUserId);
+        Assert.Equal(new[] { ("Superseded", "PRISM system") }, await HistoryWithActorsAsync(options, projectId));
+
+        // The direct apply was refused and rolled back entirely.
+        var validation = Assert.IsType<StageDirectApplyValidationException>(refusal);
+        Assert.Contains(ArppManagedIpaStageException.UserMessage, validation.Details);
+    }
+
     // SECTION: Helpers
     private static readonly DateOnly ArppIssueDate = new(2026, 2, 1);
 
@@ -696,6 +753,23 @@ internal static class StageDecisionConcurrencyPostgresFixture
             .Where(item => item.Id == requestId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.RequestedDate, Jan(25)));
         return (projectId, requestId);
+    }
+
+    /// <summary>Adds every remaining SDD-1.0 workflow stage as NotStarted.</summary>
+    private static async Task MaterializeRemainingStagesAsync(DbContextOptions<ApplicationDbContext> options, int projectId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        var existing = await db.ProjectStages.Where(stage => stage.ProjectId == projectId).Select(stage => stage.StageCode).ToListAsync();
+        db.ProjectStages.AddRange(ProcurementWorkflow.StageCodesFor(ProcurementWorkflow.VersionV1)
+            .Where(code => !existing.Contains(code))
+            .Select(code => new ProjectStage
+            {
+                ProjectId = projectId,
+                StageCode = code,
+                SortOrder = ProcurementWorkflow.OrderOf(ProcurementWorkflow.VersionV1, code),
+                Status = StageStatus.NotStarted
+            }));
+        await db.SaveChangesAsync();
     }
 
     private static async Task AssertArppCompletionAsync(DbContextOptions<ApplicationDbContext> options, int projectId)

@@ -138,6 +138,14 @@ public sealed class StageDirectApplyService
             ct);
         await PlanRevisionConsistency.LockProjectAsync(_db, projectId, ct);
 
+        // Lock order: project gate, stage rows, request rows. ARPP synchronization
+        // does not take the gate; it locks the IPA row before completing IPA and
+        // superseding its requests. Locking every stage row here, before the ARPP
+        // authority check and any stage or request read, means a concurrent ARPP
+        // verify is either seen in full (and refused below) or waits for us. The
+        // tracked rows loaded here are the ones the later Include resolves to.
+        await ActualFactPublisher.LoadProjectStagesForUpdateAsync(_db, projectId, ct);
+
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
         var normalizedStatus = status.Trim();
 
@@ -360,11 +368,15 @@ public sealed class StageDirectApplyService
 
         if (pendingRequest is not null)
         {
+            if (!await SupersedeIfStillPendingAsync(pendingRequest, hodUserId, now, ct))
+            {
+                // Decided by another writer: never overwrite its terminal state or
+                // add a second history row. Disposing the scope rolls back.
+                throw StageDirectApplyValidationException.FromMessages(
+                    "The pending request for this stage was decided while this change was being applied. Reload the stage and try again.");
+            }
+
             superseded = true;
-            pendingRequest.DecisionStatus = SupersededDecisionStatus;
-            pendingRequest.DecidedByUserId = hodUserId;
-            pendingRequest.DecidedOn = now;
-            pendingRequest.DecisionNote = SupersededNote;
 
             var supersededLog = new StageChangeLog
             {
@@ -635,6 +647,42 @@ public sealed class StageDirectApplyService
             backfilledStages.Count,
             backfilledStages.ToArray(),
             warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    /// <summary>
+    /// Compare-and-set supersession of the stage's pending request inside the
+    /// direct-apply transaction: it changes the request only while it is still
+    /// pending, so a request another writer already decided keeps that one state.
+    /// </summary>
+    private async Task<bool> SupersedeIfStillPendingAsync(
+        StageChangeRequest pending,
+        string userId,
+        DateTimeOffset decidedOn,
+        CancellationToken ct)
+    {
+        if (!_db.Database.IsRelational())
+        {
+            // EF's in-memory provider has no ExecuteUpdate; it runs no concurrent writers.
+            pending.DecisionStatus = SupersededDecisionStatus;
+            pending.DecidedByUserId = userId;
+            pending.DecidedOn = decidedOn;
+            pending.DecisionNote = SupersededNote;
+            return true;
+        }
+
+        var superseded = await _db.StageChangeRequests
+            .Where(item => item.Id == pending.Id && item.DecisionStatus == PendingDecisionStatus)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.DecisionStatus, SupersededDecisionStatus)
+                    .SetProperty(item => item.DecidedByUserId, userId)
+                    .SetProperty(item => item.DecidedOn, decidedOn)
+                    .SetProperty(item => item.DecisionNote, SupersededNote),
+                ct);
+
+        // Keep the tracked request equal to the stored row so SaveChanges never rewrites it.
+        await _db.Entry(pending).ReloadAsync(ct);
+        return superseded == 1;
     }
 
     private static string? CombineNotes(string? primary, string? secondary)
