@@ -125,6 +125,31 @@ public class PlanDraftService
         return superseded;
     }
 
+    /// <summary>
+    /// Caller holds the project transaction gate when verifying an editing POST.
+    /// A second browser tab cannot silently overwrite a different revision or
+    /// different already-saved proposal inputs.
+    /// </summary>
+    public async Task<bool> MatchesEditorTokenAsync(
+        int projectId, string expectedToken, CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserId();
+        var current = await _db.PlanVersions.AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
+            .OrderByDescending(p => p.VersionNo).FirstOrDefaultAsync(cancellationToken);
+
+        current ??= await PlanRevisionConsistency.ActionablePending(_db).AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.OwnerUserId == userId || p.SubmittedByUserId == userId))
+            .OrderByDescending(p => p.VersionNo).FirstOrDefaultAsync(cancellationToken);
+
+        return string.Equals(PlanEditFingerprint.Compute(current), expectedToken,
+            StringComparison.Ordinal);
+    }
+
     public async Task<PlanVersion?> GetMyDraftAsync(int projectId, CancellationToken cancellationToken = default)
     {
         var userId = GetCurrentUserIdOrDefault();
