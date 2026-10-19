@@ -10,6 +10,7 @@ using Npgsql;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -144,11 +145,13 @@ internal static class ActualCorrectionSchemaPostgresFixture
         // One pending revision per project.
         await AssertPostgresErrorAsync(options, PostgresErrorCodes.UniqueViolation,
             db => db.ActualCorrectionRevisions.Add(ActualCorrectionSchemaTests.Revision(projectId, 3)));
-        // Approved status values only.
+        // Approved status values only (closure satisfied, so only the status check applies).
         await AssertPostgresErrorAsync(options, PostgresErrorCodes.CheckViolation, db =>
         {
             var revision = ActualCorrectionSchemaTests.Revision(projectId, 4);
             revision.Status = "Draft";
+            revision.ClosedByUserId = Seeder;
+            revision.ClosedOn = DateTimeOffset.UtcNow;
             db.ActualCorrectionRevisions.Add(revision);
         });
         // A terminal revision records who closed it and when.
@@ -158,18 +161,31 @@ internal static class ActualCorrectionSchemaPostgresFixture
             revision.Status = ActualCorrectionRevisionStatus.Rejected;
             db.ActualCorrectionRevisions.Add(revision);
         });
-        // Items are evidence: a revision with items cannot be deleted on its own.
+        // Items are evidence: a revision with items (and no lineage links) cannot be
+        // deleted on its own, purely because of the item foreign key.
+        var standaloneProjectId = await SeedProjectAsync(options, "D-2 item restrict", deleted: false);
+        int standaloneRevisionId;
+        await using (var db = new ApplicationDbContext(options))
+        {
+            var revision = ActualCorrectionSchemaTests.Revision(standaloneProjectId, 1);
+            revision.Items.Add(ActualCorrectionSchemaTests.Item(0, StageCodes.FS));
+            db.ActualCorrectionRevisions.Add(revision);
+            await db.SaveChangesAsync();
+            standaloneRevisionId = revision.Id;
+        }
+
         await using (var db = new ApplicationDbContext(options))
         {
             var failure = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
-                $"DELETE FROM \"ActualCorrectionRevisions\" WHERE \"ProjectId\" = {projectId} AND \"Status\" = 'Pending'"));
-            Assert.Contains(failure.SqlState, new[] { PostgresErrorCodes.RestrictViolation, PostgresErrorCodes.ForeignKeyViolation });
+                $"DELETE FROM \"ActualCorrectionRevisions\" WHERE \"Id\" = {standaloneRevisionId}"));
+            Assert.Equal(PostgresErrorCodes.RestrictViolation, failure.SqlState);
+            Assert.Equal("FK_ActualCorrectionItems_ActualCorrectionRevisions_RevisionId", failure.ConstraintName);
         }
 
         await using (var verify = new ApplicationDbContext(options))
         {
             Assert.Equal(2, await verify.ActualCorrectionRevisions.CountAsync(revision => revision.ProjectId == projectId));
-            Assert.Equal(2, await verify.ActualCorrectionItems.CountAsync(item => item.Revision!.ProjectId == projectId));
+            Assert.Equal(1, await verify.ActualCorrectionItems.CountAsync(item => item.RevisionId == standaloneRevisionId));
         }
     }
 

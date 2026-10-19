@@ -40,7 +40,7 @@ Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production D
 
 | J | Criterion | Status after D-1 |
 | --- | --- | --- |
-| 1 | No PO write path to official Actual dates | **Pending D-2.** Assigned POs still publish directly (validated). |
+| 1 | No PO write path to official Actual dates | **Implemented in D-2** (Draft PR, not merged): page and service refuse PO-only direct publication; the facts-only J-1 exception is tested. |
 | 2, 3 | Approval publishes exactly what was reviewed; stale decisions rejected | **Pending D-3** (proposal decisions). |
 | 4 | Stale edits rejected without mutation | **Partly met.** Direct saves refuse stale per-stage tokens (service and page level). Refusing posts without the baseline marker is deferred to R-D3; proposal S1–S6 pending D-3. |
 | 5 | Required evidence atomic with the change | **Met for direct save, backfill and lifecycle decisions** (failure injection, SQLite and PostgreSQL). Submit/supersede/withdraw/reject of Actual proposals pending D-3. |

@@ -5,7 +5,8 @@
     var rows = Model?.Rows ?? Array.Empty<ActualsEditorRowVm>();
     var todayIso = Model?.Today.ToString("yyyy-MM-dd") ?? string.Empty;
     // Phase D-2: a PO-only user cannot publish directly; the page and service refuse it.
-    var directPublication = ViewData["ActualsDirectPublication"] as bool? ?? true;
+    // Fails safe to read-only if a host does not pass the server-computed flag.
+    var directPublication = ViewData["ActualsDirectPublication"] as bool? ?? false;
 }
 
 <form method="post"

@@ -149,7 +149,7 @@ A proposal must not contradict a pending lifecycle decision that could still pub
 - **HoD:** may review, approve or reject plan submissions; may directly modify timeline/stage state where current product permissions allow; may use authorised completion-without-date/backfill behaviour.
 - **Admin:** has timeline modification authority, including direct planned-date edits where current product permissions allow. Admin authority must not weaken date-validity rules. This does not grant unrelated plan-approval rights.
 - **Viewer/read-only roles:** have no mutation authority.
-- **Role precedence for Actual corrections (owner decision, 2026-10-19; takes effect with D-2/D-3, not yet implemented).** Admin and HoD authority supersedes Project Officer authority. A user who holds HoD or Admin as well as PO publishes Actual corrections directly under that authority. Only a PO-only user submits Actual correction proposals, and only for a project they are assigned to; an unassigned PO-only user has no correction authority. Nobody may approve their own proposal.
+- **Role precedence for Actual corrections (owner decision, 2026-10-19; direct-publication precedence implemented in D-2, proposal submission arrives with D-3).** Admin and HoD authority supersedes Project Officer authority. A user who holds HoD or Admin as well as PO publishes Actual corrections directly under that authority. Only a PO-only user submits Actual correction proposals, and only for a project they are assigned to; an unassigned PO-only user has no correction authority. Nobody may approve their own proposal.
 
 These rules do not extend unrelated approval or security policy.
 
@@ -310,7 +310,7 @@ Partial plans remain supported. A dependency is checked only when predecessor PD
 
 ### Actual-date editing and backfill
 
-Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. The current editor and completion backfill paths publish authorised PO corrections directly; those are recorded implementation deviations from rules 22-24, which require PO corrections to be proposed for HoD approval.
+Actual-date correction is accessed through **Timeline → Edit actual dates**. Its business contract is defined by the [canonical timeline business rules](#canonical-timeline-business-rules), including status/date consistency, explicit versus inferred start, calendar-day actual duration, whole-lifecycle validation, clearing/reopening, mandatory backfill and durable audit. Generic correction must not create a lifecycle transition. From D-2 these paths no longer publish PO-only corrections: an assigned PO-only user is told approval is required. Rules 22-24 are met once D-3 lets that user submit the correction as a proposal for HoD or Admin approval; until then the PO-only user has no correction route of their own, which is why D-2 and D-3 deploy together (K-14).
 
 Phase D-1 (D-1a … D-1e, merged; deployment unverified) hardens the current direct paths and the lifecycle writers.
 

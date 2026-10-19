@@ -60,14 +60,16 @@ public sealed class ActualCorrectionSchemaTests
     }
 
     [Fact]
-    public void Migration_IsTheLineageTail()
+    public void Migration_FollowsVersionPlanningInputAuthority()
     {
         using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql("Host=localhost;Database=metadata-only").Options);
-        var migrations = db.Database.GetMigrations().ToArray();
+        var migrations = db.Database.GetMigrations().ToList();
 
-        Assert.Equal(MigrationId, migrations[^1]);
-        Assert.Equal("20261217000002_VersionPlanningInputAuthority", migrations[^2]);
+        // The lineage tail itself is checked generically by ApplicationDatabaseMigrationsTests.
+        var index = migrations.IndexOf(MigrationId);
+        Assert.True(index > 0);
+        Assert.Equal("20261217000002_VersionPlanningInputAuthority", migrations[index - 1]);
     }
 
     [Fact]
@@ -110,7 +112,7 @@ public sealed class ActualCorrectionSchemaTests
     }
 
     [Theory]
-    [InlineData("Draft", false)]                                   // not an approved status
+    [InlineData("Draft", true)]                                    // not an approved status (closure satisfied)
     [InlineData(ActualCorrectionRevisionStatus.Approved, false)]   // terminal without closure
     [InlineData(ActualCorrectionRevisionStatus.Pending, true)]     // pending with closure
     public async Task RevisionStatusAndClosure_AreConstrained(string status, bool closed)
