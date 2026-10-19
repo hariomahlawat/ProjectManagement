@@ -135,6 +135,7 @@ public class StageProgressService
                 previousStatus,
                 recordHistory,
                 userId,
+                transaction,
                 cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return;
@@ -165,23 +166,24 @@ public class StageProgressService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _audit.LogAsync(
-            "Stages.StageStatusChanged",
-            userId: userId,
-            data: new Dictionary<string, string?>
-            {
-                ["ProjectId"] = projectId.ToString(),
-                ["StageCode"] = stageCode,
-                ["NewStatus"] = newStatus.ToString(),
-                ["EffectiveDate"] = resolvedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            });
-
-        await transaction.CommitAsync(cancellationToken);
-
+        // Secondary audit and notification run only after the root transaction
+        // (for a decision, the decision's own) commits; a rollback discards them.
+        var auditData = new Dictionary<string, string?>
+        {
+            ["ProjectId"] = projectId.ToString(),
+            ["StageCode"] = stageCode,
+            ["NewStatus"] = newStatus.ToString(),
+            ["EffectiveDate"] = resolvedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
+        transaction.RegisterAfterCommit(_ => _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: auditData));
         if (stage.Project is not null)
         {
-            await _stageNotifications.NotifyStageStatusChangedAsync(stage, stage.Project, previousStatus, userId, cancellationToken);
+            var project = stage.Project;
+            transaction.RegisterAfterCommit(ct =>
+                _stageNotifications.NotifyStageStatusChangedAsync(stage, project, previousStatus, userId, ct));
         }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task CompleteWithCascadeAsync(
@@ -194,6 +196,7 @@ public class StageProgressService
         StageStatus previousStatus,
         bool recordHistory,
         string userId,
+        RelationalTransactionScope transaction,
         CancellationToken ct)
     {
         if (!await _factsRead.HasRequiredFactsAsync(projectId, stage.StageCode, ct))
@@ -262,30 +265,32 @@ public class StageProgressService
             ["AutoCompleted"] = autoCompleted.Count == 0 ? null : string.Join(",", autoCompleted.Select(s => s.StageCode))
         };
 
-        await _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: data);
-
         if (stage.Project is null)
         {
             stage.Project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == projectId, ct);
         }
 
+        // Secondary audit and notification run only after the root transaction
+        // commits; a rollback discards them.
+        transaction.RegisterAfterCommit(_ => _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: data));
+
         if (stage.Project is not null)
         {
-            await _stageNotifications.NotifyStageStatusChangedAsync(stage, stage.Project, previousStatus, userId, ct);
+            var project = stage.Project;
+            transaction.RegisterAfterCommit(callbackCt =>
+                _stageNotifications.NotifyStageStatusChangedAsync(stage, project, previousStatus, userId, callbackCt));
         }
 
         foreach (var auto in autoCompleted)
         {
-            await _audit.LogAsync(
-                "Stages.StageAutoCompleted",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["ProjectId"] = projectId.ToString(),
-                    ["StageCode"] = auto.StageCode,
-                    ["TriggeredBy"] = stage.StageCode,
-                    ["CompletedOn"] = auto.CompletedOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                });
+            var autoData = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["StageCode"] = auto.StageCode,
+                ["TriggeredBy"] = stage.StageCode,
+                ["CompletedOn"] = auto.CompletedOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            };
+            transaction.RegisterAfterCommit(_ => _audit.LogAsync("Stages.StageAutoCompleted", userId: userId, data: autoData));
         }
     }
 

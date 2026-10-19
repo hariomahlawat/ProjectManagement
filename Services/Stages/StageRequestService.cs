@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
@@ -165,6 +167,13 @@ public class StageRequestService
         {
             return BatchStageRequestResult.Invalid(DistinctMessages(inputErrors));
         }
+
+        // Lifecycle request submission reads pending requests and stage state, then
+        // supersedes the same-stage pending request. It takes the project gate before
+        // those reads so it serializes with lifecycle decisions: a request being
+        // approved can never be overwritten as Superseded (or the reverse).
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, input.ProjectId, cancellationToken);
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -398,11 +407,6 @@ public class StageRequestService
             return BatchStageRequestResult.Invalid(untouchedPendingErrors);
         }
 
-        var useTransaction = _db.Database.IsRelational();
-        await using var transaction = useTransaction
-            ? await _db.Database.BeginTransactionAsync(cancellationToken)
-            : null;
-
         var now = _clock.UtcNow;
         var createdRequests = new List<(PreparedStageRequest Item, StageChangeRequest Request)>();
 
@@ -482,10 +486,7 @@ public class StageRequestService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync(cancellationToken);
-        }
+        await transaction.CommitAsync(cancellationToken);
 
         var successfulItems = createdRequests
             .OrderBy(pair => pair.Item.InputOrder)
