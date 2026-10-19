@@ -58,6 +58,10 @@ internal static class StageDecisionConcurrencyPostgresFixture
         await SubmissionCannotSupersedeARequestBeingApprovedAsync(options);
         await ArppSynchronizationCannotSupersedeARequestBeingApprovedAsync(options);
         await DecisionCannotApproveARequestArppHasSupersededAsync(options);
+        await ArppReadBeforeAReopenCannotPublishAStaleStageAsync(options, nested: false);
+        await ArppReadBeforeAReopenCannotPublishAStaleStageAsync(options, nested: true);
+        await ArppReadBeforeAStartApprovalKeepsStageRequestAndHistoryConsistentAsync(options);
+        await ArppCreatingTheIpaStageSupersedesTheUndecidableRequestAsync(options);
     }
 
     // SECTION: Scenario A — approval vs approval
@@ -294,6 +298,137 @@ internal static class StageDecisionConcurrencyPostgresFixture
         Assert.Equal(StageStatus.Completed, (await IpaAsync(options, projectId)).Status);
     }
 
+    // SECTION: ARPP reads first, decision commits second, ARPP writes last
+    /// <summary>
+    /// Independent-review P1. Synchronization reads the IPA stage (Completed on
+    /// Jan 20) and the pending reopen request, then pauses before writing. An HoD
+    /// approves the reopen. Without a lock on the read, the decision commits
+    /// InProgress with no CompletedOn; synchronization then resumes and EF writes
+    /// only the columns that differ from its stale snapshot: CompletedOn, but not
+    /// Status (Completed equals the snapshot). The stage ends InProgress with the
+    /// ARPP completion date, which is neither the lifecycle fact nor the ARPP
+    /// authority. The synchronizer must project from the locked current row, so
+    /// the approval waits, finds the request superseded and decides nothing.
+    /// </summary>
+    private static async Task ArppReadBeforeAReopenCannotPublishAStaleStageAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        bool nested)
+    {
+        var (projectId, requestId) = await SeedIpaReopenRequestAsync(
+            options, nested ? "D-1c ARPP read before reopen (nested)" : "D-1c ARPP read before reopen");
+
+        await using var pause = new PauseAtStageWrite();
+        await using var synchronizerDb = Context(options, pause);
+        await using var outer = nested ? await RelationalTransactionScope.CreateAsync(synchronizerDb.Database) : null;
+        var synchronization = Task.Run(() => Synchronizer(synchronizerDb, projectId).SynchronizeProjectsAsync(new[] { projectId }));
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var decider = Context(options);
+        var decision = Decide(decider, requestId, StageDecisionAction.Approve, Hod);
+        await WaitUntilCompletedOrBlockedOnALockAsync(options, decision);
+        pause.Release();
+
+        var synchronized = await synchronization.WaitAsync(Timeout);
+        if (outer is not null)
+        {
+            await outer.CommitAsync();
+        }
+
+        var outcome = (await decision.WaitAsync(Timeout)).Outcome;
+
+        var ipa = await IpaAsync(options, projectId);
+        Assert.Equal(StageStatus.Completed, ipa.Status);
+        Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+        Assert.Equal(Jan(12), ipa.ActualStart);
+        Assert.False(ipa.RequiresBackfill);
+        Assert.False(ipa.IsAutoCompleted);
+
+        Assert.Equal(StageDecisionOutcome.AlreadyDecided, outcome);
+        Assert.Equal(1, synchronized.SupersededRequestCount);
+        Assert.Equal("Superseded", (await RequestAsync(options, requestId)).DecisionStatus);
+        Assert.Equal(new[] { "Superseded" }, await HistoryAsync(options, projectId));
+    }
+
+    /// <summary>
+    /// The same interleaving for an ordinary start approval, where ARPP completion
+    /// legitimately follows a recorded start. Whichever way it serializes, the
+    /// stage carries the ARPP completion, the request has exactly one terminal
+    /// state, and the history matches it: an approval keeps its start and its
+    /// Approved/Applied pair; a supersession has only its Superseded row.
+    /// </summary>
+    private static async Task ArppReadBeforeAStartApprovalKeepsStageRequestAndHistoryConsistentAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaStartRequestAsync(options, "D-1c ARPP read before start approval");
+
+        await using var pause = new PauseAtStageWrite();
+        await using var synchronizerDb = Context(options, pause);
+        var synchronization = Task.Run(() => Synchronizer(synchronizerDb, projectId).SynchronizeProjectsAsync(new[] { projectId }));
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var decider = Context(options);
+        var decision = Decide(decider, requestId, StageDecisionAction.Approve, Hod);
+        await WaitUntilCompletedOrBlockedOnALockAsync(options, decision);
+        pause.Release();
+
+        var synchronized = await synchronization.WaitAsync(Timeout);
+        var outcome = (await decision.WaitAsync(Timeout)).Outcome;
+
+        var ipa = await IpaAsync(options, projectId);
+        Assert.Equal(StageStatus.Completed, ipa.Status);
+        Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+        var request = await RequestAsync(options, requestId);
+        var history = await HistoryAsync(options, projectId);
+        if (request.DecisionStatus == "Approved")
+        {
+            Assert.Equal(StageDecisionOutcome.Success, outcome);
+            Assert.Equal(0, synchronized.SupersededRequestCount);
+            Assert.Equal(Jan(12), ipa.ActualStart);
+            Assert.Equal(new[] { "Approved", "Applied" }, history);
+        }
+        else
+        {
+            Assert.Equal("Superseded", request.DecisionStatus);
+            Assert.Equal(StageDecisionOutcome.AlreadyDecided, outcome);
+            Assert.Equal(1, synchronized.SupersededRequestCount);
+            Assert.Null(ipa.ActualStart);
+            Assert.Equal(new[] { "Superseded" }, history);
+        }
+    }
+
+    /// <summary>
+    /// The IPA stage does not exist yet, so there is no row to lock. A decision on
+    /// the pending IPA request in the meantime finds no stage and writes nothing;
+    /// synchronization then creates the completed stage and supersedes the request.
+    /// </summary>
+    private static async Task ArppCreatingTheIpaStageSupersedesTheUndecidableRequestAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        var (projectId, requestId) = await SeedIpaStartRequestAsync(options, "D-1c ARPP creates IPA", withIpaStage: false);
+
+        await using var pause = new PauseAtStageWrite();
+        await using var synchronizerDb = Context(options, pause);
+        var synchronization = Task.Run(() => Synchronizer(synchronizerDb, projectId).SynchronizeProjectsAsync(new[] { projectId }));
+        await pause.Reached.WaitAsync(Timeout);
+
+        await using var decider = Context(options);
+        var decision = Decide(decider, requestId, StageDecisionAction.Approve, Hod);
+        await WaitUntilCompletedOrBlockedOnALockAsync(options, decision);
+        pause.Release();
+
+        var synchronized = await synchronization.WaitAsync(Timeout);
+        Assert.Equal(StageDecisionOutcome.StageNotFound, (await decision.WaitAsync(Timeout)).Outcome);
+
+        Assert.Single(synchronized.Changes, change => change.StageCreated);
+        Assert.Equal(1, synchronized.SupersededRequestCount);
+        var ipa = await IpaAsync(options, projectId);
+        Assert.Equal(StageStatus.Completed, ipa.Status);
+        Assert.Equal(ArppIssueDate, ipa.CompletedOn);
+        Assert.Null(ipa.ActualStart);
+        Assert.Equal("Superseded", (await RequestAsync(options, requestId)).DecisionStatus);
+        Assert.Equal(new[] { "Superseded" }, await HistoryAsync(options, projectId));
+    }
+
     // SECTION: Helpers
     private static readonly DateOnly ArppIssueDate = new(2026, 2, 1);
 
@@ -336,9 +471,38 @@ internal static class StageDecisionConcurrencyPostgresFixture
     }
 
     /// <summary>FS completed, IPA not started, and a pending request to start IPA.</summary>
-    private static async Task<(int ProjectId, int RequestId)> SeedIpaStartRequestAsync(
+    private static Task<(int ProjectId, int RequestId)> SeedIpaStartRequestAsync(
         DbContextOptions<ApplicationDbContext> options,
-        string name)
+        string name,
+        bool withIpaStage = true) =>
+        SeedIpaRequestAsync(
+            options,
+            name,
+            withIpaStage
+                ? new ProjectStage { StageCode = StageCodes.IPA, SortOrder = 2, Status = StageStatus.NotStarted }
+                : null,
+            requestedStatus: StageStatus.InProgress);
+
+    /// <summary>FS completed, IPA completed on Jan 20, and a pending request to reopen IPA.</summary>
+    private static Task<(int ProjectId, int RequestId)> SeedIpaReopenRequestAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        string name) =>
+        SeedIpaRequestAsync(
+            options,
+            name,
+            new ProjectStage
+            {
+                StageCode = StageCodes.IPA, SortOrder = 2,
+                Status = StageStatus.Completed, ActualStart = Jan(12), CompletedOn = Jan(20)
+            },
+            requestedStatus: StageStatus.InProgress);
+
+    /// <summary>FS completed, an optional IPA stage, and a pending IPA request dated Jan 12.</summary>
+    private static async Task<(int ProjectId, int RequestId)> SeedIpaRequestAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        string name,
+        ProjectStage? ipa,
+        StageStatus requestedStatus)
     {
         await using var db = new ApplicationDbContext(options);
         var project = new Project
@@ -352,21 +516,22 @@ internal static class StageDecisionConcurrencyPostgresFixture
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        db.ProjectStages.AddRange(
-            new ProjectStage
-            {
-                ProjectId = project.Id, StageCode = StageCodes.FS, SortOrder = 1,
-                Status = StageStatus.Completed, ActualStart = Jan(1), CompletedOn = Jan(10)
-            },
-            new ProjectStage
-            {
-                ProjectId = project.Id, StageCode = StageCodes.IPA, SortOrder = 2, Status = StageStatus.NotStarted
-            });
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = project.Id, StageCode = StageCodes.FS, SortOrder = 1,
+            Status = StageStatus.Completed, ActualStart = Jan(1), CompletedOn = Jan(10)
+        });
+        if (ipa is not null)
+        {
+            ipa.ProjectId = project.Id;
+            db.ProjectStages.Add(ipa);
+        }
+
         var request = new StageChangeRequest
         {
             ProjectId = project.Id,
             StageCode = StageCodes.IPA,
-            RequestedStatus = StageStatus.InProgress.ToString(),
+            RequestedStatus = requestedStatus.ToString(),
             RequestedDate = Jan(12),
             RequestedByUserId = LeadPo,
             RequestedOn = DateTimeOffset.UtcNow,
@@ -407,6 +572,37 @@ internal static class StageDecisionConcurrencyPostgresFixture
         }
 
         Assert.Fail("The writer never waited on a lock.");
+    }
+
+    /// <summary>
+    /// Returns once the writer has either finished or is waiting on a lock, so a
+    /// scenario can release the paused competitor under either serialization.
+    /// </summary>
+    private static async Task WaitUntilCompletedOrBlockedOnALockAsync(DbContextOptions<ApplicationDbContext> options, Task writer)
+    {
+        await using var probe = new ApplicationDbContext(options);
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (writer.IsCompleted)
+            {
+                return;
+            }
+
+            var waiting = await probe.Database
+                .SqlQueryRaw<int>(
+                    "SELECT COUNT(*)::int AS \"Value\" FROM pg_stat_activity " +
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'")
+                .SingleAsync();
+            if (waiting > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(25);
+        }
+
+        Assert.Fail("The writer neither finished nor waited on a lock.");
     }
 
     private static async Task<StageChangeRequest> RequestAsync(DbContextOptions<ApplicationDbContext> options, int requestId)
@@ -456,6 +652,44 @@ internal static class StageDecisionConcurrencyPostgresFixture
             var decisionHistory = eventData.Context?.ChangeTracker.Entries<StageChangeLog>()
                 .Any(entry => entry.State == EntityState.Added && entry.Entity.Action is "Approved" or "Rejected") == true;
             if (decisionHistory && Interlocked.Exchange(ref _paused, 1) == 0)
+            {
+                _reached.Release();
+                await _release.Task.WaitAsync(Timeout, cancellationToken);
+            }
+
+            return await base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Release();
+            _reached.Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Holds ARPP synchronization at its first save of an IPA stage change: after
+    /// it has read the stage and pending requests, before it writes anything.
+    /// </summary>
+    private sealed class PauseAtStageWrite : SaveChangesInterceptor, IAsyncDisposable
+    {
+        private readonly SemaphoreSlim _reached = new(0);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _paused;
+
+        public SemaphoreSlim Reached => _reached;
+
+        public void Release() => _release.TrySetResult();
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            var stageWrite = eventData.Context?.ChangeTracker.Entries<ProjectStage>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Added) == true;
+            if (stageWrite && Interlocked.Exchange(ref _paused, 1) == 0)
             {
                 _reached.Release();
                 await _release.Task.WaitAsync(Timeout, cancellationToken);
