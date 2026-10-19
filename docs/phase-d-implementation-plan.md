@@ -758,6 +758,14 @@ Tests: `ProjectManagement.Tests/Stages/StageDecisionTransactionTests.cs` (SQLite
 
 Tests: the warning is emitted; the outcome and persisted state are unchanged; a validator exception is caught and logged without affecting the lifecycle write.
 
+Implemented by `Services/Stages/LifecycleChronologyObserver.cs`:
+
+- The validator's candidate contract expresses date corrections, not status transitions. Each writer therefore snapshots the Actual facts of every project stage it tracks before mutating, and again after its last save. Both snapshots are evaluated with `ActualTimelineValidationService.Evaluate` (no changes, so every violation is reported) using one workflow, ARPP authority and operational date. Only violations present afterwards and not before are reported, matching how Actual corrections separate new violations from existing data.
+- The decision path uses its `FOR UPDATE` stage set, which the completion cascade mutates in place. Direct apply uses the tracked `ProjectStages`, including forced predecessor backfill. Historical reconstruction uses its loaded and added rows.
+- The workflow and ARPP reads run under a savepoint, so a failed read cannot abort the writer's PostgreSQL transaction. Any failure is caught and reported as `Stages.ActualChronologyWarningFailed` (error), never as a lifecycle failure.
+- `Stages.ActualChronologyWarning` (EventId 4101; failure 4102) is written through `ILogger` from `RegisterAfterCommit`, so a rolled-back write logs nothing. Fields: `Operation` (`DirectApply`, `LifecycleApproval`, `HistoricalReconstruction`), `ProjectId`, `StageCode`, `ViolationCount`, `AffectedStageCodes`, `SourceStageCodes`, `Violations`. One entry per publication.
+- Rejection changes no stage facts and is not observed.
+
 ### D-1e — Documentation
 
 Update `docs/timeline.md` ("Actual-date editing and backfill"), the `docs/timeline-proposal-roadmap.md` G12/G13 status (closed for direct paths), `docs/data-domain.md` (stale backfill and lock text), and this plan's status.

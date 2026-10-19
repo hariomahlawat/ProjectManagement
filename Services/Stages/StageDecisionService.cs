@@ -40,6 +40,7 @@ public sealed class StageDecisionService
     private readonly IPlanRealignment _planRealignment;
     private readonly StageApprovalSequenceService? _sequenceService;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly LifecycleChronologyObserver _chronology;
 
     public StageDecisionService(
         ApplicationDbContext db,
@@ -59,6 +60,7 @@ public sealed class StageDecisionService
         _planRealignment = planRealignment ?? new NullPlanRealignment();
         _sequenceService = sequenceService;
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _chronology = new LifecycleChronologyObserver(db, workflowPolicy, _arppIpaStageAuthority, clock, logger);
     }
 
     public async Task<StageDecisionResult> DecideAsync(
@@ -303,6 +305,10 @@ public sealed class StageDecisionService
         }
 
         // SECTION: Atomic publication
+        // Every project stage is locked and tracked, so the completion cascade
+        // mutates these same rows; this is the baseline for D-1d observability.
+        var stagesBefore = LifecycleChronologyObserver.Snapshot(projectStages);
+
         // Claim the still-pending request before changing lifecycle state. Every
         // write below (claim, stage state, cascade history, decision history and
         // any realignment proposal) commits together or rolls back together.
@@ -405,6 +411,11 @@ public sealed class StageDecisionService
                     cancellationToken);
             }
         }
+
+        // D-1d: warning-only; it never changes the decision or the published state.
+        await _chronology.ObserveBeforeCommitAsync(
+            transaction, "LifecycleApproval", stage.ProjectId, stage.StageCode,
+            stagesBefore, projectStages, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
         LogPostCommitErrors(transaction, request.Id);

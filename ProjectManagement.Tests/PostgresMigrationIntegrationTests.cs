@@ -158,6 +158,9 @@ public sealed class PostgresMigrationIntegrationTests
         // Phase D-1c: lifecycle decisions decide once, revalidate behind the gate,
         // roll back with their history, and are not overwritten by supersession.
         await StageDecisionConcurrencyPostgresFixture.RunAsync(applicationOptions);
+        // Phase D-1d: lifecycle chronology observability is warning-only and its
+        // failure, even one that aborts a PostgreSQL statement, never blocks the write.
+        await LifecycleChronologyObservabilityPostgresFixture.RunAsync(applicationOptions);
     }
 
 
