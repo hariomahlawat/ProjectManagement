@@ -1814,7 +1814,7 @@ public class EditPlanDurationSafetyTests
     }
 
     [Fact]
-    public async Task PendingOwner_AutosaveCreatesMaterialSuccessorWithoutPublishing()
+    public async Task PendingOwner_AutosaveLeavesReviewActiveUntilExplicitMaterialSave()
     {
         await using var f = await Fixture.CreateAsync("Project Officer", "Autosave");
         var submitted = new PlanVersion
