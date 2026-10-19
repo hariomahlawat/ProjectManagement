@@ -732,6 +732,7 @@ builder.Services.AddScoped<IProjectStageWorkflowPolicy, ProjectStageWorkflowPoli
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();
+builder.Services.AddScoped<IActualTimelineValidationService, ActualTimelineValidationService>();
 builder.Services.AddScoped<StageRequestService>();
 // SECTION: Plan realignment services
 builder.Services.AddScoped<IPlanRealignment, PlanRealignmentService>();
