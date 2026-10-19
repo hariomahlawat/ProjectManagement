@@ -374,8 +374,9 @@ public class EditPlanModel : PageModel
         // validates and supersedes atomically in PlanApprovalService.
         if (intent == PlanIntent.SaveDraft)
             await _planDraft.SupersedePendingAfterSaveAsync(draft, cancellationToken);
-        await revisionSave.CommitAsync(cancellationToken);
 
+        // Do not commit before the exact replacement has been validated and
+        // submitted. The HoD decision must remain blocked on this same gate.
         if (changes.Count > 0)
         {
             _logger.LogInformation(
@@ -439,7 +440,12 @@ public class EditPlanModel : PageModel
 
             TempData["Flash"] = "Plan submitted for HoD review.";
         }
-        else
+
+        // Audit and replacement must commit together. Any failed submission
+        // returns before this point; disposal rolls back the proposed edit.
+        await revisionSave.CommitAsync(cancellationToken);
+
+        if (!submitForApproval)
         {
             TempData["OpenOffcanvas"] = "plan-edit";
 
@@ -752,8 +758,9 @@ public class EditPlanModel : PageModel
         // approval validation succeeds in the same submission transaction.
         if (intent == PlanIntent.SaveDraft && !IsAutosaveRequest)
             await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
-        await revisionSave.CommitAsync(ct);
 
+        // Submit is nested in revisionSave, so the project gate is retained
+        // until validation, durable replacement and the outer commit finish.
         if (submitForApproval)
         {
             try
@@ -801,6 +808,8 @@ public class EditPlanModel : PageModel
                 editToken = PlanEditFingerprint.Compute(draft)
             });
         }
+
+        await revisionSave.CommitAsync(ct);
 
         if (submitForApproval)
         {
