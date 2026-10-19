@@ -2,7 +2,7 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
-> **Implementation status (D-1e):** Release D-1 (D-1a … D-1e) is engineering-complete and merged; D-2 and D-3 are approved (K-1, K-14 resolved) but not started; nothing has been deployed by this work. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding has an open corrective PR, [#2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680). D-2 and D-3 are approved (K-1, K-14 resolved) but not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
 >
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
@@ -30,7 +30,7 @@ Recorded by D-1e against `master` at `119d6cf3d9dd31d64dc4d3ae5c5d26c738e6c062` 
 | D-1b | Direct correction and backfill safety: validation inside the gate and stage row locks, authority re-read (`FOR SHARE`), per-stage `ActualStageToken`, one publication routine, atomic `StageChangeLog`, post-commit audit | #2676, merge `07313590`; `StageActualsUpdateService`, `StageBackfillService`, `ActualFactPublisher`, `ActualStageToken`, `ActualWriteAuthority`; `DirectActualsPublicationTests`, `StageActualsUpdateServiceTests`, `StageBackfillServiceTests`, PostgreSQL `StageActualsConcurrencyPostgresFixture` | Complete |
 | D-1c | Lifecycle decision and ARPP concurrency safety: gate → stage rows → request lock order, compare-and-set terminal transitions, atomic decision evidence, post-commit audit/notification, gated submission, ARPP lock-before-read and conditional supersession | #2677, merge `307542b2`; `StageDecisionService`, `StageProgressService`, `StageRequestService`, `ArppIpaStageSynchronizer`, `RelationalTransactionScope`; `StageDecisionTransactionTests`, `StageRequestSupersessionTests`, `ArppIpaStageSynchronizerStaleSnapshotTests`, PostgreSQL `StageDecisionConcurrencyPostgresFixture` (races shown failing on regression-only commits before each fix) | Complete |
 | D-1d | Warning-only lifecycle chronology observability for direct apply, approval and historical reconstruction; savepoint-isolated observation; post-commit `Stages.ActualChronologyWarning`, `…Unconfirmed` for caller-owned transactions, `…Failed` on observation failure | #2678, merge `119d6cf3`; `Services/Stages/LifecycleChronologyObserver.cs`; `LifecycleChronologyObservabilityTests`, PostgreSQL `LifecycleChronologyObservabilityPostgresFixture` | Complete |
-| D-1e | Documentation reconciliation | This change: `docs/timeline.md`, `docs/timeline-proposal-roadmap.md`, `docs/data-domain.md`, this plan, a status note in `docs/phase-d-handoff.md` | Complete once reviewed |
+| D-1e | Documentation reconciliation | #2679 (open, in review): `docs/timeline.md`, `docs/timeline-proposal-roadmap.md`, `docs/data-domain.md`, this plan, a status note in `docs/phase-d-handoff.md` | In review |
 
 Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production Database Migration Gate, whose PostgreSQL integration test executed (not skipped). Pre-existing Windows-only local failures (two ARPP CSS line-ending contract tests and `UploadRootProviderTests.UsesFallbackWhenPrimaryCreationFails`) are unrelated and untouched.
 
@@ -56,13 +56,18 @@ Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production D
 
 ### D-1 verification findings
 
-D-1e verification found one residual race, recorded here rather than fixed (D-1e is documentation only):
+D-1e verification found one residual race. D-1e is documentation only, so it is fixed separately, in an **open corrective PR**:
 
 - **HoD direct apply versus ARPP verify on IPA.** `StageDirectApplyService` takes the project gate but does not lock stage rows. Its ARPP check reads committed data, and it supersedes a same-stage pending request with a tracked update. ARPP synchronization does not take the gate.
   - A direct apply on IPA that runs while an ARPP verify is synchronizing can pass the ARPP check, because the publication is not yet committed. It then waits on ARPP's IPA row lock and applies the columns it computed from its earlier snapshot, which can overwrite the published completion (rule 17).
   - It can also re-supersede a request ARPP already superseded, writing a second `Superseded` row.
   - This is the pattern D-1c fixed for submission. It is narrow: an HoD acting on IPA concurrently with an ARPP verify for the same project.
-  - **Proposed follow-up:** lock the project's stage rows before the ARPP check, and supersede by compare-and-set. This needs its own change and review.
+  - **Correction:** [#2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (*Fix HoD direct apply racing ARPP verify on IPA*), **open and not merged**. Until it merges, `master` still has this race. The fix is narrow, confined to `StageDirectApplyService`:
+    - lock every project stage row `FOR UPDATE` right after the project gate, before the ARPP authority check and any stage or request read (gate → stage rows → request rows, as in D-1c);
+    - supersede the pending request by compare-and-set on `Pending`, refusing if it was already decided.
+  - **Regression coverage:** a PostgreSQL scenario in `StageDecisionConcurrencyPostgresFixture`, plus a SQLite supersession test.
+    - The PostgreSQL scenario failed on the regression-only commit: the IPA `CompletedOn` became the HoD's 25 Jan instead of the ARPP date of 1 Feb.
+    - It passes with the fix, and the migration gate executed it.
 - `HistoricalStageRecordService` takes no gate, by design (F.5 row 7), and writes its audit entry inside its transaction. It applies only to closed legacy projects.
 
 ### Approved governance for D-2/D-3
