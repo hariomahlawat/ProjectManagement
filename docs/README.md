@@ -33,7 +33,9 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
-| [Timeline pipeline](timeline.md) | Plan versions, approvals and checklist integration. |
+| [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
+| [Timeline implementation roadmap](timeline-proposal-roadmap.md) | Completed B/C milestones, historical gaps and open D/E boundaries. |
+| [Phase D handoff](phase-d-handoff.md) | Code-grounded starting points, invariants, research checklist and implementation acceptance gates for approved Actual correction/backfill. |
 | [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
 | [Extending the platform](extending.md) | Older extension patterns and conventions. |
 | [Action Tracker development note](action-tracker-development-note.md) | Action Tracker implementation detail. |
