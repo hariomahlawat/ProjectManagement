@@ -24,6 +24,7 @@ public class PlanDraftService
     private readonly IAuditService _audit;
     private readonly IUserContext _userContext;
     private readonly IOfficeCalendarService? _officeCalendar;
+    private readonly IPlanNotificationService? _notifications;
 
     public PlanDraftService(
         ApplicationDbContext db,
@@ -31,7 +32,8 @@ public class PlanDraftService
         ILogger<PlanDraftService> logger,
         IAuditService audit,
         IUserContext userContext,
-        IOfficeCalendarService? officeCalendar = null)
+        IOfficeCalendarService? officeCalendar = null,
+        IPlanNotificationService? notifications = null)
     {
         _db = db;
         _clock = clock;
@@ -39,6 +41,7 @@ public class PlanDraftService
         _audit = audit;
         _userContext = userContext;
         _officeCalendar = officeCalendar;
+        _notifications = notifications;
     }
 
     public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, CancellationToken cancellationToken = default)
@@ -95,6 +98,18 @@ public class PlanDraftService
         await PlanRevisionConsistency.LockProjectAsync(_db, draft.ProjectId, cancellationToken);
         var superseded = await PlanRevisionConsistency.SupersedeOwnedPendingIfChangedAsync(
             _db, draft, actorId, _clock.UtcNow, cancellationToken);
+        if (superseded && _notifications is not null)
+        {
+            var previous = await _db.PlanVersions.AsNoTracking().Include(p => p.Project)
+                .Where(p => p.ProjectId == draft.ProjectId &&
+                            p.VersionNo < draft.VersionNo &&
+                            p.Status == PlanVersionStatus.Superseded)
+                .OrderByDescending(p => p.VersionNo)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (previous?.Project is not null)
+                transaction.RegisterAfterCommit(ct =>
+                    _notifications.NotifyPlanSupersededAsync(previous, previous.Project, actorId, ct));
+        }
         await transaction.CommitAsync(cancellationToken);
         return superseded;
     }
