@@ -50,6 +50,72 @@ internal static class PlanRevisionConsistency
     }
 
     /// <summary>
+    /// Promote an actual material successor to the new revision identity. The
+    /// caller MUST own the project transaction gate and persist the candidate
+    /// changes in that same transaction. Opening or copying a draft is inert.
+    /// </summary>
+    internal static async Task<bool> SupersedeOwnedPendingIfChangedAsync(
+        ApplicationDbContext db,
+        PlanVersion successor,
+        string actorUserId,
+        DateTimeOffset decidedOn,
+        CancellationToken ct)
+    {
+        if (successor.Status != PlanVersionStatus.Draft ||
+            !string.Equals(successor.OwnerUserId, actorUserId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Only the owner can replace their editable draft.");
+
+        var previous = await ActionablePending(db)
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == successor.ProjectId && p.VersionNo < successor.VersionNo &&
+                        (p.OwnerUserId == actorUserId || p.SubmittedByUserId == actorUserId))
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(ct);
+
+        if (previous is null || !HasMaterialChanges(previous, successor))
+            return false;
+
+        previous.Status = PlanVersionStatus.Superseded;
+        db.PlanApprovalLogs.Add(new PlanApprovalLog
+        {
+            PlanVersionId = previous.Id,
+            Action = "Superseded",
+            Note = $"Replaced by plan revision {successor.VersionNo} (ID {successor.Id}).",
+            PerformedByUserId = actorUserId,
+            PerformedOn = decidedOn
+        });
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    internal static bool HasMaterialChanges(PlanVersion reviewed, PlanVersion draft)
+    {
+        if (reviewed.PlanningInputVersion != draft.PlanningInputVersion ||
+            reviewed.AnchorStageCode != draft.AnchorStageCode ||
+            reviewed.AnchorDate != draft.AnchorDate ||
+            reviewed.SkipWeekends != draft.SkipWeekends ||
+            reviewed.SkipHolidays != draft.SkipHolidays ||
+            reviewed.TransitionRule != draft.TransitionRule ||
+            reviewed.PncApplicable != draft.PncApplicable)
+            return true;
+
+        if (reviewed.StagePlans.Count != draft.StagePlans.Count)
+            return true;
+
+        var stages = reviewed.StagePlans.ToDictionary(p => p.StageCode, StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in draft.StagePlans)
+        {
+            if (!stages.TryGetValue(candidate.StageCode, out var prior) ||
+                prior.PlannedStart != candidate.PlannedStart ||
+                prior.PlannedDue != candidate.PlannedDue ||
+                prior.DurationDays != candidate.DurationDays ||
+                prior.SortOrder != candidate.SortOrder)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Every writer of submission/publication state takes this gate before its
     /// authoritative reads and writes, within the same database transaction.
     /// PostgreSQL's transaction-scoped advisory lock also prevents phantom
