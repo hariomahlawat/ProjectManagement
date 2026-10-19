@@ -20,6 +20,13 @@
 }
 
 <div class="d-flex flex-column h-100">
+    @if (!isDirectSaveRole && state.HasPendingSubmission && state.PendingOwnedByCurrentUser)
+    {
+        <div class="alert alert-info mb-3" role="status">
+            <div class="fw-semibold">Submitted plan under HoD review</div>
+            <div class="small">You can continue editing. Material changes replace the submitted revision; opening the editor alone does not.</div>
+        </div>
+    }
     @if (isLocked)
     {
         <div class="alert alert-info mb-3" role="status">
