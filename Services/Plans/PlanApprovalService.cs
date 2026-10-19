@@ -92,17 +92,32 @@ public class PlanApprovalService
             throw new DomainException("This revision was superseded by a later timeline submission.");
         }
 
-        var alreadyPending = await PlanRevisionConsistency.ActionablePending(_db)
-            .AnyAsync(p => p.ProjectId == projectId, cancellationToken);
-        if (alreadyPending)
-        {
+        var pending = await PlanRevisionConsistency.ActionablePending(_db)
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (pending is not null &&
+            (!string.Equals(pending.OwnerUserId ?? pending.SubmittedByUserId,
+                            userId, StringComparison.OrdinalIgnoreCase) ||
+             pending.VersionNo >= plan.VersionNo))
             throw new DomainException("Another submission is already pending approval.");
-        }
+
+        if (pending is not null && !PlanRevisionConsistency.HasMaterialChanges(pending, plan))
+            throw new DomainException("Make a change to the reviewed plan before submitting a replacement.");
 
         var errors = await ValidatePlanAsync(plan, cancellationToken);
         if (errors.Count > 0)
         {
             throw new PlanApprovalValidationException(errors);
+        }
+
+        if (pending is not null)
+        {
+            // Successful replacement is one atomic transition: the prior review
+            // becomes permanently stale before the new submission is visible.
+            await PlanRevisionConsistency.SupersedeOwnedPendingIfChangedAsync(
+                _db, plan, userId, _clock.UtcNow, cancellationToken);
         }
 
         plan.Status = PlanVersionStatus.PendingApproval;
@@ -128,6 +143,41 @@ public class PlanApprovalService
         {
             await _notifications.NotifyPlanSubmittedAsync(plan, plan.Project, userId, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Withdraws the exact currently actionable submission without rewriting the
+    /// reviewed content. A stale tab cannot withdraw a newer submission.
+    /// </summary>
+    public async Task<bool> WithdrawVersionAsync(
+        int projectId, int planVersionId, DateTimeOffset? submittedOn,
+        string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId) || !submittedOn.HasValue)
+            return false;
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, projectId, cancellationToken);
+        var plan = await PlanRevisionConsistency.ActionablePending(_db)
+            .SingleOrDefaultAsync(p => p.ProjectId == projectId && p.Id == planVersionId &&
+                                       p.SubmittedOn == submittedOn, cancellationToken);
+        if (plan is null ||
+            !string.Equals(plan.OwnerUserId ?? plan.SubmittedByUserId,
+                           userId, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        plan.Status = PlanVersionStatus.Withdrawn;
+        _db.PlanApprovalLogs.Add(new PlanApprovalLog
+        {
+            PlanVersionId = plan.Id,
+            Action = "Withdrawn",
+            Note = "Submission withdrawn by its owner.",
+            PerformedByUserId = userId,
+            PerformedOn = _clock.UtcNow
+        });
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
