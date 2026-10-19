@@ -55,7 +55,7 @@ else
                                     <button type="submit" class="btn btn-sm btn-outline-primary" data-social-busy-label="Setting…"><i class="bi bi-star" aria-hidden="true"></i>Set cover</button>
                                 </form>
                             }
-                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.EventId" data-social-disable-on-submit data-confirm="Delete this photograph?">
+                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.EventId" data-social-disable-on-submit data-page-handled data-confirm="Delete this photograph?">
                                 <input type="hidden" name="photoId" value="@photo.Id" />
                                 <input type="hidden" name="rowVersion" value="@photo.RowVersion" />
                                 <button type="submit" class="btn btn-sm btn-outline-danger" data-social-busy-label="Deleting…"><i class="bi bi-trash" aria-hidden="true"></i>Remove</button>

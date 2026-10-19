@@ -20,6 +20,8 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'project-office-reports', 'ffc', 'ffc-footprint.test.js'),
   path.join('wwwroot', 'js', 'pages', 'project-office-reports', 'ffc', 'ffc-powerpoint-export.test.js'),
   path.join('wwwroot', 'js', 'components', 'prism-confirm-dialog.test.js'),
+  path.join('wwwroot', 'js', 'core', 'declarative-actions.test.js'),
+  path.join('tools', 'check-views.test.js'),
 ];
 
 function findTestFiles(directory) {

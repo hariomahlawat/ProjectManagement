@@ -117,7 +117,7 @@
             <details>
                 <summary><i class="bi bi-intersect"></i> Merge duplicate</summary>
                 <form method="post" asp-page-handler="Merge" class="people-action-form"
-                      onsubmit="return confirm('Merge this person into the selected identity? Review the target carefully before continuing.');">
+                      data-confirm="Merge this person into the selected identity? Review the target carefully before continuing.">
                     <input type="hidden" name="id" value="@Model.Person.Id" />
                     <label for="targetPersonId">Merge into</label>
                     <select id="targetPersonId" name="targetPersonId" class="form-select" required>
@@ -234,7 +234,7 @@
                 <details class="person-account-link__unlink">
                     <summary class="btn btn-sm btn-outline-danger">Unlink</summary>
                     <form method="post" asp-page-handler="UnlinkUser" class="people-action-form"
-                          onsubmit="return confirm('Unlink this PRISM account from the media identity? Confirmed photographs will not be changed.');">
+                          data-confirm="Unlink this PRISM account from the media identity? Confirmed photographs will not be changed.">
                         <input type="hidden" name="id" value="@Model.Person.Id" />
                         <label for="unlinkReason">Reason</label>
                         <textarea id="unlinkReason" name="reason" class="form-control" rows="2" maxlength="1024" required
@@ -494,7 +494,7 @@
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Remove assignment</button>
                                         </form>
                                         <form method="post" asp-page-handler="SuppressFace" class="person-remove-form person-remove-form--static"
-                                              onsubmit="return confirm('Mark this detection as not a valid face? Its embedding and active assignment will be retired.');">
+                                              data-confirm="Mark this detection as not a valid face? Its embedding and active assignment will be retired.">
                                             <input type="hidden" name="id" value="@Model.Person.Id" />
                                             <input type="hidden" name="faceId" value="@photo.FaceId" />
                                             <label for="suppress-reason-@photo.FaceId">Not a valid face</label>

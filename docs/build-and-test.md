@@ -48,6 +48,8 @@ For view guardrails on a Unix-compatible shell:
 npm run lint:views
 ```
 
+`tools/check-views.sh` requires `bash` and ripgrep (`rg`, built with PCRE2). It rejects inline `<script>` blocks (JSON data blocks with `type="application/json"` are allowed) and inline `on*` event handler attributes, because the Content-Security-Policy `script-src` has no `'unsafe-inline'`. It exits 1 on a violation and 2 when it cannot run, so a broken check never passes silently. `style` attributes are allowed by the policy (`style-src-attr 'unsafe-inline'`) and are not checked. Its fixture tests run as part of `npm test`.
+
 ## Notebook assets
 
 Notebook source inputs include JavaScript under `wwwroot/js`, the Notebook build tooling and the npm manifests. Committed outputs include the Notebook bundle, source map and manifest under `wwwroot/dist`.

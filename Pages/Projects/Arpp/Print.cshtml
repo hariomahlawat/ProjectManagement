@@ -17,11 +17,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>@Model.Document.Name · @financialYear</title>
     <link rel="stylesheet" href="~/css/projects/arpp-library-print.css" asp-append-version="true" />
+    <script src="~/js/core/declarative-actions.js" asp-append-version="true" defer></script>
 </head>
 <body>
     <div class="arpp-library-print-toolbar" role="toolbar" aria-label="Print controls">
-        <button type="button" onclick="window.print()">Print / Save PDF</button>
-        <button type="button" onclick="window.close()">Close</button>
+        <button type="button" data-print>Print / Save PDF</button>
+        <button type="button" data-close-window>Close</button>
     </div>
 
     <main class="arpp-library-print-document">

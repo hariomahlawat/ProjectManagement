@@ -253,7 +253,7 @@ else
                                     <form method="post" asp-page-handler="Delete" class="m-0 p-0">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@t.Id" />
-                                        <button type="submit" class="dropdown-item text-danger js-confirm-delete" data-confirm="Delete this task?">Delete</button>
+                                        <button type="submit" class="dropdown-item text-danger js-confirm-delete" data-page-handled data-confirm="Delete this task?">Delete</button>
                                     </form>
                                 </li>
                             </ul>

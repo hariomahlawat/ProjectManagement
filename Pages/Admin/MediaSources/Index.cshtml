@@ -447,7 +447,7 @@
                                                 {
                                                     <input type="hidden" name="forcePermanent" value="true" />
                                                     <button class="btn btn-sm btn-outline-secondary" type="submit"
-                                                            onclick="return confirm('Retry only after restoring or correcting the source content. Continue?');">
+                                                            data-confirm="Retry only after restoring or correcting the source content. Continue?">
                                                         Force retry
                                                     </button>
                                                 }
@@ -757,7 +757,7 @@
                                                             </li>
                                                             <li><hr class="dropdown-divider" /></li>
                                                             <li>
-                                                                <form method="post" asp-page-handler="Disconnect" onsubmit="return confirm('Disconnect this folder? Indexed records will be hidden, but no original file will be changed or deleted.');">
+                                                                <form method="post" asp-page-handler="Disconnect" data-confirm="Disconnect this folder? Indexed records will be hidden, but no original file will be changed or deleted.">
                                                                     <input type="hidden" name="id" value="@source.Id" />
                                                                     <input type="hidden" name="version" value="@source.ConcurrencyToken" />
                                                                     <button type="submit" class="dropdown-item text-danger">

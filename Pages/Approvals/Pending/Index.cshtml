@@ -61,11 +61,11 @@
                        placeholder="Search project, activity, document or requester" />
             </div>
             <label class="visually-hidden" asp-for="Type">Request type</label>
-            <select asp-for="Type" asp-items="Model.TypeOptions" data-auto-submit></select>
+            <select asp-for="Type" asp-items="Model.TypeOptions" data-page-handled data-auto-submit></select>
             <label class="visually-hidden" asp-for="Module">Module</label>
-            <select asp-for="Module" asp-items="Model.ModuleOptions" data-auto-submit></select>
+            <select asp-for="Module" asp-items="Model.ModuleOptions" data-page-handled data-auto-submit></select>
             <label class="visually-hidden" asp-for="Age">Request age</label>
-            <select asp-for="Age" asp-items="Model.AgeOptions" data-auto-submit></select>
+            <select asp-for="Age" asp-items="Model.AgeOptions" data-page-handled data-auto-submit></select>
             <input type="hidden" asp-for="Readiness" />
             <button type="submit" class="btn btn-primary decision-filter-button">Search</button>
             @if (Model.HasActiveFilters)

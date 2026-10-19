@@ -440,7 +440,7 @@
                         }
                         <label>
                             <span>Source</span>
-                            <select class="form-select form-select-sm" name="Source" onchange="this.form.submit()">
+                            <select class="form-select form-select-sm" name="Source" data-auto-submit>
                                 <option value="all" selected="@(Model.Source == "all")">All sources</option>
                                 <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
                                 <option value="visits" selected="@(Model.Source == "visits")">Visits</option>
@@ -454,7 +454,7 @@
                         </label>
                         <label>
                             <span>Year</span>
-                            <select class="form-select form-select-sm" name="Year" onchange="this.form.submit()">
+                            <select class="form-select form-select-sm" name="Year" data-auto-submit>
                                 <option value="">All years</option>
                                 @foreach (var year in Model.AvailableYears)
                                 {
@@ -466,7 +466,7 @@
                         {
                             <label>
                                 <span>Matching</span>
-                                <select class="form-select form-select-sm" name="MatchStatus" onchange="this.form.submit()">
+                                <select class="form-select form-select-sm" name="MatchStatus" data-auto-submit>
                                     <option value="all" selected="@(Model.MatchStatus == "all")">All statuses</option>
                                     <option value="no-match" selected="@(Model.MatchStatus == "no-match")">No reliable match</option>
                                     <option value="failed" selected="@(Model.MatchStatus == "failed")">Matching failed</option>
@@ -482,7 +482,7 @@
 
                     <label class="face-review-sort">
                         <span>Sort</span>
-                        <select class="form-select form-select-sm" aria-label="Sort review queue" onchange="if(this.value) window.location.href=this.value">
+                        <select class="form-select form-select-sm" aria-label="Sort review queue" data-auto-navigate>
                             <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Highest quality first</option>
                             <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Lowest quality first</option>
                             <option value="@(Model.BuildReviewUrl(sort: "newest", pageNumber: 1))" selected="@(Model.Sort == "newest")">Newest first</option>

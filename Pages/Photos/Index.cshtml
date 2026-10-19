@@ -985,7 +985,7 @@
                     }
                     else
                     {
-                        <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="Archive" onsubmit="return confirm('Archive this organisation-wide album? Its media will remain in Photos and source collections.');"><input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" /><input type="hidden" name="concurrencyToken" value="@Model.CurrentAlbum.ConcurrencyToken" /><input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" /><button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-archive"></i> Archive album</button></form>
+                        <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="Archive" data-confirm="Archive this organisation-wide album? Its media will remain in Photos and source collections."><input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" /><input type="hidden" name="concurrencyToken" value="@Model.CurrentAlbum.ConcurrencyToken" /><input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" /><button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-archive"></i> Archive album</button></form>
                     }
                 </div>
             </div>

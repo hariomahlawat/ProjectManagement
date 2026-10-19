@@ -65,7 +65,7 @@ else
                                 }
                                 @if (canDelete)
                                 {
-                                    <form method="post" action="@Model.DeletePostUrl" class="at-update-delete-form" data-at-update-delete-form data-confirm="@deleteConfirmation">
+                                    <form method="post" action="@Model.DeletePostUrl" class="at-update-delete-form" data-at-update-delete-form data-page-handled data-confirm="@deleteConfirmation">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@Model.TaskId" />
                                         <input type="hidden" name="updateId" value="@update.Id" />

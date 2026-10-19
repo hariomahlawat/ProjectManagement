@@ -116,20 +116,20 @@
                 <input type="hidden" name="Q" value="@Model.Q" />
                 @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
                 @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
-                <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" onchange="this.form.submit()">
+                <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" data-auto-submit>
                     <option value="name" selected="@(Model.Sort == "name")">Name</option>
                     <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
                     <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
                 </select>
                 @if (Model.CanManageIdentities)
                 {
-                    <select id="peopleAccountLink" name="AccountLink" class="form-select people-account-filter" aria-label="Filter by PRISM account linkage" onchange="this.form.submit()">
+                    <select id="peopleAccountLink" name="AccountLink" class="form-select people-account-filter" aria-label="Filter by PRISM account linkage" data-auto-submit>
                         <option value="all" selected="@(Model.AccountLink == "all")">All accounts</option>
                         <option value="linked" selected="@(Model.AccountLink == "linked")">Linked</option>
                         <option value="unlinked" selected="@(Model.AccountLink == "unlinked")">Unlinked</option>
                         <option value="reported" selected="@(Model.AccountLink == "reported")">Needs review</option>
                     </select>
-                    <label class="people-hidden-toggle"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" onchange="this.form.submit()" /><span>Hidden</span></label>
+                    <label class="people-hidden-toggle"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" data-auto-submit /><span>Hidden</span></label>
                 }
             </form>
         </section>
