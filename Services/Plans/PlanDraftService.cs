@@ -58,16 +58,8 @@ public class PlanDraftService
             return myDraft;
         }
 
-        var hasPending = await PlanRevisionConsistency.ActionablePending(_db)
-            .AsNoTracking()
-            .AnyAsync(p => p.ProjectId == projectId &&
-                           (p.OwnerUserId == userId || (p.OwnerUserId == null && p.CreatedByUserId == userId)),
-                cancellationToken);
-
-        if (hasPending)
-        {
-            throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
-        }
+        // A submitted proposal is immutable. If its owner returns to edit,
+        // CreateDraftAsync creates an isolated successor under the project gate.
 
         // Only a creator may recover their own pre-ownership draft. An ownerless
         // row is not a published baseline and cannot be claimed by another actor.
@@ -170,13 +162,12 @@ public class PlanDraftService
             return existing;
         }
 
-        var pendingMine = await PlanRevisionConsistency.ActionablePending(_db)
-            .AnyAsync(p => p.ProjectId == projectId &&
-                           (p.OwnerUserId == userId ||
-                            (p.OwnerUserId == null && p.CreatedByUserId == userId)),
-                cancellationToken);
-        if (pendingMine)
-            throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
+        var myPending = await PlanRevisionConsistency.ActionablePending(_db)
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.OwnerUserId == userId || p.SubmittedByUserId == userId))
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var orphan = await _db.PlanVersions.Include(p => p.StagePlans)
             .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft &&
@@ -204,7 +195,31 @@ public class PlanDraftService
             CreatedOn = _clock.UtcNow,
             PlanningInputVersion = PlanningInputVersions.Current
         };
-        await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
+        if (myPending is not null)
+        {
+            // Copy the exact submitted inputs, not globals or the current official
+            // baseline. The pending N stays immutable and actionable until a
+            // material successor is saved or explicitly submitted.
+            plan.PlanningInputVersion = myPending.PlanningInputVersion;
+            plan.AnchorStageCode = myPending.AnchorStageCode;
+            plan.AnchorDate = myPending.AnchorDate;
+            plan.SkipWeekends = myPending.SkipWeekends;
+            plan.SkipHolidays = myPending.SkipHolidays;
+            plan.TransitionRule = myPending.TransitionRule;
+            plan.PncApplicable = myPending.PncApplicable;
+            plan.StagePlans = myPending.StagePlans.Select(stage => new StagePlan
+            {
+                StageCode = stage.StageCode,
+                PlannedStart = stage.PlannedStart,
+                PlannedDue = stage.PlannedDue,
+                DurationDays = stage.DurationDays,
+                SortOrder = stage.SortOrder
+            }).ToList();
+        }
+        else
+        {
+            await InitializeInputsAsync(plan, preserveExistingDates: false, cancellationToken);
+        }
 
         var latestVersion = await _db.PlanVersions
             .Where(p => p.ProjectId == projectId)
