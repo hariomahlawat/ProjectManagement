@@ -124,6 +124,87 @@ public static class StageDateSuggestionResolver
             SkippedStageCount: controlling.SkippedStageCount);
     }
 
+    /// <summary>
+    /// Validation semantics, distinct from the suggestion returned by <c>Resolve</c>:
+    /// every dated completion reachable through a required predecessor is a
+    /// lower bound for the stage's explicit actual chronology. Skipped stages are
+    /// transparent and their ancestry is followed. An unresolved branch (undated
+    /// or not yet complete) contributes no bound, but unlike the suggestion it
+    /// does not cancel the bounds supplied by other branches.
+    /// </summary>
+    public static IReadOnlyList<StageChronologyBoundary> ResolveBranchBoundaries(
+        ProjectStageWorkflowSnapshot workflow,
+        string? stageCode,
+        Func<string, StageChronologyState?> stateAccessor,
+        ArppIpaStageAuthority? ipaAuthority = null)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(stateAccessor);
+
+        // Graph membership comes from the effective dependencies, not the built-in
+        // stage metadata: a configured extension stage keeps its real boundaries,
+        // and an unconfigured stage simply has no required predecessors.
+        if (string.IsNullOrWhiteSpace(stageCode))
+        {
+            return Array.Empty<StageChronologyBoundary>();
+        }
+
+        var bounds = new Dictionary<string, StageChronologyBoundary>(StringComparer.OrdinalIgnoreCase);
+
+        void Collect(string dependencyCode, int skippedStageCount, ISet<string> path)
+        {
+            if (!path.Add(dependencyCode))
+            {
+                // A dependency cycle is invalid configuration; it supplies no bound.
+                return;
+            }
+
+            try
+            {
+                var state = StageEffectiveState.Resolve(dependencyCode, stateAccessor(dependencyCode), ipaAuthority);
+                if (state is null)
+                {
+                    return;
+                }
+
+                if (state.Status == StageStatus.Skipped)
+                {
+                    foreach (var ancestorCode in workflow.RequiredPredecessors(dependencyCode))
+                    {
+                        Collect(ancestorCode, skippedStageCount + 1, path);
+                    }
+
+                    return;
+                }
+
+                if (state.Status == StageStatus.Completed
+                    && state.CompletionDate.HasValue
+                    && !bounds.ContainsKey(dependencyCode))
+                {
+                    bounds[dependencyCode] = new StageChronologyBoundary(
+                        dependencyCode,
+                        state.CompletionDate.Value,
+                        skippedStageCount);
+                }
+            }
+            finally
+            {
+                path.Remove(dependencyCode);
+            }
+        }
+
+        foreach (var predecessorCode in workflow.RequiredPredecessors(stageCode))
+        {
+            Collect(predecessorCode, 0, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { stageCode });
+        }
+
+        return bounds.Values
+            .OrderByDescending(bound => bound.CompletionDate.DayNumber)
+            .ThenByDescending(bound => workflow.OrderOf(bound.SourceStageCode))
+            .ThenBy(bound => bound.SourceStageCode, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     private static BranchResolution ResolveDependencyBranch(
         ProjectStageWorkflowSnapshot workflow,
         string dependencyCode,
@@ -253,6 +334,15 @@ public static class StageDateSuggestionResolver
 public sealed record StageChronologyState(
     StageStatus Status,
     DateOnly? CompletionDate);
+
+/// <summary>
+/// A dated predecessor completion that bounds a stage's explicit actual
+/// chronology. Same-day commencement on <see cref="CompletionDate"/> is valid.
+/// </summary>
+public sealed record StageChronologyBoundary(
+    string SourceStageCode,
+    DateOnly CompletionDate,
+    int SkippedStageCount);
 
 public sealed record StageDateSuggestion(
     DateOnly? SuggestedStartDate,
