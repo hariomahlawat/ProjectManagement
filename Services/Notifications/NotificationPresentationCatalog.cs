@@ -25,6 +25,8 @@ public static class NotificationPresentationCatalog
                 NotificationKind.PlanSubmitted => new("Approvals", "bi bi-send-check", "High", true),
                 NotificationKind.PlanApproved => new("Approvals", "bi bi-check2-circle", "Normal", false),
                 NotificationKind.PlanRejected => new("Approvals", "bi bi-x-circle", "High", true),
+                NotificationKind.PlanWithdrawn => new("Approvals", "bi bi-arrow-return-left", "Normal", false),
+                NotificationKind.PlanSuperseded => new("Approvals", "bi bi-arrow-repeat", "Normal", false),
 
                 NotificationKind.StageStatusChanged => new("Project lifecycle", "bi bi-diagram-3", "Normal", false),
                 NotificationKind.StageAssigned => new("Project lifecycle", "bi bi-person-check", "High", true),
