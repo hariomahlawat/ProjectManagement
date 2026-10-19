@@ -81,6 +81,24 @@ public class PlanDraftService
         return await CreateDraftAsync(projectId, userId, cancellationToken);
     }
 
+    /// <summary>
+    /// Finalize replacement only after material inputs have been persisted.
+    /// Page handlers keep the whole edit/generation and this transition under
+    /// one outer transaction and project gate; nested callers use a savepoint.
+    /// </summary>
+    public async Task<bool> SupersedePendingAfterSaveAsync(
+        PlanVersion draft, CancellationToken cancellationToken = default)
+    {
+        var actorId = GetCurrentUserId();
+        await using var transaction = await RelationalTransactionScope.CreateAsync(
+            _db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, draft.ProjectId, cancellationToken);
+        var superseded = await PlanRevisionConsistency.SupersedeOwnedPendingIfChangedAsync(
+            _db, draft, actorId, _clock.UtcNow, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return superseded;
+    }
+
     public async Task<PlanVersion?> GetMyDraftAsync(int projectId, CancellationToken cancellationToken = default)
     {
         var userId = GetCurrentUserIdOrDefault();
