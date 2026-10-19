@@ -28,6 +28,7 @@ internal static class PlanRevisionConcurrencyPostgresFixture
         await RealignmentCreationHonoursProjectGateAsync(options);
         await DraftAndRealignmentAllocateDistinctVersionsAsync(options);
         await DraftBaselineFollowsCommittedPublicationAsync(options);
+        await MaterialReplacementBeatsConcurrentDecisionAsync(options);
     }
 
     private static async Task ConcurrentSubmissionsAsync(DbContextOptions<ApplicationDbContext> options)
@@ -303,6 +304,76 @@ internal static class PlanRevisionConcurrencyPostgresFixture
             .SingleAsync(p => p.Id == created.Id);
         Assert.Equal(created.AnchorDate, stored.AnchorDate);
         Assert.Equal(9, stored.StagePlans.Single(row => row.StageCode == StageCodes.FS).DurationDays);
+    }
+
+    private static async Task MaterialReplacementBeatsConcurrentDecisionAsync(
+        DbContextOptions<ApplicationDbContext> options)
+    {
+        await using var seed = new ApplicationDbContext(options);
+        var project = new Project
+        {
+            Name = "C2 exact-review replacement race",
+            CreatedByUserId = "revision-actor-a",
+            LeadPoUserId = "revision-actor-a",
+            RowVersion = Array.Empty<byte>()
+        };
+        seed.Projects.Add(project);
+        await seed.SaveChangesAsync();
+        var reviewed = new PlanVersion
+        {
+            ProjectId = project.Id, VersionNo = 1,
+            Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "revision-actor-a",
+            OwnerUserId = "revision-actor-a",
+            SubmittedByUserId = "revision-actor-a",
+            SubmittedOn = new DateTimeOffset(2026, 10, 17, 12, 0, 0, TimeSpan.Zero),
+            PlanningInputVersion = PlanningInputVersions.Current,
+            AnchorDate = new DateOnly(2026, 11, 1)
+        };
+        reviewed.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS, SortOrder = 10, DurationDays = 4,
+            PlannedStart = new DateOnly(2026, 11, 1),
+            PlannedDue = new DateOnly(2026, 11, 4)
+        });
+        seed.PlanVersions.Add(reviewed);
+        await seed.SaveChangesAsync();
+
+        await using var actorDb = new ApplicationDbContext(options);
+        await using var actorTransaction = await actorDb.Database.BeginTransactionAsync();
+        await PlanRevisionConsistency.LockProjectAsync(actorDb, project.Id, default);
+        var draftService = new PlanDraftService(actorDb, new FixedClock(),
+            NullLogger<PlanDraftService>.Instance, new NullAudit(),
+            new ActorContext("revision-actor-a"));
+        var revision = await draftService.CreateOrGetDraftAsync(project.Id);
+        Assert.Equal(2, revision.VersionNo);
+        revision.StagePlans.Single().PlannedDue = new DateOnly(2026, 11, 9);
+        await actorDb.SaveChangesAsync();
+        Assert.True(await draftService.SupersedePendingAfterSaveAsync(revision));
+
+        await using var reviewerDb = new ApplicationDbContext(options);
+        var approval = new PlanApprovalService(reviewerDb, new FixedClock(),
+            NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(reviewerDb),
+            new NoNotifications(), new AlwaysValidTimeline());
+        var staleDecision = approval.ApproveVersionAsync(
+            reviewed.Id, "revision-actor-b", false, true, expectedProjectId: project.Id);
+        await Task.Delay(100);
+        Assert.False(staleDecision.IsCompleted);
+        await actorTransaction.CommitAsync();
+        Assert.False(await staleDecision.WaitAsync(TimeSpan.FromSeconds(30)));
+
+        seed.ChangeTracker.Clear();
+        var persisted = await seed.PlanVersions.AsNoTracking().Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == project.Id)
+            .OrderBy(p => p.VersionNo).ToListAsync();
+        Assert.Equal(new[] { PlanVersionStatus.Superseded, PlanVersionStatus.Draft },
+            persisted.Select(p => p.Status));
+        Assert.Equal(new DateOnly(2026, 11, 4), persisted[0].StagePlans.Single().PlannedDue);
+        Assert.Equal(new DateOnly(2026, 11, 9), persisted[1].StagePlans.Single().PlannedDue);
+        Assert.True(await seed.PlanApprovalLogs.AsNoTracking().AnyAsync(
+            log => log.PlanVersionId == reviewed.Id && log.Action == "Superseded"));
+        Assert.False(await seed.Projects.AsNoTracking().AnyAsync(p =>
+            p.Id == project.Id && p.ActivePlanVersionNo.HasValue));
     }
 
     private static async Task<bool> TrySubmitAsync(
