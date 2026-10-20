@@ -43,6 +43,8 @@ function setup(t, fetchResponse = () => jsonResponse({ ok: true, savedAt: '2026-
   let nextTimer = 0;
   window.setTimeout = (fn) => { timers.set(++nextTimer, fn); return nextTimer; };
   window.clearTimeout = (id) => timers.delete(id);
+  // The unsaved-changes guard asks before other-tab edits are dropped; accept it here.
+  window.confirm = () => true;
   window.fetch = async (url, options) => { calls.push({ url, options }); return fetchResponse(url, options); };
   // jsdom has no navigation. Observe successful controls at the native boundary.
   // A return to native submit() must lose the button action, just as it does in a browser.

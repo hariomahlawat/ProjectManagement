@@ -1560,10 +1560,21 @@ button.project-intelligence-card:hover {
     min-width: 0;
 }
 
+/* One scroll region: the panel body scrolls the whole editor, so the stage list is not
+   squeezed into a small inner box; the actions stay in view (PO Timeline Increment 2f). */
 .actuals-editor__list {
-    overflow-y: auto;
     overflow-x: hidden;
     padding-right: .25rem;
+}
+
+.actuals-editor__footer {
+    position: sticky;
+    /* Cover the panel body's bottom padding too, so scrolled content never shows below the actions. */
+    bottom: calc(-1 * var(--bs-offcanvas-padding-y, 1rem));
+    margin-bottom: calc(-1 * var(--bs-offcanvas-padding-y, 1rem));
+    padding-bottom: var(--bs-offcanvas-padding-y, 1rem);
+    z-index: 1;
+    background: var(--bs-body-bg, #fff);
 }
 
 .actuals-editor__fields {

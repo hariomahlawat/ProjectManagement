@@ -3,30 +3,46 @@
     var row = Model.Row;
     var i = Model.Index;
     var disableAttr = Model.IsDisabled ? "disabled" : null;
+    var hasErrors = Model.Errors.Count > 0;
+    var errorId = $"ExactRows_{i}__Errors";
+    var invalidClass = hasErrors ? " is-invalid" : string.Empty;
 }
-<div class="col-12 border-bottom pb-3 plan-editor-stage-row" data-plan-stage-status="@row.Status">
+<div class="col-12 border-bottom pb-3 plan-editor-stage-row" data-plan-stage-status="@row.Status" data-plan-stage-code="@row.Code">
     <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
         <strong>@row.Name</strong>
         <span class="text-muted small">@row.Code</span>
     </div>
     <div class="row g-2">
         <div class="col-12 col-sm-6">
-            <label for="ExactRows_@(i)__PlannedStart" class="form-label">Planned start</label>
-            <input class="form-control" type="date"
+            <label for="ExactRows_@(i)__PlannedStart" class="form-label">Planned start<span class="visually-hidden"> for @row.Name</span></label>
+            <input class="form-control@(invalidClass)" type="date"
                    id="ExactRows_@(i)__PlannedStart"
                    name="Input.Rows[@(i)].PlannedStart"
                    value="@(row.PlannedStart.HasValue ? row.PlannedStart.Value.ToString("yyyy-MM-dd") : null)"
+                   aria-invalid="@(hasErrors ? "true" : null)"
+                   aria-describedby="@(hasErrors ? errorId : null)"
                    @(disableAttr) />
         </div>
         <div class="col-12 col-sm-6">
-            <label for="ExactRows_@(i)__PlannedDue" class="form-label">Planned due</label>
-            <input class="form-control" type="date"
+            <label for="ExactRows_@(i)__PlannedDue" class="form-label">Planned due<span class="visually-hidden"> for @row.Name</span></label>
+            <input class="form-control@(invalidClass)" type="date"
                    id="ExactRows_@(i)__PlannedDue"
                    name="Input.Rows[@(i)].PlannedDue"
                    value="@(row.PlannedDue.HasValue ? row.PlannedDue.Value.ToString("yyyy-MM-dd") : null)"
+                   aria-invalid="@(hasErrors ? "true" : null)"
+                   aria-describedby="@(hasErrors ? errorId : null)"
                    @(disableAttr) />
         </div>
     </div>
+    @if (hasErrors)
+    {
+        <div class="invalid-feedback d-block" id="@errorId" data-plan-row-error>
+            @foreach (var error in Model.Errors)
+            {
+                <div>@error</div>
+            }
+        </div>
+    }
     <input type="hidden" name="Input.Rows[@(i)].Code" value="@row.Code" />
     <input type="hidden" name="Input.Rows[@(i)].Name" value="@row.Name" />
 </div>

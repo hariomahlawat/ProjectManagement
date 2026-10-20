@@ -24,7 +24,7 @@
 <form method="post"
       asp-page="/Projects/Timeline/EditActuals"
       asp-route-id="@Model?.ProjectId"
-      class="actuals-editor d-flex flex-column h-100 gap-3"
+      class="actuals-editor d-flex flex-column gap-3"
       data-actuals-form
       data-actuals-resubmit="@(proposalSubmission && pending is { NeedsResubmission: true } ? "true" : null)"
       data-actuals-restored="@(restored ? "true" : null)"
@@ -43,7 +43,7 @@
     @if (canEdit && submissionErrors.Count > 0)
     {
         @* Chronology is decided by the server's Actual validator; its messages name each affected stage. *@
-        <div class="alert alert-danger mb-0" role="alert" data-actuals-submission-errors>
+        <div class="alert alert-danger mb-0" role="alert" tabindex="-1" data-actuals-submission-errors>
             <div class="fw-semibold">
                 @(proposalSubmission ? "Nothing was submitted." : "Nothing was saved.")
                 @(restored
@@ -124,7 +124,7 @@
     }
 
     <!-- SECTION: Actuals list -->
-    <fieldset class="actuals-editor__list flex-grow-1 border-0 p-0 m-0" data-actuals-list disabled="@(!canEdit)">
+    <fieldset class="actuals-editor__list border-0 p-0 m-0" data-actuals-list disabled="@(!canEdit)">
         <div class="d-grid gap-3">
             @for (var i = 0; i < rows.Count; i++)
             {
@@ -154,6 +154,11 @@
                 }
                 var startDisabledAttr = canEditStart ? null : "disabled";
                 var completionDisabledAttr = canEditCompletion ? null : "disabled";
+                // An explicit control for the optional Completed start; blank still means
+                // "clear" to the server, so the toggle only mirrors and sets the field (C3.4).
+                var canClearStart = canEditStart && row.Status == StageStatus.Completed && row.ActualStart.HasValue;
+                var clearsStart = canClearStart && string.IsNullOrEmpty(startValue);
+                var rejectedItem = proposalSubmission ? Model?.LastRejection?.ItemFor(row.StageCode) : null;
                 <section class="actuals-editor__stage border rounded p-3"
                          data-actuals-row
                          data-stage-code="@row.StageCode"
@@ -204,6 +209,17 @@
                                    aria-describedby="@startId-help"
                                    data-field="start"
                                    @(startDisabledAttr) />
+                            @if (showsProposal)
+                            {
+                                <div class="small text-muted" data-actuals-official-start>Official: @Display(row.ActualStart)</div>
+                            }
+                            @if (canClearStart)
+                            {
+                                <div class="form-check mt-1">
+                                    <input class="form-check-input" type="checkbox" id="@startId-clear" data-clear-start-toggle @(clearsStart ? "checked" : null) />
+                                    <label class="form-check-label small" for="@startId-clear">Clear the recorded start date (@Display(row.ActualStart))</label>
+                                </div>
+                            }
                             <div class="form-text" id="@startId-help">
                                 @if (row.IsArppManaged)
                                 {
@@ -233,6 +249,10 @@
                                    aria-describedby="@completedId-help"
                                    data-field="completed"
                                    @(completionDisabledAttr) />
+                            @if (showsProposal)
+                            {
+                                <div class="small text-muted" data-actuals-official-completed>Official: @Display(row.CompletedOn)</div>
+                            }
                             <div class="form-text" id="@completedId-help">
                                 @if (row.IsArppManaged)
                                 {
@@ -253,8 +273,15 @@
                     @if (showsProposal)
                     {
                         <div class="small text-muted" data-actuals-official>
-                            Official: start @Display(row.ActualStart) · completed @Display(row.CompletedOn).@(row.ProposalClearsStart ? " Your proposal clears the recorded start." : string.Empty)
+                            The fields show your proposal; the official dates are shown under each field.@(row.ProposalClearsStart ? " Your proposal clears the recorded start." : string.Empty)
                             To drop this correction, enter the official dates again.
+                        </div>
+                    }
+
+                    @if (rejectedItem is not null)
+                    {
+                        <div class="small text-muted" data-actuals-rejected>
+                            Rejected proposal: start @(rejectedItem.ClearsActualStart ? "cleared" : Display(rejectedItem.ProposedActualStart)) · completed @Display(rejectedItem.ProposedCompletedOn).
                         </div>
                     }
 
@@ -284,7 +311,7 @@
     }
 
     <!-- SECTION: Footer actions -->
-    <div class="border-top pt-3 d-flex justify-content-end gap-2">
+    <div class="actuals-editor__footer border-top pt-3 d-flex justify-content-end gap-2">
         <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
         @if (proposalSubmission && pending is not null)
         {

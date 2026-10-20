@@ -52,7 +52,14 @@ public sealed class ActualsEditorVm
             revision.ClosedOn,
             revision.DecisionNote,
             // After a reassignment the current PO did not submit it (K-6); say so.
-            string.Equals(revision.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
+            string.Equals(revision.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase),
+            // Shown per row for reference only; the rows themselves stay official (C3.5).
+            revision.Items
+                .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => new ActualRejectedItemVm(group.Last().ProposedActualStart, group.Last().ProposedCompletedOn, group.Last().ClearsActualStart),
+                    StringComparer.OrdinalIgnoreCase))
     };
 
     /// <summary>
@@ -137,7 +144,20 @@ public sealed record ActualProposalSummaryVm(
 }
 
 /// <summary>A rejected revision, so the PO can see the outcome and the reviewer's remarks.</summary>
-public sealed record ActualRejectionNoticeVm(int RevisionNo, DateTimeOffset? RejectedOn, string? Remarks, bool SubmittedByCurrentUser);
+public sealed record ActualRejectionNoticeVm(
+    int RevisionNo,
+    DateTimeOffset? RejectedOn,
+    string? Remarks,
+    bool SubmittedByCurrentUser,
+    IReadOnlyDictionary<string, ActualRejectedItemVm>? Items = null)
+{
+    /// <summary>What the rejected revision proposed for a stage, if it covered that stage.</summary>
+    public ActualRejectedItemVm? ItemFor(string stageCode) =>
+        Items is not null && Items.TryGetValue(stageCode, out var item) ? item : null;
+}
+
+/// <summary>The values a rejected Actual correction proposed for one stage (reference only).</summary>
+public sealed record ActualRejectedItemVm(DateOnly? ProposedActualStart, DateOnly? ProposedCompletedOn, bool ClearsActualStart);
 
 /// <summary>
 /// Posted by the Actual editor and the backfill form so the server can refuse a

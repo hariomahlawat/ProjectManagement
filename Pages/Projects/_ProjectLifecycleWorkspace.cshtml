@@ -111,7 +111,8 @@
                                                         @Html.AntiForgeryToken()
                                                         <input type="hidden" name="WithdrawPlanVersionId" value="@planState.PendingPlanVersionId" />
                                                         <input type="hidden" name="WithdrawSubmittedOn" value="@planState.PendingSubmittedOn.Value.ToString("O")" />
-                                                        <button class="btn btn-sm btn-outline-warning" type="submit">Withdraw submission</button>
+                                                        <button class="btn btn-sm btn-outline-warning" type="submit"
+                                                                data-confirm="Withdraw your plan submission from HoD review? Your changes stay in a private draft, and the approved plan is unchanged.">Withdraw submission</button>
                                                     </form>
                                                 }
                                                 else if (isActiveLifecycle && Model.Timeline.PlanPendingApproval)
@@ -152,10 +153,10 @@
                                                         data-bs-toggle="offcanvas"
                                                         data-bs-target="#offcanvasPlanEdit"
                                                         aria-controls="offcanvasPlanEdit">
-                                                    <span>Your draft saved</span>
-                                                    @if (planState.LastSavedOn is DateTimeOffset savedOn)
+                                                    <span>Your draft</span>
+                                                    @if (planState.LastSavedOn is DateTimeOffset startedOn)
                                                     {
-                                                        <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                                        <span class="text-muted">started @startedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
                                                     }
                                                     <span class="fw-semibold">Continue editing</span>
                                                 </button>

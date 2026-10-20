@@ -149,8 +149,7 @@ public class EditPlanModel : PageModel
             // this boundary, including any earlier generation/draft/audit writes.
             _db.ChangeTracker.Clear();
             _logger.LogWarning(ex, "Concurrent plan publication rejected for Project {ProjectId}.", id);
-            TempData[PlanEditorRecovery.TempDataKey] = PlanEditorRecovery.Serialize(Input, userId);
-            return RejectPlanRequest(id, "The project plan changed while you were saving. Review the current plan and try again.", 409);
+            return RejectPlanRequest(id, "The project plan changed while you were saving. Review the current plan and try again.", 409, conflict: true);
         }
     }
 
@@ -306,9 +305,7 @@ public class EditPlanModel : PageModel
         }
         catch (PlanDraftLockedException ex)
         {
-            TempData["Error"] = ex.Message;
-            TempData["OpenOffcanvas"] = "plan-edit";
-            return RedirectToPage("/Projects/Overview", new { id });
+            return RejectPlanRequest(id, ex.Message, 409);
         }
 
         await _planDraft.UpgradeLegacyDraftForExactAsync(draft, cancellationToken);
@@ -423,24 +420,20 @@ public class EditPlanModel : PageModel
             }
             catch (PlanApprovalValidationException ex)
             {
-                TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
-                TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission failed validation for project {ProjectId} by user {UserId}.", id, userId);
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RejectPlanRequest(id,
+                    ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message,
+                    errors: ex.Errors.Count > 0 ? ex.Errors.ToArray() : null);
             }
             catch (DomainException ex)
             {
-                TempData["Error"] = ex.Message;
-                TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission blocked for project {ProjectId} by user {UserId}.", id, userId);
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RejectPlanRequest(id, ex.Message);
             }
             catch (InvalidOperationException ex)
             {
-                TempData["Error"] = ex.Message;
-                TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission failed for project {ProjectId} by user {UserId}.", id, userId);
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RejectPlanRequest(id, ex.Message);
             }
 
             TempData["Flash"] = "Plan submitted for HoD review.";
@@ -778,24 +771,20 @@ public class EditPlanModel : PageModel
             }
             catch (PlanApprovalValidationException ex)
             {
-                TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
-                TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission failed validation for project {ProjectId} by user {UserId}.", id, userId);
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RejectPlanRequest(id,
+                    ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message,
+                    errors: ex.Errors.Count > 0 ? ex.Errors.ToArray() : null);
             }
             catch (DomainException ex)
             {
-                TempData["Error"] = ex.Message;
-                TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission blocked for project {ProjectId} by user {UserId}.", id, userId);
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RejectPlanRequest(id, ex.Message);
             }
             catch (InvalidOperationException ex)
             {
-                TempData["Error"] = ex.Message;
-                TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission failed for project {ProjectId} by user {UserId}.", id, userId);
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RejectPlanRequest(id, ex.Message);
             }
         }
 
@@ -954,7 +943,7 @@ public class EditPlanModel : PageModel
 
         return RejectPlanRequest(projectId, messages.Length > 0
             ? string.Join(" ", messages)
-            : "Please correct the highlighted errors and try again.", errors: messages);
+            : "The plan could not be saved. Check the dates and try again.", errors: messages);
     }
 
     private bool IsAutosaveRequest =>
@@ -967,11 +956,18 @@ public class EditPlanModel : PageModel
     private static JsonResult AutosaveFailure(string message, int statusCode, string[]? errors = null) =>
         new(new { ok = false, message, errors = errors ?? new[] { message } }) { StatusCode = statusCode };
 
-    private IActionResult RejectPlanRequest(int projectId, string message, int statusCode = 400, string[]? errors = null)
+    private IActionResult RejectPlanRequest(int projectId, string message, int statusCode = 400, string[]? errors = null, bool conflict = false)
     {
         if (IsAutosaveRequest)
         {
             return AutosaveFailure(message, statusCode, errors);
+        }
+        // Keep what the user typed: the editor reopens with these entries and messages
+        // instead of the saved plan (discovery C3.1). Nothing here is persisted.
+        if (_userContext.UserId is { Length: > 0 } recoveryUserId && Input.ProjectId == projectId && Input.Rows is { Count: > 0 })
+        {
+            TempData[PlanEditorRecovery.TempDataKey] = PlanEditorRecovery.Serialize(
+                Input, recoveryUserId, errors is { Length: > 0 } ? errors : new[] { message }, conflict);
         }
         TempData["Error"] = message;
         TempData["OpenOffcanvas"] = "plan-edit";

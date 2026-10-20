@@ -1047,6 +1047,43 @@ public class EditPlanDurationSafetyTests
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(overview.PlanEdit));
     }
 
+    // PO Timeline Increment 2a/2b: a refused PO post keeps what was typed, and the reopened
+    // editor shows the server's messages inside the panel instead of behind it.
+    [Fact]
+    public async Task PoValidationFailure_ReopensTheEditorWithEntriesAndMessages()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "SaveDraft");
+        var token = (await new PlanReadService(f.Db).GetAsync(1, f.User.UserId)).State.EditToken;
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.EditToken = token;
+        f.Page.Input.Rows = new()
+        {
+            new() { Code = StageCodes.FS, Name = "FS", PlannedStart = new DateOnly(2026, 3, 10), PlannedDue = new DateOnly(2026, 3, 1) }
+        };
+        var before = await PlannerStateAsync(f.Db);
+
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+
+        Assert.Equal(before, await PlannerStateAsync(f.Db));
+        var payload = Assert.IsType<string>(f.Page.TempData[PlanEditorRecovery.TempDataKey]);
+        Assert.Contains("Start date cannot be after Due date", Assert.IsType<string>(f.Page.TempData["Error"]));
+
+        var overview = CreateOverviewPage(f.Db, f.User.User, payload);
+        overview.TempData["Error"] = f.Page.TempData["Error"];
+        Assert.IsType<PageResult>(await overview.OnGetAsync(1, default));
+
+        var restored = overview.PlanEdit;
+        Assert.True(restored.RestoredSubmission);
+        Assert.Equal(PlanEditorModes.Exact, restored.ActiveMode);
+        var fs = restored.Exact.Rows.Single(row => row.Code == StageCodes.FS);
+        Assert.Equal(new DateOnly(2026, 3, 10), fs.PlannedStart);
+        Assert.Equal(new DateOnly(2026, 3, 1), fs.PlannedDue);
+        Assert.Contains(restored.SubmissionErrors, message => message == "For FS, Start date cannot be after Due date.");
+        Assert.Single(restored.ErrorsFor("FS"));
+        // The editor shows the messages itself, so the page alert behind it is dropped.
+        Assert.False(overview.TempData.ContainsKey("Error"));
+    }
+
     private static async Task AssertOverviewRecoversInputAsync(PlanEditInput input, string payload)
     {
         // A fresh GET rebuilds server authority/lifecycle state from persisted

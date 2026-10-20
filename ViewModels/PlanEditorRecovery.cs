@@ -4,20 +4,29 @@ using ProjectManagement.Configuration;
 
 namespace ProjectManagement.ViewModels;
 
-// Carries failed direct-publication form values across the existing redirect.
-// Authority and lifecycle metadata always come from the fresh server read model.
+// Carries a refused planner post across the existing redirect so the editor reopens
+// with the user's entries and the server's messages (discovery C3.1, Increment 2a/2b).
+// This type never validates. Authority and lifecycle metadata always come from the
+// fresh server read model; entries are only presented, never saved, by restoring them.
 internal static class PlanEditorRecovery
 {
     public const string TempDataKey = "PlanEditRecovery";
 
-    public static string Serialize(PlanEditInput input, string userId) =>
-        JsonSerializer.Serialize(new RecoveryState(userId, input));
+    /// <param name="conflict">
+    /// A HoD/Admin direct publication that lost a concurrency race. Its entries are shown
+    /// over the changed plan on purpose so they can be reviewed and saved again.
+    /// </param>
+    public static string Serialize(PlanEditInput input, string userId, IEnumerable<string>? errors = null, bool conflict = false) =>
+        JsonSerializer.Serialize(new RecoveryState(
+            userId,
+            input,
+            (errors ?? Array.Empty<string>()).Where(error => !string.IsNullOrWhiteSpace(error)).ToArray(),
+            conflict));
 
     public static PlanEditorVm Restore(
         PlanEditorVm editor, string? payload, int projectId, string? userId, ClaimsPrincipal principal)
     {
-        if (string.IsNullOrEmpty(payload) || string.IsNullOrEmpty(userId) ||
-            (!principal.IsInRole(RoleNames.Admin) && !principal.IsInRole(RoleNames.HoD)))
+        if (string.IsNullOrEmpty(payload) || string.IsNullOrEmpty(userId))
         {
             return editor;
         }
@@ -45,6 +54,30 @@ internal static class PlanEditorRecovery
         if (mode is null)
         {
             return editor;
+        }
+
+        // A payload written before Conflict existed came only from the HoD/Admin race.
+        var conflict = recovery.Conflict ?? true;
+        var isDirectRole = principal.IsInRole(RoleNames.Admin) || principal.IsInRole(RoleNames.HoD);
+        var errors = recovery.Errors ?? Array.Empty<string>();
+
+        // Restore entries only onto the draft they were typed against. If the draft changed
+        // in the meantime (another tab, a decision), restoring would silently revert that.
+        var restore = conflict
+            ? isDirectRole
+            : string.Equals(input.EditToken, editor.State.EditToken, StringComparison.Ordinal);
+        if (!restore)
+        {
+            return errors.Length == 0
+                ? editor
+                : new PlanEditorVm
+                {
+                    Exact = editor.Exact,
+                    Durations = editor.Durations,
+                    ActiveMode = editor.ActiveMode,
+                    State = editor.State,
+                    SubmissionErrors = errors
+                };
         }
 
         var submitted = input.Rows
@@ -82,9 +115,11 @@ internal static class PlanEditorRecovery
             Exact = editor.Exact,
             Durations = editor.Durations,
             ActiveMode = mode,
-            State = editor.State
+            State = editor.State,
+            SubmissionErrors = errors,
+            RestoredSubmission = true
         };
     }
 
-    private sealed record RecoveryState(string UserId, PlanEditInput Input);
+    private sealed record RecoveryState(string UserId, PlanEditInput Input, string[]? Errors = null, bool? Conflict = null);
 }

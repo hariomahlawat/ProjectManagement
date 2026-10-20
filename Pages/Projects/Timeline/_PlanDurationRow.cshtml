@@ -3,8 +3,12 @@
     var row = Model.Row;
     var i = Model.Index;
     var disableAttr = Model.IsDisabled ? "disabled" : null;
+    var hasErrors = Model.Errors.Count > 0;
+    var inputId = $"DurationRows_{i}__DurationDays";
+    var labelId = $"DurationRows_{i}__Label";
+    var errorId = $"DurationRows_{i}__Errors";
 }
-<div class="col-12 plan-editor-stage-row" data-plan-stage-status="@row.Status">
+<div class="col-12 plan-editor-stage-row" data-plan-stage-status="@row.Status" data-plan-stage-code="@row.Code">
     <div class="d-flex justify-content-between gap-2">
         <strong>@row.Name</strong>
         <div>
@@ -15,12 +19,24 @@
             }
         </div>
     </div>
-    <div class="input-group">
-        <span class="input-group-text">Duration (days)</span>
-        <input class="form-control" type="number" min="0" step="1"
+    <div class="input-group@(hasErrors ? " has-validation" : null)">
+        <label class="input-group-text" for="@inputId" id="@labelId">Duration (days)<span class="visually-hidden"> for @row.Name</span></label>
+        <input class="form-control@(hasErrors ? " is-invalid" : null)" type="number" min="0" step="1"
+               id="@inputId"
                name="Input.Rows[@i].DurationDays"
                value="@(row.DurationDays?.ToString() ?? "")"
+               aria-invalid="@(hasErrors ? "true" : null)"
+               aria-describedby="@(hasErrors ? errorId : null)"
                @(disableAttr) />
+        @if (hasErrors)
+        {
+            <div class="invalid-feedback" id="@errorId" data-plan-row-error>
+                @foreach (var error in Model.Errors)
+                {
+                    <div>@error</div>
+                }
+            </div>
+        }
     </div>
     @if (row.IsOptional)
     {

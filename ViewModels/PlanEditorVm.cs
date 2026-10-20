@@ -16,6 +16,27 @@ public sealed class PlanEditorVm
     public PlanDurationVm Durations { get; init; } = new();
     public string ActiveMode { get; init; } = PlanEditorModes.Exact;
     public PlanEditorStateVm State { get; init; } = new();
+
+    /// <summary>The server's messages for the last refused post; shown inside the editor.</summary>
+    public IReadOnlyList<string> SubmissionErrors { get; init; } = Array.Empty<string>();
+
+    /// <summary>The editor shows the user's entries from that refused post, not the saved plan.</summary>
+    public bool RestoredSubmission { get; init; }
+
+    /// <summary>
+    /// Messages that name this stage, so its fields can be marked. The planner's messages
+    /// either start with the stage name or say "For {name}," / "Duration for {name} ".
+    /// </summary>
+    public IReadOnlyList<string> ErrorsFor(string stageName) =>
+        string.IsNullOrWhiteSpace(stageName)
+            ? Array.Empty<string>()
+            : SubmissionErrors
+                .Where(message =>
+                    message.StartsWith(stageName + " ", StringComparison.Ordinal) ||
+                    message.StartsWith(stageName + ":", StringComparison.Ordinal) ||
+                    message.Contains($"For {stageName},", StringComparison.Ordinal) ||
+                    message.Contains($"Duration for {stageName} ", StringComparison.Ordinal))
+                .ToArray();
 }
 
 public sealed class PlanEditorStateVm
@@ -41,6 +62,10 @@ public sealed class PlanEditorStateVm
     public bool CanSubmit { get; init; } = true;
     public string? SubmissionBlockedReason { get; init; }
     public bool PncApplicable { get; init; } = true;
+    /// <summary>
+    /// When the user's draft (or pending submission) was created or submitted. PlanVersion
+    /// does not record later saves, so the UI presents this as the draft's start, not its last save.
+    /// </summary>
     public DateTimeOffset? LastSavedOn { get; init; }
     public IReadOnlyList<PlanApprovalHistoryVm> ApprovalHistory { get; init; } = Array.Empty<PlanApprovalHistoryVm>();
 }

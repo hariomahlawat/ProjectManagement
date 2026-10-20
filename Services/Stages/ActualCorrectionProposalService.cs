@@ -85,6 +85,7 @@ public sealed class ActualCorrectionProposalService
     public Task<ActualCorrectionRevision?> GetLatestRevisionAsync(int projectId, CancellationToken cancellationToken = default) =>
         _db.ActualCorrectionRevisions
             .AsNoTracking()
+            .Include(revision => revision.Items)
             .Where(revision => revision.ProjectId == projectId)
             .OrderByDescending(revision => revision.RevisionNo)
             .FirstOrDefaultAsync(cancellationToken);
