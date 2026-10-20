@@ -130,3 +130,18 @@ test('an explicit start clear is unchanged and still checked by its completion',
   assert.equal(ui.submitDisabled(), false);
   ui.dom.window.close();
 });
+
+test('retained dates on an untouched Skipped row never block a predecessor correction', () => {
+  // Legacy skipped rows may keep dates (LegacySkippedReopenIntegrityTests); the server ignores them.
+  const ui = editor([
+    { code: 'SOW', name: 'SOW', status: 'Completed', start: '2026-02-01', completed: '2026-02-10' },
+    { code: 'IPA', name: 'IPA', status: 'Skipped', start: '2026-02-11', completed: '2026-02-11' },
+    { code: 'AON', name: 'AON', status: 'Completed', start: '2026-02-15', completed: '2026-02-20' }
+  ]);
+  ui.input('SOW', 'completed', '2026-02-12');
+
+  assert.equal(ui.error('IPA'), '');
+  assert.equal(ui.error('AON'), '');
+  assert.equal(ui.submitDisabled(), false);
+  ui.dom.window.close();
+});

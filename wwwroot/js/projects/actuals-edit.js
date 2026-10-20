@@ -176,8 +176,11 @@
 
     if (!isChanged) {
       // Only chronology applies: this row's own dates and status are as recorded.
-      const unchangedDate = startDate || completedDate;
-      const conflict = unchangedDate && earliestStartDate && unchangedDate < earliestStartDate;
+      // Mirror the server: only InProgress/Completed/Blocked stages are chronological,
+      // so retained dates on a Skipped (or NotStarted) row never block a correction.
+      const chronological = status === 'inprogress' || status === 'completed' || status === 'blocked';
+      const unchangedDate = chronological ? (startDate || (status === 'completed' ? completedDate : null)) : null;
+      const conflict = Boolean(unchangedDate && earliestStartDate && unchangedDate < earliestStartDate);
       setRowError(row, conflict
         ? `Actual dates cannot precede ${startSource} completion (${formatLocalDate(earliestStartValue)}). Same-day commencement is permitted. Adjust this stage's dates or ${startSource}'s completion.`
         : '');
