@@ -81,6 +81,33 @@ public sealed class ActualCorrectionProposalService
                 && revision.Status == ActualCorrectionRevisionStatus.Pending)
             .SingleOrDefaultAsync(cancellationToken);
 
+    /// <summary>The project's most recent revision in any state, without items; null when none exists.</summary>
+    public Task<ActualCorrectionRevision?> GetLatestRevisionAsync(int projectId, CancellationToken cancellationToken = default) =>
+        _db.ActualCorrectionRevisions
+            .AsNoTracking()
+            .Where(revision => revision.ProjectId == projectId)
+            .OrderByDescending(revision => revision.RevisionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Stages whose official facts no longer match an item's recorded <c>Before*</c> values;
+    /// the same comparison approval makes (SourceChanged), for read models.
+    /// </summary>
+    internal static IReadOnlyList<string> ChangedSinceSubmission(
+        ActualCorrectionRevision revision,
+        IEnumerable<ProjectStage> stages)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        var lookup = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+        return revision.Items
+            .Where(item => !lookup.TryGetValue(item.StageCode, out var stage) || !MatchesBefore(item, stage))
+            .Select(item => item.StageCode)
+            .OrderBy(code => code, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     // SECTION: Submission and supersession
     public async Task<ActualCorrectionSubmissionResult> SubmitAsync(
         ActualCorrectionSubmission submission,

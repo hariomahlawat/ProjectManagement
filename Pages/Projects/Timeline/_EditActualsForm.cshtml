@@ -48,6 +48,23 @@
                 Submitted @submittedDisplay@(pending.SubmittedByCurrentUser ? " by you" : " by the previous Project Officer"). The dates below include your proposed corrections; official dates are unchanged until approval.
                 Edit and submit again to revise it, or withdraw it.
             </div>
+            @if (pending.ChangedStageCodes.Count > 0)
+            {
+                <div class="small mt-1 fw-semibold" data-actuals-pending-stale>
+                    Official dates changed for @string.Join(", ", pending.ChangedStageCodes) after you submitted. A HoD or Admin cannot approve this update until you review the dates below and submit again.
+                </div>
+            }
+        </div>
+    }
+    else if (proposalSubmission && Model?.LastRejection is { } rejection)
+    {
+        <div class="alert alert-secondary mb-0" role="status" data-actuals-last-rejection>
+            <div class="fw-semibold">Your correction revision @rejection.RevisionNo was rejected@(rejection.RejectedOn is { } on ? " on " + ProjectManagement.Infrastructure.IstClock.ToIst(on.UtcDateTime).ToString("dd MMM yyyy") : string.Empty).</div>
+            @if (!string.IsNullOrWhiteSpace(rejection.Remarks))
+            {
+                <div class="small">Reviewer's remarks: @rejection.Remarks</div>
+            }
+            <div class="small">The dates below are the official dates. You can submit a new correction for approval.</div>
         </div>
     }
     else if (proposalSubmission)
@@ -208,7 +225,8 @@
 
                     <div class="text-danger small d-none" data-row-error role="alert"></div>
 
-                    <input type="hidden" name="Input.Rows[@i].ClearActualStart" value="false" data-clear-start />
+                    @* Rendered from the pending proposal so a clear survives a post made before (or without) actuals-edit.js. *@
+                    <input type="hidden" name="Input.Rows[@i].ClearActualStart" value="@(showsProposal && row.ProposalClearsStart ? "true" : "false")" data-clear-start />
                     <input type="hidden" name="Input.Rows[@i].StageCode" value="@row.StageCode" />
                     <input type="hidden" name="Input.Rows[@i].StageName" value="@row.StageName" />
                     <input type="hidden" name="Input.Rows[@i].StageToken" value="@row.StageToken" />
