@@ -1053,7 +1053,8 @@
                 .filter((stage, index) => stage.stageCode
                     && (stage.actualStart || stage.completedOn)
                     // Carried-forward pending items are kept by the server, not reposted.
-                    && !stageRows()[index].hasAttribute('data-backfill-carried'));
+                    // Razor renders the attribute as "" on other rows, so compare the value.
+                    && stageRows()[index].getAttribute('data-backfill-carried') !== 'true');
 
             // The pending proposal identity the form was rendered with (null for "none").
             const basedOnRevisionId = Number.parseInt(basedOnInput?.value || '', 10) || null;
