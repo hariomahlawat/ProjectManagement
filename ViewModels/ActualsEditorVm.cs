@@ -29,6 +29,17 @@ public sealed class ActualsEditorVm
     // Phase D-3e: the assigned PO's latest revision when it was rejected and nothing is pending.
     public ActualRejectionNoticeVm? LastRejection { get; init; }
 
+    // A refused post (ActualsEditorRecovery, applied last by Overview): the server's
+    // validation messages and, when the form is unchanged, the user's entries by stage code.
+    public IReadOnlyList<string> SubmissionErrors { get; init; } = Array.Empty<string>();
+
+    public bool RestoredSubmission { get; init; }
+
+    public IReadOnlyDictionary<string, ActualsEnteredValues> EnteredValues { get; init; } =
+        new Dictionary<string, ActualsEnteredValues>(StringComparer.OrdinalIgnoreCase);
+
+    public string? EnteredNote { get; init; }
+
     public ActualsEditorVm WithLastRejection(ActualCorrectionRevision revision, string? currentUserId) => new()
     {
         ProjectId = ProjectId,

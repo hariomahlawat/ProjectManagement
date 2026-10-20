@@ -12,6 +12,9 @@
     var canEdit = directPublication || proposalSubmission;
     var pending = Model?.PendingProposal;
     var unrendered = ViewData["ActualsUnrenderedPendingStages"] as IReadOnlyList<string> ?? Array.Empty<string>();
+    // A refused post (ActualsEditorRecovery): the server's messages and, when unchanged, the user's entries.
+    var submissionErrors = Model?.SubmissionErrors ?? Array.Empty<string>();
+    var restored = canEdit && Model?.RestoredSubmission == true;
     string Display(DateOnly? date) => date?.ToString("dd MMM yyyy") ?? "not recorded";
     var submittedDisplay = pending is null
         ? string.Empty
@@ -24,6 +27,7 @@
       class="actuals-editor d-flex flex-column h-100 gap-3"
       data-actuals-form
       data-actuals-resubmit="@(proposalSubmission && pending is { NeedsResubmission: true } ? "true" : null)"
+      data-actuals-restored="@(restored ? "true" : null)"
       data-today="@todayIso">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
@@ -34,6 +38,25 @@
         @* The pending proposal this form was rendered with; both empty means "none". *@
         <input type="hidden" name="Input.BasedOnRevisionId" value="@pending?.RevisionId" data-actuals-based-on />
         <input type="hidden" name="Input.BasedOnSubmittedOn" value="@pending?.SubmittedOnRoundTrip" />
+    }
+
+    @if (canEdit && submissionErrors.Count > 0)
+    {
+        @* Chronology is decided by the server's Actual validator; its messages name each affected stage. *@
+        <div class="alert alert-danger mb-0" role="alert" data-actuals-submission-errors>
+            <div class="fw-semibold">
+                @(proposalSubmission ? "Nothing was submitted." : "Nothing was saved.")
+                @(restored
+                    ? "Your entries are shown below. Correct the stages named here, together if needed, and submit again."
+                    : "The recorded dates changed since you submitted, so the current dates are shown. Review them and enter your correction again.")
+            </div>
+            <ul class="small mb-0 mt-1">
+                @foreach (var submissionError in submissionErrors)
+                {
+                    <li>@submissionError</li>
+                }
+            </ul>
+        </div>
     }
 
     <!-- SECTION: Introduction -->
@@ -111,6 +134,7 @@
                 // A PO proposal prefills its proposed values; official values stay visible.
                 var startValue = (proposalSubmission ? row.EditStart : row.ActualStart)?.ToString("yyyy-MM-dd");
                 var completedValue = (proposalSubmission ? row.EditCompletedOn : row.CompletedOn)?.ToString("yyyy-MM-dd");
+                var entered = restored && Model!.EnteredValues.TryGetValue(row.StageCode, out var enteredValues) ? enteredValues : null;
                 var officialStartValue = row.ActualStart?.ToString("yyyy-MM-dd");
                 var showsProposal = proposalSubmission && row.HasProposal;
                 var earliestStartValue = row.EarliestAllowedStartDate?.ToString("yyyy-MM-dd");
@@ -119,6 +143,15 @@
                 // the PO is not frozen by them; a row carrying a proposal always stays postable.
                 var canEditStart = (row.IsEditable && (proposalSubmission || !row.HasPendingDecision)) || showsProposal;
                 var canEditCompletion = canEditStart && row.Status == StageStatus.Completed && !row.IsArppManaged;
+                // Entries are shown again only in fields that were posted and are still editable.
+                if (entered is { HasStart: true } && canEditStart)
+                {
+                    startValue = entered.ActualStart?.ToString("yyyy-MM-dd");
+                }
+                if (entered is { HasCompletedOn: true } && canEditCompletion)
+                {
+                    completedValue = entered.CompletedOn?.ToString("yyyy-MM-dd");
+                }
                 var startDisabledAttr = canEditStart ? null : "disabled";
                 var completionDisabledAttr = canEditCompletion ? null : "disabled";
                 <section class="actuals-editor__stage border rounded p-3"
@@ -246,7 +279,7 @@
     {
         <div>
             <label class="form-label" for="actuals-proposal-note">Reason for correction <span class="text-muted fw-normal">(optional)</span></label>
-            <textarea class="form-control" id="actuals-proposal-note" name="Input.Note" rows="2" maxlength="1024" data-actuals-note>@pending?.Note</textarea>
+            <textarea class="form-control" id="actuals-proposal-note" name="Input.Note" rows="2" maxlength="1024" data-actuals-note>@(restored ? Model!.EnteredNote : pending?.Note)</textarea>
         </div>
     }
 

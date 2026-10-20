@@ -608,6 +608,13 @@ namespace ProjectManagement.Pages.Projects
             Backfill = await BuildBackfillViewModelAsync(id, ct);
             await ApplyPendingActualCorrectionAsync(id, ct);
             SubmissionStatus = await BuildSubmissionStatusAsync(project, ct);
+            ActualsEditor = ActualsEditorRecovery.Restore(
+                ActualsEditor,
+                TempData[ActualsEditorRecovery.TempDataKey] as string,
+                id,
+                CurrentUserId,
+                CanPublishActualsDirectly ? ActualsSubmissionMode.Direct
+                    : CanSubmitActualProposals ? ActualsSubmissionMode.Proposal : null);
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm
@@ -2494,12 +2501,14 @@ namespace ProjectManagement.Pages.Projects
             if (CanSubmitActualProposals)
             {
                 var stored = await _db.ProjectStages.AsNoTracking().Where(stage => stage.ProjectId == projectId).ToListAsync(ct);
+                var changedStageCodes = ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored);
+                var alreadySatisfied = ActualCorrectionProposalService.AlreadySatisfied(pending, stored);
                 ActualsEditor = ActualsEditor.WithPendingProposal(
                     pending,
                     CurrentUserId,
-                    changedStageCodes: ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored),
-                    alreadySatisfied: ActualCorrectionProposalService.AlreadySatisfied(pending, stored));
-                Backfill = Backfill.WithPendingProposal(pending, CurrentUserId);
+                    changedStageCodes: changedStageCodes,
+                    alreadySatisfied: alreadySatisfied);
+                Backfill = Backfill.WithPendingProposal(pending, CurrentUserId, changedStageCodes, alreadySatisfied);
                 UnrenderedPendingActualStages = ActualsEditor.UnrenderedProposalStages(pending);
             }
             else

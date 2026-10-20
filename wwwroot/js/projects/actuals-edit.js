@@ -85,58 +85,10 @@
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   };
 
-  const formatLocalDate = (value) => {
-    if (!value) return '—';
-    const [year, month, day] = value.split('-').map(Number);
-    if (!year || !month || !day) return value;
-    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
-  const resolveChronologyBoundary = (row) => {
-    const targetIndex = rows.indexOf(row);
-    if (targetIndex <= 0) {
-      return { value: '', source: '' };
-    }
-
-    for (let index = targetIndex - 1; index >= 0; index -= 1) {
-      const predecessor = rows[index];
-      const predecessorStatus = (predecessor.dataset.stageStatus ?? '').toLowerCase();
-
-      // Match server workflow semantics: consecutive skipped stages are transparent;
-      // the first non-skipped predecessor is the effective chronology boundary.
-      if (predecessorStatus === 'skipped') {
-        continue;
-      }
-
-      if (predecessorStatus !== 'completed') {
-        return { value: '', source: '' };
-      }
-
-      const completedInput = predecessor.querySelector('[data-field="completed"]');
-      const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
-      return {
-        value: completedValue,
-        source: predecessor.dataset.stageName ?? predecessor.dataset.stageCode ?? 'the effective predecessor'
-      };
-    }
-
-    return { value: '', source: '' };
-  };
-
-  const refreshChronologyBoundaries = () => {
-    rows.forEach((row) => {
-      const boundary = resolveChronologyBoundary(row);
-      const startInput = row.querySelector('[data-field="start"]');
-      const completedInput = row.querySelector('[data-field="completed"]');
-
-      if (startInput instanceof HTMLInputElement) {
-        startInput.min = boundary.value;
-      }
-      if (completedInput instanceof HTMLInputElement) {
-        completedInput.min = boundary.value;
-      }
-    });
-  };
+  // Cross-stage chronology (workflow graph, skipped ancestry, convergence, historical
+  // violations, pending-proposal baselines) is decided only by the server's shared
+  // Actual validator. A rejected post reopens this editor with the entered values and
+  // the server's stage-specific messages, so no native `min` is set here (C7.2).
 
   const validateRow = (row) => {
     const code = row.dataset.stageCode ?? '';
@@ -144,9 +96,6 @@
     const startInput = row.querySelector('[data-field="start"]');
     const completedInput = row.querySelector('[data-field="completed"]');
     const status = (row.dataset.stageStatus ?? '').toLowerCase();
-    const boundary = resolveChronologyBoundary(row);
-    const earliestStartValue = boundary.value;
-    const startSource = boundary.source || row.dataset.startSource || 'the effective predecessor';
 
     const startValue = startInput instanceof HTMLInputElement ? startInput.value : '';
     const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
@@ -167,7 +116,6 @@
 
     const startDate = parseDate(startValue);
     const completedDate = parseDate(completedValue);
-    const earliestStartDate = parseDate(earliestStartValue);
 
     let error = '';
 
@@ -183,11 +131,6 @@
 
     if (!error && startDate && completedDate && startDate > completedDate) {
       error = 'Completion must be on or after the start date.';
-    }
-
-    const chronologyDate = startDate || completedDate;
-    if (!error && chronologyDate && earliestStartDate && chronologyDate < earliestStartDate) {
-      error = `Actual dates cannot precede ${startSource} completion (${formatLocalDate(earliestStartValue)}). Same-day commencement is permitted.`;
     }
 
     if (!error) {
@@ -226,7 +169,11 @@
   // server records it again against the new official dates (it cannot be approved otherwise).
   const resubmitRequired = form.dataset.actualsResubmit === 'true';
 
-  const hasChanges = () => resubmitRequired || noteChanged() || rows.some((row) => {
+  // Values restored after the server refused a post are the user's own entries, not the
+  // recorded dates, so they can be submitted again once corrected (or as they are).
+  const restoredSubmission = form.dataset.actualsRestored === 'true';
+
+  const hasChanges = () => resubmitRequired || restoredSubmission || noteChanged() || rows.some((row) => {
     const code = row.dataset.stageCode ?? '';
     const original = initialValues.get(code) ?? { start: '', completed: '' };
     const startInput = row.querySelector('[data-field="start"]');
@@ -238,8 +185,8 @@
   });
 
   const refreshState = () => {
-    refreshChronologyBoundaries();
-    const allValid = rows.every(validateRow);
+    // Validate every row (no short-circuit) so each row's message stays current.
+    const allValid = rows.map(validateRow).every(Boolean);
     if (saveButton instanceof HTMLButtonElement) {
       saveButton.disabled = !allValid || !hasChanges();
     }
@@ -264,7 +211,7 @@
   });
 
   form.addEventListener('submit', (event) => {
-    const allValid = rows.every(validateRow);
+    const allValid = rows.map(validateRow).every(Boolean);
     if (!allValid) {
       event.preventDefault();
       const firstError = form.querySelector('[data-row-error]:not(.d-none)');
