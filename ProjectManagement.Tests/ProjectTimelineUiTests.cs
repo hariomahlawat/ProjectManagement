@@ -341,7 +341,7 @@ public class ProjectTimelineUiTests
         var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
 
         Assert.Contains("Awaiting HoD approval", html, StringComparison.Ordinal);
-        Assert.Contains("Completion submitted", html, StringComparison.Ordinal);
+        Assert.Contains("Requested change: Completed", html, StringComparison.Ordinal);
         Assert.Contains("Proposed completion", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Planned completion missing", html, StringComparison.Ordinal);
         Assert.Contains("Edit submission", html, StringComparison.Ordinal);

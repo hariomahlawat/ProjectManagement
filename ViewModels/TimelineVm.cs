@@ -87,6 +87,7 @@ public sealed class TimelineItemVm
     public int? PendingRequestId { get; init; }
     public string? PendingNote { get; init; }
     public string? PendingRequestedBy { get; init; }
+    public string? PendingRequestedByUserId { get; init; }
     public DateTimeOffset? PendingRequestedOn { get; init; }
 
     public int? StartVarianceDays { get; init; }

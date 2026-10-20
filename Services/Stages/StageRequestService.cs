@@ -322,7 +322,7 @@ public class StageRequestService
                 }
                 else if (stage.ActualStart.HasValue && item.RequestedDate.Value != stage.ActualStart.Value)
                 {
-                    errors.Add("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates.");
+                    errors.Add("Reopening preserves the recorded actual start. Correct it separately through Correct actual dates.");
                 }
             }
 

@@ -267,7 +267,8 @@
     if (badge) {
       badge.textContent = statusLabel(statusText);
       badge.className = badgeClass(statusText || '');
-      badge.setAttribute('aria-label', `Stage status: ${statusLabel(statusText)}`);
+      // The visible status text is the accessible name; a span's aria-label is unreliable.
+      badge.removeAttribute('aria-label');
     }
 
     const actualSpan = row.querySelector('[data-stage-actual-start]');
@@ -726,7 +727,7 @@
         dateInput.disabled = status === 'Reopen' && !activeReopenStart;
         dateInput.readOnly = activeReopenStart && Boolean(recordedActualStart);
         if (dateInput.readOnly && dateHint) {
-          dateHint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
+          dateHint.textContent = 'The recorded actual start is kept. To change it, use Correct actual dates.';
         }
         dateInput.value = status === 'Reopen' ? (activeReopenStart ? recordedActualStart || defaultDate : '')
           : defaultDate || (status === 'Completed' ? actualToday : (requiresDate ? actualToday : ''));
@@ -964,31 +965,33 @@
     });
     const stageOptions = Array.from(optionsByCode.values()).sort((a, b) => a.sortOrder - b.sortOrder);
 
+    // A Project Officer's choice is a request decided by the HoD, so it is labelled as one
+    // (discovery C2.4); the HoD's direct-apply menu keeps its own wording.
     function transitionOptions(currentStatus) {
       switch (currentStatus) {
         case 'NotStarted':
           return [
-            { value: 'InProgress', label: 'Start stage' },
-            { value: 'Completed', label: 'Complete stage directly' },
-            { value: 'Blocked', label: 'Mark blocked' },
-            { value: 'Skipped', label: 'Skip stage' }
+            { value: 'InProgress', label: 'Request start' },
+            { value: 'Completed', label: 'Request completion (without a separate start)' },
+            { value: 'Blocked', label: 'Request to mark blocked' },
+            { value: 'Skipped', label: 'Request to skip' }
           ];
         case 'InProgress':
           return [
-            { value: 'Completed', label: 'Complete stage' },
-            { value: 'Blocked', label: 'Mark blocked' },
-            { value: 'Skipped', label: 'Skip stage' }
+            { value: 'Completed', label: 'Request completion' },
+            { value: 'Blocked', label: 'Request to mark blocked' },
+            { value: 'Skipped', label: 'Request to skip' }
           ];
         case 'Blocked':
           return [
-            { value: 'InProgress', label: 'Resume stage' },
-            { value: 'Skipped', label: 'Skip stage' }
+            { value: 'InProgress', label: 'Request to resume' },
+            { value: 'Skipped', label: 'Request to skip' }
           ];
         case 'Completed':
         case 'Skipped':
-          return [{ value: 'InProgress', label: 'Reopen stage' }];
+          return [{ value: 'InProgress', label: 'Request to reopen' }];
         default:
-          return [{ value: 'InProgress', label: 'Start stage' }];
+          return [{ value: 'InProgress', label: 'Request start' }];
       }
     }
 
@@ -1061,7 +1064,7 @@
       if (label) label.textContent = config.label;
       if (hint) {
         if (preservedStart) {
-          hint.textContent = 'Recorded actual start is preserved. Use Edit actual dates to correct it separately.';
+          hint.textContent = 'The recorded actual start is kept. To change it, use Correct actual dates.';
         } else if (status === 'InProgress' && suggestedDate && !preferredValue) {
           hint.textContent = stage.startSource && stage.earliestStart
             ? `Suggested: ${formatDate(suggestedDate)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
@@ -1370,12 +1373,40 @@
       }
     }
 
+    // Each cloned row gets unique ids so its labels and hints are tied to their controls
+    // for assistive technology (discovery C5: the template's labels had no "for").
+    let rowSequence = 0;
+    function linkRowLabels(row) {
+      rowSequence += 1;
+      const controls = [
+        ['stage', '[data-stage-request-stage]'],
+        ['target', '[data-stage-request-target]'],
+        ['start', '[data-stage-request-start-date]'],
+        ['date', '[data-stage-request-date]'],
+        ['note', '[data-stage-request-note]']
+      ];
+      controls.forEach(([name, selector]) => {
+        const control = row.querySelector(selector);
+        if (!control || !control.parentElement) return;
+        const id = `stage-request-${rowSequence}-${name}`;
+        control.id = id;
+        const label = control.parentElement.querySelector('label');
+        if (label) label.htmlFor = id;
+        const hint = control.parentElement.querySelector('.form-text');
+        if (hint) {
+          hint.id = `${id}-hint`;
+          control.setAttribute('aria-describedby', hint.id);
+        }
+      });
+    }
+
     function createRow({ stageCode = '', targetStatus = '', requestedDate = '', requestedStartDate = '', note = '', locked = false } = {}) {
       if (!rowsContainer || !rowTemplate) return null;
       const fragment = rowTemplate.content.cloneNode(true);
       const row = fragment.querySelector('[data-stage-request-row]');
       if (!row) return null;
       row.dataset.locked = locked ? 'true' : 'false';
+      linkRowLabels(row);
 
       const stageSelect = row.querySelector('[data-stage-request-stage]');
       const selectedCodes = rowsContainer
@@ -1464,7 +1495,7 @@
       }
       if (submitButton) {
         submitButton.disabled = false;
-        submitButton.textContent = isEditingPending ? 'Save update' : 'Submit update';
+        submitButton.textContent = 'Submit for approval';
       }
       modal.show();
     });
@@ -1569,7 +1600,7 @@
         }
 
         modal.hide();
-        queueStageRefresh(`${stagesPayload.length} stage update${stagesPayload.length === 1 ? '' : 's'} submitted. ${stagesPayload.length === 1 ? 'It is' : 'They are'} now visible and awaiting HoD approval.`, 'success');
+        queueStageRefresh(`${stagesPayload.length} stage update${stagesPayload.length === 1 ? '' : 's'} sent for HoD approval. ${stagesPayload.length === 1 ? 'It shows' : 'They show'} on the timeline as pending until the HoD decides.`, 'success');
       } catch (error) {
         console.error(error);
         renderErrors(errorContainer, ['Unable to submit the stage update right now.']);

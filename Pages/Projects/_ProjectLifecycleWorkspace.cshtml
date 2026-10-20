@@ -84,7 +84,7 @@
                                                     <i class="bi bi-clock-history"></i>
                                                 </span>
                                                 <div>
-                                                    <h5 class="pm-card-title mb-0">@(isActiveLifecycle ? "Timeline" : "Historical timeline")</h5>
+                                                    <h2 class="h5 pm-card-title mb-0">@(isActiveLifecycle ? "Timeline" : "Historical timeline")</h2>
                                                     <p class="pm-card-subtitle mb-0">@timelineSubtitle</p>
                                                 </div>
                                             </div>
@@ -99,7 +99,7 @@
                                                 }
                                                 @if (isActiveLifecycle && pendingOwnedByCurrentUser && !statusShowsPlanPending)
                                                 {
-                                                    <span class="badge text-bg-warning">Timeline plan submitted for approval</span>
+                                                    <span class="badge text-bg-warning">Plan submitted for approval</span>
                                                 }
                                                 @if (isActiveLifecycle && access.IsAssignedProjectOfficer &&
                                                      !access.IsHoD && !access.IsAdmin &&
@@ -125,10 +125,10 @@
                                                 }
                                                 @if (isActiveLifecycle)
                                                 {
-                                                    <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
-                                                          title="@(Model.Backfill.AwaitingApproval ? "Completion dates are awaiting HoD or Admin approval" : "Resolve procurement backfill to proceed")"
+                                                    @* One colour and one name for the same fact as the stage pill and banner (discovery C6.2). *@
+                                                    <span class="badge @(Model.Backfill.AwaitingApproval ? "bg-info-subtle text-info-emphasis border border-info-subtle" : "bg-warning-subtle text-warning-emphasis border border-warning-subtle")@(Model.HasBackfill ? string.Empty : " d-none")"
                                                           data-backfill-summary>
-                                                        @(Model.Backfill.AwaitingApproval ? "Completion dates submitted" : "Backfill required")
+                                                        @(Model.Backfill.AwaitingApproval ? "Completion details submitted" : "Completion details needed")
                                                     </span>
                                                 }
                                                 else if (isCancelledLifecycle)
@@ -137,7 +137,7 @@
                                                 }
                                                 @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
                                                 {
-                                                    <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                                    <span class="badge text-bg-success">Plan approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
                                                 }
                                             </div>
                                         </div>
@@ -186,7 +186,7 @@
                                                 <i class="bi bi-chat-dots"></i>
                                             </span>
                                             <div>
-                                                <h5 class="pm-card-title mb-0">Remarks</h5>
+                                                <h2 class="h5 pm-card-title mb-0">Remarks</h2>
                                                 <p class="pm-card-subtitle mb-0">
                                                     @(isActiveLifecycle
                                                         ? "Monitor and update project progress."
@@ -261,7 +261,7 @@
                                                                         data-bs-toggle="offcanvas"
                                                                         data-bs-target="#offcanvasActualDates"
                                                                         aria-controls="offcanvasActualDates">
-                                                                    Correct recorded dates
+                                                                    Correct actual dates
                                                                 </button>
                                                             </li>
                                                             <li>
@@ -310,7 +310,7 @@
                                 <span class="text-muted small">
                                     @if (completedStagesRequiringBackfill > 0)
                                     {
-                                        <text>@completedStages completed · @fullyRecordedCompletedStages fully recorded · @completedStagesRequiringBackfill backfill pending@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
+                                        <text>@completedStages completed · @completedStagesRequiringBackfill @(completedStagesRequiringBackfill == 1 ? "needs" : "need") completion details@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
                                     }
                                     else if (skippedStages == 0)
                                     {

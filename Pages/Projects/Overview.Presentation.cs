@@ -27,7 +27,14 @@ public partial class OverviewModel
         Access = Access,
         LifecycleStatus = Project?.LifecycleStatus ?? ProjectManagement.Models.ProjectLifecycleStatus.Active,
         IsLegacy = Project?.IsLegacy == true,
-        CanManageHistoricalStageHistory = CanManageHistoricalStageHistory
+        CanManageHistoricalStageHistory = CanManageHistoricalStageHistory,
+        CurrentUserId = CurrentUserId,
+        CompletionDetailsSubmittedStages = Backfill.PendingProposal is { NeedsResubmission: false }
+            ? Backfill.Stages
+                .Where(stage => stage.HasProposal && stage.CompletedOn.HasValue)
+                .Select(stage => stage.StageCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     };
 
     public bool CanManageHistoricalStageHistory =>

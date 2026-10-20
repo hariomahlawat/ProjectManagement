@@ -19,7 +19,7 @@
                 </div>
                 @if (stage.HasProposal)
                 {
-                    <span class="badge bg-info-subtle text-info border border-info-subtle" data-backfill-proposed>Proposed, awaiting approval</span>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle" data-backfill-proposed>Proposed correction</span>
                 }
                 @if (stage.IsAutoCompleted && !string.IsNullOrWhiteSpace(stage.AutoCompletedFromName))
                 {
@@ -43,7 +43,7 @@
                 @if (stage.IsCarriedForward)
                 {
                     <div class="col-12 small text-muted" data-backfill-carried-note>
-                        Your pending update clears this stage's recorded start. It is kept as submitted; change it in Edit actual dates.
+                        Your pending update clears this stage's recorded start. It is kept as submitted; change it in Correct actual dates.
                     </div>
                 }
                 <div class="col-md-6">

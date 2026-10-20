@@ -53,7 +53,7 @@ test('in-progress completion is blocked without changing status', () => {
   const ui = editor('InProgress', '2024-01-10', '');
   ui.change('completed', '2024-01-25');
   assert.equal(ui.doc.querySelector('[data-actuals-save]').disabled, true);
-  assert.match(ui.doc.querySelector('[data-row-error]').textContent, /stage.transition|completion.*workflow/i);
+  assert.match(ui.doc.querySelector('[data-row-error]').textContent, /use Update stage/i);
   assert.equal(ui.doc.querySelector('[data-actuals-row]').dataset.stageStatus, 'InProgress');
   ui.dom.window.close();
 });

@@ -7,7 +7,7 @@ const scriptPath = path.resolve(__dirname, 'stages.js');
 const source = fs.readFileSync(scriptPath, 'utf8');
 
 test('project officer stage update uses approval-oriented wording', () => {
-  assert.match(source, /stage update\$\{stagesPayload\.length === 1 \? '' : 's'\} submitted/);
+  assert.match(source, /stage update\$\{stagesPayload\.length === 1 \? '' : 's'\} sent for HoD approval/);
   assert.match(source, /Update .* stage/);
   assert.doesNotMatch(source, /showToast\('Request submitted\.'/);
 });
@@ -19,9 +19,9 @@ test('project officer update reloads server-rendered pending state', () => {
 
 test('project officer status choices are contextual and support historical completion', () => {
   assert.match(source, /function transitionOptions\(currentStatus\)/);
-  assert.match(source, /case 'NotStarted':[\s\S]*Start stage[\s\S]*Complete stage directly[\s\S]*Mark blocked[\s\S]*Skip stage/);
-  assert.match(source, /case 'InProgress':[\s\S]*Complete stage[\s\S]*Mark blocked[\s\S]*Skip stage/);
-  assert.match(source, /case 'Completed':[\s\S]*Reopen stage/);
+  assert.match(source, /case 'NotStarted':[\s\S]*Request start[\s\S]*Request completion \(without a separate start\)[\s\S]*Request to mark blocked[\s\S]*Request to skip/);
+  assert.match(source, /case 'InProgress':[\s\S]*Request completion[\s\S]*Request to mark blocked[\s\S]*Request to skip/);
+  assert.match(source, /case 'Completed':[\s\S]*Request to reopen/);
 });
 
 test('multi-stage updates are supported without forcing notes for routine rows', () => {
@@ -51,7 +51,7 @@ test('completion revisions retain and display an earlier proposed start', () => 
 test('direct completion submits an editable requested start date', () => {
   assert.match(source, /requestedStartDate/);
   assert.match(source, /data-stage-request-start-date/);
-  assert.match(source, /Complete stage directly/);
+  assert.match(source, /Request completion \(without a separate start\)/);
 });
 
 test('start and direct completion use the workflow-derived editable defaults', () => {
@@ -60,8 +60,8 @@ test('start and direct completion use the workflow-derived editable defaults', (
   assert.match(source, /No usable predecessor completion date is recorded\. Enter a start date or leave it blank\./);
 });
 
-test('editing a pending update uses save wording', () => {
-  assert.match(source, /isEditingPending \? 'Save update' : 'Submit update'/);
+test('a new or edited stage update is submitted for approval', () => {
+  assert.match(source, /submitButton\.textContent = 'Submit for approval'/);
 });
 
 test('same-day chronology keeps next-day suggestion while enforcing predecessor completion as minimum', () => {

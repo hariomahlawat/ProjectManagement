@@ -74,6 +74,9 @@ public class BackfillApplyModel : PageModel
         public int? BasedOnRevisionId { get; set; }
 
         public DateTimeOffset? BasedOnSubmittedOn { get; set; }
+
+        // Optional reason, as in the actual-date editor; blank keeps the pending revision's note.
+        public string? Note { get; set; }
     }
 
     public async Task<IActionResult> OnPostAsync([FromBody] BackfillApplyInput input, CancellationToken ct)
@@ -205,7 +208,7 @@ public class BackfillApplyModel : PageModel
                 ok = false,
                 error = "conflict",
                 stages = ex.ConflictingStages,
-                message = "One or more stages no longer require backfill."
+                message = "One or more stages no longer need completion details."
             });
         }
         catch (ActualsApprovalRequiredException)
@@ -312,7 +315,8 @@ public class BackfillApplyModel : PageModel
                 .Select(stage => new ActualCorrectionProposalRow(
                     stage.StageCode, stage.ActualStart, CompletedOn: stage.CompletedOn, StageToken: stage.StageToken))
                 .ToArray(),
-            new ActualCorrectionBaseline(input.BaselineVersion, input.BasedOnRevisionId, input.BasedOnSubmittedOn));
+            new ActualCorrectionBaseline(input.BaselineVersion, input.BasedOnRevisionId, input.BasedOnSubmittedOn),
+            string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim());
 
         ActualCorrectionSubmissionResult result;
         try

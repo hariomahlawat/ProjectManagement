@@ -143,15 +143,15 @@
           break;
         case 'inprogress':
           if (!startValue) {
-            error = 'Actual start is required while the stage is InProgress; transition the stage before clearing it.';
+            error = 'A stage in progress needs its start date, so it cannot be cleared. First change the stage with Update stage.';
           } else if (completedValue) {
-            error = 'Use the stage-transition workflow to complete this stage; completion cannot be recorded here while InProgress.';
+            error = 'To complete this stage, use Update stage on the timeline; a completion date cannot be entered here while it is in progress.';
           }
           break;
         case 'completed':
           break;
         default:
-          error = 'Actual dates can only be edited when the stage is InProgress or Completed.';
+          error = 'Actual dates can be edited only for a stage that is in progress or completed.';
           break;
       }
     }
