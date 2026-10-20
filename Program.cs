@@ -739,6 +739,7 @@ builder.Services.AddScoped<IPlanRealignment, PlanRealignmentService>();
 builder.Services.AddScoped<StageDirectApplyService>();
 builder.Services.AddScoped<StageBackfillService>();
 builder.Services.AddScoped<StageActualsUpdateService>();
+builder.Services.AddScoped<ActualCorrectionProposalService>();
 builder.Services.AddScoped<HistoricalStageRecordService>();
 builder.Services.AddScoped<StageDecisionService>();
 builder.Services.AddScoped<StageApprovalSequenceService>();

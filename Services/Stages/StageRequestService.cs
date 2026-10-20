@@ -267,8 +267,8 @@ public class StageRequestService
                 .ThenByDescending(request => request.Id)
                 .First())
             .ToDictionary(request => request.StageCode, StringComparer.OrdinalIgnoreCase);
-        var projectedStates = BuildProjectedStates(stages, latestPendingByStage.Values, carriedStartByStage);
-        ApplyPublishedAuthority(projectedStates, ipaAuthority);
+        var projectedStates = ProjectedLifecycleProjection.BuildProjectedStates(stages, latestPendingByStage.Values, carriedStartByStage);
+        ProjectedLifecycleProjection.ApplyPublishedAuthority(projectedStates, ipaAuthority);
         var submittedStageCodes = preparedItems
             .Select(item => item.StageCode)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -284,16 +284,16 @@ public class StageRequestService
                 ? projectedStage.ProjectedStartDate
                 : null;
 
-            ResetToOfficialProjection(projectedStage);
+            ProjectedLifecycleProjection.ResetToOfficialProjection(projectedStage);
             if (carriedStart.HasValue && !projectedStage.OfficialActualStart.HasValue)
             {
                 projectedStage.ProjectedStartDate = carriedStart;
             }
 
-            ApplyProjection(projectedStage, item.RequestedStatus, item.RequestedDate, item.RequestedStartDate);
+            ProjectedLifecycleProjection.ApplyProjection(projectedStage, item.RequestedStatus, item.RequestedDate, item.RequestedStartDate);
         }
 
-        ApplyPublishedAuthority(projectedStates, ipaAuthority);
+        ProjectedLifecycleProjection.ApplyPublishedAuthority(projectedStates, ipaAuthority);
 
         var validationResults = new List<StageRequestItemResult>(preparedItems.Count);
         var hasValidationFailure = false;
@@ -544,105 +544,6 @@ public class StageRequestService
         return superseded == 1;
     }
 
-    private static void ApplyPublishedAuthority(
-        IReadOnlyDictionary<string, ProjectedStageState> states,
-        ArppIpaStageAuthority? authority)
-    {
-        if (authority is null || !states.TryGetValue(StageCodes.IPA, out var ipa))
-        {
-            return;
-        }
-
-        var effective = StageEffectiveState.Resolve(ipa.StageCode,
-            new StageChronologyState(ipa.ProjectedStatus, ipa.ProjectedCompletionDate), authority)!;
-        ipa.ProjectedStatus = effective.Status;
-        ipa.ProjectedCompletionDate = effective.CompletionDate;
-    }
-
-    private static Dictionary<string, ProjectedStageState> BuildProjectedStates(
-        IReadOnlyCollection<ProjectStage> stages,
-        IReadOnlyCollection<StageChangeRequest> pendingRequests,
-        IReadOnlyDictionary<string, DateOnly?> carriedStartByStage)
-    {
-        var states = stages.ToDictionary(
-            stage => stage.StageCode,
-            stage => new ProjectedStageState(
-                stage.StageCode,
-                stage.Status,
-                stage.Status,
-                stage.ActualStart,
-                stage.CompletedOn,
-                stage.ActualStart,
-                stage.CompletedOn),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var state in states.Values)
-        {
-            if (!state.ProjectedStartDate.HasValue
-                && carriedStartByStage.TryGetValue(state.StageCode, out var carriedStart)
-                && carriedStart.HasValue)
-            {
-                state.ProjectedStartDate = carriedStart;
-            }
-        }
-
-        foreach (var pending in pendingRequests)
-        {
-            if (!states.TryGetValue(pending.StageCode, out var state)
-                || !Enum.TryParse<StageStatus>(pending.RequestedStatus, ignoreCase: true, out var status))
-            {
-                continue;
-            }
-
-            ApplyProjection(state, status, pending.RequestedDate, pending.RequestedStartDate);
-        }
-
-        return states;
-    }
-
-    private static void ResetToOfficialProjection(ProjectedStageState state)
-    {
-        state.ProjectedStatus = state.OfficialStatus;
-        state.ProjectedStartDate = state.OfficialActualStart;
-        state.ProjectedCompletionDate = state.OfficialCompletionDate;
-        state.ProjectedDate = null;
-    }
-
-    private static void ApplyProjection(
-        ProjectedStageState state,
-        StageStatus requestedStatus,
-        DateOnly? requestedDate,
-        DateOnly? requestedStartDate)
-    {
-        state.ProjectedStatus = requestedStatus;
-        state.ProjectedDate = requestedDate;
-
-        switch (requestedStatus)
-        {
-            case StageStatus.Completed:
-                if (requestedStartDate.HasValue)
-                {
-                    state.ProjectedStartDate = requestedStartDate.Value;
-                }
-                state.ProjectedCompletionDate = requestedDate ?? state.OfficialCompletionDate;
-                break;
-            case StageStatus.InProgress:
-                state.ProjectedStartDate = requestedDate ?? state.OfficialActualStart;
-                state.ProjectedCompletionDate = null;
-                break;
-            case StageStatus.Blocked:
-                state.ProjectedCompletionDate = null;
-                break;
-            case StageStatus.NotStarted:
-                state.ProjectedStartDate = null;
-                state.ProjectedCompletionDate = null;
-                break;
-            case StageStatus.Skipped:
-                state.ProjectedCompletionDate = null;
-                break;
-        }
-    }
-
     private static bool IsProjectedResolved(
         IReadOnlyDictionary<string, ProjectedStageState> projectedStates,
         string stageCode)
@@ -864,36 +765,6 @@ public class StageRequestService
         DateOnly? RequestedDate,
         DateOnly? RequestedStartDate,
         string? Note);
-
-    private sealed class ProjectedStageState
-    {
-        public ProjectedStageState(
-            string stageCode,
-            StageStatus officialStatus,
-            StageStatus projectedStatus,
-            DateOnly? officialActualStart,
-            DateOnly? officialCompletionDate,
-            DateOnly? projectedStartDate,
-            DateOnly? projectedCompletionDate)
-        {
-            StageCode = stageCode;
-            OfficialStatus = officialStatus;
-            ProjectedStatus = projectedStatus;
-            OfficialActualStart = officialActualStart;
-            OfficialCompletionDate = officialCompletionDate;
-            ProjectedStartDate = projectedStartDate;
-            ProjectedCompletionDate = projectedCompletionDate;
-        }
-
-        public string StageCode { get; }
-        public StageStatus OfficialStatus { get; }
-        public StageStatus ProjectedStatus { get; set; }
-        public DateOnly? OfficialActualStart { get; }
-        public DateOnly? OfficialCompletionDate { get; }
-        public DateOnly? ProjectedStartDate { get; set; }
-        public DateOnly? ProjectedCompletionDate { get; set; }
-        public DateOnly? ProjectedDate { get; set; }
-    }
 }
 
 public sealed record StageRequestResult

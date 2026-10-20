@@ -2,7 +2,7 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
-> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 and D-3 are approved (K-1, K-14 resolved) but not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 is merged ([PR #2681](https://github.com/hariomahlawat/ProjectManagement/pull/2681), `e3e8ea85`). D-3a/b (the proposal submission service) is in a Draft PR; the rest of D-3 is not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
 >
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
@@ -82,7 +82,7 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
 
 ### Deferred work and decisions
 
-- **D-2** (unused tables, PO direct-publication cut-off): implemented on branch `codex/phase-d-2-actual-proposal-foundation` (Draft PR, not merged, not deployed). Migration `20261217053003_AddActualCorrectionProposals`.
+- **D-2** (proposal tables, PO direct-publication cut-off): merged in [PR #2681](https://github.com/hariomahlawat/ProjectManagement/pull/2681) (`e3e8ea85`), not deployed. Migration `20261217053003_AddActualCorrectionProposals`.
   - **Deviations from the D-2 row (G):**
     - the cut-off is also enforced at service level in `ActualWriteAuthority`, not only in the page models;
     - the closure, `EntryPoint`, `RevisionNo` and clear-intent `CHECK` constraints are added;
@@ -93,11 +93,75 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
     - #2682: `Projects.ProjectBrief` is 3000 characters in the model but `varchar(2500)` in the database, so a valid brief can fail to save;
     - #2683: `ops/publish/create-publish-folder.ps1` hard-codes 62 migrations; it must be fixed before any release.
   - **The D-2 read-only editor is temporary.** For PO-only users it exists only so the D-2 emergency floor offers no false save. D-3 restores the editable editor and backfill form for the assigned PO, with immediate validation and "Submit for approval" through the same routes (C.4, D-3b). It is not the D-3 design.
-- **D-3a–D-3e** (PO proposals, Decision Centre, read models) are not started. D-2 must not be deployed without D-3 (K-14).
+- **D-3a/b** (proposal submission and revision management, service layer only): Draft PR on branch `claude/phase-d-3ab-actual-correction-submission`; see [D-3a/b implementation](#d-3ab-implementation). No migration.
+- **D-3 page routing, read models, Decision Centre and closure** (G rows D-3b, D-3c, D-3d, D-3e) are not started. D-2 must not be deployed without the whole of D-3 (K-14).
 - **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
 - **K-11** was accepted before D-1a and is implemented as per-branch convergence.
 - **K-1 and K-14 are resolved** by the project owner (2026-10-19), together with role precedence; see [Approved governance for D-2/D-3](#approved-governance-for-d-2d-3). D-1 did not depend on either and implements neither.
 - **K-12** and **K-13** remain operational questions for R-D2.
+
+### D-3a/b implementation
+
+D-3a/b adds `Services/Stages/ActualCorrectionProposalService.cs` (`SubmitAsync`, `WithdrawAsync`, `GetPendingAsync`). No page, handler or UI calls it yet, so production behaviour is unchanged. Tests: `ActualCorrectionProposalServiceTests` (SQLite) and `ActualCorrectionProposalConcurrencyPostgresFixture` (wired into the migration gate).
+
+**How it maps to G.** This PR delivers the service part of the G "D-3a" row: submission (C.4), supersession write order, withdrawal (C.5), the editor baseline (E.4) and the F.6 check. It leaves out `ApproveAsync`/`RejectAsync`, which move to D-3d, and changes no `EditActuals`/`BackfillApply` handler (G "D-3b").
+
+**Submission order, inside one `RelationalTransactionScope`:**
+
+1. Project gate.
+2. Project row `FOR SHARE`: authority is resolved against it (`ActualWriteAuthority.ResolveProposalAsync`).
+3. Every project stage row `FOR UPDATE`, in `Id` order.
+4. Read the pending revision and check the posted baseline identity and tokens.
+5. Validate the final state, then run the F.6 contradiction check.
+6. Close by compare-and-set, insert, link.
+
+This is the order direct publication and lifecycle submission use. Submission also locks the stage rows, which C.4 does not require: like lifecycle submission (D-1c), an ARPP verify outside the gate is then seen entirely or not at all, and the `Before*` snapshot cannot change before commit.
+
+**Decisions made where the plan was silent:**
+
+- **Validation.** It reuses `IActualTimelineValidationService` and its entry-point normalization; there is no separate normalizer. A stored item holds final values, so carried-forward items are replayed as Editor changes. A backfill submission with carried items therefore validates in two passes:
+  - the posted rows with Backfill semantics, for per-row rules and the 409 conflict;
+  - the whole item set, for chronology.
+- **F.6.** `BuildProjectedStates`/`ApplyProjection` moved unchanged into `ProjectedLifecycleProjection`, shared with `StageRequestService`. The projection is official facts plus the latest pending lifecycle request per stage, without lifecycle submission's carried start history.
+  - It runs only when the proposal is valid against official facts, so any error it finds comes from the projection.
+  - The error names the pending stage.
+- **Unchanged.** A resubmission is Unchanged only when both of these hold, so a revision whose basis changed is refreshed rather than kept:
+  - its canonical content hash equals the pending revision's;
+  - every pending item's `Before*` still equals the locked row.
+- **Content hash.** SHA-256 of a versioned JSON form: items in stage-code order (code, kind, proposed dates, clear intent, note) plus the revision note. Notes are trimmed, CRLF is folded to LF, and blank is treated as absent. The entry point is presentation only, so it is excluded.
+- **Notes.** A backfill submission without a note keeps the pending revision's note. The withdrawal reason is stored in `DecisionNote`, the only closure text column.
+- **Outcomes.** `ProjectNotEditable` is a separate outcome for closed or legacy projects (C.4 step 2). `DirectAuthority` is returned to HoD/Admin callers, including PO+HoD and PO+Admin, instead of `Forbidden`.
+- **Reassignment (K-6).** The current lead PO may supersede or withdraw a pending revision by another submitter only from a form based on that revision's identity. A former PO is refused.
+- **Epoch precision.** `SubmittedOn` is stored at microsecond precision, so the posted epoch round-trips through PostgreSQL.
+- **Failed writes.** On a failed submission the added revision and items are detached, so a later save on the same context cannot replay them.
+
+**D-3c/D-3b contract.**
+
+- Render the baseline from `GetPendingAsync`: `BaselineVersion = 1`, plus `BasedOnRevisionId` and `BasedOnSubmittedOn` (both empty for "none").
+- Post each row's `ActualStageToken`.
+- Route only a PO-only user to `SubmitAsync`; treat `DirectAuthority` as "use the direct path".
+- Map the outcomes:
+  - `Stale` (with its `StaleReason` and stage codes) to a reload message;
+  - `Invalid` to the validator's messages;
+  - `Conflict` to the existing backfill 409.
+
+**D-3d contract.** A decision binds to the revision identity (`Id`, `RevisionNo`, `SubmittedOn`) and reads:
+
+- `SubmittedByUserId`, for the self-approval refusal;
+- each item's `Before*`, for the SourceChanged baseline check;
+- the normalized proposed values and `ClearsActualStart`, replayed as Editor changes for revalidation and `ActualFactPublisher` publication.
+
+The approval must re-run F.6 and close the revision by the same `Pending` compare-and-set.
+
+**Limitations.**
+
+- No notifications (K-8, optional).
+- A post-commit `AuditLogs` entry (`Projects.ActualCorrectionSubmitted`, `…Withdrawn`) is written only when an `IAuditService` is supplied (always, in DI).
+- R1–R7, R9, R10, R13 and R14 concern approval and remain with D-3d.
+- **D-3c must render every pending item in the editor.** An editor post is the complete proposal, so a pending item without a posted row is dropped, including a backfill item on an awaiting-backfill stage.
+- **A republished ARPP IPA date can give a misleading error.** If ARPP republishes a different IPA date before the IPA row is synchronized, a carried IPA start item fails with the ARPP-controlled-completion message rather than as stale. Nothing is saved; the PO revises the IPA item.
+- **Reassignment and Unchanged.** After a reassignment, the new lead's identical resubmission is Unchanged, and the revision stays attributed to its original submitter (K-6: the revision stays decidable).
+- **ARPP row insert.** An ARPP synchronizer *inserting* a missing IPA row is not blocked by the stage-row lock. This is the same accepted limitation as the direct paths (D-1 verification findings).
 
 ---
 

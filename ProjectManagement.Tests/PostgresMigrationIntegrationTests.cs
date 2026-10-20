@@ -163,6 +163,9 @@ public sealed class PostgresMigrationIntegrationTests
         await LifecycleChronologyObservabilityPostgresFixture.RunAsync(applicationOptions);
         // Phase D-2: the Actual-correction proposal schema, its constraints and purge.
         await ActualCorrectionSchemaPostgresFixture.RunAsync(applicationOptions);
+        // Phase D-3a/b: proposal submission serializes behind the gate and row locks,
+        // and a failed supersession rolls back completely.
+        await ActualCorrectionProposalConcurrencyPostgresFixture.RunAsync(applicationOptions);
     }
 
 

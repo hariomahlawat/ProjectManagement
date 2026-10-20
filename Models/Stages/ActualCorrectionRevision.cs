@@ -10,7 +10,7 @@ namespace ProjectManagement.Models.Stages;
 /// After insert only the closure fields change: <see cref="Status"/>,
 /// <see cref="ClosedByUserId"/>, <see cref="ClosedOn"/>,
 /// <see cref="SupersededByRevisionId"/> and <see cref="DecisionNote"/>.
-/// Introduced in D-2 and unused until the D-3 proposal services.
+/// Introduced in D-2; written by <c>ActualCorrectionProposalService</c> from D-3a/b.
 /// </summary>
 public class ActualCorrectionRevision
 {

@@ -255,13 +255,8 @@ public sealed class StageActualsUpdateService
             .ToArray();
     }
 
-    // A row "would change" when any posted value differs from the stored row.
-    // Rows whose posted values equal the stored facts never need a token, so
-    // non-overlapping edits to other stages can both succeed.
     private static bool WouldChange(ActualsEditRowInput row, ProjectStage stage) =>
-        (row.ClearActualStart && stage.ActualStart.HasValue)
-        || (row.ActualStart.HasValue && row.ActualStart != stage.ActualStart)
-        || (row.CompletedOn.HasValue && row.CompletedOn != stage.CompletedOn);
+        ActualStageToken.WouldChange(stage, row.ActualStart, row.ClearActualStart, row.CompletedOn);
 
     private static string? FormatDate(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }

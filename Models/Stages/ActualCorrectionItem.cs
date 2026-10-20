@@ -6,7 +6,7 @@ namespace ProjectManagement.Models.Stages;
 /// <summary>
 /// One stage's proposed Actual facts within an <see cref="ActualCorrectionRevision"/>,
 /// with the official values it was based on (plan section D.2). Items are never
-/// updated after insert. Introduced in D-2 and unused until D-3.
+/// updated after insert. Introduced in D-2; written by <c>ActualCorrectionProposalService</c> from D-3a/b.
 /// </summary>
 public class ActualCorrectionItem
 {

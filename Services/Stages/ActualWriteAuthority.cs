@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -59,20 +60,7 @@ internal static class ActualWriteAuthority
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(actor);
 
-        if (db.Database.IsNpgsql())
-        {
-            // Waits for an in-flight reassignment or deletion to commit, then
-            // keeps the row unchanged until this transaction ends.
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT 1 FROM \"Projects\" WHERE \"Id\" = {projectId} FOR SHARE",
-                cancellationToken);
-        }
-
-        var project = await db.Projects
-            .AsNoTracking()
-            .Where(item => item.Id == projectId)
-            .Select(item => new { item.IsDeleted, item.LeadPoUserId })
-            .SingleOrDefaultAsync(cancellationToken);
+        var project = await ReadLockedProjectAsync(db, projectId, cancellationToken);
 
         if (project is null || project.IsDeleted)
         {
@@ -92,6 +80,87 @@ internal static class ActualWriteAuthority
 
         throw new ActualsWriteForbiddenException(projectId, actor.UserId);
     }
+
+    /// <summary>
+    /// Phase D-3 proposal authority, the counterpart of <see cref="EnsureAsync"/>:
+    /// only the project's current lead PO without Admin or HoD authority proposes
+    /// Actual corrections. Same lock order and project-row share lock. Submission
+    /// additionally requires an active, non-legacy project, matching the editor
+    /// the UI offers; withdrawal does not, so a pending revision stays closable.
+    /// </summary>
+    internal static async Task<ActualProposalAuthority> ResolveProposalAsync(
+        ApplicationDbContext db,
+        int projectId,
+        ActualWriteActor actor,
+        bool requireEditableProject,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(actor);
+
+        var project = await ReadLockedProjectAsync(db, projectId, cancellationToken);
+
+        if (project is null || project.IsDeleted)
+        {
+            return ActualProposalAuthority.ProjectUnavailable;
+        }
+
+        // HoD/Admin authority supersedes the PO role: such users publish directly.
+        if (actor.IsAdmin || actor.IsHoD)
+        {
+            return ActualProposalAuthority.DirectAuthority;
+        }
+
+        if (!actor.IsProjectOfficer
+            || !string.Equals(project.LeadPoUserId, actor.UserId, StringComparison.OrdinalIgnoreCase))
+        {
+            return ActualProposalAuthority.Forbidden;
+        }
+
+        if (requireEditableProject
+            && (project.LifecycleStatus != ProjectLifecycleStatus.Active || project.IsLegacy))
+        {
+            return ActualProposalAuthority.ProjectNotEditable;
+        }
+
+        return ActualProposalAuthority.Allowed;
+    }
+
+    private static async Task<LockedProject?> ReadLockedProjectAsync(
+        ApplicationDbContext db,
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        if (db.Database.IsNpgsql())
+        {
+            // Waits for an in-flight reassignment or deletion to commit, then
+            // keeps the row unchanged until this transaction ends.
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM \"Projects\" WHERE \"Id\" = {projectId} FOR SHARE",
+                cancellationToken);
+        }
+
+        return await db.Projects
+            .AsNoTracking()
+            .Where(item => item.Id == projectId)
+            .Select(item => new LockedProject(item.IsDeleted, item.LeadPoUserId, item.LifecycleStatus, item.IsLegacy))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private sealed record LockedProject(
+        bool IsDeleted,
+        string? LeadPoUserId,
+        ProjectLifecycleStatus LifecycleStatus,
+        bool IsLegacy);
+}
+
+internal enum ActualProposalAuthority
+{
+    Allowed,
+    ProjectUnavailable,
+    DirectAuthority,
+    Forbidden,
+    ProjectNotEditable
 }
 
 /// <summary>The actor has no current write authority over the project's Actual dates.</summary>
