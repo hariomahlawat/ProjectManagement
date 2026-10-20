@@ -37,6 +37,7 @@ public sealed class ApprovalDecisionService
     private readonly IActivityDeleteRequestService _activityDeleteService;
     private readonly TrainingWriteService _trainingWriteService;
     private readonly RepositoryDocumentDeleteApprovalService _repositoryDeleteService;
+    private readonly ActualCorrectionProposalService? _actualCorrections;
     private readonly ILogger<ApprovalDecisionService> _logger;
 
     public ApprovalDecisionService(
@@ -50,8 +51,10 @@ public sealed class ApprovalDecisionService
         IActivityDeleteRequestService activityDeleteService,
         TrainingWriteService trainingWriteService,
         RepositoryDocumentDeleteApprovalService repositoryDeleteService,
-        ILogger<ApprovalDecisionService> logger)
+        ILogger<ApprovalDecisionService> logger,
+        ActualCorrectionProposalService? actualCorrections = null)
     {
+        _actualCorrections = actualCorrections;
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _stageDecisionService = stageDecisionService ?? throw new ArgumentNullException(nameof(stageDecisionService));
         _metaDecisionService = metaDecisionService ?? throw new ArgumentNullException(nameof(metaDecisionService));
@@ -105,6 +108,7 @@ public sealed class ApprovalDecisionService
                 ApprovalQueueType.ActivityDelete => await DecideActivityDeleteAsync(request, cancellationToken),
                 ApprovalQueueType.TrainingDelete => await DecideTrainingDeleteAsync(request, userId, cancellationToken),
                 ApprovalQueueType.RepositoryDocumentDelete => await DecideRepositoryDocumentDeleteAsync(request, userId, cancellationToken),
+                ApprovalQueueType.ActualCorrection => await DecideActualCorrectionAsync(request, user, userId, cancellationToken),
                 _ => ApprovalDecisionResult.ValidationFailed("Unsupported approval type.")
             };
         }
@@ -153,6 +157,70 @@ public sealed class ApprovalDecisionService
             StageDecisionOutcome.AlreadyDecided => ApprovalDecisionResult.AlreadyDecided("This request is no longer pending."),
             StageDecisionOutcome.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.Error ?? "The stage request is not ready for approval."),
             _ => ApprovalDecisionResult.Error("The stage request could not be processed.")
+        };
+    }
+
+    private async Task<ApprovalDecisionResult> DecideActualCorrectionAsync(
+        ApprovalDecisionRequest request,
+        ClaimsPrincipal user,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        if (_actualCorrections is null
+            || !int.TryParse(request.RequestId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        {
+            return ApprovalDecisionResult.ValidationFailed("Invalid actual correction identifier.");
+        }
+
+        if (request.SubmittedOn is null)
+        {
+            return ApprovalDecisionResult.AlreadyDecided("This page is out of date. Refresh the Decision Centre and review the correction again.");
+        }
+
+        // Only to find the project gate to take; the service re-reads the revision under it
+        // and refuses a revision of any other project.
+        var projectId = await _db.ActualCorrectionRevisions.AsNoTracking()
+            .Where(revision => revision.Id == id)
+            .Select(revision => (int?)revision.ProjectId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (projectId is null)
+        {
+            return ApprovalDecisionResult.NotFound("Actual correction not found.");
+        }
+
+        var decision = new ActualCorrectionDecision(projectId.Value, id, request.SubmittedOn.Value, Remarks: request.Remarks);
+        var reviewer = ActualWriteActor.FromPrincipal(user, userId);
+        var result = request.Decision == ApprovalDecisionAction.Approve
+            ? await _actualCorrections.ApproveAsync(decision, reviewer, cancellationToken)
+            : await _actualCorrections.RejectAsync(decision, reviewer, cancellationToken);
+
+        return ToApprovalResult(result);
+    }
+
+    /// <summary>Decision Centre wording for an Actual correction decision; success only when committed.</summary>
+    internal static ApprovalDecisionResult ToApprovalResult(ActualCorrectionDecisionResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var details = result.Errors is { Count: > 0 } errors ? " " + string.Join(" ", errors) : string.Empty;
+        var stages = result.StageCodes is { Count: > 0 } codes ? string.Join(", ", codes) : null;
+        return result.Outcome switch
+        {
+            ActualCorrectionDecisionOutcome.Approved => ApprovalDecisionResult.Success(
+                $"Actual correction revision {result.Revision!.RevisionNo} approved. Official dates were updated for {stages}."),
+            ActualCorrectionDecisionOutcome.Rejected => ApprovalDecisionResult.Success(
+                $"Actual correction revision {result.Revision!.RevisionNo} rejected. Official dates are unchanged."),
+            ActualCorrectionDecisionOutcome.NotActionable => ApprovalDecisionResult.AlreadyDecided(
+                "This correction was withdrawn, replaced or already decided. Refresh the Decision Centre and review the latest version."),
+            ActualCorrectionDecisionOutcome.SourceChanged => ApprovalDecisionResult.ValidationFailed(
+                $"Official dates changed after this correction was submitted{(stages is null ? "" : $" ({stages})")}. Nothing was approved. The Project Officer must revise it, or you can reject it."),
+            ActualCorrectionDecisionOutcome.Invalid => ApprovalDecisionResult.ValidationFailed(
+                "The proposed dates are no longer valid. Nothing was approved." + details),
+            ActualCorrectionDecisionOutcome.LifecycleConflict => ApprovalDecisionResult.ValidationFailed(
+                "This correction conflicts with a pending lifecycle update. Decide that update first, or ask the Project Officer to revise. Nothing was approved." + details),
+            ActualCorrectionDecisionOutcome.SelfDecisionForbidden => ApprovalDecisionResult.Forbidden(
+                "You submitted this correction. Another HoD or Admin must decide it."),
+            ActualCorrectionDecisionOutcome.ProjectUnavailable => ApprovalDecisionResult.NotFound("The project was not found or has been deleted."),
+            _ => ApprovalDecisionResult.Forbidden("Only Admin or HoD users can decide actual corrections.")
         };
     }
 

@@ -30,12 +30,15 @@ public sealed class ApprovalQueueService : IApprovalQueueService
     private readonly ApplicationDbContext _db;
     private readonly PlanCompareService _planCompareService;
     private readonly StageApprovalSequenceService _stageSequence;
+    private readonly IActualTimelineValidationService? _actualValidator;
 
     public ApprovalQueueService(
         ApplicationDbContext db,
         PlanCompareService planCompareService,
-        StageApprovalSequenceService stageSequence)
+        StageApprovalSequenceService stageSequence,
+        IActualTimelineValidationService? actualValidator = null)
     {
+        _actualValidator = actualValidator;
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _planCompareService = planCompareService ?? throw new ArgumentNullException(nameof(planCompareService));
         _stageSequence = stageSequence ?? throw new ArgumentNullException(nameof(stageSequence));
@@ -89,6 +92,12 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             var planRows = await BuildPlanApprovalQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(planRows.Select(MapPlanApprovalRow));
+        }
+
+        if (ShouldIncludeType(query, ApprovalQueueType.ActualCorrection))
+        {
+            var actualRows = await BuildActualCorrectionQuery(query).ToListAsync(cancellationToken);
+            results.AddRange(actualRows.Select(MapActualCorrectionRow));
         }
 
         if (ShouldIncludeType(query, ApprovalQueueType.DocRequest))
@@ -175,6 +184,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         total += await BuildStageChangeQuery(query).CountAsync(cancellationToken);
         total += await BuildMetaChangeQuery(query).CountAsync(cancellationToken);
         total += await BuildPlanApprovalQuery(query).CountAsync(cancellationToken);
+        total += await BuildActualCorrectionQuery(query).CountAsync(cancellationToken);
         total += await BuildDocumentRequestQuery(query).CountAsync(cancellationToken);
         total += await BuildTotRequestQuery(query).CountAsync(cancellationToken);
         total += await BuildProliferationYearlyQuery(query).CountAsync(cancellationToken);
@@ -210,6 +220,8 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             ApprovalQueueType.ActivityDelete => await BuildActivityDeleteDetailAsync(requestId, cancellationToken),
             ApprovalQueueType.TrainingDelete => await BuildTrainingDeleteDetailAsync(requestId, cancellationToken),
             ApprovalQueueType.RepositoryDocumentDelete => await BuildRepositoryDocumentDeleteDetailAsync(requestId, cancellationToken),
+            ApprovalQueueType.ActualCorrection => await BuildActualCorrectionDetailAsync(
+                requestId, user.FindFirstValue(ClaimTypes.NameIdentifier), cancellationToken),
             _ => null
         };
     }
@@ -382,6 +394,52 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             null,
             null);
     }
+
+    // SECTION: Actual correction list (D-3d)
+    private IQueryable<ActualCorrectionRow> BuildActualCorrectionQuery(ApprovalQueueQuery query)
+    {
+        // One row per project at most (filtered unique Pending index); the item count is a subquery.
+        var baseQuery = from revision in _db.ActualCorrectionRevisions.AsNoTracking()
+                        join project in _db.Projects.AsNoTracking() on revision.ProjectId equals project.Id
+                        join user in _db.Users.AsNoTracking() on revision.SubmittedByUserId equals user.Id into userGroup
+                        from user in userGroup.DefaultIfEmpty()
+                        where revision.Status == ActualCorrectionRevisionStatus.Pending && !project.IsDeleted
+                        select new ActualCorrectionRow(
+                            revision.Id,
+                            revision.ProjectId,
+                            project.Name,
+                            revision.RevisionNo,
+                            revision.SubmittedByUserId,
+                            user.FullName,
+                            user.UserName,
+                            user.Email,
+                            revision.SubmittedOn,
+                            revision.Items.Count());
+
+        baseQuery = ApplySearch(baseQuery, query);
+        return baseQuery;
+    }
+
+    private static ApprovalQueueItemVm MapActualCorrectionRow(ActualCorrectionRow row) =>
+        new(
+            ApprovalQueueType.ActualCorrection,
+            row.Id.ToString(CultureInfo.InvariantCulture),
+            row.ProjectId,
+            row.ProjectName,
+            row.SubmittedByUserId,
+            ResolveUserDisplayName(row.SubmittedByFullName, row.SubmittedByUserName, row.SubmittedByEmail),
+            row.SubmittedOnUtc,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "Actual date correction revision {0}: {1} stage{2}.",
+                row.RevisionNo,
+                row.ItemCount,
+                row.ItemCount == 1 ? string.Empty : "s"),
+            ApprovalQueueModule.Projects,
+            ActualCorrectionRevisionStatus.Pending,
+            null,
+            null,
+            RevisionNumber: row.RevisionNo);
 
     // SECTION: Document moderation list
     private IQueryable<DocumentRequestRow> BuildDocumentRequestQuery(ApprovalQueueQuery query)
@@ -1015,6 +1073,164 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         };
     }
 
+    // SECTION: Actual correction detail (D-3d)
+    /// <summary>
+    /// Read-only preview of an Actual correction revision. Readiness here guides the
+    /// reviewer; the decision service repeats every check under the project gate.
+    /// </summary>
+    private async Task<ApprovalQueueDetailVm?> BuildActualCorrectionDetailAsync(
+        string requestId,
+        string? viewerUserId,
+        CancellationToken ct)
+    {
+        if (!int.TryParse(requestId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            return null;
+        }
+
+        var revision = await _db.ActualCorrectionRevisions
+            .AsNoTracking()
+            .Include(item => item.Items)
+            .SingleOrDefaultAsync(item => item.Id == id, ct);
+        if (revision is null)
+        {
+            return null;
+        }
+
+        var project = await _db.Projects.AsNoTracking()
+            .Where(item => item.Id == revision.ProjectId && !item.IsDeleted)
+            .Select(item => new { item.Id, item.Name, item.WorkflowVersion })
+            .SingleOrDefaultAsync(ct);
+        if (project is null)
+        {
+            return null;
+        }
+
+        var stages = await _db.ProjectStages.AsNoTracking()
+            .Where(stage => stage.ProjectId == revision.ProjectId)
+            .ToListAsync(ct);
+        var stageLookup = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+
+        var items = revision.Items
+            .OrderBy(item => stageLookup.TryGetValue(item.StageCode, out var stage) ? stage.SortOrder : int.MaxValue)
+            .ThenBy(item => item.StageCode, StringComparer.Ordinal)
+            .Select(item =>
+            {
+                stageLookup.TryGetValue(item.StageCode, out var current);
+                var changed = current is null
+                    || current.Status != item.BeforeStatus
+                    || current.ActualStart != item.BeforeActualStart
+                    || current.CompletedOn != item.BeforeCompletedOn
+                    || current.RequiresBackfill != item.BeforeRequiresBackfill;
+                return new ActualCorrectionItemDetailVm(
+                    item.StageCode,
+                    StageCodes.DisplayNameOf(project.WorkflowVersion, item.StageCode),
+                    item.Kind,
+                    item.BeforeStatus.ToString(),
+                    item.BeforeActualStart,
+                    item.BeforeCompletedOn,
+                    current?.ActualStart,
+                    current?.CompletedOn,
+                    item.ProposedActualStart,
+                    item.ProposedCompletedOn,
+                    item.ClearsActualStart,
+                    changed,
+                    item.Note);
+            })
+            .ToArray();
+
+        var isPending = revision.Status == ActualCorrectionRevisionStatus.Pending;
+        var errors = Array.Empty<string>();
+        var warnings = new List<string>();
+        if (isPending && _actualValidator is not null && !items.Any(item => item.SourceChanged))
+        {
+            var preview = await _actualValidator.ValidateAsync(
+                new ActualTimelineCandidate(
+                    revision.ProjectId,
+                    stages.Select(ActualStageState.From).ToArray(),
+                    revision.Items
+                        .Select(item => new ActualStageChange(item.StageCode, item.ProposedActualStart, item.ClearsActualStart, item.ProposedCompletedOn))
+                        .ToArray(),
+                    ActualChangeEntryPoint.Editor),
+                ct);
+            errors = preview.Errors.Select(error => error.Message).ToArray();
+            warnings.AddRange(preview.Warnings.Select(warning => warning.Message));
+            var published = preview.Changes.ToDictionary(change => change.StageCode, change => change.Final.Status, StringComparer.OrdinalIgnoreCase);
+            items = items
+                .Select(row => published.TryGetValue(row.StageCode, out var status) && status.ToString() != row.RecordedStatus
+                    ? row with { PublishedStatus = status.ToString() }
+                    : row)
+                .ToArray();
+        }
+
+        if (isPending)
+        {
+            // The preview does not project pending lifecycle requests (F.6); the decision does.
+            var lifecycle = await _db.StageChangeRequests.AsNoTracking()
+                .Where(request => request.ProjectId == revision.ProjectId && request.DecisionStatus == PendingDecisionStatus)
+                .Select(request => request.StageCode)
+                .Distinct()
+                .ToListAsync(ct);
+            if (lifecycle.Count > 0)
+            {
+                warnings.Add(
+                    $"Lifecycle updates are pending for {string.Join(", ", lifecycle.OrderBy(code => code, StringComparer.Ordinal))}. " +
+                    "Approval is refused if this correction conflicts with one of them.");
+            }
+        }
+
+        var submitter = await GetUserSnapshotAsync(revision.SubmittedByUserId, ct);
+        var submitterName = ResolveUserDisplayName(submitter.FullName, submitter.UserName, submitter.Email);
+        var ownSubmission = string.Equals(revision.SubmittedByUserId, viewerUserId, StringComparison.OrdinalIgnoreCase);
+        var sourceChanged = items.Any(item => item.SourceChanged);
+
+        var (readiness, readinessMessage) = !isPending
+            ? (ApprovalReadiness.Superseded, "This revision is no longer pending and can no longer be decided.")
+            : ownSubmission
+                ? (ApprovalReadiness.Blocked, "You submitted this correction. Another HoD or Admin must decide it.")
+                : sourceChanged
+                    ? (ApprovalReadiness.Stale, "Official dates changed after this correction was submitted. It cannot be approved; the Project Officer must revise it, or you can reject it.")
+                    : errors.Length > 0
+                        ? (ApprovalReadiness.Blocked, "The proposed dates are no longer valid against the current timeline.")
+                        : (ApprovalReadiness.Ready, (string?)null);
+
+        var item = new ApprovalQueueItemVm(
+            ApprovalQueueType.ActualCorrection,
+            revision.Id.ToString(CultureInfo.InvariantCulture),
+            project.Id,
+            project.Name,
+            revision.SubmittedByUserId,
+            submitterName,
+            revision.SubmittedOn,
+            $"Actual date correction revision {revision.RevisionNo}.",
+            ApprovalQueueModule.Projects,
+            revision.Status,
+            null,
+            null,
+            readiness,
+            readinessMessage,
+            project.WorkflowVersion,
+            RevisionNumber: revision.RevisionNo);
+
+        return new ApprovalQueueDetailVm
+        {
+            Item = item,
+            ActualCorrection = new ActualCorrectionDetailVm(
+                revision.Id,
+                revision.RevisionNo,
+                revision.SubmittedOn,
+                submitterName,
+                ownSubmission,
+                revision.EntryPoint,
+                revision.Note,
+                items,
+                errors,
+                warnings)
+        };
+    }
+
     // SECTION: Document moderation detail
     private async Task<ApprovalQueueDetailVm?> BuildDocumentModerationDetailAsync(string requestId, CancellationToken ct)
     {
@@ -1572,6 +1788,18 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             return (IQueryable<T>)(object)filtered;
         }
 
+        if (queryable is IQueryable<ActualCorrectionRow> actual)
+        {
+            var filtered = actual.Where(r =>
+                EF.Functions.ILike(r.ProjectName, like) ||
+                EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
+                EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
+                EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
+                (parsedInt.HasValue && r.RevisionNo == parsedInt.Value) ||
+                (parsedInt.HasValue && r.Id == parsedInt.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
         if (queryable is IQueryable<DocumentRequestRow> doc)
         {
             var filtered = doc.Where(r =>
@@ -1764,6 +1992,18 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         string? SubmittedByUserName,
         string? SubmittedByEmail,
         DateTimeOffset SubmittedOnUtc);
+
+    private sealed record ActualCorrectionRow(
+        int Id,
+        int ProjectId,
+        string ProjectName,
+        int RevisionNo,
+        string SubmittedByUserId,
+        string? SubmittedByFullName,
+        string? SubmittedByUserName,
+        string? SubmittedByEmail,
+        DateTimeOffset SubmittedOnUtc,
+        int ItemCount);
 
     private sealed record DocumentRequestRow(
         int Id,

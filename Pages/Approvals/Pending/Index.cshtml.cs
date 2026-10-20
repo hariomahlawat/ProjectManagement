@@ -156,6 +156,7 @@ public sealed class IndexModel : PageModel
         ApprovalQueueType.ActivityDelete => "Activity deletion",
         ApprovalQueueType.TrainingDelete => "Training deletion",
         ApprovalQueueType.RepositoryDocumentDelete => "Repository document deletion",
+        ApprovalQueueType.ActualCorrection => "Actual date correction",
         _ => SplitEnumLabel(type.ToString())
     };
 
@@ -199,6 +200,7 @@ public sealed class IndexModel : PageModel
         ApprovalQueueType.ActivityDelete => "bi-activity",
         ApprovalQueueType.TrainingDelete => "bi-mortarboard",
         ApprovalQueueType.RepositoryDocumentDelete => "bi-folder-x",
+        ApprovalQueueType.ActualCorrection => "bi-calendar-check",
         _ => "bi-check2-square"
     };
 

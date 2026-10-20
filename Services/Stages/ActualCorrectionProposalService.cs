@@ -410,6 +410,240 @@ public sealed class ActualCorrectionProposalService
         return new ActualCorrectionWithdrawalResult(ActualCorrectionWithdrawalOutcome.Withdrawn, Identity(revision));
     }
 
+    // SECTION: HoD/Admin decisions (C.6, Phase D-3d)
+    /// <summary>
+    /// Approves the exact pending revision and publishes its Actual facts with their
+    /// mandatory <see cref="StageChangeLog"/> rows in one transaction. Lock order is
+    /// the submission order (gate, project row, stage rows), so it serializes with
+    /// direct publication, submission, lifecycle decisions and ARPP synchronization.
+    /// A changed official baseline, an invalid final state or a pending lifecycle
+    /// contradiction refuses the approval and leaves the revision Pending.
+    /// </summary>
+    public async Task<ActualCorrectionDecisionResult> ApproveAsync(
+        ActualCorrectionDecision decision,
+        ActualWriteActor reviewer,
+        CancellationToken cancellationToken = default)
+    {
+        var refusal = CheckDecisionInput(decision, reviewer);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, decision.ProjectId, cancellationToken);
+        if (!await ActualWriteAuthority.IsProjectAvailableAsync(_db, decision.ProjectId, cancellationToken))
+        {
+            return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.ProjectUnavailable);
+        }
+
+        // Stage rows before the revision and ARPP reads: a writer outside the gate is
+        // seen entirely or not at all, and nothing validated below can change before commit.
+        var stages = await ActualFactPublisher.LoadProjectStagesForUpdateAsync(_db, decision.ProjectId, cancellationToken);
+        var stageLookup = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+
+        var (revision, identityRefusal) = await LoadDecidableAsync(decision, reviewer, cancellationToken);
+        if (revision is null)
+        {
+            return identityRefusal!;
+        }
+
+        // SECTION: Baseline (SourceChanged)
+        var changedStages = revision.Items
+            .Where(item => !stageLookup.TryGetValue(item.StageCode, out var stage) || !MatchesBefore(item, stage))
+            .Select(item => item.StageCode)
+            .ToArray();
+        if (changedStages.Length > 0)
+        {
+            return ActualCorrectionDecisionResult.SourceChanged(Identity(revision), changedStages);
+        }
+
+        // SECTION: Final-state revalidation (stored final values replayed as corrections)
+        var validation = await _validator.ValidateAsync(
+            new ActualTimelineCandidate(
+                decision.ProjectId,
+                stages.Select(ActualStageState.From).ToArray(),
+                revision.Items.Select(ToChange).ToArray(),
+                ActualChangeEntryPoint.Editor),
+            cancellationToken);
+        if (!validation.IsValid)
+        {
+            return ActualCorrectionDecisionResult.Invalid(Identity(revision), validation.Errors.Select(error => error.Message).ToArray());
+        }
+
+        // Every item must still publish exactly one change; anything else is not what was reviewed.
+        var changedCodes = validation.Changes.Select(change => change.StageCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unchangedItems = revision.Items.Where(item => !changedCodes.Contains(item.StageCode)).Select(item => item.StageCode).ToArray();
+        if (unchangedItems.Length > 0 || validation.Changes.Count != revision.Items.Count)
+        {
+            return ActualCorrectionDecisionResult.SourceChanged(Identity(revision), unchangedItems);
+        }
+
+        var contradictions = await FindLifecycleContradictionsAsync(decision.ProjectId, stages, validation.Changes, cancellationToken);
+        if (contradictions.Count > 0)
+        {
+            return ActualCorrectionDecisionResult.LifecycleConflict(Identity(revision), contradictions);
+        }
+
+        // SECTION: Claim, publish and record (one atomic unit, E.1)
+        var now = ToStoredPrecision(_clock.UtcNow);
+        var remarks = NormalizeNote(decision.Remarks);
+        var logs = new List<StageChangeLog>(validation.Changes.Count);
+        try
+        {
+            if (!await CloseIfPendingAsync(revision.Id, ActualCorrectionRevisionStatus.Approved, reviewer.UserId, now, remarks, cancellationToken))
+            {
+                return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.NotActionable, Identity(revision));
+            }
+
+            var note = string.Format(
+                CultureInfo.InvariantCulture,
+                "Approved actual correction rev {0} (#{1}) submitted by {2} at {3:yyyy-MM-dd HH:mm} UTC.",
+                revision.RevisionNo,
+                revision.Id,
+                revision.SubmittedByUserId,
+                revision.SubmittedOn.UtcDateTime);
+            foreach (var change in validation.Changes)
+            {
+                var log = ActualFactPublisher.Apply(
+                    stageLookup[change.StageCode],
+                    change,
+                    reviewer.UserId,
+                    now,
+                    change.IsBackfill ? ActualFactPublisher.BackfillAction : ActualFactPublisher.ActualsUpdatedAction,
+                    note);
+                logs.Add(log);
+                await _db.StageChangeLogs.AddAsync(log, cancellationToken);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            RegisterAudit(transaction, "Projects.ActualCorrectionApproved", reviewer.UserId, revision, supersedesRevisionId: null);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            // Rolled back on dispose; detach so a later save on this context cannot replay
+            // the aborted stage changes or history.
+            foreach (var log in logs)
+            {
+                _db.Entry(log).State = EntityState.Detached;
+            }
+
+            foreach (var stage in stages)
+            {
+                _db.Entry(stage).State = EntityState.Detached;
+            }
+
+            throw;
+        }
+
+        LogPostCommitErrors(transaction, "approving an actual correction", decision.ProjectId);
+        _logger.LogInformation(
+            "Actual correction revision {RevisionNo} ({RevisionId}) for project {ProjectId} approved by {UserId}; {Count} stage(s) published.",
+            revision.RevisionNo, revision.Id, decision.ProjectId, reviewer.UserId, validation.Changes.Count);
+
+        return new ActualCorrectionDecisionResult(
+            ActualCorrectionDecisionOutcome.Approved,
+            Identity(revision),
+            StageCodes: validation.Changes.Select(change => change.StageCode).ToArray(),
+            Warnings: validation.Warnings.Select(warning => warning.Message).ToArray());
+    }
+
+    /// <summary>
+    /// Rejects the exact pending revision. Nothing is published, so no baseline or
+    /// validity check applies (K-3); the epoch check still does (rule 24).
+    /// </summary>
+    public async Task<ActualCorrectionDecisionResult> RejectAsync(
+        ActualCorrectionDecision decision,
+        ActualWriteActor reviewer,
+        CancellationToken cancellationToken = default)
+    {
+        var refusal = CheckDecisionInput(decision, reviewer);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await PlanRevisionConsistency.LockProjectAsync(_db, decision.ProjectId, cancellationToken);
+        if (!await ActualWriteAuthority.IsProjectAvailableAsync(_db, decision.ProjectId, cancellationToken))
+        {
+            return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.ProjectUnavailable);
+        }
+
+        var (revision, identityRefusal) = await LoadDecidableAsync(decision, reviewer, cancellationToken);
+        if (revision is null)
+        {
+            return identityRefusal!;
+        }
+
+        if (!await CloseIfPendingAsync(revision.Id, ActualCorrectionRevisionStatus.Rejected, reviewer.UserId,
+                ToStoredPrecision(_clock.UtcNow), NormalizeNote(decision.Remarks), cancellationToken))
+        {
+            return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.NotActionable, Identity(revision));
+        }
+
+        RegisterAudit(transaction, "Projects.ActualCorrectionRejected", reviewer.UserId, revision, supersedesRevisionId: null);
+        await transaction.CommitAsync(cancellationToken);
+        LogPostCommitErrors(transaction, "rejecting an actual correction", decision.ProjectId);
+
+        return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.Rejected, Identity(revision));
+    }
+
+    // K-1: HoD and Admin decide, whatever other roles they hold; the client supplies no authority.
+    private static ActualCorrectionDecisionResult? CheckDecisionInput(ActualCorrectionDecision decision, ActualWriteActor reviewer)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        ArgumentNullException.ThrowIfNull(reviewer);
+        if (string.IsNullOrWhiteSpace(reviewer.UserId) || !(reviewer.IsAdmin || reviewer.IsHoD))
+        {
+            return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.Forbidden);
+        }
+
+        if (decision.ProjectId <= 0 || decision.RevisionId <= 0)
+        {
+            return ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.NotActionable);
+        }
+
+        return NormalizeNote(decision.Remarks)?.Length > WithdrawalReasonMaxLength
+            ? ActualCorrectionDecisionResult.Invalid(null, new[] { $"Remarks must be {WithdrawalReasonMaxLength} characters or fewer." })
+            : null;
+    }
+
+    /// <summary>
+    /// Re-reads the revision under the gate: it must be the project's Pending revision with
+    /// the reviewed number and epoch, and must not have been submitted by the reviewer.
+    /// The submitter is the revision's immutable <c>SubmittedByUserId</c>, never the
+    /// current assignment, so role elevation or reassignment cannot enable a self-decision.
+    /// </summary>
+    private async Task<(ActualCorrectionRevision? Revision, ActualCorrectionDecisionResult? Refusal)> LoadDecidableAsync(
+        ActualCorrectionDecision decision,
+        ActualWriteActor reviewer,
+        CancellationToken cancellationToken)
+    {
+        var revision = await _db.ActualCorrectionRevisions
+            .AsNoTracking()
+            .Include(item => item.Items)
+            .SingleOrDefaultAsync(item => item.Id == decision.RevisionId && item.ProjectId == decision.ProjectId, cancellationToken);
+
+        if (revision is null
+            || revision.Status != ActualCorrectionRevisionStatus.Pending
+            || revision.SubmittedOn != decision.ExpectedSubmittedOn
+            || (decision.ExpectedRevisionNo.HasValue && revision.RevisionNo != decision.ExpectedRevisionNo.Value))
+        {
+            return (null, ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.NotActionable));
+        }
+
+        if (string.Equals(revision.SubmittedByUserId, reviewer.UserId, StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, ActualCorrectionDecisionResult.Of(ActualCorrectionDecisionOutcome.SelfDecisionForbidden, Identity(revision)));
+        }
+
+        return (revision, null);
+    }
+
     // SECTION: Canonical content hash
     /// <summary>
     /// SHA-256 (hex) of the canonical proposed content: the items in stage-code
@@ -814,3 +1048,51 @@ public sealed record ActualCorrectionWithdrawalResult(
     ActualCorrectionWithdrawalOutcome Outcome,
     ActualCorrectionRevisionIdentity? Revision = null,
     string? Error = null);
+
+// SECTION: Decision contracts (D-3d)
+/// <summary>The exact revision a reviewer saw: id, project, number and submission epoch.</summary>
+public sealed record ActualCorrectionDecision(
+    int ProjectId,
+    int RevisionId,
+    DateTimeOffset ExpectedSubmittedOn,
+    int? ExpectedRevisionNo = null,
+    string? Remarks = null);
+
+public enum ActualCorrectionDecisionOutcome
+{
+    Approved,
+    Rejected,
+    /// <summary>Not the Pending revision the reviewer saw: decided, withdrawn, superseded or another epoch.</summary>
+    NotActionable,
+    /// <summary>Official facts of an item changed since submission; the revision stays Pending for the PO to revise.</summary>
+    SourceChanged,
+    /// <summary>The proposed final state fails the shared Actual validation now.</summary>
+    Invalid,
+    /// <summary>The proposal contradicts a pending lifecycle request that could still publish (F.6).</summary>
+    LifecycleConflict,
+    Forbidden,
+    /// <summary>The reviewer submitted this revision.</summary>
+    SelfDecisionForbidden,
+    ProjectUnavailable
+}
+
+public sealed record ActualCorrectionDecisionResult(
+    ActualCorrectionDecisionOutcome Outcome,
+    ActualCorrectionRevisionIdentity? Revision = null,
+    IReadOnlyList<string>? StageCodes = null,
+    IReadOnlyList<string>? Errors = null,
+    IReadOnlyList<string>? Warnings = null)
+{
+    internal static ActualCorrectionDecisionResult Of(
+        ActualCorrectionDecisionOutcome outcome,
+        ActualCorrectionRevisionIdentity? revision = null) => new(outcome, revision);
+
+    internal static ActualCorrectionDecisionResult SourceChanged(ActualCorrectionRevisionIdentity revision, IReadOnlyList<string> stageCodes) =>
+        new(ActualCorrectionDecisionOutcome.SourceChanged, revision, StageCodes: stageCodes);
+
+    internal static ActualCorrectionDecisionResult Invalid(ActualCorrectionRevisionIdentity? revision, IReadOnlyList<string> errors) =>
+        new(ActualCorrectionDecisionOutcome.Invalid, revision, Errors: errors);
+
+    internal static ActualCorrectionDecisionResult LifecycleConflict(ActualCorrectionRevisionIdentity revision, IReadOnlyList<string> errors) =>
+        new(ActualCorrectionDecisionOutcome.LifecycleConflict, revision, Errors: errors);
+}

@@ -2,7 +2,7 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
-> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 is merged ([PR #2681](https://github.com/hariomahlawat/ProjectManagement/pull/2681), `e3e8ea85`). D-3a/b (the proposal submission service) is merged ([PR #2685](https://github.com/hariomahlawat/ProjectManagement/pull/2685), `736458c3`). D-3c (editor and backfill integration) is in a Draft PR. D-3d and D-3e are not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 is merged ([PR #2681](https://github.com/hariomahlawat/ProjectManagement/pull/2681), `e3e8ea85`). D-3a/b (the proposal submission service) is merged ([PR #2685](https://github.com/hariomahlawat/ProjectManagement/pull/2685), `736458c3`). D-3c (editor and backfill integration) is merged ([PR #2686](https://github.com/hariomahlawat/ProjectManagement/pull/2686), `0720b037`). D-3d (HoD/Admin decisions) is in a Draft PR. D-3e is not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
 >
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
@@ -41,14 +41,14 @@ Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production D
 | J | Criterion | Status after D-1 |
 | --- | --- | --- |
 | 1 | No PO write path to official Actual dates | **Implemented in D-2** (#2681): page and service refuse PO-only direct publication; the facts-only J-1 exception is tested. From D-3c the PO's posts become proposals and never publish. |
-| 2, 3 | Approval publishes exactly what was reviewed; stale decisions rejected | **Pending D-3** (proposal decisions). |
+| 2, 3 | Approval publishes exactly what was reviewed; stale decisions rejected | **Implemented in D-3d** (Draft PR). Approval replays the stored items, binds the exact `Id` and `SubmittedOn` (and `RevisionNo` when supplied), and writes one `StageChangeLog` per published stage with the reviewer and revision. Stale, decided and superseded revisions are refused. |
 | 4 | Stale edits rejected without mutation | **Partly met.** Direct saves refuse stale per-stage tokens (service and page level). Refusing posts without the baseline marker is deferred to R-D3; proposal S1–S6 pending D-3. |
-| 5 | Required evidence atomic with the change | **Met for direct save, backfill and lifecycle decisions** (failure injection, SQLite and PostgreSQL). Submit/supersede/withdraw/reject of Actual proposals pending D-3. |
+| 5 | Required evidence atomic with the change | **Met for direct save, backfill and lifecycle decisions** (failure injection, SQLite and PostgreSQL). Actual proposals: submit, supersede and withdraw (D-3a/b) and approve and reject (D-3d) are covered, with history and claim failure injection on PostgreSQL. |
 | 6 | Shared validation on every correction/backfill boundary (F.5) | **Rows 1–2 enforced; rows 5–7 warning-only; row 8 exempt.** Rows 3–4 (submission, approval) and the cross-source parameterized test pending D-3. |
 | 7 | Rule 8 and 25 examples | **Met** in `ActualTimelineValidationServiceTests` (FS→IPA form of the example, convergence, skipped transparency, same day). |
 | 8 | ARPP rule 17 | **Met for D-1 paths** (correction, backfill, decisions, submission, ARPP races on PostgreSQL). R5 (proposal approval vs publication) pending D-3. |
 | 9 | Lifecycle status never changed by an Actual correction | **Met** (`StatusNotEditable`; ARPP-effective IPA exception preserved). |
-| 10 | Concurrency and rollback on PostgreSQL | **Met for D-1 races**; proposal races R1–R8/R12/R14 pending D-3. |
+| 10 | Concurrency and rollback on PostgreSQL | **Met for D-1 races**; proposal races R8/R12 (D-3a/b) and R1–R5, R9 and R14 (D-3d) on PostgreSQL. R6 is covered as SourceChanged after a committed lifecycle change and as R14; R7 (plan approval) is serialized by the same gate and not separately tested. |
 | 11 | Recovery rehearsed (I.3) | **Pending** R-D2/R-D3. |
 | 12 | Existing suites pass | **Met** on every D-1 merge. |
 | 13 | Documentation updated | **Met for D-1** by D-1e. G03/G04 close only with D-2/D-3. |
@@ -95,7 +95,9 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
   - **The D-2 read-only editor is temporary.** For PO-only users it exists only so the D-2 emergency floor offers no false save. D-3 restores the editable editor and backfill form for the assigned PO, with immediate validation and "Submit for approval" through the same routes (C.4, D-3b). It is not the D-3 design.
 - **D-3a/b** (proposal submission and revision management, service layer only): merged in #2685 (`736458c3`); see [D-3a/b implementation](#d-3ab-implementation). No migration.
 - **D-3c** (PO routing and UI on the existing editors; G rows D-3b and D-3c): Draft PR on branch `claude/phase-d-3c-actual-editor-integration`; see [D-3c implementation](#d-3c-implementation). No migration.
-- **D-3d** (Decision Centre approval and rejection) and **D-3e** (closure) are not started. D-2 must not be deployed without the whole of D-3 (K-14).
+- **D-3c** merged in #2686 (`0720b037`).
+- **D-3d** (HoD/Admin approval and rejection in the Decision Centre): Draft PR on branch `claude/phase-d-3d-actual-correction-decisions`; see [D-3d implementation](#d-3d-implementation). No migration.
+- **D-3e** (closure) is not started. D-2 must not be deployed without the whole of D-3 (K-14); K-12 and K-13 remain open for the release.
 - **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
 - **K-11** was accepted before D-1a and is implemented as per-branch convergence.
 - **K-1 and K-14 are resolved** by the project owner (2026-10-19), together with role precedence; see [Approved governance for D-2/D-3](#approved-governance-for-d-2d-3). D-1 did not depend on either and implements neither.
@@ -158,7 +160,7 @@ The approval must re-run F.6 and close the revision by the same `Pending` compar
 
 - No notifications (K-8, optional).
 - A post-commit `AuditLogs` entry (`Projects.ActualCorrectionSubmitted`, `…Withdrawn`) is written only when an `IAuditService` is supplied (always, in DI).
-- R1–R7, R9, R10, R13 and R14 concern approval and remain with D-3d.
+- R1–R7, R9, R10, R13 and R14 concern approval; see [D-3d implementation](#d-3d-implementation).
 - **D-3c must render every pending item in the editor.** An editor post is the complete proposal, so a pending item without a posted row is dropped, including a backfill item on an awaiting-backfill stage.
 - **A republished ARPP IPA date can give a misleading error.** If ARPP republishes a different IPA date before the IPA row is synchronized, a carried IPA start item fails with the ARPP-controlled-completion message rather than as stale. Nothing is saved; the PO revises the IPA item.
 - **Reassignment and Unchanged.** After a reassignment, the new lead's identical resubmission is Unchanged, and the revision stays attributed to its original submitter (K-6: the revision stays decidable).
@@ -222,6 +224,73 @@ D-3c routes the assigned PO-only user's posts from the existing **Edit actual da
 - If a pending item's stage has no editor row (for example PNC after it stopped applying), the editor explains this and offers no Submit button. The PO can still withdraw.
 - Withdrawal asks for confirmation (`data-confirm`) and posts once. A withdrawn correction can be resubmitted.
 - Proposal mode is offered only on active, non-legacy projects, matching the service's `ProjectNotEditable` rule.
+
+### D-3d implementation
+
+D-3d adds `ApproveAsync` and `RejectAsync` to `ActualCorrectionProposalService` and the `ActualCorrection` queue type to the existing Decision Centre (`Pages/Approvals/Pending`). There is no migration.
+
+**Authority.**
+
+- K-1: Admin or HoD may decide, including users who are also PO. PO-only users and viewers are `Forbidden`.
+- No self-decision: a reviewer whose user ID equals the revision's immutable `SubmittedByUserId` gets `SelfDecisionForbidden`, whatever their current roles or the current assignment.
+- Authority is checked in the service, from the principal-derived `ActualWriteActor`; the page `[Authorize]` and the queue filter are defence in depth.
+
+**Identity.** A decision binds to the project, `Id`, `SubmittedOn` and, when supplied, `RevisionNo`.
+
+- Under the gate, the revision must be that project's Pending revision with that epoch; otherwise the result is `NotActionable`. A revision ID from another project is refused the same way.
+- The closure is a compare-and-set on `Pending`.
+
+**Approval, inside one `RelationalTransactionScope`, in submission lock order:**
+
+1. Project gate.
+2. Project row `FOR SHARE`: the project must exist and not be deleted.
+3. Every stage row `FOR UPDATE`, in `Id` order.
+4. Re-read the revision: identity and self-decision checks.
+5. **Baseline:** each item's `Before*` must equal its locked row, otherwise `SourceChanged`. The revision stays Pending for the PO to revise or withdraw; it is never rebased.
+6. **Revalidate:** the stored final values are replayed as Editor changes (the D-3a/b replay) through `IActualTimelineValidationService`, with current workflow, ARPP authority and IST date (`Invalid`). Every item must still produce a change, otherwise `SourceChanged`.
+7. **F.6:** the projection against the pending lifecycle requests read under the gate (`LifecycleConflict`). Unrelated pending requests do not block.
+8. **Atomic unit:** the compare-and-set claim (`Approved`, `ClosedByUserId`, `ClosedOn`, `DecisionNote`), `ActualFactPublisher.Apply` for every change, and one `StageChangeLog` each.
+   - The action is `ActualsUpdated` or `Backfill`.
+   - `UserId` is the reviewer, `At` is the closure time, and the note names the revision and submitter.
+9. `SaveChanges`, then commit. `Projects.ActualCorrectionApproved` is written after commit only.
+
+Any exception rolls the whole unit back, and the tracked stages and logs are detached.
+
+**Rejection.** Gate, then project row, then the identity and self-decision checks, then a compare-and-set to `Rejected` with the reviewer, time and remarks. No baseline or validity check is made (K-3). Official facts and `StageChangeLog` are never touched. The Decision Centre's existing rule that rejection needs remarks applies.
+
+**ARPP.** ARPP synchronization keeps no gate and locks the IPA row. Approval holds every stage row `FOR UPDATE`, so either ARPP commits first (the IPA item is `SourceChanged`), or ARPP waits and then overwrites IPA as before (rule 17). A republished ARPP date that the row has not caught up with is refused by the validator.
+
+**Decision Centre.**
+
+- The queue lists one row per pending revision in a single query, with the item count as a subquery, and is counted in the badge.
+- The detail page shows for each stage: the recorded values (the immutable `Before*`), the official values now when they differ, and the proposed values, including "start cleared". It also shows any status change approval would publish (a stale ARPP-managed IPA row), the PO's note, a read-only validator preview with errors and warnings, and a warning when lifecycle updates are pending.
+- Readiness:
+
+  | Readiness | Meaning | Approve | Reject |
+  | --- | --- | --- | --- |
+  | Ready | Can be decided | Allowed | Allowed |
+  | Stale | Source changed | Disabled | Allowed (K-3) |
+  | Blocked | Own submission | Disabled | Disabled |
+  | Blocked | Invalid now | Disabled | Allowed |
+
+- The decision form posts the exact `SubmittedOn`.
+
+**Outcome text.**
+
+| Outcome | Shown as |
+| --- | --- |
+| Approved | Success, naming the stages whose official dates were updated |
+| Rejected | Success: "official dates are unchanged" |
+| NotActionable | Already decided; refresh |
+| SourceChanged / Invalid / LifecycleConflict | Validation failure: "nothing was approved", with the reason |
+| SelfDecisionForbidden | Forbidden |
+
+**Limitations.**
+
+- No notifications to the PO (K-8, optional).
+- Approval does not require the project to be active, matching direct HoD/Admin correction.
+- The detail preview does not run F.6; the decision does.
+- R7 (Actual approval against plan approval) relies on the shared gate and is not separately tested.
 
 ---
 

@@ -161,6 +161,64 @@
                 </section>
             }
 
+            @if (Model.Detail.ActualCorrection is { } actual)
+            {
+                <section class="decision-panel" data-actual-correction-review>
+                    <header class="decision-panel__header">
+                        <div>
+                            <h2>Actual date correction · revision @actual.RevisionNo</h2>
+                            <p>Submitted by <strong>@actual.SubmittedBy</strong> on @Model.FormatDateTime(actual.SubmittedOnUtc) through the @(actual.EntryPoint == "Backfill" ? "backfill form" : "actual-dates editor"). Approval publishes the proposed values shown, after rechecking them against the current timeline.</p>
+                        </div>
+                    </header>
+                    <div class="decision-change-table decision-change-table--timeline">
+                        <div class="decision-change-row decision-change-row--head"><span>Stage</span><span>Recorded (official)</span><span>Proposed</span></div>
+                        @foreach (var row in actual.Items)
+                        {
+                            <div class="decision-change-row" data-actual-correction-item="@row.StageCode">
+                                <strong>
+                                    @row.StageName
+                                    <small class="d-block text-muted">@row.StageCode · @(row.Kind == "Backfill" ? "Completion backfill" : "Correction") · @Model.FormatStatus(row.RecordedStatus)</small>
+                                </strong>
+                                <span>
+                                    Start @Model.FormatDate(row.RecordedActualStart)<br />Completed @Model.FormatDate(row.RecordedCompletedOn)
+                                    @if (row.SourceChanged)
+                                    {
+                                        <small class="d-block text-danger" data-actual-correction-changed>Official now: start @Model.FormatDate(row.CurrentActualStart), completed @Model.FormatDate(row.CurrentCompletedOn)</small>
+                                    }
+                                </span>
+                                <span class="is-proposed">
+                                    Start @(row.ClearsActualStart ? "cleared (not documented)" : Model.FormatDate(row.ProposedActualStart))<br />Completed @Model.FormatDate(row.ProposedCompletedOn)
+                                    @if (row.PublishedStatus is not null)
+                                    {
+                                        <small class="d-block" data-actual-correction-status>Status becomes @Model.FormatStatus(row.PublishedStatus) (published ARPP record)</small>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(row.Note))
+                                    {
+                                        <small class="d-block text-muted">@row.Note</small>
+                                    }
+                                </span>
+                            </div>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(actual.Note))
+                    {
+                        <div class="decision-note"><span>Project Officer’s justification</span><p>@actual.Note</p></div>
+                    }
+                    @if (actual.Errors.Count > 0)
+                    {
+                        <div class="alert alert-danger mt-3 mb-0" role="alert" data-actual-correction-errors>
+                            @foreach (var error in actual.Errors) { <div>@error</div> }
+                        </div>
+                    }
+                    @if (actual.Warnings.Count > 0)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="status" data-actual-correction-warnings>
+                            @foreach (var warning in actual.Warnings) { <div>@warning</div> }
+                        </div>
+                    }
+                </section>
+            }
+
             @if (Model.Detail.DocumentModeration is { } document)
             {
                 <section class="decision-panel">
@@ -296,7 +354,7 @@
                         <input type="hidden" asp-for="Input.ApprovalType" />
                         <input type="hidden" asp-for="Input.RequestId" />
                         <input type="hidden" asp-for="Input.RowVersion" />
-                        @if (Model.Detail.PlanApproval is not null)
+                        @if (Model.Detail.PlanApproval is not null || Model.Detail.ActualCorrection is not null)
                         {
                             <input type="hidden" name="Input.SubmittedOn" value="@(Model.Input.SubmittedOn?.ToString("O"))" />
                         }

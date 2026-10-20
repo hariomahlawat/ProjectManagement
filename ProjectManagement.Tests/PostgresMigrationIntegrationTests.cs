@@ -166,6 +166,8 @@ public sealed class PostgresMigrationIntegrationTests
         // Phase D-3a/b: proposal submission serializes behind the gate and row locks,
         // and a failed supersession rolls back completely.
         await ActualCorrectionProposalConcurrencyPostgresFixture.RunAsync(applicationOptions);
+        // Phase D-3d: HoD/Admin decisions decide once, refuse over a competing writer, and roll back atomically.
+        await ActualCorrectionDecisionConcurrencyPostgresFixture.RunAsync(applicationOptions);
     }
 
 

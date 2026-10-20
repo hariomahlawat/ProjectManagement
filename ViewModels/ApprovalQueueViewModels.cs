@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ProjectManagement.Models;
 using ProjectManagement.Utilities.PartialDates;
 using ProjectManagement.Models.Plans;
@@ -17,7 +18,9 @@ public enum ApprovalQueueType
     ProliferationGranular,
     ActivityDelete,
     TrainingDelete,
-    RepositoryDocumentDelete
+    RepositoryDocumentDelete,
+    // Phase D-3d; appended so stored or posted numeric values keep their meaning.
+    ActualCorrection
 }
 
 // SECTION: Query + list models
@@ -118,7 +121,45 @@ public sealed record ApprovalQueueDetailVm
     public ActivityDeleteDetailVm? ActivityDelete { get; init; }
     public TrainingDeleteDetailVm? TrainingDelete { get; init; }
     public RepositoryDocumentDeleteDetailVm? RepositoryDocumentDelete { get; init; }
+    public ActualCorrectionDetailVm? ActualCorrection { get; init; }
 }
+
+/// <summary>
+/// A PO Actual correction revision as the reviewer sees it (D-3d): the values recorded
+/// when it was submitted, the official values now, and the proposed final values.
+/// </summary>
+public sealed record ActualCorrectionDetailVm(
+    int RevisionId,
+    int RevisionNo,
+    DateTimeOffset SubmittedOnUtc,
+    string SubmittedBy,
+    bool SubmittedByViewer,
+    string EntryPoint,
+    string? Note,
+    IReadOnlyList<ActualCorrectionItemDetailVm> Items,
+    IReadOnlyList<string> Errors,
+    IReadOnlyList<string> Warnings)
+{
+    public bool HasSourceChanged => Items.Any(item => item.SourceChanged);
+}
+
+public sealed record ActualCorrectionItemDetailVm(
+    string StageCode,
+    string StageName,
+    string Kind,
+    string RecordedStatus,
+    DateOnly? RecordedActualStart,
+    DateOnly? RecordedCompletedOn,
+    DateOnly? CurrentActualStart,
+    DateOnly? CurrentCompletedOn,
+    DateOnly? ProposedActualStart,
+    DateOnly? ProposedCompletedOn,
+    bool ClearsActualStart,
+    bool SourceChanged,
+    string? Note,
+    // The lifecycle status approval would publish, when it differs from the recorded one
+    // (a stale ARPP-managed IPA row adopts the published status).
+    string? PublishedStatus = null);
 
 // SECTION: Workflow detail models
 public sealed record StageChangeDetailVm(
