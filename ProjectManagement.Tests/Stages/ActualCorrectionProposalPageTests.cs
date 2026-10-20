@@ -273,6 +273,8 @@ public sealed class ActualCorrectionProposalPageTests
         Assert.Equal("submitted", body.GetProperty("outcome").GetString());
         Assert.Equal(1, body.GetProperty("revisionNo").GetInt32());
         Assert.Contains("Official dates are unchanged", body.GetProperty("message").GetString(), StringComparison.Ordinal);
+        // The modal reloads the page; the confirmation survives the reload (C2.3).
+        Assert.Equal(body.GetProperty("message").GetString(), page.TempData["Flash"]);
         await fixture.AssertOfficialAsync(StageCodes.BID, Feb(1), null);
         await using var verify = fixture.NewContext();
         Assert.True((await verify.ProjectStages.SingleAsync()).RequiresBackfill);
@@ -311,6 +313,7 @@ public sealed class ActualCorrectionProposalPageTests
         var refusal = Assert.IsType<ObjectResult>(result);
         Assert.Equal(409, refusal.StatusCode);
         Assert.Equal("reload-required", JsonSerializer.SerializeToElement(refusal.Value).GetProperty("error").GetString());
+        Assert.False(page.TempData.ContainsKey("Flash"));
         await fixture.AssertNothingWrittenAsync(StageCodes.BID, Feb(1), null);
     }
 
@@ -440,6 +443,48 @@ public sealed class ActualCorrectionProposalPageTests
         Assert.Equal("T1", prefilled.Stages[0].StageToken);
         Assert.False(prefilled.Stages[1].HasProposal);
         Assert.Equal(3, prefilled.PendingProposal!.RevisionId);
+        // AON still needs a date, so the banner keeps asking for action.
+        Assert.False(prefilled.AwaitingApproval);
+        Assert.False(backfill.AwaitingApproval);
+    }
+
+    [Fact]
+    public void BackfillViewModel_AwaitsApprovalOnlyWhenThePendingProposalCoversEveryStage()
+    {
+        var backfill = new BackfillViewModel
+        {
+            ProjectId = ProjectId,
+            Stages = new[]
+            {
+                new BackfillStageViewModel { StageCode = StageCodes.BID, ActualStart = Feb(1) },
+                new BackfillStageViewModel { StageCode = StageCodes.AON }
+            }
+        };
+        var revision = new ActualCorrectionRevision
+        {
+            Id = 4,
+            RevisionNo = 2,
+            SubmittedByUserId = Lead,
+            Items =
+            {
+                new ActualCorrectionItem { StageCode = StageCodes.BID, ProposedActualStart = Feb(1), ProposedCompletedOn = Feb(10) },
+                new ActualCorrectionItem { StageCode = StageCodes.AON, ProposedCompletedOn = Feb(12) }
+            }
+        };
+
+        Assert.True(backfill.WithPendingProposal(revision, Lead).AwaitingApproval);
+        Assert.False(BackfillViewModel.Empty.AwaitingApproval);
+    }
+
+    [Fact]
+    public void BackfillBanner_ReportsASubmissionInsteadOfActionNeeded()
+    {
+        var banner = ReadRepoFile("Pages", "Projects", "_ProjectOperationalState.cshtml");
+
+        Assert.Contains("Model.Backfill.AwaitingApproval", banner, StringComparison.Ordinal);
+        Assert.Contains("Submitted for approval.", banner, StringComparison.Ordinal);
+        Assert.Contains("Official dates update when a HoD or Admin approves.", banner, StringComparison.Ordinal);
+        Assert.Contains("data-backfill-banner", banner, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -639,7 +684,8 @@ public sealed class ActualCorrectionProposalPageTests
             new(new StageBackfillService(db, _clock, workflowPolicy: StageWorkflowTestFactory.CreatePolicy(db)), db,
                 NullLogger<BackfillApplyModel>.Instance, Proposals(db))
             {
-                PageContext = PageContextFor(roles, userId)
+                PageContext = PageContextFor(roles, userId),
+                TempData = new TempDataDictionary(new DefaultHttpContext(), new NullTempDataProvider())
             };
 
         // A proposal submitted earlier from the editor, based on the current pending revision.

@@ -446,3 +446,47 @@ test('resetComposer restores the configured conference default', () => {
 
     assert.equal(panel.composerType, 'Conference');
 });
+
+test('a failed remarks load is not shown as an empty list and can be retried', async () => {
+    const { panel, window, document } = createPanelDom({ actorRole: 'ProjectOfficer' });
+    const toasts = [];
+    panel.toastHandler = (message) => toasts.push(message);
+
+    let calls = 0;
+    window.fetch = async () => {
+        calls += 1;
+        if (calls === 1) {
+            return { ok: false, status: 500, json: async () => ({ title: 'Server error' }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ items: [], total: 0, page: 1 }) };
+    };
+
+    await panel.fetchPage(1, false);
+
+    const empty = document.querySelector('[data-remarks-empty]');
+    assert.equal(toasts.length, 1);
+    assert.match(empty.textContent, /Remarks could not be loaded\./);
+    assert.doesNotMatch(empty.textContent, /No remarks yet/);
+    const retry = empty.querySelector('[data-remarks-retry]');
+    assert.ok(retry, 'a retry control is offered');
+
+    retry.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(calls, 2);
+    assert.equal(empty.textContent.trim(), 'No remarks yet.');
+    assert.equal(empty.querySelector('[data-remarks-retry]'), null);
+});
+
+test('a network failure while loading remarks shows the load error, not an empty list', async () => {
+    const { panel, window, document } = createPanelDom({ actorRole: 'ProjectOfficer' });
+    panel.toastHandler = () => { };
+    window.fetch = async () => { throw new Error('offline'); };
+
+    await panel.fetchPage(1, false);
+
+    const empty = document.querySelector('[data-remarks-empty]');
+    assert.match(empty.textContent, /Remarks could not be loaded\./);
+    assert.ok(empty.querySelector('[data-remarks-retry]'));
+});

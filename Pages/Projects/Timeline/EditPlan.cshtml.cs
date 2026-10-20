@@ -32,6 +32,11 @@ namespace ProjectManagement.Pages.Projects.Timeline;
 [AutoValidateAntiforgeryToken]
 public class EditPlanModel : PageModel
 {
+    // An explicit Save draft can end the HoD review of the user's pending
+    // submission; the confirmation must say so (discovery C2.2).
+    internal const string DraftSavedSupersededMessage =
+        "Draft saved. Your earlier submission is no longer with the HoD; submit again when ready.";
+
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
     private readonly PlanGenerationService _planGeneration;
@@ -372,7 +377,7 @@ public class EditPlanModel : PageModel
         // Only an explicit SaveDraft makes a material private replacement
         // authoritative. Autosave/Calculate remain non-authoritative; Submit
         // validates and supersedes atomically in PlanApprovalService.
-        if (intent == PlanIntent.SaveDraft)
+        var supersededPending = intent == PlanIntent.SaveDraft &&
             await _planDraft.SupersedePendingAfterSaveAsync(draft, cancellationToken);
 
         // Do not commit before the exact replacement has been validated and
@@ -449,7 +454,11 @@ public class EditPlanModel : PageModel
         {
             TempData["OpenOffcanvas"] = "plan-edit";
 
-            if (changes.Count > 0)
+            if (supersededPending)
+            {
+                TempData["Flash"] = DraftSavedSupersededMessage;
+            }
+            else if (changes.Count > 0)
             {
                 TempData["Flash"] = "Draft saved.";
             }
@@ -756,7 +765,7 @@ public class EditPlanModel : PageModel
         // Autosave and Calculate never revoke an active HoD review.
         // Explicit SaveDraft may supersede it; Submit supersedes only after
         // approval validation succeeds in the same submission transaction.
-        if (intent == PlanIntent.SaveDraft && !IsAutosaveRequest)
+        var supersededPending = intent == PlanIntent.SaveDraft && !IsAutosaveRequest &&
             await _planDraft.SupersedePendingAfterSaveAsync(draft, ct);
 
         // Submit is nested in revisionSave, so the project gate is retained
@@ -822,7 +831,11 @@ public class EditPlanModel : PageModel
         {
             TempData["OpenOffcanvas"] = "plan-edit";
 
-            if (intent is PlanIntent.SaveDraft or PlanIntent.Autosave)
+            if (supersededPending)
+            {
+                TempData["Flash"] = DraftSavedSupersededMessage;
+            }
+            else if (intent is PlanIntent.SaveDraft or PlanIntent.Autosave)
             {
                 TempData["Flash"] = "Draft saved.";
             }

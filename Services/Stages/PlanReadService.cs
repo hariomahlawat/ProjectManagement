@@ -98,6 +98,23 @@ public sealed class PlanReadService
                            string.Equals(plan.OwnerUserId ?? plan.SubmittedByUserId, currentUserId,
                                          StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(plan => plan.VersionNo).FirstOrDefault();
+        // A rejection is the user's current outcome only until a later revision
+        // is submitted or approved. After that it is history, and the editor
+        // must not keep saying "Returned for updates" (discovery C1.6).
+        if (latestRejected is not null)
+        {
+            var rejectedVersionNo = latestRejected.VersionNo;
+            var overtaken = await _db.PlanVersions
+                .AsNoTracking()
+                .AnyAsync(plan => plan.ProjectId == projectId &&
+                                  plan.VersionNo > rejectedVersionNo &&
+                                  (plan.SubmittedOn != null || plan.Status == PlanVersionStatus.Approved),
+                    cancellationToken);
+            if (overtaken)
+            {
+                latestRejected = null;
+            }
+        }
         var ownsInputs = draftPlan?.PlanningInputVersion >= PlanningInputVersions.Current;
         var presentsLegacyDraftInputs = draftPlan is
             { Status: PlanVersionStatus.Draft, PlanningInputVersion: PlanningInputVersions.Legacy };

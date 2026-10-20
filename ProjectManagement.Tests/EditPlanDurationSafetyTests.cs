@@ -1845,6 +1845,8 @@ public class EditPlanDurationSafetyTests
         f.Page.HttpContext.Request.Headers.Remove("X-Requested-With");
         Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
         Assert.Equal(PlanVersionStatus.Superseded, submitted.Status);
+        // The PO is told the HoD review ended, not merely "Draft saved." (C2.2).
+        Assert.Equal(EditPlanModel.DraftSavedSupersededMessage, f.Page.TempData["Flash"]);
         Assert.Single(await f.Db.PlanApprovalLogs.Where(l => l.PlanVersionId == submitted.Id &&
             l.Action == "Superseded").ToListAsync());
         Assert.Empty(await f.Db.ProjectPlanDurations.ToListAsync());
@@ -1878,6 +1880,54 @@ public class EditPlanDurationSafetyTests
         f.Db.ChangeTracker.Clear();
         Assert.Equal(8, (await f.Db.StagePlans.SingleAsync()).DurationDays);
         await f.AssertLiveDatesUnchangedAsync();
+    }
+
+    [Fact]
+    public async Task PendingOwner_ExactSaveDraftThatSupersedesTheReviewSaysSo()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "SaveDraft", relational: true);
+        var submitted = new PlanVersion
+        {
+            ProjectId = 1, VersionNo = 1, Title = PlanVersion.ProjectTimelineTitle,
+            OwnerUserId = "po-user", CreatedByUserId = "po-user",
+            SubmittedByUserId = "po-user", SubmittedOn = DateTimeOffset.UtcNow.AddHours(-1),
+            Status = PlanVersionStatus.PendingApproval
+        };
+        submitted.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS, SortOrder = 10,
+            PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 3)
+        });
+        f.Db.PlanVersions.Add(submitted);
+        await f.Db.SaveChangesAsync();
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = new()
+        {
+            new() { Code = StageCodes.FS, Name = "FS", PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 9) }
+        };
+
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        f.Db.ChangeTracker.Clear();
+        Assert.Equal(PlanVersionStatus.Superseded, (await f.Db.PlanVersions.SingleAsync(p => p.Id == submitted.Id)).Status);
+        Assert.Equal(EditPlanModel.DraftSavedSupersededMessage, f.Page.TempData["Flash"]);
+    }
+
+    [Fact]
+    public async Task ExactSaveDraftWithoutAPendingSubmission_KeepsThePlainConfirmation()
+    {
+        await using var f = await Fixture.CreateAsync("Project Officer", "SaveDraft", relational: true);
+        f.Page.Input.Mode = PlanEditorModes.Exact;
+        f.Page.Input.Rows = new()
+        {
+            new() { Code = StageCodes.FS, Name = "FS", PlannedStart = new DateOnly(2024, 1, 1), PlannedDue = new DateOnly(2024, 1, 9) }
+        };
+
+        Assert.IsType<RedirectToPageResult>(await f.Page.OnPostAsync(1, default));
+
+        Assert.False(f.Page.TempData.ContainsKey("Error"));
+        Assert.Equal("Draft saved.", f.Page.TempData["Flash"]);
     }
 
     [Theory]

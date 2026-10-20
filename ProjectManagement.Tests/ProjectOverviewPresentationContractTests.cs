@@ -137,6 +137,22 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.Contains("₹{costLakhs.Value:0.##} lakh", viewModel, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TimelineMenu_IsNotHiddenByAPrivatePlanDraft()
+    {
+        // Discovery C2.1: an unsubmitted plan draft used to hide both editors,
+        // locking the PO out of "Correct recorded dates".
+        var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
+
+        Assert.Contains("var canEditTimelinePlan = canEditTimeline;", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("hasMyDraft && !pendingOwnedByCurrentUser", workspace, StringComparison.Ordinal);
+
+        var menuBlock = workspace[workspace.IndexOf("@if (canEditTimelinePlan)", StringComparison.Ordinal)..];
+        menuBlock = menuBlock[..menuBlock.IndexOf("@if (canManageHistoricalStageHistory)", StringComparison.Ordinal)];
+        Assert.Contains("data-bs-target=\"#offcanvasActualDates\"", menuBlock, StringComparison.Ordinal);
+        Assert.Contains("data-bs-target=\"#offcanvasPlanEdit\"", menuBlock, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

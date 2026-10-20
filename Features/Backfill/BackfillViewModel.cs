@@ -81,6 +81,14 @@ public sealed class BackfillViewModel
     public ActualProposalSummaryVm? PendingProposal { get; init; }
 
     /// <summary>
+    /// The pending proposal already supplies a completion date for every stage that
+    /// needs one, so nothing is left for the PO to do until a HoD or Admin decides.
+    /// The banner then reports the submission instead of "Action needed" (discovery C2.3).
+    /// </summary>
+    public bool AwaitingApproval => PendingProposal is not null && HasStages &&
+        Stages.All(stage => stage.HasProposal && stage.CompletedOn.HasValue);
+
+    /// <summary>
     /// Prefills rows covered by the pending proposal with their proposed values, so
     /// a resubmission does not discard them. Other pending items are carried forward
     /// by the server (backfill entry point).
