@@ -1,6 +1,6 @@
 # Phase D — Actual correction workflow: acceptance and release readiness (D-3e)
 
-> **Classification: A — Acceptance passed; release prerequisites remain.** The D-2 + D-3 Actual correction workflow is functionally accepted on the evidence below. It is **not** release-ready. Release blocker #2683 and operator decisions K-12 and K-13 are open, and the coordinated release has not been authorized.
+> **Classification: A — Acceptance passed; release prerequisites remain.** The D-2 + D-3 Actual correction workflow is functionally accepted on the evidence below. It is **not** release-ready. Operator decisions K-12 and K-13 and the staging rehearsals are open, and the coordinated release has not been authorized. Release blocker #2683 was closed by #2689. The operational package (topology, K-13 decision record, runbook, rollback and go/no-go) is in the [Phase D release runbook](phase-d-release-runbook.md).
 >
 > Production deployment state, database version and configuration were **not** inspected. Nothing here claims they were.
 
@@ -12,7 +12,7 @@ These are separate states. Only the first two are met.
 | --- | --- |
 | Code merged | **Yes.** D-1a–D-1e, #2680, D-2, D-3a/b, D-3c and D-3d, all on `master` (§2) |
 | Acceptance passed | **Yes, with this PR:** the end-to-end, service, PostgreSQL and UI evidence below, plus three corrected defects (§6) |
-| Release blockers closed | **No.** #2683 blocks packaging. K-12 and K-13 need operator answers (§8) |
+| Release blockers closed | **No.** #2683 is closed (#2689; fresh dry run passed at `5ee16e9f`). K-12, K-13 and the staging rehearsals remain ([runbook §F](phase-d-release-runbook.md#f-release-blocker-and-decision-register)) |
 | Deployment authorized | **No** |
 | Production deployment complete | **No.** R-D2 and R-D3 have not been released, and K-14 requires them in one window |
 
@@ -228,7 +228,7 @@ One copy change was also made: the Decision Centre approval confirmation for Act
 
 | Item | Finding | Blocks the coordinated release? | Smallest separate correction |
 | --- | --- | --- | --- |
-| **#2683** publish script | **Confirmed on `0277a1bb`.** The manifest check in `ops/publish/create-publish-folder.ps1` requires exactly 62 IDs ending in `20261201160000_…`. `Migrations/immutable-migration-ids.txt` has 119, ending in `20261217053003_AddActualCorrectionProposals`, so the script throws "Application migration manifest is incomplete" before publishing. | **Yes.** The release artifact cannot be produced with the documented procedure. | Compare the manifest with the migrations discovered in the built assembly instead of a fixed count. Rehearse on a clean Release build (offline SOP). |
+| **#2683** publish script | **Confirmed on `0277a1bb`.** The manifest check in `ops/publish/create-publish-folder.ps1` requires exactly 62 IDs ending in `20261201160000_…`. `Migrations/immutable-migration-ids.txt` has 119, ending in `20261217053003_AddActualCorrectionProposals`, so the script throws "Application migration manifest is incomplete" before publishing. | **Closed by #2689** (`8de714f8`). Dry run at `5ee16e9f` passed (see runbook §F). | — |
 | **#2684** snapshot drift | **Confirmed unchanged.** The scaffold adds `NotebookItemCollaborators` (which already exists), drops `IX_ProjectIdeaComments_ProjectIdeaId` and alters `ProjectBrief`. | No for D-2/D-3, which add no further migration. **Yes before any next scaffolded migration.** | Splice the snapshot, and add a CI "empty scaffold" check. |
 | **#2682** `ProjectBrief` 2500/3000 | Pre-existing; unchanged by Phase D. | No for D-2/D-3. It is a separate user-visible defect. | Lower `ProjectBriefMaxLength` to 2500 (no migration), or widen the column only after #2684. |
 | **K-12** topology | Unverified. | **Yes** (operational). | Operators must answer: number of app instances; background writers (workers, retention, OCR) that touch `Projects`/`ProjectStages`; whether a full outage is available. The plan assumes one outage window (I.1, R11: mixed binaries are not supported). |
@@ -279,7 +279,7 @@ These are unchanged from plan I.3.
 
 ## 12. Outstanding decisions and requirements before deployment
 
-1. Fix #2683 and rehearse packaging from a clean Release build.
+1. ~~Fix #2683~~ (closed by #2689). Rehearse packaging on the release build machine at the approved SHA ([runbook §C.1](phase-d-release-runbook.md#c1-pre-release-before-the-window)).
 2. Answer K-12 (topology, writers, outage) and K-13 (startup migration vs reviewed SQL), and correct the losing document.
 3. Run the manual browser checklist (§10) on a staging copy.
 4. Rehearse I.3 recovery (R-D3 → R-D2 and back) on staging.
