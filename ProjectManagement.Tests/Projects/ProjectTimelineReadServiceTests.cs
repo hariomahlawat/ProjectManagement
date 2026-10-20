@@ -213,6 +213,58 @@ public sealed class ProjectTimelineReadServiceTests
         Assert.True(active.HasDraft);
     }
 
+    [Fact]
+    public async Task GetStageRequestOutcomesAsync_ReturnsOnlyTheUsersLatestRequestPerStage()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project { Id = 1, Name = "Outcomes", CreatedByUserId = "seed", WorkflowVersion = ProcurementWorkflow.VersionV2 });
+        var day = new DateTimeOffset(2026, 10, 10, 6, 0, 0, TimeSpan.Zero);
+        db.StageChangeRequests.AddRange(
+            // FS: returned to the PO and still the latest request for the stage.
+            Request(1, StageCodes.FS, "Completed", "po", day, "Rejected", day.AddDays(1), "Attach the report"),
+            // SOW: the PO's rejected request was followed by a newer one; only the newer counts.
+            Request(2, StageCodes.SOW, "Completed", "po", day, "Rejected", day.AddDays(1), "Old note"),
+            Request(3, StageCodes.SOW, "Completed", "po", day.AddDays(2), "Pending", null, null),
+            // IPA: someone else's newer request makes the PO's approval history.
+            Request(4, StageCodes.IPA, "InProgress", "po", day, "Approved", day.AddDays(1), null),
+            Request(5, StageCodes.IPA, "Completed", "hod", day.AddDays(3), "Pending", null, null),
+            // AON: decided before the window.
+            Request(6, StageCodes.AON, "Completed", "po", day.AddDays(-60), "Rejected", day.AddDays(-59), "Too old"),
+            // BM: another user's request.
+            Request(7, StageCodes.BM, "Completed", "other-po", day, "Rejected", day.AddDays(1), "Not mine"),
+            // TEC: a direct HoD change superseded the PO's request.
+            Request(8, StageCodes.TEC, "Completed", "po", day, "Superseded", day.AddDays(1), null));
+        await db.SaveChangesAsync();
+        var metadata = new WorkflowStageMetadataProvider();
+        var service = new ProjectTimelineReadService(db, new FixedClock(day.AddDays(5)), metadata, new ProjectStageWorkflowPolicy(db, metadata));
+
+        var outcomes = await service.GetStageRequestOutcomesAsync(1, "po", day.AddDays(-30));
+
+        Assert.Equal(new[] { StageCodes.FS, StageCodes.SOW }, outcomes.Select(outcome => outcome.StageCode).ToArray());
+        var fs = outcomes[0];
+        Assert.Equal("Rejected", fs.DecisionStatus);
+        Assert.Equal("Attach the report", fs.DecisionNote);
+        Assert.Equal(metadata.GetDisplayName(ProcurementWorkflow.VersionV2, StageCodes.FS), fs.StageName);
+        Assert.Equal("Pending", outcomes[1].DecisionStatus);
+        Assert.Empty(await service.GetStageRequestOutcomesAsync(1, null, day.AddDays(-30)));
+    }
+
+    private static StageChangeRequest Request(
+        int id, string stage, string requested, string user, DateTimeOffset requestedOn,
+        string decision, DateTimeOffset? decidedOn, string? note) => new()
+    {
+        Id = id,
+        ProjectId = 1,
+        StageCode = stage,
+        RequestedStatus = requested,
+        RequestedByUserId = user,
+        RequestedOn = requestedOn,
+        DecisionStatus = decision,
+        DecidedOn = decidedOn,
+        DecidedByUserId = decidedOn is null ? null : "hod",
+        DecisionNote = note
+    };
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

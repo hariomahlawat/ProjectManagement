@@ -348,6 +348,141 @@ public class ProjectTimelineUiTests
     }
 
 
+    // SECTION: PO Timeline Increment 1e (lead with the stage that needs action)
+    [Fact]
+    public async Task SettledStages_CollapseIntoOneGroupAboveTheStagesThatNeedAction()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm { Code = "FS", Name = "Feasibility Study", Status = StageStatus.Completed, SortOrder = 0, CompletedOn = new DateOnly(2026, 1, 10) },
+                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.Completed, SortOrder = 1, CompletedOn = new DateOnly(2026, 2, 10) },
+                new TimelineItemVm { Code = "SOW", Name = "SOW Vetting", Status = StageStatus.Completed, SortOrder = 2, RequiresBackfill = true },
+                new TimelineItemVm { Code = "PNC", Name = "PNC", Status = StageStatus.Skipped, SortOrder = 3 },
+                new TimelineItemVm { Code = "AON", Name = "AON", Status = StageStatus.InProgress, SortOrder = 4 },
+                new TimelineItemVm { Code = "BID", Name = "Bidding", Status = StageStatus.NotStarted, SortOrder = 5 }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
+
+        Assert.Equal(1, CountOccurrences(html, "data-timeline-completed-group"));
+        var text = System.Net.WebUtility.HtmlDecode(html);
+        Assert.Contains("2 completed stages · 1 skipped", text, StringComparison.Ordinal);
+        Assert.Contains("Latest: In-Principle Approval · 10 Feb 2026", text, StringComparison.Ordinal);
+        var groupStart = html.IndexOf("data-timeline-completed-group", StringComparison.Ordinal);
+        var groupEnd = html.IndexOf("</details>", StringComparison.Ordinal);
+        int At(string code) => html.IndexOf($"id=\"timeline-stage-{code}\"", StringComparison.Ordinal);
+        Assert.True(groupStart < At("FS"));
+        Assert.True(At("FS") < At("IPA"));
+        Assert.True(At("PNC") < groupEnd);
+        // A stage that still needs a completion date stays visible, after the group.
+        Assert.True(groupEnd < At("SOW"));
+        Assert.True(At("SOW") < At("AON"));
+        Assert.True(At("AON") < At("BID"));
+        // The group starts collapsed; it opens only on request or for a deep link.
+        Assert.DoesNotContain("data-timeline-completed-group open", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompletedStageWithAPendingUpdate_StaysOutsideTheGroup()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm { Code = "FS", Name = "Feasibility Study", Status = StageStatus.Completed, SortOrder = 0, CompletedOn = new DateOnly(2026, 1, 10) },
+                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.Completed, SortOrder = 1, CompletedOn = new DateOnly(2026, 2, 10) },
+                new TimelineItemVm { Code = "SOW", Name = "SOW Vetting", Status = StageStatus.Completed, SortOrder = 2, CompletedOn = new DateOnly(2026, 3, 10),
+                    HasPendingRequest = true, PendingStatus = "NotStarted" },
+                new TimelineItemVm { Code = "AON", Name = "AON", Status = StageStatus.InProgress, SortOrder = 3 }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
+
+        Assert.Contains("2 completed stages", html, StringComparison.Ordinal);
+        Assert.True(html.IndexOf("</details>", StringComparison.Ordinal) < html.IndexOf("id=\"timeline-stage-SOW\"", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(ProjectLifecycleStatus.Active, 1)]
+    [InlineData(ProjectLifecycleStatus.Completed, 2)]
+    public async Task Grouping_NeedsTwoSettledStagesOnAnActiveProject(ProjectLifecycleStatus lifecycle, int completedStages)
+    {
+        var items = Enumerable.Range(0, completedStages)
+            .Select(index => new TimelineItemVm
+            {
+                Code = $"S{index}",
+                Name = $"Stage {index}",
+                Status = StageStatus.Completed,
+                SortOrder = index,
+                CompletedOn = new DateOnly(2026, 1, 10 + index)
+            })
+            .Append(new TimelineItemVm { Code = "CUR", Name = "Current", Status = StageStatus.InProgress, SortOrder = 9 })
+            .ToArray();
+
+        var html = await RenderAsync(new TimelineVm { ProjectId = 1, Items = items }, isHoD: true, isAssignedProjectOfficer: false, lifecycleStatus: lifecycle);
+
+        Assert.DoesNotContain("data-timeline-completed-group", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"timeline-stage-S0\"", html, StringComparison.Ordinal);
+    }
+
+    // SECTION: PO Timeline Increment 1b (status line partial)
+    [Fact]
+    public async Task SubmissionStatus_RendersOneLinePerCategoryWithNotesAndActions()
+    {
+        var status = new TimelineSubmissionStatusVm(new[]
+        {
+            new TimelineSubmissionLineVm(TimelineSubmissionStatusVm.PlannedDatesCategory, new[]
+            {
+                new TimelineSubmissionEntryVm(TimelineSubmissionState.Pending, "Awaiting HoD approval (submitted 14 Oct 2026).",
+                    ActionLabel: "View", OffcanvasTarget: "#offcanvasPlanEdit")
+            }),
+            new TimelineSubmissionLineVm(TimelineSubmissionStatusVm.StageUpdatesCategory, new[]
+            {
+                new TimelineSubmissionEntryVm(TimelineSubmissionState.Returned, "Completion of SOW Vetting returned on 17 Oct 2026.",
+                    "Attach <trial> report first.", "Review", StageCode: "SOW")
+            }, HiddenCount: 2)
+        });
+
+        var html = await RenderPartialAsync("/Pages/Projects/_TimelineSubmissionStatus.cshtml", status);
+
+        Assert.Contains("aria-label=\"Your submissions\"", html, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(html, "data-timeline-status-category="));
+        Assert.Contains("data-bs-target=\"#offcanvasPlanEdit\"", html, StringComparison.Ordinal);
+        Assert.Contains("aria-controls=\"offcanvasPlanEdit\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"#timeline-stage-SOW\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Returned<", html, StringComparison.Ordinal);
+        // The reviewer's note is shown, HTML-encoded.
+        Assert.Contains("Attach &lt;trial&gt; report first.", html, StringComparison.Ordinal);
+        Assert.Contains("and 2 more on the timeline below.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SubmissionStatus_RendersNothingWhenEmpty()
+    {
+        var html = await RenderPartialAsync("/Pages/Projects/_TimelineSubmissionStatus.cshtml", TimelineSubmissionStatusVm.Empty);
+
+        Assert.Equal(string.Empty, html.Trim());
+    }
+
+    [Fact]
+    public void LifecycleWorkspace_RendersTheStatusLineAndDropsTheBadgesItRepeats()
+    {
+        var workspace = File.ReadAllText(Path.Combine(
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..")),
+            "Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml"));
+
+        Assert.Contains("<partial name=\"_TimelineSubmissionStatus\" model=\"submissionStatus\" />", workspace, StringComparison.Ordinal);
+        Assert.Contains("pendingStageUpdateCount > 0 && !statusCoversAllPendingStageUpdates", workspace, StringComparison.Ordinal);
+        Assert.Contains("pendingOwnedByCurrentUser && !statusShowsPlanPending", workspace, StringComparison.Ordinal);
+        Assert.Contains("hasMyDraft && !statusShowsPlanReturned", workspace, StringComparison.Ordinal);
+    }
+
     // C7.2: the rendered editor carries no chronology `min`; a refused post reopens it with the
     // user's entries in editable fields only and the server's stage-specific messages.
     [Theory]
@@ -487,6 +622,33 @@ public class ProjectTimelineUiTests
         var tempData = new TempDataDictionary(httpContext, tempDataProvider);
         var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());
 
+        await viewResult.View.RenderAsync(viewContext);
+        return writer.ToString();
+    }
+
+    private static async Task<string> RenderPartialAsync<TModel>(string viewPath, TModel model)
+    {
+        using var scope = Services.CreateScope();
+        var provider = scope.ServiceProvider;
+        var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
+        var tempDataProvider = provider.GetRequiredService<ITempDataProvider>();
+        var httpContext = new DefaultHttpContext { RequestServices = provider, User = BuildPrincipal(Array.Empty<string>()) };
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
+        var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor
+        {
+            ViewEnginePath = "/Projects/Overview",
+            RelativePath = "/Pages/Projects/Overview.cshtml"
+        });
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: viewPath, isMainPage: false);
+        if (!viewResult.Success)
+        {
+            throw new InvalidOperationException($"Unable to locate {viewPath}.");
+        }
+
+        await using var writer = new StringWriter();
+        var viewData = new ViewDataDictionary<TModel>(new EmptyModelMetadataProvider(), new ModelStateDictionary()) { Model = model };
+        var viewContext = new ViewContext(actionContext, viewResult.View, viewData,
+            new TempDataDictionary(httpContext, tempDataProvider), writer, new HtmlHelperOptions());
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
     }

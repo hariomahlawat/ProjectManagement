@@ -24,6 +24,8 @@ public sealed class ProjectTimelineReadService
 {
     private const string PendingDecisionStatus = "Pending";
     private const string SupersededDecisionStatus = "Superseded";
+    private const string ApprovedDecisionStatus = "Approved";
+    private const string RejectedDecisionStatus = "Rejected";
     private static readonly TimeZoneInfo IndiaTimeZone = TimeZoneHelper.GetIst();
 
     private readonly ApplicationDbContext _db;
@@ -420,6 +422,80 @@ public sealed class ProjectTimelineReadService
             LatestApprovalAt = approvalInfo?.PlanApprovedAt,
             LatestApprovalBy = approvalInfo?.ApprovedBy
         };
+    }
+
+    /// <summary>
+    /// The user's own stage requests that are still the latest request for their
+    /// stage: pending ones, and approved or rejected ones decided on or after
+    /// <paramref name="decidedSince"/>. A newer request by anyone makes an older
+    /// outcome history; a pending request superseded by a HoD direct change is no
+    /// longer pending. A later direct change does not alter a decided request, so
+    /// the status-line builder also compares the stage's current status.
+    /// Read-only; feeds the Timeline status line (PO Timeline discovery E.1).
+    /// </summary>
+    public async Task<IReadOnlyList<StageRequestOutcomeVm>> GetStageRequestOutcomesAsync(
+        int projectId,
+        string? userId,
+        DateTimeOffset decidedSince,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Array.Empty<StageRequestOutcomeVm>();
+        }
+
+        // Date filtering and ordering run in memory: the set is one user's requests
+        // on one project, and DateTimeOffset comparison is not portable to SQLite.
+        var mine = (await _db.StageChangeRequests
+                .AsNoTracking()
+                .Where(r => r.ProjectId == projectId
+                    && r.RequestedByUserId == userId
+                    && (r.DecisionStatus == PendingDecisionStatus
+                        || r.DecisionStatus == ApprovedDecisionStatus
+                        || r.DecisionStatus == RejectedDecisionStatus))
+                .ToListAsync(ct))
+            .Where(r => r.DecisionStatus == PendingDecisionStatus
+                || (r.DecidedOn.HasValue && r.DecidedOn.Value >= decidedSince))
+            .ToList();
+
+        if (mine.Count == 0)
+        {
+            return Array.Empty<StageRequestOutcomeVm>();
+        }
+
+        var stageCodes = mine.Select(r => r.StageCode).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var latestRequestIds = (await _db.StageChangeRequests
+                .AsNoTracking()
+                .Where(r => r.ProjectId == projectId && stageCodes.Contains(r.StageCode))
+                .Select(r => new { r.Id, r.StageCode, r.RequestedOn })
+                .ToListAsync(ct))
+            .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(r => r.RequestedOn)
+                .ThenByDescending(r => r.Id)
+                .First().Id)
+            .ToHashSet();
+
+        var workflow = await _workflowPolicy.GetAsync(projectId, ct);
+        var stageOrder = workflow.Stages
+            .Select((stage, index) => (stage.Code, stage.Name, index))
+            .ToDictionary(item => item.Code, item => (item.Name, item.index), StringComparer.OrdinalIgnoreCase);
+
+        return mine
+            .Where(r => latestRequestIds.Contains(r.Id))
+            .OrderBy(r => stageOrder.TryGetValue(r.StageCode, out var stage) ? stage.index : int.MaxValue)
+            .ThenBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
+            .Select(r => new StageRequestOutcomeVm(
+                r.StageCode,
+                stageOrder.TryGetValue(r.StageCode, out var stage)
+                    ? stage.Name
+                    : _workflowStageMetadataProvider.GetDisplayName(workflow.WorkflowVersion, r.StageCode),
+                r.RequestedStatus,
+                r.DecisionStatus,
+                r.RequestedOn,
+                r.DecidedOn,
+                r.DecisionNote))
+            .ToList();
     }
 
     private async Task<DateOnly> GetReopenSuggestedStartAsync(

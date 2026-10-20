@@ -27,6 +27,35 @@
         User,
         resource: null,
         policyName: ProjectOfficeReportsPolicies.ViewArpp)).Succeeded;
+
+    // SECTION: Lead with the stage that needs action (PO Timeline discovery C6.1)
+    // Settled stages (completed or skipped, nothing outstanding) collapse into one
+    // group above the rest, so the current stage, stages needing a date and pending
+    // updates are near the top. Workflow order is kept inside the group.
+    var orderedStages = timeline.Items.OrderBy(item => item.SortOrder).ToList();
+    var settledStages = isActiveLifecycle
+        ? orderedStages.Where(item => item.IsSettled).ToList()
+        : new List<ProjectManagement.ViewModels.TimelineItemVm>();
+    if (settledStages.Count < 2)
+    {
+        settledStages.Clear();
+    }
+    var settledCodes = new HashSet<string>(settledStages.Select(item => item.Code), StringComparer.OrdinalIgnoreCase);
+    var renderOrder = settledStages
+        .Concat(orderedStages.Where(item => !settledCodes.Contains(item.Code)))
+        .ToList();
+    var settledCompletedCount = settledStages.Count(item => item.Status == StageStatus.Completed);
+    var settledSkippedCount = settledStages.Count - settledCompletedCount;
+    var settledGroupTitle = string.Join(" · ", new[]
+    {
+        settledCompletedCount > 0 ? $"{settledCompletedCount} completed stage{(settledCompletedCount == 1 ? string.Empty : "s")}" : null,
+        settledSkippedCount > 0 ? $"{settledSkippedCount} skipped" : null
+    }.Where(part => part is not null));
+    var latestSettledCompletion = settledStages
+        .Where(item => item.Status == StageStatus.Completed && item.CompletedOn.HasValue)
+        .OrderByDescending(item => item.CompletedOn)
+        .ThenByDescending(item => item.SortOrder)
+        .FirstOrDefault();
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -107,8 +136,25 @@
     <div class="pm-rail-line"></div>
   </div>
   <div class="pm-items">
-    @foreach (var s in timeline.Items.OrderBy(i => i.SortOrder))
+    @foreach (var s in renderOrder)
     {
+      var isSettledStage = settledCodes.Contains(s.Code);
+      if (isSettledStage && ReferenceEquals(s, settledStages[0]))
+      {
+        @:<details class="pm-completed-group" data-timeline-completed-group>
+        <summary class="pm-completed-group__summary">
+          <span class="pm-completed-group__title">@settledGroupTitle</span>
+          @if (latestSettledCompletion is not null)
+          {
+            <span class="pm-completed-group__meta">Latest: @latestSettledCompletion.Name · @D(latestSettledCompletion.CompletedOn)</span>
+          }
+          <span class="pm-completed-group__hint" aria-hidden="true">
+            <span class="pm-completed-group__hint-closed">Show</span><span class="pm-completed-group__hint-open">Hide</span>
+            <i class="bi bi-chevron-down pm-completed-group__chevron"></i>
+          </span>
+        </summary>
+        @:<div class="pm-completed-group__items">
+      }
       if (isActiveLifecycle && !pendingSectionStarted && s.HasPendingRequest)
       {
         pendingSectionStarted = true;
@@ -155,8 +201,7 @@
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
       var hasStageMenuActions = !s.IsArppManaged && (isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest));
-      var needsArppActualStartAttention = s.IsArppManaged &&
-          (!s.ActualStart.HasValue || s.HasActualStartDataQualityIssue);
+      var needsArppActualStartAttention = s.NeedsArppActualStartAttention;
       var canCorrectArppActualStart = needsArppActualStartAttention &&
           ((isActiveLifecycle && canEditTimeline) ||
            (!isActiveLifecycle && Model.CanManageHistoricalStageHistory));
@@ -713,6 +758,11 @@
           }
         </div>
       </div>
+      if (isSettledStage && ReferenceEquals(s, settledStages[^1]))
+      {
+        @:</div>
+        @:</details>
+      }
     }
   </div>
 </div>
