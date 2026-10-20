@@ -195,7 +195,7 @@ public sealed class DirectActualsPublicationTests
 
     // SECTION: Backfill page role matrix (Phase D-2)
     [Theory]
-    [InlineData("Project Officer", "assigned-po", 403, "approval-required")]
+    [InlineData("Project Officer", "assigned-po", 409, "reload-required")]
     [InlineData("Project Officer", "someone-else", 0, "forbid")]
     [InlineData("HoD", "actor", 200, "applied")]
     [InlineData("Admin", "actor", 200, "applied")]
@@ -237,8 +237,9 @@ public sealed class DirectActualsPublicationTests
             Assert.Equal(status, refusal.StatusCode);
             var body = JsonSerializer.SerializeToElement(refusal.Value);
             Assert.False(body.GetProperty("ok").GetBoolean());
-            Assert.Equal("approval-required", body.GetProperty("error").GetString());
-            Assert.Equal(ActualsApprovalRequiredException.UserMessage, body.GetProperty("message").GetString());
+            // A direct-mode form posted by the assigned PO-only user is refused, never published (D-3c).
+            Assert.Equal("reload-required", body.GetProperty("error").GetString());
+            Assert.Equal(EditActualsModel.AccessChangedMessage, body.GetProperty("message").GetString());
         }
 
         Assert.Null(bid.CompletedOn);

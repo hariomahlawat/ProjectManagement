@@ -45,6 +45,7 @@ namespace ProjectManagement.Pages.Projects
         private readonly ApplicationDbContext _db;
         private readonly ProjectProcurementReadService _procureRead;
         private readonly ProjectTimelineReadService _timelineRead;
+        private readonly ActualCorrectionProposalService? _actualProposals;
         private readonly HistoricalStageRecordService _historicalStageRecords;
         private readonly UserManager<ApplicationUser> _users;
         private readonly PlanReadService _planRead;
@@ -76,8 +77,10 @@ namespace ProjectManagement.Pages.Projects
             ProjectRecordHealthService recordHealthService,
             ProjectProliferationProfileService proliferationProfiles,
             IIndustryPartnerService industryPartners,
-            IProjectContentService projectContentService)
+            IProjectContentService projectContentService,
+            ActualCorrectionProposalService? actualProposals = null)
         {
+            _actualProposals = actualProposals;
             _db = db;
             _procureRead = procureRead;
             _timelineRead = timelineRead;
@@ -133,6 +136,16 @@ namespace ProjectManagement.Pages.Projects
         // PO-only user sees the editors read-only. EditActuals/BackfillApply and the
         // services enforce this; the flag only shapes the UI.
         public bool CanPublishActualsDirectly => Roles.IsAdmin || Roles.IsHoD;
+
+        // Phase D-3c: the assigned PO-only user submits Actual corrections for approval.
+        // Rendering only; EditActuals and BackfillApply re-establish authority on POST.
+        public bool CanSubmitActualProposals =>
+            !CanPublishActualsDirectly
+            && Roles.IsAssignedProjectOfficer
+            && Project is { IsLegacy: false, LifecycleStatus: ProjectLifecycleStatus.Active };
+
+        // Pending proposal stages the editor has no row for; a resubmission cannot carry them.
+        public IReadOnlyList<string> UnrenderedPendingActualStages { get; private set; } = Array.Empty<string>();
         public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
         public ProjectLifecycleActionsViewModel LifecycleActions { get; private set; } = ProjectLifecycleActionsViewModel.Empty;
         public ProjectMediaSummaryViewModel MediaSummary { get; private set; } = ProjectMediaSummaryViewModel.Empty;
@@ -588,6 +601,7 @@ namespace ProjectManagement.Pages.Projects
                 PlanEdit, TempData[PlanEditorRecovery.TempDataKey] as string, id, CurrentUserId, User);
             HasBackfill = Timeline.HasBackfill;
             Backfill = await BuildBackfillViewModelAsync(id, ct);
+            await ApplyPendingActualCorrectionAsync(id, ct);
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm
@@ -2442,6 +2456,36 @@ namespace ProjectManagement.Pages.Projects
             ProjectDocumentRequestType.Delete => "Removal",
             _ => "Request"
         };
+
+        /// <summary>
+        /// Shows the pending Actual correction proposal only to users who act on it:
+        /// the assigned PO-only user gets the editors prefilled with it, and HoD/Admin
+        /// see that it exists. Other viewers never receive its contents.
+        /// </summary>
+        private async Task ApplyPendingActualCorrectionAsync(int projectId, CancellationToken ct)
+        {
+            if (_actualProposals is null || !(CanSubmitActualProposals || CanPublishActualsDirectly))
+            {
+                return;
+            }
+
+            var pending = await _actualProposals.GetPendingAsync(projectId, ct);
+            if (pending is null)
+            {
+                return;
+            }
+
+            if (CanSubmitActualProposals)
+            {
+                ActualsEditor = ActualsEditor.WithPendingProposal(pending, CurrentUserId);
+                Backfill = Backfill.WithPendingProposal(pending, CurrentUserId);
+                UnrenderedPendingActualStages = ActualsEditor.UnrenderedProposalStages(pending);
+            }
+            else
+            {
+                ActualsEditor = ActualsEditor.WithPendingProposal(pending, CurrentUserId, prefill: false);
+            }
+        }
 
         private async Task<BackfillViewModel> BuildBackfillViewModelAsync(int projectId, CancellationToken ct)
         {

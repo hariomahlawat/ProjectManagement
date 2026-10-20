@@ -4,9 +4,18 @@
 @{
     var rows = Model?.Rows ?? Array.Empty<ActualsEditorRowVm>();
     var todayIso = Model?.Today.ToString("yyyy-MM-dd") ?? string.Empty;
-    // Phase D-2: a PO-only user cannot publish directly; the page and service refuse it.
-    // Fails safe to read-only if a host does not pass the server-computed flag.
+    // HoD/Admin publish directly; the assigned PO-only user submits for approval (D-3c).
+    // Both flags are server-computed for rendering only; EditActuals re-checks on POST.
+    // A host that passes neither renders the editor read-only.
     var directPublication = ViewData["ActualsDirectPublication"] as bool? ?? false;
+    var proposalSubmission = !directPublication && (ViewData["ActualsProposalSubmission"] as bool? ?? false);
+    var canEdit = directPublication || proposalSubmission;
+    var pending = Model?.PendingProposal;
+    var unrendered = ViewData["ActualsUnrenderedPendingStages"] as IReadOnlyList<string> ?? Array.Empty<string>();
+    string Display(DateOnly? date) => date?.ToString("dd MMM yyyy") ?? "not recorded";
+    var submittedDisplay = pending is null
+        ? string.Empty
+        : ProjectManagement.Infrastructure.IstClock.ToIst(pending.SubmittedOn.UtcDateTime).ToString("dd MMM yyyy, HH:mm") + " IST";
 }
 
 <form method="post"
@@ -18,32 +27,73 @@
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
     <input type="hidden" name="Input.BaselineVersion" value="@Model?.BaselineVersion" />
+    <input type="hidden" name="Input.SubmissionMode" value="@(proposalSubmission ? ActualsSubmissionMode.Proposal : ActualsSubmissionMode.Direct)" />
+    @if (proposalSubmission)
+    {
+        @* The pending proposal this form was rendered with; both empty means "none". *@
+        <input type="hidden" name="Input.BasedOnRevisionId" value="@pending?.RevisionId" data-actuals-based-on />
+        <input type="hidden" name="Input.BasedOnSubmittedOn" value="@pending?.SubmittedOnRoundTrip" />
+    }
 
     <!-- SECTION: Introduction -->
     <div class="small text-muted">
         Record actual stage dates. For completed stages, the recorded start is optional and can be explicitly cleared; displayed duration may use an estimated start. An InProgress stage requires its actual start. Complete stages through the stage-transition workflow.
     </div>
 
-    @if (!directPublication)
+    @if (proposalSubmission && pending is not null)
     {
-        <div class="alert alert-info mb-0" role="status" data-actuals-approval-required>
-            Actual-date corrections now require HoD or Admin approval. Ask a HoD or Admin to apply Actual-date corrections for this project.
+        <div class="alert alert-warning mb-0" role="status" data-actuals-pending-proposal>
+            <div class="fw-semibold">Revision @pending.RevisionNo is awaiting HoD or Admin approval</div>
+            <div class="small">
+                Submitted @submittedDisplay@(pending.SubmittedByCurrentUser ? " by you" : " by the previous Project Officer"). The dates below include your proposed corrections; official dates are unchanged until approval.
+                Edit and submit again to revise it, or withdraw it.
+            </div>
+        </div>
+    }
+    else if (proposalSubmission)
+    {
+        <div class="alert alert-info mb-0" role="status" data-actuals-proposal-mode>
+            Your corrections are sent to a HoD or Admin for approval. Official dates change only after approval, and you can revise or withdraw a pending submission.
+        </div>
+    }
+    else if (directPublication && pending is not null)
+    {
+        <div class="alert alert-info mb-0" role="status" data-actuals-pending-proposal>
+            A Project Officer's correction (revision @pending.RevisionNo, stages @string.Join(", ", pending.StageCodes)) is awaiting approval. Saving here publishes directly and does not change that proposal.
+        </div>
+    }
+    else if (!canEdit)
+    {
+        <div class="alert alert-info mb-0" role="status" data-actuals-read-only>
+            Only the assigned Project Officer (for approval) or a HoD or Admin can correct these dates.
+        </div>
+    }
+
+    @if (proposalSubmission && unrendered.Count > 0)
+    {
+        <div class="alert alert-danger mb-0" role="alert" data-actuals-unrendered>
+            Your pending update also covers @string.Join(", ", unrendered), which this editor cannot show. Submitting from this editor would drop those corrections, so it is unavailable; withdraw the pending update or ask a HoD or Admin.
         </div>
     }
 
     <!-- SECTION: Actuals list -->
-    <fieldset class="actuals-editor__list flex-grow-1 border-0 p-0 m-0" data-actuals-list disabled="@(!directPublication)">
+    <fieldset class="actuals-editor__list flex-grow-1 border-0 p-0 m-0" data-actuals-list disabled="@(!canEdit)">
         <div class="d-grid gap-3">
             @for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
                 var startId = $"actual-start-{row.StageCode}";
                 var completedId = $"actual-completed-{row.StageCode}";
-                var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
-                var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
+                // A PO proposal prefills its proposed values; official values stay visible.
+                var startValue = (proposalSubmission ? row.EditStart : row.ActualStart)?.ToString("yyyy-MM-dd");
+                var completedValue = (proposalSubmission ? row.EditCompletedOn : row.CompletedOn)?.ToString("yyyy-MM-dd");
+                var officialStartValue = row.ActualStart?.ToString("yyyy-MM-dd");
+                var showsProposal = proposalSubmission && row.HasProposal;
                 var earliestStartValue = row.EarliestAllowedStartDate?.ToString("yyyy-MM-dd");
                 var startBoundarySourceName = row.StartBoundarySourceName ?? "predecessor";
-                var canEditStart = row.IsEditable && !row.HasPendingDecision;
+                // A proposal is checked against pending lifecycle requests on the server (F.6), so
+                // the PO is not frozen by them; a row carrying a proposal always stays postable.
+                var canEditStart = (row.IsEditable && (proposalSubmission || !row.HasPendingDecision)) || showsProposal;
                 var canEditCompletion = canEditStart && row.Status == StageStatus.Completed && !row.IsArppManaged;
                 var startDisabledAttr = canEditStart ? null : "disabled";
                 var completionDisabledAttr = canEditCompletion ? null : "disabled";
@@ -53,6 +103,7 @@
                          data-stage-name="@row.StageName"
                          data-stage-status="@row.Status"
                          data-earliest-start="@earliestStartValue"
+                         data-official-start="@officialStartValue"
                          data-start-source="@row.StartBoundarySourceName">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div class="d-flex flex-column">
@@ -61,9 +112,13 @@
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <span class="badge text-bg-secondary">@row.Status</span>
+                            @if (showsProposal)
+                            {
+                                <span class="badge bg-info-subtle text-info border border-info-subtle" data-actuals-proposed>Proposed correction</span>
+                            }
                             @if (row.HasPendingDecision)
                             {
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending approval</span>
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">@(proposalSubmission ? "Lifecycle update pending" : "Pending approval")</span>
                             }
                             @if (row.RequiresBackfill)
                             {
@@ -138,6 +193,14 @@
                         </div>
                     </div>
 
+                    @if (showsProposal)
+                    {
+                        <div class="small text-muted" data-actuals-official>
+                            Official: start @Display(row.ActualStart) · completed @Display(row.CompletedOn).@(row.ProposalClearsStart ? " Your proposal clears the recorded start." : string.Empty)
+                            To drop this correction, enter the official dates again.
+                        </div>
+                    }
+
                     @if (!row.IsEditable)
                     {
                         <div class="text-muted small">Actual dates can be edited only when a stage is InProgress or Completed.</div>
@@ -154,12 +217,45 @@
         </div>
     </fieldset>
 
+    @if (proposalSubmission)
+    {
+        <div>
+            <label class="form-label" for="actuals-proposal-note">Reason for correction <span class="text-muted fw-normal">(optional)</span></label>
+            <textarea class="form-control" id="actuals-proposal-note" name="Input.Note" rows="2" maxlength="1024" data-actuals-note>@pending?.Note</textarea>
+        </div>
+    }
+
     <!-- SECTION: Footer actions -->
     <div class="border-top pt-3 d-flex justify-content-end gap-2">
         <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
+        @if (proposalSubmission && pending is not null)
+        {
+            <button class="btn btn-outline-danger" type="submit" form="actuals-withdraw-form" data-actuals-withdraw
+                    data-confirm="Withdraw your pending correction (revision @pending.RevisionNo)? Official dates are not changed.">Withdraw pending update</button>
+        }
         @if (directPublication)
         {
             <button class="btn btn-primary" type="submit" data-actuals-save disabled>Save changes</button>
         }
+        else if (proposalSubmission && unrendered.Count == 0)
+        {
+            <button class="btn btn-primary" type="submit" data-actuals-save disabled>Submit for approval</button>
+        }
     </div>
 </form>
+
+@if (proposalSubmission && pending is not null)
+{
+    @* Withdraws exactly the revision shown; a stale identity is refused by the server. *@
+    <form method="post"
+          id="actuals-withdraw-form"
+          asp-page="/Projects/Timeline/EditActuals"
+          asp-page-handler="Withdraw"
+          asp-route-id="@Model?.ProjectId"
+          class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
+        <input type="hidden" name="revisionId" value="@pending.RevisionId" />
+        <input type="hidden" name="submittedOn" value="@pending.SubmittedOnRoundTrip" />
+    </form>
+}

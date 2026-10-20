@@ -151,9 +151,13 @@
     const startValue = startInput instanceof HTMLInputElement ? startInput.value : '';
     const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
     const isChanged = startValue !== original.start || completedValue !== original.completed;
+    // Clearing is relative to the official start. A proposal form is prefilled with
+    // proposed values, so a pending clear (blank start over a recorded one) keeps
+    // its explicit intent on resubmission.
+    const officialStart = row.dataset.officialStart ?? original.start;
     const clearStartInput = row.querySelector('[data-clear-start]');
     if (clearStartInput instanceof HTMLInputElement) {
-      clearStartInput.value = original.start && !startValue ? 'true' : 'false';
+      clearStartInput.value = officialStart && !startValue ? 'true' : 'false';
     }
 
     if (!isChanged) {
@@ -213,7 +217,12 @@
     return !error;
   };
 
-  const hasChanges = () => rows.some((row) => {
+  // A proposal's note is content too: revising only the reason is a resubmission.
+  const noteInput = form.querySelector('[data-actuals-note]');
+  const initialNote = noteInput instanceof HTMLTextAreaElement ? noteInput.value : '';
+  const noteChanged = () => noteInput instanceof HTMLTextAreaElement && noteInput.value.trim() !== initialNote.trim();
+
+  const hasChanges = () => noteChanged() || rows.some((row) => {
     const code = row.dataset.stageCode ?? '';
     const original = initialValues.get(code) ?? { start: '', completed: '' };
     const startInput = row.querySelector('[data-field="start"]');
@@ -233,6 +242,11 @@
   };
 
   form.addEventListener('input', (event) => {
+    if (event.target === noteInput) {
+      refreshState();
+      return;
+    }
+
     if (!(event.target instanceof HTMLInputElement)) {
       return;
     }
@@ -261,6 +275,22 @@
       saveButton.setAttribute('data-loading', 'true');
     }
   });
+
+  // A withdrawal posts once; a second click would only report "already withdrawn".
+  const withdrawForm = document.getElementById('actuals-withdraw-form');
+  if (withdrawForm instanceof HTMLFormElement) {
+    withdrawForm.addEventListener('submit', (event) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      form.querySelectorAll('[data-actuals-withdraw]').forEach((button) => {
+        if (button instanceof HTMLButtonElement) {
+          button.disabled = true;
+        }
+      });
+    });
+  }
 
   refreshState();
 })();

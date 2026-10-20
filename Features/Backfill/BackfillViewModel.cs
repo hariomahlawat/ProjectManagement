@@ -76,6 +76,48 @@ public sealed class BackfillViewModel
     public IReadOnlyList<BackfillStageViewModel> Stages { get; init; } = Array.Empty<BackfillStageViewModel>();
 
     public bool HasStages => Stages.Count > 0;
+
+    // Phase D-3c: the pending Actual correction proposal, for the assigned PO-only user.
+    public ActualProposalSummaryVm? PendingProposal { get; init; }
+
+    /// <summary>
+    /// Prefills rows covered by the pending proposal with their proposed values, so
+    /// a resubmission does not discard them. Other pending items are carried forward
+    /// by the server (backfill entry point).
+    /// </summary>
+    public BackfillViewModel WithPendingProposal(ActualCorrectionRevision? revision, string? currentUserId)
+    {
+        if (revision is null)
+        {
+            return this;
+        }
+
+        var items = revision.Items.ToDictionary(item => item.StageCode, StringComparer.OrdinalIgnoreCase);
+        return new BackfillViewModel
+        {
+            ProjectId = ProjectId,
+            Today = Today,
+            BaselineVersion = BaselineVersion,
+            PendingProposal = ActualProposalSummaryVm.From(revision, currentUserId),
+            Stages = Stages
+                .Select(stage => items.TryGetValue(stage.StageCode, out var item)
+                    ? new BackfillStageViewModel
+                    {
+                        StageCode = stage.StageCode,
+                        StageName = stage.StageName,
+                        ActualStart = item.ProposedActualStart,
+                        CompletedOn = item.ProposedCompletedOn,
+                        IsAutoCompleted = stage.IsAutoCompleted,
+                        AutoCompletedFromCode = stage.AutoCompletedFromCode,
+                        StageToken = stage.StageToken,
+                        HasProposal = true,
+                        // Backfill cannot clear a start; posting the row would replace the clear.
+                        IsCarriedForward = item.ClearsActualStart
+                    }
+                    : stage)
+                .ToArray()
+        };
+    }
 }
 
 public sealed class BackfillStageViewModel
@@ -94,6 +136,12 @@ public sealed class BackfillStageViewModel
 
     // Stored row token when rendered (ActualStageToken).
     public string? StageToken { get; init; }
+
+    // Prefilled from the pending proposal rather than from the official row.
+    public bool HasProposal { get; init; }
+
+    // Shown read-only and not posted, so the server carries the pending item forward.
+    public bool IsCarriedForward { get; init; }
 
     public string? AutoCompletedFromName =>
         string.IsNullOrWhiteSpace(AutoCompletedFromCode)

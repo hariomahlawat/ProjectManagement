@@ -23,17 +23,19 @@ namespace ProjectManagement.Tests;
 /// <summary>
 /// Direct Actual-date publication through the real EditActuals handler. From Phase
 /// D-2 only Admin and HoD publish directly, and that authority supersedes the PO
-/// role; the assigned PO-only user is told approval is required, and every other
+/// role. The assigned PO-only user submits for approval instead (D-3c), so a post from
+/// a direct-publication form is refused as "access changed"; every other
 /// PO-only or read-only user is forbidden. Refusals write nothing.
 /// </summary>
 public sealed class EditActualsAuthorizationTests
 {
     private const string Allowed = "allowed";
-    private const string ApprovalRequired = "approval-required";
+    // A PO-only post from a form rendered for direct publication (Phase D-3c).
+    private const string AccessChanged = "access-changed";
     private const string Forbidden = "forbidden";
 
     [Theory]
-    [InlineData("Project Officer", true, ApprovalRequired)]
+    [InlineData("Project Officer", true, AccessChanged)]
     [InlineData("Project Officer", false, Forbidden)]
     [InlineData("HoD", false, Allowed)]
     [InlineData("Admin", false, Allowed)]
@@ -60,10 +62,10 @@ public sealed class EditActualsAuthorizationTests
             return;
         }
 
-        if (outcome == ApprovalRequired)
+        if (outcome == AccessChanged)
         {
             Assert.IsType<RedirectToPageResult>(result);
-            Assert.Equal(ActualsApprovalRequiredException.UserMessage, page.TempData["Error"]);
+            Assert.Equal(EditActualsModel.AccessChangedMessage, page.TempData["Error"]);
             Assert.False(page.TempData.ContainsKey("Flash"));
         }
         else
@@ -99,7 +101,7 @@ public sealed class EditActualsAuthorizationTests
     {
         foreach (var source in new[] { "none", "draft", "published" })
         {
-            yield return [source, "Project Officer", true, ApprovalRequired];
+            yield return [source, "Project Officer", true, AccessChanged];
             yield return [source, "Project Officer", false, Forbidden];
             yield return [source, "HoD", false, Allowed];
             yield return [source, "Admin", false, Allowed];
@@ -111,10 +113,10 @@ public sealed class EditActualsAuthorizationTests
     // A refused post writes nothing; an approval-required refusal says so.
     private static void AssertRefusal(IActionResult result, EditActualsModel page, string outcome)
     {
-        if (outcome == ApprovalRequired)
+        if (outcome == AccessChanged)
         {
             Assert.IsType<RedirectToPageResult>(result);
-            Assert.Equal(ActualsApprovalRequiredException.UserMessage, page.TempData["Error"]);
+            Assert.Equal(EditActualsModel.AccessChangedMessage, page.TempData["Error"]);
             return;
         }
 
