@@ -3404,6 +3404,7 @@ button.project-intelligence-card--tot:focus-visible {
     --v6-surface: var(--pm-card, #fff);
     --v6-text: var(--pm-text-strong, #0f172a);
     --v6-tile: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, var(--v6-surface));
+    --v6-input: var(--v6-surface);
     --v6-shadow: rgba(15, 23, 42, .05);
     --v6-shadow-strong: rgba(15, 23, 42, .1);
     --v6-accent: var(--pm-accent-blue, #3b82f6);
@@ -3770,6 +3771,10 @@ button.project-intelligence-card--tot:focus-visible {
     border-radius: .6rem;
     border-color: color-mix(in srgb, var(--portfolio-border) 90%, var(--portfolio-muted));
 }
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) :is(.form-control, .form-select):not(:disabled) {
+    background-color: var(--v6-input);
+    color: var(--v6-text);
+}
 :is(.project-portfolio .offcanvas, .project-portfolio .modal) .input-group > :not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 :is(.project-portfolio .offcanvas, .project-portfolio .modal) .input-group > :not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 :is(.project-portfolio .offcanvas, .project-portfolio .modal) .input-group-text {
@@ -3897,18 +3902,26 @@ button.project-intelligence-card--tot:focus-visible {
     .project-portfolio .remarks-body { padding-left: 0; }
 }
 
-/* Dark theme (planned): only the section tokens change. The site has no dark palette yet
-   (it pins --bs-body-bg light), so these slate values stand in until the site theme
-   provides tokens; then point them at those tokens. */
+/* Dark theme (planned): neutral graphite, not navy; blue is an accent only. Values and
+   rationale: docs/ux/dark-theme-palette.md. The site has no dark palette yet (it pins
+   --bs-body-bg light), so these literals stand in; point them at site tokens later. */
+[data-bs-theme="dark"] :is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) {
+    color-scheme: dark;
+}
 [data-bs-theme="dark"] :is(.project-portfolio, #recordCompletenessModal, #discardDraftModal) {
-    --v6-surface: #0f172a;
-    --v6-text: #e2e8f0;
-    --v6-tile: #1e293b;
-    --v6-accent-soft: color-mix(in srgb, var(--v6-accent) 22%, #0f172a);
+    --v6-surface: #16181b;
+    --v6-tile: #1e2125;
+    --v6-input: #1e2125;
+    --v6-text: #e6e8eb;
+    --v6-accent: #6ea8fe;
+    --v6-accent-soft: color-mix(in srgb, #6ea8fe 16%, #16181b);
+    --v6-good: #4ade80;
+    --v6-fair: #fbbf24;
+    --v6-poor: #f87171;
     --v6-shadow: rgba(0, 0, 0, .35);
-    --v6-shadow-strong: rgba(0, 0, 0, .5);
-    --portfolio-border: #334155;
-    --portfolio-muted: #94a3b8;
+    --v6-shadow-strong: rgba(0, 0, 0, .55);
+    --portfolio-border: #2c3035;
+    --portfolio-muted: #9aa0a6;
 }
 
 @media (prefers-reduced-motion: reduce) {
