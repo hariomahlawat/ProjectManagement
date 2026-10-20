@@ -330,6 +330,8 @@ public sealed class ActualCorrectionEndToEndTests
         // The PO is told the official dates moved and the update must be revised.
         var reopened = await EditorAsync(po);
         Assert.Contains("Official dates changed for IPA after you submitted", reopened.Body, StringComparison.Ordinal);
+        // The form is marked resubmittable, so actuals-edit.js enables Submit without edits.
+        Assert.Contains("data-actuals-resubmit=\"true\"", await po.GetStringAsync(Overview), StringComparison.Ordinal);
 
         // A newly assigned PO sees the same warning without being named as the submitter.
         await using (var db = host.NewContext())
@@ -338,10 +340,26 @@ public sealed class ActualCorrectionEndToEndTests
             await db.SaveChangesAsync();
         }
 
-        var newLead = await EditorAsync(host.ClientFor(OtherPo, "Project Officer"));
+        var newLeadClient = host.ClientFor(OtherPo, "Project Officer");
+        var newLead = await EditorAsync(newLeadClient);
         Assert.Contains("Official dates changed for IPA after it was submitted", newLead.Body, StringComparison.Ordinal);
         Assert.Contains("by the previous Project Officer", newLead.Body, StringComparison.Ordinal);
-        await AssertOfficialAsync(host, StageCodes.IPA, start: Jan(13), logs: 1);
+
+        // Recovery: the PO resubmits the proposal unchanged. It is recorded again against the
+        // new official dates (a new revision, not "Unchanged") and becomes approvable.
+        Assert.Contains("Submitted for HoD or Admin approval (revision 2)", await PostAndFollowAsync(newLeadClient, newLead), StringComparison.Ordinal);
+        await using (var db = host.NewContext())
+        {
+            var rebased = await db.ActualCorrectionRevisions.Include(item => item.Items)
+                .SingleAsync(item => item.Status == ActualCorrectionRevisionStatus.Pending);
+            var item = Assert.Single(rebased.Items);
+            Assert.Equal((2, (DateOnly?)Jan(13), (DateOnly?)Jan(11)), (rebased.RevisionNo, item.BeforeActualStart, item.ProposedActualStart));
+        }
+
+        var fresh = await hod.GetStringAsync($"/Approvals/Pending/ActualCorrection/{await PendingRevisionIdAsync(host)}");
+        Assert.DoesNotMatch(new Regex(@"value=""Approve""[^>]*disabled"), HtmlForm.Find(fresh, "data-approval-form").Body);
+        Assert.Contains("Official dates were updated for IPA", await DecideAsync(hod, fresh, "Approve", null), StringComparison.Ordinal);
+        await AssertOfficialAsync(host, StageCodes.IPA, start: Jan(11), logs: 2);
     }
 
     // SECTION: Helpers

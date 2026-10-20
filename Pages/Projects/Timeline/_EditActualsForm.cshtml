@@ -23,6 +23,7 @@
       asp-route-id="@Model?.ProjectId"
       class="actuals-editor d-flex flex-column h-100 gap-3"
       data-actuals-form
+      data-actuals-resubmit="@(proposalSubmission && pending is { ChangedStageCodes.Count: > 0 } ? "true" : null)"
       data-today="@todayIso">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
