@@ -31,6 +31,9 @@ public sealed class PublishScriptMigrationManifestContractTests
         Assert.Contains("function Assert-ApplicationMigrationManifest", script, StringComparison.Ordinal);
         Assert.Contains(@"\[Migration\(""([^""]+)""\)\]", script, StringComparison.Ordinal);
         Assert.Contains("CompareOrdinal", script, StringComparison.Ordinal);
+        Assert.Contains("Duplicate [Migration] IDs", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sort-Object -Unique", script, StringComparison.Ordinal);
+        Assert.Contains("$publishedManifest = @(Read-MigrationManifest", script, StringComparison.Ordinal);
         Assert.Contains("$manifest = Assert-ApplicationMigrationManifest", script, StringComparison.Ordinal);
         Assert.Contains(
             "($publishedManifest -join \"`n\") -cne ($manifest -join \"`n\")",

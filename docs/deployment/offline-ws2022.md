@@ -140,7 +140,8 @@ and Compendium PDF self-test validation:
 
 Before publishing, the script checks that `Migrations/immutable-migration-ids.txt` is non-empty,
 has no duplicate IDs, is in ascending order and lists exactly the `[Migration("...")]` IDs declared
-under `Migrations/`, so its last entry is the newest migration. After publishing, it checks that the
+under `Migrations/`, so its last entry is the newest migration. It also stops if two migration
+source files declare the same ID. After publishing, it checks that the
 published copy of the manifest is identical to the source manifest. If either check fails, it stops
 with an error. The check reads the repository, so adding a migration through
 `tools/Add-PrismMigration.ps1` needs no script change.

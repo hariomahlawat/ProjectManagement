@@ -22,7 +22,8 @@ function Read-MigrationManifest([string] $manifestPath) {
 # [Migration("...")] identifiers declared under Migrations/ (so its last entry is the
 # newest migration). Assembly-level parity is covered by ApplicationDatabaseMigrationsTests.
 function Assert-ApplicationMigrationManifest([string] $manifestPath, [string] $migrationsDirectory) {
-    $manifest = Read-MigrationManifest $manifestPath
+    # @() keeps a single-entry manifest an array; PowerShell unrolls returned arrays.
+    $manifest = @(Read-MigrationManifest $manifestPath)
     if ($manifest.Count -eq 0) {
         throw "Application migration manifest is incomplete. '$manifestPath' contains no migration IDs."
     }
@@ -41,13 +42,18 @@ function Assert-ApplicationMigrationManifest([string] $manifestPath, [string] $m
     $sourceIds = [string[]]@(Get-ChildItem -Path $migrationsDirectory -Filter "*.cs" -File |
         Select-String -Pattern '\[Migration\("([^"]+)"\)\]' -AllMatches |
         ForEach-Object { $_.Matches } |
-        ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object -Unique -CaseSensitive)
-    [Array]::Sort($sourceIds, [StringComparer]::Ordinal)
+        ForEach-Object { $_.Groups[1].Value })
 
     if ($sourceIds.Count -eq 0) {
         throw "Application migration sources are missing under '$migrationsDirectory'."
     }
+
+    # Reject duplicate declarations before comparing; EF cannot represent two migrations sharing an ID.
+    $duplicateSourceIds = @($sourceIds | Group-Object -CaseSensitive | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+    if ($duplicateSourceIds.Count -gt 0) {
+        throw "Application migration sources are invalid. Duplicate [Migration] IDs: $($duplicateSourceIds -join ', ')."
+    }
+    [Array]::Sort($sourceIds, [StringComparer]::Ordinal)
 
     $missingFromManifest = @($sourceIds | Where-Object { $manifest -cnotcontains $_ })
     $missingFromSources = @($manifest | Where-Object { $sourceIds -cnotcontains $_ })
@@ -196,7 +202,7 @@ try {
         throw "Published web.config does not contain the required IIS request limit."
     }
 
-    $publishedManifest = Read-MigrationManifest (Join-Path $publishRoot "Migrations/immutable-migration-ids.txt")
+    $publishedManifest = @(Read-MigrationManifest (Join-Path $publishRoot "Migrations/immutable-migration-ids.txt"))
     if (($publishedManifest -join "`n") -cne ($manifest -join "`n")) {
         throw "Published migration manifest is incomplete. Expected $($manifest.Count) IDs ending in $($manifest[-1]) but found $($publishedManifest.Count)."
     }
