@@ -17,9 +17,28 @@
     var disableAttr = isLocked ? "disabled" : null;
     var exactHistoricalCount = Model.Exact.Rows.Count(row => row.Status is StageStatus.Completed or StageStatus.Skipped);
     var durationHistoricalCount = Model.Durations.Rows.Count(row => row.Status is StageStatus.Completed or StageStatus.Skipped);
+    // A refused post's messages describe the tab it came from (the active one); mark only its rows.
 }
 
 <div class="d-flex flex-column h-100">
+    @if (Model.SubmissionErrors.Count > 0)
+    {
+        @* The server's planner validation decides; these are its messages for the refused post. *@
+        <div class="alert alert-danger mb-3" role="alert" tabindex="-1" data-plan-submission-errors @(Model.RestoredSubmission ? "data-plan-restored" : null)>
+            <div class="fw-semibold">
+                Nothing was saved.
+                @(Model.RestoredSubmission
+                    ? "Your entries are shown below. Correct the stages named here and try again."
+                    : "The plan changed since you opened it, so the current plan is shown. Review it and enter your changes again.")
+            </div>
+            <ul class="small mb-0 mt-1">
+                @foreach (var submissionError in Model.SubmissionErrors)
+                {
+                    <li>@submissionError</li>
+                }
+            </ul>
+        </div>
+    }
     @if (!isDirectSaveRole && state.HasPendingSubmission && state.PendingOwnedByCurrentUser)
     {
         <div class="alert alert-info mb-3" role="status">
@@ -64,16 +83,14 @@
     @if (!isDirectSaveRole && !isLocked && state.CanDiscardDraft && state.Status == PlanVersionStatus.Draft)
     {
         <div class="alert alert-secondary mb-3" role="status">
-            <div class="fw-semibold">Draft saved</div>
+            <div class="fw-semibold">Unsubmitted draft</div>
             <div class="small text-muted">
-                @if (state.LastSavedOn is DateTimeOffset savedOn)
+                @* PlanVersion records when the draft was created, not each later save. *@
+                @if (state.LastSavedOn is DateTimeOffset startedOn)
                 {
-                    <span>Your last save was on @savedOn.ToLocalTime().ToString("dd MMM yyyy HH:mm").</span>
+                    <span>Started on @startedOn.ToLocalTime().ToString("dd MMM yyyy HH:mm").</span>
                 }
-                else
-                {
-                    <span>You can continue editing or submit for approval when ready.</span>
-                }
+                <span>Saving keeps it private; it goes to the HoD only when you choose Save &amp; request approval.</span>
             </div>
         </div>
     }
@@ -143,7 +160,7 @@
                             }
 
                             <partial name="Projects/Timeline/_PlanExactRow"
-                                     model="@(new PlanExactRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
+                                     model="@(new PlanExactRowRenderVm { Row = row, Index = i, IsDisabled = isLocked, Errors = exactActive ? Model.ErrorsFor(row.Name) : Array.Empty<string>() })" />
                         }
                     </div>
 
@@ -161,7 +178,7 @@
                                     }
 
                                     <partial name="Projects/Timeline/_PlanExactRow"
-                                             model="@(new PlanExactRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
+                                             model="@(new PlanExactRowRenderVm { Row = row, Index = i, IsDisabled = isLocked, Errors = exactActive ? Model.ErrorsFor(row.Name) : Array.Empty<string>() })" />
                                 }
                             </div>
                         </details>
@@ -237,7 +254,7 @@
                             }
 
                             <partial name="Projects/Timeline/_PlanDurationRow"
-                                     model="@(new PlanDurationRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
+                                     model="@(new PlanDurationRowRenderVm { Row = row, Index = i, IsDisabled = isLocked, Errors = durationsActive ? Model.ErrorsFor(row.Name) : Array.Empty<string>() })" />
                         }
                     </div>
 
@@ -255,7 +272,7 @@
                                     }
 
                                     <partial name="Projects/Timeline/_PlanDurationRow"
-                                             model="@(new PlanDurationRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
+                                             model="@(new PlanDurationRowRenderVm { Row = row, Index = i, IsDisabled = isLocked, Errors = durationsActive ? Model.ErrorsFor(row.Name) : Array.Empty<string>() })" />
                                 }
                             </div>
                         </details>

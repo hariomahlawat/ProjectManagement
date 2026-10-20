@@ -5,6 +5,7 @@ public sealed class PlanExactRowRenderVm
     public PlanEditVm.PlanEditRow Row { get; init; } = new();
     public int Index { get; init; }
     public bool IsDisabled { get; init; }
+    public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
 }
 
 public sealed class PlanDurationRowRenderVm
@@ -12,4 +13,5 @@ public sealed class PlanDurationRowRenderVm
     public PlanDurationRowVm Row { get; init; } = new();
     public int Index { get; init; }
     public bool IsDisabled { get; init; }
+    public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
 }

@@ -192,6 +192,35 @@
     }
   };
 
+  // SECTION: Explicit clear of a Completed stage's recorded start (discovery C3.4)
+  // The toggle only drives the start field: a blank start over a recorded one is what the
+  // server reads as a clear, and validateRow still derives ClearActualStart from the field.
+  rows.forEach((row) => {
+    const toggle = row.querySelector('[data-clear-start-toggle]');
+    const startInput = row.querySelector('[data-field="start"]');
+    if (!(toggle instanceof HTMLInputElement) || !(startInput instanceof HTMLInputElement)) {
+      return;
+    }
+    let beforeClear = startInput.value;
+    toggle.addEventListener('change', () => {
+      if (toggle.checked) {
+        if (startInput.value) {
+          beforeClear = startInput.value;
+        }
+        startInput.value = '';
+      } else {
+        startInput.value = beforeClear || row.dataset.officialStart || '';
+      }
+      startInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    startInput.addEventListener('input', () => {
+      if (startInput.value) {
+        beforeClear = startInput.value;
+      }
+      toggle.checked = !startInput.value;
+    });
+  });
+
   form.addEventListener('input', (event) => {
     if (event.target === noteInput) {
       refreshState();

@@ -615,6 +615,12 @@ namespace ProjectManagement.Pages.Projects
                 CurrentUserId,
                 CanPublishActualsDirectly ? ActualsSubmissionMode.Direct
                     : CanSubmitActualProposals ? ActualsSubmissionMode.Proposal : null);
+            // A reopened editor shows the refused post's messages itself; repeating them
+            // in the page alert behind the panel only duplicates them (discovery C3.3).
+            if (PlanEdit.SubmissionErrors.Count > 0 || ActualsEditor.SubmissionErrors.Count > 0)
+            {
+                TempData.Remove("Error");
+            }
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm

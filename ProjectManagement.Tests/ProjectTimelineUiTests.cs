@@ -1,5 +1,6 @@
 using ProjectManagement.Tests.Infrastructure;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -651,6 +652,142 @@ public class ProjectTimelineUiTests
             new TempDataDictionary(httpContext, tempDataProvider), writer, new HtmlHelperOptions());
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
+    }
+
+    // PO Timeline Increment 2b: a refused planner post shows its messages inside the panel.
+    [Fact]
+    public async Task PlanEditor_RefusedPost_ShowsMessagesInThePanel()
+    {
+        var editor = new PlanEditorVm
+        {
+            Exact = new PlanEditVm { ProjectId = 7 },
+            Durations = new PlanDurationVm { ProjectId = 7 },
+            ActiveMode = PlanEditorModes.Exact,
+            SubmissionErrors = new[] { "For Feasibility Study, Start date cannot be after Due date." },
+            RestoredSubmission = true
+        };
+
+        var html = await RenderPartialAsync("/Pages/Projects/Timeline/_EditPlanForm.cshtml", editor);
+
+        Assert.Contains("data-plan-submission-errors", html, StringComparison.Ordinal);
+        Assert.Contains("data-plan-restored", html, StringComparison.Ordinal);
+        Assert.Matches(@"Nothing was saved\.\s+Your entries are shown below\.", html);
+        Assert.Contains("<li>For Feasibility Study, Start date cannot be after Due date.</li>", html, StringComparison.Ordinal);
+
+        var current = await RenderPartialAsync("/Pages/Projects/Timeline/_EditPlanForm.cshtml", new PlanEditorVm
+        {
+            Exact = new PlanEditVm { ProjectId = 7 },
+            Durations = new PlanDurationVm { ProjectId = 7 },
+            SubmissionErrors = new[] { "This timeline draft changed in another session. Reload before saving." }
+        });
+        Assert.Contains("the current plan is shown", current, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-plan-restored", current, StringComparison.Ordinal);
+
+        var clean = await RenderPartialAsync("/Pages/Projects/Timeline/_EditPlanForm.cshtml", new PlanEditorVm
+        {
+            Exact = new PlanEditVm { ProjectId = 7 },
+            Durations = new PlanDurationVm { ProjectId = 7 }
+        });
+        Assert.DoesNotContain("data-plan-submission-errors", clean, StringComparison.Ordinal);
+    }
+
+    // PO Timeline Increment 2b/C5: the named stage is marked, and every stage field carries
+    // its stage name for screen readers (the Duration input had no label at all).
+    [Fact]
+    public async Task PlanEditorRows_MarkTheirErrorsAndNameTheirStage()
+    {
+        var exact = await RenderPartialAsync("/Pages/Projects/Timeline/_PlanExactRow.cshtml", new PlanExactRowRenderVm
+        {
+            Row = new PlanEditVm.PlanEditRow { Code = "FS", Name = "Feasibility Study", PlannedStart = new DateOnly(2026, 3, 10) },
+            Index = 0,
+            Errors = new[] { "For Feasibility Study, Start date cannot be after Due date." }
+        });
+        Assert.Matches("id=\"ExactRows_0__PlannedStart\"[^>]*aria-invalid=\"true\"[^>]*aria-describedby=\"ExactRows_0__Errors\"", exact);
+        Assert.Contains("id=\"ExactRows_0__Errors\"", exact, StringComparison.Ordinal);
+        Assert.Contains("Planned start<span class=\"visually-hidden\"> for Feasibility Study</span>", exact, StringComparison.Ordinal);
+        Assert.Contains("data-plan-stage-code=\"FS\"", exact, StringComparison.Ordinal);
+
+        var valid = await RenderPartialAsync("/Pages/Projects/Timeline/_PlanExactRow.cshtml", new PlanExactRowRenderVm
+        {
+            Row = new PlanEditVm.PlanEditRow { Code = "SOW", Name = "SOW Vetting" },
+            Index = 1
+        });
+        Assert.DoesNotContain("aria-invalid", valid, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-plan-row-error", valid, StringComparison.Ordinal);
+
+        var duration = await RenderPartialAsync("/Pages/Projects/Timeline/_PlanDurationRow.cshtml", new PlanDurationRowRenderVm
+        {
+            Row = new PlanDurationRowVm { Code = "FS", Name = "Feasibility Study", DurationDays = 0 },
+            Index = 0,
+            Errors = new[] { "Duration for Feasibility Study must be a positive number of days." }
+        });
+        Assert.Contains("<label class=\"input-group-text\" for=\"DurationRows_0__DurationDays\"", duration, StringComparison.Ordinal);
+        Assert.Contains("Duration (days)<span class=\"visually-hidden\"> for Feasibility Study</span>", duration, StringComparison.Ordinal);
+        Assert.Matches("id=\"DurationRows_0__DurationDays\"[^>]*aria-invalid=\"true\"", duration);
+    }
+
+    // PO Timeline Increment 2c: an explicit clear control, official values beside the proposal,
+    // and the values a rejected correction proposed, for reference.
+    [Fact]
+    public async Task ActualsEditor_ShowsClearControlOfficialValuesAndRejectedProposal()
+    {
+        var proposal = new ActualsEditorVm
+        {
+            ProjectId = 7,
+            Today = new DateOnly(2026, 3, 1),
+            BaselineVersion = 1,
+            Rows = new[]
+            {
+                new ActualsEditorRowVm
+                {
+                    StageCode = "SOW", StageName = "SOW Vetting", Status = StageStatus.Completed, IsEditable = true,
+                    ActualStart = new DateOnly(2026, 1, 21), CompletedOn = new DateOnly(2026, 2, 10), StageToken = "t-sow",
+                    HasProposal = true, ProposedActualStart = null, ProposedCompletedOn = new DateOnly(2026, 2, 12), ProposalClearsStart = true
+                },
+                new ActualsEditorRowVm
+                {
+                    StageCode = "TEC", StageName = "Technical Evaluation", Status = StageStatus.InProgress, IsEditable = true,
+                    ActualStart = new DateOnly(2026, 2, 20), StageToken = "t-tec"
+                }
+            }
+        };
+
+        var html = await RenderActualsEditorAsync(proposal, direct: false);
+
+        // A completed stage with a recorded start can be cleared explicitly; an in-progress one cannot.
+        Assert.Matches("id=\"actual-start-SOW-clear\"[^>]*data-clear-start-toggle[^>]*checked", html);
+        Assert.DoesNotContain("actual-start-TEC-clear", html, StringComparison.Ordinal);
+        Assert.Contains("data-actuals-official-start>Official: 21 Jan 2026<", html, StringComparison.Ordinal);
+        Assert.Contains("data-actuals-official-completed>Official: 10 Feb 2026<", html, StringComparison.Ordinal);
+        // The server contract is unchanged: the hidden clear flag is still posted.
+        Assert.Contains("name=\"Input.Rows[0].ClearActualStart\" value=\"true\"", html, StringComparison.Ordinal);
+
+        var rejected = new ActualsEditorVm
+        {
+            ProjectId = 7,
+            Today = new DateOnly(2026, 3, 1),
+            BaselineVersion = 1,
+            Rows = new[]
+            {
+                new ActualsEditorRowVm
+                {
+                    StageCode = "SOW", StageName = "SOW Vetting", Status = StageStatus.Completed, IsEditable = true,
+                    ActualStart = new DateOnly(2026, 1, 21), CompletedOn = new DateOnly(2026, 2, 10), StageToken = "t-sow"
+                }
+            },
+            LastRejection = new ActualRejectionNoticeVm(1, new DateTimeOffset(2026, 2, 20, 0, 0, 0, TimeSpan.Zero), "Attach minutes", true,
+                new Dictionary<string, ActualRejectedItemVm>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["SOW"] = new ActualRejectedItemVm(null, new DateOnly(2026, 2, 12), ClearsActualStart: true)
+                })
+        };
+
+        var rejectedHtml = await RenderActualsEditorAsync(rejected, direct: false);
+
+        Assert.Contains("Rejected proposal: start cleared · completed 12 Feb 2026.", System.Net.WebUtility.HtmlDecode(rejectedHtml), StringComparison.Ordinal);
+        // The rows stay official after a rejection.
+        Assert.Matches("id=\"actual-completed-SOW\"[^>]*value=\"2026-02-10\"", rejectedHtml);
+        Assert.DoesNotMatch("id=\"actual-start-SOW-clear\"[^>]*checked", rejectedHtml);
     }
 
     private static Task<string> RenderActualsEditorAsync(ActualsEditorVm model, bool direct)

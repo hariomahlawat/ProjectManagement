@@ -1,3 +1,96 @@
+// SECTION: Unsaved-changes guard and remembered tab (discovery C3.6, PO Timeline Increment 2d)
+(function () {
+  const offcanvas = document.getElementById('offcanvasPlanEdit');
+  if (!offcanvas) {
+    return;
+  }
+
+  const forms = Array.from(offcanvas.querySelectorAll('form[data-plan-edit-form]'));
+  if (forms.length === 0) {
+    return;
+  }
+
+  // A form is dirty from its first edit until it is submitted or (Durations) autosaved.
+  const dirty = new Set();
+  let leaving = false;
+  const markDirty = (event) => {
+    if (event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLSelectElement ||
+        event.target instanceof HTMLTextAreaElement) {
+      dirty.add(event.currentTarget);
+    }
+  };
+
+  // A refused post reopened the editor with the user's entries: they are not saved yet.
+  if (offcanvas.querySelector('[data-plan-restored]')) {
+    const activePane = offcanvas.querySelector('.tab-pane.active');
+    forms.filter((form) => !activePane || activePane.contains(form)).forEach((form) => dirty.add(form));
+  }
+
+  forms.forEach((form) => {
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+    form.addEventListener('plan:autosaved', () => dirty.delete(form));
+    form.addEventListener('submit', (event) => {
+      if (event.defaultPrevented || leaving) {
+        return;
+      }
+      // Each tab posts only its own form, so edits on the other tab would be dropped silently.
+      const otherDirty = forms.some((other) => other !== form && dirty.has(other));
+      if (otherDirty && !window.confirm('Your unsaved changes on the other tab will not be included. Continue?')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      leaving = true;
+    });
+  });
+
+  offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
+    if (leaving || dirty.size === 0) {
+      return;
+    }
+    if (!window.confirm('You have unsaved changes in the planner. Close it anyway?')) {
+      event.preventDefault();
+      return;
+    }
+    dirty.clear();
+  });
+
+  window.addEventListener('beforeunload', (event) => {
+    if (leaving || dirty.size === 0) {
+      return;
+    }
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
+  // Reopen on the tab the user last used for this project, unless a refused post
+  // reopened the editor on the tab it came from. Storage is a convenience only.
+  const projectId = forms[0].querySelector('input[name="Input.ProjectId"]')?.value;
+  const storageKey = projectId ? `prism.planEditor.tab.${projectId}` : null;
+  const tabs = Array.from(offcanvas.querySelectorAll('#plan-edit-tabs [data-bs-toggle="tab"]'));
+  tabs.forEach((tab) => tab.addEventListener('shown.bs.tab', () => {
+    try {
+      if (storageKey) window.localStorage.setItem(storageKey, tab.id);
+    } catch {
+      // Storage may be unavailable (private window, blocked site data).
+    }
+  }));
+  if (storageKey && !offcanvas.querySelector('[data-plan-submission-errors]')) {
+    let stored = null;
+    try {
+      stored = window.localStorage.getItem(storageKey);
+    } catch {
+      stored = null;
+    }
+    const remembered = tabs.find((tab) => tab.id === stored);
+    if (remembered && !remembered.classList.contains('active') && !remembered.disabled && window.bootstrap?.Tab) {
+      window.bootstrap.Tab.getOrCreateInstance(remembered).show();
+    }
+  }
+})();
+
 (function () {
   const offcanvas = document.getElementById('offcanvasPlanEdit');
   if (!offcanvas) {
@@ -79,6 +172,7 @@
         }
         if (version === editVersion && !submitting && !paused) {
           savedAt.textContent = `Saved at ${new Date(data.savedAt).toLocaleTimeString()}`;
+          durationsForm.dispatchEvent(new CustomEvent('plan:autosaved'));
         }
       } catch (error) {
         if (!submitting && !paused) {
@@ -136,7 +230,10 @@
     paused = true;
     cancelQueuedSave();
   };
-  offcanvas.addEventListener('hide.bs.offcanvas', pauseAutosave);
+  // The unsaved-changes guard may keep the planner open; only a real close pauses autosave.
+  offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
+    if (!event.defaultPrevented) pauseAutosave();
+  });
   offcanvas.addEventListener('show.bs.offcanvas', () => { paused = false; });
   window.addEventListener('pagehide', pauseAutosave);
 })();

@@ -920,12 +920,43 @@
         }
     }
 
+    // The field the planner should focus when it opens: the stage a timeline link named,
+    // else the first field the server marked invalid, else the refused post's messages,
+    // else the first editable field of the visible tab (the hidden tab's fields cannot take focus).
+    function resolvePlanEditFocus(container, stageCode) {
+        const pane = container.querySelector('.tab-pane.active') || container;
+        const editable = (scope) => Array.from(scope.querySelectorAll('input[type="date"], input[type="number"]'))
+            .filter((input) => !input.disabled);
+        if (stageCode) {
+            const row = Array.from(pane.querySelectorAll('[data-plan-stage-code]'))
+                .find((candidate) => candidate.getAttribute('data-plan-stage-code') === stageCode);
+            if (row) {
+                const due = row.querySelector('input[name$=".PlannedDue"]:not([disabled])');
+                const field = due || editable(row)[0];
+                if (field) {
+                    return field;
+                }
+            }
+        }
+        return pane.querySelector('[aria-invalid="true"]:not([disabled])')
+            || container.querySelector('[data-plan-submission-errors]')
+            || editable(pane)[0]
+            || null;
+    }
+
     const planEdit = document.getElementById('offcanvasPlanEdit');
     if (planEdit) {
+        // "Planned completion missing" / "Set planned completion" name the stage to edit.
+        let planFocusStage = null;
+        planEdit.addEventListener('show.bs.offcanvas', function (event) {
+            const trigger = event.relatedTarget;
+            planFocusStage = trigger instanceof Element ? trigger.getAttribute('data-plan-focus-stage') : null;
+        });
         planEdit.addEventListener('shown.bs.offcanvas', function () {
-            const firstDate = planEdit.querySelector('input[type="date"]');
-            if (firstDate) {
-                firstDate.focus();
+            const target = resolvePlanEditFocus(planEdit, planFocusStage);
+            planFocusStage = null;
+            if (target) {
+                target.focus();
             }
         });
 
@@ -939,9 +970,12 @@
     const actualsEdit = document.getElementById('offcanvasActualDates');
     if (actualsEdit) {
         actualsEdit.addEventListener('shown.bs.offcanvas', function () {
-            const firstDate = actualsEdit.querySelector('input[type="date"]');
-            if (firstDate) {
-                firstDate.focus();
+            // After a refused post, start at the server's messages rather than the first field.
+            const errors = actualsEdit.querySelector('[data-actuals-submission-errors]');
+            const firstDate = actualsEdit.querySelector('input[type="date"]:not([disabled])');
+            const target = errors || firstDate;
+            if (target) {
+                target.focus();
             }
         });
 

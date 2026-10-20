@@ -53,7 +53,7 @@ public sealed class ActualCorrectionEndToEndTests
         var reopened = await EditorAsync(po);
         Assert.Contains("Revision 1 is awaiting HoD or Admin approval", reopened.Body, StringComparison.Ordinal);
         Assert.Equal("2026-01-11", reopened.Get($"Input.Rows[{reopened.RowOf(StageCodes.IPA)}].ActualStart"));
-        Assert.Contains("Official: start 12 Jan 2026", reopened.Body, StringComparison.Ordinal);
+        Assert.Matches("data-actuals-official-start>Official: 12 Jan 2026<", reopened.Body);
 
         // C1–C3: the Decision Centre lists it and shows submitter, justification, recorded and proposed values.
         var hod = host.ClientFor(Hod, "HoD");
@@ -195,7 +195,10 @@ public sealed class ActualCorrectionEndToEndTests
 
         var page = await PostAndFollowAsync(po, reopened);
 
-        Assert.Contains("FS: Supply a start date or explicitly clear it, not both. Nothing was submitted.", page, StringComparison.Ordinal);
+        // The reopened editor shows the refusal itself; the page alert behind it is not repeated.
+        Assert.Contains("<li>FS: Supply a start date or explicitly clear it, not both.</li>", page, StringComparison.Ordinal);
+        Assert.Contains("Nothing was submitted.", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("FS: Supply a start date or explicitly clear it, not both. Nothing was submitted.", page, StringComparison.Ordinal);
         Assert.Equal(before, await RevisionSnapshotAsync(host));
         await AssertOfficialAsync(host, StageCodes.FS, start: Jan(1), logs: 0);
     }
