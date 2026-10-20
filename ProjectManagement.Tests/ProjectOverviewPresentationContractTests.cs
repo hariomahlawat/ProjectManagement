@@ -178,6 +178,15 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.Contains("data-timeline-facts", workspace, StringComparison.Ordinal);
         Assert.Contains("@portfolio.ScheduleStatus", workspace, StringComparison.Ordinal);
         Assert.Contains("@portfolio.NextAction", workspace, StringComparison.Ordinal);
+
+        // Completed and cancelled projects keep the facts (the removed card showed them for
+        // every lifecycle), under the model's historical labels; only the submission status
+        // is limited to active projects.
+        Assert.DoesNotMatch(@"@if \(isActiveLifecycle\)\s*\{\s*@\*[^*]*""Lifecycle position""", workspace);
+        Assert.Contains("portfolio.TimelinePlanLabel", workspace, StringComparison.Ordinal);
+        Assert.Contains("portfolio.ScheduleStatusLabel", workspace, StringComparison.Ordinal);
+        Assert.Contains("portfolio.NextActionLabel", workspace, StringComparison.Ordinal);
+        Assert.Matches(@"if \(isActiveLifecycle\)\s*\{\s*<partial name=""_TimelineSubmissionStatus""", workspace);
     }
 
     private static string ReadRepoFile(params string[] relativePath)

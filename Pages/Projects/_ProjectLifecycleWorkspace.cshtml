@@ -137,28 +137,38 @@
                                                 }
                                             </div>
                                         </div>
-                                        @if (isActiveLifecycle)
-                                        {
+                                        @{
                                             @* The plan, schedule and next action, next to the work (they had their own
-                                               "Lifecycle position" card, which repeated the header and this panel). *@
+                                               "Lifecycle position" card, which repeated the header and this panel).
+                                               Completed and cancelled projects keep them too, under the model's
+                                               historical labels; only the submission status is active-only. *@
                                             var planFact = project?.PlanApprovedAt is DateTimeOffset approvedAt && portfolio.PlanStatus == "Approved"
                                                 ? "Approved on " + approvedAt.ToLocalTime().ToString("dd MMM yyyy")
                                                 : portfolio.PlanStatus;
                                             <dl class="pm-timeline-facts" data-timeline-facts>
                                                 <div class="pm-timeline-facts__item">
-                                                    <dt>Plan</dt>
+                                                    <dt>@(isActiveLifecycle ? "Plan" : portfolio.TimelinePlanLabel)</dt>
                                                     <dd><strong>@planFact</strong> <span class="text-muted">@portfolio.PlanHealth</span></dd>
                                                 </div>
                                                 <div class="pm-timeline-facts__item@(portfolio.CurrentStageOverdueDays.HasValue ? " is-attention" : string.Empty)">
-                                                    <dt>Schedule</dt>
+                                                    <dt>@(isActiveLifecycle ? "Schedule" : portfolio.ScheduleStatusLabel)</dt>
                                                     <dd><strong>@portfolio.ScheduleStatus</strong> <span class="text-muted">@portfolio.ScheduleDetail</span></dd>
                                                 </div>
                                                 <div class="pm-timeline-facts__item">
-                                                    <dt>Next</dt>
-                                                    <dd><strong>@portfolio.NextAction</strong></dd>
+                                                    <dt>@(isActiveLifecycle ? "Next" : portfolio.NextActionLabel)</dt>
+                                                    <dd>
+                                                        <strong>@portfolio.NextAction</strong>
+                                                        @if (!isActiveLifecycle)
+                                                        {
+                                                            <span class="text-muted">@portfolio.NextActionDetail</span>
+                                                        }
+                                                    </dd>
                                                 </div>
                                             </dl>
-                                            <partial name="_TimelineSubmissionStatus" model="submissionStatus" />
+                                            if (isActiveLifecycle)
+                                            {
+                                                <partial name="_TimelineSubmissionStatus" model="submissionStatus" />
+                                            }
                                         }
                                         @if (isActiveLifecycle && hasMyDraft)
                                         {
