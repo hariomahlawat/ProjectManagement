@@ -2263,10 +2263,12 @@ button.project-intelligence-card:hover {
     .project-lifecycle-panel .pm-panel-switch-slot { align-self: stretch; }
 }
 
-/* Work first: the Timeline (the Project Officer's work area) takes the wide track and the
-   project details the narrower one; single-column order follows the markup. */
-.project-portfolio-layout--work-first {
-    grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 1fr);
+/* Desktop keeps the Timeline/Remarks panel in the right-hand column at its usual width,
+   with project details on the left. The markup lists the Timeline first only so that, in
+   the single-column layout (below 74rem), it follows the header directly. */
+@media (min-width: 74.01rem) {
+    .project-portfolio-layout--work-first > .project-portfolio-work { grid-column: 2; grid-row: 1; }
+    .project-portfolio-layout--work-first > .project-portfolio-details { grid-column: 1; grid-row: 1; }
 }
 
 /* V5: editorial project profile flow; description wraps below the cover */

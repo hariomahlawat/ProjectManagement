@@ -158,9 +158,9 @@ public sealed class ProjectOverviewPresentationContractTests
     [Fact]
     public void Overview_PutsTheTimelineFirstAndFoldsLifecyclePositionIntoIt()
     {
-        // The Timeline is the Project Officer's work area: it is the first (wide) column and,
-        // on narrow screens, comes straight after the header. Its plan, schedule and next-action
-        // facts replace the separate "Lifecycle position" card.
+        // The Timeline comes first in the markup so that, on narrow screens, it follows the
+        // header directly (desktop CSS keeps it in the right-hand column). Its plan, schedule
+        // and next-action facts replace the separate "Lifecycle position" card.
         var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
         var work = overview.IndexOf("project-portfolio-work", StringComparison.Ordinal);
         var details = overview.IndexOf("project-portfolio-details", StringComparison.Ordinal);
@@ -168,6 +168,11 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.True(overview.IndexOf("_ProjectLifecycleWorkspace", StringComparison.Ordinal) < details);
         Assert.True(overview.IndexOf("_ProjectOverviewCard", StringComparison.Ordinal) > details);
         Assert.DoesNotContain("_ProjectLifecyclePosition", overview, StringComparison.Ordinal);
+
+        // Desktop: the Timeline/Remarks panel stays in the right-hand column (owner decision).
+        var css = ReadRepoFile("wwwroot", "css", "pages", "project-portfolio.css");
+        Assert.Contains(".project-portfolio-layout--work-first > .project-portfolio-work { grid-column: 2; grid-row: 1; }", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: minmax(0, 1.62fr) minmax(31rem, .98fr);", css, StringComparison.Ordinal);
 
         var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
         Assert.Contains("data-timeline-facts", workspace, StringComparison.Ordinal);

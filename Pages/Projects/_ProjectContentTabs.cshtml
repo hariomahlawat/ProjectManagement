@@ -457,11 +457,11 @@
              tabindex="0">
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
+                    @* Authoring hints ("Markdown help", "Markdown optional.") live in the editor; the
+                       read view only says how long the description is. *@
                     <div class="project-content__guidance">
-                        <span>Markdown supported</span>
                         @if (Model.DescriptionWordCount > 0)
                         {
-                            <span aria-hidden="true"> · </span>
                             <span>@Model.DescriptionWordCount @descriptionWordLabel</span>
                         }
                     </div>
