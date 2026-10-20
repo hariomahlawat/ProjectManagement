@@ -2476,7 +2476,7 @@ namespace ProjectManagement.Pages.Projects
                 if (CanSubmitActualProposals
                     && await _actualProposals.GetLatestRevisionAsync(projectId, ct) is { Status: ActualCorrectionRevisionStatus.Rejected } rejected)
                 {
-                    ActualsEditor = ActualsEditor.WithLastRejection(rejected);
+                    ActualsEditor = ActualsEditor.WithLastRejection(rejected, CurrentUserId);
                 }
 
                 return;

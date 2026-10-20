@@ -119,6 +119,17 @@ public sealed class ActualCorrectionEndToEndTests
         // The PO reopening the editor learns that the correction was rejected, and why.
         var reopened = await EditorAsync(po);
         Assert.Contains("Your correction revision 1 was rejected", reopened.Body, StringComparison.Ordinal);
+
+        // After a reassignment the new PO sees the outcome attributed to the previous officer.
+        await using (var db = host.NewContext())
+        {
+            (await db.Projects.SingleAsync(project => project.Id == ProjectId)).LeadPoUserId = OtherPo;
+            await db.SaveChangesAsync();
+        }
+
+        var newLead = await EditorAsync(host.ClientFor(OtherPo, "Project Officer"));
+        Assert.Contains("The previous Project Officer's correction revision 1 was rejected", WebUtility.HtmlDecode(newLead.Body), StringComparison.Ordinal);
+        Assert.DoesNotContain("Your correction revision 1", newLead.Body, StringComparison.Ordinal);
         Assert.Contains("Use the signed register date", reopened.Body, StringComparison.Ordinal);
         Assert.Equal("2026-01-12", reopened.Get($"Input.Rows[{reopened.RowOf(StageCodes.IPA)}].ActualStart"));
     }
@@ -319,6 +330,17 @@ public sealed class ActualCorrectionEndToEndTests
         // The PO is told the official dates moved and the update must be revised.
         var reopened = await EditorAsync(po);
         Assert.Contains("Official dates changed for IPA after you submitted", reopened.Body, StringComparison.Ordinal);
+
+        // A newly assigned PO sees the same warning without being named as the submitter.
+        await using (var db = host.NewContext())
+        {
+            (await db.Projects.SingleAsync(project => project.Id == ProjectId)).LeadPoUserId = OtherPo;
+            await db.SaveChangesAsync();
+        }
+
+        var newLead = await EditorAsync(host.ClientFor(OtherPo, "Project Officer"));
+        Assert.Contains("Official dates changed for IPA after it was submitted", newLead.Body, StringComparison.Ordinal);
+        Assert.Contains("by the previous Project Officer", newLead.Body, StringComparison.Ordinal);
         await AssertOfficialAsync(host, StageCodes.IPA, start: Jan(13), logs: 1);
     }
 

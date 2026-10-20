@@ -51,7 +51,7 @@
             @if (pending.ChangedStageCodes.Count > 0)
             {
                 <div class="small mt-1 fw-semibold" data-actuals-pending-stale>
-                    Official dates changed for @string.Join(", ", pending.ChangedStageCodes) after you submitted. A HoD or Admin cannot approve this update until you review the dates below and submit again.
+                    Official dates changed for @string.Join(", ", pending.ChangedStageCodes) after @(pending.SubmittedByCurrentUser ? "you submitted" : "it was submitted"). A HoD or Admin cannot approve this update until you review the dates below and submit again.
                 </div>
             }
         </div>
@@ -59,7 +59,7 @@
     else if (proposalSubmission && Model?.LastRejection is { } rejection)
     {
         <div class="alert alert-secondary mb-0" role="status" data-actuals-last-rejection>
-            <div class="fw-semibold">Your correction revision @rejection.RevisionNo was rejected@(rejection.RejectedOn is { } on ? " on " + ProjectManagement.Infrastructure.IstClock.ToIst(on.UtcDateTime).ToString("dd MMM yyyy") : string.Empty).</div>
+            <div class="fw-semibold">@(rejection.SubmittedByCurrentUser ? "Your" : "The previous Project Officer's") correction revision @rejection.RevisionNo was rejected@(rejection.RejectedOn is { } on ? " on " + ProjectManagement.Infrastructure.IstClock.ToIst(on.UtcDateTime).ToString("dd MMM yyyy") : string.Empty).</div>
             @if (!string.IsNullOrWhiteSpace(rejection.Remarks))
             {
                 <div class="small">Reviewer's remarks: @rejection.Remarks</div>

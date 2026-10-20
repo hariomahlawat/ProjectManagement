@@ -29,14 +29,19 @@ public sealed class ActualsEditorVm
     // Phase D-3e: the assigned PO's latest revision when it was rejected and nothing is pending.
     public ActualRejectionNoticeVm? LastRejection { get; init; }
 
-    public ActualsEditorVm WithLastRejection(ActualCorrectionRevision revision) => new()
+    public ActualsEditorVm WithLastRejection(ActualCorrectionRevision revision, string? currentUserId) => new()
     {
         ProjectId = ProjectId,
         Today = Today,
         BaselineVersion = BaselineVersion,
         PendingProposal = PendingProposal,
         Rows = Rows,
-        LastRejection = new ActualRejectionNoticeVm(revision.RevisionNo, revision.ClosedOn, revision.DecisionNote)
+        LastRejection = new ActualRejectionNoticeVm(
+            revision.RevisionNo,
+            revision.ClosedOn,
+            revision.DecisionNote,
+            // After a reassignment the current PO did not submit it (K-6); say so.
+            string.Equals(revision.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
     };
 
     /// <summary>
@@ -113,7 +118,7 @@ public sealed record ActualProposalSummaryVm(
 }
 
 /// <summary>A rejected revision, so the PO can see the outcome and the reviewer's remarks.</summary>
-public sealed record ActualRejectionNoticeVm(int RevisionNo, DateTimeOffset? RejectedOn, string? Remarks);
+public sealed record ActualRejectionNoticeVm(int RevisionNo, DateTimeOffset? RejectedOn, string? Remarks, bool SubmittedByCurrentUser);
 
 /// <summary>
 /// Posted by the Actual editor and the backfill form so the server can refuse a
