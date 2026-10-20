@@ -84,6 +84,30 @@ public sealed class PlanReadServiceRejectionCurrencyTests
             (await db.PlanVersions.AsNoTracking().SingleAsync(p => p.Id == submitted.Id)).Status);
     }
 
+    [Fact]
+    public async Task Rejection_StaysWhenAnotherActorSubmitsALaterRevision()
+    {
+        await using var db = NewDatabase();
+        var approval = Approval(db);
+        var submitted = await SeedPendingAsync(db);
+        Assert.True(await approval.RejectVersionAsync(submitted.Id, "hod-user", false, true,
+            "Allow two more weeks", expectedProjectId: ProjectId));
+        // A stage-triggered realignment submits a HoD-owned revision (PlanRealignmentService).
+        db.PlanVersions.Add(new PlanVersion
+        {
+            ProjectId = ProjectId, VersionNo = 99, Status = PlanVersionStatus.PendingApproval,
+            Title = PlanVersion.ProjectTimelineTitle,
+            CreatedByUserId = "hod-user", SubmittedByUserId = "hod-user",
+            SubmittedOn = new DateTimeOffset(2026, 10, 21, 12, 0, 0, TimeSpan.Zero)
+        });
+        await db.SaveChangesAsync();
+
+        var state = (await new PlanReadService(db).GetAsync(ProjectId, Owner)).State;
+
+        Assert.NotNull(state.RejectedOn);
+        Assert.Equal("Allow two more weeks", state.RejectionNote);
+    }
+
     private static ApplicationDbContext NewDatabase() =>
         new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

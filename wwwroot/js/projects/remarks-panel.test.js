@@ -490,3 +490,17 @@ test('a network failure while loading remarks shows the load error, not an empty
     assert.match(empty.textContent, /Remarks could not be loaded\./);
     assert.ok(empty.querySelector('[data-remarks-retry]'));
 });
+
+test('a failed refresh over a shown list does not later mislabel an empty list as a load failure', async () => {
+    const { panel, window, document } = createPanelDom({ actorRole: 'ProjectOfficer' });
+    panel.toastHandler = () => { };
+    panel.state.items = [makeRemark()];
+    window.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+
+    await panel.fetchPage(1, false);
+    assert.equal(panel.state.loadFailed, false);
+
+    panel.state.items = [];
+    panel.renderList();
+    assert.equal(document.querySelector('[data-remarks-empty]').textContent.trim(), 'No remarks yet.');
+});
