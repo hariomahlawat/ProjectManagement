@@ -123,6 +123,10 @@
     return { value: '', source: '' };
   };
 
+  // The boundary each row was rendered against. A row the user has not touched is
+  // still re-checked when an edit to a predecessor moves its boundary (C7.2).
+  const initialBoundaries = new Map(rows.map((row) => [row, resolveChronologyBoundary(row).value]));
+
   const refreshChronologyBoundaries = () => {
     rows.forEach((row) => {
       const boundary = resolveChronologyBoundary(row);
@@ -160,7 +164,8 @@
       clearStartInput.value = officialStart && !startValue ? 'true' : 'false';
     }
 
-    if (!isChanged) {
+    const boundaryChanged = earliestStartValue !== (initialBoundaries.get(row) ?? '');
+    if (!isChanged && !boundaryChanged) {
       setRowError(row, '');
       return true;
     }
@@ -168,6 +173,16 @@
     const startDate = parseDate(startValue);
     const completedDate = parseDate(completedValue);
     const earliestStartDate = parseDate(earliestStartValue);
+
+    if (!isChanged) {
+      // Only chronology applies: this row's own dates and status are as recorded.
+      const unchangedDate = startDate || completedDate;
+      const conflict = unchangedDate && earliestStartDate && unchangedDate < earliestStartDate;
+      setRowError(row, conflict
+        ? `Actual dates cannot precede ${startSource} completion (${formatLocalDate(earliestStartValue)}). Same-day commencement is permitted. Adjust this stage's dates or ${startSource}'s completion.`
+        : '');
+      return !conflict;
+    }
 
     let error = '';
 
@@ -239,7 +254,8 @@
 
   const refreshState = () => {
     refreshChronologyBoundaries();
-    const allValid = rows.every(validateRow);
+    // Validate every row (no short-circuit) so each row's message stays current.
+    const allValid = rows.map(validateRow).every(Boolean);
     if (saveButton instanceof HTMLButtonElement) {
       saveButton.disabled = !allValid || !hasChanges();
     }
@@ -264,7 +280,8 @@
   });
 
   form.addEventListener('submit', (event) => {
-    const allValid = rows.every(validateRow);
+    // Validate every row (no short-circuit) so each row's message stays current.
+    const allValid = rows.map(validateRow).every(Boolean);
     if (!allValid) {
       event.preventDefault();
       const firstError = form.querySelector('[data-row-error]:not(.d-none)');
