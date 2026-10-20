@@ -47,8 +47,13 @@
     <div class="project-command-header__main">
         @if (headerCoverUrl is not null)
         {
-            <a class="project-command-header__cover" href="#project-profile-details" aria-label="Project overview and cover photo">
-                <img src="@headerCoverUrl" alt="" decoding="async" />
+            @* Same fallback contract as the overview cover (cover-photo-fallback.js): if the
+               thumbnail cannot load, the image is removed and the icon tile shows instead. *@
+            <a class="project-command-header__cover" href="#project-profile-details" aria-label="Project overview and cover photo" data-project-cover-host>
+                <img src="@headerCoverUrl" alt="" decoding="async" data-project-cover-image />
+                <span class="project-command-header__cover-fallback d-none" data-project-cover-fallback aria-hidden="true">
+                    <i class="bi bi-image"></i>
+                </span>
             </a>
         }
         <div class="project-command-header__identity">

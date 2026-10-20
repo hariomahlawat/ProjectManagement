@@ -594,6 +594,35 @@ public class ProjectTimelineUiTests
         Assert.Matches(@"data-stage-status-pill>\s*In progress\s*</span>\s*<span class=""pm-item-title", html);
     }
 
+    [Fact]
+    public async Task CurrentNotStartedStage_KeepsItsFullCard_WhileLaterStagesAreCompact()
+    {
+        // No stage is in progress, so the first unresolved stage (IPA) is the current one.
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm { Code = "FS", Name = "Feasibility Study", Status = StageStatus.Completed, SortOrder = 0, CompletedOn = new DateOnly(2026, 1, 10) },
+                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.NotStarted, SortOrder = 1 },
+                new TimelineItemVm { Code = "AON", Name = "AON", Status = StageStatus.NotStarted, SortOrder = 2 }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
+
+        string RowTag(string code)
+        {
+            var start = html.IndexOf($"id=\"timeline-stage-{code}\"", StringComparison.Ordinal);
+            return html.Substring(start, html.IndexOf('>', start) - start);
+        }
+
+        Assert.DoesNotContain("is-future", RowTag("IPA"), StringComparison.Ordinal);
+        Assert.Contains("data-stage-current=\"true\"", RowTag("IPA"), StringComparison.Ordinal);
+        Assert.Contains("is-future", RowTag("AON"), StringComparison.Ordinal);
+        Assert.Contains("data-stage-current=\"false\"", RowTag("AON"), StringComparison.Ordinal);
+    }
+
     private static async Task<string> RenderAsync(
         TimelineVm model,
         bool isHoD,

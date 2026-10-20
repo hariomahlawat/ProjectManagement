@@ -3458,6 +3458,17 @@ button.project-intelligence-card--tot:focus-visible {
     height: 100%;
     object-fit: cover;
 }
+.project-command-header__cover-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: var(--v6-accent-soft);
+    color: var(--v6-accent);
+    font-size: 1.4rem;
+}
+.project-command-header__cover-fallback.d-none { display: none !important; }
 .project-command-header__identity { flex: 1 1 auto; min-width: 0; }
 .project-command-header__title { letter-spacing: -.02em; }
 .project-command-header__meta > span {

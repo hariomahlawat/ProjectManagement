@@ -255,7 +255,8 @@
       row.classList.add('is-complete');
     } else if (normalizedStatus === 'inprogress') {
       row.classList.add('is-active');
-    } else if (normalizedStatus === 'notstarted') {
+    } else if (normalizedStatus === 'notstarted' && row.dataset.stageCurrent !== 'true') {
+      // The current stage keeps its full card even before it starts.
       row.classList.add('is-future');
     }
 
