@@ -36,6 +36,23 @@ public static class ActualStageToken
         !string.IsNullOrWhiteSpace(postedToken)
         && string.Equals(postedToken.Trim(), Compute(stage), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Whether an editor row would change the stored row: any posted value
+    /// differs from it. Only such rows need a matching token, so
+    /// non-overlapping edits to other stages can both succeed.
+    /// </summary>
+    internal static bool WouldChange(
+        ProjectStage stage,
+        DateOnly? actualStart,
+        bool clearActualStart,
+        DateOnly? completedOn)
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        return (clearActualStart && stage.ActualStart.HasValue)
+            || (actualStart.HasValue && actualStart != stage.ActualStart)
+            || (completedOn.HasValue && completedOn != stage.CompletedOn);
+    }
+
     private static string Format(DateOnly? date) =>
         date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
 }
