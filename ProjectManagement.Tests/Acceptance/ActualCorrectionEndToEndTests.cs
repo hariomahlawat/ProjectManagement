@@ -362,6 +362,36 @@ public sealed class ActualCorrectionEndToEndTests
         await AssertOfficialAsync(host, StageCodes.IPA, start: Jan(11), logs: 2);
     }
 
+    /// <summary>
+    /// A HoD publishes exactly the dates the PO proposed. Resubmitting would change nothing,
+    /// so the editor does not offer it; it directs the PO to withdraw, and that succeeds.
+    /// </summary>
+    [Fact]
+    public async Task OfficialDatesConvergedOnTheProposal_DirectThePoToWithdraw()
+    {
+        await using var host = await CreateHostAsync();
+        var po = host.ClientFor(Po, "Project Officer");
+        var editor = await EditorAsync(po);
+        editor.Set($"Input.Rows[{editor.RowOf(StageCodes.IPA)}].ActualStart", "2026-01-11");
+        await PostAndFollowAsync(po, editor);
+
+        var hod = host.ClientFor(Hod, "HoD");
+        var direct = await EditorAsync(hod);
+        direct.Set($"Input.Rows[{direct.RowOf(StageCodes.IPA)}].ActualStart", "2026-01-11");
+        Assert.Contains("Actual dates updated successfully.", await PostAndFollowAsync(hod, direct), StringComparison.Ordinal);
+
+        var page = await po.GetStringAsync(Overview);
+        Assert.Contains("The official dates now match every date in this update", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-actuals-resubmit=\"true\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("cannot approve this update until you review the dates below and submit again", page, StringComparison.Ordinal);
+
+        var withdraw = HtmlForm.Find(page, "id=\"actuals-withdraw-form\"");
+        Assert.Contains("was withdrawn. Official dates are unchanged.", await PostAndFollowAsync(po, withdraw), StringComparison.Ordinal);
+        await using var db = host.NewContext();
+        Assert.Equal(ActualCorrectionRevisionStatus.Withdrawn, (await db.ActualCorrectionRevisions.SingleAsync()).Status);
+        await AssertOfficialAsync(host, StageCodes.IPA, start: Jan(11), logs: 1);
+    }
+
     // SECTION: Helpers
     private static async Task<ActualCorrectionAcceptanceHost> CreateHostAsync() =>
         await ActualCorrectionAcceptanceHost.CreateAsync(async db =>

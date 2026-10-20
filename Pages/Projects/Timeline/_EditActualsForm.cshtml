@@ -23,7 +23,7 @@
       asp-route-id="@Model?.ProjectId"
       class="actuals-editor d-flex flex-column h-100 gap-3"
       data-actuals-form
-      data-actuals-resubmit="@(proposalSubmission && pending is { ChangedStageCodes.Count: > 0 } ? "true" : null)"
+      data-actuals-resubmit="@(proposalSubmission && pending is { NeedsResubmission: true } ? "true" : null)"
       data-today="@todayIso">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
@@ -49,7 +49,13 @@
                 Submitted @submittedDisplay@(pending.SubmittedByCurrentUser ? " by you" : " by the previous Project Officer"). The dates below include your proposed corrections; official dates are unchanged until approval.
                 Edit and submit again to revise it, or withdraw it.
             </div>
-            @if (pending.ChangedStageCodes.Count > 0)
+            @if (pending.AlreadySatisfied)
+            {
+                <div class="small mt-1 fw-semibold" data-actuals-pending-satisfied>
+                    The official dates now match every date in this update, so there is nothing left to approve. Withdraw the pending update.
+                </div>
+            }
+            else if (pending.ChangedStageCodes.Count > 0)
             {
                 <div class="small mt-1 fw-semibold" data-actuals-pending-stale>
                     Official dates changed for @string.Join(", ", pending.ChangedStageCodes) after @(pending.SubmittedByCurrentUser ? "you submitted" : "it was submitted"). A HoD or Admin cannot approve this update until you review the dates below and submit again.

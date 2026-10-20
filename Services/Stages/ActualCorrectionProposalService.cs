@@ -108,6 +108,23 @@ public sealed class ActualCorrectionProposalService
             .ToArray();
     }
 
+    /// <summary>
+    /// Whether every item's proposed values already equal the official facts (for example
+    /// a HoD published the same dates directly). Resubmitting would then change nothing,
+    /// so the only useful action is to withdraw the revision.
+    /// </summary>
+    internal static bool AlreadySatisfied(ActualCorrectionRevision revision, IEnumerable<ProjectStage> stages)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        var lookup = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+        return revision.Items.Count > 0 && revision.Items.All(item =>
+            lookup.TryGetValue(item.StageCode, out var stage)
+            && stage.ActualStart == item.ProposedActualStart
+            && stage.CompletedOn == item.ProposedCompletedOn);
+    }
+
     // SECTION: Submission and supersession
     public async Task<ActualCorrectionSubmissionResult> SubmitAsync(
         ActualCorrectionSubmission submission,

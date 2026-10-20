@@ -53,7 +53,8 @@ public sealed class ActualsEditorVm
         ActualCorrectionRevision? revision,
         string? currentUserId,
         bool prefill = true,
-        IReadOnlyList<string>? changedStageCodes = null)
+        IReadOnlyList<string>? changedStageCodes = null,
+        bool alreadySatisfied = false)
     {
         if (revision is null)
         {
@@ -68,7 +69,8 @@ public sealed class ActualsEditorVm
             BaselineVersion = BaselineVersion,
             PendingProposal = ActualProposalSummaryVm.From(revision, currentUserId) with
             {
-                ChangedStageCodes = changedStageCodes ?? Array.Empty<string>()
+                ChangedStageCodes = changedStageCodes ?? Array.Empty<string>(),
+                AlreadySatisfied = alreadySatisfied
             },
             Rows = prefill
                 ? Rows.Select(row => items.TryGetValue(row.StageCode, out var item) ? row.WithProposal(item) : row).ToArray()
@@ -112,6 +114,12 @@ public sealed record ActualProposalSummaryVm(
     /// approved until it is revised (D-3d SourceChanged).
     /// </summary>
     public IReadOnlyList<string> ChangedStageCodes { get; init; } = Array.Empty<string>();
+
+    /// <summary>The official facts already equal every proposed value; only withdrawal is useful.</summary>
+    public bool AlreadySatisfied { get; init; }
+
+    /// <summary>A changed baseline that a resubmission can fix (some correction still remains).</summary>
+    public bool NeedsResubmission => ChangedStageCodes.Count > 0 && !AlreadySatisfied;
 
     /// <summary>The submission epoch posted back as the baseline; round-trips exactly.</summary>
     public string SubmittedOnRoundTrip => SubmittedOn.ToString("O", System.Globalization.CultureInfo.InvariantCulture);

@@ -2486,7 +2486,10 @@ namespace ProjectManagement.Pages.Projects
             {
                 var stored = await _db.ProjectStages.AsNoTracking().Where(stage => stage.ProjectId == projectId).ToListAsync(ct);
                 ActualsEditor = ActualsEditor.WithPendingProposal(
-                    pending, CurrentUserId, changedStageCodes: ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored));
+                    pending,
+                    CurrentUserId,
+                    changedStageCodes: ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored),
+                    alreadySatisfied: ActualCorrectionProposalService.AlreadySatisfied(pending, stored));
                 Backfill = Backfill.WithPendingProposal(pending, CurrentUserId);
                 UnrenderedPendingActualStages = ActualsEditor.UnrenderedProposalStages(pending);
             }
