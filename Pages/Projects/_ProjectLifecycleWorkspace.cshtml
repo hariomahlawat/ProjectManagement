@@ -23,6 +23,11 @@
     var totalStages = portfolio.TotalStages;
     var progressMax = portfolio.ProgressMaximum;
     var pendingStageUpdateCount = Model.Timeline.PendingRequests.Count;
+    var submissionStatus = Model.SubmissionStatus;
+    // The status line replaces badges that would repeat it for the viewer's own items.
+    var statusShowsPlanPending = submissionStatus.Shows(TimelineSubmissionStatusVm.PlannedDatesCategory, TimelineSubmissionState.Pending);
+    var statusShowsPlanReturned = submissionStatus.Shows(TimelineSubmissionStatusVm.PlannedDatesCategory, TimelineSubmissionState.Returned);
+    var statusShowsStagePending = submissionStatus.Shows(TimelineSubmissionStatusVm.StageUpdatesCategory, TimelineSubmissionState.Pending);
     var showTimeline = Model.TimelinePanel.ShowTimeline;
     var hasRecordedStageHistory = Model.TimelinePanel.HasRecordedStageHistory;
     var defaultPanel = showTimeline
@@ -82,7 +87,7 @@
                                                 </div>
                                             </div>
                                             <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
-                                                @if (isActiveLifecycle && pendingStageUpdateCount > 0)
+                                                @if (isActiveLifecycle && pendingStageUpdateCount > 0 && !statusShowsStagePending)
                                                 {
                                                     <span class="badge text-bg-warning">
                                                         @(pendingStageUpdateCount == 1
@@ -90,7 +95,7 @@
                                                             : $"{pendingStageUpdateCount} stage updates awaiting HoD approval")
                                                     </span>
                                                 }
-                                                @if (isActiveLifecycle && pendingOwnedByCurrentUser)
+                                                @if (isActiveLifecycle && pendingOwnedByCurrentUser && !statusShowsPlanPending)
                                                 {
                                                     <span class="badge text-bg-warning">Timeline plan submitted for approval</span>
                                                 }
@@ -111,7 +116,7 @@
                                                 {
                                                     <span class="badge text-bg-warning">Another submission pending</span>
                                                 }
-                                                else if (isActiveLifecycle && hasMyDraft)
+                                                else if (isActiveLifecycle && hasMyDraft && !statusShowsPlanReturned)
                                                 {
                                                     <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
                                                 }
@@ -133,6 +138,10 @@
                                                 }
                                             </div>
                                         </div>
+                                        @if (isActiveLifecycle)
+                                        {
+                                            <partial name="_TimelineSubmissionStatus" model="submissionStatus" />
+                                        }
                                         @if (isActiveLifecycle && hasMyDraft)
                                         {
                                             <div class="d-flex flex-wrap align-items-center gap-2">

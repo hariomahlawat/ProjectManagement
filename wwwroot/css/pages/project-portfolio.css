@@ -1203,6 +1203,141 @@ button.project-intelligence-card:hover {
     padding-block: .58rem;
 }
 
+/* PO Timeline status line: the viewer's pending, returned and recently approved items. */
+.pm-timeline-status {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    font-size: .8125rem;
+}
+
+.pm-timeline-status__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .2rem .5rem;
+    min-width: 0;
+}
+
+.pm-timeline-status__category {
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.pm-timeline-status__entries {
+    display: flex;
+    flex: 1 1 16rem;
+    flex-direction: column;
+    gap: .2rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pm-timeline-status__entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .2rem .45rem;
+    min-width: 0;
+}
+
+.pm-timeline-status__note {
+    color: var(--portfolio-muted);
+    overflow-wrap: anywhere;
+}
+
+.pm-timeline-status__action {
+    font-size: inherit;
+    font-weight: 600;
+}
+
+/* Settled stages collapse into one group so the stage that needs action leads. */
+.pm-completed-group {
+    margin-bottom: .6rem;
+}
+
+.pm-completed-group__summary {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .75rem;
+    padding: .6rem .85rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .8rem;
+    background: var(--pm-card, #fff);
+    cursor: pointer;
+    list-style: none;
+}
+
+.pm-completed-group__summary::-webkit-details-marker {
+    display: none;
+}
+
+.pm-completed-group__summary::before {
+    content: "";
+    position: absolute;
+    left: -27px;
+    top: calc(50% - 6px);
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--pm-card);
+    border-radius: 50%;
+    background: var(--bs-success);
+    box-shadow: 0 0 0 2px rgba(25, 135, 84, .25);
+}
+
+.pm-completed-group__summary:hover {
+    border-color: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 30%, var(--portfolio-border));
+    background: var(--portfolio-soft);
+}
+
+.pm-completed-group__summary:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.pm-completed-group__title {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .85rem;
+    font-weight: 650;
+}
+
+.pm-completed-group__meta {
+    min-width: 0;
+    color: var(--portfolio-muted);
+    font-size: .75rem;
+}
+
+.pm-completed-group__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin-left: auto;
+    color: var(--portfolio-muted);
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.pm-completed-group__chevron {
+    transition: transform .16s ease;
+}
+
+.pm-completed-group[open] .pm-completed-group__chevron {
+    transform: rotate(180deg);
+}
+
+.pm-completed-group:not([open]) .pm-completed-group__hint-open,
+.pm-completed-group[open] .pm-completed-group__hint-closed {
+    display: none;
+}
+
+.pm-completed-group[open] > .pm-completed-group__summary {
+    margin-bottom: .6rem;
+}
+
 .project-lifecycle-panel .pm-item:not(.is-active):not(.is-complete) .pm-item-flags:empty {
     display: none;
 }

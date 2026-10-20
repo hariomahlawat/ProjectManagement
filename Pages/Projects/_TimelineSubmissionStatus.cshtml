@@ -1,0 +1,62 @@
+@model ProjectManagement.ViewModels.TimelineSubmissionStatusVm
+@using ProjectManagement.ViewModels
+@functions {
+    string BadgeClass(TimelineSubmissionState state) => state switch
+    {
+        TimelineSubmissionState.Returned => "bg-danger-subtle text-danger-emphasis border border-danger-subtle",
+        TimelineSubmissionState.Approved => "bg-success-subtle text-success-emphasis border border-success-subtle",
+        _ => "bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+    };
+
+    string BadgeLabel(TimelineSubmissionState state) => state switch
+    {
+        TimelineSubmissionState.Returned => "Returned",
+        TimelineSubmissionState.Approved => "Approved",
+        _ => "Pending"
+    };
+}
+@if (Model.HasLines)
+{
+    <section class="pm-timeline-status" aria-label="Your submissions" data-timeline-submission-status>
+        @foreach (var line in Model.Lines)
+        {
+            <div class="pm-timeline-status__line" data-timeline-status-category="@line.Category">
+                <span class="pm-timeline-status__category">@line.Category:</span>
+                <ul class="pm-timeline-status__entries">
+                    @foreach (var entry in line.Entries)
+                    {
+                        <li class="pm-timeline-status__entry" data-timeline-status-state="@entry.State.ToString().ToLowerInvariant()">
+                            <span class="badge rounded-pill @BadgeClass(entry.State)">@BadgeLabel(entry.State)</span>
+                            <span>@entry.Text</span>
+                            @if (entry.ReviewerNote is string note)
+                            {
+                                <span class="pm-timeline-status__note">Reviewer's note: “@note”</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(entry.ActionLabel))
+                            {
+                                if (!string.IsNullOrWhiteSpace(entry.OffcanvasTarget))
+                                {
+                                    <button type="button"
+                                            class="btn btn-link btn-sm p-0 align-baseline pm-timeline-status__action"
+                                            data-bs-toggle="offcanvas"
+                                            data-bs-target="@entry.OffcanvasTarget"
+                                            aria-controls="@entry.OffcanvasTarget.TrimStart('#')">@entry.ActionLabel</button>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(entry.StageCode))
+                                {
+                                    <a class="pm-timeline-status__action"
+                                       href="#timeline-stage-@entry.StageCode"
+                                       data-timeline-stage-link="@entry.StageCode">@entry.ActionLabel</a>
+                                }
+                            }
+                        </li>
+                    }
+                    @if (line.HiddenCount > 0)
+                    {
+                        <li class="pm-timeline-status__entry text-muted">and @line.HiddenCount more on the timeline below.</li>
+                    }
+                </ul>
+            </div>
+        }
+    </section>
+}

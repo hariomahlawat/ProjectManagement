@@ -83,6 +83,53 @@
         }
     }
 
+    // SECTION: Completed-stage group (PO Timeline discovery C6.1)
+    // Settled stages render inside one collapsed <details>. A deep link or a
+    // status-line link to a stage inside it must open the group first, so the
+    // stage can be scrolled to and highlighted.
+    function stageCodeFromLocation() {
+        try {
+            const stage = new URLSearchParams(window.location.search || '').get('timeline-stage');
+            if (stage && stage.trim()) return stage.trim();
+        } catch (error) {
+            // Ignore malformed query parameters.
+        }
+
+        const match = (window.location.hash || '').trim().match(/^#timeline-stage[-=]?(.+)$/i);
+        if (!match) return null;
+        try {
+            return decodeURIComponent(match[1]).trim() || null;
+        } catch (error) {
+            return match[1].trim() || null;
+        }
+    }
+
+    function revealStage(stageCode) {
+        if (!stageCode) return null;
+        const wanted = stageCode.toLowerCase();
+        const stage = Array.from(root.querySelectorAll('[data-stage-row]'))
+            .find((element) => (element.getAttribute('data-stage-row') || '').toLowerCase() === wanted);
+        const group = stage?.closest('[data-timeline-completed-group]');
+        if (group && !group.open) {
+            group.open = true;
+        }
+        return stage || null;
+    }
+
+    function revealStageFromLocation(scroll) {
+        const stage = revealStage(stageCodeFromLocation());
+        if (!stage || !scroll) return;
+        stage.scrollIntoView({
+            behavior: prefersReducedMotion ? 'auto' : 'smooth',
+            block: 'center'
+        });
+        stage.classList.remove('is-focus-pulse');
+        window.requestAnimationFrame(() => stage.classList.add('is-focus-pulse'));
+        window.setTimeout(() => stage.classList.remove('is-focus-pulse'), 1500);
+    }
+
+    window.addEventListener('hashchange', () => revealStageFromLocation(true));
+
     function openRemarkComposer() {
         const composer = root.querySelector('.remarks-composer');
         const launcher = root.querySelector('[data-project-remark-launcher]');
@@ -157,6 +204,8 @@
     }
 
     initializeTimelineDensity();
+    // Before overview.js highlights a deep-linked stage (it waits 200 ms).
+    revealStageFromLocation(false);
     initializeRemarkComposer();
     initializeAutoDismissAlerts();
 

@@ -20,6 +20,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -106,6 +107,55 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.False(overview.LifecycleActions.CanCancel);
         Assert.False(overview.LifecycleActions.HasActions);
         Assert.False(overview.LifecycleActions.CanManageLifecycle);
+    }
+
+    [Fact]
+    public async Task Overview_StatusLineShowsTheViewersOwnPendingAndReturnedItems()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 3, hodUserId: "hod-3", poUserId: "po-3");
+        var now = new DateTimeOffset(2026, 10, 20, 6, 0, 0, TimeSpan.Zero);
+        db.StageChangeRequests.Add(new StageChangeRequest
+        {
+            ProjectId = 3,
+            StageCode = StageCodes.FS,
+            RequestedStatus = "Completed",
+            RequestedByUserId = "po-3",
+            RequestedOn = now.AddDays(-3),
+            DecisionStatus = "Rejected",
+            DecidedByUserId = "hod-3",
+            DecidedOn = now.AddDays(-2),
+            DecisionNote = "Attach the study report first."
+        });
+        db.PlanVersions.Add(new PlanVersion
+        {
+            ProjectId = 3,
+            VersionNo = 1,
+            Title = PlanVersion.ProjectTimelineTitle,
+            Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "po-3",
+            OwnerUserId = "po-3",
+            SubmittedByUserId = "po-3",
+            SubmittedOn = now.AddDays(-1)
+        });
+        await db.SaveChangesAsync();
+
+        var po = CreateOverviewPage(db, new FixedClock(now));
+        ConfigurePageContext(po, CreateUser("po-3", "Project Officer"));
+        Assert.IsType<PageResult>(await po.OnGetAsync(3, CancellationToken.None));
+
+        var stageLine = Assert.Single(po.SubmissionStatus.Lines, line => line.Category == TimelineSubmissionStatusVm.StageUpdatesCategory);
+        var returned = Assert.Single(stageLine.Entries);
+        Assert.Equal(TimelineSubmissionState.Returned, returned.State);
+        Assert.Equal("Attach the study report first.", returned.ReviewerNote);
+        Assert.Equal(StageCodes.FS, returned.StageCode);
+        Assert.True(po.SubmissionStatus.Shows(TimelineSubmissionStatusVm.PlannedDatesCategory, TimelineSubmissionState.Pending));
+
+        // The HoD neither submitted these nor owns the plan: nothing to report.
+        var hod = CreateOverviewPage(db, new FixedClock(now));
+        ConfigurePageContext(hod, CreateUser("hod-3", "HoD"));
+        Assert.IsType<PageResult>(await hod.OnGetAsync(3, CancellationToken.None));
+        Assert.False(hod.SubmissionStatus.HasLines);
     }
 
     [Fact]

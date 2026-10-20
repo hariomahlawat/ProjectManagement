@@ -108,6 +108,11 @@ namespace ProjectManagement.Pages.Projects
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
         public ActualsEditorVm ActualsEditor { get; private set; } = ActualsEditorVm.Empty;
+
+        // PO Timeline status line: the viewer's pending, returned and recently approved items.
+        public TimelineSubmissionStatusVm SubmissionStatus { get; private set; } = TimelineSubmissionStatusVm.Empty;
+
+        private ActualCorrectionRevision? _latestActualCorrection;
         public HistoricalStageEditorVm HistoricalStageEditor { get; private set; } = HistoricalStageEditorVm.Empty;
         public PlanEditorVm PlanEdit { get; private set; } = default!;
         public BackfillViewModel Backfill { get; private set; } = BackfillViewModel.Empty;
@@ -602,6 +607,7 @@ namespace ProjectManagement.Pages.Projects
             HasBackfill = Timeline.HasBackfill;
             Backfill = await BuildBackfillViewModelAsync(id, ct);
             await ApplyPendingActualCorrectionAsync(id, ct);
+            SubmissionStatus = await BuildSubmissionStatusAsync(project, ct);
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm
@@ -2473,10 +2479,13 @@ namespace ProjectManagement.Pages.Projects
             if (pending is null)
             {
                 // Tell the PO when their latest correction was rejected; approval shows in the facts.
-                if (CanSubmitActualProposals
-                    && await _actualProposals.GetLatestRevisionAsync(projectId, ct) is { Status: ActualCorrectionRevisionStatus.Rejected } rejected)
+                if (CanSubmitActualProposals)
                 {
-                    ActualsEditor = ActualsEditor.WithLastRejection(rejected, CurrentUserId);
+                    _latestActualCorrection = await _actualProposals.GetLatestRevisionAsync(projectId, ct);
+                    if (_latestActualCorrection is { Status: ActualCorrectionRevisionStatus.Rejected } rejected)
+                    {
+                        ActualsEditor = ActualsEditor.WithLastRejection(rejected, CurrentUserId);
+                    }
                 }
 
                 return;
@@ -2497,6 +2506,39 @@ namespace ProjectManagement.Pages.Projects
             {
                 ActualsEditor = ActualsEditor.WithPendingProposal(pending, CurrentUserId, prefill: false);
             }
+        }
+
+        /// <summary>
+        /// The Timeline status line (PO Timeline discovery E.1). Scoped to the viewer:
+        /// their own plan state and stage requests, and the project's Actual correction
+        /// proposal only for the user who may submit one. Read-only.
+        /// </summary>
+        private async Task<TimelineSubmissionStatusVm> BuildSubmissionStatusAsync(Project project, CancellationToken ct)
+        {
+            if (project.LifecycleStatus != ProjectLifecycleStatus.Active ||
+                project.IsLegacy ||
+                !Access.CanEditTimeline ||
+                string.IsNullOrWhiteSpace(CurrentUserId))
+            {
+                return TimelineSubmissionStatusVm.Empty;
+            }
+
+            var now = _clock.UtcNow;
+            var stageRequests = await _timelineRead.GetStageRequestOutcomesAsync(
+                project.Id, CurrentUserId, now - TimelineSubmissionStatusBuilder.ReturnedWindow, ct);
+
+            return TimelineSubmissionStatusBuilder.Build(new TimelineSubmissionStatusInput
+            {
+                Now = now,
+                Plan = PlanEdit?.State,
+                IncludeActualCorrections = CanSubmitActualProposals,
+                PendingActualCorrection = CanSubmitActualProposals ? ActualsEditor.PendingProposal : null,
+                LatestActualCorrection = _latestActualCorrection,
+                StageRequests = stageRequests,
+                CurrentStageStatuses = Timeline.Items
+                    .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First().Status, StringComparer.OrdinalIgnoreCase)
+            });
         }
 
         private async Task<BackfillViewModel> BuildBackfillViewModelAsync(int projectId, CancellationToken ct)
