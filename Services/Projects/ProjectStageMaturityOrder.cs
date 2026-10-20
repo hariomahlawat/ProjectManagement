@@ -42,7 +42,7 @@ public static class ProjectStageMaturityOrder
             new ProjectStageMaturityDefinition(StageCodes.SO, "Supply Order", SupplyOrder),
             new ProjectStageMaturityDefinition(StageCodes.EAS, "EAS Approval", EasApproval),
             new ProjectStageMaturityDefinition(StageCodes.PNC, "Price Negotiation", Pnc),
-            new ProjectStageMaturityDefinition(StageCodes.COB, "Commercial Opening", CommercialBidOpening),
+            new ProjectStageMaturityDefinition(StageCodes.COB, "Commercial Bid Opening", CommercialBidOpening),
             new ProjectStageMaturityDefinition(StageCodes.BM, "Benchmarking", Benchmarking),
             new ProjectStageMaturityDefinition(StageCodes.TEC, "Technical Evaluation", TechnicalEvaluation),
             new ProjectStageMaturityDefinition(StageCodes.BID, "Bidding / Tendering", BiddingTendering),
