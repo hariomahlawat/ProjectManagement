@@ -1,84 +1,83 @@
 @model ProjectManagement.ViewModels.ProcurementEditVm
 
-<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Input.ProjectId">
+@{
+    // Amounts are entered in rupees; the hint under each field reads the figure back in
+    // lakh or crore (procurement-inr-preview.js) so a missing or extra zero is easy to spot.
+    void CostField(string key, string label, decimal? value, bool canEdit, string lockedNote, string? managedNote = null)
+    {
+        var id = $"Input_{key}";
+        var hintId = $"{id}_Hint";
+        <div class="col-md-6">
+            <label for="@id" class="form-label">@label</label>
+            <div class="input-group procurement-cost-input@(canEdit ? string.Empty : " is-locked")">
+                <span class="input-group-text" aria-hidden="true">₹</span>
+                <input class="form-control" id="@id" name="Input.@key"
+                       inputmode="decimal"
+                       autocomplete="off"
+                       placeholder="@(canEdit ? "Amount in rupees" : "Locked")"
+                       aria-describedby="@hintId"
+                       value="@(value?.ToString("0.##"))"
+                       data-inr-preview-source
+                       data-inr-max="@ProjectManagement.ViewModels.ProcurementEditInput.MaxAmountText"
+                       @(canEdit ? null : "disabled") />
+            </div>
+            <div class="form-text" id="@hintId">
+                @if (managedNote is not null)
+                {
+                    @managedNote
+                }
+                else if (!canEdit)
+                {
+                    <i class="bi bi-lock" aria-hidden="true"></i> @lockedNote
+                }
+                else
+                {
+                    <span data-inr-preview>In rupees, for example 48000000 for ₹4.8 crore.</span>
+                }
+            </div>
+        </div>
+    }
+}
+
+<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Input.ProjectId" class="procurement-edit-form">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model.Input.ProjectId" />
 
     <div class="row g-3">
-        <div class="col-md-6">
-            <label for="Input_IpaCost" class="form-label">IPA Cost</label>
-            <input class="form-control" id="Input_IpaCost" name="Input.IpaCost"
-                   value="@(Model.Input.IpaCost?.ToString("0.##"))"
-                   @(Model.CanEditIpaCost ? null : "disabled") />
-            @if (Model.IsIpaManagedByArpp)
-            {
-                <div class="form-text">
-                    @(Model.IpaManagementMessage ?? "Managed through ARPP. Update this value from the ARPP register.")
-                </div>
-            }
-            else if (!Model.CanEditIpaCost)
-            {
-                <div class="form-text">Enabled after IPA stage is completed.</div>
-            }
-        </div>
+        @{
+            CostField("IpaCost", "IPA cost", Model.Input.IpaCost, Model.CanEditIpaCost,
+                "Unlocks when In-Principle Approval is completed.",
+                Model.IsIpaManagedByArpp
+                    ? Model.IpaManagementMessage ?? "Managed through ARPP. Update this value from the ARPP register."
+                    : null);
+            CostField("AonCost", "AoN cost", Model.Input.AonCost, Model.CanEditAonCost,
+                "Unlocks when Acceptance of Necessity is completed.");
+            CostField("BenchmarkCost", "Benchmark cost", Model.Input.BenchmarkCost, Model.CanEditBenchmarkCost,
+                "Unlocks when Benchmarking is completed.");
+            CostField("L1Cost", "L1 cost", Model.Input.L1Cost, Model.CanEditL1Cost,
+                "Unlocks when Commercial Bid Opening is completed.");
+            CostField("PncCost", "PNC cost", Model.Input.PncCost, Model.CanEditPncCost,
+                "Unlocks when PNC is completed.");
+        }
 
         <div class="col-md-6">
-            <label for="Input_AonCost" class="form-label">AON Cost</label>
-            <input class="form-control" id="Input_AonCost" name="Input.AonCost"
-                   value="@(Model.Input.AonCost?.ToString("0.##"))"
-                   @(Model.CanEditAonCost ? null : "disabled") />
-            @if (!Model.CanEditAonCost)
-            {
-                <div class="form-text">Enabled after AON stage is completed.</div>
-            }
-        </div>
-
-        <div class="col-md-6">
-            <label for="Input_BenchmarkCost" class="form-label">Benchmark Cost</label>
-            <input class="form-control" id="Input_BenchmarkCost" name="Input.BenchmarkCost"
-                   value="@(Model.Input.BenchmarkCost?.ToString("0.##"))"
-                   @(Model.CanEditBenchmarkCost ? null : "disabled") />
-            @if (!Model.CanEditBenchmarkCost)
-            {
-                <div class="form-text">Enabled after BM stage is completed.</div>
-            }
-        </div>
-
-        <div class="col-md-6">
-            <label for="Input_L1Cost" class="form-label">L1 Cost</label>
-            <input class="form-control" id="Input_L1Cost" name="Input.L1Cost"
-                   value="@(Model.Input.L1Cost?.ToString("0.##"))"
-                   @(Model.CanEditL1Cost ? null : "disabled") />
-            @if (!Model.CanEditL1Cost)
-            {
-                <div class="form-text">Enabled after COB stage is completed.</div>
-            }
-        </div>
-
-        <div class="col-md-6">
-            <label for="Input_PncCost" class="form-label">PNC Cost</label>
-            <input class="form-control" id="Input_PncCost" name="Input.PncCost"
-                   value="@(Model.Input.PncCost?.ToString("0.##"))"
-                   @(Model.CanEditPncCost ? null : "disabled") />
-            @if (!Model.CanEditPncCost)
-            {
-                <div class="form-text">Enabled after PNC stage is completed.</div>
-            }
-        </div>
-
-        <div class="col-md-6">
-            <label for="Input_SupplyOrderDate" class="form-label">Supply Order Date</label>
-            <input class="form-control" type="date" id="Input_SupplyOrderDate" name="Input.SupplyOrderDate"
-                   value="@(Model.Input.SupplyOrderDate.HasValue ? Model.Input.SupplyOrderDate.Value.ToString("yyyy-MM-dd") : null)"
-                   @(Model.CanEditSupplyOrderDate ? null : "disabled") />
+            <label for="Input_SupplyOrderDate" class="form-label">Supply order date</label>
+            <div class="input-group procurement-cost-input@(Model.CanEditSupplyOrderDate ? string.Empty : " is-locked")">
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+                <input class="form-control" type="date" id="Input_SupplyOrderDate" name="Input.SupplyOrderDate"
+                       aria-describedby="Input_SupplyOrderDate_Hint"
+                       value="@(Model.Input.SupplyOrderDate.HasValue ? Model.Input.SupplyOrderDate.Value.ToString("yyyy-MM-dd") : null)"
+                       @(Model.CanEditSupplyOrderDate ? null : "disabled") />
+            </div>
             @if (!Model.CanEditSupplyOrderDate)
             {
-                <div class="form-text">Enabled after SO stage is completed.</div>
+                <div class="form-text" id="Input_SupplyOrderDate_Hint"><i class="bi bi-lock" aria-hidden="true"></i> Unlocks when Supply Order is completed.</div>
             }
         </div>
     </div>
 
-    <div class="d-flex justify-content-end mt-3">
-        <button class="btn btn-primary" type="submit">Save</button>
+    <div class="pm-overlay-actions">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+        <button class="btn btn-primary" type="submit">Save details</button>
     </div>
 </form>

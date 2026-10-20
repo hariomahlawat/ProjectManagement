@@ -20,3 +20,19 @@ test('cover image failure has one owner and captures the host before removing me
   assert.match(fallbackSource, /if \(!host \|\| !fallback\)/);
   assert.match(fallbackSource, /fallback\.classList\.remove\('d-none'\)/);
 });
+
+test('header cover thumbnail falls back to the icon tile when it cannot load', () => {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(`<!DOCTYPE html><body>
+    <a class="project-command-header__cover" data-project-cover-host>
+      <img src="missing.jpg" alt="" data-project-cover-image />
+      <span class="project-command-header__cover-fallback d-none" data-project-cover-fallback></span>
+    </a></body>`, { runScripts: 'outside-only' });
+  dom.window.eval(fallbackSource);
+
+  const doc = dom.window.document;
+  doc.querySelector('[data-project-cover-image]').dispatchEvent(new dom.window.Event('error'));
+
+  assert.equal(doc.querySelector('[data-project-cover-image]'), null);
+  assert.ok(!doc.querySelector('[data-project-cover-fallback]').classList.contains('d-none'));
+});

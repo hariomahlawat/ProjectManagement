@@ -236,6 +236,29 @@
     };
   }
 
+  // After an in-place update (for example an inline approval) the current stage can move.
+  // Same rule as the server (_ProjectTimeline.cshtml): the first stage in progress, otherwise
+  // the first stage that is neither completed nor skipped. The current not-started stage
+  // keeps its full card; other not-started stages without a pending update are compact.
+  // Only runs where the server marked a current stage (an active lifecycle).
+  function refreshCurrentStage() {
+    const rows = Array.from(document.querySelectorAll('[data-timeline-stage][data-stage-current]'));
+    if (!rows.some((row) => row.dataset.stageCurrent === 'true')) return;
+
+    const statusOf = (row) => (row.dataset.stageStatusValue || '').trim().toLowerCase();
+    const current = rows.find((row) => statusOf(row) === 'inprogress')
+      || rows.find((row) => !['completed', 'skipped'].includes(statusOf(row)));
+
+    rows.forEach((row) => {
+      const isCurrent = row === current;
+      row.dataset.stageCurrent = isCurrent ? 'true' : 'false';
+      if (statusOf(row) === 'notstarted') {
+        const hasPendingUpdate = Boolean(row.querySelector('.pm-stage-pending-update'));
+        row.classList.toggle('is-future', !isCurrent && !hasPendingUpdate);
+      }
+    });
+  }
+
   function updateStageRow(stageCode, payloadStatus, updated) {
     if (!stageCode) return;
     const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
@@ -250,12 +273,19 @@
     const finishVariance = typeof updated?.finishVarianceDays === 'number' ? updated.finishVarianceDays : null;
 
     const normalizedStatus = typeof statusText === 'string' ? statusText.trim().toLowerCase() : '';
-    row.classList.remove('is-complete', 'is-active');
+    row.classList.remove('is-complete', 'is-active', 'is-future');
     if (normalizedStatus === 'completed') {
       row.classList.add('is-complete');
     } else if (normalizedStatus === 'inprogress') {
       row.classList.add('is-active');
+    } else if (normalizedStatus === 'notstarted' && row.dataset.stageCurrent !== 'true') {
+      // The current stage keeps its full card even before it starts.
+      row.classList.add('is-future');
     }
+    if (statusText) {
+      row.dataset.stageStatusValue = statusText;
+    }
+    refreshCurrentStage();
 
     if (requiresBackfill) {
       row.setAttribute('data-requires-backfill', 'true');

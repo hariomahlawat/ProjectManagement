@@ -190,6 +190,11 @@
         StageStatus.InProgress when isCancelledLifecycle => "pm-item is-terminal-unresolved",
         StageStatus.Blocked when isCancelledLifecycle => "pm-item is-terminal-unresolved",
         StageStatus.InProgress => "pm-item is-active",
+        // Later stages with nothing to act on render as slim rows, so the stage in hand is not
+        // buried under a stack of identical cards. When no stage is in progress, the first
+        // not-started stage is the current one and keeps its full card.
+        StageStatus.NotStarted when !s.HasPendingRequest
+            && !string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase) => "pm-item is-future",
         _                      => "pm-item"
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
@@ -204,7 +209,7 @@
       var arppActualStartActionLabel = s.HasActualStartDataQualityIssue
           ? "Correct actual start"
           : "Record actual start";
-      <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
+      <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-current="@(isCurrentStage ? "true" : "false")" data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
             <div class="pm-item-heading">

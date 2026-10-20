@@ -144,40 +144,58 @@
             </figure>
 
             <dl class="project-facts mb-0">
-                <dt class="project-facts__label">Category</dt>
-                <dd class="project-facts__value">
-                    @(Model.CategoryPath.Any() ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name)) : "—")
-                </dd>
+                <div class="project-facts__item">
+                    <dt class="project-facts__label">Category</dt>
+                    <dd class="project-facts__value">
+                        @(Model.CategoryPath.Any() ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name)) : "—")
+                    </dd>
+                </div>
                 @if (Model.TechnicalCategoryPath.Any())
                 {
-                    <dt class="project-facts__label">Technical category</dt>
-                    <dd class="project-facts__value">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</dd>
+                    <div class="project-facts__item">
+                        <dt class="project-facts__label">Technical category</dt>
+                        <dd class="project-facts__value">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</dd>
+                    </div>
                 }
                 @if (!string.IsNullOrWhiteSpace(projectTypeName))
                 {
-                    <dt class="project-facts__label">Project type</dt>
-                    <dd class="project-facts__value">@projectTypeName</dd>
+                    <div class="project-facts__item">
+                        <dt class="project-facts__label">Project type</dt>
+                        <dd class="project-facts__value">@projectTypeName</dd>
+                    </div>
                 }
-                <dt class="project-facts__label">Repeat build</dt>
-                <dd class="project-facts__value">@((project?.IsBuild ?? false) ? "Yes" : "No")</dd>
+                <div class="project-facts__item">
+                    <dt class="project-facts__label">Repeat build</dt>
+                    <dd class="project-facts__value">@((project?.IsBuild ?? false) ? "Yes" : "No")</dd>
+                </div>
                 @if (!string.IsNullOrWhiteSpace(sponsoringUnitName))
                 {
-                    <dt class="project-facts__label">Sponsoring unit</dt>
-                    <dd class="project-facts__value">@sponsoringUnitName</dd>
+                    <div class="project-facts__item">
+                        <dt class="project-facts__label">Sponsoring unit</dt>
+                        <dd class="project-facts__value">@sponsoringUnitName</dd>
+                    </div>
                 }
                 @if (!string.IsNullOrWhiteSpace(sponsoringDirectorateName))
                 {
-                    <dt class="project-facts__label">Sponsoring line directorate</dt>
-                    <dd class="project-facts__value">@sponsoringDirectorateName</dd>
+                    <div class="project-facts__item">
+                        <dt class="project-facts__label">Sponsoring line directorate</dt>
+                        <dd class="project-facts__value">@sponsoringDirectorateName</dd>
+                    </div>
                 }
-                <dt class="project-facts__label">Head of Department</dt>
-                <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
-                <dt class="project-facts__label">Project Officer</dt>
-                <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
+                <div class="project-facts__item">
+                    <dt class="project-facts__label">Head of Department</dt>
+                    <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
+                </div>
+                <div class="project-facts__item">
+                    <dt class="project-facts__label">Project Officer</dt>
+                    <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
+                </div>
                 @if (Model.CostSummary.RdCostLakhs.HasValue)
                 {
-                    <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
-                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+                    <div class="project-facts__item">
+                        <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
+                        <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+                    </div>
                 }
             </dl>
 

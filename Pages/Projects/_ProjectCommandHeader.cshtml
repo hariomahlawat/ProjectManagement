@@ -25,6 +25,19 @@
         return !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.UserName ?? "—";
     }
 
+    // The cover photo gives the header the project's identity at a glance.
+    var headerCover = Model.MediaSummary.CoverPhoto ?? Model.CoverPhoto;
+    var headerCoverUrl = headerCover is null
+        ? null
+        : Url.Page("/Projects/Photos/View", new { id = project!.Id, photoId = headerCover.Id, size = "xs", v = Model.MediaSummary.CoverPhotoVersion ?? Model.CoverPhotoVersion ?? headerCover.Version });
+    var healthPercent = Math.Clamp(Model.RecordHealth.HealthPercent, 0, 100);
+    // Tone follows the service's own health label; the thresholds are not repeated here.
+    var healthTone = Model.RecordHealth.HealthLabel switch
+    {
+        "Good" => "good",
+        "Attention" => "fair",
+        _ => "poor"
+    };
     static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
         stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
@@ -32,6 +45,17 @@
          aria-labelledby="project-title"
          data-project-command-header="true">
     <div class="project-command-header__main">
+        @if (headerCoverUrl is not null)
+        {
+            @* Same fallback contract as the overview cover (cover-photo-fallback.js): if the
+               thumbnail cannot load, the image is removed and the icon tile shows instead. *@
+            <a class="project-command-header__cover" href="#project-profile-details" aria-label="Project overview and cover photo" data-project-cover-host>
+                <img src="@headerCoverUrl" alt="" decoding="async" data-project-cover-image />
+                <span class="project-command-header__cover-fallback d-none" data-project-cover-fallback aria-hidden="true">
+                    <i class="bi bi-image"></i>
+                </span>
+            </a>
+        }
         <div class="project-command-header__identity">
             <div class="project-command-header__eyebrow">Project portfolio</div>
             <div class="d-flex flex-wrap align-items-center gap-2">
@@ -127,7 +151,7 @@
         @if (isActive)
         {
             <button class="project-intelligence-card" type="button" data-scroll-target="@StageTarget(portfolio.CurrentStage)">
-                <span class="project-intelligence-card__label">Current stage</span>
+                <span class="project-intelligence-card__label"><i class="bi bi-signpost-split project-intelligence-card__glyph" aria-hidden="true"></i>Current stage</span>
                 <strong>@portfolio.CurrentStageDisplay</strong>
                 <span>@portfolio.CurrentStageDetail</span>
             </button>
@@ -145,7 +169,7 @@
             <div class="project-intelligence-card project-intelligence-card--cancellation"
                  role="group"
                  aria-label="Project cancellation reason">
-                <span class="project-intelligence-card__label">Cancellation reason</span>
+                <span class="project-intelligence-card__label"><i class="bi bi-x-octagon project-intelligence-card__glyph" aria-hidden="true"></i>Cancellation reason</span>
                 <strong title="@(Model.LifecycleSummary.CancellationReason ?? "Not recorded")">
                     @(Model.LifecycleSummary.CancellationReason ?? "Not recorded")
                 </strong>
@@ -155,7 +179,7 @@
         else
         {
             <div class="project-intelligence-card" role="group" aria-label="Project lifecycle status">
-                <span class="project-intelligence-card__label">Project status</span>
+                <span class="project-intelligence-card__label"><i class="bi bi-flag project-intelligence-card__glyph" aria-hidden="true"></i>Project status</span>
                 <strong>@Model.LifecycleSummary.StatusLabel</strong>
                 <span>@(Model.LifecycleSummary.PrimaryDetail ?? Model.LifecycleSummary.SecondaryDetail ?? "Lifecycle concluded")</span>
             </div>
@@ -168,7 +192,7 @@
                 aria-controls="offcanvasJdp"
                 aria-label="@(Model.CanManageJdp ? "View or manage project JDPs" : "View project JDPs")">
             <span class="project-intelligence-card__label">
-                JDP
+                <i class="bi bi-buildings project-intelligence-card__glyph" aria-hidden="true"></i>JDP
                 @if (Model.CanManageJdp)
                 {
                     <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
@@ -187,7 +211,7 @@
                     aria-controls="offcanvasProliferation"
                     aria-label="Edit proliferation details">
                 <span class="project-intelligence-card__label">
-                    Proliferation
+                    <i class="bi bi-boxes project-intelligence-card__glyph" aria-hidden="true"></i>Proliferation
                     <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
                 </span>
                 <strong data-proliferation-cost>@Model.ProliferationProfile.CostDisplay</strong>
@@ -207,7 +231,7 @@
                     data-bs-target="#offcanvasProliferation"
                     aria-controls="offcanvasProliferation"
                     aria-label="View proliferation details">
-                <span class="project-intelligence-card__label">Proliferation</span>
+                <span class="project-intelligence-card__label"><i class="bi bi-boxes project-intelligence-card__glyph" aria-hidden="true"></i>Proliferation</span>
                 <strong data-proliferation-cost>@Model.ProliferationProfile.CostDisplay</strong>
                 <span class="project-intelligence-card__status project-intelligence-card__status--@Model.ProliferationProfile.AvailabilityTone"
                       data-proliferation-status-wrap>
@@ -216,9 +240,10 @@
                 </span>
             </button>
         }
-        <button class="project-intelligence-card" type="button" data-bs-toggle="modal" data-bs-target="#recordCompletenessModal" aria-controls="recordCompletenessModal">
-            <span class="project-intelligence-card__label">Overall record health</span>
+        <button class="project-intelligence-card project-intelligence-card--health" type="button" data-bs-toggle="modal" data-bs-target="#recordCompletenessModal" aria-controls="recordCompletenessModal">
+            <span class="project-intelligence-card__label"><i class="bi bi-clipboard2-check project-intelligence-card__glyph" aria-hidden="true"></i>Overall record health</span>
             <strong>@Model.RecordHealth.HealthPercent%</strong>
+            <span class="project-health-meter project-health-meter--@healthTone" aria-hidden="true"><span style="width: @(healthPercent)%"></span></span>
             <span>@(Model.RecordHealth.GapDetails.Count == 0
                 ? "Project record complete"
                 : $"{Model.RecordHealth.GapDetails.Count} record gap{(Model.RecordHealth.GapDetails.Count == 1 ? string.Empty : "s")}")</span>

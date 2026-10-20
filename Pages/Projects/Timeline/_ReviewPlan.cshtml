@@ -17,9 +17,11 @@
 
 @if (Model is null)
 {
-    <div class="alert alert-secondary">No draft plan found to review.</div>
-    <div class="text-end">
-        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
+    <div class="pm-overlay-empty" role="status">
+        <span class="pm-overlay-empty__icon" aria-hidden="true"><i class="bi bi-calendar2-check"></i></span>
+        <strong>No plan is waiting for review</strong>
+        <span>When the Project Officer submits planned dates, they appear here for approval.</span>
+        <button class="btn btn-outline-secondary btn-sm mt-2" type="button" data-bs-dismiss="offcanvas">Close</button>
     </div>
 }
 else
