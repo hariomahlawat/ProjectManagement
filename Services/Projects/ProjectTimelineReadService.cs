@@ -109,6 +109,8 @@ public sealed class ProjectTimelineReadService
                     EarliestAllowedStartDate = startBoundary.EarliestAllowedStartDate,
                     StartBoundarySourceName = startBoundary.SourceStageName,
                     PredecessorCodes = workflow.RequiredPredecessors(stage.Code),
+                    ExcludedFromChronology = !workflow.PncApplicable
+                        && string.Equals(stage.Code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase),
                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
                     RequiresBackfill = projectStage is not null &&
                         status == StageStatus.Completed &&
@@ -130,12 +132,30 @@ public sealed class ProjectTimelineReadService
             })
             .ToArray();
 
+        // Stored stages outside the displayed workflow still bound their configured
+        // successors on the server (ResolveBranchBoundaries reads every project stage).
+        var unrendered = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode) && !workflow.ContainsStage(stage.StageCode))
+            .Select(stage =>
+            {
+                var effective = StageEffectiveState.Resolve(stage.StageCode!,
+                    new StageChronologyState(stage.Status, stage.CompletedOn), ipaAuthority)!;
+                return new ActualsChronologyStageVm(
+                    stage.StageCode!,
+                    stage.StageCode!,
+                    effective.Status,
+                    effective.CompletionDate,
+                    workflow.RequiredPredecessors(stage.StageCode));
+            })
+            .ToArray();
+
         return new ActualsEditorVm
         {
             ProjectId = projectId,
             Today = today,
             BaselineVersion = ActualStageToken.BaselineVersion,
-            Rows = rows
+            Rows = rows,
+            UnrenderedChronologyStages = unrendered
         };
     }
 

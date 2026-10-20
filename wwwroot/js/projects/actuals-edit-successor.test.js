@@ -9,10 +9,14 @@ const source = fs.readFileSync(path.join(__dirname, 'actuals-edit.js'), 'utf8');
 // must be explained on the successor row, not only by the native `min` tooltip.
 // `preds` renders data-predecessors (the workflow graph, as _EditActualsForm.cshtml does);
 // rows without it exercise the display-order fallback.
-function row({ code, name, status, start = '', completed = '', preds }) {
+// `official` is a proposal form's recorded values when they differ from the prefilled ones.
+function row({ code, name, status, start = '', completed = '', preds, official = {}, excluded = false }) {
   const predecessors = preds === undefined ? '' : ` data-predecessors="${preds}"`;
+  const officialStart = official.start ?? start;
+  const officialCompleted = official.completed ?? completed;
   return `<section class="actuals-editor__stage border rounded p-3" data-actuals-row data-stage-code="${code}" data-stage-name="${name}"
-      data-stage-status="${status}" data-earliest-start="" data-official-start="${start}"${predecessors} data-start-source="">
+      data-stage-status="${status}" data-earliest-start="" data-official-start="${officialStart}"${predecessors}
+      data-official-completed="${officialCompleted}"${excluded ? ' data-chronology-excluded="true"' : ''} data-start-source="">
     <input type="date" class="form-control" id="actual-start-${code}" name="Input.Rows[0].ActualStart" value="${start}" max="2026-03-01" data-field="start" />
     <input type="date" class="form-control" id="actual-completed-${code}" name="Input.Rows[0].CompletedOn" value="${completed}" max="2026-03-01" data-field="completed"${status === 'Completed' ? '' : ' disabled'} />
     <div class="text-danger small d-none" data-row-error role="alert"></div>
@@ -20,8 +24,9 @@ function row({ code, name, status, start = '', completed = '', preds }) {
   </section>`;
 }
 
-function editor(stages) {
-  const dom = new JSDOM(`<div id="offcanvasActualDates"><form method="post" data-actuals-form data-today="2026-03-01">
+function editor(stages, { unrendered = [] } = {}) {
+  const unrenderedAttr = JSON.stringify(unrendered).replace(/"/g, '&quot;');
+  const dom = new JSDOM(`<div id="offcanvasActualDates"><form method="post" data-actuals-form data-today="2026-03-01" data-actuals-unrendered-stages="${unrenderedAttr}">
     <fieldset data-actuals-list><div class="d-grid gap-3">${stages.map(row).join('')}</div></fieldset>
     <textarea data-actuals-note></textarea>
     <button class="btn btn-primary" type="submit" data-actuals-save disabled>Submit for approval</button>
@@ -189,5 +194,79 @@ test('the graph looks through a skipped predecessor to its own predecessors', ()
 
   assert.match(ui.error('BM'), /cannot precede BID completion/);
   assert.match(ui.error('COB'), /cannot precede BID completion/, 'reached through skipped TEC');
+  ui.dom.window.close();
+});
+
+// SECTION: Server-parity cases (ActualTimelineValidationService: only new violations block)
+const minOf = (ui, code) => ui.doc.querySelector(`[data-stage-code="${code}"] [data-field="start"]`).min;
+
+test('a retained PNC row is ignored while PNC is not applicable', () => {
+  const ui = editor([
+    { code: 'COB', name: 'COB', status: 'Completed', start: '2026-01-26', completed: '2026-02-05', preds: 'BM' },
+    { code: 'PNC', name: 'PNC', status: 'Completed', start: '2026-02-03', completed: '2026-02-04', preds: 'COB', excluded: true }
+  ]);
+  ui.input('COB', 'completed', '2026-02-08');
+
+  assert.equal(ui.error('PNC'), '');
+  assert.equal(minOf(ui, 'PNC'), '', 'no native min would block the post');
+  assert.equal(ui.submitDisabled(), false);
+  ui.dom.window.close();
+});
+
+test('a new violation from a non-controlling branch blocks even beside a historical one', () => {
+  // COB start 22 already precedes BM completion 25 in the official record (a warning only).
+  const ui = editor([
+    { code: 'BID', name: 'BID', status: 'Completed', start: '2026-01-01', completed: '2026-01-10', preds: '' },
+    { code: 'TEC', name: 'TEC', status: 'Completed', start: '2026-01-11', completed: '2026-01-20', preds: 'BID' },
+    { code: 'BM', name: 'BM', status: 'Completed', start: '2026-01-11', completed: '2026-01-25', preds: 'BID' },
+    { code: 'COB', name: 'COB', status: 'Completed', start: '2026-01-22', completed: '2026-02-05', preds: 'TEC,BM' }
+  ]);
+  assert.equal(ui.error('COB'), '', 'a historical violation alone is tolerated');
+  assert.equal(minOf(ui, 'COB'), '', 'and is not blocked natively');
+
+  ui.input('TEC', 'completed', '2026-01-21');
+  assert.equal(ui.error('COB'), '');
+  assert.equal(ui.submitDisabled(), false);
+
+  ui.input('TEC', 'completed', '2026-01-23');
+  assert.match(ui.error('COB'), /^Actual dates cannot precede TEC completion/);
+  assert.equal(ui.submitDisabled(), true);
+  ui.dom.window.close();
+});
+
+test('a prefilled proposal is checked against the official record, not its own snapshot', () => {
+  // Pending: SOW completion 10 -> 12 (valid when IPA started 13). A direct publication
+  // has since moved IPA's official start to 11, so resubmitting would add a violation.
+  const ui = editor([
+    { code: 'SOW', name: 'SOW', status: 'Completed', start: '2026-02-01', completed: '2026-02-12', preds: '', official: { completed: '2026-02-10' } },
+    { code: 'IPA', name: 'IPA', status: 'Completed', start: '2026-02-11', completed: '2026-02-20', preds: 'SOW' }
+  ]);
+  assert.match(ui.error('IPA'), /cannot precede SOW completion/);
+
+  ui.input('SOW', 'start', '2026-02-02');
+  assert.match(ui.error('IPA'), /cannot precede SOW completion/);
+  assert.equal(ui.submitDisabled(), true);
+  ui.dom.window.close();
+});
+
+test('stages without an editor row still bound their successors', () => {
+  const ui = editor([
+    { code: 'SOW', name: 'SOW', status: 'Completed', start: '2026-02-01', completed: '2026-02-10', preds: '' },
+    { code: 'IPA', name: 'IPA', status: 'Completed', start: '2026-02-11', completed: '2026-02-20', preds: 'XSKIP' },
+    { code: 'AON', name: 'AON', status: 'Completed', start: '2026-02-21', completed: '2026-02-25', preds: 'IPA,XDONE' }
+  ], {
+    unrendered: [
+      { code: 'XSKIP', name: 'XSKIP', status: 'Skipped', completed: null, predecessors: ['SOW'] },
+      { code: 'XDONE', name: 'XDONE', status: 'Completed', completed: '2026-02-21', predecessors: [] }
+    ]
+  });
+
+  ui.input('SOW', 'completed', '2026-02-12');
+  assert.match(ui.error('IPA'), /cannot precede SOW completion/, 'reached through an unrendered skipped stage');
+
+  ui.input('SOW', 'completed', '2026-02-10');
+  ui.input('AON', 'start', '2026-02-20');
+  assert.match(ui.error('AON'), /cannot precede XDONE completion/);
+  assert.equal(minOf(ui, 'AON'), '2026-02-21');
   ui.dom.window.close();
 });

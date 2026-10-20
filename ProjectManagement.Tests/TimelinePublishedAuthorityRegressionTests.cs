@@ -63,6 +63,28 @@ public sealed class TimelinePublishedAuthorityRegressionTests
         Assert.Equal(new[] { StageCodes.BID }, PredecessorsOf(StageCodes.BM));
         Assert.Equal(new[] { StageCodes.BM, StageCodes.TEC }, PredecessorsOf(StageCodes.COB).OrderBy(code => code, StringComparer.Ordinal));
         Assert.Empty(PredecessorsOf(StageCodes.FS));
+        Assert.DoesNotContain(editor.Rows, row => row.ExcludedFromChronology);
+        Assert.Empty(editor.UnrenderedChronologyStages);
+    }
+
+    [Fact]
+    public async Task ActualsEditor_ProjectsPncExclusionAndStagesWithoutEditorRows()
+    {
+        await using var db = await SeedAsync(StageStatus.Completed, 10, published: false);
+        (await db.Projects.SingleAsync()).PncApplicable = false;
+        db.ProjectStages.Add(new ProjectStage { ProjectId = 1, StageCode = "XEXT", Status = StageStatus.Completed, CompletedOn = new DateOnly(2026, 1, 15) });
+        await db.SaveChangesAsync();
+        var metadata = new WorkflowStageMetadataProvider();
+        var service = new ProjectTimelineReadService(db, FakeClock.ForIstDate(new DateOnly(2026, 2, 1)), metadata, new ProjectStageWorkflowPolicy(db, metadata));
+
+        var editor = await service.GetActualsEditorAsync(1);
+
+        // FindViolations skips a retained PNC row; ResolveBranchBoundaries reads every stored stage.
+        Assert.Equal(new[] { StageCodes.PNC }, editor.Rows.Where(row => row.ExcludedFromChronology).Select(row => row.StageCode));
+        var external = Assert.Single(editor.UnrenderedChronologyStages);
+        Assert.Equal("XEXT", external.StageCode);
+        Assert.Equal(StageStatus.Completed, external.Status);
+        Assert.Equal(new DateOnly(2026, 1, 15), external.CompletedOn);
     }
 
     [Fact]

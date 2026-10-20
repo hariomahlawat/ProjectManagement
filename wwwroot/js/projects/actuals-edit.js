@@ -92,101 +92,152 @@
     return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  const rowByCode = new Map(rows.map((row) => [(row.dataset.stageCode ?? '').toUpperCase(), row]));
-  const predecessorsOf = (row) => (row.dataset.predecessors ?? '')
-    .split(',')
-    .map((code) => code.trim().toUpperCase())
-    .filter(Boolean);
+  // SECTION: Chronology graph
+  // Mirrors the server (StageDateSuggestionResolver.ResolveBranchBoundaries and
+  // ActualTimelineValidationService.FindViolations) on the workflow's dependency graph:
+  // skipped predecessors are transparent, every completed predecessor bounds its
+  // successor, and only violations absent from the official record block a submission.
+  const normalizeCode = (code) => (code ?? '').trim().toUpperCase();
+  const rowByCode = new Map(rows.map((row) => [normalizeCode(row.dataset.stageCode), row]));
+  const unrenderedStages = new Map();
+  try {
+    JSON.parse(form.dataset.actualsUnrenderedStages || '[]').forEach((stage) => {
+      unrenderedStages.set(normalizeCode(stage.code), stage);
+    });
+  } catch {
+    // A malformed projection only loses boundaries; the server still validates.
+  }
 
-  // Mirrors StageDateSuggestionResolver.ResolveBranchBoundaries: walk the workflow's
-  // required predecessors, look through skipped stages, and take the latest completion.
-  const resolveGraphBoundary = (row) => {
-    let best = null;
+  const inputOf = (row, field) => {
+    const input = row.querySelector(`[data-field="${field}"]`);
+    return input instanceof HTMLInputElement ? input : null;
+  };
+  const rowStatus = (row) => (row.dataset.stageStatus ?? '').toLowerCase();
+  const rowName = (row) => row.dataset.stageName ?? row.dataset.stageCode ?? 'the effective predecessor';
+
+  // Official values come from the markup; a proposal form is prefilled with proposed ones.
+  const officialValue = (row, field) => {
+    const attribute = field === 'start' ? 'data-official-start' : 'data-official-completed';
+    if (row.hasAttribute(attribute)) {
+      return row.getAttribute(attribute) ?? '';
+    }
+    return (initialValues.get(row.dataset.stageCode ?? '') ?? { start: '', completed: '' })[field];
+  };
+  // The server keeps the recorded completion when the field is posted blank.
+  const factValue = (row, field, mode) => {
+    if (mode === 'official') {
+      return officialValue(row, field);
+    }
+    const value = inputOf(row, field)?.value ?? '';
+    return field === 'completed' && !value ? officialValue(row, 'completed') : value;
+  };
+
+  const predecessorCodes = (code) => {
+    const row = rowByCode.get(code);
+    if (!row) {
+      return (unrenderedStages.get(code)?.predecessors ?? []).map(normalizeCode).filter(Boolean);
+    }
+    if (row.hasAttribute('data-predecessors')) {
+      return (row.dataset.predecessors ?? '').split(',').map(normalizeCode).filter(Boolean);
+    }
+    // Hosts that do not project the workflow graph fall back to display order.
+    const index = rows.indexOf(row);
+    return index > 0 ? [normalizeCode(rows[index - 1].dataset.stageCode)] : [];
+  };
+
+  const stageFacts = (code, mode) => {
+    const row = rowByCode.get(code);
+    if (row) {
+      return { status: rowStatus(row), completed: factValue(row, 'completed', mode), name: rowName(row) };
+    }
+    const stage = unrenderedStages.get(code);
+    return stage
+      ? { status: (stage.status ?? '').toLowerCase(), completed: stage.completed ?? '', name: stage.name ?? stage.code }
+      : null;
+  };
+
+  const branchBounds = (row, mode) => {
+    const bounds = new Map();
     const collect = (code, path) => {
       if (path.has(code)) {
         return;
       }
-      const predecessor = rowByCode.get(code);
-      if (!predecessor) {
+      const facts = stageFacts(code, mode);
+      if (!facts) {
         return;
       }
 
       path.add(code);
-      const predecessorStatus = (predecessor.dataset.stageStatus ?? '').toLowerCase();
-      if (predecessorStatus === 'skipped') {
-        predecessorsOf(predecessor).forEach((ancestor) => collect(ancestor, path));
-      } else if (predecessorStatus === 'completed') {
-        const completedInput = predecessor.querySelector('[data-field="completed"]');
-        const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
-        const index = rows.indexOf(predecessor);
-        // ISO dates compare lexically; ties go to the later workflow stage, as on the server.
-        if (completedValue && (!best || completedValue > best.value || (completedValue === best.value && index > best.index))) {
-          best = {
-            value: completedValue,
-            index,
-            source: predecessor.dataset.stageName ?? predecessor.dataset.stageCode ?? 'the effective predecessor'
-          };
-        }
+      if (facts.status === 'skipped') {
+        predecessorCodes(code).forEach((ancestor) => collect(ancestor, path));
+      } else if (facts.status === 'completed' && facts.completed && !bounds.has(code)) {
+        bounds.set(code, { code, value: facts.completed, source: facts.name });
       }
       path.delete(code);
     };
 
-    const self = (row.dataset.stageCode ?? '').toUpperCase();
-    predecessorsOf(row).forEach((code) => collect(code, new Set([self])));
-    return best ? { value: best.value, source: best.source } : { value: '', source: '' };
+    const self = normalizeCode(row.dataset.stageCode);
+    predecessorCodes(self).forEach((code) => collect(code, new Set([self])));
+    return Array.from(bounds.values());
   };
 
-  const resolveChronologyBoundary = (row) => {
-    if (row.hasAttribute('data-predecessors')) {
-      return resolveGraphBoundary(row);
+  // The server's controlling bound: latest completion, then stage code. ISO dates compare lexically.
+  const controllingBound = (bounds) => bounds
+    .slice()
+    .sort((a, b) => (a.value === b.value ? a.code.localeCompare(b.code) : (a.value < b.value ? 1 : -1)))[0]
+    ?? { code: '', value: '', source: '' };
+
+  const resolveChronologyBoundary = (row) => controllingBound(branchBounds(row, 'final'));
+
+  const participatesInChronology = (row) =>
+    row.dataset.chronologyExcluded !== 'true'
+    && ['inprogress', 'completed', 'blocked'].includes(rowStatus(row));
+
+  // An explicit start is the chronology fact; a completed stage without one is bounded by its completion.
+  const chronologyViolations = (row, mode) => {
+    if (!participatesInChronology(row)) {
+      return [];
     }
-
-    // Hosts that do not project the workflow graph fall back to display order.
-    const targetIndex = rows.indexOf(row);
-    if (targetIndex <= 0) {
-      return { value: '', source: '' };
+    const start = factValue(row, 'start', mode);
+    const date = start || (rowStatus(row) === 'completed' ? factValue(row, 'completed', mode) : '');
+    if (!date) {
+      return [];
     }
-
-    for (let index = targetIndex - 1; index >= 0; index -= 1) {
-      const predecessor = rows[index];
-      const predecessorStatus = (predecessor.dataset.stageStatus ?? '').toLowerCase();
-
-      // Match server workflow semantics: consecutive skipped stages are transparent;
-      // the first non-skipped predecessor is the effective chronology boundary.
-      if (predecessorStatus === 'skipped') {
-        continue;
-      }
-
-      if (predecessorStatus !== 'completed') {
-        return { value: '', source: '' };
-      }
-
-      const completedInput = predecessor.querySelector('[data-field="completed"]');
-      const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
-      return {
-        value: completedValue,
-        source: predecessor.dataset.stageName ?? predecessor.dataset.stageCode ?? 'the effective predecessor'
-      };
-    }
-
-    return { value: '', source: '' };
+    return branchBounds(row, mode)
+      .filter((bound) => date < bound.value)
+      .map((bound) => ({ ...bound, key: `${Boolean(start)}|${date}|${bound.code}|${bound.value}` }));
   };
 
-  // The boundary each row was rendered against. A row the user has not touched is
-  // still re-checked when an edit to a predecessor moves its boundary (C7.2).
-  const initialBoundaries = new Map(rows.map((row) => [row, resolveChronologyBoundary(row).value]));
+  // Violations already in the official record are historical warnings on the server, not errors.
+  const officialViolationKeys = new Map(rows.map((row) =>
+    [row, new Set(chronologyViolations(row, 'official').map((violation) => violation.key))]));
+  const newChronologyViolations = (row) => chronologyViolations(row, 'final')
+    .filter((violation) => !officialViolationKeys.get(row).has(violation.key));
+
+  const isRowChanged = (row) => {
+    const original = initialValues.get(row.dataset.stageCode ?? '') ?? { start: '', completed: '' };
+    return (inputOf(row, 'start')?.value ?? '') !== original.start
+      || (inputOf(row, 'completed')?.value ?? '') !== original.completed;
+  };
 
   const refreshChronologyBoundaries = () => {
     rows.forEach((row) => {
       const boundary = resolveChronologyBoundary(row);
-      const startInput = row.querySelector('[data-field="start"]');
-      const completedInput = row.querySelector('[data-field="completed"]');
+      // No native `min` where the server tolerates the dates (an excluded row, or an
+      // untouched row whose only violations are historical); it would block the post.
+      const tolerated = !participatesInChronology(row)
+        || (!isRowChanged(row)
+          && chronologyViolations(row, 'final').length > 0
+          && newChronologyViolations(row).length === 0);
+      const min = tolerated ? '' : boundary.value;
 
-      if (startInput instanceof HTMLInputElement) {
-        startInput.min = boundary.value;
+      const startInput = inputOf(row, 'start');
+      const completedInput = inputOf(row, 'completed');
+      if (startInput) {
+        startInput.min = min;
       }
-      if (completedInput instanceof HTMLInputElement) {
-        completedInput.min = boundary.value;
+      if (completedInput) {
+        completedInput.min = min;
       }
     });
   };
@@ -198,7 +249,7 @@
     const completedInput = row.querySelector('[data-field="completed"]');
     const status = (row.dataset.stageStatus ?? '').toLowerCase();
     const boundary = resolveChronologyBoundary(row);
-    const earliestStartValue = boundary.value;
+    const earliestStartValue = row.dataset.chronologyExcluded === 'true' ? '' : boundary.value;
     const startSource = boundary.source || row.dataset.startSource || 'the effective predecessor';
 
     const startValue = startInput instanceof HTMLInputElement ? startInput.value : '';
@@ -213,28 +264,19 @@
       clearStartInput.value = officialStart && !startValue ? 'true' : 'false';
     }
 
-    const boundaryChanged = earliestStartValue !== (initialBoundaries.get(row) ?? '');
-    if (!isChanged && !boundaryChanged) {
-      setRowError(row, '');
-      return true;
+    if (!isChanged) {
+      // Only chronology applies to an untouched row (C7.2): an edit elsewhere can
+      // still introduce a violation here, which the server would reject.
+      const conflict = controllingBound(newChronologyViolations(row));
+      setRowError(row, conflict.code
+        ? `Actual dates cannot precede ${conflict.source} completion (${formatLocalDate(conflict.value)}). Same-day commencement is permitted. Adjust this stage's dates or ${conflict.source}'s completion.`
+        : '');
+      return !conflict.code;
     }
 
     const startDate = parseDate(startValue);
     const completedDate = parseDate(completedValue);
     const earliestStartDate = parseDate(earliestStartValue);
-
-    if (!isChanged) {
-      // Only chronology applies: this row's own dates and status are as recorded.
-      // Mirror the server: only InProgress/Completed/Blocked stages are chronological,
-      // so retained dates on a Skipped (or NotStarted) row never block a correction.
-      const chronological = status === 'inprogress' || status === 'completed' || status === 'blocked';
-      const unchangedDate = chronological ? (startDate || (status === 'completed' ? completedDate : null)) : null;
-      const conflict = Boolean(unchangedDate && earliestStartDate && unchangedDate < earliestStartDate);
-      setRowError(row, conflict
-        ? `Actual dates cannot precede ${startSource} completion (${formatLocalDate(earliestStartValue)}). Same-day commencement is permitted. Adjust this stage's dates or ${startSource}'s completion.`
-        : '');
-      return !conflict;
-    }
 
     let error = '';
 

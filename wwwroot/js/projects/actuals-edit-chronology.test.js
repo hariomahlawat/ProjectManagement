@@ -6,10 +6,10 @@ const path = require('node:path');
 const source = fs.readFileSync(path.resolve(__dirname, 'actuals-edit.js'), 'utf8');
 
 test('actuals editor derives chronology from the current projected predecessor values', () => {
-  assert.match(source, /function|const resolveChronologyBoundary/);
-  assert.match(source, /predecessorStatus === 'skipped'/);
-  assert.match(source, /predecessorStatus !== 'completed'/);
-  assert.match(source, /completedInput\.value/);
+  assert.match(source, /const resolveChronologyBoundary/);
+  assert.match(source, /facts\.status === 'skipped'/);
+  assert.match(source, /facts\.status === 'completed'/);
+  assert.match(source, /inputOf\(row, field\)\?\.value/);
   assert.match(source, /refreshChronologyBoundaries/);
 });
 
