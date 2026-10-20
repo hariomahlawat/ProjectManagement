@@ -22,6 +22,7 @@ namespace ProjectManagement.Tests.Acceptance;
 /// pages, and the resulting Overview — with no JavaScript, so the server-rendered
 /// form alone must carry the user's intent. Database assertions read the same store.
 /// </summary>
+[Collection(ActualCorrectionAcceptanceHost.Collection)]
 public sealed class ActualCorrectionEndToEndTests
 {
     private const int ProjectId = 1;

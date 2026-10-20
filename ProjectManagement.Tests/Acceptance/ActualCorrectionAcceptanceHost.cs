@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Tests.Infrastructure;
+using Xunit;
 
 namespace ProjectManagement.Tests.Acceptance;
 
@@ -33,6 +34,12 @@ namespace ProjectManagement.Tests.Acceptance;
 /// </summary>
 public sealed class ActualCorrectionAcceptanceHost : IAsyncDisposable
 {
+    /// <summary>
+    /// Each acceptance test boots a full in-process host; running them alongside other
+    /// endpoint tests competes for the thread pool and can stall unrelated requests.
+    /// </summary>
+    public const string Collection = "Actual correction acceptance (isolated host)";
+
     public const string UserHeader = "X-Acceptance-User";
     public const string RolesHeader = "X-Acceptance-Roles";
 
@@ -62,8 +69,8 @@ public sealed class ActualCorrectionAcceptanceHost : IAsyncDisposable
             builder.UsePrismTestInfrastructure("actual-correction-acceptance");
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<ApplicationDbContext>();
-                services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
+                // Every registration of the earlier InMemory context, including provider configuration.
+                PrismTestWebHostBuilderExtensions.RemoveDbContextRegistrations<ApplicationDbContext>(services);
                 services.AddDbContext<ApplicationDbContext>(options =>
                 {
                     if (started.IsOpen)
@@ -147,4 +154,9 @@ public sealed class ActualCorrectionAcceptanceHost : IAsyncDisposable
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, "Acceptance")));
         }
     }
+}
+
+[CollectionDefinition(ActualCorrectionAcceptanceHost.Collection, DisableParallelization = true)]
+public sealed class ActualCorrectionAcceptanceCollection
+{
 }
