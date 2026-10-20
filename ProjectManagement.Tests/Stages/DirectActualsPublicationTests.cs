@@ -24,6 +24,7 @@ using ProjectManagement.Pages.Projects.Stages;
 using ProjectManagement.Pages.Projects.Timeline;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Tests.Fakes;
 using ProjectManagement.ViewModels;
@@ -363,6 +364,42 @@ public sealed class DirectActualsPublicationTests
         Assert.Contains(exception.Errors, error => error.StartsWith("IPA:", StringComparison.Ordinal)
             && error.Contains("20 Jan 2026", StringComparison.Ordinal));
         await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(1), Jan(10));
+    }
+
+    // C7.2: the editor leaves chronology to this boundary; a refusal reopens it with the
+    // user's entries and the affected successor named, and the corrected post publishes.
+    [Fact]
+    public async Task RefusedCorrection_ReopensTheEditorWithTheEntries_AndTheCorrectedResubmissionPublishes()
+    {
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db,
+            Completed(StageCodes.FS, Jan(1), Jan(10)),
+            InProgress(StageCodes.IPA, Jan(11))));
+        await using var db = fixture.NewContext();
+
+        var page = EditActualsPage(db, fixture.Actuals(db), "HoD", "actor");
+        page.Input = await EditorInputAsync(db, Row(StageCodes.FS, completedOn: Jan(12)), Row(StageCodes.IPA, actualStart: Jan(11)));
+        page.Input.SubmissionMode = ActualsSubmissionMode.Direct;
+        Assert.IsType<RedirectToPageResult>(await page.OnPostAsync(ProjectId, CancellationToken.None));
+        Assert.StartsWith("IPA:", Assert.IsType<string>(page.TempData["Error"]), StringComparison.Ordinal);
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(1), Jan(10));
+
+        var payload = Assert.IsType<string>(page.TempData[ActualsEditorRecovery.TempDataKey]);
+        var editor = await ReadService(db).GetActualsEditorAsync(ProjectId);
+        var reopened = ActualsEditorRecovery.Restore(editor, payload, ProjectId, "actor", ActualsSubmissionMode.Direct);
+        Assert.True(reopened.RestoredSubmission);
+        var error = Assert.Single(reopened.SubmissionErrors);
+        Assert.Contains("Correct IPA in the same update", error, StringComparison.Ordinal);
+        Assert.Equal(Jan(12), reopened.EnteredValues[StageCodes.FS].CompletedOn);
+        Assert.Equal(Jan(11), reopened.EnteredValues[StageCodes.IPA].ActualStart);
+        Assert.Same(editor, ActualsEditorRecovery.Restore(editor, payload, ProjectId, "someone-else", ActualsSubmissionMode.Direct));
+
+        var resubmit = EditActualsPage(db, fixture.Actuals(db), "HoD", "actor");
+        resubmit.Input = await EditorInputAsync(db, Row(StageCodes.FS, completedOn: Jan(12)), Row(StageCodes.IPA, actualStart: Jan(12)));
+        resubmit.Input.SubmissionMode = ActualsSubmissionMode.Direct;
+        Assert.IsType<RedirectToPageResult>(await resubmit.OnPostAsync(ProjectId, CancellationToken.None));
+        Assert.Equal("Actual dates updated successfully.", resubmit.TempData["Flash"]);
+        Assert.Null(resubmit.TempData[ActualsEditorRecovery.TempDataKey]);
+        await AssertUnchangedAsync(fixture, StageCodes.IPA, Jan(12), null);
     }
 
     [Fact]
@@ -808,6 +845,12 @@ public sealed class DirectActualsPublicationTests
             BaselineVersion = ActualStageToken.BaselineVersion,
             Rows = rows.ToList()
         };
+    }
+
+    private static ProjectTimelineReadService ReadService(ApplicationDbContext db)
+    {
+        var metadata = new WorkflowStageMetadataProvider();
+        return new ProjectTimelineReadService(db, FakeClock.ForIstDate(Today), metadata, new ProjectStageWorkflowPolicy(db, metadata));
     }
 
     private static string Token(ApplicationDbContext db, string code) =>
