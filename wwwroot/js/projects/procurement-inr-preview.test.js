@@ -14,8 +14,20 @@ test('reads rupee amounts back in crore, lakh or rupees', () => {
 test('flags input the server would not accept', () => {
     const result = describe('4.8 Cr');
     assert.equal(result.valid, false);
-    assert.equal(describe('12.345').valid, false);
     assert.equal(describe('4,65,00,000').valid, false);
+});
+
+test('follows the decimal(18,2) column: rounds extra places, rejects amounts above its maximum', () => {
+    const max = '9999999999999999.99';
+    const rounded = describe('1.234', max);
+    assert.equal(rounded.valid, true);
+    assert.equal(rounded.text, 'Reads as ₹1.23 (saved to two decimal places)');
+    assert.equal(describe('9999999999999999.99', max).valid, true);
+    assert.equal(describe('0009999999999999999.99', max).valid, true);
+    assert.equal(describe('10000000000000000', max).valid, false);
+    assert.equal(describe('9999999999999999.990', max).valid, true);
+    assert.equal(describe('9999999999999999.991', max).valid, false);
+    assert.match(describe('10000000000000000', max).text, /largest amount/);
 });
 
 test('updates the hint as the amount is typed and restores it when cleared', async () => {

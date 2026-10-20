@@ -18,6 +18,7 @@
                        aria-describedby="@hintId"
                        value="@(value?.ToString("0.##"))"
                        data-inr-preview-source
+                       data-inr-max="@ProjectManagement.ViewModels.ProcurementEditInput.MaxAmountText"
                        @(canEdit ? null : "disabled") />
             </div>
             <div class="form-text" id="@hintId">

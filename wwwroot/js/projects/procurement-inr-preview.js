@@ -17,24 +17,47 @@
         return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
     }
 
-    function describe(raw) {
-        // Digits only: the server binds the amount with the current culture, where group
-        // separators are not reliable.
+    // Compares two non-negative decimal strings without going through floating point, which
+    // cannot hold the column maximum (9999999999999999.99) exactly.
+    function exceeds(text, max) {
+        const [intPart, fraction = ''] = text.split('.');
+        const [maxInt, maxFraction = ''] = String(max).split('.');
+        const a = intPart.replace(/^0+(?=\d)/, '');
+        if (a.length !== maxInt.length) {
+            return a.length > maxInt.length;
+        }
+        if (a !== maxInt) {
+            return a > maxInt;
+        }
+        // Full fraction, as the server's range check compares the exact value.
+        const scale = Math.max(fraction.length, maxFraction.length);
+        return fraction.padEnd(scale, '0') > maxFraction.padEnd(scale, '0');
+    }
+
+    // Mirrors what the save accepts: digits with an optional decimal part (the server binds
+    // the amount with the current culture, where group separators are not reliable), up to
+    // the column maximum; extra decimal places are rounded to paise by the decimal(18,2) column.
+    function describe(raw, max) {
         const text = String(raw ?? '').trim();
         if (text === '') {
             return null;
         }
-        if (!/^\d+(\.\d{0,2})?$/.test(text)) {
-            return { valid: false, text: 'Use digits only, with at most two decimal places.' };
+        if (!/^\d+(\.\d+)?$/.test(text)) {
+            return { valid: false, text: 'Use digits only, without commas or units.' };
         }
+        if (max && exceeds(text, max)) {
+            return { valid: false, text: 'This is larger than the largest amount that can be saved.' };
+        }
+        const fraction = text.split('.')[1] || '';
+        const rounding = fraction.length > 2 ? ' (saved to two decimal places)' : '';
         const amount = Number(text);
         if (amount >= CRORE) {
-            return { valid: true, text: `Reads as ₹${trimmed(Math.round((amount / CRORE) * 100) / 100)} crore` };
+            return { valid: true, text: `Reads as ₹${trimmed(Math.round((amount / CRORE) * 100) / 100)} crore${rounding}` };
         }
         if (amount >= LAKH) {
-            return { valid: true, text: `Reads as ₹${trimmed(Math.round((amount / LAKH) * 100) / 100)} lakh` };
+            return { valid: true, text: `Reads as ₹${trimmed(Math.round((amount / LAKH) * 100) / 100)} lakh${rounding}` };
         }
-        return { valid: true, text: `Reads as ₹${amount.toLocaleString('en-IN')}` };
+        return { valid: true, text: `Reads as ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}${rounding}` };
     }
 
     function bind(input) {
@@ -46,7 +69,7 @@
         }
         const placeholder = target.textContent;
         const update = () => {
-            const result = describe(input.value);
+            const result = describe(input.value, input.dataset.inrMax);
             target.textContent = result ? result.text : placeholder;
             target.classList.toggle('text-danger', Boolean(result && !result.valid));
             target.classList.toggle('procurement-inr-preview--live', Boolean(result && result.valid));
