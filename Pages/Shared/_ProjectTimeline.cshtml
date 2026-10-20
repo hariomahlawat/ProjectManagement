@@ -190,6 +190,9 @@
         StageStatus.InProgress when isCancelledLifecycle => "pm-item is-terminal-unresolved",
         StageStatus.Blocked when isCancelledLifecycle => "pm-item is-terminal-unresolved",
         StageStatus.InProgress => "pm-item is-active",
+        // Later stages with nothing to act on render as slim rows, so the stage in hand is not
+        // buried under a stack of identical cards.
+        StageStatus.NotStarted when !s.HasPendingRequest => "pm-item is-future",
         _                      => "pm-item"
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);

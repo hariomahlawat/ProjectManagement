@@ -3380,3 +3380,539 @@ button.project-intelligence-card--tot:focus-visible {
         margin-left: 3rem;
     }
 }
+
+/* ==========================================================================
+   V6: Overview visual pass
+   One layer of polish on top of the earlier rules: identity in the header,
+   facts as tiles, procurement as a ladder, quiet rows for later stages.
+   Uses only bundled assets (Mulish, Bootstrap Icons) and the site's colour
+   tokens, so it works offline and follows the site's dark theme.
+   ========================================================================== */
+
+/* The two dialogs below are rendered beside .project-portfolio, so they get the tokens too. */
+#recordCompletenessModal,
+#discardDraftModal {
+    --portfolio-border: color-mix(in srgb, var(--pm-border, #d9e1ec) 82%, #94a3b8 18%);
+    --portfolio-muted: var(--pm-text-muted, #64748b);
+}
+.project-portfolio,
+#recordCompletenessModal,
+#discardDraftModal {
+    --v6-radius: .9rem;
+    /* Section tokens: the dark block below redefines them, so these rules need no
+       per-component dark overrides when the site's dark theme is switched on. */
+    --v6-surface: var(--pm-card, #fff);
+    --v6-text: var(--pm-text-strong, #0f172a);
+    --v6-tile: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, var(--v6-surface));
+    --v6-shadow: rgba(15, 23, 42, .05);
+    --v6-shadow-strong: rgba(15, 23, 42, .1);
+    --v6-accent: var(--pm-accent-blue, #3b82f6);
+    --v6-accent-soft: color-mix(in srgb, var(--v6-accent) 11%, var(--v6-surface));
+    --v6-good: var(--pm-success, #16a34a);
+    --v6-fair: var(--pm-accent-amber, #f59e0b);
+    --v6-poor: var(--bs-danger, #dc3545);
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Cards: one consistent surface, a gentle lift on hover, a tinted icon tile. */
+.project-portfolio .pm-card {
+    border-radius: var(--v6-radius);
+    box-shadow: 0 1px 2px var(--v6-shadow), 0 8px 24px var(--v6-shadow);
+    transition: box-shadow .2s ease, border-color .2s ease;
+}
+.project-portfolio .pm-card:hover {
+    box-shadow: 0 1px 2px var(--v6-shadow), 0 14px 32px var(--v6-shadow-strong);
+}
+.project-portfolio .pm-card-icon {
+    background: linear-gradient(145deg, var(--v6-accent-soft), color-mix(in srgb, var(--v6-accent) 20%, var(--v6-surface)));
+    color: color-mix(in srgb, var(--v6-accent) 85%, var(--v6-text));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--v6-accent) 18%, transparent);
+}
+.project-portfolio .pm-card-title {
+    letter-spacing: -.01em;
+    font-weight: 750;
+}
+
+/* Header: cover thumbnail beside the title. */
+.project-portfolio .project-command-header__main { align-items: flex-start; }
+.project-command-header__cover {
+    flex: 0 0 auto;
+    width: 5.75rem;
+    aspect-ratio: 4 / 3;
+    margin-right: .25rem;
+    overflow: hidden;
+    border-radius: .75rem;
+    background: var(--v6-tile);
+    box-shadow: 0 0 0 1px var(--portfolio-border), 0 6px 16px var(--v6-shadow-strong);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.project-command-header__cover:hover,
+.project-command-header__cover:focus-visible {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 0 0 2px var(--v6-accent), 0 10px 22px var(--v6-shadow-strong);
+}
+.project-command-header__cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.project-command-header__identity { flex: 1 1 auto; min-width: 0; }
+.project-command-header__title { letter-spacing: -.02em; }
+.project-command-header__meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+.project-command-header__meta .bi { color: color-mix(in srgb, var(--v6-accent) 65%, var(--portfolio-muted)); }
+
+/* Status cards: icon glyph tile, stronger value, health meter. */
+.project-intelligence-card__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    margin-right: .4rem;
+    border-radius: .4rem;
+    background: var(--v6-accent-soft);
+    color: var(--v6-accent);
+    flex: 0 0 auto;
+    font-size: .74rem;
+    letter-spacing: 0;
+}
+/* Every label reads icon → text, with any edit icon pushed to the right. */
+.project-portfolio .project-intelligence-card__label,
+.project-portfolio .project-intelligence-card--jdp .project-intelligence-card__label,
+.project-portfolio .project-intelligence-card--proliferation .project-intelligence-card__label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+}
+.project-portfolio .project-intelligence-card__edit-icon { margin-left: auto; }
+.project-intelligence-card { border-radius: .8rem; }
+.project-intelligence-card strong {
+    margin-top: .1rem;
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: -.01em;
+}
+.project-health-meter {
+    display: block;
+    height: .32rem;
+    margin: .38rem 0 .3rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--portfolio-muted) 16%, transparent);
+}
+.project-health-meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--v6-good);
+    transition: width .4s ease;
+}
+.project-health-meter--fair > span { background: var(--v6-fair); }
+.project-health-meter--poor > span { background: var(--v6-poor); }
+
+/* Key facts: label/value tiles that wrap beside the cover. */
+.project-profile-flow .project-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: .5rem;
+    min-width: 0;
+}
+.project-facts__item {
+    min-width: 0;
+    padding: .5rem .65rem .55rem;
+    border: 1px solid color-mix(in srgb, var(--portfolio-border) 75%, transparent);
+    border-radius: .65rem;
+    background: var(--v6-tile);
+}
+.project-facts__item .project-facts__label {
+    display: block;
+    margin-bottom: .12rem;
+    font-size: .66rem;
+    font-weight: 750;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.project-facts__item .project-facts__value {
+    margin: 0;
+    font-size: .86rem;
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+/* Procurement: milestones in the order they are reached. */
+.procurement-ladder {
+    --ladder-line: color-mix(in srgb, var(--portfolio-muted) 22%, transparent);
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    margin: .1rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+.procurement-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .1rem;
+    min-width: 0;
+    padding: 0 .5rem 0 0;
+}
+.procurement-step::before {
+    content: "";
+    position: absolute;
+    top: .7rem;
+    left: 1.5rem;
+    right: 0;
+    height: 2px;
+    background: var(--ladder-line);
+}
+.procurement-step:last-child::before { display: none; }
+.procurement-step.is-recorded::before { background: color-mix(in srgb, var(--v6-good) 55%, transparent); }
+.procurement-step.is-latest::before { background: linear-gradient(90deg, color-mix(in srgb, var(--v6-good) 55%, transparent), var(--ladder-line)); }
+.procurement-step__marker {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    margin-bottom: .35rem;
+    border: 2px solid var(--ladder-line);
+    border-radius: 50%;
+    background: var(--v6-surface);
+    color: var(--v6-surface);
+    font-size: .78rem;
+}
+.procurement-step.is-recorded .procurement-step__marker {
+    border-color: var(--v6-good);
+    background: var(--v6-good);
+}
+.procurement-step.is-latest .procurement-step__marker {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--v6-good) 20%, transparent);
+}
+.procurement-ladder .procurement-label {
+    color: var(--portfolio-muted);
+    font-size: .66rem;
+    font-weight: 750;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.procurement-ladder .procurement-value {
+    color: var(--portfolio-muted);
+    font-size: .8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.procurement-step.is-recorded .procurement-value {
+    color: var(--v6-text);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+}
+
+/* Timeline: later stages are quiet one-line rows. */
+.project-lifecycle-panel .pm-item.is-future { margin-bottom: .32rem; }
+.project-lifecycle-panel .pm-item.is-future::before {
+    top: 14px;
+    width: 9px;
+    height: 9px;
+    left: -25.5px;
+    background: var(--v6-surface);
+    box-shadow: 0 0 0 2px var(--bs-border-color, #dee2e6);
+}
+.project-portfolio .project-lifecycle-panel .pm-item.is-future .pm-item-card {
+    gap: .15rem;
+    padding: .3rem .45rem .3rem .75rem;
+    border: 1px dashed color-mix(in srgb, var(--portfolio-border) 90%, transparent);
+    border-left-width: 1px;
+    background: transparent;
+    box-shadow: none;
+}
+.project-lifecycle-panel .pm-item.is-future .pm-item-flags:not(:has(> :not(.d-none))) { display: none; }
+.project-lifecycle-panel .pm-item.is-future:hover .pm-item-card {
+    border-style: solid;
+    background: var(--v6-tile);
+}
+/* Every row under "Later stages" (or "Stages not reached") shares one status, which the
+   heading already says, so the status pill is kept for screen readers only. */
+.project-lifecycle-panel .pm-item.is-future [data-stage-status-pill] {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+.project-lifecycle-panel .pm-item.is-future .pm-kebab {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+}
+.project-lifecycle-panel .pm-item.is-future .pm-item-title {
+    color: color-mix(in srgb, var(--v6-text) 78%, var(--portfolio-muted));
+    font-size: .86rem;
+    font-weight: 650;
+}
+.project-lifecycle-panel .pm-item.is-future .pm-future-stage-plan {
+    margin: 0;
+    font-size: .74rem;
+}
+.project-lifecycle-panel .pm-item.is-future .pm-item-actions .btn {
+    --bs-btn-padding-y: .12rem;
+    --bs-btn-padding-x: .4rem;
+}
+
+/* The stage in hand stands out a little more. */
+.project-lifecycle-panel .pm-item.is-active .pm-item-card {
+    background: linear-gradient(180deg, var(--v6-accent-soft), var(--v6-surface) 4.5rem);
+}
+
+/* Below the desktop header layout the cover stays beside the title, not above it. */
+@media (max-width: 991.98px) {
+    .project-portfolio .project-command-header__main:has(> .project-command-header__cover) {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        column-gap: .85rem;
+        row-gap: .75rem;
+    }
+    .project-command-header__main > .project-command-header__commands { grid-column: 1 / -1; }
+}
+
+@media (max-width: 47.99rem) {
+    .procurement-ladder { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: .9rem; }
+    .procurement-step:nth-child(3)::before { display: none; }
+}
+
+@media (max-width: 575.98px) {
+    .project-command-header__cover { width: 4.25rem; }
+    .project-command-header__meta {
+        flex-direction: row;
+        gap: .25rem .8rem;
+    }
+    .project-intelligence-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+    .project-intelligence-card { padding: .6rem .65rem; }
+    .project-intelligence-card strong { font-size: .95rem; }
+    .project-profile-flow .project-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .4rem;
+    }
+    .project-facts__item .project-facts__value { margin-bottom: 0; }
+}
+
+@media (max-width: 23.99rem) {
+    .procurement-ladder { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .procurement-step:nth-child(3)::before { display: block; }
+    .procurement-step:nth-child(2n)::before { display: none; }
+}
+
+/* Overlays opened from this page (drawers and dialogs) share one language: a titled
+   header with the project name, roomy body, quiet labels and a sticky action bar. The
+   Lifecycle actions dialog was the reference. The site-wide confirm dialog is left alone. */
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) {
+    --bs-offcanvas-width: min(34rem, 100vw);
+    --bs-offcanvas-bg: var(--v6-surface);
+    --bs-modal-bg: var(--v6-surface);
+    --bs-modal-border-radius: 1rem;
+    --bs-modal-inner-border-radius: calc(1rem - 1px);
+    font-variant-numeric: tabular-nums lining-nums;
+}
+/* Surface and text come from the same tokens, so they always flip together. */
+:is(.project-portfolio .offcanvas, .project-portfolio .modal-content, #recordCompletenessModal .modal-content, #discardDraftModal .modal-content) {
+    background-color: var(--v6-surface);
+    color: var(--v6-text);
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) .modal-content {
+    border: 1px solid var(--portfolio-border);
+    box-shadow: 0 24px 60px var(--v6-shadow-strong);
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) :is(.offcanvas-header, .modal-header) {
+    align-items: flex-start;
+    gap: .75rem;
+    padding: 1rem 1.25rem .9rem;
+    border-bottom: 1px solid var(--portfolio-border);
+    background: linear-gradient(180deg, var(--v6-accent-soft), var(--v6-surface));
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) :is(.offcanvas-title, .modal-title, .offcanvas-header h5, .modal-header h5) {
+    color: var(--v6-text);
+    font-size: 1.08rem;
+    font-weight: 750;
+    letter-spacing: -.01em;
+    line-height: 1.25;
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) :is(.offcanvas-header, .modal-header) .text-muted {
+    font-size: .78rem;
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) .btn-close {
+    flex: 0 0 auto;
+    margin: -.1rem -.25rem 0 auto;
+    padding: .55rem;
+    border-radius: .55rem;
+}
+.project-portfolio .offcanvas .offcanvas-body { padding: 1.1rem 1.25rem 1.25rem; }
+:is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) .form-label,
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) legend.form-label {
+    float: none;
+    margin-bottom: .35rem;
+    color: var(--v6-text);
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) :is(.form-control, .form-select, .input-group-text) {
+    border-radius: .6rem;
+    border-color: color-mix(in srgb, var(--portfolio-border) 90%, var(--portfolio-muted));
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) .input-group > :not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) .input-group > :not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) .input-group-text {
+    min-width: 2.4rem;
+    justify-content: center;
+    background: var(--v6-tile);
+    color: var(--portfolio-muted);
+    font-weight: 700;
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) :is(.form-control, .form-select):focus {
+    border-color: var(--v6-accent);
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--v6-accent) 18%, transparent);
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) :is(.form-control, .form-select):disabled {
+    border-style: dashed;
+    background: var(--v6-tile);
+    color: var(--portfolio-muted);
+    cursor: not-allowed;
+}
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) .form-text { font-size: .74rem; }
+:is(.project-portfolio .offcanvas, .project-portfolio .modal) .form-text .bi-lock { margin-right: .2rem; }
+.procurement-cost-input.is-locked .input-group-text { border-style: dashed; }
+.procurement-inr-preview--live {
+    color: color-mix(in srgb, var(--v6-good) 80%, var(--v6-text));
+    font-weight: 700;
+}
+
+/* A shared action bar at the foot of a drawer form. */
+.pm-overlay-actions {
+    position: sticky;
+    bottom: -1.25rem;
+    z-index: 2;
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin: 1.25rem -1.25rem -1.25rem;
+    padding: .8rem 1.25rem;
+    border-top: 1px solid var(--portfolio-border);
+    background: color-mix(in srgb, var(--v6-surface) 94%, transparent);
+    backdrop-filter: blur(8px);
+}
+
+/* A considered empty state instead of a grey alert. */
+.pm-overlay-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .3rem;
+    padding: 2.25rem 1.25rem;
+    border: 1px dashed var(--portfolio-border);
+    border-radius: .9rem;
+    background: var(--v6-tile);
+    color: var(--portfolio-muted);
+    text-align: center;
+}
+.pm-overlay-empty strong { color: var(--v6-text); font-size: .95rem; }
+.pm-overlay-empty span:not(.pm-overlay-empty__icon) { max-width: 22rem; font-size: .82rem; }
+.pm-overlay-empty__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-bottom: .35rem;
+    border-radius: .8rem;
+    background: var(--v6-accent-soft);
+    color: var(--v6-accent);
+    font-size: 1.25rem;
+}
+
+/* Remarks: one aligned header row (avatar · identity · actions) at every width, quieter
+   action buttons and calmer type. The flex utility classes stay on the markup, hence the
+   !important on display. */
+.project-portfolio .remarks-item {
+    padding: .85rem .95rem;
+    border-color: color-mix(in srgb, var(--portfolio-border) 85%, transparent);
+    border-radius: .85rem;
+    transition: border-color .16s ease, box-shadow .16s ease;
+}
+.project-portfolio .remarks-item:hover {
+    border-color: var(--portfolio-border);
+    box-shadow: 0 6px 18px var(--v6-shadow);
+}
+.project-portfolio .remarks-item-compact { gap: .55rem; }
+.project-portfolio .remarks-header {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .7rem;
+}
+.project-portfolio .remarks-avatar {
+    width: 2.1rem;
+    height: 2.1rem;
+    font-size: .72rem;
+    font-weight: 800;
+}
+.project-portfolio .remarks-identity { gap: .2rem; }
+.project-portfolio .remarks-name .fw-semibold { font-weight: 750 !important; }
+.project-portfolio .remarks-timestamp { font-size: .72rem; }
+.project-portfolio .remarks-meta { gap: .3rem !important; margin-top: .15rem; }
+.project-portfolio .remarks-meta .badge { font-size: .64rem; font-weight: 700; }
+.project-portfolio .remarks-stage-context { font-size: .72rem; }
+.project-portfolio .remarks-actions { gap: .25rem !important; }
+.project-portfolio .remarks-actions .btn-icon {
+    --bs-btn-padding-y: .2rem;
+    --bs-btn-padding-x: .4rem;
+    border-color: transparent;
+    background: transparent;
+    color: var(--portfolio-muted);
+}
+.project-portfolio .remarks-actions .btn-icon:hover,
+.project-portfolio .remarks-actions .btn-icon:focus-visible {
+    border-color: var(--portfolio-border);
+    background: var(--v6-tile);
+    color: var(--v6-text);
+}
+.project-portfolio .remarks-actions .btn-outline-danger.btn-icon:hover { color: var(--v6-poor); }
+.project-portfolio .remarks-body {
+    padding-left: 2.8rem;
+    color: var(--v6-text);
+    font-size: .9rem;
+    line-height: 1.55;
+}
+@media (max-width: 575.98px) {
+    .project-portfolio .remarks-body { padding-left: 0; }
+}
+
+/* Dark theme (planned): only the section tokens change. The site has no dark palette yet
+   (it pins --bs-body-bg light), so these slate values stand in until the site theme
+   provides tokens; then point them at those tokens. */
+[data-bs-theme="dark"] :is(.project-portfolio, #recordCompletenessModal, #discardDraftModal) {
+    --v6-surface: #0f172a;
+    --v6-text: #e2e8f0;
+    --v6-tile: #1e293b;
+    --v6-accent-soft: color-mix(in srgb, var(--v6-accent) 22%, #0f172a);
+    --v6-shadow: rgba(0, 0, 0, .35);
+    --v6-shadow-strong: rgba(0, 0, 0, .5);
+    --portfolio-border: #334155;
+    --portfolio-muted: #94a3b8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .project-portfolio .pm-card,
+    .project-command-header__cover,
+    .project-health-meter > span { transition: none; }
+}

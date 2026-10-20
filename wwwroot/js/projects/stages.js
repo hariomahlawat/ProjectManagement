@@ -250,11 +250,13 @@
     const finishVariance = typeof updated?.finishVarianceDays === 'number' ? updated.finishVarianceDays : null;
 
     const normalizedStatus = typeof statusText === 'string' ? statusText.trim().toLowerCase() : '';
-    row.classList.remove('is-complete', 'is-active');
+    row.classList.remove('is-complete', 'is-active', 'is-future');
     if (normalizedStatus === 'completed') {
       row.classList.add('is-complete');
     } else if (normalizedStatus === 'inprogress') {
       row.classList.add('is-active');
+    } else if (normalizedStatus === 'notstarted') {
+      row.classList.add('is-future');
     }
 
     if (requiresBackfill) {
