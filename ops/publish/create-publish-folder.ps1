@@ -10,6 +10,58 @@ function Assert-ExitCode([string] $operation) {
     }
 }
 
+function Read-MigrationManifest([string] $manifestPath) {
+    return @(Get-Content $manifestPath |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and -not $_.StartsWith("#") })
+}
+
+# Validates the application migration manifest against the migration sources so the
+# check never needs editing when a migration is added. The manifest must be non-empty,
+# free of duplicates, in ascending ordinal order, and identical to the set of
+# [Migration("...")] identifiers declared under Migrations/ (so its last entry is the
+# newest migration). Assembly-level parity is covered by ApplicationDatabaseMigrationsTests.
+function Assert-ApplicationMigrationManifest([string] $manifestPath, [string] $migrationsDirectory) {
+    $manifest = Read-MigrationManifest $manifestPath
+    if ($manifest.Count -eq 0) {
+        throw "Application migration manifest is incomplete. '$manifestPath' contains no migration IDs."
+    }
+
+    $duplicates = @($manifest | Group-Object -CaseSensitive | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+    if ($duplicates.Count -gt 0) {
+        throw "Application migration manifest is invalid. Duplicate IDs: $($duplicates -join ', ')."
+    }
+
+    for ($i = 1; $i -lt $manifest.Count; $i++) {
+        if ([string]::CompareOrdinal($manifest[$i - 1], $manifest[$i]) -ge 0) {
+            throw "Application migration manifest is invalid. '$($manifest[$i])' is out of order after '$($manifest[$i - 1])'."
+        }
+    }
+
+    $sourceIds = [string[]]@(Get-ChildItem -Path $migrationsDirectory -Filter "*.cs" -File |
+        Select-String -Pattern '\[Migration\("([^"]+)"\)\]' -AllMatches |
+        ForEach-Object { $_.Matches } |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique -CaseSensitive)
+    [Array]::Sort($sourceIds, [StringComparer]::Ordinal)
+
+    if ($sourceIds.Count -eq 0) {
+        throw "Application migration sources are missing under '$migrationsDirectory'."
+    }
+
+    $missingFromManifest = @($sourceIds | Where-Object { $manifest -cnotcontains $_ })
+    $missingFromSources = @($manifest | Where-Object { $sourceIds -cnotcontains $_ })
+    if ($missingFromManifest.Count -gt 0 -or $missingFromSources.Count -gt 0) {
+        throw "Application migration manifest is incomplete. Missing from manifest: [$($missingFromManifest -join ', ')]. Without migration source: [$($missingFromSources -join ', ')]."
+    }
+
+    if ($manifest[-1] -cne $sourceIds[-1]) {
+        throw "Application migration manifest is incomplete. Expected the last ID to be the newest migration '$($sourceIds[-1])' but found '$($manifest[-1])'."
+    }
+
+    return ,$manifest
+}
+
 Push-Location $repoRoot
 try {
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
@@ -62,13 +114,10 @@ try {
         }
     }
 
-    $manifest = Get-Content (Join-Path $repoRoot "Migrations/immutable-migration-ids.txt") |
-        ForEach-Object { $_.Trim() } |
-        Where-Object { $_ -and -not $_.StartsWith("#") }
-
-    if ($manifest.Count -ne 62 -or $manifest[-1] -ne "20261201160000_FinalizeProjectStageCompletionConstraint") {
-        throw "Application migration manifest is incomplete. Expected 62 ordered IDs ending in 20261201160000_FinalizeProjectStageCompletionConstraint."
-    }
+    $manifest = Assert-ApplicationMigrationManifest `
+        (Join-Path $repoRoot "Migrations/immutable-migration-ids.txt") `
+        (Join-Path $repoRoot "Migrations")
+    Write-Host "Application migration manifest: $($manifest.Count) ordered IDs ending in $($manifest[-1])."
 
     if (-not (Test-Path (Join-Path $repoRoot "node_modules/esbuild"))) {
         Write-Host "Restoring Node.js dependencies..."
@@ -147,11 +196,9 @@ try {
         throw "Published web.config does not contain the required IIS request limit."
     }
 
-    $publishedManifest = Get-Content (Join-Path $publishRoot "Migrations/immutable-migration-ids.txt") |
-        ForEach-Object { $_.Trim() } |
-        Where-Object { $_ -and -not $_.StartsWith("#") }
-    if ($publishedManifest.Count -ne 62 -or $publishedManifest[-1] -ne "20261201160000_FinalizeProjectStageCompletionConstraint") {
-        throw "Published migration manifest is incomplete."
+    $publishedManifest = Read-MigrationManifest (Join-Path $publishRoot "Migrations/immutable-migration-ids.txt")
+    if (($publishedManifest -join "`n") -cne ($manifest -join "`n")) {
+        throw "Published migration manifest is incomplete. Expected $($manifest.Count) IDs ending in $($manifest[-1]) but found $($publishedManifest.Count)."
     }
 
     Write-Host "Running Compendium offline PDF dependency self-test..."
