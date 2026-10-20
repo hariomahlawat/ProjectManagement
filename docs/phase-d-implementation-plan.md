@@ -88,10 +88,11 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
     - the closure, `EntryPoint`, `RevisionNo` and clear-intent `CHECK` constraints are added;
     - `DecisionNote` is `varchar(2000)`, matching Decision Centre remarks;
     - `ApplicationDatabaseSchemaValidator` is unchanged, because it does not enumerate tables.
-  - **Pre-existing model/snapshot drift.** It is left out of this migration and needs its own change:
-    - the `NotebookItemCollaborators` table, created by a migration but missing from the snapshot;
-    - `Projects.ProjectBrief`, whose model length is 3000 while the database has 2500;
-    - a removed `IX_ProjectIdeaComments_ProjectIdeaId`.
+  - **Pre-existing model/snapshot drift, left out of this migration and tracked separately** (PostgreSQL evidence on the investigation branch `claude/investigate-schema-drift`):
+    - #2684: `NotebookItemCollaborators` is missing from the snapshot (the next scaffold would duplicate its `CreateTable`), and a redundant `IX_ProjectIdeaComments_ProjectIdeaId` remains;
+    - #2682: `Projects.ProjectBrief` is 3000 characters in the model but `varchar(2500)` in the database, so a valid brief can fail to save;
+    - #2683: `ops/publish/create-publish-folder.ps1` hard-codes 62 migrations; it must be fixed before any release.
+  - **The D-2 read-only editor is temporary.** For PO-only users it exists only so the D-2 emergency floor offers no false save. D-3 restores the editable editor and backfill form for the assigned PO, with immediate validation and "Submit for approval" through the same routes (C.4, D-3b). It is not the D-3 design.
 - **D-3a–D-3e** (PO proposals, Decision Centre, read models) are not started. D-2 must not be deployed without D-3 (K-14).
 - **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
 - **K-11** was accepted before D-1a and is implemented as per-branch convergence.
