@@ -2530,6 +2530,7 @@ namespace ProjectManagement.Pages.Projects
             return TimelineSubmissionStatusBuilder.Build(new TimelineSubmissionStatusInput
             {
                 Now = now,
+                CurrentUserId = CurrentUserId,
                 Plan = PlanEdit?.State,
                 IncludeActualCorrections = CanSubmitActualProposals,
                 PendingActualCorrection = CanSubmitActualProposals ? ActualsEditor.PendingProposal : null,

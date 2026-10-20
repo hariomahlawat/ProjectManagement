@@ -78,7 +78,7 @@ public sealed class TimelineSubmissionStatusBuilderTests
         var status = Build(
             includeActuals: true,
             pendingActual: new ActualProposalSummaryVm(5, 2, Now.AddDays(-1), null, true, new[] { StageCodes.IPA }),
-            latestActual: new ActualCorrectionRevision { Status = ActualCorrectionRevisionStatus.Rejected, ClosedOn = Now.AddDays(-3) });
+            latestActual: new ActualCorrectionRevision { SubmittedByUserId = "po", Status = ActualCorrectionRevisionStatus.Rejected, ClosedOn = Now.AddDays(-3) });
 
         var entry = Single(status, TimelineSubmissionStatusVm.ActualDatesCategory);
         Assert.Equal(TimelineSubmissionState.Pending, entry.State);
@@ -91,6 +91,7 @@ public sealed class TimelineSubmissionStatusBuilderTests
     {
         var returned = Single(Build(includeActuals: true, latestActual: new ActualCorrectionRevision
         {
+            SubmittedByUserId = "po",
             Status = ActualCorrectionRevisionStatus.Rejected,
             ClosedOn = Now.AddDays(-4),
             DecisionNote = "IPA start conflicts with SOW."
@@ -101,6 +102,7 @@ public sealed class TimelineSubmissionStatusBuilderTests
 
         var approved = Single(Build(includeActuals: true, latestActual: new ActualCorrectionRevision
         {
+            SubmittedByUserId = "po",
             Status = ActualCorrectionRevisionStatus.Approved,
             ClosedOn = Now.AddDays(-2)
         }), TimelineSubmissionStatusVm.ActualDatesCategory);
@@ -109,11 +111,13 @@ public sealed class TimelineSubmissionStatusBuilderTests
 
         Assert.False(Build(includeActuals: true, latestActual: new ActualCorrectionRevision
         {
+            SubmittedByUserId = "po",
             Status = ActualCorrectionRevisionStatus.Approved,
             ClosedOn = Now.AddDays(-8)
         }).HasLines);
         Assert.False(Build(includeActuals: true, latestActual: new ActualCorrectionRevision
         {
+            SubmittedByUserId = "po",
             Status = ActualCorrectionRevisionStatus.Withdrawn,
             ClosedOn = Now.AddDays(-1)
         }).HasLines);
@@ -177,6 +181,57 @@ public sealed class TimelineSubmissionStatusBuilderTests
         Assert.Equal(2, line.HiddenCount);
     }
 
+    [Fact]
+    public void ActualCorrections_SubmittedByAPreviousPo_AreNotListedAsTheViewers()
+    {
+        Assert.False(Build(includeActuals: true,
+            pendingActual: new ActualProposalSummaryVm(5, 2, Now.AddDays(-1), null, false, new[] { StageCodes.IPA })).HasLines);
+        Assert.False(Build(includeActuals: true, latestActual: new ActualCorrectionRevision
+        {
+            SubmittedByUserId = "previous-po",
+            Status = ActualCorrectionRevisionStatus.Rejected,
+            ClosedOn = Now.AddDays(-2),
+            DecisionNote = "Not yours"
+        }).HasLines);
+    }
+
+    [Theory]
+    [InlineData("InProgress", StageStatus.Completed)]
+    [InlineData("InProgress", StageStatus.Skipped)]
+    [InlineData("Blocked", StageStatus.Completed)]
+    [InlineData("Completed", StageStatus.Completed)]
+    public void ReturnedStageUpdate_IsDroppedOnceTheStageHasMovedPastIt(string requested, StageStatus current)
+    {
+        var status = Build(
+            stageRequests: new[] { Outcome(StageCodes.TEC, "Technical Evaluation", requested, "Rejected", Now.AddDays(-3)) },
+            stageStatuses: new Dictionary<string, StageStatus>(StringComparer.OrdinalIgnoreCase) { [StageCodes.TEC] = current });
+
+        Assert.False(status.HasLines);
+    }
+
+    [Fact]
+    public void ReturnedCompletion_StaysWhileTheStageIsStillInProgress()
+    {
+        var status = Build(
+            stageRequests: new[] { Outcome(StageCodes.TEC, "Technical Evaluation", "Completed", "Rejected", Now.AddDays(-3)) },
+            stageStatuses: new Dictionary<string, StageStatus>(StringComparer.OrdinalIgnoreCase) { [StageCodes.TEC] = StageStatus.InProgress });
+
+        Assert.True(status.Shows(TimelineSubmissionStatusVm.StageUpdatesCategory, TimelineSubmissionState.Returned));
+    }
+
+    [Fact]
+    public void OwnPendingStageUpdates_AreCountedEvenWhenNotAllAreListed()
+    {
+        var requests = new[] { StageCodes.FS, StageCodes.IPA, StageCodes.SOW, StageCodes.AON }
+            .Select(code => Outcome(code, code, "Completed", "Pending", null))
+            .ToArray();
+
+        var status = Build(stageRequests: requests);
+
+        Assert.Equal(4, status.OwnPendingStageUpdateCount);
+        Assert.Equal(TimelineSubmissionStatusBuilder.MaxStageEntries, status.Lines.Single().Entries.Count);
+    }
+
     [Theory]
     [InlineData("Completed", "Completion")]
     [InlineData("InProgress", "Start")]
@@ -199,6 +254,7 @@ public sealed class TimelineSubmissionStatusBuilderTests
         TimelineSubmissionStatusBuilder.Build(new TimelineSubmissionStatusInput
         {
             Now = Now,
+            CurrentUserId = "po",
             Plan = plan,
             IncludeActualCorrections = includeActuals,
             PendingActualCorrection = pendingActual,

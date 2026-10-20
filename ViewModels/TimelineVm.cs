@@ -68,6 +68,18 @@ public sealed class TimelineItemVm
         ActualStart.HasValue &&
         CompletedOn.HasValue &&
         ActualStart.Value > CompletedOn.Value;
+    /// <summary>An ARPP-managed IPA whose recorded actual start is missing or invalid.</summary>
+    public bool NeedsArppActualStartAttention =>
+        IsArppManaged && (!ActualStart.HasValue || HasActualStartDataQualityIssue);
+    /// <summary>
+    /// Completed or skipped with nothing outstanding: no missing completion date,
+    /// no pending update and no ARPP start issue. The Timeline may collapse these.
+    /// </summary>
+    public bool IsSettled =>
+        Status is StageStatus.Completed or StageStatus.Skipped &&
+        !RequiresBackfill &&
+        !HasPendingRequest &&
+        !NeedsArppActualStartAttention;
     public bool HasPendingRequest { get; init; }
     public string? PendingStatus { get; init; }
     public DateOnly? PendingDate { get; init; }

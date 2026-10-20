@@ -34,12 +34,7 @@
     // updates are near the top. Workflow order is kept inside the group.
     var orderedStages = timeline.Items.OrderBy(item => item.SortOrder).ToList();
     var settledStages = isActiveLifecycle
-        ? orderedStages.Where(item =>
-                item.Status is StageStatus.Completed or StageStatus.Skipped &&
-                !item.RequiresBackfill &&
-                !item.HasPendingRequest &&
-                !(item.IsArppManaged && (!item.ActualStart.HasValue || item.HasActualStartDataQualityIssue)))
-            .ToList()
+        ? orderedStages.Where(item => item.IsSettled).ToList()
         : new List<ProjectManagement.ViewModels.TimelineItemVm>();
     if (settledStages.Count < 2)
     {
@@ -58,7 +53,8 @@
     }.Where(part => part is not null));
     var latestSettledCompletion = settledStages
         .Where(item => item.Status == StageStatus.Completed && item.CompletedOn.HasValue)
-        .OrderByDescending(item => item.SortOrder)
+        .OrderByDescending(item => item.CompletedOn)
+        .ThenByDescending(item => item.SortOrder)
         .FirstOrDefault();
 }
 @functions {
@@ -205,8 +201,7 @@
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
       var hasStageMenuActions = !s.IsArppManaged && (isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest));
-      var needsArppActualStartAttention = s.IsArppManaged &&
-          (!s.ActualStart.HasValue || s.HasActualStartDataQualityIssue);
+      var needsArppActualStartAttention = s.NeedsArppActualStartAttention;
       var canCorrectArppActualStart = needsArppActualStartAttention &&
           ((isActiveLifecycle && canEditTimeline) ||
            (!isActiveLifecycle && Model.CanManageHistoricalStageHistory));

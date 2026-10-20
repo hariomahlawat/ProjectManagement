@@ -478,7 +478,7 @@ public class ProjectTimelineUiTests
             "Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml"));
 
         Assert.Contains("<partial name=\"_TimelineSubmissionStatus\" model=\"submissionStatus\" />", workspace, StringComparison.Ordinal);
-        Assert.Contains("pendingStageUpdateCount > 0 && !statusShowsStagePending", workspace, StringComparison.Ordinal);
+        Assert.Contains("pendingStageUpdateCount > 0 && !statusCoversAllPendingStageUpdates", workspace, StringComparison.Ordinal);
         Assert.Contains("pendingOwnedByCurrentUser && !statusShowsPlanPending", workspace, StringComparison.Ordinal);
         Assert.Contains("hasMyDraft && !statusShowsPlanReturned", workspace, StringComparison.Ordinal);
     }

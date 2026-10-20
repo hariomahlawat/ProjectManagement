@@ -19,6 +19,8 @@ public sealed record TimelineSubmissionStatusInput
 {
     public DateTimeOffset Now { get; init; }
 
+    public string? CurrentUserId { get; init; }
+
     public PlanEditorStateVm? Plan { get; init; }
 
     public bool IncludeActualCorrections { get; init; }
@@ -63,6 +65,7 @@ public static class TimelineSubmissionStatusBuilder
         }
 
         var stageEntries = StageEntries(input).ToList();
+        var ownPendingStageUpdates = stageEntries.Count(entry => entry.State == TimelineSubmissionState.Pending);
         if (stageEntries.Count > 0)
         {
             lines.Add(new TimelineSubmissionLineVm(
@@ -71,7 +74,9 @@ public static class TimelineSubmissionStatusBuilder
                 stageEntries.Count - Math.Min(stageEntries.Count, MaxStageEntries)));
         }
 
-        return lines.Count == 0 ? TimelineSubmissionStatusVm.Empty : new TimelineSubmissionStatusVm(lines);
+        return lines.Count == 0
+            ? TimelineSubmissionStatusVm.Empty
+            : new TimelineSubmissionStatusVm(lines) { OwnPendingStageUpdateCount = ownPendingStageUpdates };
     }
 
     private static void AddLine(List<TimelineSubmissionLineVm> lines, string category, TimelineSubmissionEntryVm? entry)
@@ -119,7 +124,9 @@ public static class TimelineSubmissionStatusBuilder
     // SECTION: Actual dates
     private static TimelineSubmissionEntryVm? ActualEntries(TimelineSubmissionStatusInput input)
     {
-        if (input.PendingActualCorrection is { } pending)
+        // "Your submissions": after a PO reassignment the editor still shows the
+        // previous PO's proposal (K-6), but the status line lists only the viewer's.
+        if (input.PendingActualCorrection is { SubmittedByCurrentUser: true } pending)
         {
             return new TimelineSubmissionEntryVm(
                 TimelineSubmissionState.Pending,
@@ -128,8 +135,15 @@ public static class TimelineSubmissionStatusBuilder
                 OffcanvasTarget: ActualEditorTarget);
         }
 
+        if (input.PendingActualCorrection is not null)
+        {
+            return null;
+        }
+
         var latest = input.LatestActualCorrection;
-        if (latest?.ClosedOn is not DateTimeOffset closedOn)
+        if (latest?.ClosedOn is not DateTimeOffset closedOn ||
+            string.IsNullOrWhiteSpace(input.CurrentUserId) ||
+            !string.Equals(latest.SubmittedByUserId, input.CurrentUserId, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -175,7 +189,7 @@ public static class TimelineSubmissionStatusBuilder
                     break;
                 case "Rejected" when request.DecidedOn is DateTimeOffset decidedOn
                                      && Within(input.Now, decidedOn, ReturnedWindow)
-                                     && !AlreadyApplies(input, request):
+                                     && !Overtaken(input, request):
                     returned.Add(new TimelineSubmissionEntryVm(
                         TimelineSubmissionState.Returned,
                         $"{subject} returned on {Date(decidedOn)}.",
@@ -197,11 +211,21 @@ public static class TimelineSubmissionStatusBuilder
         return returned.Concat(pending).Concat(approved);
     }
 
-    // A return is moot once the stage already has the status that was requested.
-    private static bool AlreadyApplies(TimelineSubmissionStatusInput input, StageRequestOutcomeVm request) =>
-        Enum.TryParse<StageStatus>(request.RequestedStatus, ignoreCase: true, out var requested)
-        && input.CurrentStageStatuses.TryGetValue(request.StageCode, out var current)
-        && current == requested;
+    // A return is moot once the stage already has the requested status or has moved
+    // past it (for example a returned start request on a stage the HoD has since
+    // completed directly). Decided requests are never superseded, so this is the check.
+    private static bool Overtaken(TimelineSubmissionStatusInput input, StageRequestOutcomeVm request)
+    {
+        if (!Enum.TryParse<StageStatus>(request.RequestedStatus, ignoreCase: true, out var requested) ||
+            !input.CurrentStageStatuses.TryGetValue(request.StageCode, out var current))
+        {
+            return false;
+        }
+
+        return current == requested ||
+               (requested is StageStatus.InProgress or StageStatus.Blocked &&
+                current is StageStatus.Completed or StageStatus.Skipped);
+    }
 
     internal static string ActionNoun(string? requestedStatus) => requestedStatus?.Trim().ToLowerInvariant() switch
     {

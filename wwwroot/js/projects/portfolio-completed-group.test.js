@@ -26,6 +26,7 @@ function createDom(url) {
                     </div>
                 </details>
                 ${stage('IPA', 'is-active')}
+                <a href="#timeline-stage-SOW" data-timeline-stage-link="SOW">Review</a>
             </div>
         </div>
     </body></html>`, { url, runScripts: 'dangerously', pretendToBeVisual: true });
@@ -70,4 +71,13 @@ test('following an in-page link to a grouped stage opens the group and scrolls t
 
     assert.equal(group.open, true);
     assert.deepEqual(scrolled, ['SOW']);
+});
+
+test('clicking a status-line link opens the group even when the hash is already set', () => {
+    const { window, group } = createDom('https://prism.test/Projects/Overview/214#timeline-stage-SOW');
+    group.open = false;
+
+    window.document.querySelector('[data-timeline-stage-link]').click();
+
+    assert.equal(group.open, true);
 });

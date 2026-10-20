@@ -50,6 +50,14 @@
     }
 
     root.addEventListener('click', (event) => {
+        // Open the completed group before the browser follows the link, so the jump
+        // also works when the hash is unchanged (no hashchange event).
+        const stageLink = event.target.closest('[data-timeline-stage-link]');
+        if (stageLink) {
+            revealStage(stageLink.getAttribute('data-timeline-stage-link'));
+            return;
+        }
+
         const scrollButton = event.target.closest('[data-scroll-target]');
         if (scrollButton) {
             event.preventDefault();

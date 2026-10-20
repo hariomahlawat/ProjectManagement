@@ -27,6 +27,9 @@ public sealed class TimelineSubmissionStatusVm
 
     public bool HasLines => Lines.Count > 0;
 
+    /// <summary>The viewer's own pending stage updates, including any not listed.</summary>
+    public int OwnPendingStageUpdateCount { get; init; }
+
     public bool Shows(string category, TimelineSubmissionState state) =>
         Lines.Any(line => string.Equals(line.Category, category, StringComparison.Ordinal) &&
                           line.Entries.Any(entry => entry.State == state));

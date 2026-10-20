@@ -427,9 +427,11 @@ public sealed class ProjectTimelineReadService
     /// <summary>
     /// The user's own stage requests that are still the latest request for their
     /// stage: pending ones, and approved or rejected ones decided on or after
-    /// <paramref name="decidedSince"/>. A newer request by anyone, or a direct
-    /// HoD change that superseded it, makes an older outcome history. Read-only;
-    /// feeds the Timeline status line (PO Timeline discovery E.1).
+    /// <paramref name="decidedSince"/>. A newer request by anyone makes an older
+    /// outcome history; a pending request superseded by a HoD direct change is no
+    /// longer pending. A later direct change does not alter a decided request, so
+    /// the status-line builder also compares the stage's current status.
+    /// Read-only; feeds the Timeline status line (PO Timeline discovery E.1).
     /// </summary>
     public async Task<IReadOnlyList<StageRequestOutcomeVm>> GetStageRequestOutcomesAsync(
         int projectId,
