@@ -172,6 +172,7 @@ public class BackfillApplyModel : PageModel
 
             var actor = ActualWriteActor.FromPrincipal(principal, userId);
             var result = await _backfillService.ApplyAsync(input.ProjectId, updates, actor, ct, input.BaselineVersion);
+            FlashAfterReload(DirectBackfillSavedMessage);
 
             return new JsonResult(new
             {
@@ -334,6 +335,7 @@ public class BackfillApplyModel : PageModel
         {
             case ActualCorrectionSubmissionOutcome.Submitted:
             case ActualCorrectionSubmissionOutcome.Unchanged:
+                FlashAfterReload(message);
                 // ok stays true for compatibility; pendingApproval says nothing was published.
                 return new JsonResult(new
                 {
@@ -378,6 +380,18 @@ public class BackfillApplyModel : PageModel
                 });
             default:
                 return Forbid();
+        }
+    }
+
+    internal const string DirectBackfillSavedMessage = "Stage completion details updated.";
+
+    // The modal reloads the Overview after a success, which discards its toast.
+    // The same confirmation is carried to the reloaded page (discovery C2.3).
+    private void FlashAfterReload(string message)
+    {
+        if (TempData is { } tempData)
+        {
+            tempData["Flash"] = message;
         }
     }
 

@@ -118,9 +118,9 @@
                                                 @if (isActiveLifecycle)
                                                 {
                                                     <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
-                                                          title="Resolve procurement backfill to proceed"
+                                                          title="@(Model.Backfill.AwaitingApproval ? "Completion dates are awaiting HoD or Admin approval" : "Resolve procurement backfill to proceed")"
                                                           data-backfill-summary>
-                                                        Backfill required
+                                                        @(Model.Backfill.AwaitingApproval ? "Completion dates submitted" : "Backfill required")
                                                     </span>
                                                 }
                                                 else if (isCancelledLifecycle)
@@ -212,7 +212,10 @@
                                          aria-hidden="@(timelineInitiallyActive ? "false" : "true")">
                                         @{
                                             var canReviewTimeline = isActiveLifecycle && planState.HasPendingSubmission && isHoD;
-                                            var canEditTimelinePlan = canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser);
+                                            // A private plan draft must not hide either editor: the actual-date
+                                            // editor is unrelated to the plan, and "Edit planned dates" reopens
+                                            // the same draft as "Continue editing". Each endpoint authorizes itself.
+                                            var canEditTimelinePlan = canEditTimeline;
 
                                             if (canReviewTimeline || canEditTimelinePlan || canManageHistoricalStageHistory)
                                             {

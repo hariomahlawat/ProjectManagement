@@ -145,4 +145,48 @@ public sealed class ProjectPortfolioPresentationVmTests
         Assert.Equal("Historical plan", presentation.TimelinePlanLabel);
         Assert.Null(presentation.CurrentStageOverdueDays);
     }
+
+    [Theory]
+    [InlineData(true, true, "Revision pending")]
+    [InlineData(true, false, "Approved")]
+    [InlineData(false, true, "Pending")]
+    [InlineData(false, false, "Not approved")]
+    public void Create_DoesNotReportApprovedWhileANewerSubmissionIsPending(
+        bool previouslyApproved, bool pending, string expected)
+    {
+        var project = new Project
+        {
+            Name = "Project",
+            CreatedByUserId = "seed",
+            PlanApprovedAt = previouslyApproved ? new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero) : null
+        };
+
+        var presentation = ProjectPortfolioPresentationVm.Create(
+            project,
+            new TimelineVm { PlanPendingApproval = pending },
+            hasBackfill: false);
+
+        Assert.Equal(expected, presentation.PlanStatus);
+        if (previouslyApproved && pending)
+        {
+            Assert.Equal("The approved plan stays in force until the HoD decides", presentation.PlanHealth);
+        }
+    }
+
+    [Fact]
+    public void Create_TerminalProjectKeepsApprovedStatusRegardlessOfAStalePendingFlag()
+    {
+        var presentation = ProjectPortfolioPresentationVm.Create(
+            new Project
+            {
+                Name = "Completed project",
+                CreatedByUserId = "seed",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                PlanApprovedAt = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new TimelineVm { PlanPendingApproval = true },
+            hasBackfill: false);
+
+        Assert.Equal("Approved", presentation.PlanStatus);
+    }
 }

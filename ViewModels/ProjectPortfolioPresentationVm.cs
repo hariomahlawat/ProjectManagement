@@ -165,10 +165,14 @@ public sealed class ProjectPortfolioPresentationVm
         {
             ProjectLifecycleStatus.Completed => "Project lifecycle completed; planning is read-only",
             ProjectLifecycleStatus.Cancelled => "Project lifecycle cancelled; planning is read-only",
-            _ => project?.PlanApprovedAt.HasValue == true
-                ? "Current-stage deadline monitored"
-                : timeline.PlanPendingApproval
-                    ? "Timeline approval pending"
+            // A newer submission outranks an earlier approval, so the card never
+            // reads "Approved" while the HoD is still deciding a revision.
+            _ => timeline.PlanPendingApproval
+                ? project?.PlanApprovedAt.HasValue == true
+                    ? "The approved plan stays in force until the HoD decides"
+                    : "Timeline approval pending"
+                : project?.PlanApprovedAt.HasValue == true
+                    ? "Current-stage deadline monitored"
                     : current?.HasPendingCompletion == true
                         ? "Completion update awaiting HoD approval"
                         : current?.NeedsPlannedCompletion == true
@@ -371,6 +375,11 @@ public sealed class ProjectPortfolioPresentationVm
         TimelineVm timeline,
         bool isTerminalLifecycle)
     {
+        if (!isTerminalLifecycle && timeline.PlanPendingApproval)
+        {
+            return project?.PlanApprovedAt.HasValue == true ? "Revision pending" : "Pending";
+        }
+
         if (project?.PlanApprovedAt.HasValue == true)
         {
             return "Approved";
@@ -381,7 +390,7 @@ public sealed class ProjectPortfolioPresentationVm
             return "Not recorded";
         }
 
-        return timeline.PlanPendingApproval ? "Pending" : "Not approved";
+        return "Not approved";
     }
 
     public static string PendingActionLabel(string? pendingStatus) => pendingStatus?.Trim().ToLowerInvariant() switch

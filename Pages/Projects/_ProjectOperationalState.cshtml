@@ -57,21 +57,32 @@
 {
     <partial name="_ProjectModerationActions" model="Model" />
 }
-<div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3@(project?.LifecycleStatus == ProjectLifecycleStatus.Active && Model.HasBackfill ? string.Empty : " d-none")" role="alert" data-backfill-banner>
+@{
+    var backfillAwaitingApproval = Model.Backfill.AwaitingApproval;
+}
+<div class="alert @(backfillAwaitingApproval ? "alert-info" : "alert-warning") d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3@(project?.LifecycleStatus == ProjectLifecycleStatus.Active && Model.HasBackfill ? string.Empty : " d-none")" role="@(backfillAwaitingApproval ? "status" : "alert")" data-backfill-banner data-backfill-awaiting-approval="@(backfillAwaitingApproval ? "true" : "false")">
     <div>
-        <strong>Action needed:</strong>
-        @if (Model.Backfill.HasStages)
+        @if (backfillAwaitingApproval)
         {
-            var stageNames = string.Join(", ", Model.Backfill.Stages.Select(stage => stage.StageName));
-            var count = Model.Backfill.Stages.Count;
-            <span>@count completed stage@(count == 1 ? string.Empty : "s") @(count == 1 ? "requires" : "require") completion details: @stageNames.</span>
+            <strong>Submitted for approval.</strong>
+            <span>Official dates update when a HoD or Admin approves.</span>
         }
         else
         {
-            <span>Some completed stages require a completion date or mandatory stage facts.</span>
+            <strong>Action needed:</strong>
+            @if (Model.Backfill.HasStages)
+            {
+                var stageNames = string.Join(", ", Model.Backfill.Stages.Select(stage => stage.StageName));
+                var count = Model.Backfill.Stages.Count;
+                <span>@count completed stage@(count == 1 ? string.Empty : "s") @(count == 1 ? "requires" : "require") completion details: @stageNames.</span>
+            }
+            else
+            {
+                <span>Some completed stages require a completion date or mandatory stage facts.</span>
+            }
         }
     </div>
-    <button type="button" class="btn btn-sm btn-warning text-dark flex-shrink-0" data-action="open-backfill">Complete mandatory backfill</button>
+    <button type="button" class="btn btn-sm @(backfillAwaitingApproval ? "btn-outline-primary" : "btn-warning text-dark") flex-shrink-0" data-action="open-backfill">@(backfillAwaitingApproval ? "Review submission" : "Complete mandatory backfill")</button>
 </div>
 @if (project?.LifecycleStatus == ProjectLifecycleStatus.Active &&
     (project.HodUserId == null || project.LeadPoUserId == null))

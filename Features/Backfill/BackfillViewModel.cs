@@ -81,11 +81,25 @@ public sealed class BackfillViewModel
     public ActualProposalSummaryVm? PendingProposal { get; init; }
 
     /// <summary>
+    /// The pending proposal already supplies a completion date for every stage that
+    /// needs one, so nothing is left for the PO to do until a HoD or Admin decides.
+    /// The banner then reports the submission instead of "Action needed" (discovery C2.3).
+    /// A proposal whose official baseline changed after submission cannot be approved
+    /// (SourceChanged) and must be resubmitted, so action is still needed then.
+    /// </summary>
+    public bool AwaitingApproval => PendingProposal is { NeedsResubmission: false } && HasStages &&
+        Stages.All(stage => stage.HasProposal && stage.CompletedOn.HasValue);
+
+    /// <summary>
     /// Prefills rows covered by the pending proposal with their proposed values, so
     /// a resubmission does not discard them. Other pending items are carried forward
     /// by the server (backfill entry point).
     /// </summary>
-    public BackfillViewModel WithPendingProposal(ActualCorrectionRevision? revision, string? currentUserId)
+    public BackfillViewModel WithPendingProposal(
+        ActualCorrectionRevision? revision,
+        string? currentUserId,
+        IReadOnlyList<string>? changedStageCodes = null,
+        bool alreadySatisfied = false)
     {
         if (revision is null)
         {
@@ -98,7 +112,11 @@ public sealed class BackfillViewModel
             ProjectId = ProjectId,
             Today = Today,
             BaselineVersion = BaselineVersion,
-            PendingProposal = ActualProposalSummaryVm.From(revision, currentUserId),
+            PendingProposal = ActualProposalSummaryVm.From(revision, currentUserId) with
+            {
+                ChangedStageCodes = changedStageCodes ?? Array.Empty<string>(),
+                AlreadySatisfied = alreadySatisfied
+            },
             Stages = Stages
                 .Select(stage => items.TryGetValue(stage.StageCode, out var item)
                     ? new BackfillStageViewModel

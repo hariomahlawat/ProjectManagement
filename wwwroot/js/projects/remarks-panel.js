@@ -347,7 +347,8 @@
                 items: [],
                 loading: false,
                 hasMore: false,
-                initialised: false
+                initialised: false,
+                loadFailed: false
             };
             this.editingId = null;
             this.editDraft = '';
@@ -1143,6 +1144,7 @@
                     const problem = await this.readProblemDetails(response);
                     this.toastHandler(problem || 'Unable to load remarks.', 'danger');
                     this.state.initialised = false;
+                    this.state.loadFailed = !append && !this.hasRenderedItems();
                     return false;
                 }
 
@@ -1185,6 +1187,7 @@
             } catch (error) {
                 this.toastHandler('Unable to load remarks.', 'danger');
                 this.state.initialised = wasInitialised;
+                this.state.loadFailed = !append && !this.hasRenderedItems();
                 return false;
             } finally {
                 this.state.loading = false;
@@ -1196,15 +1199,49 @@
                 this.loadMoreButton.disabled = isLoading;
             }
 
+            if (isLoading) {
+                this.state.loadFailed = false;
+            }
+
             if (isLoading && this.emptyState) {
                 this.emptyState.classList.remove('d-none');
                 this.emptyState.textContent = 'Loading remarks…';
             }
 
             if (!isLoading && this.emptyState && (!this.state.items || this.state.items.length === 0)) {
-                this.emptyState.classList.remove('d-none');
-                this.emptyState.textContent = 'No remarks yet.';
+                this.renderEmptyState();
             }
+        }
+
+        // A failed refresh keeps any list already shown; only an empty panel says it failed.
+        hasRenderedItems() {
+            return Array.isArray(this.state.items) && this.state.items.length > 0;
+        }
+
+        // A failed load is not an empty list: say so and offer a retry (discovery C6.8).
+        renderEmptyState() {
+            if (!this.emptyState) {
+                return;
+            }
+
+            this.emptyState.classList.remove('d-none');
+            if (!this.state.loadFailed) {
+                this.emptyState.textContent = 'No remarks yet.';
+                return;
+            }
+
+            const doc = this.emptyState.ownerDocument;
+            const message = doc.createElement('span');
+            message.textContent = 'Remarks could not be loaded.';
+            const retry = doc.createElement('button');
+            retry.type = 'button';
+            retry.className = 'btn btn-link btn-sm p-0 ms-2 align-baseline';
+            retry.setAttribute('data-remarks-retry', '');
+            retry.textContent = 'Try again';
+            retry.addEventListener('click', () => {
+                this.fetchPage(this.state.page || 1, false);
+            });
+            this.emptyState.replaceChildren(message, retry);
         }
 
         renderList() {
@@ -1216,8 +1253,12 @@
 
             if (!Array.isArray(this.state.items) || this.state.items.length === 0) {
                 if (this.emptyState) {
-                    this.emptyState.classList.remove('d-none');
-                    this.emptyState.textContent = this.state.loading ? 'Loading remarks…' : 'No remarks yet.';
+                    if (this.state.loading) {
+                        this.emptyState.classList.remove('d-none');
+                        this.emptyState.textContent = 'Loading remarks…';
+                    } else {
+                        this.renderEmptyState();
+                    }
                 }
                 if (this.loadMoreButton) {
                     this.loadMoreButton.classList.add('d-none');
