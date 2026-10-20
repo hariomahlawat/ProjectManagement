@@ -45,7 +45,7 @@ Schema impact of the whole Phase D release: **one** application migration, `2026
 | File roots | `PM_UPLOAD_ROOT` / `ProjectPhotos:StorageRoot`, `ProjectDocuments:Ocr:WorkRoot`, `DocRepo:RootPath`, media cache/model roots (`appsettings.json`) | V (keys) / **O** (values) |
 | Native dependencies | `ocrmypdf` (external process; path validated if configured), optional LibreOffice, publication fonts (`wwwroot/fonts/publications/dm-sans`), SkiaSharp natives; checked by the publish script and `--compendium-offline-self-test` | V |
 | External network | SMTP only (`SmtpEmailSender`); no runtime `HttpClient` use found | V / **O** (SMTP host is on the LAN?) |
-| Backup / restore tooling | `ops/backup-db.ps1` (pg_dump custom format). `ops/restore-db.ps1` restores into a **separate staging database**, validates, renames atomically and **retains the previous database**; it needs an idle target (`docs/disaster-recovery.md` §2.4) | V |
+| Backup / restore tooling | `ops/backup-db.ps1` (pg_dump custom format). `ops/restore-db.ps1 -DbName <name>` restores into a new temporary database and validates it. It then **renames `<name>` to `<name>_previous_…` and the restored copy to `<name>`**, so the database called `<name>` is replaced (the previous copy is retained). It refuses the cutover while any session is connected (`docs/disaster-recovery.md` §2.4) | V |
 
 ### A.2 Hosted services (all in the web process)
 
@@ -118,7 +118,7 @@ No hosted service writes `ProjectStages`, `StageChangeLogs`, `StageChangeRequest
 4. **On failure:**
    - any ApplicationDbContext migration or validation error aborts startup before requests are accepted (IIS returns 500.30). A diagnostic file is written through `StartupFailureReporter`;
    - a lock timeout throws, so startup fails. **V**
-5. **Transactions.** EF applies each migration in its own transaction. The generated D-2 script is `START TRANSACTION … COMMIT` with idempotent guards and the history insert inside (verified by generating it at `5ee16e9f`). **V**
+5. **Transactions.** At startup, EF applies each pending migration in its own transaction. If several are pending and a later one fails, the earlier ones stay committed and recorded. A generated script has the transaction boundaries of the migrations it contains. This was verified only for the D-2 migration (`20261217053003`): generated alone at `5ee16e9f`, it is one `START TRANSACTION … COMMIT` with idempotent guards and the history insert inside. A script spanning several migrations must be reviewed for its own boundaries and for any non-transactional statements. **V**
 6. **Multiple instances** serialize on the advisory lock, so they do not race to migrate. However, the lock does not stop an *old* instance that is already serving traffic (§A.4). **V**
 7. **Rollback by binary swap is not possible after the migration.** The old binary refuses unknown applied migrations, and deleting history rows is prohibited (`docs/engineering/migrations.md`). **V**
 8. **Documentation conflict (C):**
@@ -133,13 +133,14 @@ No hosted service writes `ProjectStages`, `StageChangeLogs`, `StageChangeRequest
 
 - **Compatibility:** works with the current code unchanged.
 - **Prerequisites:**
-  - Generate `dotnet ef migrations script <production-head> 20261217053003_AddActualCorrectionProposals --idempotent` from the **exact release commit**.
-  - Review it and keep it with the release.
+  - Take `<production-head>` from `ops/database/production-migration-inventory.sql`.
+  - Generate `dotnet ef migrations script <production-head> 20261217053003_AddActualCorrectionProposals --idempotent -o migration.sql` from the **exact release commit**.
+  - Review it, including where each `START TRANSACTION` / `COMMIT` falls, and keep it with the release.
   - Apply it with `psql -v ON_ERROR_STOP=1 -f migration.sql` as the database-owner role, while the pool is stopped.
   - Run the same steps for `__EFMigrationsHistory_MediaLibrary` if that set has pending migrations (none for Phase D).
-- **Failure:** the script is one transaction, so a failure leaves the schema unchanged. Fix and re-run (it is idempotent), or abandon the release.
+- **Failure:** `ON_ERROR_STOP=1` stops at the first error. Only the migration in progress rolls back; earlier migrations in the same script may already be committed. Before resuming, re-run the inventory SQL and inspect the schema. Then either fix and re-run (the script is idempotent) or restore the pre-release backup (§E).
 - **Auditability:** highest. The reviewed SQL artifact, the `psql` transcript and the inventory before and after.
-- **Partial-deployment risk:** low, provided the binary is swapped only after the script commits and no old process runs. If the old binary is started after the script, it refuses to start, which is safe but fails visibly.
+- **Partial-deployment risk:** low, provided the binary is swapped only after the whole script succeeds and no old process runs. If the old binary is started after the script, it refuses to start, which is safe but fails visibly.
 - **Operator actions:** the most steps: generate, review, apply, re-inventory.
 - **Changes needed:** none. A small documentation alignment only.
 
@@ -150,7 +151,7 @@ No hosted service writes `ProjectStages`, `StageChangeLogs`, `StageChangeRequest
   - The application role needs DDL rights. `production-checklist.md` assumes "application role has migration rights" (**O**).
   - Every instance must be stopped beforehand; one instance starts first.
   - The backup must already be verified.
-- **Failure:** the migration transaction rolls back, startup aborts with 500.30, and the diagnostic file and logs record it. Then restore the old binary, which works because no migration was recorded, or fix forward.
+- **Failure:** the failing migration rolls back and startup aborts with 500.30; the diagnostic file and logs record it. Earlier pending migrations may already be applied. Check the inventory SQL: if nothing new is recorded, the old binary still starts; otherwise fix forward or restore the backup (§E).
 - **Auditability:** good (startup logs list pending and applied migrations), but there is no pre-reviewed SQL artifact.
 - **Partial-deployment risk:** low with a full stop. It rises if a second node starts the old binary concurrently.
 - **Operator actions:** fewer steps.
@@ -169,7 +170,7 @@ No hosted service writes `ProjectStages`, `StageChangeLogs`, `StageChangeRequest
 **Recommended: Option A**, which keeps the existing offline SOP intact.
 
 - It needs no source or configuration change.
-- It gives a reviewed, transactional, idempotent artifact applied while nothing is running.
+- It gives a reviewed, idempotent artifact, applied while nothing is running, whose transaction boundaries the reviewer has seen.
 - It makes the binary swap a pure code change, so startup only validates.
 
 **Option C** is the alternative if operators prefer not to run `psql` by hand.
@@ -186,14 +187,24 @@ Under either option, the operator must correct the losing document.
 - `<RELEASE_SHA>` (expected `5ee16e9f` or a later approved commit)
 - `<DB_HOST>`, `<DB_NAME>`, `<OWNER_ROLE>`, `<BACKUP_DIR>`
 - `<SITE_ROOT>` (`D:\Sites\ProjectManagement`)
+- `<PUBLISH_FOLDER>` (the validated publish output) and `<RELEASE_DIR>` (a folder outside it for the release records)
 - `<WINDOW>`, the operator name and the rollback owner
 
 ### C.1 Pre-release (before the window)
 
 1. Confirm `<RELEASE_SHA>` is on `master`, and that its CI is green: Lint Views, Notebook Build and Tests, and the Production Database Migration Gate, with the PostgreSQL integration test **Passed 1, Skipped 0**.
 2. On the build machine, run `.\ops\publish\create-publish-folder.ps1` at `<RELEASE_SHA>`. Keep its full output. It must end with "Publish folder created and validated" and Compendium `status: ok`.
-3. Record the SHA-256 hashes of the published folder, for example with `Get-FileHash -Recurse`.
-4. **Option A or C only:** generate the idempotent script from the production head (taken from the inventory) to `20261217053003`. Review it: additive DDL only for Phase D, with no `DROP` or `ALTER` of existing data. Have it approved.
+3. Record a SHA-256 manifest of the published folder, kept **outside** the package, so the copy to the server can be checked in C.2 step 7 (tested in Windows PowerShell 5.1 and 7):
+
+   ```powershell
+   $base = (Resolve-Path -LiteralPath '<PUBLISH_FOLDER>').Path.TrimEnd('\') + '\'
+   Get-ChildItem -LiteralPath $base -Recurse -File |
+       ForEach-Object { [pscustomobject]@{ Path = $_.FullName.Substring($base.Length); Sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash } } |
+       Sort-Object Path |
+       Export-Csv -LiteralPath '<RELEASE_DIR>\package-sha256.csv' -NoTypeInformation -Encoding UTF8
+   ```
+
+4. **Option A or C only:** generate and review `migration.sql` from the production head as described in Option A (§B.2). For Phase D, expect additive DDL only, with no `DROP` or `ALTER` of existing data. Have it approved.
 5. Staging acceptance (§D.1) and the recovery rehearsal (§D.2) must be **passed**, with evidence attached.
 6. Obtain written authorization for `<WINDOW>`, naming the operator and the rollback owner (K-14).
 
@@ -206,15 +217,15 @@ Under either option, the operator must correct the losing document.
 | 3 | Confirm no sessions remain: `SELECT pid, application_name, client_addr, state FROM pg_stat_activity WHERE datname = '<DB_NAME>' AND pid <> pg_backend_pid();` | Only expected admin sessions; no app connections and no external writers (K-12 #4) |
 | 4 | Back up the database with `.\ops\backup-db.ps1`. Back up the files with `.\ops\backup-files.ps1` and copy `current` to `releases\previous`. | The dump exists. `pg_restore --list <dump>` succeeds. The recovery point is recorded (time, file, size) |
 | 5 | Run `ops/database/production-migration-inventory.sql`. | Saved output: the pre-release head |
-| 6 | **Option A:** `psql -v ON_ERROR_STOP=1 -h <DB_HOST> -U <OWNER_ROLE> -d <DB_NAME> -f migration.sql`. **Option B/C:** skip this step. | Option A: `COMMIT`, exit code 0, transcript saved |
-| 7 | Replace `<SITE_ROOT>\current` with the **complete** validated publish output. Never copy individual files. Keep `appsettings.Production.json`, `DP_KEYS_DIR` and the data paths as configured. | The file hashes match C.1 step 3 |
+| 6 | **Option A:** `psql -v ON_ERROR_STOP=1 -h <DB_HOST> -U <OWNER_ROLE> -d <DB_NAME> -f migration.sql`. **Option B/C:** skip this step. | Option A: exit code 0 and transcript saved. On any error, stop: re-run the inventory SQL, inspect the schema, then fix and re-run, or restore (§E E2) |
+| 7 | Replace `<SITE_ROOT>\current` with the **complete** validated publish output. Never copy individual files. Keep `appsettings.Production.json`, `DP_KEYS_DIR` and the data paths as configured. | Run the C.1 step 3 command on `current` to a second CSV, then `Compare-Object (Import-Csv <release.csv>) (Import-Csv <current.csv>) -Property Path, Sha256`. The only differences are the configuration files deliberately kept |
 | 8 | From `current`, run `ProjectManagement.exe --compendium-offline-self-test`. | `status: ok` |
-| 9 | Start the app pool on **one** node only (K-12). Remove `app_offline.htm` for local access only, or keep the site bound to localhost until step 11. | — |
-| 10 | Read the startup log. | "Migration preflight passed … Pending=0" (A) or "Applying 1 pending …" then "Automatic migration completed" (B/C). Then "Database startup gate completed … Latest applied migration: 20261217053003_AddActualCorrectionProposals", "Database deployment boundary completed successfully", and the media gate result. The ARPP sync line, if any. No `LogCritical` |
+| 9 | Remove `app_offline.htm` and start the app pool on **one** node only (K-12). Keep user access closed (for example, the firewall rule or binding) until step 14. | — |
+| 10 | Read the startup log. | "Migration preflight passed … Pending=0" (A) or "Applying N pending …" then "Automatic migration completed" (B/C). Then "Database startup gate completed … Latest applied migration: 20261217053003_AddActualCorrectionProposals", "Database deployment boundary completed successfully", and the media gate result. The ARPP sync line, if any. No `LogCritical` |
 | 11 | Re-run the inventory SQL. | Head is `20261217053003`; count matches the manifest (119) |
 | 12 | Smoke test (C.3), still restricted. | All pass |
 | 13 | Release acceptance: the operator and the rollback owner sign off. **This is the last rollback point without data loss (§E).** | Recorded go |
-| 14 | Start the remaining nodes, if any. Remove `app_offline.htm` and reopen. | — |
+| 14 | Start the remaining nodes, if any, and reopen user access. | — |
 | 15 | Monitor for 24 h: startup and error logs, Decision Centre queue, `StageChangeLogs` volume, `PostCommitErrors` audit warnings, and the `Stages.ActualChronologyWarning*` log events. | No unexplained errors |
 
 ### C.3 Smoke tests (production, restricted, minimal and non-destructive)
@@ -233,7 +244,7 @@ Functional proposal tests (submit, approve, reject) belong on **staging** (§D.1
 
 **Preconditions:**
 - A staging server built like production (IIS in-process, same PostgreSQL major version).
-- A **restored copy of a recent production backup**, using `ops/restore-db.ps1` into a separate database.
+- A **restored copy of a recent production backup**. `ops/restore-db.ps1 -DbName <name>` replaces the database named `<name>`, keeping the old one as `<name>_previous_…`. Always pass `-DbName`: the default is `ProjectManagement`. Use a dedicated staging database name that no other user or application relies on, with nothing connected to it.
 - Production data never leaves the LAN.
 - Test accounts: assigned PO, a second PO, HoD, Admin and a viewer.
 - **Status: not executed.** No staging environment was accessible to this work.
@@ -266,9 +277,9 @@ There is no browser-automation framework in the repository, and introducing one 
 | R1 | Record the pre-release head with the inventory SQL. Take a backup. Note the time. | The dump lists cleanly |
 | R2 | Run C.2 steps 1–11 with the chosen K-13 option. | Head is `20261217053003`; startup gate log lines as in C.2 step 10 |
 | R3 | **Interrupted rollout.** Before step 7, start the *old* binary against the migrated database. | The old binary refuses to start (unknown applied migration). This is evidence that a binary-only rollback is impossible after migrating |
-| R4 | **Failed migration.** On a scratch copy, make the script fail (for example, pre-create `ActualCorrectionRevisions`), then apply it with `ON_ERROR_STOP=1`. | The transaction rolls back; schema and history unchanged; the old binary still starts |
+| R4 | **Failed migration.** On a scratch copy, make the script fail (for example, pre-create `ActualCorrectionRevisions`), then apply it with `ON_ERROR_STOP=1`. | `psql` stops with a non-zero exit; the inventory shows which migrations committed; for the D-2 migration alone, schema and history are unchanged and the old binary still starts |
 | R5 | Run D.1 steps 1–7 to create D-3 data. | Revisions, items and logs exist |
-| R6 | **Restore after D-3 data.** Run `ops/restore-db.ps1 -DumpFile <R1 dump>` with the site stopped, then start the **old** binary. | The old binary starts. D-3 rows written after R1 are **gone**, which is the expected loss. The retained previous database still holds them |
+| R6 | **Restore after D-3 data.** With the staging site stopped and nothing connected, run `ops/restore-db.ps1 -DbName <staging name> -DumpFile <R1 dump>`, then start the **old** binary. | The old binary starts. D-3 rows written after R1 are **gone**, which is the expected loss. The retained previous database still holds them |
 | R7 | Re-upgrade (R2). Check integrity. | `StageChangeLogs` count = official changes; no orphan items; one `Pending` per project at most |
 | R8 | Time R1–R7. | The duration is evidence for the outage window (K-12 #5) |
 
@@ -281,8 +292,8 @@ There is no browser-automation framework in the repository, and introducing one 
 | Situation | Action | Database restore? | Data loss |
 | --- | --- | --- | --- |
 | **E1.** Failure before the migration is applied (C.2 steps 1–5) | Restore `releases\previous` (if replaced), start the pool, remove `app_offline.htm` | No | None |
-| **E2.** The migration fails (transaction rolled back) | Same as E1. The old binary starts because no migration was recorded | No | None |
-| **E3.** Migration applied, new binary fails startup or smoke tests, **site not reopened** (before C.2 step 13) | Either fix forward, or restore the C.2 step 4 backup with `ops/restore-db.ps1` (separate database, atomic rename, previous retained), then the old binary | **Yes** (the old binary refuses the new schema) | Nothing, if no user writes occurred after step 4. The site was closed |
+| **E2.** The migration fails | Re-run the inventory SQL. If no new migration is recorded, act as in E1; the old binary starts. If some were committed, either fix forward or restore as in E3 | Only if migrations were committed and fixing forward is not chosen | None (site closed) |
+| **E3.** Migration applied, new binary fails startup or smoke tests, **site not reopened** (before C.2 step 13) | Either fix forward, or restore the C.2 step 4 backup with `ops/restore-db.ps1 -DbName <DB_NAME>` (it replaces `<DB_NAME>` and retains the migrated database as `<DB_NAME>_previous_…`; nothing may be connected), then start the old binary | **Yes** (the old binary refuses the new schema) | Nothing, if no user writes occurred after step 4. The site was closed |
 | **E4.** Partially replaced package (copy interrupted) | Complete the copy from the validated publish folder and verify the hashes. Never run a mixed folder | No | None |
 | **E5.** After reopening, with new D-3 records written | **Prefer fix forward** (an R-D3 → R-D2 binary swap is only safe if it is the D-2 build, plan I.3). Rolling back to the pre-D-2 binary requires a **database restore**, which loses every write after the recovery point, including proposals, decisions and direct corrections | Yes | **All post-backup writes**: must be accepted by the owner |
 
