@@ -350,19 +350,28 @@ C7.1 is a defect, not a UX refinement. It blocks PO and HoD backfill through the
 | 3d. Accessibility pass (C5) | Labels and ids, `aria-invalid`, list semantics, heading levels, text equivalents for colour and tooltips | Planner rows, stage modal, timeline partial | No | Small–Medium | Low |
 | 3e. Small corrections | The wrong tooltip, the "Open timeline" panel switch, separator placement, the hint naming. Also: one colour for "completion date required" (C6.2); labelled, aligned date and duration on collapsed cards in chronological order (C6.4); the name first on every card, with a single missing-PDC signal (C6.5); "Plan approved on …" (C6.6) | As cited in C2.5, C2.6 and C6 | No | Small | Low |
 
-### Increment 4: Close the loop (needs decisions G1 and G3)
+### Increment 4: Close the loop (G1 and G4 decided)
 
 | Item | Current → proposed | Backend? | Size | Risk |
 | --- | --- | --- | --- | --- |
-| 4a. Notifications for returned (and optionally approved) items in all three categories, including the reviewer's note | New notification kinds, raised by the existing decision services after commit | Yes (notification service; check whether `NotificationKind` needs a migration) | Medium | Medium: post-commit delivery must tolerate retries and duplicates (AGENTS.md) |
+| 4a. Notifications for **returned** items in all three categories, including the reviewer's note (G1) | New notification kinds, raised by the existing decision services after commit | Yes (notification service; check whether `NotificationKind` needs a migration) | Medium | Medium: post-commit delivery must tolerate retries and duplicates (AGENTS.md) |
 | 4b. Workspace "Returned" covers actual-date corrections, shows the project name and reason, and filters per stage rather than per project | `ProjectOfficerWorkspaceService.cs:1019-1096` | Read model | Small–Medium | Low |
-| 4c. Withdraw for a pending stage request | A new service operation mirroring the plan and actual-date withdraw | Yes (a new status transition on the existing request; check the status column) | Medium | Medium: a business-rule addition, so it needs a decision |
+| ~~4c. Withdraw for a pending stage request~~ | **Not adopted (owner decision G3).** Editing continues to replace the pending request. The modal should say so clearly; that wording is covered by 3c | — | — | — |
 
 **Suggested order:** 1, then 2, then 3. Increment 3 can run alongside 2 because they touch different areas, except 3a in the editor partials. Increment 4 follows the decisions below.
 
 ---
 
 ## G. Decisions for the product owner
+
+**Owner decisions recorded on 2026-10-20:**
+- **G1:** notify returned items only, with the reviewer's note.
+- **G2:** keep backfill and the editor separate, with the same behaviour.
+- **G3:** no withdraw for stage requests; editing still replaces the pending request.
+- **G4:** a per-project status line plus a fixed Workspace "Returned" list.
+- **G5:** proceed incrementally.
+
+The owner also confirmed that the next build is not time-pressed. Every defect found here (C7.1, C7.2) and the increments below go into it before release.
 
 | # | Decision | Options | Preferred and why |
 | --- | --- | --- | --- |
