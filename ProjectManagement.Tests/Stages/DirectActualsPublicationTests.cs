@@ -101,17 +101,59 @@ public sealed class DirectActualsPublicationTests
 
     // SECTION: Service-level authority (re-established inside the transaction)
     [Fact]
-    public async Task AssignedProjectOfficer_StillAssigned_CanPublish()
+    public async Task AssignedProjectOfficerOnly_IsToldApprovalIsRequired_ByBothServices_WithoutWrites()
     {
-        await using var fixture = await Fixture.CreateAsync(db => Stages(db, InProgress(StageCodes.FS, Jan(5))));
+        // Phase D-2: the assigned PO-only user no longer publishes directly, even when a
+        // caller bypasses the page check.
+        var audit = new RecordingAudit();
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db,
+            InProgress(StageCodes.FS, Jan(5)),
+            AwaitingBackfill(StageCodes.BID, Feb(1))));
         await using var db = fixture.NewContext();
+        var input = await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6)));
 
-        var result = await fixture.Actuals(db).UpdateAsync(
-            await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6))),
-            TestActors.ProjectOfficer("assigned-po"),
-            "PO");
+        await Assert.ThrowsAsync<ActualsApprovalRequiredException>(() =>
+            fixture.Actuals(db, audit).UpdateAsync(input, TestActors.ProjectOfficer("assigned-po"), "PO"));
+        await Assert.ThrowsAsync<ActualsApprovalRequiredException>(() =>
+            fixture.Backfill(db, audit).ApplyAsync(
+                ProjectId, new[] { new StageBackfillUpdate(StageCodes.BID, null, Feb(5)) }, TestActors.ProjectOfficer("assigned-po")));
 
-        Assert.Equal(1, result.UpdatedCount);
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
+        await using (var verify = fixture.NewContext())
+        {
+            var bid = await verify.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BID);
+            Assert.Null(bid.CompletedOn);
+            Assert.True(bid.RequiresBackfill);
+        }
+
+        await AssertNoHistoryAsync(fixture);
+        Assert.Empty(audit.Entries);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HodOrAdminWhoIsAlsoTheAssignedProjectOfficer_PublishesDirectly(bool hod)
+    {
+        // Role precedence: HoD/Admin authority supersedes the PO role.
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db,
+            InProgress(StageCodes.FS, Jan(5)),
+            AwaitingBackfill(StageCodes.BID, Feb(1))));
+        await using var db = fixture.NewContext();
+        var actor = hod ? TestActors.HodAndProjectOfficer("assigned-po") : TestActors.AdminAndProjectOfficer("assigned-po");
+
+        var corrected = await fixture.Actuals(db).UpdateAsync(
+            await EditorInputAsync(db, Row(StageCodes.FS, actualStart: Jan(6))), actor, "HoD/Admin + PO");
+        var backfilled = await fixture.Backfill(db).ApplyAsync(
+            ProjectId, new[] { new StageBackfillUpdate(StageCodes.BID, null, Feb(5)) }, actor);
+
+        Assert.Equal(1, corrected.UpdatedCount);
+        Assert.Equal(1, backfilled.UpdatedCount);
+        await using var verify = fixture.NewContext();
+        Assert.Equal(Jan(6), (await verify.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.FS)).ActualStart);
+        Assert.Equal(Feb(5), (await verify.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.BID)).CompletedOn);
+        Assert.Equal(new[] { "ActualsUpdated", "Backfill" },
+            await verify.StageChangeLogs.OrderBy(log => log.Id).Select(log => log.Action).ToArrayAsync());
     }
 
     [Fact]
@@ -131,7 +173,7 @@ public sealed class DirectActualsPublicationTests
     }
 
     [Fact]
-    public async Task ProjectOfficerReassignedAwayBeforePublication_IsRefused_AndTheNewLeadIsAuthorised()
+    public async Task ProjectOfficerReassignedAwayBeforePublication_IsForbidden_AndTheNewLeadIsToldApprovalIsRequired()
     {
         await using var fixture = await Fixture.CreateAsync(db => Stages(db, InProgress(StageCodes.FS, Jan(5))));
         await using var db = fixture.NewContext();
@@ -143,11 +185,65 @@ public sealed class DirectActualsPublicationTests
         await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
 
         await using var newLead = fixture.NewContext();
-        var result = await fixture.Actuals(newLead).UpdateAsync(
+        await Assert.ThrowsAsync<ActualsApprovalRequiredException>(async () => await fixture.Actuals(newLead).UpdateAsync(
             await EditorInputAsync(newLead, Row(StageCodes.FS, actualStart: Jan(6))),
             TestActors.ProjectOfficer("someone-else"),
-            "New PO");
-        Assert.Equal(1, result.UpdatedCount);
+            "New PO"));
+        await AssertUnchangedAsync(fixture, StageCodes.FS, Jan(5), null);
+        await AssertNoHistoryAsync(fixture);
+    }
+
+    // SECTION: Backfill page role matrix (Phase D-2)
+    [Theory]
+    [InlineData("Project Officer", "assigned-po", 403, "approval-required")]
+    [InlineData("Project Officer", "someone-else", 0, "forbid")]
+    [InlineData("HoD", "actor", 200, "applied")]
+    [InlineData("Admin", "actor", 200, "applied")]
+    [InlineData("HoD,Project Officer", "assigned-po", 200, "applied")]
+    [InlineData("Admin,Project Officer", "assigned-po", 200, "applied")]
+    public async Task BackfillPage_FollowsRolePrecedence(string roles, string userId, int status, string outcome)
+    {
+        await using var fixture = await Fixture.CreateAsync(db => Stages(db, AwaitingBackfill(StageCodes.BID, Feb(1))));
+        await using var db = fixture.NewContext();
+        var page = new BackfillApplyModel(fixture.Backfill(db), db, NullLogger<BackfillApplyModel>.Instance)
+        {
+            PageContext = PageContextFor(roles, userId)
+        };
+
+        var result = await page.OnPostAsync(new BackfillApplyModel.BackfillApplyInput
+        {
+            ProjectId = ProjectId,
+            Stages = new List<BackfillApplyModel.BackfillStageInput> { new() { StageCode = StageCodes.BID, CompletedOn = Feb(5) } }
+        }, CancellationToken.None);
+
+        await using var verify = fixture.NewContext();
+        var bid = await verify.ProjectStages.SingleAsync();
+        if (outcome == "applied")
+        {
+            Assert.IsType<JsonResult>(result);
+            Assert.Equal(Feb(5), bid.CompletedOn);
+            Assert.False(bid.RequiresBackfill);
+            Assert.Equal("Backfill", (await verify.StageChangeLogs.SingleAsync()).Action);
+            return;
+        }
+
+        if (outcome == "forbid")
+        {
+            Assert.IsType<ForbidResult>(result);
+        }
+        else
+        {
+            var refusal = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(status, refusal.StatusCode);
+            var body = JsonSerializer.SerializeToElement(refusal.Value);
+            Assert.False(body.GetProperty("ok").GetBoolean());
+            Assert.Equal("approval-required", body.GetProperty("error").GetString());
+            Assert.Equal(ActualsApprovalRequiredException.UserMessage, body.GetProperty("message").GetString());
+        }
+
+        Assert.Null(bid.CompletedOn);
+        Assert.True(bid.RequiresBackfill);
+        await AssertNoHistoryAsync(fixture);
     }
 
     [Fact]
@@ -763,16 +859,17 @@ public sealed class DirectActualsPublicationTests
         };
     }
 
-    private static PageContext PageContextFor(string role, string userId)
+    private static PageContext PageContextFor(string roles, string userId)
     {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, userId)
+        };
+        claims.AddRange(roles.Split(',').Select(role => new Claim(ClaimTypes.Role, role.Trim())));
         var http = new DefaultHttpContext
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Name, userId),
-                new Claim(ClaimTypes.Role, role)
-            }, "Test"))
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"))
         };
         return new PageContext(new ActionContext(http, new RouteData(), new ActionDescriptor()));
     }

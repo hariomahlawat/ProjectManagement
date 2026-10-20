@@ -207,6 +207,41 @@ public sealed class ProjectModerationServiceTests
 
 
     [Fact]
+    public async Task PurgeAsync_RemovesActualCorrectionRevisionsAndItems()
+    {
+        // Phase D-2: items restrict their revision and revisions link to each other, so
+        // purge must clear the links and delete items before revisions and the project.
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(new Project
+        {
+            Id = 14,
+            Name = "With actual proposals",
+            CreatedAt = new DateTime(2024, 1, 12),
+            CreatedByUserId = "creator",
+            IsDeleted = true,
+            DeletedAt = new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero),
+            DeleteReason = "Cleanup"
+        });
+        db.Projects.Add(new Project { Id = 15, Name = "Kept", CreatedAt = new DateTime(2024, 1, 12), CreatedByUserId = "creator" });
+        await db.SaveChangesAsync();
+        await ProjectManagement.Tests.Stages.ActualCorrectionSchemaTests.SeedSupersededPairAsync(db, 14);
+        db.ActualCorrectionRevisions.Add(ProjectManagement.Tests.Stages.ActualCorrectionSchemaTests.Revision(15, 1));
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(14, "admin", includeAssets: false);
+
+        Assert.Equal(ProjectModerationStatus.Success, result.Status);
+        Assert.False(await db.Projects.AnyAsync(project => project.Id == 14));
+        Assert.False(await db.ActualCorrectionRevisions.AnyAsync(revision => revision.ProjectId == 14));
+        Assert.Equal(0, await db.ActualCorrectionItems.CountAsync());
+        Assert.Equal(1, await db.ActualCorrectionRevisions.CountAsync(revision => revision.ProjectId == 15));
+    }
+
+    [Fact]
     public async Task PurgeAsync_RestoresAssetsWhenDatabaseTransactionFails()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");

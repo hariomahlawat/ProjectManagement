@@ -30,7 +30,7 @@ Recorded by D-1e against `master` at `119d6cf3d9dd31d64dc4d3ae5c5d26c738e6c062` 
 | D-1b | Direct correction and backfill safety: validation inside the gate and stage row locks, authority re-read (`FOR SHARE`), per-stage `ActualStageToken`, one publication routine, atomic `StageChangeLog`, post-commit audit | #2676, merge `07313590`; `StageActualsUpdateService`, `StageBackfillService`, `ActualFactPublisher`, `ActualStageToken`, `ActualWriteAuthority`; `DirectActualsPublicationTests`, `StageActualsUpdateServiceTests`, `StageBackfillServiceTests`, PostgreSQL `StageActualsConcurrencyPostgresFixture` | Complete |
 | D-1c | Lifecycle decision and ARPP concurrency safety: gate → stage rows → request lock order, compare-and-set terminal transitions, atomic decision evidence, post-commit audit/notification, gated submission, ARPP lock-before-read and conditional supersession | #2677, merge `307542b2`; `StageDecisionService`, `StageProgressService`, `StageRequestService`, `ArppIpaStageSynchronizer`, `RelationalTransactionScope`; `StageDecisionTransactionTests`, `StageRequestSupersessionTests`, `ArppIpaStageSynchronizerStaleSnapshotTests`, PostgreSQL `StageDecisionConcurrencyPostgresFixture` (races shown failing on regression-only commits before each fix) | Complete |
 | D-1d | Warning-only lifecycle chronology observability for direct apply, approval and historical reconstruction; savepoint-isolated observation; post-commit `Stages.ActualChronologyWarning`, `…Unconfirmed` for caller-owned transactions, `…Failed` on observation failure | #2678, merge `119d6cf3`; `Services/Stages/LifecycleChronologyObserver.cs`; `LifecycleChronologyObservabilityTests`, PostgreSQL `LifecycleChronologyObservabilityPostgresFixture` | Complete |
-| D-1e | Documentation reconciliation | #2679 (open, in review): `docs/timeline.md`, `docs/timeline-proposal-roadmap.md`, `docs/data-domain.md`, this plan, a status note in `docs/phase-d-handoff.md` | In review |
+| D-1e | Documentation reconciliation | #2679, merge `8480a880`: `docs/timeline.md`, `docs/timeline-proposal-roadmap.md`, `docs/data-domain.md`, this plan, a status note in `docs/phase-d-handoff.md` | Complete |
 
 Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production Database Migration Gate, whose PostgreSQL integration test executed (not skipped). Pre-existing Windows-only local failures (two ARPP CSS line-ending contract tests and `UploadRootProviderTests.UsesFallbackWhenPrimaryCreationFails`) are unrelated and untouched.
 
@@ -40,7 +40,7 @@ Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production D
 
 | J | Criterion | Status after D-1 |
 | --- | --- | --- |
-| 1 | No PO write path to official Actual dates | **Pending D-2.** Assigned POs still publish directly (validated). |
+| 1 | No PO write path to official Actual dates | **Implemented in D-2** (Draft PR, not merged): page and service refuse PO-only direct publication; the facts-only J-1 exception is tested. |
 | 2, 3 | Approval publishes exactly what was reviewed; stale decisions rejected | **Pending D-3** (proposal decisions). |
 | 4 | Stale edits rejected without mutation | **Partly met.** Direct saves refuse stale per-stage tokens (service and page level). Refusing posts without the baseline marker is deferred to R-D3; proposal S1–S6 pending D-3. |
 | 5 | Required evidence atomic with the change | **Met for direct save, backfill and lifecycle decisions** (failure injection, SQLite and PostgreSQL). Submit/supersede/withdraw/reject of Actual proposals pending D-3. |
@@ -82,7 +82,18 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
 
 ### Deferred work and decisions
 
-- **D-2** (unused tables, PO direct-publication cut-off) and **D-3a–D-3e** (PO proposals, Decision Centre, read models) are not started.
+- **D-2** (unused tables, PO direct-publication cut-off): implemented on branch `codex/phase-d-2-actual-proposal-foundation` (Draft PR, not merged, not deployed). Migration `20261217053003_AddActualCorrectionProposals`.
+  - **Deviations from the D-2 row (G):**
+    - the cut-off is also enforced at service level in `ActualWriteAuthority`, not only in the page models;
+    - the closure, `EntryPoint`, `RevisionNo` and clear-intent `CHECK` constraints are added;
+    - `DecisionNote` is `varchar(2000)`, matching Decision Centre remarks;
+    - `ApplicationDatabaseSchemaValidator` is unchanged, because it does not enumerate tables.
+  - **Pre-existing model/snapshot drift, left out of this migration and tracked separately** (PostgreSQL evidence on the investigation branch `claude/investigate-schema-drift`):
+    - #2684: `NotebookItemCollaborators` is missing from the snapshot (the next scaffold would duplicate its `CreateTable`), and a redundant `IX_ProjectIdeaComments_ProjectIdeaId` remains;
+    - #2682: `Projects.ProjectBrief` is 3000 characters in the model but `varchar(2500)` in the database, so a valid brief can fail to save;
+    - #2683: `ops/publish/create-publish-folder.ps1` hard-codes 62 migrations; it must be fixed before any release.
+  - **The D-2 read-only editor is temporary.** For PO-only users it exists only so the D-2 emergency floor offers no false save. D-3 restores the editable editor and backfill form for the assigned PO, with immediate validation and "Submit for approval" through the same routes (C.4, D-3b). It is not the D-3 design.
+- **D-3a–D-3e** (PO proposals, Decision Centre, read models) are not started. D-2 must not be deployed without D-3 (K-14).
 - **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
 - **K-11** was accepted before D-1a and is implemented as per-branch convergence.
 - **K-1 and K-14 are resolved** by the project owner (2026-10-19), together with role precedence; see [Approved governance for D-2/D-3](#approved-governance-for-d-2d-3). D-1 did not depend on either and implements neither.

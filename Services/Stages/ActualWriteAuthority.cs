@@ -33,9 +33,12 @@ public sealed record ActualWriteActor(string UserId, bool IsAdmin, bool IsHoD, b
 
 /// <summary>
 /// Re-establishes project-level write authority inside the publication
-/// transaction, after the project gate. Admin and any HoD keep their direct
-/// authority (current product policy); a Project Officer must be the project's
-/// current lead. The check reads the project row under a PostgreSQL share lock,
+/// transaction, after the project gate. Only Admin and HoD may publish Actual
+/// dates directly; that authority supersedes the Project Officer role, so a user
+/// who also holds PO keeps it. From Phase D-2 a PO-only user may not publish
+/// directly: the project's current lead PO is told approval is required (D-3 routes
+/// that user to a proposal), and any other PO-only user is forbidden.
+/// The check reads the project row under a PostgreSQL share lock,
 /// which conflicts with the row updates that reassign the lead PO
 /// (<c>AssignRoles</c>) or soft-delete the project (<c>ProjectModerationService</c>).
 /// Those writers do not take the project gate, so the gate alone would not
@@ -84,7 +87,7 @@ internal static class ActualWriteAuthority
         if (actor.IsProjectOfficer
             && string.Equals(project.LeadPoUserId, actor.UserId, StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            throw new ActualsApprovalRequiredException(projectId, actor.UserId);
         }
 
         throw new ActualsWriteForbiddenException(projectId, actor.UserId);
@@ -96,6 +99,28 @@ public sealed class ActualsWriteForbiddenException : Exception
 {
     public ActualsWriteForbiddenException(int projectId, string userId)
         : base("The user is not authorised to change this project's actual dates.")
+    {
+        ProjectId = projectId;
+        UserId = userId;
+    }
+
+    public int ProjectId { get; }
+
+    public string UserId { get; }
+}
+
+/// <summary>
+/// The actor is the project's assigned Project Officer without Admin or HoD
+/// authority. From Phase D-2 such a user cannot publish Actual dates directly;
+/// the correction needs a HoD or Admin (D-3 adds the proposal route).
+/// </summary>
+public sealed class ActualsApprovalRequiredException : Exception
+{
+    public const string UserMessage =
+        "Actual-date corrections now require HoD or Admin approval. Ask a HoD or Admin to apply this change. Nothing was saved.";
+
+    public ActualsApprovalRequiredException(int projectId, string userId)
+        : base(UserMessage)
     {
         ProjectId = projectId;
         UserId = userId;

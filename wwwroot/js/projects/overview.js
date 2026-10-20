@@ -1129,7 +1129,10 @@
                 } else if (response.status === 404) {
                     renderErrors(['Project or stages were not found. Refresh the page and try again.']);
                 } else if (response.status === 403) {
-                    renderErrors(['You are not authorised to backfill this project.']);
+                    const data = await response.json().catch(() => null);
+                    renderErrors([data?.error === 'approval-required' && typeof data?.message === 'string'
+                        ? data.message
+                        : 'You are not authorised to backfill this project.']);
                 } else {
                     renderErrors(['Unexpected error saving backfill changes.']);
                 }

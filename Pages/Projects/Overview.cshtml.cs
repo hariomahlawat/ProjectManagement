@@ -128,6 +128,11 @@ namespace ProjectManagement.Pages.Projects
         public WorkspaceRecordHealthVm RecordHealth { get; private set; } = new();
 
         public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
+
+        // Phase D-2: only Admin and HoD publish Actual dates and backfill directly; a
+        // PO-only user sees the editors read-only. EditActuals/BackfillApply and the
+        // services enforce this; the flag only shapes the UI.
+        public bool CanPublishActualsDirectly => Roles.IsAdmin || Roles.IsHoD;
         public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
         public ProjectLifecycleActionsViewModel LifecycleActions { get; private set; } = ProjectLifecycleActionsViewModel.Empty;
         public ProjectMediaSummaryViewModel MediaSummary { get; private set; } = ProjectMediaSummaryViewModel.Empty;

@@ -83,7 +83,46 @@ public sealed class ProcurementEditAuthorizationTests
         Assert.IsType<NotFoundResult>(result);
     }
 
-    private static async Task<ApplicationDbContext> CreateDbAsync(SqliteConnection connection, bool requiresBackfill = false)
+    // SECTION: Facts-only backfill exception (Phase D J-1)
+    // From D-2 an assigned PO-only user cannot publish Actual dates, but may still save
+    // procurement facts. That can clear a facts-only backfill flag on a stage whose dates
+    // are present, and must never resolve a missing completion date.
+    [Fact]
+    public async Task OnPostAsync_AssignedProjectOfficerClearsFactsOnlyBackfill_WhenTheDateIsPresent()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateDbAsync(connection, requiresBackfill: true);
+
+        var result = await CreatePage(db, "Project Officer", "assigned-po").OnPostAsync(ProjectId, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync(s => s.ProjectId == ProjectId);
+        Assert.False(stage.RequiresBackfill);
+        Assert.Equal(new DateOnly(2026, 6, 1), stage.CompletedOn);
+    }
+
+    [Fact]
+    public async Task OnPostAsync_AssignedProjectOfficerCannotResolveAMissingCompletionDate_ThroughFacts()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateDbAsync(connection, requiresBackfill: true, missingCompletionDate: true);
+
+        var result = await CreatePage(db, "Project Officer", "assigned-po").OnPostAsync(ProjectId, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(SupplyOrderDate, (await db.ProjectSupplyOrderFacts.SingleAsync(x => x.ProjectId == ProjectId)).SupplyOrderDate);
+        var stage = await db.ProjectStages.AsNoTracking().SingleAsync(s => s.ProjectId == ProjectId);
+        Assert.True(stage.RequiresBackfill);
+        Assert.Null(stage.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
+    }
+
+    private static async Task<ApplicationDbContext> CreateDbAsync(
+        SqliteConnection connection,
+        bool requiresBackfill = false,
+        bool missingCompletionDate = false)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlite(connection)
@@ -110,7 +149,7 @@ public sealed class ProcurementEditAuthorizationTests
             ProjectId = ProjectId,
             StageCode = StageCodes.SO,
             Status = StageStatus.Completed,
-            CompletedOn = new DateOnly(2026, 6, 1),
+            CompletedOn = missingCompletionDate ? null : new DateOnly(2026, 6, 1),
             RequiresBackfill = requiresBackfill
         });
         await db.SaveChangesAsync();

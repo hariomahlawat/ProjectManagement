@@ -20,40 +20,66 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
+/// <summary>
+/// Direct Actual-date publication through the real EditActuals handler. From Phase
+/// D-2 only Admin and HoD publish directly, and that authority supersedes the PO
+/// role; the assigned PO-only user is told approval is required, and every other
+/// PO-only or read-only user is forbidden. Refusals write nothing.
+/// </summary>
 public sealed class EditActualsAuthorizationTests
 {
+    private const string Allowed = "allowed";
+    private const string ApprovalRequired = "approval-required";
+    private const string Forbidden = "forbidden";
+
     [Theory]
-    [InlineData("Project Officer", true, true)]
-    [InlineData("Project Officer", false, false)]
-    [InlineData("HoD", false, true)]
-    [InlineData("Admin", false, true)]
-    [InlineData("Viewer", true, false)]
-    public async Task OnPostAsync_PreservesCurrentAuthority(string role, bool assigned, bool allowed)
+    [InlineData("Project Officer", true, ApprovalRequired)]
+    [InlineData("Project Officer", false, Forbidden)]
+    [InlineData("HoD", false, Allowed)]
+    [InlineData("Admin", false, Allowed)]
+    [InlineData("HoD,Project Officer", true, Allowed)]
+    [InlineData("Admin,Project Officer", true, Allowed)]
+    [InlineData("HoD,Project Officer", false, Allowed)]
+    [InlineData("Viewer", true, Forbidden)]
+    public async Task OnPostAsync_DirectPublicationFollowsRolePrecedence(string roles, bool assigned, string outcome)
     {
         await using var db = CreateContext();
         await SeedAsync(db, assigned);
-        var page = CreatePage(db, role);
+        var audit = new Audit();
+        var page = CreatePage(db, roles, audit);
         page.Input = Input(new DateOnly(2024, 1, 11), null);
 
         var result = await page.OnPostAsync(1, CancellationToken.None);
 
-        if (allowed)
+        if (outcome == Allowed)
         {
             Assert.IsType<RedirectToPageResult>(result);
             Assert.False(page.TempData.ContainsKey("Error"));
             Assert.Equal(new DateOnly(2024, 1, 11), (await db.ProjectStages.SingleAsync()).ActualStart);
+            Assert.Single(await db.StageChangeLogs.ToArrayAsync());
+            return;
+        }
+
+        if (outcome == ApprovalRequired)
+        {
+            Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal(ActualsApprovalRequiredException.UserMessage, page.TempData["Error"]);
+            Assert.False(page.TempData.ContainsKey("Flash"));
         }
         else
         {
             Assert.IsType<ForbidResult>(result);
-            Assert.Equal(new DateOnly(2024, 1, 10), (await db.ProjectStages.SingleAsync()).ActualStart);
         }
+
+        Assert.Equal(new DateOnly(2024, 1, 10), (await db.ProjectStages.SingleAsync()).ActualStart);
+        Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
+        Assert.Equal(0, audit.Count);
     }
 
     [Theory]
-    [InlineData("Project Officer")]
     [InlineData("HoD")]
     [InlineData("Admin")]
+    [InlineData("HoD,Project Officer")]
     public async Task OnPostAsync_AllAuthorisedRolesRejectGenericCompletion(string role)
     {
         await using var db = CreateContext();
@@ -73,18 +99,32 @@ public sealed class EditActualsAuthorizationTests
     {
         foreach (var source in new[] { "none", "draft", "published" })
         {
-            yield return [source, "Project Officer", true, true];
-            yield return [source, "Project Officer", false, false];
-            yield return [source, "HoD", false, true];
-            yield return [source, "Admin", false, true];
-            yield return [source, "Viewer", true, false];
+            yield return [source, "Project Officer", true, ApprovalRequired];
+            yield return [source, "Project Officer", false, Forbidden];
+            yield return [source, "HoD", false, Allowed];
+            yield return [source, "Admin", false, Allowed];
+            yield return [source, "Admin,Project Officer", true, Allowed];
+            yield return [source, "Viewer", true, Forbidden];
         }
+    }
+
+    // A refused post writes nothing; an approval-required refusal says so.
+    private static void AssertRefusal(IActionResult result, EditActualsModel page, string outcome)
+    {
+        if (outcome == ApprovalRequired)
+        {
+            Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal(ActualsApprovalRequiredException.UserMessage, page.TempData["Error"]);
+            return;
+        }
+
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Theory]
     [MemberData(nameof(IpaRoleCases))]
     public async Task OnPostAsync_IpaCompletionCorrectionUsesConditionalPublishedAuthority(
-        string source, string role, bool assigned, bool authorised)
+        string source, string role, bool assigned, string outcome)
     {
         await using var db = CreateContext();
         await SeedIpaAsync(db, assigned, source);
@@ -99,9 +139,9 @@ public sealed class EditActualsAuthorizationTests
         var result = await page.OnPostAsync(1, CancellationToken.None);
 
         var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
-        if (!authorised)
+        if (outcome != Allowed)
         {
-            Assert.IsType<ForbidResult>(result);
+            AssertRefusal(result, page, outcome);
             Assert.Equal(new DateOnly(2024, 1, 20), ipa.CompletedOn);
             Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
             return;
@@ -128,7 +168,7 @@ public sealed class EditActualsAuthorizationTests
     [Theory]
     [MemberData(nameof(IpaRoleCases))]
     public async Task OnPostAsync_IpaStartRemainsSeparatelyCorrectableUnderNormalRoleAuthority(
-        string source, string role, bool assigned, bool authorised)
+        string source, string role, bool assigned, string outcome)
     {
         await using var db = CreateContext();
         await SeedIpaAsync(db, assigned, source);
@@ -144,7 +184,7 @@ public sealed class EditActualsAuthorizationTests
 
         var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
         Assert.Equal(new DateOnly(2024, 1, 20), ipa.CompletedOn);
-        if (authorised)
+        if (outcome == Allowed)
         {
             Assert.IsType<RedirectToPageResult>(result);
             Assert.False(page.TempData.ContainsKey("Error"));
@@ -153,7 +193,7 @@ public sealed class EditActualsAuthorizationTests
         }
         else
         {
-            Assert.IsType<ForbidResult>(result);
+            AssertRefusal(result, page, outcome);
             Assert.Equal(new DateOnly(2024, 1, 10), ipa.ActualStart);
             Assert.Empty(await db.StageChangeLogs.ToArrayAsync());
         }
@@ -209,11 +249,13 @@ public sealed class EditActualsAuthorizationTests
         ProjectId = 1, Rows = new List<ActualsEditRowInput> { new() { StageCode = StageCodes.FS, ActualStart = start, CompletedOn = completed } }
     };
 
-    private static EditActualsModel CreatePage(ApplicationDbContext db, string role)
+    private static EditActualsModel CreatePage(ApplicationDbContext db, string roles, Audit? audit = null)
     {
-        var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "actor"), new Claim(ClaimTypes.Role, role) }, "Test"));
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "actor") };
+        claims.AddRange(roles.Split(',').Select(role => new Claim(ClaimTypes.Role, role.Trim())));
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
         var http = new DefaultHttpContext { User = user };
-        var service = new StageActualsUpdateService(db, new Clock(), new Audit(), NullLogger<StageActualsUpdateService>.Instance);
+        var service = new StageActualsUpdateService(db, new Clock(), audit ?? new Audit(), NullLogger<StageActualsUpdateService>.Instance);
         return new EditActualsModel(service, db, new UserContext(user), NullLogger<EditActualsModel>.Instance)
         {
             PageContext = new PageContext(new ActionContext(http, new RouteData(), new ActionDescriptor())),
@@ -234,7 +276,13 @@ public sealed class EditActualsAuthorizationTests
     }
     private sealed class Audit : IAuditService
     {
+        public int Count { get; private set; }
+
         public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null,
-            IDictionary<string, string?>? data = null, HttpContext? http = null) => Task.CompletedTask;
+            IDictionary<string, string?>? data = null, HttpContext? http = null)
+        {
+            Count++;
+            return Task.CompletedTask;
+        }
     }
 }

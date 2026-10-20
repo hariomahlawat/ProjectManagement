@@ -14,6 +14,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
 
@@ -377,6 +378,35 @@ public sealed class ProjectModerationService
         IDictionary<string, object?> metadata,
         CancellationToken cancellationToken)
     {
+        // Actual-correction proposals (Phase D). Items restrict their revision and the
+        // revisions reference each other, so the lineage links are cleared and saved first,
+        // before any other delete is queued: that save flushes only the link updates. It
+        // runs inside the purge transaction, so it is undone if the purge fails.
+        var actualRevisions = await _db.ActualCorrectionRevisions
+            .Where(revision => revision.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        metadata["actualCorrectionRevisionCount"] = actualRevisions.Count;
+        if (actualRevisions.Count > 0)
+        {
+            foreach (var revision in actualRevisions)
+            {
+                revision.SupersedesRevisionId = null;
+                revision.SupersededByRevisionId = null;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        var actualRevisionIds = actualRevisions.Select(revision => revision.Id).ToList();
+        var actualItems = actualRevisionIds.Count == 0
+            ? new List<ActualCorrectionItem>()
+            : await _db.ActualCorrectionItems
+                .Where(item => actualRevisionIds.Contains(item.RevisionId))
+                .ToListAsync(cancellationToken);
+        metadata["actualCorrectionItemCount"] = actualItems.Count;
+        _db.ActualCorrectionItems.RemoveRange(actualItems);
+        _db.ActualCorrectionRevisions.RemoveRange(actualRevisions);
+
         var photos = await _db.ProjectPhotos
             .Where(photo => photo.ProjectId == projectId)
             .ToListAsync(cancellationToken);

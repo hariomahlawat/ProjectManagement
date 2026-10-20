@@ -98,6 +98,8 @@ namespace ProjectManagement.Data
         public DbSet<StageDependencyTemplate> StageDependencyTemplates => Set<StageDependencyTemplate>();
         public DbSet<StageChangeRequest> StageChangeRequests => Set<StageChangeRequest>();
         public DbSet<StageChangeLog> StageChangeLogs => Set<StageChangeLog>();
+        public DbSet<ActualCorrectionRevision> ActualCorrectionRevisions => Set<ActualCorrectionRevision>();
+        public DbSet<ActualCorrectionItem> ActualCorrectionItems => Set<ActualCorrectionItem>();
         public DbSet<StageChecklistTemplate> StageChecklistTemplates => Set<StageChecklistTemplate>();
         public DbSet<StageChecklistItemTemplate> StageChecklistItemTemplates => Set<StageChecklistItemTemplate>();
         public DbSet<StageChecklistAudit> StageChecklistAudits => Set<StageChecklistAudit>();
@@ -3109,6 +3111,98 @@ namespace ProjectManagement.Data
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
                             $"Action IN {allowedStageLogActions}"));
                 }
+            });
+
+            // Phase D Actual-correction proposals (D-2: schema only; services arrive in D-3).
+            // Provider-conditional filters and checks follow the StageChangeRequest pattern.
+            string Column(string name) => Database.IsSqlServer()
+                ? $"[{name}]"
+                : Database.IsNpgsql() ? $"\"{name}\"" : name;
+
+            builder.Entity<ActualCorrectionRevision>(e =>
+            {
+                e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+                e.Property(x => x.EntryPoint).HasMaxLength(16).IsRequired();
+                e.Property(x => x.SubmittedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Note).HasMaxLength(1024);
+                e.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
+                e.Property(x => x.ClosedByUserId).HasMaxLength(450);
+                // Decision Centre remarks are up to 2000 characters; the full text lives here.
+                e.Property(x => x.DecisionNote).HasMaxLength(2000);
+
+                // Same delete behaviour as ProjectStages; purge also removes these explicitly.
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Lineage evidence. Restrict: a revision is only ever deleted with its project,
+                // and purge clears both links first.
+                e.HasOne<ActualCorrectionRevision>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SupersedesRevisionId)
+                    .HasConstraintName("FK_ActualCorrectionRevisions_SupersedesRevision")
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne<ActualCorrectionRevision>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SupersededByRevisionId)
+                    .HasConstraintName("FK_ActualCorrectionRevisions_SupersededByRevision")
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasIndex(x => new { x.ProjectId, x.RevisionNo })
+                    .IsUnique()
+                    .HasDatabaseName("ux_actualcorrectionrevisions_project_revision");
+
+                e.HasIndex(x => x.ProjectId)
+                    .IsUnique()
+                    .HasDatabaseName("ux_actualcorrectionrevisions_pending")
+                    .HasFilter($"{Column("Status")} = 'Pending'");
+
+                e.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint("CK_ActualCorrectionRevisions_Status",
+                        $"{Column("Status")} IN ('Pending','Superseded','Withdrawn','Approved','Rejected')");
+                    tb.HasCheckConstraint("CK_ActualCorrectionRevisions_EntryPoint",
+                        $"{Column("EntryPoint")} IN ('Editor','Backfill')");
+                    tb.HasCheckConstraint("CK_ActualCorrectionRevisions_RevisionNo",
+                        $"{Column("RevisionNo")} > 0");
+                    // A pending revision has no closure; every terminal state records who closed it and when.
+                    tb.HasCheckConstraint("CK_ActualCorrectionRevisions_Closure",
+                        $"({Column("Status")} = 'Pending' AND {Column("ClosedOn")} IS NULL AND {Column("ClosedByUserId")} IS NULL) OR " +
+                        $"({Column("Status")} <> 'Pending' AND {Column("ClosedOn")} IS NOT NULL AND {Column("ClosedByUserId")} IS NOT NULL)");
+                });
+            });
+
+            builder.Entity<ActualCorrectionItem>(e =>
+            {
+                e.Property(x => x.StageCode).HasMaxLength(16).IsRequired();
+                e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+                // Same representation as ProjectStage.Status.
+                e.Property(x => x.BeforeStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(x => x.BeforeActualStart).HasColumnType("date");
+                e.Property(x => x.BeforeCompletedOn).HasColumnType("date");
+                e.Property(x => x.ProposedActualStart).HasColumnType("date");
+                e.Property(x => x.ProposedCompletedOn).HasColumnType("date");
+                e.Property(x => x.Note).HasMaxLength(1024);
+
+                // Items are evidence: a revision cannot be deleted while it has items.
+                e.HasOne(x => x.Revision)
+                    .WithMany(x => x.Items)
+                    .HasForeignKey(x => x.RevisionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasIndex(x => new { x.RevisionId, x.StageCode })
+                    .IsUnique()
+                    .HasDatabaseName("ux_actualcorrectionitems_revision_stage");
+
+                e.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint("CK_ActualCorrectionItems_Kind",
+                        $"{Column("Kind")} IN ('Correction','Backfill')");
+                    // An explicit clear never also proposes a start.
+                    tb.HasCheckConstraint("CK_ActualCorrectionItems_ClearsActualStart",
+                        $"NOT {Column("ClearsActualStart")} OR {Column("ProposedActualStart")} IS NULL");
+                });
             });
 
             builder.Entity<PlanVersion>(e =>

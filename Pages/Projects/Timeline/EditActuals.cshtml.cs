@@ -84,6 +84,14 @@ public class EditActualsModel : PageModel
             return Forbid();
         }
 
+        // Phase D-2: only Admin and HoD publish Actual dates directly; that authority
+        // supersedes the PO role. The assigned PO-only user is refused before any write
+        // (D-3 routes this post to a proposal). The service enforces the same rule.
+        if (!isAdmin && !isProjectsHod)
+        {
+            return ApprovalRequired(id);
+        }
+
         try
         {
             var actor = ActualWriteActor.FromPrincipal(principal, userId);
@@ -113,6 +121,11 @@ public class EditActualsModel : PageModel
             TempData["Error"] = message;
             TempData["OpenOffcanvas"] = "actuals-edit";
             return RedirectToPage("/Projects/Overview", new { id });
+        }
+        catch (ActualsApprovalRequiredException)
+        {
+            // Roles changed between the page check and the transaction.
+            return ApprovalRequired(id);
         }
         catch (ActualsWriteForbiddenException)
         {
@@ -157,5 +170,11 @@ public class EditActualsModel : PageModel
             TempData["OpenOffcanvas"] = "actuals-edit";
             return RedirectToPage("/Projects/Overview", new { id });
         }
+    }
+
+    private IActionResult ApprovalRequired(int id)
+    {
+        TempData["Error"] = ActualsApprovalRequiredException.UserMessage;
+        return RedirectToPage("/Projects/Overview", new { id });
     }
 }

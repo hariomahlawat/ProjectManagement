@@ -7552,6 +7552,153 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Stages.ActualCorrectionItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("BeforeActualStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("BeforeCompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("BeforeRequiresBackfill")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("BeforeStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<bool>("ClearsActualStart")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateOnly?>("ProposedActualStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ProposedCompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RevisionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StageCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevisionId", "StageCode")
+                        .IsUnique()
+                        .HasDatabaseName("ux_actualcorrectionitems_revision_stage");
+
+                    b.ToTable("ActualCorrectionItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_ActualCorrectionItems_ClearsActualStart", "NOT \"ClearsActualStart\" OR \"ProposedActualStart\" IS NULL");
+
+                            t.HasCheckConstraint("CK_ActualCorrectionItems_Kind", "\"Kind\" IN ('Correction','Backfill')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Stages.ActualCorrectionRevision", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClosedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset?>("ClosedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("EntryPoint")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RevisionNo")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset>("SubmittedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("SupersededByRevisionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SupersedesRevisionId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_actualcorrectionrevisions_pending")
+                        .HasFilter("\"Status\" = 'Pending'");
+
+                    b.HasIndex("SupersededByRevisionId");
+
+                    b.HasIndex("SupersedesRevisionId");
+
+                    b.HasIndex("ProjectId", "RevisionNo")
+                        .IsUnique()
+                        .HasDatabaseName("ux_actualcorrectionrevisions_project_revision");
+
+                    b.ToTable("ActualCorrectionRevisions", t =>
+                        {
+                            t.HasCheckConstraint("CK_ActualCorrectionRevisions_Closure", "(\"Status\" = 'Pending' AND \"ClosedOn\" IS NULL AND \"ClosedByUserId\" IS NULL) OR (\"Status\" <> 'Pending' AND \"ClosedOn\" IS NOT NULL AND \"ClosedByUserId\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ActualCorrectionRevisions_EntryPoint", "\"EntryPoint\" IN ('Editor','Backfill')");
+
+                            t.HasCheckConstraint("CK_ActualCorrectionRevisions_RevisionNo", "\"RevisionNo\" > 0");
+
+                            t.HasCheckConstraint("CK_ActualCorrectionRevisions_Status", "\"Status\" IN ('Pending','Superseded','Withdrawn','Approved','Rejected')");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityBucket", b =>
                 {
                     b.Property<long>("Id")
@@ -9801,6 +9948,40 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Stages.ActualCorrectionItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Stages.ActualCorrectionRevision", "Revision")
+                        .WithMany("Items")
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Revision");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Stages.ActualCorrectionRevision", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Stages.ActualCorrectionRevision", null)
+                        .WithMany()
+                        .HasForeignKey("SupersededByRevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_ActualCorrectionRevisions_SupersededByRevision");
+
+                    b.HasOne("ProjectManagement.Models.Stages.ActualCorrectionRevision", null)
+                        .WithMany()
+                        .HasForeignKey("SupersedesRevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_ActualCorrectionRevisions_SupersedesRevision");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Stages.StageChecklistAudit", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Stages.StageChecklistItemTemplate", "Item")
@@ -10184,6 +10365,11 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.SponsoringUnit", b =>
                 {
                     b.Navigation("Projects");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Stages.ActualCorrectionRevision", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Stages.StageChecklistTemplate", b =>

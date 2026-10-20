@@ -4,6 +4,9 @@
     Layout = null;
     var tokens = Antiforgery.GetAndStoreTokens(Context);
     var hasStages = Model?.HasStages ?? false;
+    // Phase D-2: a PO-only user cannot publish directly; the page and service refuse it.
+    // Fails safe to read-only if a host does not pass the server-computed flag.
+    var directPublication = ViewData["ActualsDirectPublication"] as bool? ?? false;
 }
 
 <div class="modal fade"
@@ -26,12 +29,21 @@
 
                     <div class="alert alert-danger d-none" role="alert" data-backfill-errors></div>
 
+                    @if (hasStages && !directPublication)
+                    {
+                        <div class="alert alert-info" role="status" data-backfill-approval-required>
+                            Actual-date corrections now require HoD or Admin approval. Ask a HoD or Admin to apply Actual-date corrections for this project.
+                        </div>
+                    }
+
                     @if (hasStages)
                     {
                         <p class="text-muted small">
                             Enter the missing completion details for stages completed through an authorised override or predecessor auto-completion. Completion date is required. Actual start is optional and, when omitted, duration is inferred from the preceding completed stage.
                         </p>
-                        @await Html.PartialAsync("_BackfillForm", Model)
+                        <fieldset class="border-0 p-0 m-0" disabled="@(!directPublication)">
+                            @await Html.PartialAsync("_BackfillForm", Model)
+                        </fieldset>
                     }
                     else
                     {
@@ -43,7 +55,10 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="submitBackfillBtn" @(hasStages ? null : "disabled")>Save</button>
+                @if (directPublication)
+                {
+                    <button type="button" class="btn btn-primary" id="submitBackfillBtn" @(hasStages ? null : "disabled")>Save</button>
+                }
             </div>
         </div>
     </div>
