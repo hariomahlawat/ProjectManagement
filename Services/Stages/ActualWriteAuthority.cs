@@ -126,6 +126,20 @@ internal static class ActualWriteAuthority
         return ActualProposalAuthority.Allowed;
     }
 
+    /// <summary>
+    /// HoD/Admin decision path (D-3d): the project must exist and not be deleted, read
+    /// under the same project-row share lock and lock order as the write paths.
+    /// </summary>
+    internal static async Task<bool> IsProjectAvailableAsync(
+        ApplicationDbContext db,
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var project = await ReadLockedProjectAsync(db, projectId, cancellationToken);
+        return project is { IsDeleted: false };
+    }
+
     private static async Task<LockedProject?> ReadLockedProjectAsync(
         ApplicationDbContext db,
         int projectId,

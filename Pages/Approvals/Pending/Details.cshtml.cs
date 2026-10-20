@@ -42,8 +42,13 @@ public sealed class DetailsModel : PageModel
     public string? ErrorMessage => TempData["Error"] as string;
     public bool IsPending { get; private set; }
     public bool CanApprove => IsPending && Detail.Item.Readiness == ApprovalReadiness.Ready;
-    public bool CanReject => IsPending && (Detail.Item.ApprovalType != ApprovalQueueType.PlanApproval ||
-                                               Detail.Item.Readiness == ApprovalReadiness.Ready);
+    public bool CanReject => IsPending && Detail.Item.ApprovalType switch
+    {
+        ApprovalQueueType.PlanApproval => Detail.Item.Readiness == ApprovalReadiness.Ready,
+        // K-3: a correction whose basis changed may still be rejected, but never by its submitter.
+        ApprovalQueueType.ActualCorrection => Detail.ActualCorrection?.SubmittedByViewer == false,
+        _ => true
+    };
     public string CurrentStatus { get; private set; } = "Pending";
     public string? DecidedByName { get; private set; }
     public DateTimeOffset? DecidedAtUtc { get; private set; }
@@ -68,7 +73,7 @@ public sealed class DetailsModel : PageModel
             ApprovalType = detail.Item.ApprovalType,
             RequestId = detail.Item.RequestId,
             RowVersion = detail.Item.ConcurrencyToken,
-            SubmittedOn = detail.PlanApproval?.SubmittedOnUtc,
+            SubmittedOn = detail.PlanApproval?.SubmittedOnUtc ?? detail.ActualCorrection?.SubmittedOnUtc,
             ReturnUrl = ReturnUrl
         };
 
@@ -99,6 +104,7 @@ public sealed class DetailsModel : PageModel
         ApprovalQueueType.ActivityDelete => "Activity deletion",
         ApprovalQueueType.TrainingDelete => "Training deletion",
         ApprovalQueueType.RepositoryDocumentDelete => "Repository document deletion",
+        ApprovalQueueType.ActualCorrection => "Actual date correction",
         _ => type.ToString()
     };
 
@@ -211,6 +217,9 @@ public sealed class DetailsModel : PageModel
             case ApprovalQueueType.RepositoryDocumentDelete:
                 await PopulateRepositoryDecisionAsync(requestId, cancellationToken);
                 break;
+            case ApprovalQueueType.ActualCorrection:
+                await PopulateActualCorrectionDecisionAsync(requestId, cancellationToken);
+                break;
         }
     }
 
@@ -233,6 +242,19 @@ public sealed class DetailsModel : PageModel
         IsPending = string.Equals(value.DecisionStatus, "Pending", StringComparison.OrdinalIgnoreCase);
         DecisionRemarks = value.DecisionNote;
         await SetDecisionUserAsync(value.DecidedByUserId, value.DecidedOn, ct);
+    }
+
+    private async Task PopulateActualCorrectionDecisionAsync(string requestId, CancellationToken ct)
+    {
+        if (!int.TryParse(requestId, out var id)) return;
+        var value = await _db.ActualCorrectionRevisions.AsNoTracking().Where(item => item.Id == id)
+            .Select(item => new { item.Status, item.DecisionNote, item.ClosedByUserId, item.ClosedOn })
+            .SingleOrDefaultAsync(ct);
+        if (value is null) return;
+        CurrentStatus = value.Status;
+        IsPending = string.Equals(value.Status, "Pending", StringComparison.Ordinal);
+        DecisionRemarks = value.DecisionNote;
+        await SetDecisionUserAsync(value.ClosedByUserId, value.ClosedOn, ct);
     }
 
     private async Task PopulateMetaDecisionAsync(string requestId, CancellationToken ct)

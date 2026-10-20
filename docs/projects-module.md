@@ -6,7 +6,7 @@ The projects module weaves procurement data, execution controls, plan collaborat
 
 The [canonical timeline rules](timeline.md#canonical-timeline-business-rules) define the intended PO workflow: continuous non-blocking editing, HoD-approved publication for Plan/PDC, Lifecycle and Actual fact corrections, immutable revisions/supersession and stale-decision rejection. User-facing date terms are **Planned start / PDC / Actual start / Actual completion**. The [implementation gaps and phased roadmap](timeline-proposal-roadmap.md) identify work still required.
 
-The storyboard below describes current code, not completed implementation of that target. In particular, a pending plan can still lock its PO editor, and from Phase D-3c an assigned PO-only user's actual-date/backfill corrections are submitted as proposals that cannot be decided until D-3d adds approval. Those are deviations to remediate, not the canonical authority model. HoD/Admin direct authority remains limited to existing product permissions and does not relax date validity or grant Admin unrelated approval rights.
+The storyboard below describes current code, not completed implementation of that target. In particular, a pending plan can still lock its PO editor, and from Phase D-3c an assigned PO-only user's actual-date/backfill corrections are submitted as proposals, which a HoD or Admin who is not the submitter approves or rejects in the Decision Centre (D-3d). Those are deviations to remediate, not the canonical authority model. HoD/Admin direct authority remains limited to existing product permissions and does not relax date validity or grant Admin unrelated approval rights.
 
 ## Personas and permissions
 
