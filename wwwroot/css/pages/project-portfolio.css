@@ -1738,7 +1738,7 @@ button.project-intelligence-card:hover {
     padding: .9rem;
     border: 1px solid var(--portfolio-border);
     border-radius: .78rem;
-    background: #fff;
+    background: var(--pm-card, #fff);
 }
 
 .stage-update-row__header {
@@ -1794,7 +1794,7 @@ button.project-intelligence-card:hover {
 #stageRequestModal .modal-header,
 #stageRequestModal .modal-footer {
     flex: 0 0 auto;
-    background: #fff;
+    background: var(--pm-card, #fff);
     z-index: 2;
 }
 
@@ -1857,7 +1857,7 @@ button.project-intelligence-card:hover {
     border-radius: 999px;
     padding: .12rem .42rem;
     border: 1px solid var(--portfolio-border);
-    background: #fff;
+    background: var(--pm-card, #fff);
     color: var(--portfolio-muted);
     font-size: .66rem;
     font-weight: 600;
@@ -1972,7 +1972,7 @@ button.project-intelligence-card:hover {
     border: 1px solid var(--portfolio-border);
     border-radius: .75rem;
     overflow: hidden;
-    background: #fff;
+    background: var(--pm-card, #fff);
 }
 
 .project-document-preview__row {
@@ -2113,7 +2113,7 @@ button.project-intelligence-card:hover {
     border-radius: .75rem;
     color: inherit;
     text-decoration: none;
-    background: #fff;
+    background: var(--pm-card, #fff);
     transition: border-color .15s ease, background-color .15s ease;
 }
 
@@ -3902,27 +3902,26 @@ button.project-intelligence-card--tot:focus-visible {
     .project-portfolio .remarks-body { padding-left: 0; }
 }
 
-/* Dark theme (planned): neutral graphite, not navy; blue is an accent only. Values and
-   rationale: docs/ux/dark-theme-palette.md. The site has no dark palette yet (it pins
-   --bs-body-bg light), so these literals stand in; point them at site tokens later. */
-[data-bs-theme="dark"] :is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) {
-    color-scheme: dark;
-}
+/* Dark theme: neutral graphite, not navy; blue is an accent only. The site tokens in
+   site.css carry the palette (docs/ux/dark-theme-palette.md); these only pick the role. */
 [data-bs-theme="dark"] :is(.project-portfolio, #recordCompletenessModal, #discardDraftModal) {
-    --v6-surface: #16181b;
-    --v6-tile: #1e2125;
-    --v6-input: #1e2125;
-    --v6-text: #e6e8eb;
-    --v6-accent: #6ea8fe;
-    --v6-accent-soft: color-mix(in srgb, #6ea8fe 16%, #16181b);
-    --v6-good: #4ade80;
-    --v6-fair: #fbbf24;
-    --v6-poor: #f87171;
+    --v6-surface: var(--pm-card);
+    --v6-tile: var(--pm-surface-subtle);
+    --v6-input: var(--pm-surface-subtle);
+    --v6-text: var(--pm-text);
+    --v6-accent: var(--pm-accent-blue);
+    --v6-accent-soft: color-mix(in srgb, var(--v6-accent) 16%, var(--v6-surface));
+    --v6-good: var(--pm-success);
+    --v6-fair: var(--pm-warning);
+    --v6-poor: var(--pm-danger);
     --v6-shadow: rgba(0, 0, 0, .35);
     --v6-shadow-strong: rgba(0, 0, 0, .55);
-    --portfolio-border: #2c3035;
-    --portfolio-muted: #9aa0a6;
+    --portfolio-border: var(--pm-border);
+    --portfolio-muted: var(--pm-text-muted);
+    --portfolio-soft: color-mix(in srgb, var(--pm-accent-blue) 8%, var(--pm-card));
+    --portfolio-soft-strong: color-mix(in srgb, var(--pm-accent-blue) 14%, var(--pm-card));
 }
+[data-bs-theme="dark"] .project-record-health-modal__summary span { color: var(--pm-text-secondary); }
 
 @media (prefers-reduced-motion: reduce) {
     .project-portfolio .pm-card,
