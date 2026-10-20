@@ -128,9 +128,13 @@
                     }
                 </div>
                 <div class="project-media-actions">
-                    <a class="btn btn-sm btn-outline-primary"
-                       asp-page="/Projects/Documents/Index"
-                       asp-route-id="@projectId">View all documents</a>
+                    @* "View all" only when there is something to view (an empty list is one click wasted). *@
+                    @if (media.DocumentCount > 0 || media.PendingDocumentCount > 0)
+                    {
+                        <a class="btn btn-sm btn-outline-primary"
+                           asp-page="/Projects/Documents/Index"
+                           asp-route-id="@projectId">View all documents</a>
+                    }
                     @if (Model.CanUploadDocuments)
                     {
                         <a class="btn btn-sm btn-primary" asp-page="/Projects/Documents/UploadRequest" asp-route-id="@projectId">
@@ -198,7 +202,10 @@
                     }
                 </div>
                 <div class="project-media-actions">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View all photos</a>
+                    @if (media.PhotoCount > 0)
+                    {
+                        <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View all photos</a>
+                    }
                     @if (Model.CanManagePhotos)
                     {
                         <a class="btn btn-sm btn-primary" asp-page="/Projects/Photos/Upload" asp-route-id="@projectId">
@@ -264,7 +271,10 @@
                     }
                 </div>
                 <div class="project-media-actions">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Videos/Index" asp-route-id="@projectId">View all videos</a>
+                    @if (media.VideoCount > 0)
+                    {
+                        <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Videos/Index" asp-route-id="@projectId">View all videos</a>
+                    }
                     @if (Model.CanManageVideos)
                     {
                         <a class="btn btn-sm btn-primary" asp-page="/Projects/Videos/Upload" asp-route-id="@projectId">

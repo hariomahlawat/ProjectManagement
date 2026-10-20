@@ -193,7 +193,10 @@
         _                      => "pm-item"
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
-      var hasStageMenuActions = !s.IsArppManaged && (isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest));
+      // A Project Officer has one stage action, so it is a direct button on every stage rather
+      // than a menu holding a single item; the HoD's several actions keep the menu.
+      var hasStageMenuActions = !s.IsArppManaged && isHod;
+      var isPrimaryStageUpdate = isCurrentStage || s.HasPendingRequest;
       var needsArppActualStartAttention = s.NeedsArppActualStartAttention;
       var canCorrectArppActualStart = needsArppActualStartAttention &&
           ((isActiveLifecycle && canEditTimeline) ||
@@ -283,9 +286,11 @@
               }
             </div>
             <div class="pm-item-actions">
-              @if (!s.IsArppManaged && canSubmitStageUpdate && (isCurrentStage || s.HasPendingRequest))
+              @if (!s.IsArppManaged && canSubmitStageUpdate)
               {
-                <button class="btn btn-sm @(s.HasPendingRequest ? "btn-warning" : "btn-outline-primary") pm-stage-update-primary"
+                <button class="btn btn-sm @(s.HasPendingRequest ? "btn-warning" : isPrimaryStageUpdate ? "btn-outline-primary" : "btn-outline-secondary pm-stage-update-secondary") pm-stage-update-primary"
+                        aria-label="@(s.HasPendingRequest ? "Edit the pending update for " + s.Name : "Update " + s.Name + " stage")"
+                        title="@(isPrimaryStageUpdate ? null : "Update " + s.Name + " stage")"
                         type="button"
                         data-stage-request
                         data-stage-request-button
@@ -305,7 +310,8 @@
                         data-pending-start-date="@s.PendingStartDate?.ToString("yyyy-MM-dd")"
                         data-pending-note="@s.PendingNote">
                   <i class="bi @(s.HasPendingRequest ? "bi-pencil-square" : "bi-arrow-repeat")" aria-hidden="true"></i>
-                  @(s.HasPendingRequest ? (isHod ? "Review and decide" : "Edit submission") : "Update stage")
+                  @* Other stages get a compact icon button; its name stays in aria-label and the tooltip. *@
+                  <span class="@(isPrimaryStageUpdate ? null : "visually-hidden")">@(s.HasPendingRequest ? (isHod ? "Review and decide" : "Edit submission") : "Update stage")</span>
                 </button>
               }
               @if (hasStageMenuActions)
@@ -507,36 +513,6 @@
                         </button>
                       </li>
                     }
-                    @if (canSubmitStageUpdate)
-                    {
-                      <li><hr class="dropdown-divider" /></li>
-                    }
-                  }
-                  @if (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest)
-                  {
-                    <li>
-                      <button class="dropdown-item"
-                              type="button"
-                              data-stage-request
-                              data-stage-request-button
-                              data-project="@timeline.ProjectId"
-                              data-stage="@s.Code"
-                              data-stage-name="@s.Name"
-                              data-current-status="@s.Status"
-                              data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
-                              data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
-                              data-reopen-suggested-start="@s.ReopenSuggestedStartDate?.ToString("yyyy-MM-dd")"
-                              data-actual-today="@s.Today.ToString("yyyy-MM-dd")"
-                              data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
-                              data-start-source="@s.SuggestedStartSourceName"
-                              data-stage-sort-order="@s.SortOrder"
-                              data-pending-status="@s.PendingStatus"
-                              data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
-                              data-pending-start-date="@s.PendingStartDate?.ToString("yyyy-MM-dd")"
-                              data-pending-note="@s.PendingNote">
-                        @(s.HasPendingRequest ? (isHod ? "Review and decide" : "Edit submission") : "Update stage")
-                      </button>
-                    </li>
                   }
                   </ul>
                 </div>

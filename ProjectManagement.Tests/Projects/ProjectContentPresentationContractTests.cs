@@ -55,7 +55,9 @@ public sealed class ProjectContentPresentationContractTests
         Assert.DoesNotContain("Full authoritative narrative.", partial, StringComparison.Ordinal);
         Assert.DoesNotContain("Draft for briefing — add", partial, StringComparison.Ordinal);
         Assert.Contains("Add @remainingCapabilityCount more distinct capability", partial, StringComparison.Ordinal);
-        Assert.Contains("Markdown supported", partial, StringComparison.Ordinal);
+        // Markdown guidance belongs to the editor, not the read view.
+        Assert.DoesNotContain("Markdown supported", partial, StringComparison.Ordinal);
+        Assert.Contains("<summary>Markdown help</summary>", partial, StringComparison.Ordinal);
         Assert.Contains("Markdown optional.", partial, StringComparison.Ordinal);
     }
 

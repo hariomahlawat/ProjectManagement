@@ -2227,6 +2227,49 @@ button.project-intelligence-card:hover {
 }
 .project-portfolio-main,
 .project-portfolio-rail { width: auto; max-width: none; }
+/* Plan, schedule and next action in the Timeline header (replaces the Lifecycle position card). */
+.pm-timeline-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: .5rem .9rem;
+    margin: 0;
+    padding: .55rem .7rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .7rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+    font-size: .8rem;
+}
+.pm-timeline-facts__item { min-width: 0; }
+.pm-timeline-facts__item dt {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--portfolio-muted);
+}
+.pm-timeline-facts__item dd { margin: 0; }
+.pm-timeline-facts__item dd .text-muted { display: block; font-size: .74rem; }
+.pm-timeline-facts__item.is-attention strong { color: var(--bs-danger-text-emphasis, #b02a37); }
+
+/* The Timeline/Remarks switch sits in the title row's top-right corner, so the facts, status
+   and actions below use the panel's full width. On phones it stacks under the title. */
+@media (min-width: 576px) {
+    .project-lifecycle-panel .pm-panel-header-row { position: relative; }
+    .project-lifecycle-panel .pm-panel-switch-slot { position: absolute; top: 0; right: 0; }
+    .project-lifecycle-panel .pm-panel-header-main > [data-panel-section] > :first-child { padding-right: 11rem; }
+}
+@media (max-width: 575.98px) {
+    .project-lifecycle-panel .pm-panel-header-row { flex-direction: column; }
+    .project-lifecycle-panel .pm-panel-switch-slot { align-self: stretch; }
+}
+
+/* Desktop keeps the Timeline/Remarks panel in the right-hand column at its usual width,
+   with project details on the left. The markup lists the Timeline first only so that, in
+   the single-column layout (below 74rem), it follows the header directly. */
+@media (min-width: 74.01rem) {
+    .project-portfolio-layout--work-first > .project-portfolio-work { grid-column: 2; grid-row: 1; }
+    .project-portfolio-layout--work-first > .project-portfolio-details { grid-column: 1; grid-row: 1; }
+}
 
 /* V5: editorial project profile flow; description wraps below the cover */
 .project-profile-flow { display: flow-root; }
