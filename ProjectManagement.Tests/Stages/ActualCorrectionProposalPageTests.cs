@@ -474,6 +474,10 @@ public sealed class ActualCorrectionProposalPageTests
 
         Assert.True(backfill.WithPendingProposal(revision, Lead).AwaitingApproval);
         Assert.False(BackfillViewModel.Empty.AwaitingApproval);
+
+        // A HoD/Admin changed an official fact after submission: approval would refuse
+        // the revision (SourceChanged), so the PO must act again rather than wait.
+        Assert.False(backfill.WithPendingProposal(revision, Lead, changedStageCodes: new[] { StageCodes.AON }).AwaitingApproval);
     }
 
     [Fact]

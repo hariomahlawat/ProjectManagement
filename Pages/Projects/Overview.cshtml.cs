@@ -2485,12 +2485,14 @@ namespace ProjectManagement.Pages.Projects
             if (CanSubmitActualProposals)
             {
                 var stored = await _db.ProjectStages.AsNoTracking().Where(stage => stage.ProjectId == projectId).ToListAsync(ct);
+                var changedStageCodes = ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored);
+                var alreadySatisfied = ActualCorrectionProposalService.AlreadySatisfied(pending, stored);
                 ActualsEditor = ActualsEditor.WithPendingProposal(
                     pending,
                     CurrentUserId,
-                    changedStageCodes: ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored),
-                    alreadySatisfied: ActualCorrectionProposalService.AlreadySatisfied(pending, stored));
-                Backfill = Backfill.WithPendingProposal(pending, CurrentUserId);
+                    changedStageCodes: changedStageCodes,
+                    alreadySatisfied: alreadySatisfied);
+                Backfill = Backfill.WithPendingProposal(pending, CurrentUserId, changedStageCodes, alreadySatisfied);
                 UnrenderedPendingActualStages = ActualsEditor.UnrenderedProposalStages(pending);
             }
             else
