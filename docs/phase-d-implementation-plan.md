@@ -2,7 +2,7 @@
 
 > **Status:** Review draft. This is a plan, not authorization to implement.
 >
-> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 is merged ([PR #2681](https://github.com/hariomahlawat/ProjectManagement/pull/2681), `e3e8ea85`). D-3a/b (the proposal submission service) is in a Draft PR; the rest of D-3 is not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
+> **Implementation status (D-1e):** D-1a … D-1d are merged. D-1e (this documentation) is under review in #2679, so Release D-1 is engineering-complete only once D-1e merges after its review. One D-1 verification finding was corrected in merged [PR #2680](https://github.com/hariomahlawat/ProjectManagement/pull/2680) (`207acd82`). D-2 is merged ([PR #2681](https://github.com/hariomahlawat/ProjectManagement/pull/2681), `e3e8ea85`). D-3a/b (the proposal submission service) is merged ([PR #2685](https://github.com/hariomahlawat/ProjectManagement/pull/2685), `736458c3`). D-3c (editor and backfill integration) is in a Draft PR. D-3d and D-3e are not started. Production deployment is unverified and is not performed by any of these PRs. See [Implementation status](#implementation-status). Sections A–F describe the pre-D-1 baseline and the approved design; they are kept as the decision record.
 >
 > **Baseline:** `master` at `4e0e9769`, which includes #2667–#2671. The documentation baseline is `24bfdf70`.
 >
@@ -40,7 +40,7 @@ Every D-1 merge passed Lint Views, Notebook Build and Tests and the Production D
 
 | J | Criterion | Status after D-1 |
 | --- | --- | --- |
-| 1 | No PO write path to official Actual dates | **Implemented in D-2** (Draft PR, not merged): page and service refuse PO-only direct publication; the facts-only J-1 exception is tested. |
+| 1 | No PO write path to official Actual dates | **Implemented in D-2** (#2681): page and service refuse PO-only direct publication; the facts-only J-1 exception is tested. From D-3c the PO's posts become proposals and never publish. |
 | 2, 3 | Approval publishes exactly what was reviewed; stale decisions rejected | **Pending D-3** (proposal decisions). |
 | 4 | Stale edits rejected without mutation | **Partly met.** Direct saves refuse stale per-stage tokens (service and page level). Refusing posts without the baseline marker is deferred to R-D3; proposal S1–S6 pending D-3. |
 | 5 | Required evidence atomic with the change | **Met for direct save, backfill and lifecycle decisions** (failure injection, SQLite and PostgreSQL). Submit/supersede/withdraw/reject of Actual proposals pending D-3. |
@@ -93,8 +93,9 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
     - #2682: `Projects.ProjectBrief` is 3000 characters in the model but `varchar(2500)` in the database, so a valid brief can fail to save;
     - #2683: `ops/publish/create-publish-folder.ps1` hard-codes 62 migrations; it must be fixed before any release.
   - **The D-2 read-only editor is temporary.** For PO-only users it exists only so the D-2 emergency floor offers no false save. D-3 restores the editable editor and backfill form for the assigned PO, with immediate validation and "Submit for approval" through the same routes (C.4, D-3b). It is not the D-3 design.
-- **D-3a/b** (proposal submission and revision management, service layer only): Draft PR on branch `claude/phase-d-3ab-actual-correction-submission`; see [D-3a/b implementation](#d-3ab-implementation). No migration.
-- **D-3 page routing, read models, Decision Centre and closure** (G rows D-3b, D-3c, D-3d, D-3e) are not started. D-2 must not be deployed without the whole of D-3 (K-14).
+- **D-3a/b** (proposal submission and revision management, service layer only): merged in #2685 (`736458c3`); see [D-3a/b implementation](#d-3ab-implementation). No migration.
+- **D-3c** (PO routing and UI on the existing editors; G rows D-3b and D-3c): Draft PR on branch `claude/phase-d-3c-actual-editor-integration`; see [D-3c implementation](#d-3c-implementation). No migration.
+- **D-3d** (Decision Centre approval and rejection) and **D-3e** (closure) are not started. D-2 must not be deployed without the whole of D-3 (K-14).
 - **Phase E** lifecycle governance, including whether lifecycle writers should enforce chronology, is unchanged.
 - **K-11** was accepted before D-1a and is implemented as per-branch convergence.
 - **K-1 and K-14 are resolved** by the project owner (2026-10-19), together with role precedence; see [Approved governance for D-2/D-3](#approved-governance-for-d-2d-3). D-1 did not depend on either and implements neither.
@@ -102,7 +103,7 @@ Decided by the project owner on 2026-10-19, after this plan was written. These d
 
 ### D-3a/b implementation
 
-D-3a/b adds `Services/Stages/ActualCorrectionProposalService.cs` (`SubmitAsync`, `WithdrawAsync`, `GetPendingAsync`). No page, handler or UI calls it yet, so production behaviour is unchanged. Tests: `ActualCorrectionProposalServiceTests` (SQLite) and `ActualCorrectionProposalConcurrencyPostgresFixture` (wired into the migration gate).
+D-3a/b adds `Services/Stages/ActualCorrectionProposalService.cs` (`SubmitAsync`, `WithdrawAsync`, `GetPendingAsync`). D-3c connects the editors to it. Tests: `ActualCorrectionProposalServiceTests` (SQLite) and `ActualCorrectionProposalConcurrencyPostgresFixture` (wired into the migration gate).
 
 **How it maps to G.** This PR delivers the service part of the G "D-3a" row: submission (C.4), supersession write order, withdrawal (C.5), the editor baseline (E.4) and the F.6 check. It leaves out `ApproveAsync`/`RejectAsync`, which move to D-3d, and changes no `EditActuals`/`BackfillApply` handler (G "D-3b").
 
@@ -162,6 +163,65 @@ The approval must re-run F.6 and close the revision by the same `Pending` compar
 - **A republished ARPP IPA date can give a misleading error.** If ARPP republishes a different IPA date before the IPA row is synchronized, a carried IPA start item fails with the ARPP-controlled-completion message rather than as stale. Nothing is saved; the PO revises the IPA item.
 - **Reassignment and Unchanged.** After a reassignment, the new lead's identical resubmission is Unchanged, and the revision stays attributed to its original submitter (K-6: the revision stays decidable).
 - **ARPP row insert.** An ARPP synchronizer *inserting* a missing IPA row is not blocked by the stage-row lock. This is the same accepted limitation as the direct paths (D-1 verification findings).
+
+### D-3c implementation
+
+D-3c routes the assigned PO-only user's posts from the existing **Edit actual dates** editor and **Complete mandatory backfill** form to `ActualCorrectionProposalService`. It delivers the G rows "D-3b" (routing) and "D-3c" (read models and copy) together. There is no new page, migration or approval logic.
+
+**Routing.**
+
+- **Authority.** `EditActualsModel.OnPostAsync` and `BackfillApplyModel.OnPostAsync` derive authority from the principal: Admin or HoD means direct, otherwise the assigned PO-only user proposes. The service re-checks it inside its transaction (`ActualWriteAuthority.ResolveProposalAsync`).
+- **Mode marker.** Each form posts `SubmissionMode` (`direct` or `proposal`, `ActualsSubmissionMode`). When the posted mode does not match the user's current authority, the post is refused with "Your access … changed", and nothing is saved or submitted. A proposal form is therefore never published directly after a role change, and a direct form is never submitted as a proposal.
+  - A HoD/Admin post without the marker (a form rendered before D-3c) keeps the direct path.
+  - A PO-only post without the marker is refused. This replaces the D-2 "approval required" response.
+- **Baseline.** A proposal form always posts `BaselineVersion`, `BasedOnRevisionId` and `BasedOnSubmittedOn` (ISO 8601 round-trip, so the stored microsecond epoch matches exactly).
+  - Both empty means "none"; only a proposal-mode form can mean "none".
+  - An unparseable epoch fails model binding and is refused as out of date, never read as "none".
+
+**Rendering** (`Overview` → `_ProjectWorkspaceHosts` → `_EditActualsForm`, `_BackfillModal`):
+
+- **Who sees the proposal.**
+  - `GetPendingAsync` is called only when the viewer is the assigned PO-only user or a HoD/Admin.
+  - The PO gets the editors prefilled with it. HoD/Admin see a notice naming the revision and its stages; their direct save does not change it.
+  - Other viewers receive nothing.
+- **Prefill.** The editor posts the complete proposal, so every pending item is prefilled with its proposed values (`ActualsEditorVm.WithPendingProposal`). This includes items created through backfill.
+  - A row carrying a proposal is never disabled.
+  - Pending lifecycle requests do not disable rows in proposal mode, because the server applies F.6.
+  - The official values are shown under each proposed row, with how to drop the correction.
+- **Clear intent.** `actuals-edit.js` computes the clear flag against the official start (`data-official-start`), not against the prefilled value, so a pending clear survives resubmission.
+- **Backfill form.** It prefills only its own rows from the proposal; the server carries the other pending items forward. The backfill entry point cannot clear a start, so a row whose pending item clears the start is shown read-only and not posted, and is carried forward unchanged.
+- **Actions.** The editor shows **Submit for approval**, an optional reason (`Note`) and **Withdraw pending update**. The backfill form shows **Submit for approval**.
+
+**Withdraw.** `EditActuals?handler=Withdraw` posts the exact `revisionId` and `submittedOn`. A stale or decided revision, a reassigned user and a HoD/Admin user are all refused without mutation.
+
+**Outcome contract.**
+
+- **Editor.** Every outcome redirects with a flash message:
+  - `Submitted` and `Unchanged` produce a success message stating that official dates are unchanged until approval.
+  - `Stale`, `Invalid`, `Conflict` and `ProjectNotEditable` produce an error, and the editor reopens.
+  - `Forbidden` returns Forbid and `NotFound` returns NotFound.
+  - `DirectAuthority` produces the access-changed message.
+- **Backfill JSON.**
+
+  | Outcome | Response |
+  | --- | --- |
+  | `Submitted` / `Unchanged` | `200 { ok: true, pendingApproval: true, outcome, revisionNo, message }` |
+  | `Invalid` | `422 validation` |
+  | `Stale` | `409 stale` |
+  | `Conflict` | `409 conflict` |
+  | `ProjectNotEditable` | `409 project-not-editable` |
+  | Access changed | `409 reload-required` |
+  | `NotFound` | `404` |
+  | `Forbidden` | `403` |
+
+  The backfill script shows the server's "submitted" message, treats any 200 without `ok: true` as an error, and keeps the button disabled after success.
+
+**Limitations.**
+
+- A stale or invalid post reloads the editor from current values, so entered values are not kept. This is safer than replaying them against a changed baseline.
+- If a pending item's stage has no editor row (for example PNC after it stopped applying), the editor explains this and offers no Submit button. The PO can still withdraw.
+- Withdrawal asks for confirmation (`data-confirm`) and posts once. A withdrawn correction can be resubmitted.
+- Proposal mode is offered only on active, non-legacy projects, matching the service's `ProjectNotEditable` rule.
 
 ---
 

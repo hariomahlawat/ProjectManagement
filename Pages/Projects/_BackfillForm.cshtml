@@ -10,12 +10,17 @@
     {
         var startValue = stage.ActualStart?.ToString("yyyy-MM-dd");
         var completedValue = stage.CompletedOn?.ToString("yyyy-MM-dd");
-        <section class="border rounded p-3" data-backfill-row data-stage-code="@stage.StageCode" data-stage-token="@stage.StageToken">
+        var carriedAttr = stage.IsCarriedForward ? "disabled" : null;
+        <section class="border rounded p-3" data-backfill-row data-stage-code="@stage.StageCode" data-stage-token="@stage.StageToken" data-backfill-carried="@(stage.IsCarriedForward ? "true" : null)">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
                 <div>
                     <div class="fw-semibold">@stage.StageName</div>
                     <div class="text-muted small">@stage.StageCode</div>
                 </div>
+                @if (stage.HasProposal)
+                {
+                    <span class="badge bg-info-subtle text-info border border-info-subtle" data-backfill-proposed>Proposed, awaiting approval</span>
+                }
                 @if (stage.IsAutoCompleted && !string.IsNullOrWhiteSpace(stage.AutoCompletedFromName))
                 {
                     <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
@@ -31,9 +36,16 @@
                            id="backfill-start-@stage.StageCode"
                            data-backfill-start
                            value="@startValue"
-                           max="@todayIso" />
+                           max="@todayIso"
+                           @carriedAttr />
                     <div class="form-text">When omitted, duration is inferred from the preceding completed stage.</div>
                 </div>
+                @if (stage.IsCarriedForward)
+                {
+                    <div class="col-12 small text-muted" data-backfill-carried-note>
+                        Your pending update clears this stage's recorded start. It is kept as submitted; change it in Edit actual dates.
+                    </div>
+                }
                 <div class="col-md-6">
                     <label class="form-label" for="backfill-completed-@stage.StageCode">Completed on <span class="text-danger">*</span></label>
                     <input type="date"
@@ -42,7 +54,8 @@
                            data-backfill-completed
                            value="@completedValue"
                            max="@todayIso"
-                           required />
+                           required
+                           @carriedAttr />
                 </div>
             </div>
         </section>

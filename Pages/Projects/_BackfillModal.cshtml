@@ -1,12 +1,16 @@
 @model ProjectManagement.Features.Backfill.BackfillViewModel
+@using ProjectManagement.ViewModels
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
     Layout = null;
     var tokens = Antiforgery.GetAndStoreTokens(Context);
     var hasStages = Model?.HasStages ?? false;
-    // Phase D-2: a PO-only user cannot publish directly; the page and service refuse it.
-    // Fails safe to read-only if a host does not pass the server-computed flag.
+    // HoD/Admin publish directly; the assigned PO-only user submits for approval (D-3c).
+    // Rendering only; BackfillApply re-checks on POST. Neither flag renders read-only.
     var directPublication = ViewData["ActualsDirectPublication"] as bool? ?? false;
+    var proposalSubmission = !directPublication && (ViewData["ActualsProposalSubmission"] as bool? ?? false);
+    var canEdit = directPublication || proposalSubmission;
+    var pending = Model?.PendingProposal;
 }
 
 <div class="modal fade"
@@ -25,14 +29,31 @@
                 <form data-backfill-form novalidate>
                     <input type="hidden" name="projectId" value="@Model?.ProjectId" data-backfill-project />
                     <input type="hidden" name="baselineVersion" value="@Model?.BaselineVersion" data-backfill-baseline />
+                    <input type="hidden" name="submissionMode" value="@(proposalSubmission ? ActualsSubmissionMode.Proposal : ActualsSubmissionMode.Direct)" data-backfill-mode />
+                    @if (proposalSubmission)
+                    {
+                        @* The pending proposal this form was rendered with; both empty means "none". *@
+                        <input type="hidden" name="basedOnRevisionId" value="@pending?.RevisionId" data-backfill-based-on />
+                        <input type="hidden" name="basedOnSubmittedOn" value="@pending?.SubmittedOnRoundTrip" data-backfill-based-on-epoch />
+                    }
                     <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" data-backfill-token />
 
                     <div class="alert alert-danger d-none" role="alert" data-backfill-errors></div>
 
-                    @if (hasStages && !directPublication)
+                    @if (hasStages && proposalSubmission)
                     {
-                        <div class="alert alert-info" role="status" data-backfill-approval-required>
-                            Actual-date corrections now require HoD or Admin approval. Ask a HoD or Admin to apply Actual-date corrections for this project.
+                        <div class="alert alert-info" role="status" data-backfill-proposal-mode>
+                            These dates are sent to a HoD or Admin for approval and are not recorded until approved.
+                            @if (pending is not null)
+                            {
+                                <span data-backfill-pending>Your pending update (revision @pending.RevisionNo) is kept: submitting here adds or replaces only the stages below.</span>
+                            }
+                        </div>
+                    }
+                    else if (hasStages && !canEdit)
+                    {
+                        <div class="alert alert-info" role="status" data-backfill-read-only>
+                            Only the assigned Project Officer (for approval) or a HoD or Admin can supply these dates.
                         </div>
                     }
 
@@ -41,7 +62,7 @@
                         <p class="text-muted small">
                             Enter the missing completion details for stages completed through an authorised override or predecessor auto-completion. Completion date is required. Actual start is optional and, when omitted, duration is inferred from the preceding completed stage.
                         </p>
-                        <fieldset class="border-0 p-0 m-0" disabled="@(!directPublication)">
+                        <fieldset class="border-0 p-0 m-0" disabled="@(!canEdit)">
                             @await Html.PartialAsync("_BackfillForm", Model)
                         </fieldset>
                     }
@@ -55,9 +76,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                @if (directPublication)
+                @if (canEdit)
                 {
-                    <button type="button" class="btn btn-primary" id="submitBackfillBtn" @(hasStages ? null : "disabled")>Save</button>
+                    <button type="button" class="btn btn-primary" id="submitBackfillBtn" @(hasStages ? null : "disabled")>@(proposalSubmission ? "Submit for approval" : "Save")</button>
                 }
             </div>
         </div>

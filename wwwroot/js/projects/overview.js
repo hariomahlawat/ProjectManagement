@@ -978,6 +978,9 @@
         const errorContainer = backfillModal.querySelector('[data-backfill-errors]');
         const projectInput = backfillModal.querySelector('[data-backfill-project]');
         const baselineInput = backfillModal.querySelector('[data-backfill-baseline]');
+        const modeInput = backfillModal.querySelector('[data-backfill-mode]');
+        const basedOnInput = backfillModal.querySelector('[data-backfill-based-on]');
+        const basedOnEpochInput = backfillModal.querySelector('[data-backfill-based-on-epoch]');
         const tokenInput = backfillModal.querySelector('[data-backfill-token]');
         const emptyMessage = backfillModal.querySelector('[data-backfill-empty-message]');
 
@@ -1047,11 +1050,21 @@
                         completedOn
                     };
                 })
-                .filter((stage) => stage.stageCode && (stage.actualStart || stage.completedOn));
+                .filter((stage, index) => stage.stageCode
+                    && (stage.actualStart || stage.completedOn)
+                    // Carried-forward pending items are kept by the server, not reposted.
+                    && !stageRows()[index].hasAttribute('data-backfill-carried'));
+
+            // The pending proposal identity the form was rendered with (null for "none").
+            const basedOnRevisionId = Number.parseInt(basedOnInput?.value || '', 10) || null;
+            const basedOnSubmittedOn = basedOnEpochInput?.value || null;
 
             return {
                 projectId,
                 baselineVersion,
+                submissionMode: modeInput?.value || null,
+                basedOnRevisionId,
+                basedOnSubmittedOn,
                 stages
             };
         }
@@ -1095,6 +1108,7 @@
 
             toggleSubmitState(true);
             clearErrors();
+            let succeeded = false;
 
             try {
                 const response = await fetch('/Projects/Stages/BackfillApply', {
@@ -1108,9 +1122,19 @@
                 });
 
                 if (response.ok) {
+                    const data = await response.json().catch(() => null);
+                    if (data?.ok !== true) {
+                        renderErrors(['Unexpected response while saving backfill changes. Refresh the page and check the dates.']);
+                        return;
+                    }
+
+                    succeeded = true;
                     const instance = bootstrap.Modal.getInstance(backfillModal);
                     instance?.hide();
-                    showToast('Stage completion details updated.', 'success');
+                    // A proposal is submitted, not saved: official dates change only after approval.
+                    showToast(data.pendingApproval === true && typeof data.message === 'string'
+                        ? data.message
+                        : 'Stage completion details updated.', 'success');
                     setTimeout(() => window.location.reload(), 500);
                     return;
                 }
@@ -1140,7 +1164,10 @@
                 console.error('Backfill request failed', error);
                 renderErrors(['Network error while saving backfill changes.']);
             } finally {
-                toggleSubmitState(false);
+                // Keep the button disabled after success so a second click cannot resubmit.
+                if (!succeeded) {
+                    toggleSubmitState(false);
+                }
             }
         }
 

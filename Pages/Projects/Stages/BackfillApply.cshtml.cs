@@ -14,7 +14,9 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Pages.Projects.Timeline;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Stages;
 
@@ -23,15 +25,18 @@ namespace ProjectManagement.Pages.Projects.Stages;
 public class BackfillApplyModel : PageModel
 {
     private readonly StageBackfillService _backfillService;
+    private readonly ActualCorrectionProposalService? _proposals;
     private readonly ApplicationDbContext _db;
     private readonly ILogger<BackfillApplyModel> _logger;
 
     public BackfillApplyModel(
         StageBackfillService backfillService,
         ApplicationDbContext db,
-        ILogger<BackfillApplyModel> logger)
+        ILogger<BackfillApplyModel> logger,
+        ActualCorrectionProposalService? proposals = null)
     {
         _backfillService = backfillService ?? throw new ArgumentNullException(nameof(backfillService));
+        _proposals = proposals;
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -61,6 +66,14 @@ public class BackfillApplyModel : PageModel
 
         // Absent on forms rendered before stale protection.
         public int? BaselineVersion { get; set; }
+
+        // Phase D-3c (ActualsSubmissionMode); absent on forms rendered before D-3c.
+        public string? SubmissionMode { get; set; }
+
+        // The pending proposal the form was rendered with; both empty for "none".
+        public int? BasedOnRevisionId { get; set; }
+
+        public DateTimeOffset? BasedOnSubmittedOn { get; set; }
     }
 
     public async Task<IActionResult> OnPostAsync([FromBody] BackfillApplyInput input, CancellationToken ct)
@@ -105,6 +118,13 @@ public class BackfillApplyModel : PageModel
         }
 
         var isAdminOrHod = principal.IsInRole(RoleNames.Admin) || principal.IsInRole(RoleNames.HoD);
+        var postedProposal = string.Equals(input.SubmissionMode, ActualsSubmissionMode.Proposal, StringComparison.Ordinal);
+        if (isAdminOrHod && postedProposal)
+        {
+            // A form rendered for a proposal is never published directly.
+            return AccessChanged();
+        }
+
         if (!isAdminOrHod)
         {
             if (!principal.IsInRole(RoleNames.ProjectOfficer))
@@ -133,10 +153,9 @@ public class BackfillApplyModel : PageModel
                 return Forbid();
             }
 
-            // Phase D-2: only Admin and HoD publish backfill dates directly. The assigned
-            // PO-only user is refused before any write (D-3 routes this to a proposal).
-            // The service enforces the same rule.
-            return ApprovalRequired();
+            // Only Admin and HoD publish backfill dates directly. The assigned PO-only user
+            // submits a proposal (D-3c); a form rendered for direct publication is refused.
+            return postedProposal ? await SubmitProposalAsync(input, principal, userId, ct) : AccessChanged();
         }
 
         try
@@ -190,8 +209,8 @@ public class BackfillApplyModel : PageModel
         }
         catch (ActualsApprovalRequiredException)
         {
-            // Roles changed between the page check and the transaction.
-            return ApprovalRequired();
+            // Roles changed between the page check and the transaction; nothing was published.
+            return AccessChanged();
         }
         catch (ActualsWriteForbiddenException)
         {
@@ -273,11 +292,101 @@ public class BackfillApplyModel : PageModel
         return null;
     }
 
-    private ObjectResult ApprovalRequired() => StatusCode(StatusCodes.Status403Forbidden, new
+    // SECTION: Proposal submission (assigned PO-only, D-3c)
+    private async Task<IActionResult> SubmitProposalAsync(
+        BackfillApplyInput input,
+        ClaimsPrincipal principal,
+        string userId,
+        CancellationToken ct)
+    {
+        if (_proposals is null)
+        {
+            return Forbid();
+        }
+
+        var submission = new ActualCorrectionSubmission(
+            input.ProjectId,
+            ActualChangeEntryPoint.Backfill,
+            input.Stages
+                .Select(stage => new ActualCorrectionProposalRow(
+                    stage.StageCode, stage.ActualStart, CompletedOn: stage.CompletedOn, StageToken: stage.StageToken))
+                .ToArray(),
+            new ActualCorrectionBaseline(input.BaselineVersion, input.BasedOnRevisionId, input.BasedOnSubmittedOn));
+
+        ActualCorrectionSubmissionResult result;
+        try
+        {
+            result = await _proposals.SubmitAsync(submission, ActualWriteActor.FromPrincipal(principal, userId), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to submit a backfill proposal for project {ProjectId}.", input.ProjectId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                ok = false,
+                error = "server-error",
+                message = "The completion details could not be submitted. Nothing was submitted."
+            });
+        }
+
+        var message = ActualProposalMessages.Describe(result);
+        switch (result.Outcome)
+        {
+            case ActualCorrectionSubmissionOutcome.Submitted:
+            case ActualCorrectionSubmissionOutcome.Unchanged:
+                // ok stays true for compatibility; pendingApproval says nothing was published.
+                return new JsonResult(new
+                {
+                    ok = true,
+                    pendingApproval = true,
+                    outcome = result.Outcome == ActualCorrectionSubmissionOutcome.Submitted ? "submitted" : "unchanged",
+                    revisionNo = result.Revision!.RevisionNo,
+                    message
+                });
+            case ActualCorrectionSubmissionOutcome.Invalid:
+                return ValidationFailure(result.Errors ?? Array.Empty<string>());
+            case ActualCorrectionSubmissionOutcome.Stale:
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "stale",
+                    stages = result.StageCodes ?? Array.Empty<string>(),
+                    message
+                });
+            case ActualCorrectionSubmissionOutcome.Conflict:
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "conflict",
+                    stages = result.StageCodes ?? Array.Empty<string>(),
+                    message
+                });
+            case ActualCorrectionSubmissionOutcome.ProjectNotEditable:
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "project-not-editable",
+                    message
+                });
+            case ActualCorrectionSubmissionOutcome.DirectAuthority:
+                return AccessChanged();
+            case ActualCorrectionSubmissionOutcome.NotFound:
+                return NotFound(new
+                {
+                    ok = false,
+                    error = "not-found"
+                });
+            default:
+                return Forbid();
+        }
+    }
+
+    // The posted mode no longer matches the user's authority: refuse and ask for a reload.
+    private ObjectResult AccessChanged() => StatusCode(StatusCodes.Status409Conflict, new
     {
         ok = false,
-        error = "approval-required",
-        message = ActualsApprovalRequiredException.UserMessage
+        error = "reload-required",
+        message = EditActualsModel.AccessChangedMessage
     });
 
     private static UnprocessableEntityObjectResult ValidationFailure(IEnumerable<string> details)

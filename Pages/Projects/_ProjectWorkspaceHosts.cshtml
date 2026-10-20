@@ -1,7 +1,7 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Plans
-<partial name="Projects/_BackfillModal" model="Model.Backfill" view-data='new ViewDataDictionary(ViewData) { ["ActualsDirectPublication"] = Model.CanPublishActualsDirectly }' />
+<partial name="Projects/_BackfillModal" model="Model.Backfill" view-data='new ViewDataDictionary(ViewData) { ["ActualsDirectPublication"] = Model.CanPublishActualsDirectly, ["ActualsProposalSubmission"] = Model.CanSubmitActualProposals, ["ActualsUnrenderedPendingStages"] = Model.UnrenderedPendingActualStages }' />
 <partial name="_StageDirectApplyModal" />
 <partial name="Projects/Stages/_StageRequestModal" />
 
@@ -17,7 +17,7 @@
         <h5 id="offcanvasActualDatesLabel" class="mb-0">Correct recorded dates</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <div class="offcanvas-body"><partial name="Projects/Timeline/_EditActualsForm" model="Model.ActualsEditor" view-data='new ViewDataDictionary(ViewData) { ["ActualsDirectPublication"] = Model.CanPublishActualsDirectly }' /></div>
+    <div class="offcanvas-body"><partial name="Projects/Timeline/_EditActualsForm" model="Model.ActualsEditor" view-data='new ViewDataDictionary(ViewData) { ["ActualsDirectPublication"] = Model.CanPublishActualsDirectly, ["ActualsProposalSubmission"] = Model.CanSubmitActualProposals, ["ActualsUnrenderedPendingStages"] = Model.UnrenderedPendingActualStages }' /></div>
 </div>
 @if (Model.CanManageHistoricalStageHistory)
 {
