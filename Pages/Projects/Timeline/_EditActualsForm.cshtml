@@ -61,7 +61,7 @@
 
     <!-- SECTION: Introduction -->
     <div class="small text-muted">
-        Record actual stage dates. For completed stages, the recorded start is optional and can be explicitly cleared; displayed duration may use an estimated start. An InProgress stage requires its actual start. Complete stages through the stage-transition workflow.
+        Correct the actual dates each stage started and was completed. A completed stage's start date is optional and can be cleared; a stage in progress needs its start date. To complete a stage, use Update stage on the timeline.
     </div>
 
     @if (proposalSubmission && pending is not null)
@@ -81,7 +81,7 @@
             else if (pending.ChangedStageCodes.Count > 0)
             {
                 <div class="small mt-1 fw-semibold" data-actuals-pending-stale>
-                    Official dates changed for @string.Join(", ", pending.ChangedStageCodes) after @(pending.SubmittedByCurrentUser ? "you submitted" : "it was submitted"). A HoD or Admin cannot approve this update until you review the dates below and submit again.
+                    Official dates changed for @string.Join(", ", pending.ChangedStageCodes.Select(code => rows.FirstOrDefault(row => string.Equals(row.StageCode, code, StringComparison.OrdinalIgnoreCase))?.StageName ?? code)) after @(pending.SubmittedByCurrentUser ? "you submitted" : "it was submitted"). A HoD or Admin cannot approve this update until you review the dates below and submit again.
                 </div>
             }
         </div>
@@ -89,7 +89,7 @@
     else if (proposalSubmission && Model?.LastRejection is { } rejection)
     {
         <div class="alert alert-secondary mb-0" role="status" data-actuals-last-rejection>
-            <div class="fw-semibold">@(rejection.SubmittedByCurrentUser ? "Your" : "The previous Project Officer's") correction revision @rejection.RevisionNo was rejected@(rejection.RejectedOn is { } on ? " on " + ProjectManagement.Infrastructure.IstClock.ToIst(on.UtcDateTime).ToString("dd MMM yyyy") : string.Empty).</div>
+            <div class="fw-semibold">@(rejection.SubmittedByCurrentUser ? "Your" : "The previous Project Officer's") correction (revision @rejection.RevisionNo) was returned@(rejection.RejectedOn is { } on ? " on " + ProjectManagement.Infrastructure.IstClock.ToIst(on.UtcDateTime).ToString("dd MMM yyyy") : string.Empty).</div>
             @if (!string.IsNullOrWhiteSpace(rejection.Remarks))
             {
                 <div class="small">Reviewer's remarks: @rejection.Remarks</div>
@@ -173,18 +173,18 @@
                             <div class="text-muted small">@row.StageCode</div>
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-center">
-                            <span class="badge text-bg-secondary">@row.Status</span>
+                            <span class="badge text-bg-secondary">@ProjectManagement.ViewModels.ProjectPortfolioPresentationVm.StageStatusLabel(row.Status)</span>
                             @if (showsProposal)
                             {
                                 <span class="badge bg-info-subtle text-info border border-info-subtle" data-actuals-proposed>Proposed correction</span>
                             }
                             @if (row.HasPendingDecision)
                             {
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">@(proposalSubmission ? "Lifecycle update pending" : "Pending approval")</span>
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Stage update awaiting approval</span>
                             }
                             @if (row.RequiresBackfill)
                             {
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Needs backfill</span>
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Completion details needed</span>
                             }
                             @if (row.IsArppManaged)
                             {
@@ -260,7 +260,7 @@
                                 }
                                 else if (row.Status == StageStatus.InProgress)
                                 {
-                                    <text>Use the stage-transition workflow to complete this stage.</text>
+                                    <text>To complete this stage, use Update stage on the timeline.</text>
                                 }
                                 else
                                 {
@@ -287,7 +287,7 @@
 
                     @if (!row.IsEditable)
                     {
-                        <div class="text-muted small">Actual dates can be edited only when a stage is InProgress or Completed.</div>
+                        <div class="text-muted small">Actual dates can be edited only for a stage that is in progress or completed.</div>
                     }
 
                     <div class="text-danger small d-none" data-row-error role="alert"></div>

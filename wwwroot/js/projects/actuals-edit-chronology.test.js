@@ -140,7 +140,7 @@ test('field-level checks on an edited row still block locally', () => {
 
   ui.input('SOW', 'completed', '2026-02-10');
   ui.input('IPA', 'start', '');
-  assert.match(ui.error('IPA'), /^Actual start is required while the stage is InProgress/);
+  assert.match(ui.error('IPA'), /^A stage in progress needs its start date/);
   assert.equal(ui.error('SOW'), '', 'every row is re-validated, so a fixed row clears');
   assert.equal(ui.submitDisabled(), true);
   ui.dom.window.close();

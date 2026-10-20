@@ -25,7 +25,7 @@
 else
 {
     <div class="small text-muted mb-2">
-        <span>Submitted revision #@Model.VersionNo (ID @Model.PlanVersionId) compared against the current timeline.</span>
+        <span>Submitted revision @Model.VersionNo, compared with the current timeline.</span>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(Model.RealignmentSourceStageCode) &&
@@ -54,14 +54,14 @@ else
     }
     if (requiresBackfill)
     {
-        <div class="alert alert-warning">Some earlier stages were auto-completed and still need dates or costs (procurement backfill pending). This does not block approval of the timeline, but should be addressed separately in the procurement details.</div>
+        <div class="alert alert-warning">Some earlier stages were completed without all their details and still need dates or costs. This does not block approval of the plan; those details are added separately.</div>
     }
 
     var hasChanges = Model.Rows.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
 
     @if (!hasChanges)
     {
-        <div class="alert alert-info">No differences between current plan and draft. You can still approve to stamp and snapshot.</div>
+        <div class="alert alert-info">The submitted plan matches the current plan. You can still approve it to record the approval.</div>
     }
 
     <div class="table-responsive">
@@ -70,7 +70,7 @@ else
                 <tr>
                     <th>Stage</th>
                     <th class="text-center">Current timeline</th>
-                    <th class="text-center">Draft plan</th>
+                    <th class="text-center">Submitted plan</th>
                 </tr>
             </thead>
             <tbody>

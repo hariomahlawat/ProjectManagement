@@ -22,7 +22,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="backfillModalLabel">Complete mandatory backfill</h5>
+                <h5 class="modal-title" id="backfillModalLabel">Add completion dates</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -60,11 +60,19 @@
                     @if (hasStages)
                     {
                         <p class="text-muted small">
-                            Enter the missing completion details for stages completed through an authorised override or predecessor auto-completion. Completion date is required. Actual start is optional and, when omitted, duration is inferred from the preceding completed stage.
+                            These stages were completed without a completion date. Enter the date each one was completed. The start date is optional; when it is left blank, the duration is counted from the previous stage's completion.
                         </p>
                         <fieldset class="border-0 p-0 m-0" disabled="@(!canEdit)">
                             @await Html.PartialAsync("_BackfillForm", Model)
                         </fieldset>
+                        @if (proposalSubmission && canEdit)
+                        {
+                            @* Same optional reason as the actual-date editor (discovery G2: keep both, same behaviour). *@
+                            <div class="mt-3">
+                                <label class="form-label" for="backfill-note">Reason for correction <span class="text-muted fw-normal">(optional)</span></label>
+                                <textarea class="form-control" id="backfill-note" rows="2" maxlength="1024" data-backfill-note>@pending?.Note</textarea>
+                            </div>
+                        }
                     }
                     else
                     {

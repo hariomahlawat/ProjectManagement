@@ -232,7 +232,7 @@ public sealed class StageDirectApplyService
         var preservesRecordedStart = isReopen || normalizedStatus.Equals(nameof(StageStatus.InProgress), StringComparison.OrdinalIgnoreCase);
         if (preservesRecordedStart && stage.ActualStart.HasValue && date.HasValue && date.Value != stage.ActualStart.Value)
         {
-            throw StageDirectApplyValidationException.FromMessages("Reopening preserves the recorded actual start. Correct it separately through Edit actual dates.");
+            throw StageDirectApplyValidationException.FromMessages("Reopening preserves the recorded actual start. Correct it separately through Correct actual dates.");
         }
         var validationDate = preservesRecordedStart && date.HasValue ? stage.ActualStart ?? date : date;
         var todayForValidation = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);

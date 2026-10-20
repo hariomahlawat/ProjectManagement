@@ -119,7 +119,7 @@ public sealed class ActualCorrectionEndToEndTests
 
         // The PO reopening the editor learns that the correction was rejected, and why.
         var reopened = await EditorAsync(po);
-        Assert.Contains("Your correction revision 1 was rejected", reopened.Body, StringComparison.Ordinal);
+        Assert.Contains("Your correction (revision 1) was returned", reopened.Body, StringComparison.Ordinal);
 
         // After a reassignment the new PO sees the outcome attributed to the previous officer.
         await using (var db = host.NewContext())
@@ -129,7 +129,7 @@ public sealed class ActualCorrectionEndToEndTests
         }
 
         var newLead = await EditorAsync(host.ClientFor(OtherPo, "Project Officer"));
-        Assert.Contains("The previous Project Officer's correction revision 1 was rejected", WebUtility.HtmlDecode(newLead.Body), StringComparison.Ordinal);
+        Assert.Contains("The previous Project Officer's correction (revision 1) was returned", WebUtility.HtmlDecode(newLead.Body), StringComparison.Ordinal);
         Assert.DoesNotContain("Your correction revision 1", newLead.Body, StringComparison.Ordinal);
         Assert.Contains("Use the signed register date", reopened.Body, StringComparison.Ordinal);
         Assert.Equal("2026-01-12", reopened.Get($"Input.Rows[{reopened.RowOf(StageCodes.IPA)}].ActualStart"));
@@ -333,7 +333,9 @@ public sealed class ActualCorrectionEndToEndTests
 
         // The PO is told the official dates moved and the update must be revised.
         var reopened = await EditorAsync(po);
-        Assert.Contains("Official dates changed for IPA after you submitted", reopened.Body, StringComparison.Ordinal);
+        // The notice names the stage, not its code.
+        Assert.Matches("Official dates changed for [A-Z][a-z][^<]* after you submitted", reopened.Body);
+        Assert.DoesNotContain("Official dates changed for IPA after", reopened.Body, StringComparison.Ordinal);
         // The form is marked resubmittable, so actuals-edit.js enables Submit without edits.
         Assert.Contains("data-actuals-resubmit=\"true\"", await po.GetStringAsync(Overview), StringComparison.Ordinal);
 
@@ -346,7 +348,7 @@ public sealed class ActualCorrectionEndToEndTests
 
         var newLeadClient = host.ClientFor(OtherPo, "Project Officer");
         var newLead = await EditorAsync(newLeadClient);
-        Assert.Contains("Official dates changed for IPA after it was submitted", newLead.Body, StringComparison.Ordinal);
+        Assert.Matches("Official dates changed for [A-Z][a-z][^<]* after it was submitted", newLead.Body);
         Assert.Contains("by the previous Project Officer", newLead.Body, StringComparison.Ordinal);
 
         // Recovery: the PO resubmits the proposal unchanged. It is recorded again against the

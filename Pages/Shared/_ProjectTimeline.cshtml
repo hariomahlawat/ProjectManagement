@@ -13,7 +13,6 @@
     var isHod = isActiveLifecycle && access.CanApplyStageChangeDirectly;
     var canSubmitStageUpdate = isActiveLifecycle && access.CanSubmitStageUpdate;
     var canEditTimeline = isActiveLifecycle && access.CanEditTimeline;
-    var pendingSectionStarted = false;
     var futureSectionStarted = false;
     var currentStageCode = isActiveLifecycle
         ? timeline.Items
@@ -80,7 +79,6 @@
         _                      => "Unknown"
     };
 
-    string PendingActionTitle(string? status) => ProjectManagement.ViewModels.ProjectPortfolioPresentationVm.PendingActionLabel(status);
 
     string PendingProposal(ProjectManagement.ViewModels.TimelineItemVm stage)
     {
@@ -155,14 +153,9 @@
         </summary>
         @:<div class="pm-completed-group__items">
       }
-      if (isActiveLifecycle && !pendingSectionStarted && s.HasPendingRequest)
-      {
-        pendingSectionStarted = true;
-        <div class="pm-future-stage-heading pm-pending-stage-heading" role="separator" aria-label="Pending lifecycle updates">
-          <span>Pending lifecycle updates</span>
-          <small>Official stage states remain unchanged until the HoD decides.</small>
-        </div>
-      }
+      // No "Pending lifecycle updates" separator: each pending stage carries its own
+      // "awaiting HoD approval" panel, and a separator before the first one put unrelated
+      // stages under that heading (discovery C6).
       if (!futureSectionStarted &&
           s.Status == StageStatus.NotStarted &&
           (!isActiveLifecycle || !s.HasPendingRequest))
@@ -214,9 +207,14 @@
             <div class="pm-item-heading">
               <span class="@displayedPillClass"
                     data-stage-status
-                    data-stage-status-pill
-                    aria-label="Stage status: @displayedStatus">
+                    data-stage-status-pill>
                 @displayedStatus
+              </span>
+              @* The name comes right after the status on every card; other badges follow (discovery C6.5). *@
+              <span class="pm-item-title text-truncate"
+                    title="@s.Name"
+                    data-stage-name>
+                @s.Name
               </span>
               @if (s.IsArppManaged)
               {
@@ -227,19 +225,22 @@
               }
               @if (isActiveLifecycle)
               {
+                var detailsSubmitted = Model.CompletionDetailsSubmittedStages.Contains(s.Code);
                 <button type="button"
-                        class="pm-pill pm-pill-warning@(s.RequiresBackfill ? string.Empty : " d-none")"
+                        class="pm-pill @(detailsSubmitted ? "pm-pill-info" : "pm-pill-warning")@(s.RequiresBackfill ? string.Empty : " d-none")"
                         data-action="open-backfill"
                         data-stage-backfill-pill
-                        aria-label="Backfill required for @s.Name">
-                  Backfill required
+                        aria-label="@(detailsSubmitted ? $"Completion details submitted for {s.Name}; review the submission" : $"Add completion details for {s.Name}")">
+                  @(detailsSubmitted ? "Completion details submitted" : "Completion details needed")
                 </button>
               }
               else if (s.RequiresBackfill)
               {
                 <span class="pm-pill pm-pill-muted">Completion date not recorded</span>
               }
-              @if (isActiveLifecycle && s.ShowPlanWarning)
+              @* An in-progress stage shows the amber "Planned completion" panel with its own link,
+                 so the header badge would repeat it (discovery C6.5). *@
+              @if (isActiveLifecycle && s.ShowPlanWarning && s.Status != StageStatus.InProgress)
               {
                 @if (canEditTimeline)
                 {
@@ -261,21 +262,16 @@
                   </span>
                 }
               }
-              <span class="pm-item-title text-truncate"
-                    title="@s.Name"
-                    data-stage-name>
-                @s.Name
-              </span>
               @if (s.Status == StageStatus.Completed)
               {
                 var completionText = s.CompletedOn.HasValue ? D(s.CompletedOn) : "Completion date required";
                 var durationText = s.ActualDurationDays.HasValue
                     ? $"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}" 
                     : "Duration unavailable";
-                <span class="pm-item-compact-meta" aria-label="Completed @completionText; duration @durationText">
-                  <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @completionText</span>
-                  <span class="pm-item-compact-meta__separator" aria-hidden="true">·</span>
-                  <span><i class="bi bi-stopwatch" aria-hidden="true"></i> @durationText</span>
+                @* Labelled, so a collapsed card's date is not read as a start or planned date (discovery C6.4). *@
+                <span class="pm-item-compact-meta">
+                  <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @(s.CompletedOn.HasValue ? $"Completed {completionText}" : completionText)</span>
+                  <span class="pm-item-compact-meta__duration"><i class="bi bi-stopwatch" aria-hidden="true"></i> @(s.ActualDurationDays.HasValue ? $"Took {durationText}" : durationText)</span>
                 </span>
                 <button type="button"
                         class="pm-item-expand-toggle"
@@ -635,14 +631,14 @@
               <div class="pm-stage-pending-update__header">
                 <div>
                   <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle">Awaiting HoD approval</span>
-                  <strong>Submitted transition: @PendingActionTitle(s.PendingStatus)</strong>
+                  <strong>Requested change: @ProjectManagement.ViewModels.ProjectPortfolioPresentationVm.RequestedStatusLabel(s.PendingStatus)</strong>
                 </div>
               </div>
               <div class="pm-stage-pending-update__proposal">@PendingProposal(s)</div>
               @if (!string.IsNullOrWhiteSpace(s.PendingRequestedBy) || s.PendingRequestedOn.HasValue)
               {
                 <div class="pm-stage-pending-update__meta">
-                  Submitted@(string.IsNullOrWhiteSpace(s.PendingRequestedBy) ? string.Empty : $" by {s.PendingRequestedBy}")@(s.PendingRequestedOn.HasValue ? $" · {PendingTimestamp(s.PendingRequestedOn)}" : string.Empty)
+                  Submitted@(!string.IsNullOrEmpty(Model.CurrentUserId) && string.Equals(s.PendingRequestedByUserId, Model.CurrentUserId, StringComparison.Ordinal) ? " by you" : string.IsNullOrWhiteSpace(s.PendingRequestedBy) ? string.Empty : $" by {s.PendingRequestedBy}")@(s.PendingRequestedOn.HasValue ? $" · {PendingTimestamp(s.PendingRequestedOn)}" : string.Empty)
                 </div>
               }
               @if (!string.IsNullOrWhiteSpace(s.PendingNote))
@@ -654,6 +650,18 @@
           @if (s.Status == StageStatus.Completed)
           {
             <div class="pm-stage-outcome">
+              @* In the order things happened: start, completion, then how long it took (discovery C6.4). *@
+              @if (s.EffectiveActualStart.HasValue || s.IsArppManaged)
+              {
+                <div class="pm-stage-outcome__metric">
+                  <span class="pm-date-label">Actual start</span>
+                  <strong data-stage-actual-start>@(s.EffectiveActualStart.HasValue ? D(s.EffectiveActualStart) : "Not recorded")</strong>
+                  @if (s.IsActualStartInferred)
+                  {
+                    <span class="small text-muted">Inferred from preceding completion</span>
+                  }
+                </div>
+              }
               <div class="pm-stage-outcome__primary">
                 <span class="pm-date-label">Completed on</span>
                 <strong data-stage-completed>@D(s.CompletedOn)</strong>
@@ -669,17 +677,6 @@
                   </strong>
                 </div>
               }
-              @if (s.EffectiveActualStart.HasValue || s.IsArppManaged)
-              {
-                <div class="pm-stage-outcome__metric">
-                  <span class="pm-date-label">Actual start</span>
-                  <strong data-stage-actual-start>@(s.EffectiveActualStart.HasValue ? D(s.EffectiveActualStart) : "Not recorded")</strong>
-                  @if (s.IsActualStartInferred)
-                  {
-                    <span class="small text-muted">Inferred from preceding completion</span>
-                  }
-                </div>
-              }
               @if (s.PlannedEnd.HasValue)
               {
                 <div class="pm-stage-outcome__metric">
@@ -692,7 +689,7 @@
             {
               var variance = VarianceToken("Finish", finishVar);
               <div class="pm-item-variance">
-                <span class="@variance.cssClass" aria-label="@variance.description" title="@variance.description">@variance.text</span>
+                <span class="@variance.cssClass" title="@variance.description">@variance.text<span class="visually-hidden"> (@variance.description)</span></span>
               </div>
             }
           }

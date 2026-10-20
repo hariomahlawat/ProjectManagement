@@ -152,6 +152,35 @@ public sealed class PlannedTimelineValidationServiceTests
         Assert.Contains("Benchmarking", result.Errors[0]);
     }
 
+    // "Commercial Bid Opening" is the official name; a stored template that still says
+    // "Commercial Opening" must not leak into messages the timeline would never show.
+    [Fact]
+    public async Task ValidateAsync_NamesStagesByTheirOfficialWorkflowName()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV1,
+            Code = StageCodes.COB,
+            Name = "Commercial Opening",
+            Sequence = 70
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ValidateAsync(fixture.Candidate(
+            rule: PlanTransitionRule.SameDay,
+            stages:
+            [
+                new(StageCodes.TEC, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 5)),
+                new(StageCodes.BM, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 8)),
+                new(StageCodes.COB, new DateOnly(2026, 10, 7), new DateOnly(2026, 10, 9))
+            ]));
+
+        var error = Assert.Single(result.Errors);
+        Assert.StartsWith("Commercial Bid Opening Planned start", error, StringComparison.Ordinal);
+        Assert.DoesNotContain("Commercial Opening ", error, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(PlanConstants.StageTemplateVersionV1, "SOW Vetting", "In-Principle Approval")]
     [InlineData(PlanConstants.StageTemplateVersionV2, "In-Principle Approval", "SOW Vetting")]

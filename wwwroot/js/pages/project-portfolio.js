@@ -12,6 +12,15 @@
         const target = document.querySelector(selector);
         if (!target) return;
 
+        // "Open timeline" and the current-stage card must also show the Timeline panel when
+        // Remarks is the visible one, or the jump lands on a hidden element (discovery C2.6).
+        const timelineToggle = document.getElementById('project-panel-toggle-timeline');
+        const wantsTimeline = selector === '#timeline' || target.matches('[data-timeline-stage]') ||
+            target.closest('#project-panel-body-timeline') !== null;
+        if (wantsTimeline && timelineToggle && timelineToggle.getAttribute('aria-pressed') !== 'true') {
+            timelineToggle.click();
+        }
+
         target.scrollIntoView({
             behavior: prefersReducedMotion ? 'auto' : 'smooth',
             block: 'start'

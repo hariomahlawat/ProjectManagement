@@ -68,25 +68,32 @@ public sealed class ProjectPortfolioPresentationVm
             if (IsWorkflowConcluded)
             {
                 return BackfillStageCount > 0
-                    ? $"Workflow concluded · {BackfillStageCount} stage{(BackfillStageCount == 1 ? string.Empty : "s")} require backfill"
+                    ? $"Workflow concluded · {CompletionDetailsNeeded(BackfillStageCount)}"
                     : "All applicable stages are complete or skipped";
             }
 
-            var currentDetail = CurrentStage?.HasPendingRequest == true
-                ? $"{PendingActionLabel(CurrentStage.PendingStatus)} · Awaiting HoD approval"
-                : CurrentStage?.Code ?? "No active stage";
+            // The stage name is the card's title already; the detail says what is happening
+            // and what comes next, never the stage code (discovery C6.3).
+            var parts = new List<string>();
+            if (CurrentStage?.HasPendingRequest == true)
+            {
+                parts.Add($"{PendingActionLabel(CurrentStage.PendingStatus)} · Awaiting HoD approval");
+            }
+            else if (CurrentStage is null)
+            {
+                parts.Add("No active stage");
+            }
 
             if (NextStage is not null)
             {
-                return $"{currentDetail} · Next: {NextStage.Name}";
+                parts.Add($"Next: {NextStage.Name}");
             }
-
-            if (BackfillStageCount > 0)
+            else if (BackfillStageCount > 0)
             {
-                return $"{currentDetail} · {BackfillStageCount} stage{(BackfillStageCount == 1 ? string.Empty : "s")} require backfill";
+                parts.Add(CompletionDetailsNeeded(BackfillStageCount));
             }
 
-            return currentDetail;
+            return parts.Count > 0 ? string.Join(" · ", parts) : StageStatusLabel(CurrentStage!.Status);
         }
     }
     public string NextAction { get; init; } = "Review project status";
@@ -238,8 +245,8 @@ public sealed class ProjectPortfolioPresentationVm
             if (backfillCount > 0)
             {
                 return (
-                    "Complete historical record backfill",
-                    "Add missing completion details without reopening the lifecycle");
+                    "Add missing completion details",
+                    "Record them without reopening the lifecycle");
             }
 
             return lifecycleStatus == ProjectLifecycleStatus.Cancelled
@@ -393,14 +400,31 @@ public sealed class ProjectPortfolioPresentationVm
         return "Not approved";
     }
 
+    // A request names the status asked for, not a direction: "in progress" covers a start,
+    // a resume and a reopen alike (discovery C2, "Start submitted" for a reopen).
     public static string PendingActionLabel(string? pendingStatus) => pendingStatus?.Trim().ToLowerInvariant() switch
     {
-        "completed" => "Completion submitted",
-        "inprogress" => "Start submitted",
-        "blocked" => "Blocked status submitted",
-        "skipped" => "Skip submitted",
-        "notstarted" => "Reopen submitted",
-        _ => "Stage update submitted"
+        "completed" => "Completion requested",
+        "inprogress" => "In progress requested",
+        "blocked" => "Blocked requested",
+        "skipped" => "Skip requested",
+        "notstarted" => "Reset to not started requested",
+        _ => "Stage update requested"
+    };
+
+    /// <summary>"1 stage needs completion details" / "2 stages need completion details".</summary>
+    public static string CompletionDetailsNeeded(int count) =>
+        count == 1 ? "1 stage needs completion details" : $"{count} stages need completion details";
+
+    /// <summary>The status a pending stage update asks for, in words.</summary>
+    public static string RequestedStatusLabel(string? pendingStatus) => pendingStatus?.Trim().ToLowerInvariant() switch
+    {
+        "completed" => "Completed",
+        "inprogress" => "In progress",
+        "blocked" => "Blocked",
+        "skipped" => "Skipped",
+        "notstarted" => "Not started",
+        _ => "Status change"
     };
 
     public static string StageStatusLabel(StageStatus status) => status switch
@@ -436,6 +460,16 @@ public sealed class ProjectTimelinePanelVm
     public ProjectLifecycleStatus LifecycleStatus { get; init; } = ProjectLifecycleStatus.Active;
     public bool IsLegacy { get; init; }
     public bool CanManageHistoricalStageHistory { get; init; }
+
+    /// <summary>
+    /// Stages whose missing completion details are in the viewer's pending correction, which
+    /// can still be approved; their pill says "submitted" rather than "needed".
+    /// </summary>
+    /// <summary>The viewer, so their own pending request reads "by you".</summary>
+    public string? CurrentUserId { get; init; }
+
+    public IReadOnlySet<string> CompletionDetailsSubmittedStages { get; init; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     public bool HasRecordedStageHistory =>
         Timeline.Items.Any(item =>

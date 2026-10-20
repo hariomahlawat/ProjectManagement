@@ -76,13 +76,17 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
             .OrderBy(template => template.Sequence)
             .ThenBy(template => template.Id)
             .ToListAsync(cancellationToken);
-        var configuredNames = configuredStages.ToDictionary(
-            template => template.Code,
-            template => template.Name,
-            StringComparer.OrdinalIgnoreCase);
-        foreach (var stage in workflow.Stages)
+        // Messages use the workflow's official stage names, the same names the timeline and
+        // planner show (for example "Commercial Bid Opening"); a stored template name is only
+        // a fallback for a stage the workflow does not define.
+        var configuredNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var stage in workflow.Stages.Where(stage => !string.IsNullOrWhiteSpace(stage.Name)))
         {
             configuredNames.TryAdd(stage.Code, stage.Name);
+        }
+        foreach (var template in configuredStages)
+        {
+            configuredNames.TryAdd(template.Code, template.Name);
         }
 
         var finalRows = new Dictionary<string, (PlannedTimelineStage Stage, int Index)>(StringComparer.OrdinalIgnoreCase);
@@ -168,7 +172,7 @@ public sealed class PlannedTimelineValidationService : IPlannedTimelineValidatio
 
                 if (!rowLookup.ContainsKey(configuredStage.Code))
                 {
-                    errors.Add($"Stage {configuredStage.Name} ({configuredStage.Code}) is missing from the plan.");
+                    errors.Add($"Stage {DisplayName(configuredStage.Code, configuredNames)} ({configuredStage.Code}) is missing from the plan.");
                 }
             }
         }

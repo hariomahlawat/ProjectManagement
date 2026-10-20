@@ -1015,6 +1015,7 @@
         const modeInput = backfillModal.querySelector('[data-backfill-mode]');
         const basedOnInput = backfillModal.querySelector('[data-backfill-based-on]');
         const basedOnEpochInput = backfillModal.querySelector('[data-backfill-based-on-epoch]');
+        const noteInput = backfillModal.querySelector('[data-backfill-note]');
         const tokenInput = backfillModal.querySelector('[data-backfill-token]');
         const emptyMessage = backfillModal.querySelector('[data-backfill-empty-message]');
 
@@ -1100,6 +1101,8 @@
                 submissionMode: modeInput?.value || null,
                 basedOnRevisionId,
                 basedOnSubmittedOn,
+                // Blank keeps the pending revision's note on the server.
+                note: noteInput && noteInput.value.trim() ? noteInput.value.trim() : null,
                 stages
             };
         }
@@ -1137,7 +1140,7 @@
             const payload = collectPayload();
 
             if (!payload.projectId || payload.stages.length === 0) {
-                renderErrors(['Add at least one stage update before saving.']);
+                renderErrors(['Enter a completion date for at least one stage.']);
                 return;
             }
 
@@ -1181,7 +1184,7 @@
                     const data = await response.json().catch(() => null);
                     const message = typeof data?.message === 'string'
                         ? data.message
-                        : 'Some stages no longer require backfill. Refresh the page and try again.';
+                        : 'Some of these stages no longer need completion details. Refresh the page and try again.';
                     renderErrors([message]);
                 } else if (response.status === 400) {
                     renderErrors(['The security token is no longer valid. Refresh the page and try again.']);

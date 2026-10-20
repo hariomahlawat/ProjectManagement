@@ -69,20 +69,20 @@
         }
         else
         {
-            <strong>Action needed:</strong>
+            <strong>Completion details needed:</strong>
             @if (Model.Backfill.HasStages)
             {
                 var stageNames = string.Join(", ", Model.Backfill.Stages.Select(stage => stage.StageName));
                 var count = Model.Backfill.Stages.Count;
-                <span>@count completed stage@(count == 1 ? string.Empty : "s") @(count == 1 ? "requires" : "require") completion details: @stageNames.</span>
+                <span>@count completed stage@(count == 1 ? " needs its" : "s need their") completion date: @stageNames.</span>
             }
             else
             {
-                <span>Some completed stages require a completion date or mandatory stage facts.</span>
+                <span>Some completed stages still need a completion date or other required details.</span>
             }
         }
     </div>
-    <button type="button" class="btn btn-sm @(backfillAwaitingApproval ? "btn-outline-primary" : "btn-warning text-dark") flex-shrink-0" data-action="open-backfill">@(backfillAwaitingApproval ? "Review submission" : "Complete mandatory backfill")</button>
+    <button type="button" class="btn btn-sm @(backfillAwaitingApproval ? "btn-outline-primary" : "btn-warning text-dark") flex-shrink-0" data-action="open-backfill">@(backfillAwaitingApproval ? "Review submission" : "Add completion dates")</button>
 </div>
 @if (project?.LifecycleStatus == ProjectLifecycleStatus.Active &&
     (project.HodUserId == null || project.LeadPoUserId == null))

@@ -562,6 +562,13 @@ button.project-intelligence-card:hover {
     gap: .24rem;
 }
 .project-lifecycle-panel .pm-item-compact-meta__separator { opacity: .65; }
+/* The separator is generated, so it can never be left on a line of its own when the two
+   values stack (discovery C7.6). */
+.pm-item-compact-meta__duration::before {
+    content: "·";
+    margin-right: .38rem;
+    opacity: .65;
+}
 .project-lifecycle-panel .pm-item.is-expanded .pm-item-compact-meta { display: none; }
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-header {
     align-items: center;
@@ -808,6 +815,7 @@ button.project-intelligence-card:hover {
         line-height: 1.2;
     }
     .project-lifecycle-panel .pm-item-compact-meta__separator { display: none; }
+    .project-lifecycle-panel .pm-item-compact-meta__duration::before { content: none; }
 }
 @media (max-width: 1199.98px) {
     .project-lifecycle-panel > .card-header {
@@ -1891,7 +1899,6 @@ button.project-intelligence-card:hover {
 .project-media-empty { display:flex; align-items:center; justify-content:center; gap:.55rem; min-height:4rem; border:1px dashed var(--portfolio-border); border-radius:.7rem; color:var(--portfolio-muted); background:var(--pm-surface-subtle,#f8fafc); }
 .project-video-summary { min-height:auto!important; flex-direction:row!important; align-items:center; justify-content:space-between; }
 @media (max-width: 767.98px){ .project-video-summary{align-items:flex-start;flex-direction:column!important}.project-media-actions{width:100%;justify-content:flex-start}.project-media-actions .btn{flex:1}.project-photo-strip{grid-template-columns:repeat(3,minmax(0,1fr))} }
-.pm-pending-stage-heading { border-color: color-mix(in srgb, #f59e0b 35%, var(--portfolio-border)); background: color-mix(in srgb, #fff7db 70%, var(--pm-card,#fff)); }
 .project-lifecycle-panel .pm-item:has(.pm-stage-pending-update) .pm-item-card { border-color: color-mix(in srgb, #f59e0b 42%, var(--portfolio-border)); }
 
 /* Stacked project media cards: optimised for populated project records */
