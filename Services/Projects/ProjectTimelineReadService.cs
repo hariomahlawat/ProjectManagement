@@ -108,6 +108,7 @@ public sealed class ProjectTimelineReadService
                     CompletedOn = effective.CompletionDate,
                     EarliestAllowedStartDate = startBoundary.EarliestAllowedStartDate,
                     StartBoundarySourceName = startBoundary.SourceStageName,
+                    PredecessorCodes = workflow.RequiredPredecessors(stage.Code),
                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
                     RequiresBackfill = projectStage is not null &&
                         status == StageStatus.Completed &&

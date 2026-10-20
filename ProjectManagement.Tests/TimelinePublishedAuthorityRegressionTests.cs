@@ -49,6 +49,23 @@ public sealed class TimelinePublishedAuthorityRegressionTests
     }
 
     [Fact]
+    public async Task ActualsEditor_ProjectsWorkflowPredecessorsForClientChronology()
+    {
+        // The editor re-derives boundaries on this graph; display order would wrongly
+        // bound BM by its parallel sibling TEC and COB by BM alone.
+        await using var db = await SeedAsync(StageStatus.Completed, 10, published: false);
+        var metadata = new WorkflowStageMetadataProvider();
+        var service = new ProjectTimelineReadService(db, FakeClock.ForIstDate(new DateOnly(2026, 2, 1)), metadata, new ProjectStageWorkflowPolicy(db, metadata));
+        var editor = await service.GetActualsEditorAsync(1);
+        IReadOnlyList<string> PredecessorsOf(string code) => editor.Rows.Single(row => row.StageCode == code).PredecessorCodes;
+
+        Assert.Equal(new[] { StageCodes.BID }, PredecessorsOf(StageCodes.TEC));
+        Assert.Equal(new[] { StageCodes.BID }, PredecessorsOf(StageCodes.BM));
+        Assert.Equal(new[] { StageCodes.BM, StageCodes.TEC }, PredecessorsOf(StageCodes.COB).OrderBy(code => code, StringComparer.Ordinal));
+        Assert.Empty(PredecessorsOf(StageCodes.FS));
+    }
+
+    [Fact]
     public async Task Read_PublishedCompletionRemovesStaleIpaBackfillWarningWithoutRepair()
     {
         await using var db = await SeedAsync(StageStatus.Completed, 0, published: true);

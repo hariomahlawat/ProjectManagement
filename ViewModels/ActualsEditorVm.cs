@@ -156,6 +156,10 @@ public sealed class ActualsEditorRowVm
 
     public string? StartBoundarySourceName { get; init; }
 
+    // Direct required predecessors from the project's workflow, so the editor can re-derive
+    // chronology boundaries on the dependency graph rather than display order.
+    public IReadOnlyList<string> PredecessorCodes { get; init; } = Array.Empty<string>();
+
     public bool IsAutoCompleted { get; init; }
 
     public bool RequiresBackfill { get; init; }
@@ -195,6 +199,7 @@ public sealed class ActualsEditorRowVm
         CompletedOn = CompletedOn,
         EarliestAllowedStartDate = EarliestAllowedStartDate,
         StartBoundarySourceName = StartBoundarySourceName,
+        PredecessorCodes = PredecessorCodes,
         IsAutoCompleted = IsAutoCompleted,
         RequiresBackfill = RequiresBackfill,
         HasPendingDecision = HasPendingDecision,

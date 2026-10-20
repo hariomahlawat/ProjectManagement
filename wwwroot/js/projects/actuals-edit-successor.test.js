@@ -7,9 +7,12 @@ const source = fs.readFileSync(path.join(__dirname, 'actuals-edit.js'), 'utf8');
 
 // UX discovery C7.2: moving one stage's completion past a successor's recorded start
 // must be explained on the successor row, not only by the native `min` tooltip.
-function row({ code, name, status, start = '', completed = '' }) {
+// `preds` renders data-predecessors (the workflow graph, as _EditActualsForm.cshtml does);
+// rows without it exercise the display-order fallback.
+function row({ code, name, status, start = '', completed = '', preds }) {
+  const predecessors = preds === undefined ? '' : ` data-predecessors="${preds}"`;
   return `<section class="actuals-editor__stage border rounded p-3" data-actuals-row data-stage-code="${code}" data-stage-name="${name}"
-      data-stage-status="${status}" data-earliest-start="" data-official-start="${start}" data-start-source="">
+      data-stage-status="${status}" data-earliest-start="" data-official-start="${start}"${predecessors} data-start-source="">
     <input type="date" class="form-control" id="actual-start-${code}" name="Input.Rows[0].ActualStart" value="${start}" max="2026-03-01" data-field="start" />
     <input type="date" class="form-control" id="actual-completed-${code}" name="Input.Rows[0].CompletedOn" value="${completed}" max="2026-03-01" data-field="completed"${status === 'Completed' ? '' : ' disabled'} />
     <div class="text-danger small d-none" data-row-error role="alert"></div>
@@ -143,5 +146,48 @@ test('retained dates on an untouched Skipped row never block a predecessor corre
   assert.equal(ui.error('IPA'), '');
   assert.equal(ui.error('AON'), '');
   assert.equal(ui.submitDisabled(), false);
+  ui.dom.window.close();
+});
+
+// Default workflow branch: BID -> TEC and BID -> BM in parallel; COB depends on both.
+const branchingCase = () => editor([
+  { code: 'BID', name: 'BID', status: 'Completed', start: '2026-01-01', completed: '2026-01-10', preds: 'AON' },
+  { code: 'TEC', name: 'TEC', status: 'Completed', start: '2026-01-11', completed: '2026-01-20', preds: 'BID' },
+  { code: 'BM', name: 'BM', status: 'Completed', start: '2026-01-15', completed: '2026-01-25', preds: 'BID' },
+  { code: 'COB', name: 'COB', status: 'Completed', start: '2026-01-26', completed: '2026-02-05', preds: 'TEC,BM' }
+]);
+
+test('a parallel sibling is not bounded by its sibling branch', () => {
+  const ui = branchingCase();
+  ui.input('TEC', 'completed', '2026-01-24');
+
+  assert.equal(ui.error('BM'), '', 'BM depends on BID, not TEC');
+  assert.equal(ui.doc.querySelector('[data-stage-code="BM"] [data-field="start"]').min, '2026-01-10');
+  assert.equal(ui.error('COB'), '');
+  assert.equal(ui.submitDisabled(), false);
+  ui.dom.window.close();
+});
+
+test('a join stage is bounded by the latest completion across all its branches', () => {
+  const ui = branchingCase();
+  ui.input('TEC', 'completed', '2026-01-28');
+
+  assert.match(ui.error('COB'), /^Actual dates cannot precede TEC completion/);
+  assert.equal(ui.doc.querySelector('[data-stage-code="COB"] [data-field="start"]').min, '2026-01-28');
+  assert.equal(ui.submitDisabled(), true);
+  ui.dom.window.close();
+});
+
+test('the graph looks through a skipped predecessor to its own predecessors', () => {
+  const ui = editor([
+    { code: 'BID', name: 'BID', status: 'Completed', start: '2026-01-01', completed: '2026-01-10', preds: '' },
+    { code: 'TEC', name: 'TEC', status: 'Skipped', preds: 'BID' },
+    { code: 'BM', name: 'BM', status: 'Completed', start: '2026-01-11', completed: '2026-01-12', preds: 'BID' },
+    { code: 'COB', name: 'COB', status: 'Completed', start: '2026-01-13', completed: '2026-01-20', preds: 'TEC,BM' }
+  ]);
+  ui.input('BID', 'completed', '2026-01-14');
+
+  assert.match(ui.error('BM'), /cannot precede BID completion/);
+  assert.match(ui.error('COB'), /cannot precede BID completion/, 'reached through skipped TEC');
   ui.dom.window.close();
 });

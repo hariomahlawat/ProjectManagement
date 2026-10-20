@@ -92,7 +92,56 @@
     return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
+  const rowByCode = new Map(rows.map((row) => [(row.dataset.stageCode ?? '').toUpperCase(), row]));
+  const predecessorsOf = (row) => (row.dataset.predecessors ?? '')
+    .split(',')
+    .map((code) => code.trim().toUpperCase())
+    .filter(Boolean);
+
+  // Mirrors StageDateSuggestionResolver.ResolveBranchBoundaries: walk the workflow's
+  // required predecessors, look through skipped stages, and take the latest completion.
+  const resolveGraphBoundary = (row) => {
+    let best = null;
+    const collect = (code, path) => {
+      if (path.has(code)) {
+        return;
+      }
+      const predecessor = rowByCode.get(code);
+      if (!predecessor) {
+        return;
+      }
+
+      path.add(code);
+      const predecessorStatus = (predecessor.dataset.stageStatus ?? '').toLowerCase();
+      if (predecessorStatus === 'skipped') {
+        predecessorsOf(predecessor).forEach((ancestor) => collect(ancestor, path));
+      } else if (predecessorStatus === 'completed') {
+        const completedInput = predecessor.querySelector('[data-field="completed"]');
+        const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
+        const index = rows.indexOf(predecessor);
+        // ISO dates compare lexically; ties go to the later workflow stage, as on the server.
+        if (completedValue && (!best || completedValue > best.value || (completedValue === best.value && index > best.index))) {
+          best = {
+            value: completedValue,
+            index,
+            source: predecessor.dataset.stageName ?? predecessor.dataset.stageCode ?? 'the effective predecessor'
+          };
+        }
+      }
+      path.delete(code);
+    };
+
+    const self = (row.dataset.stageCode ?? '').toUpperCase();
+    predecessorsOf(row).forEach((code) => collect(code, new Set([self])));
+    return best ? { value: best.value, source: best.source } : { value: '', source: '' };
+  };
+
   const resolveChronologyBoundary = (row) => {
+    if (row.hasAttribute('data-predecessors')) {
+      return resolveGraphBoundary(row);
+    }
+
+    // Hosts that do not project the workflow graph fall back to display order.
     const targetIndex = rows.indexOf(row);
     if (targetIndex <= 0) {
       return { value: '', source: '' };

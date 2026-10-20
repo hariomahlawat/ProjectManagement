@@ -454,6 +454,7 @@ public sealed class ActualCorrectionProposalPageTests
         Assert.Contains("Input.BasedOnSubmittedOn", editor, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"Withdraw\"", editor, StringComparison.Ordinal);
         Assert.Contains("data-official-start", editor, StringComparison.Ordinal);
+        Assert.Contains("data-predecessors=\"@string.Join(\",\", row.PredecessorCodes)\"", editor, StringComparison.Ordinal);
         Assert.Contains("Submit for approval", modal, StringComparison.Ordinal);
         Assert.Contains("data-backfill-mode", modal, StringComparison.Ordinal);
         Assert.Equal(2, hosts.Split("[\"ActualsProposalSubmission\"] = Model.CanSubmitActualProposals").Length - 1);
