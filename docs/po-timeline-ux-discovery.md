@@ -2,6 +2,8 @@
 
 **Status:** Discovery only. Nothing described here is implemented. No application behaviour, view, script, schema or service was changed.
 
+> **Release-relevant defect found during the walkthrough (C7.1).** On current `master`, the "Complete mandatory backfill" modal cannot submit anything, for a PO or a HoD. It always answers "Add at least one stage update before saving." The defect came in with D-3c (`20c05d8a`) and is part of the not-yet-deployed D-2 + D-3 release. It needs its own small fix PR before that release; it is not fixed here.
+
 **Baseline:** `master` at `290a2ef8e6ca30a19f2bd337d3836da6075c5b13` (merge of #2690). All `file:line` references are to that commit.
 
 **Guiding question.** Can a Project Officer (PO) understand the project's status, make the necessary updates, submit them for approval and know what happens next, without knowing how the internal services and approval workflows work?
@@ -14,14 +16,17 @@
 
 1. **Independent pass first.** I inspected the implementation before reading the earlier observations: `docs/phase-d-release-readiness.md` §10, `docs/timeline-proposal-roadmap.md` and `docs/timeline.md` rules 22–27. Four read-only code reviews ran in parallel, one per area: Overview/Timeline, planned dates, actual dates and backfill, and stage requests and outcomes. I then checked the claims that carry the most weight myself. Section D compares the results with the earlier material.
 2. **Disclosure.** The author of this report also implemented parts of Phase D-3. Some familiarity with the actual-date editor was unavoidable, so the independent pass deliberately weighted the planning, stage-request and outcome-tracking journeys equally.
-3. **Browser evaluation: partial.**
+3. **Browser evaluation.**
    - The application ran locally against the existing development database on port 5433, with the owner's approval. Startup applied no migrations (119 of 119 already recorded). The development seeders created the test accounts `test_project_offr` and `test_hod`.
    - I signed in as the test PO and saw the first-sign-in forced password change and the PO Workspace. The test PO had no assigned projects.
-   - Creating and assigning a test project needed the test HoD's first-sign-in password change. That step was refused by the session's permission policy and was not attempted another way.
-   - **So no Timeline screen was observed in my own browser session.** Every finding in C1–C5 comes from the code. Findings that depend on rendering, layout or real user behaviour are labelled **Hypothesis** and listed in [Validation still required](#validation-still-required).
+   - The test HoD's first-sign-in password change was at first refused by the session's permission policy. After the owner approved it, I completed it, then created a **dummy project** ("UX TEST - Dummy timeline project") with `test_hod` as HoD and `test_project_offr` as PO.
+   - I gave it a realistic history using the HoD's own stage actions: three stages completed with dates, one completed without a date (backfill needed), one completed through project creation, and one in progress. I also published a partial plan.
+   - I then walked through every PO journey as the test PO: plan draft, submit, revise while pending, actual-date correction, backfill and stage update. The HoD rejected the plan, the correction and the stage update with notes, then approved a resubmitted plan, and I checked what the PO saw at each step. I looked at desktop (1440×900), the browser pane's own width (about 900×650) and phone width (375×812). [C7](#c7-walkthrough-with-dummy-data) has the results.
+   - C1–C5 were written from the code first. Where the walkthrough confirmed or settled an item, C7 says so.
+   - Dates were entered through the page's own fields. Some clicks were sent by script because the pane scales screenshots. Every result reported in C7 was re-checked against the page state or the code.
    - **The owner then supplied five screenshots** of the Overview Timeline pane from their own local instance. They show a 15-stage project at desktop width (about 1920×1080), **viewed by the project's HoD**. [C6](#c6-observed-in-the-browser-owner-screenshots) records what they show. PO-only controls and narrow widths are still unobserved. Project and personal names are deliberately left out of this report.
-   - The test accounts were left in the development database on purpose.
-4. **What "confirmed" and "observed" mean.** "Confirmed" means the behaviour follows directly from code at the cited lines. "Observed" means it is visible in the owner's screenshots (C6).
+   - The test accounts, the dummy project (Overview id 214) and its plan, correction and stage-request history were left in the development database on purpose, at the owner's request. Test passwords are kept outside the repository and are not in this report.
+4. **What "confirmed" and "observed" mean.** "Confirmed" means the behaviour follows directly from code at the cited lines. "Observed" means it was seen in the running application: the owner's screenshots (C6) or my own walkthrough with dummy data (C7).
 
 ---
 
@@ -51,7 +56,10 @@
    - Saving a plan draft while a submission is pending can silently cancel the HoD review; the message only says "Draft saved."
    - The backfill confirmation disappears on reload, and the banner keeps saying "Action needed".
 4. **Typed work is lost on failure.** Planner and actual-date validation failures redirect, throwing away what was entered. The error appears behind the editor panel, and one message refers to "highlighted errors" that are never highlighted.
-5. **The stage that needs action is far down the pane (observed).** On a typical project the Timeline lists every completed stage before the current one. The current stage was the 14th card, several screens down, and nothing scrolls to it.
+5. **The stage that needs action is far down the pane (observed).** On a typical project the Timeline lists every completed stage before the current one. The current stage was the 14th card, several screens down, and nothing scrolls to it. On a phone the Timeline itself starts about 4.7 screens down the page.
+6. **Two input defects were found in the walkthrough.**
+   - The backfill modal cannot submit at all (C7.1).
+   - In the actual-date editor, a valid-looking correction is blocked by a browser tooltip. The page's own explanation, which exists in the script, is never shown (C7.2).
 5. **Vocabulary and interaction patterns are inconsistent.** There are four submit verbs and three withdraw placements. The approver is named in two ways, and one editor has three names. Raw codes and enum values (`InProgress`, stage codes) appear in user-facing text.
 
 ### Verdict: incremental refinement, not a redesign
@@ -182,6 +190,43 @@ These are from the HoD view at desktop width, so the PO's visible "Update stage"
 
 Unrelated to the Timeline, but seen in the same screenshots: the project's two photo thumbnails render as broken images showing their alt text, and the header card says "Cover photo unavailable". This should be raised as a separate issue.
 
+### C7. Walkthrough with dummy data
+
+The dummy project was walked through as the PO and the HoD on `localhost:5199`, against master `290a2ef8`. Each row names the step that showed it.
+
+#### New findings
+
+| # | Observed | Cause (confirmed in code) | Priority |
+| --- | --- | --- | --- |
+| **C7.1** | **The backfill modal never submits.** The PO entered the AON start and completion dates and clicked "Submit for approval"; the modal answered "Add at least one stage update before saving." The HoD's "Save" in the same modal failed the same way. The banner and pill keep saying "Action needed" / "Backfill required" indefinitely. | `_BackfillForm.cshtml:14` renders `data-backfill-carried="@(stage.IsCarriedForward ? "true" : null)"`. ASP.NET Core Razor still renders a `data-*` attribute when its value is null, as `data-backfill-carried=""` (seen in the DOM on a row that is not carried forward). `overview.js:1056` excludes every row for which `hasAttribute('data-backfill-carried')` is true, so the payload is always empty. The actual-date editor's similar flag works, because it compares the value (`actuals-edit.js:227`, `=== 'true'`). Introduced in D-3c (`20c05d8a`). No test covers it: the acceptance tests post JSON directly, and no JavaScript test renders this markup. | **P0, release-blocking for D-2 + D-3.** Separate fix PR: test the attribute's value, and add a regression test that uses server-rendered markup |
+| **C7.2** | **The actual-date editor silently blocks a coordinated correction.** The PO moved the SOW completion from 10 Feb to 12 Feb. The next stage's recorded start (11 Feb) then became earlier than allowed. "Submit for approval" was enabled, but clicking it did nothing visible except move focus to the IPA start field. The only explanation is the browser's native tooltip, "Value must be 12-02-2026 or later." After the PO also set the IPA start to 12 Feb, the submit worked (revision 1). | `refreshChronologyBoundaries` sets `min` on every row (`actuals-edit.js:125-137`), but `validateRow` returns early for rows the user has not changed (`:156-158`). So the script's own message ("Actual dates cannot precede SOW Vetting completion … Same-day commencement is permitted.", `:190`) never appears, and native constraint validation blocks the submit. | **P1.** Validate the affected later rows as well, and show the existing message on them |
+| C7.3 | **The editor shows about two stages at a time.** The actual-date editor's stage list is its own scroll box inside the panel: 460px high with 207px stage cards at 1440×900, and about 170px at about 900×650. With 15 stages, finding a row means scrolling a small box inside a panel. The reason field and buttons stay fixed below it. | Layout of `_EditActualsForm.cshtml` inside the off-canvas | P1 (part of Increment 2) |
+| C7.4 | **Creating an "ongoing" project gives an incoherent timeline.** With "last completed stage = Bidding/Tendering, 15 Jun 2026", only Bidding was recorded, as completed with start = completion ("1 day"). Every earlier stage stayed "Not started", the current stage was shown as Feasibility Study, and all 15 stages appeared under "Later stages". | `Create.cshtml.cs:327-342` inserts one stage row and nothing for its predecessors | P2. This is project creation rather than the PO Timeline, so raise it as its own issue |
+| C7.5 | After the PO saved a draft that gave the current stage a planned completion date, the stage card still said "Planned completion missing" / "Set planned completion". | Correct under rule 23 (drafts are not official), but nothing tells the PO that their draft holds a value | P2 (see E.1 status line) |
+| C7.6 | At about 900px width the collapsed card's date, separator and duration stack on three lines ("10 Feb 2026 / · / 21 days"). | `_ProjectTimeline.cshtml` meta layout | P2 (3e) |
+| C7.7 | An empty backfill submit says "Add at least one stage update before saving.", although "stage update" means a status request everywhere else and the button says "Submit for approval". | `overview.js` | P2 (3a) |
+| C7.8 | The HoD's plan review lists all 15 stages, including unchanged ones ("— → —"), and labels the submitted plan "Draft plan". It calls a missing stage completion date "procurement backfill pending … procurement details" (`_ReviewPlan.cshtml:57`). | Wording and layout | P2 (HoD side; wording in 3a) |
+
+#### Code findings settled by the walkthrough
+
+| Earlier item | Result |
+| --- | --- |
+| C2.1 hidden menu | **Confirmed.** After the PO's "Save draft", the Timeline header had no ⋮ menu at all, only "Continue editing" and "Discard draft". "Correct recorded dates" was unreachable from the Timeline. |
+| C2.2 silent supersession | **Confirmed.** "Save draft" while the plan was pending turned "Timeline plan submitted for approval" into "Draft saved (not submitted)". No message said the HoD review had ended. |
+| C2.3 backfill feedback | Overtaken by C7.1: the submission itself never happens. |
+| C1.1 stage rejection | **Confirmed.** After the HoD rejected the stage update with a note, the Technical Evaluation card showed a plain "Update stage" again. The Overview had no trace of the rejection and no note. The bell had no notification. The Workspace showed "Stage update returned by HoD" under a group headed with the raw code "TEC", without the project name or the note. |
+| C1.2 actual correction | **Confirmed.** After the submission and a reload, nothing on the Overview mentioned the pending correction. The plan, by contrast, was shown three times. After rejection, the remarks appear only inside the editor. The rejection is not in the Workspace "Returned" list and there is no notification. |
+| C1.3 plan rejection | **Confirmed.** The bell says "Plan version 2 rejected." with no reason. The card shows "Draft saved (not submitted)". The reason appears only in the planner. |
+| C1.6 stale rejection banner | **Confirmed.** After the resubmitted plan was approved ("Approved on 20 Oct 2026"), the planner still showed "Returned for updates … Note: … allow two more weeks." |
+| C3.1 typed values lost | **Confirmed** on the HoD's direct save. A plan with 14 dates failed the next-working-day rule. The panel reopened with every date empty, and the error appeared behind the panel. |
+| C3.5 rejected values | **Confirmed.** After the rejection the editor showed the official 10 Feb; the rejected 12 Feb was not shown. |
+| C3.8 "last save" time | **Confirmed, and more confusing than expected.** After the rejection the planner said "Your last save was on 20 Oct 2026 14:16". That is the time the rejection created the correction draft; the PO did not save at 14:16. |
+| C3.7 Durations tab default | Not reproduced. This project had no anchor date, so Exact was the default. Still unverified. |
+| C5 identical labels | **Confirmed** in the accessibility tree. There are 20 fields named only "Planned start" or "Planned due", with no stage name, and the "Completed on" fields in the editor are the same. |
+| C5 responsive | **Confirmed.** At about 900px the Timeline appears only after the Videos card. At 375px it starts 3,796px down the page (about 4.7 screens). There is no horizontal scroll. |
+| C2.4 / C2.5 modal copy | **Confirmed.** The stage modal says "This update will be visible immediately." and "Use Edit actual dates to correct it separately." Its stage list shows "FS — Feasibility Study"-style codes. |
+| Working as intended | The PO's visible "Update stage" on the current stage; the stage pending panel (proposed dates, submitter, note); the plan "Withdraw" and draft chip; the correction pending and remarks banners; the HoD's correction review, which shows recorded vs proposed values and the PO's justification. |
+
 ---
 
 ## D. Comparison with previous findings
@@ -269,6 +314,10 @@ Keep the per-stage "Update stage" button and the backfill banner as shortcuts. T
 
 There are four increments. Each one can be shipped and tested on its own. None changes authorization, approval rules, revision history, explicit-clear semantics or stale-decision protection.
 
+### Before Increment 1: fix the backfill modal (P0, separate PR)
+
+C7.1 is a defect, not a UX refinement. It blocks PO and HoD backfill through the modal on `master` and belongs to the pending D-2 + D-3 release. The fix is to compare the attribute's value (`=== 'true'`), or to omit the attribute when the row is not carried forward. It needs a regression test that runs the modal script against server-rendered markup. Size: Small. Risk: Low.
+
 ### Increment 1: Know where you stand (P0 + P1)
 
 | Item | Current → proposed | Screens/components | Backend? | Size | Risk |
@@ -285,7 +334,8 @@ There are four increments. Each one can be shipped and tested on its own. None c
 | Item | Current → proposed | Screens/components | Backend? | Size | Risk |
 | --- | --- | --- | --- | --- | --- |
 | 2a. Preserve typed values on failure (C3.1, C3.2) | Re-render the editor from the posted form, with errors per field | `EditPlan.cshtml.cs`, `EditActuals.cshtml.cs`, the editor partials | Page models only (the TempData round-trip already exists for the HoD concurrency case, `EditPlan.cshtml.cs:141-148`) | Medium | Medium. Re-rendered values must stay *proposed* and never be treated as saved. Covered by tests |
-| 2b. Errors inside the editor, focus moved to them (C3.3) | Move the alert into the panel; set `aria-invalid`; move focus | Editor partials, `actuals-edit.js`, `plan-edit.js` | No | Small | Low |
+| 2b. Errors inside the editor, focus moved to them (C3.3, C7.2) | Move the alert into the panel; set `aria-invalid`; move focus. In the actual-date editor, also validate the later rows a change affects, so that the existing chronology message appears instead of the browser tooltip | Editor partials, `actuals-edit.js`, `plan-edit.js` | No | Small | Low. Client-side only; the server's final-state validation is unchanged |
+| 2f. Show more of the editor (C7.3) | Let the stage list use the panel's full height (one scroll region), or collapse rows that aren't being edited | `_EditActualsForm.cshtml`, `project-portfolio.css` | No | Small | Low |
 | 2c. Explicit clear and side-by-side official vs proposal (E.4, C3.4, C3.5) | A "Clear recorded start" checkbox; an official column; a read-only "rejected proposal" line | `_EditActualsForm.cshtml`, `actuals-edit.js`, `ActualsEditorVm` | View model (rejected values are already stored in `ActualCorrectionItems`) | Medium | Medium. The existing posted `ClearActualStart` contract and the validator must stay unchanged |
 | 2d. Planner safety (C3.6–C3.8, C2.7) | Warn before closing with unsaved input; remember the last tab; show the real last-saved time; focus the stage from "Planned completion missing" | `plan-edit.js`, `_EditPlanForm.cshtml`, `PlanReadService.cs` | The last-saved time may need a stored timestamp. **Check first**; drop the item if it would need a migration | Small–Medium | Low |
 | 2e. Confirmation on plan withdraw | Match the actual-date withdraw | `_ProjectLifecycleWorkspace.cshtml:102-107` | No | Small | Low |
@@ -342,14 +392,14 @@ There are four increments. Each one can be shipped and tested on its own. None c
 
 | Item | How |
 | --- | --- |
-| Rendered Timeline **for a PO**, and at narrow width (C5 responsive, C3.3 error hidden behind the panel, C2.6). The HoD desktop view was observed (C6) | Browser walkthrough with a project assigned to `test_project_offr` |
+| ~~Rendered Timeline for a PO and at narrow width~~ | **Done** with dummy data (C7) |
 | Why the Remarks load failed in the owner's instance (C6.8) | The server log for the remarks request at that time |
-| C1.6 stale "Returned for updates" banner | An integration test (reject, resubmit, approve), or a walkthrough |
+| ~~C1.6 stale "Returned for updates" banner~~ | **Confirmed** in the walkthrough (C7) |
 | C3.7 Durations tab default for Exact users | Walkthrough |
 | Whether POs actually miss outcomes (C1.x) and confuse "Lifecycle update pending" with being blocked | Short sessions with two or three real POs |
 | Screen-reader behaviour (C5) | NVDA with keyboard-only navigation, on the planner and the stage modal |
 
-To finish the browser walkthrough, the test HoD (`test_hod`) must complete the first-sign-in password change, and a test project must be assigned to `test_project_offr` with `test_hod` as HoD.
+The dummy project (Overview id 214) and the test accounts remain in the development database for later checks.
 
 ---
 
