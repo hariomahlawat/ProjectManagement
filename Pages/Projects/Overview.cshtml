@@ -23,18 +23,19 @@
 
     <partial name="_ProjectOperationalState" model="Model" />
 
-    <div class="project-portfolio-layout mb-4">
-        <main class="d-flex flex-column gap-3 project-portfolio-main">
+    @* The Timeline is where the Project Officer works, so it is the wide first column and,
+       on narrow screens, comes straight after the header. Reference details sit beside it. *@
+    <div class="project-portfolio-layout project-portfolio-layout--work-first mb-4">
+        <section class="d-flex flex-column gap-3 project-portfolio-rail project-portfolio-work" aria-label="Timeline and project updates">
+            <partial name="_ProjectPendingActions" model="Model" />
+            <partial name="_ProjectLifecycleWorkspace" model="Model" />
+        </section>
+        <aside class="d-flex flex-column gap-3 project-portfolio-main project-portfolio-details" aria-label="Project details and files">
             <partial name="_ProjectOverviewCard" model="Model" />
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
-            <partial name="_ProjectLifecyclePosition" model="Model.Portfolio" />
             <section class="project-portfolio-files-column">
                 <partial name="_ProjectMediaCards" model="Model" />
             </section>
-        </main>
-        <aside class="d-flex flex-column gap-3 project-portfolio-rail">
-            <partial name="_ProjectPendingActions" model="Model" />
-            <partial name="_ProjectLifecycleWorkspace" model="Model" />
         </aside>
     </div>
 

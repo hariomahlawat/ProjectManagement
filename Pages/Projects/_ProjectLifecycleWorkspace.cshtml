@@ -70,8 +70,8 @@
                  data-lifecycle-status="@project!.LifecycleStatus.ToString().ToLowerInvariant()">
                 <div class="card-header pm-card-header flex-column gap-3">
                     <div class="d-flex flex-column gap-2">
-                        <div class="d-flex flex-column flex-lg-row align-items-start gap-3 justify-content-lg-between">
-                            <div class="flex-grow-1 w-100 min-w-0">
+                        <div class="d-flex flex-row align-items-start gap-3 justify-content-between pm-panel-header-row">
+                            <div class="flex-grow-1 w-100 min-w-0 pm-panel-header-main">
                                 @if (showTimeline)
                                 {
                                     <span id="timeline" class="page-anchor"></span>
@@ -135,14 +135,29 @@
                                                 {
                                                     <span class="badge project-terminal-badge project-terminal-badge--cancelled">Cancelled</span>
                                                 }
-                                                @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
-                                                {
-                                                    <span class="badge text-bg-success">Plan approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                                }
                                             </div>
                                         </div>
                                         @if (isActiveLifecycle)
                                         {
+                                            @* The plan, schedule and next action, next to the work (they had their own
+                                               "Lifecycle position" card, which repeated the header and this panel). *@
+                                            var planFact = project?.PlanApprovedAt is DateTimeOffset approvedAt && portfolio.PlanStatus == "Approved"
+                                                ? "Approved on " + approvedAt.ToLocalTime().ToString("dd MMM yyyy")
+                                                : portfolio.PlanStatus;
+                                            <dl class="pm-timeline-facts" data-timeline-facts>
+                                                <div class="pm-timeline-facts__item">
+                                                    <dt>Plan</dt>
+                                                    <dd><strong>@planFact</strong> <span class="text-muted">@portfolio.PlanHealth</span></dd>
+                                                </div>
+                                                <div class="pm-timeline-facts__item@(portfolio.CurrentStageOverdueDays.HasValue ? " is-attention" : string.Empty)">
+                                                    <dt>Schedule</dt>
+                                                    <dd><strong>@portfolio.ScheduleStatus</strong> <span class="text-muted">@portfolio.ScheduleDetail</span></dd>
+                                                </div>
+                                                <div class="pm-timeline-facts__item">
+                                                    <dt>Next</dt>
+                                                    <dd><strong>@portfolio.NextAction</strong></dd>
+                                                </div>
+                                            </dl>
                                             <partial name="_TimelineSubmissionStatus" model="submissionStatus" />
                                         }
                                         @if (isActiveLifecycle && hasMyDraft)
@@ -171,6 +186,80 @@
                                                 }
                                             </div>
                                         }
+                                        @* Actions sit with the Timeline content, under the status, so the header reads top to bottom. *@
+                                    <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2@(timelineInitiallyActive ? string.Empty : " d-none")"
+                                         data-panel-section="timeline"
+                                         id="project-panel-section-timeline"
+                                         role="region"
+                                         aria-labelledby="project-panel-toggle-timeline"
+                                         aria-hidden="@(timelineInitiallyActive ? "false" : "true")">
+                                        @{
+                                            var canReviewTimeline = isActiveLifecycle && planState.HasPendingSubmission && isHoD;
+                                            // A private plan draft must not hide either editor: the actual-date
+                                            // editor is unrelated to the plan, and "Edit planned dates" reopens
+                                            // the same draft as "Continue editing". Each endpoint authorizes itself.
+                                            var canEditTimelinePlan = canEditTimeline;
+
+                                            // The editors a Project Officer uses every week are visible buttons, not
+                                            // menu items (discovery C2/C6.7); only rare actions stay in the menu.
+                                            if (canReviewTimeline)
+                                            {
+                                                <button class="btn btn-sm btn-primary"
+                                                        type="button"
+                                                        data-bs-toggle="offcanvas"
+                                                        data-bs-target="#offcanvasPlanReview"
+                                                        aria-controls="offcanvasPlanReview">
+                                                    Review &amp; approve plan
+                                                </button>
+                                            }
+                                            if (canEditTimelinePlan)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary"
+                                                        type="button"
+                                                        data-bs-toggle="offcanvas"
+                                                        data-bs-target="#offcanvasPlanEdit"
+                                                        aria-controls="offcanvasPlanEdit"
+                                                        data-timeline-action="edit-plan">
+                                                    <i class="bi bi-calendar-range" aria-hidden="true"></i> Edit planned dates
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-primary"
+                                                        type="button"
+                                                        data-bs-toggle="offcanvas"
+                                                        data-bs-target="#offcanvasActualDates"
+                                                        aria-controls="offcanvasActualDates"
+                                                        data-timeline-action="correct-actuals">
+                                                    <i class="bi bi-calendar-check" aria-hidden="true"></i> Correct actual dates
+                                                </button>
+                                            }
+                                            if (canManageHistoricalStageHistory)
+                                            {
+                                                <!-- SECTION: Timeline actions menu -->
+                                                <div class="pm-card-menu dropdown">
+                                                    <button class="btn pm-card-menu-toggle"
+                                                            type="button"
+                                                            data-bs-toggle="dropdown"
+                                                            aria-expanded="false"
+                                                            aria-label="Timeline actions">
+                                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        @if (canManageHistoricalStageHistory)
+                                                        {
+                                                            <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        data-bs-toggle="offcanvas"
+                                                                        data-bs-target="#offcanvasHistoricalStages"
+                                                                        aria-controls="offcanvasHistoricalStages">
+                                                                    Manage historical stage data
+                                                                </button>
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            }
+                                        }
+                                    </div>
                                     </div>
                                 }
                                 <span id="remarks" class="page-anchor"></span>
@@ -197,7 +286,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="d-flex flex-column align-items-stretch gap-2">
+                            <div class="d-flex flex-column align-items-stretch gap-2 pm-panel-switch-slot">
                                 @if (showTimeline)
                                 {
                                     <div class="btn-group btn-group-sm align-self-lg-end" role="group" aria-label="Toggle timeline or remarks" data-panel-switch>
@@ -215,81 +304,6 @@
                                                 aria-pressed="@(remarksInitiallyActive ? "true" : "false")"
                                                 aria-expanded="@(remarksInitiallyActive ? "true" : "false")"
                                                 aria-controls="project-panel-body-remarks">Remarks</button>
-                                    </div>
-                                    <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end@(timelineInitiallyActive ? string.Empty : " d-none")"
-                                         data-panel-section="timeline"
-                                         id="project-panel-section-timeline"
-                                         role="region"
-                                         aria-labelledby="project-panel-toggle-timeline"
-                                         aria-hidden="@(timelineInitiallyActive ? "false" : "true")">
-                                        @{
-                                            var canReviewTimeline = isActiveLifecycle && planState.HasPendingSubmission && isHoD;
-                                            // A private plan draft must not hide either editor: the actual-date
-                                            // editor is unrelated to the plan, and "Edit planned dates" reopens
-                                            // the same draft as "Continue editing". Each endpoint authorizes itself.
-                                            var canEditTimelinePlan = canEditTimeline;
-
-                                            if (canReviewTimeline || canEditTimelinePlan || canManageHistoricalStageHistory)
-                                            {
-                                                <!-- SECTION: Timeline actions menu -->
-                                                <div class="pm-card-menu dropdown">
-                                                    <button class="btn pm-card-menu-toggle"
-                                                            type="button"
-                                                            data-bs-toggle="dropdown"
-                                                            aria-expanded="false"
-                                                            aria-label="Timeline actions">
-                                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                                    </button>
-                                                    <ul class="dropdown-menu dropdown-menu-end">
-                                                        @if (canReviewTimeline)
-                                                        {
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasPlanReview"
-                                                                        aria-controls="offcanvasPlanReview">
-                                                                    Review &amp; approve
-                                                                </button>
-                                                            </li>
-                                                        }
-                                                        @if (canEditTimelinePlan)
-                                                        {
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasActualDates"
-                                                                        aria-controls="offcanvasActualDates">
-                                                                    Correct actual dates
-                                                                </button>
-                                                            </li>
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasPlanEdit"
-                                                                        aria-controls="offcanvasPlanEdit">
-                                                                    Edit planned dates
-                                                                </button>
-                                                            </li>
-                                                        }
-                                                        @if (canManageHistoricalStageHistory)
-                                                        {
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasHistoricalStages"
-                                                                        aria-controls="offcanvasHistoricalStages">
-                                                                    Manage historical stage data
-                                                                </button>
-                                                            </li>
-                                                        }
-                                                    </ul>
-                                                </div>
-                                            }
-                                        }
                                     </div>
                                 }
                             </div>

@@ -138,19 +138,41 @@ public sealed class ProjectOverviewPresentationContractTests
     }
 
     [Fact]
-    public void TimelineMenu_IsNotHiddenByAPrivatePlanDraft()
+    public void TimelineEditors_AreVisibleAndNotHiddenByAPrivatePlanDraft()
     {
         // Discovery C2.1: an unsubmitted plan draft used to hide both editors,
-        // locking the PO out of "Correct recorded dates".
+        // locking the PO out of the actual-date editor. They are now visible buttons
+        // gated only by edit permission, not menu items.
         var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
 
         Assert.Contains("var canEditTimelinePlan = canEditTimeline;", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("hasMyDraft && !pendingOwnedByCurrentUser", workspace, StringComparison.Ordinal);
 
-        var menuBlock = workspace[workspace.IndexOf("@if (canEditTimelinePlan)", StringComparison.Ordinal)..];
-        menuBlock = menuBlock[..menuBlock.IndexOf("@if (canManageHistoricalStageHistory)", StringComparison.Ordinal)];
-        Assert.Contains("data-bs-target=\"#offcanvasActualDates\"", menuBlock, StringComparison.Ordinal);
-        Assert.Contains("data-bs-target=\"#offcanvasPlanEdit\"", menuBlock, StringComparison.Ordinal);
+        var editors = workspace[workspace.IndexOf("if (canEditTimelinePlan)", StringComparison.Ordinal)..];
+        editors = editors[..editors.IndexOf("if (canManageHistoricalStageHistory)", StringComparison.Ordinal)];
+        Assert.Contains("data-timeline-action=\"edit-plan\"", editors, StringComparison.Ordinal);
+        Assert.Contains("data-timeline-action=\"correct-actuals\"", editors, StringComparison.Ordinal);
+        Assert.DoesNotContain("dropdown-item", editors, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Overview_PutsTheTimelineFirstAndFoldsLifecyclePositionIntoIt()
+    {
+        // The Timeline is the Project Officer's work area: it is the first (wide) column and,
+        // on narrow screens, comes straight after the header. Its plan, schedule and next-action
+        // facts replace the separate "Lifecycle position" card.
+        var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
+        var work = overview.IndexOf("project-portfolio-work", StringComparison.Ordinal);
+        var details = overview.IndexOf("project-portfolio-details", StringComparison.Ordinal);
+        Assert.True(work >= 0 && details > work);
+        Assert.True(overview.IndexOf("_ProjectLifecycleWorkspace", StringComparison.Ordinal) < details);
+        Assert.True(overview.IndexOf("_ProjectOverviewCard", StringComparison.Ordinal) > details);
+        Assert.DoesNotContain("_ProjectLifecyclePosition", overview, StringComparison.Ordinal);
+
+        var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
+        Assert.Contains("data-timeline-facts", workspace, StringComparison.Ordinal);
+        Assert.Contains("@portfolio.ScheduleStatus", workspace, StringComparison.Ordinal);
+        Assert.Contains("@portfolio.NextAction", workspace, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] relativePath)
