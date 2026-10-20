@@ -156,6 +156,38 @@ public sealed class ActualCorrectionEndToEndTests
         Assert.Equal(0, await db.StageChangeLogs.CountAsync());
     }
 
+    /// <summary>
+    /// Cases B and D: without JavaScript, the PO types a new start on the stage whose
+    /// pending proposal clears it. The rendered clear flag is still "true", so the post
+    /// carries a date and a clear for one stage. The shared validator refuses that
+    /// combination (ConflictingStartIntent) before any write, so neither the typed date
+    /// nor the clear is silently applied and the pending revision is untouched.
+    /// </summary>
+    [Fact]
+    public async Task DateTypedOverAPendingClearWithoutJavaScript_IsRefusedAndThePendingRevisionIsKept()
+    {
+        await using var host = await CreateHostAsync();
+        var po = host.ClientFor(Po, "Project Officer");
+        var editor = await EditorAsync(po);
+        var fs = editor.RowOf(StageCodes.FS);
+        editor.Set($"Input.Rows[{fs}].ActualStart", string.Empty).Set($"Input.Rows[{fs}].ClearActualStart", "true");
+        await PostAndFollowAsync(po, editor);
+        var before = await RevisionSnapshotAsync(host);
+
+        // The rendered form carries the pending clear; the PO types a date over it.
+        var reopened = await EditorAsync(po);
+        var row = reopened.RowOf(StageCodes.FS);
+        Assert.Equal(string.Empty, reopened.Get($"Input.Rows[{row}].ActualStart"));
+        Assert.Equal("true", reopened.Get($"Input.Rows[{row}].ClearActualStart"));
+        reopened.Set($"Input.Rows[{row}].ActualStart", "2026-01-02");
+
+        var page = await PostAndFollowAsync(po, reopened);
+
+        Assert.Contains("FS: Supply a start date or explicitly clear it, not both. Nothing was submitted.", page, StringComparison.Ordinal);
+        Assert.Equal(before, await RevisionSnapshotAsync(host));
+        await AssertOfficialAsync(host, StageCodes.FS, start: Jan(1), logs: 0);
+    }
+
     [Fact]
     public async Task ApprovalOfAMixedCorrectionAndBackfill_PublishesBothWithTheirHistory()
     {
@@ -400,6 +432,17 @@ public sealed class ActualCorrectionEndToEndTests
         await using var db = host.NewContext();
         Assert.Equal(start, (await db.ProjectStages.AsNoTracking().SingleAsync(stage => stage.StageCode == stageCode)).ActualStart);
         Assert.Equal(logs, await db.StageChangeLogs.CountAsync());
+    }
+
+    // Every revision with its closure state and items, for an exact before/after comparison.
+    private static async Task<string> RevisionSnapshotAsync(ActualCorrectionAcceptanceHost host)
+    {
+        await using var db = host.NewContext();
+        var revisions = await db.ActualCorrectionRevisions.AsNoTracking().Include(item => item.Items).OrderBy(item => item.Id).ToListAsync();
+        return string.Join(";", revisions.Select(revision =>
+            $"{revision.Id}|{revision.RevisionNo}|{revision.Status}|{revision.SubmittedOn:O}|{revision.ContentHash}|{revision.ClosedOn}|" +
+            string.Join(",", revision.Items.OrderBy(item => item.StageCode).Select(item =>
+                $"{item.StageCode}:{item.ProposedActualStart}:{item.ProposedCompletedOn}:{item.ClearsActualStart}"))));
     }
 
     private static async Task AssertNoRevisionAsync(ActualCorrectionAcceptanceHost host)

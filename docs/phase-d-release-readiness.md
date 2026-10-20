@@ -49,7 +49,9 @@ The test pyramid used:
    Details of the setup:
    - The host runs on a shared SQLite database, so transactions and compare-and-set statements are real. Startup uses a non-relational context, because the startup migration boundary validates the PostgreSQL catalogue (§7).
    - Forms are posted exactly as rendered, **without JavaScript**, so the server-rendered form alone must carry the user's intent.
-4. **Rendered form and JavaScript contract:** `actuals-edit-*.test.js` (jsdom) and the markup contract tests.
+4. **Rendered form and JavaScript contract.** The HTTP tests post exactly the controls a browser without scripts submits, but they do not execute `actuals-edit.js` or the backfill script inside a browser.
+
+   The rendered form and JavaScript contract are covered by: `actuals-edit-*.test.js` (jsdom) and the markup contract tests.
 5. **Real PostgreSQL:** the migration gate's `PostgresMigrationIntegrationTests`. It is one test that runs every fixture in sequence, including:
    - `ActualCorrectionSchemaPostgresFixture`;
    - `ActualCorrectionProposalConcurrencyPostgresFixture`;
@@ -80,6 +82,7 @@ The test pyramid used:
 | Editor resubmission keeps every pending item (incl. backfill) | Satisfied | E2E `ReopenedEditorWithoutJavaScript…`, Page |
 | Backfill resubmission carries unrelated items | Satisfied | Svc, Page, E2E |
 | Explicit start clear survives reopening | **Satisfied after fix D3E-1** | E2E (failed before the fix) |
+| A date typed over a pending clear without JavaScript is neither discarded nor silently cleared | **Verified correct** (§6a) | E2E `DateTypedOverAPendingClearWithoutJavaScript…`; JS case C |
 | Revision and item notes keep their meaning | Satisfied | Svc hash/note tests; E2E justification shown to reviewer |
 | Withdraw closes only the exact revision; publishes nothing; stale refused | Satisfied | Svc `Withdraw…`, Page `Withdraw…`, PG approve-vs-withdraw |
 | Reassignment keeps evidence (K-6) | Satisfied | Svc `NewLeadPo…`, `ReassignedFormerPo…`; D-3d self-decision after reassignment |
@@ -178,6 +181,34 @@ Each defect was reproduced by an HTTP acceptance test that failed before the fix
 | D3E-2 | HoD/Admin rejects a correction; the PO reopens the editor | The PO learns it was rejected, and why | The pending banner disappeared and the dates reverted, with no explanation; the remarks were invisible to the PO | No read model for the latest closed revision | Medium: essential workflow (resubmit after rejection) | Yes (the PO cannot act on a rejection) | `GetLatestRevisionAsync`, `ActualsEditorVm.LastRejection`: "Your correction revision N was rejected on … Reviewer's remarks: …" |
 | D3E-3 | Official dates change after the PO submits (for example a HoD direct save) | The PO is told the update must be revised (plan G "D-3c": "Needs revision: official facts changed") | The editor still showed it as simply awaiting approval, while approval was impossible (SourceChanged) | The D-3c read model never compared `Before*` | Medium: the revision is stuck until the PO notices | Yes (plan requirement) | `ChangedSinceSubmission`, the same comparison approval uses, shown in the pending banner |
 
+### 6a. Verified: a date typed over a pending clear, without JavaScript
+
+**Concern** (cold review of `9191d426`).
+
+1. A stage has a recorded start, and the PO's pending proposal clears it.
+2. The PO reopens the editor without JavaScript. Since D3E-1, the hidden `ClearActualStart` renders as `true`.
+3. The PO types a new start on that stage and submits.
+
+The post therefore carries a date **and** a clear flag for the same stage.
+
+**Traced behaviour:**
+
+1. `EditActualsModel` passes both values unchanged into `ActualCorrectionProposalRow`.
+2. `SubmitAsync` checks authority, the baseline and the tokens, then runs the shared `IActualTimelineValidationService`.
+3. Its Editor projection refuses the combination explicitly: rule `ConflictingStartIntent`, "FS: Supply a start date or explicitly clear it, not both.". This is the same rule the direct path uses.
+4. The outcome is `Invalid` before any write. The editor reopens with that message and "Nothing was submitted."
+
+**Classification: verified correct; no production change.** No normalization prefers one value over the other:
+
+- the typed date is not silently dropped;
+- the clear is not silently applied;
+- the pending revision is not superseded;
+- no official fact or `StageChangeLog` is written.
+
+`DateTypedOverAPendingClearWithoutJavaScript_IsRefusedAndThePendingRevisionIsKept` checks all of this against the rendered HTML: an exact before/after revision snapshot, the official FS start, and the history count. Case A (an untouched pending clear survives) is `ReopenedEditorWithoutJavaScript_KeepsAPendingClearAndBackfillItem`. Case C, where `actuals-edit.js` turns the flag to `false` when a date is typed over a pending clear, is covered in `actuals-edit-proposal.test.js`.
+
+**Residual limitation (no JavaScript only).** The re-rendered form carries the pending clear again, so a user without JavaScript cannot replace a pending clear with a date on that stage. They can withdraw and resubmit, or use a browser with scripts enabled. This is recorded in §9.
+
 One copy change was also made: the Decision Centre approval confirmation for Actual corrections now names the stages whose official dates will be published (observation 2).
 
 ## 7. Database, schema and migration verification
@@ -210,6 +241,7 @@ One copy change was also made: the Decision Centre approval confirmation for Act
 - The Decision Centre detail preview runs the validator but not F.6. It warns when lifecycle updates are pending, and the decision enforces F.6 (observation 1 below).
 - An editor post is the complete proposal. A pending item for a stage with no editor row blocks Submit; the PO can still withdraw.
 - A stale or invalid post reloads the editor from current values; values the user typed are not kept.
+- Without JavaScript, a pending start clear cannot be replaced by a date on the same stage. The post is refused (§6a), and the PO withdraws and resubmits, or enables scripts.
 - Approval does not require an active project, matching direct HoD/Admin correction.
 - R7 (Actual approval vs plan approval) relies on the shared project gate and is not separately tested.
 - Accepted from #2680: a concurrent insert of a missing legacy IPA row can produce a handled unique conflict that needs a retry.

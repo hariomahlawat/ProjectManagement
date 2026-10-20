@@ -47,6 +47,17 @@ test('restoring the official start drops the pending clear', () => {
   ui.dom.window.close();
 });
 
+test('typing a new start over a pending clear replaces the clear with the date (case C)', () => {
+  // Server-rendered as the pending clear: blank start, flag already "true".
+  const ui = proposalEditor({ officialStart: '2024-01-10', prefilledStart: '' });
+  ui.doc.querySelector('[data-clear-start]').value = 'true';
+  ui.input('[data-field="start"]', '2024-01-08');
+  assert.equal(ui.clear(), 'false');
+  assert.equal(ui.doc.querySelector('[data-field="start"]').value, '2024-01-08');
+  assert.equal(ui.submitDisabled(), false);
+  ui.dom.window.close();
+});
+
 test('a blank start that is blank officially is never sent as a clear', () => {
   const ui = proposalEditor({ officialStart: '', prefilledStart: '2024-01-12' });
   ui.input('[data-field="start"]', '');
