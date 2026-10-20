@@ -23,7 +23,7 @@
 [ ] Logs show MediaLibraryDbContext migration boundary completed.
 [ ] No unknown migration-history IDs are reported.
 [ ] Application and media schema readiness checks pass.
-[ ] /health/ready reports ready.
+[ ] Startup log shows "Database deployment boundary completed successfully" and no critical entries (there is no `/health/ready` endpoint as of `5ee16e9f`).
 
 ## Notification verification
 [ ] Bell loads for normal user.

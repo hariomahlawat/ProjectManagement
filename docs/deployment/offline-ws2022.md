@@ -47,6 +47,8 @@ These notes capture the production hardening and offline deployment standard for
 
 ### A3. Database and migrations discipline
 
+> **Open decision K-13.** The application always applies pending EF Core migrations at startup (`Database:ApplyMigrationsOnStartup` is ignored), and `production-readiness.md` relies on that. This section requires reviewed SQL first. Both work with the current code; owners must choose one. See the [K-13 decision record](../phase-d-release-runbook.md#b-k-13-migration-execution-decision-record). This guidance stays unchanged until they decide.
+
 - Do **not** auto-apply migrations in production. Apply reviewed SQL scripts instead.
 - Deliver with each release:
   - `migration.sql` generated via `dotnet ef migrations script -i -o migration.sql`.
@@ -67,7 +69,7 @@ These notes capture the production hardening and offline deployment standard for
 
 - Use offline-friendly logging to disk; ensure external log folder is writable by the IIS app pool identity.
 - Keep stdout logging disabled by default; document how to toggle it quickly for troubleshooting.
-- Provide a `/health` endpoint that checks:
+- Provide a `/health` endpoint (planned; **not implemented** as of `5ee16e9f`) that checks:
   - Database connectivity
   - OCR tool availability
   - Storage path access
@@ -161,7 +163,7 @@ with an error. The check reads the repository, so adding a migration through
 3. Apply `migration.sql` if present using `psql -h <db-ip> -U pm_user -d ProjectManagement -f migration.sql`.
 4. Browse locally: `http://localhost:8080/`.
 5. Browse from LAN: `http://<server-ip>:8080/`.
-6. Hit `/health` and confirm green.
+6. Confirm startup health. No `/health` endpoint is implemented (verified at `5ee16e9f`). Instead, confirm the startup log reports "Database deployment boundary completed successfully" with no critical entries, and re-run `ops/database/production-migration-inventory.sql`. See the [Phase D release runbook](../phase-d-release-runbook.md#c-coordinated-d-2--d-3-release-runbook-proposed-until-k-12-and-k-13-are-resolved).
 7. Generate a Compendium Preview PDF, verify its page count, then test the reviewed final download.
 
 ## D. Offline update and rollback SOP
@@ -173,7 +175,7 @@ with an error. The check reads the repository, so adding a migration through
 3. Apply `migration.sql` (after review) if included.
 4. Replace `current` binaries with new publish output.
 5. Remove `app_offline.htm`.
-6. Smoke test: homepage, login/roles, document upload + OCR status, global search for known doc, `/health`.
+6. Smoke test: homepage, login/roles, document upload + OCR status, global search for known doc, and the startup-log and inventory checks (there is no `/health` endpoint).
 
 ### D2. Rollback steps
 
