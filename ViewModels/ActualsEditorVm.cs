@@ -26,12 +26,35 @@ public sealed class ActualsEditorVm
     // Phase D-3c: the project's pending Actual correction proposal, when the viewer may see it.
     public ActualProposalSummaryVm? PendingProposal { get; init; }
 
+    // Phase D-3e: the assigned PO's latest revision when it was rejected and nothing is pending.
+    public ActualRejectionNoticeVm? LastRejection { get; init; }
+
+    public ActualsEditorVm WithLastRejection(ActualCorrectionRevision revision, string? currentUserId) => new()
+    {
+        ProjectId = ProjectId,
+        Today = Today,
+        BaselineVersion = BaselineVersion,
+        PendingProposal = PendingProposal,
+        Rows = Rows,
+        LastRejection = new ActualRejectionNoticeVm(
+            revision.RevisionNo,
+            revision.ClosedOn,
+            revision.DecisionNote,
+            // After a reassignment the current PO did not submit it (K-6); say so.
+            string.Equals(revision.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
+    };
+
     /// <summary>
     /// The editor for the assigned PO-only user: every pending item is prefilled
     /// with its proposed values (an editor post is the complete proposal), and the
     /// official values stay available for display and for clear-intent detection.
     /// </summary>
-    public ActualsEditorVm WithPendingProposal(ActualCorrectionRevision? revision, string? currentUserId, bool prefill = true)
+    public ActualsEditorVm WithPendingProposal(
+        ActualCorrectionRevision? revision,
+        string? currentUserId,
+        bool prefill = true,
+        IReadOnlyList<string>? changedStageCodes = null,
+        bool alreadySatisfied = false)
     {
         if (revision is null)
         {
@@ -44,7 +67,11 @@ public sealed class ActualsEditorVm
             ProjectId = ProjectId,
             Today = Today,
             BaselineVersion = BaselineVersion,
-            PendingProposal = ActualProposalSummaryVm.From(revision, currentUserId),
+            PendingProposal = ActualProposalSummaryVm.From(revision, currentUserId) with
+            {
+                ChangedStageCodes = changedStageCodes ?? Array.Empty<string>(),
+                AlreadySatisfied = alreadySatisfied
+            },
             Rows = prefill
                 ? Rows.Select(row => items.TryGetValue(row.StageCode, out var item) ? row.WithProposal(item) : row).ToArray()
                 : Rows
@@ -82,9 +109,24 @@ public sealed record ActualProposalSummaryVm(
             revision.Items.Select(item => item.StageCode).OrderBy(code => code, StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
+    /// <summary>
+    /// Stages whose official facts changed after submission; the revision cannot be
+    /// approved until it is revised (D-3d SourceChanged).
+    /// </summary>
+    public IReadOnlyList<string> ChangedStageCodes { get; init; } = Array.Empty<string>();
+
+    /// <summary>The official facts already equal every proposed value; only withdrawal is useful.</summary>
+    public bool AlreadySatisfied { get; init; }
+
+    /// <summary>A changed baseline that a resubmission can fix (some correction still remains).</summary>
+    public bool NeedsResubmission => ChangedStageCodes.Count > 0 && !AlreadySatisfied;
+
     /// <summary>The submission epoch posted back as the baseline; round-trips exactly.</summary>
     public string SubmittedOnRoundTrip => SubmittedOn.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 }
+
+/// <summary>A rejected revision, so the PO can see the outcome and the reviewer's remarks.</summary>
+public sealed record ActualRejectionNoticeVm(int RevisionNo, DateTimeOffset? RejectedOn, string? Remarks, bool SubmittedByCurrentUser);
 
 /// <summary>
 /// Posted by the Actual editor and the backfill form so the server can refuse a

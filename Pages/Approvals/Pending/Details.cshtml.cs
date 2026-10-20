@@ -171,6 +171,12 @@ public sealed class DetailsModel : PageModel
 
     public string GetApproveConfirmation()
     {
+        if (Detail.ActualCorrection is { } actual)
+        {
+            return $"Approve revision {actual.RevisionNo} and publish its Actual dates? Official dates for " +
+                $"{string.Join(", ", actual.Items.Select(item => item.StageCode))} will be updated immediately and recorded in stage history.";
+        }
+
         var subject = Detail.StageChange is not null
             ? $"{Detail.StageChange.StageName} will be marked {FormatStatus(Detail.StageChange.RequestedStatus).ToLowerInvariant()}"
             : Detail.Item.Summary.TrimEnd('.');

@@ -94,7 +94,7 @@ public static class PrismTestWebHostBuilderExtensions
         return builder;
     }
 
-    private static void RemoveDbContextRegistrations<TContext>(IServiceCollection services)
+    internal static void RemoveDbContextRegistrations<TContext>(IServiceCollection services)
         where TContext : DbContext
     {
         services.RemoveAll<TContext>();

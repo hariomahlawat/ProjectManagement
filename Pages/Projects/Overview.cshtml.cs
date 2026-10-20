@@ -2472,12 +2472,24 @@ namespace ProjectManagement.Pages.Projects
             var pending = await _actualProposals.GetPendingAsync(projectId, ct);
             if (pending is null)
             {
+                // Tell the PO when their latest correction was rejected; approval shows in the facts.
+                if (CanSubmitActualProposals
+                    && await _actualProposals.GetLatestRevisionAsync(projectId, ct) is { Status: ActualCorrectionRevisionStatus.Rejected } rejected)
+                {
+                    ActualsEditor = ActualsEditor.WithLastRejection(rejected, CurrentUserId);
+                }
+
                 return;
             }
 
             if (CanSubmitActualProposals)
             {
-                ActualsEditor = ActualsEditor.WithPendingProposal(pending, CurrentUserId);
+                var stored = await _db.ProjectStages.AsNoTracking().Where(stage => stage.ProjectId == projectId).ToListAsync(ct);
+                ActualsEditor = ActualsEditor.WithPendingProposal(
+                    pending,
+                    CurrentUserId,
+                    changedStageCodes: ActualCorrectionProposalService.ChangedSinceSubmission(pending, stored),
+                    alreadySatisfied: ActualCorrectionProposalService.AlreadySatisfied(pending, stored));
                 Backfill = Backfill.WithPendingProposal(pending, CurrentUserId);
                 UnrenderedPendingActualStages = ActualsEditor.UnrenderedProposalStages(pending);
             }

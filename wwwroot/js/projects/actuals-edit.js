@@ -222,7 +222,11 @@
   const initialNote = noteInput instanceof HTMLTextAreaElement ? noteInput.value : '';
   const noteChanged = () => noteInput instanceof HTMLTextAreaElement && noteInput.value.trim() !== initialNote.trim();
 
-  const hasChanges = () => noteChanged() || rows.some((row) => {
+  // A pending proposal whose official baseline changed must be resubmittable as-is: the
+  // server records it again against the new official dates (it cannot be approved otherwise).
+  const resubmitRequired = form.dataset.actualsResubmit === 'true';
+
+  const hasChanges = () => resubmitRequired || noteChanged() || rows.some((row) => {
     const code = row.dataset.stageCode ?? '';
     const original = initialValues.get(code) ?? { start: '', completed: '' };
     const startInput = row.querySelector('[data-field="start"]');

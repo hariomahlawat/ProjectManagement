@@ -36,7 +36,8 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
 | [Timeline implementation roadmap](timeline-proposal-roadmap.md) | Completed B/C milestones, historical gaps and open D/E boundaries. |
 | [Phase D handoff](phase-d-handoff.md) | Code-grounded starting points, invariants, research checklist and implementation acceptance gates for approved Actual correction/backfill. |
-| [Phase D implementation plan](phase-d-implementation-plan.md) | Review draft: recommended proposal design, release sequence, test matrix, acceptance criteria and open decisions for approved Actual correction/backfill. Not yet approved for implementation. |
+| [Phase D implementation plan](phase-d-implementation-plan.md) | Approved design, release sequence, test matrix, acceptance criteria and implementation status for Actual correction/backfill (D-1 to D-3 merged). |
+| [Phase D release readiness](phase-d-release-readiness.md) | D-3e acceptance evidence, release-blocker register (#2683, K-12, K-13), UX observations and remaining steps before the coordinated D-2 + D-3 release. |
 | [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
 | [Extending the platform](extending.md) | Older extension patterns and conventions. |
 | [Action Tracker development note](action-tracker-development-note.md) | Action Tracker implementation detail. |

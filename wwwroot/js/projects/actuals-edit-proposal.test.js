@@ -7,8 +7,8 @@ const source = fs.readFileSync(path.join(__dirname, 'actuals-edit.js'), 'utf8');
 
 // Phase D-3c: the assigned PO-only user's editor is prefilled with the pending
 // proposal, while data-official-start keeps the recorded value.
-function proposalEditor({ officialStart, prefilledStart, note = '' }) {
-  const dom = new JSDOM(`<div id="offcanvasActualDates"><form data-actuals-form data-today="2024-02-01">
+function proposalEditor({ officialStart, prefilledStart, note = '', resubmit = false }) {
+  const dom = new JSDOM(`<div id="offcanvasActualDates"><form data-actuals-form data-today="2024-02-01"${resubmit ? ' data-actuals-resubmit="true"' : ''}>
     <section data-actuals-row data-stage-code="FS" data-stage-status="Completed" data-official-start="${officialStart}">
       <input type="date" data-field="start" value="${prefilledStart}">
       <input type="date" data-field="completed" value="2024-01-25">
@@ -47,6 +47,17 @@ test('restoring the official start drops the pending clear', () => {
   ui.dom.window.close();
 });
 
+test('typing a new start over a pending clear replaces the clear with the date (case C)', () => {
+  // Server-rendered as the pending clear: blank start, flag already "true".
+  const ui = proposalEditor({ officialStart: '2024-01-10', prefilledStart: '' });
+  ui.doc.querySelector('[data-clear-start]').value = 'true';
+  ui.input('[data-field="start"]', '2024-01-08');
+  assert.equal(ui.clear(), 'false');
+  assert.equal(ui.doc.querySelector('[data-field="start"]').value, '2024-01-08');
+  assert.equal(ui.submitDisabled(), false);
+  ui.dom.window.close();
+});
+
 test('a blank start that is blank officially is never sent as a clear', () => {
   const ui = proposalEditor({ officialStart: '', prefilledStart: '2024-01-12' });
   ui.input('[data-field="start"]', '');
@@ -62,6 +73,16 @@ test('revising only the reason enables resubmission', () => {
   ui.input('[data-actuals-note]', ' From register ');
   assert.equal(ui.submitDisabled(), true);
   ui.dom.window.close();
+});
+
+test('a proposal whose official baseline changed can be resubmitted without edits', () => {
+  const stale = proposalEditor({ officialStart: '2024-01-10', prefilledStart: '2024-01-11', resubmit: true });
+  assert.equal(stale.submitDisabled(), false);
+  stale.dom.window.close();
+
+  const current = proposalEditor({ officialStart: '2024-01-10', prefilledStart: '2024-01-11' });
+  assert.equal(current.submitDisabled(), true);
+  current.dom.window.close();
 });
 
 test('a backfill proposal response is announced as submitted, not saved', () => {
