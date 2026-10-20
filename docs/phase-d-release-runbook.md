@@ -45,7 +45,7 @@ Schema impact of the whole Phase D release: **one** application migration, `2026
 | File roots | `PM_UPLOAD_ROOT` / `ProjectPhotos:StorageRoot`, `ProjectDocuments:Ocr:WorkRoot`, `DocRepo:RootPath`, media cache/model roots (`appsettings.json`) | V (keys) / **O** (values) |
 | Native dependencies | `ocrmypdf` (external process; path validated if configured), optional LibreOffice, publication fonts (`wwwroot/fonts/publications/dm-sans`), SkiaSharp natives; checked by the publish script and `--compendium-offline-self-test` | V |
 | External network | SMTP only (`SmtpEmailSender`); no runtime `HttpClient` use found | V / **O** (SMTP host is on the LAN?) |
-| Backup / restore tooling | `ops/backup-db.ps1` (pg_dump custom format). `ops/restore-db.ps1 -DbName <name>` restores into a new temporary database and validates it. It then **renames `<name>` to `<name>_previous_…` and the restored copy to `<name>`**, so the database called `<name>` is replaced (the previous copy is retained). It refuses the cutover while any session is connected (`docs/disaster-recovery.md` §2.4) | V |
+| Backup / restore tooling | `ops/backup-db.ps1` (pg_dump custom format). `ops/restore-db.ps1 -DbName <name>` restores into a new temporary database and validates it. It then **renames `<name>` to a retained `<stem>_previous_…` database and the restored copy to `<name>`**, so the database called `<name>` is replaced. `<stem>` is `<name>` with characters other than letters, digits and `_` replaced by `_`, truncated to 16 characters (the default `ProjectManagement` is retained as `ProjectManagemen_previous_…`). Use the exact name the script prints as "Retained previous database". It refuses the cutover while any session is connected (`docs/disaster-recovery.md` §2.4) | V |
 
 ### A.2 Hosted services (all in the web process)
 
@@ -244,7 +244,7 @@ Functional proposal tests (submit, approve, reject) belong on **staging** (§D.1
 
 **Preconditions:**
 - A staging server built like production (IIS in-process, same PostgreSQL major version).
-- A **restored copy of a recent production backup**. `ops/restore-db.ps1 -DbName <name>` replaces the database named `<name>`, keeping the old one as `<name>_previous_…`. Always pass `-DbName`: the default is `ProjectManagement`. Use a dedicated staging database name that no other user or application relies on, with nothing connected to it.
+- A **restored copy of a recent production backup**. `ops/restore-db.ps1 -DbName <name>` replaces the database named `<name>` and retains the old one under the name it prints as "Retained previous database" (see §A.1). Always pass `-DbName`: the default is `ProjectManagement`. Use a dedicated staging database name that no other user or application relies on, with nothing connected to it.
 - Production data never leaves the LAN.
 - Test accounts: assigned PO, a second PO, HoD, Admin and a viewer.
 - **Status: not executed.** No staging environment was accessible to this work.
@@ -293,7 +293,7 @@ There is no browser-automation framework in the repository, and introducing one 
 | --- | --- | --- | --- |
 | **E1.** Failure before the migration is applied (C.2 steps 1–5) | Restore `releases\previous` (if replaced), start the pool, remove `app_offline.htm` | No | None |
 | **E2.** The migration fails | Re-run the inventory SQL. If no new migration is recorded, act as in E1; the old binary starts. If some were committed, either fix forward or restore as in E3 | Only if migrations were committed and fixing forward is not chosen | None (site closed) |
-| **E3.** Migration applied, new binary fails startup or smoke tests, **site not reopened** (before C.2 step 13) | Either fix forward, or restore the C.2 step 4 backup with `ops/restore-db.ps1 -DbName <DB_NAME>` (it replaces `<DB_NAME>` and retains the migrated database as `<DB_NAME>_previous_…`; nothing may be connected), then start the old binary | **Yes** (the old binary refuses the new schema) | Nothing, if no user writes occurred after step 4. The site was closed |
+| **E3.** Migration applied, new binary fails startup or smoke tests, **site not reopened** (before C.2 step 13) | Either fix forward, or restore the C.2 step 4 backup with `ops/restore-db.ps1 -DbName <DB_NAME> -DumpFile <C.2 step 4 dump>` (it replaces `<DB_NAME>` and retains the migrated database under the printed "Retained previous database" name; nothing may be connected), then start the old binary | **Yes** (the old binary refuses the new schema) | Nothing, if no user writes occurred after step 4. The site was closed |
 | **E4.** Partially replaced package (copy interrupted) | Complete the copy from the validated publish folder and verify the hashes. Never run a mixed folder | No | None |
 | **E5.** After reopening, with new D-3 records written | **Prefer fix forward** (an R-D3 → R-D2 binary swap is only safe if it is the D-2 build, plan I.3). Rolling back to the pre-D-2 binary requires a **database restore**, which loses every write after the recovery point, including proposals, decisions and direct corrections | Yes | **All post-backup writes**: must be accepted by the owner |
 
