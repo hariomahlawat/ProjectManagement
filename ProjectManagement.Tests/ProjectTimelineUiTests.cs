@@ -563,16 +563,51 @@ public class ProjectTimelineUiTests
         return count;
     }
 
+    // PO Timeline Increment 3: one name for missing completion details, "submitted" once they
+    // are in an approvable pending correction, the stage name first, and "by you" on one's own request.
+    [Fact]
+    public async Task TimelineCards_UseOneVocabularyAndNameTheStageFirst()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm { Code = "FS", Name = "Feasibility Study", Status = StageStatus.Completed, SortOrder = 0, RequiresBackfill = true },
+                new TimelineItemVm { Code = "SOW", Name = "SOW Vetting", Status = StageStatus.Completed, SortOrder = 1, RequiresBackfill = true },
+                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.InProgress, SortOrder = 2,
+                    HasPendingRequest = true, PendingStatus = "Completed", PendingDate = new DateOnly(2026, 3, 1),
+                    PendingRequestedBy = "Test Project Officer", PendingRequestedByUserId = "po-user", PendingRequestedOn = new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero) }
+            }
+        };
+
+        var html = System.Net.WebUtility.HtmlDecode(await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true,
+            currentUserId: "po-user", completionDetailsSubmitted: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "SOW" }));
+
+        Assert.DoesNotContain("Backfill required", html, StringComparison.Ordinal);
+        Assert.Matches("pm-pill-warning[^\"]*\"[^>]*aria-label=\"Add completion details for Feasibility Study\"", html);
+        Assert.Matches("pm-pill-info[^\"]*\"[^>]*aria-label=\"Completion details submitted for SOW Vetting", html);
+        Assert.Contains("Requested change: Completed", html, StringComparison.Ordinal);
+        Assert.Contains("Submitted by you", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pending lifecycle updates", html, StringComparison.Ordinal);
+        // The status pill is followed directly by the stage name.
+        Assert.Matches(@"data-stage-status-pill>\s*In progress\s*</span>\s*<span class=""pm-item-title", html);
+    }
+
     private static async Task<string> RenderAsync(
         TimelineVm model,
         bool isHoD,
         bool isAssignedProjectOfficer,
         ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active,
         bool isLegacy = false,
-        bool canManageHistoricalStageHistory = false)
+        bool canManageHistoricalStageHistory = false,
+        string? currentUserId = null,
+        IReadOnlySet<string>? completionDetailsSubmitted = null)
     {
         var panel = new ProjectTimelinePanelVm
         {
+            CurrentUserId = currentUserId,
+            CompletionDetailsSubmittedStages = completionDetailsSubmitted ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             Timeline = model,
             Access = new ProjectOverviewAccessVm
             {
