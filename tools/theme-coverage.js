@@ -19,6 +19,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { readRules, isDarkSelector, splitSelector, lightSelectorOf, propertyFamily } = require('./lib/css-rules');
 
 const ROOT = path.resolve(__dirname, '..');
 const CSS_ROOT = path.join(ROOT, 'wwwroot', 'css');
@@ -73,55 +74,41 @@ function stripVarFallbacks(value) {
 }
 
 function countLiterals(text) {
-  const matches = stripVarFallbacks(text).match(COLOUR);
+  const matches = stripVarFallbacks(text).replace(/\b(?:rgba?|hsla?)\(\s*var\(/g, 'var(').match(COLOUR);
   return matches ? matches.length : 0;
 }
 
-// A small block parser: enough to know, for each declaration, its selector chain and at-rules.
+// Literals per file, and "gaps": literals in light rules that no [data-bs-theme="dark"] rule
+// repaints (same selector and property family). Gaps are what still shows light in Dark.
 function analyseCss(source, file) {
-  const css = source.replace(/\/\*[\s\S]*?\*\//g, '');
-  const stack = [];
-  let buffer = '';
-  let literals = 0;
-  let darkRules = 0;
   const isSite = file.endsWith('wwwroot/css/site.css');
-
-  const flushDeclarations = (text) => {
-    if (!text.trim()) return;
-    const context = stack.join(' ');
-    if (/data-bs-theme\s*=\s*["']?dark/.test(context) || /@media[^{]*\bprint\b/.test(context)) return;
-    for (const declaration of text.split(';')) {
-      const colon = declaration.indexOf(':');
-      if (colon < 0) continue;
-      const property = declaration.slice(0, colon).trim();
-      const value = declaration.slice(colon + 1);
-      if (isSite && property.startsWith('--') && /(^|\s|,):root\b/.test(stack[stack.length - 1] || '')) continue;
-      literals += countLiterals(value);
-    }
-  };
-
-  for (const ch of css) {
-    if (ch === '{') {
-      const header = buffer.trim();
-      // Text before a nested block inside a rule is a selector, not declarations.
-      const lastSemicolon = header.lastIndexOf(';');
-      if (lastSemicolon >= 0) {
-        flushDeclarations(header.slice(0, lastSemicolon));
-        stack.push(header.slice(lastSemicolon + 1).trim());
-      } else {
-        stack.push(header);
-      }
-      if (/data-bs-theme\s*=\s*["']?dark/.test(stack[stack.length - 1])) darkRules += 1;
-      buffer = '';
-    } else if (ch === '}') {
-      flushDeclarations(buffer);
-      stack.pop();
-      buffer = '';
-    } else {
-      buffer += ch;
+  const rules = readRules(source);
+  const covered = new Set();
+  let darkRules = 0;
+  for (const rule of rules) {
+    if (!isDarkSelector(rule.selector)) continue;
+    darkRules += 1;
+    for (const part of splitSelector(rule.selector)) {
+      const light = lightSelectorOf(part);
+      for (const d of rule.declarations) covered.add(`${light}|${propertyFamily(d.property)}`);
     }
   }
-  return { literals, darkRules };
+  let literals = 0;
+  let gaps = 0;
+  for (const rule of rules) {
+    if (isDarkSelector(rule.selector)) continue;
+    if (rule.atRules.some((at) => /^@media[^{]*\b(print|prefers-color-scheme\s*:\s*dark)\b/.test(at))) continue;
+    const parts = splitSelector(rule.selector);
+    for (const d of rule.declarations) {
+      if (isSite && d.property.startsWith('--') && parts.some((part) => /^:root\b/.test(part))) continue;
+      const n = countLiterals(d.value);
+      if (!n) continue;
+      literals += n;
+      const family = propertyFamily(d.property);
+      if (!parts.every((part) => covered.has(`${part}|${family}`))) gaps += n;
+    }
+  }
+  return { literals, gaps, darkRules };
 }
 
 function analyseViews() {
@@ -139,26 +126,28 @@ function analyseViews() {
 
 function measure() {
   const css = {};
+  const gaps = {};
   const dark = {};
   for (const file of walk(CSS_ROOT, '.css')) {
     const key = toPosix(file);
     if (EXEMPT[key]) continue;
-    const { literals, darkRules } = analyseCss(fs.readFileSync(file, 'utf8'), key);
-    css[key] = literals;
-    dark[key] = darkRules;
+    const result = analyseCss(fs.readFileSync(file, 'utf8'), key);
+    css[key] = result.literals;
+    gaps[key] = result.gaps;
+    dark[key] = result.darkRules;
   }
-  return { css, dark, views: analyseViews() };
+  return { css, gaps, dark, views: analyseViews() };
 }
 
 function readBaseline() {
-  if (!fs.existsSync(BASELINE_PATH)) return { css: {}, views: {} };
+  if (!fs.existsSync(BASELINE_PATH)) return { css: {}, gaps: {}, views: {} };
   return JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8'));
 }
 
 function compare(current, baseline) {
   const grown = [];
   const lowered = [];
-  for (const kind of ['css', 'views']) {
+  for (const kind of ['css', 'gaps', 'views']) {
     const keys = new Set([...Object.keys(current[kind]), ...Object.keys(baseline[kind] || {})]);
     for (const key of keys) {
       const now = current[kind][key] || 0;
@@ -231,7 +220,7 @@ function main(argv) {
       for (const g of grown) console.error(`Not raising ${g.key}: ${g.allowed} -> ${g.now}. Use tokens, or pass --allow-increase.`);
       return 1;
     }
-    fs.writeFileSync(BASELINE_PATH, `${JSON.stringify({ css: sorted(current.css), views: sorted(current.views) }, null, 2)}\n`);
+    fs.writeFileSync(BASELINE_PATH, `${JSON.stringify({ css: sorted(current.css), gaps: sorted(current.gaps), views: sorted(current.views) }, null, 2)}\n`);
     fs.writeFileSync(REPORT_PATH, renderReport(current));
     console.log(`Baseline and ${toPosix(REPORT_PATH)} written.`);
     return 0;
@@ -239,7 +228,7 @@ function main(argv) {
 
   if (grown.length) {
     console.error('Literal colours grew. Use the site tokens (docs/ux/dark-theme-palette.md) instead:');
-    for (const g of grown) console.error(`  ${g.key}: ${g.allowed} -> ${g.now}`);
+    for (const g of grown) console.error(`  ${g.key} (${g.kind}): ${g.allowed} -> ${g.now}`);
     return 1;
   }
   if (lowered.length) {

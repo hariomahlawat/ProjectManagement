@@ -21,7 +21,8 @@ test('dark rules and print media are not counted', () => {
     [data-bs-theme="dark"] .a { color: #eee; }
     @media print { .a { color: #000; } }
     @media (max-width: 600px) { .a { background: #fafafa; } }`;
-  assert.deepEqual(analyseCss(css, 'wwwroot/css/x.css'), { literals: 2, darkRules: 1 });
+  // .a color is repainted by the dark rule; the media-query background is a gap.
+  assert.deepEqual(analyseCss(css, 'wwwroot/css/x.css'), { literals: 2, gaps: 1, darkRules: 1 });
 });
 
 test('site.css token definitions in :root are not counted', () => {
