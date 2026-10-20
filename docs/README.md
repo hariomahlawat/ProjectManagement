@@ -35,6 +35,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
 | [Timeline implementation roadmap](timeline-proposal-roadmap.md) | Completed B/C milestones, historical gaps and open D/E boundaries. |
+| [PO Timeline UX discovery](po-timeline-ux-discovery.md) | Independent, code-grounded usability assessment of the Project Officer Timeline and a prioritised improvement plan (discovery only; not implemented). |
 | [Phase D handoff](phase-d-handoff.md) | Code-grounded starting points, invariants, research checklist and implementation acceptance gates for approved Actual correction/backfill. |
 | [Phase D implementation plan](phase-d-implementation-plan.md) | Approved design, release sequence, test matrix, acceptance criteria and implementation status for Actual correction/backfill (D-1 to D-3 merged). |
 | [Phase D release runbook](phase-d-release-runbook.md) | Coordinated D-2 + D-3 release: topology and writer inventory (K-12), migration-execution decision record (K-13), runbook, staging acceptance and recovery, rollback, blocker register and go/no-go. |
