@@ -77,6 +77,25 @@ test('closing with unsaved entries asks first and stays open when declined', (t)
   assert.equal(h.hide(), false);
 });
 
+test('closing keeps the entries unsaved, so leaving the page still warns', (t) => {
+  const h = setup(t);
+  h.edit('exact');
+  h.answer(true);
+  assert.equal(h.hide(), false);
+  const leave = new h.window.Event('beforeunload', { cancelable: true });
+  h.window.dispatchEvent(leave);
+  assert.equal(leave.defaultPrevented, true);
+  h.hide();
+  assert.equal(h.confirms.length, 2);
+});
+
+test('leaving the page without edits does not warn', (t) => {
+  const h = setup(t);
+  const leave = new h.window.Event('beforeunload', { cancelable: true });
+  h.window.dispatchEvent(leave);
+  assert.equal(leave.defaultPrevented, false);
+});
+
 test('closing without edits does not ask', (t) => {
   const h = setup(t);
   assert.equal(h.hide(), false);

@@ -52,9 +52,9 @@
     }
     if (!window.confirm('You have unsaved changes in the planner. Close it anyway?')) {
       event.preventDefault();
-      return;
     }
-    dirty.clear();
+    // Closing only hides the planner: the entries stay in the page and remain unsaved, so
+    // a later close or leaving the page must still warn.
   });
 
   window.addEventListener('beforeunload', (event) => {
