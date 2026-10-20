@@ -18,9 +18,10 @@
    - The application ran locally against the existing development database on port 5433, with the owner's approval. Startup applied no migrations (119 of 119 already recorded). The development seeders created the test accounts `test_project_offr` and `test_hod`.
    - I signed in as the test PO and saw the first-sign-in forced password change and the PO Workspace. The test PO had no assigned projects.
    - Creating and assigning a test project needed the test HoD's first-sign-in password change. That step was refused by the session's permission policy and was not attempted another way.
-   - **So no Timeline screen was observed in a browser.** Every Timeline finding below comes from the code. Findings that depend on rendering, layout or real user behaviour are labelled **Hypothesis** and listed in [Validation still required](#validation-still-required).
+   - **So no Timeline screen was observed in my own browser session.** Every finding in C1–C5 comes from the code. Findings that depend on rendering, layout or real user behaviour are labelled **Hypothesis** and listed in [Validation still required](#validation-still-required).
+   - **The owner then supplied five screenshots** of the Overview Timeline pane from their own local instance. They show a 15-stage project at desktop width (about 1920×1080), **viewed by the project's HoD**. [C6](#c6-observed-in-the-browser-owner-screenshots) records what they show. PO-only controls and narrow widths are still unobserved. Project and personal names are deliberately left out of this report.
    - The test accounts were left in the development database on purpose.
-4. **What "confirmed" means.** "Confirmed" means the behaviour follows directly from code at the cited lines. It does not mean it was observed in a running application.
+4. **What "confirmed" and "observed" mean.** "Confirmed" means the behaviour follows directly from code at the cited lines. "Observed" means it is visible in the owner's screenshots (C6).
 
 ---
 
@@ -50,6 +51,7 @@
    - Saving a plan draft while a submission is pending can silently cancel the HoD review; the message only says "Draft saved."
    - The backfill confirmation disappears on reload, and the banner keeps saying "Action needed".
 4. **Typed work is lost on failure.** Planner and actual-date validation failures redirect, throwing away what was entered. The error appears behind the editor panel, and one message refers to "highlighted errors" that are never highlighted.
+5. **The stage that needs action is far down the pane (observed).** On a typical project the Timeline lists every completed stage before the current one. The current stage was the 14th card, several screens down, and nothing scrolls to it.
 5. **Vocabulary and interaction patterns are inconsistent.** There are four submit verbs and three withdraw placements. The approver is named in two ways, and one editor has three names. Raw codes and enum values (`InProgress`, stage codes) appear in user-facing text.
 
 ### Verdict: incremental refinement, not a redesign
@@ -155,6 +157,31 @@ All of these are confirmed in markup or code; their effect on assistive technolo
   - The record-health progress bar has no label (`_ProjectRecordCompleteness.cshtml:27`).
 - **Responsive.** In the single-column layout (below 74rem) the timeline renders after several other cards. The timeline column has a 31rem minimum width (`project-portfolio.css:2071, 2134-2135`). **Hypothesis:** on tablets and phones the timeline is hard to reach.
 
+### C6. Observed in the browser (owner screenshots)
+
+These are from the HoD view at desktop width, so the PO's visible "Update stage" button and proposal banners are not shown. Each item is checked against the code.
+
+**What works well**
+- Status pills carry text ("Completed", "In progress", "Not started"), not colour alone.
+- Collapsing completed stages keeps each card short.
+- The in-progress stage shows "Started on" next to an amber "Planned completion" panel with a direct "Set planned completion" link. That is a clear call to action.
+- "Later stages" is a labelled group with a short explanation ("Planned dates may be added when available.").
+- Dates use one format throughout (`dd MMM yyyy`).
+
+| # | Observed | Why it hurts | Code | Priority |
+| --- | --- | --- | --- | --- |
+| C6.1 | At 1920×1080 the pane's first stage card begins at the bottom of the first screen, below the header card and the backfill banner. The **current stage is the 14th of 15 cards**: it comes after 12 collapsed completed stages and a backfill-pending stage, several screens down. Nothing scrolls to it when the page opens; scrolling to a stage only happens for deep links (`overview.js:1411-1479`). | "What needs my attention?" is the main question, and the answer is at the end of a long list of finished work. Only the header card ("Current stage") answers it at a glance. | `_ProjectTimeline.cshtml` renders in workflow order | **P1** |
+| C6.2 | **One missing completion date is described seven ways on one screen:** "1 stage require backfill" (header), "1 completed stage requires completion details" (banner), "Complete mandatory backfill" (button), "Backfill required" (grey badge in the Timeline header, amber pill on the stage), "Completion date required" (stage meta) and "1 backfill pending" (progress line). The same concept is grey in one place and amber in another. "1 stage require backfill" is also ungrammatical. | The user can't tell whether these are one task or several. The word "backfill" means nothing to an ordinary user. | `ProjectPortfolioPresentationVm.cs:71, 86`; `_ProjectOperationalState.cshtml:60-74`; `_ProjectLifecycleWorkspace.cshtml:121, 298`; `_ProjectTimeline.cshtml:186-195` | P1 (wording; part of 3a) |
+| C6.3 | The header detail line reads "PAYMENT · 1 stage require backfill": a raw stage code next to the stage name. | Confirms C4. | `ProjectPortfolioPresentationVm.cs:77, 86` | P2 |
+| C6.4 | **The date and duration on a collapsed card have no label**: for example "13 May 2025 · 22 days". Only the expanded view says these are "Completed on" and "Time taken: 22 calendar days". Where they sit depends on the length of the stage name: on the same line for short names, on a second line for longer ones. So card heights differ and the dates don't line up down the list. The expanded panel lists "Completed on", "Time taken", "Actual start", which is the reverse of the order the events happened. | The user cannot scan the dates down the list, and may read the date as the start or the planned date. | `_ProjectTimeline.cshtml:610-650`; `project-portfolio.css:524-529` | P2 |
+| C6.5 | On the in-progress card the badges come before the name ("In progress · Planned completion missing · Payment"). On every other card the name comes right after a single pill. The missing planned completion is flagged twice on the same card: the badge and the amber panel. | The stage name moves around; the duplicate signal adds noise without adding information. | `_ProjectTimeline.cshtml:201-208, 692-698` | P2 |
+| C6.6 | The Timeline header shows "Approved on 17 Dec 2025" beside "Backfill required", while the current stage has no planned completion. | "Approved" can be read as "the plan is complete". In fact it only means a plan was approved on that date. | `_ProjectLifecycleWorkspace.cshtml:130-133` | P2 (wording: "Plan approved on …") |
+| C6.7 | In the HoD view, every edit action in the pane is behind ⋮ menus: the Timeline header menu and one per stage. Nothing in the pane says what can be done. | Discoverability. The PO view has a visible "Update stage" on the current stage (`_ProjectTimeline.cshtml:244-267`); that still needs a PO walkthrough. | `_ProjectLifecycleWorkspace.cshtml:220-275` | P2 |
+| C6.8 | **Remarks tab: a failed load looks like an empty list.** A red toast says "Unable to load remarks." while the panel says "No remarks yet." and still offers "View all remarks". This is confirmed in code: the `finally` block's `setLoading(false)` writes "No remarks yet." whenever no items are loaded, including after an error (`remarks-panel.js:1143-1146, 1185-1207`). | The user may conclude that the project has no remarks, which is wrong. Why the load failed in the owner's instance was not investigated. | `remarks-panel.js` | **P1** (misleading). It is on the Timeline pane, though not part of the Timeline workflow |
+| C6.9 | The "Lifecycle position" card in the left column has an "Open timeline" button, although the Timeline pane is already visible beside it at desktop width. | Duplicated navigation. On a wide screen it only scrolls (C2.6). | `_ProjectLifecyclePosition.cshtml:12`; `project-portfolio.js:53-57` | P2 |
+
+Unrelated to the Timeline, but seen in the same screenshots: the project's two photo thumbnails render as broken images showing their alt text, and the header card says "Cover photo unavailable". This should be raised as a separate issue.
+
 ---
 
 ## D. Comparison with previous findings
@@ -250,6 +277,8 @@ There are four increments. Each one can be shipped and tested on its own. None c
 | 1b. Status summary (E.1) | Pending, returned and recently approved items for all three categories, with notes | `_ProjectLifecycleWorkspace.cshtml`, `OverviewModel`, `ProjectTimelineReadService` (read the latest decided request per stage) | Read model only | Medium | Low. The summary must be scoped to the current user's own items, or to the project when the user may view it |
 | 1c. Truthful save and backfill feedback (C2.2, C2.3) | Supersession-aware flash; a persistent post-reload message; a "Submitted for approval" banner state | `EditPlan.cshtml.cs` flash, `overview.js` backfill success, `_ProjectOperationalState.cshtml` | Return whether supersession happened (already known inside the service) | Small | Low |
 | 1d. Correct the stale or contradictory states (C1.5, C1.6) | "Approved" only when no newer submission is pending; the rejection banner only for the current lineage. **Verify C1.6 with a test first.** | `ProjectPortfolioPresentationVm.cs`, `PlanReadService.cs` | Read model | Small | Low |
+| 1e. Lead with the stage that needs action (C6.1) | Group the completed stages into one collapsible "N completed stages" row, expanded only on request, so the current stage, stages needing a date, and pending items appear first. Keep workflow order inside the group | `_ProjectTimeline.cshtml`, `project-portfolio.js` | No | Small–Medium | Low: presentation only. Deep links (`#timeline-stage-…`) must still open a stage inside the group |
+| 1f. Remarks load failure is not an empty list (C6.8) | Show "Remarks could not be loaded. Try again" with a retry, instead of "No remarks yet." | `remarks-panel.js` | No | Small | Low |
 
 ### Increment 2: Don't lose my work (P1)
 
@@ -269,7 +298,7 @@ There are four increments. Each one can be shipped and tested on its own. None c
 | 3b. Align backfill with the editor (Decision G2) | Same wording and badges, and the optional reason field | `_BackfillForm.cshtml`, `_BackfillModal.cshtml`, `overview.js`, `BackfillApply.cshtml.cs` (pass the note through) | Small: the service already accepts a note | Small | Low |
 | 3c. Stage modal copy (C2.4) | Request-style option labels and one clear statement about approval | `_StageRequestModal.cshtml`, `stages.js:967-991` | No | Small | Low. Labels only; the transition values stay the same |
 | 3d. Accessibility pass (C5) | Labels and ids, `aria-invalid`, list semantics, heading levels, text equivalents for colour and tooltips | Planner rows, stage modal, timeline partial | No | Small–Medium | Low |
-| 3e. Small corrections | The wrong tooltip, the "Open timeline" panel switch, separator placement, the hint naming | As cited in C2.5 and C2.6 | No | Small | Low |
+| 3e. Small corrections | The wrong tooltip, the "Open timeline" panel switch, separator placement, the hint naming. Also: one colour for "completion date required" (C6.2); labelled, aligned date and duration on collapsed cards in chronological order (C6.4); the name first on every card, with a single missing-PDC signal (C6.5); "Plan approved on …" (C6.6) | As cited in C2.5, C2.6 and C6 | No | Small | Low |
 
 ### Increment 4: Close the loop (needs decisions G1 and G3)
 
@@ -313,7 +342,8 @@ There are four increments. Each one can be shipped and tested on its own. None c
 
 | Item | How |
 | --- | --- |
-| Rendered Timeline for a PO, desktop and narrow width (C5 responsive, C3.3 error hidden behind the panel, C2.6) | Browser walkthrough with a project assigned to `test_project_offr` |
+| Rendered Timeline **for a PO**, and at narrow width (C5 responsive, C3.3 error hidden behind the panel, C2.6). The HoD desktop view was observed (C6) | Browser walkthrough with a project assigned to `test_project_offr` |
+| Why the Remarks load failed in the owner's instance (C6.8) | The server log for the remarks request at that time |
 | C1.6 stale "Returned for updates" banner | An integration test (reject, resubmit, approve), or a walkthrough |
 | C3.7 Durations tab default for Exact users | Walkthrough |
 | Whether POs actually miss outcomes (C1.x) and confuse "Lifecycle update pending" with being blocked | Short sessions with two or three real POs |
