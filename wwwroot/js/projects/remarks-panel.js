@@ -1144,7 +1144,7 @@
                     const problem = await this.readProblemDetails(response);
                     this.toastHandler(problem || 'Unable to load remarks.', 'danger');
                     this.state.initialised = false;
-                    this.state.loadFailed = !append;
+                    this.state.loadFailed = !append && !this.hasRenderedItems();
                     return false;
                 }
 
@@ -1187,7 +1187,7 @@
             } catch (error) {
                 this.toastHandler('Unable to load remarks.', 'danger');
                 this.state.initialised = wasInitialised;
-                this.state.loadFailed = !append;
+                this.state.loadFailed = !append && !this.hasRenderedItems();
                 return false;
             } finally {
                 this.state.loading = false;
@@ -1211,6 +1211,11 @@
             if (!isLoading && this.emptyState && (!this.state.items || this.state.items.length === 0)) {
                 this.renderEmptyState();
             }
+        }
+
+        // A failed refresh keeps any list already shown; only an empty panel says it failed.
+        hasRenderedItems() {
+            return Array.isArray(this.state.items) && this.state.items.length > 0;
         }
 
         // A failed load is not an empty list: say so and offer a retry (discovery C6.8).
