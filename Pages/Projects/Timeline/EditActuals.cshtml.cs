@@ -139,6 +139,7 @@ public class EditActualsModel : PageModel
                 ? string.Join(" ", vex.Errors)
                 : vex.Message;
 
+            KeepEntries(userId, vex.Errors?.Count > 0 ? vex.Errors : new[] { vex.Message });
             TempData["Error"] = message;
             TempData["OpenOffcanvas"] = "actuals-edit";
             return RedirectToPage("/Projects/Overview", new { id });
@@ -283,10 +284,18 @@ public class EditActualsModel : PageModel
                 return NotFound();
             case ActualCorrectionSubmissionOutcome.DirectAuthority:
                 return AccessChanged(id);
+            case ActualCorrectionSubmissionOutcome.Invalid:
+                KeepEntries(userId, result.Errors ?? Array.Empty<string>());
+                return Fail(id, message);
             default:
                 return Fail(id, message);
         }
     }
+
+    // A validation refusal reopens the editor with what the user entered (C7.2).
+    private void KeepEntries(string userId, IEnumerable<string> errors) =>
+        TempData[ActualsEditorRecovery.TempDataKey] = ActualsEditorRecovery.Serialize(
+            Input, Request.HasFormContentType ? Request.Form : null, userId, errors);
 
     private IActionResult AccessChanged(int id)
     {

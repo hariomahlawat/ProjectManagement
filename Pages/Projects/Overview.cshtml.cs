@@ -602,6 +602,13 @@ namespace ProjectManagement.Pages.Projects
             HasBackfill = Timeline.HasBackfill;
             Backfill = await BuildBackfillViewModelAsync(id, ct);
             await ApplyPendingActualCorrectionAsync(id, ct);
+            ActualsEditor = ActualsEditorRecovery.Restore(
+                ActualsEditor,
+                TempData[ActualsEditorRecovery.TempDataKey] as string,
+                id,
+                CurrentUserId,
+                CanPublishActualsDirectly ? ActualsSubmissionMode.Direct
+                    : CanSubmitActualProposals ? ActualsSubmissionMode.Proposal : null);
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm

@@ -845,6 +845,62 @@ public sealed class ActualTimelineValidationServiceTests
         Assert.Equal("EXT1", successor.StageCode);
     }
 
+    // SECTION: Cases a browser-side chronology check decided differently (PR #2693)
+    // The editor no longer checks chronology; these pin the server's answer.
+    [Fact]
+    public void ParallelSibling_IsNotBoundedByItsSiblingBranch()
+    {
+        var result = Evaluate(
+            new[]
+            {
+                Completed(StageCodes.BID, Jan(1), Jan(10)),
+                Completed(StageCodes.TEC, Jan(11), Jan(20)),
+                Completed(StageCodes.BM, Jan(15), Jan(25))
+            },
+            Change(StageCodes.TEC, completedOn: Jan(24)));
+
+        Assert.True(result.IsValid, string.Join(" | ", result.Errors.Select(e => e.Message)));
+    }
+
+    [Fact]
+    public void Convergence_NewViolationOnANonControllingBranch_BlocksBesideAHistoricalOne()
+    {
+        // COB start 22 Jan already precedes BM completion 25 Jan (historical, a warning).
+        var official = new[]
+        {
+            Completed(StageCodes.BID, Jan(1), Jan(10)),
+            Completed(StageCodes.TEC, Jan(11), Jan(20)),
+            Completed(StageCodes.BM, Jan(11), Jan(25)),
+            Completed(StageCodes.COB, Jan(22), Feb(5))
+        };
+
+        var tolerated = Evaluate(official, Change(StageCodes.TEC, completedOn: Jan(21)));
+        Assert.True(tolerated.IsValid);
+        Assert.Equal(StageCodes.BM, Assert.Single(tolerated.Warnings).RelatedStageCode);
+
+        var rejected = Evaluate(official, Change(StageCodes.TEC, completedOn: Jan(23)));
+        var error = Assert.Single(rejected.Errors);
+        Assert.Equal(StageCodes.COB, error.StageCode);
+        Assert.Equal(StageCodes.TEC, error.RelatedStageCode);
+    }
+
+    [Fact]
+    public void HistoricalStartViolation_IsTolerated_WhenOnlyTheCompletionChanges()
+    {
+        var official = new[]
+        {
+            Completed(StageCodes.FS, Jan(1), Jan(10)),
+            Completed(StageCodes.IPA, Jan(5), Jan(15))
+        };
+
+        var completionOnly = Evaluate(official, Change(StageCodes.IPA, completedOn: Jan(16)));
+        Assert.True(completionOnly.IsValid, string.Join(" | ", completionOnly.Errors.Select(e => e.Message)));
+        Assert.Equal(StageCodes.IPA, Assert.Single(completionOnly.Warnings).StageCode);
+
+        var startMoved = Evaluate(official, Change(StageCodes.IPA, actualStart: Jan(4)));
+        Assert.Equal(StageCodes.IPA, Assert.Single(startMoved.Errors).StageCode);
+    }
+
     // SECTION: Helpers
     private static ActualTimelineValidationService Service(ApplicationDbContext db) =>
         new(StageWorkflowTestFactory.CreatePolicy(db), new StubArppAuthority(null), FakeClock.ForIstDate(Today));

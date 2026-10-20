@@ -67,6 +67,41 @@ public sealed class ActualCorrectionProposalPageTests
         await fixture.AssertOfficialAsync(StageCodes.IPA, Jan(12), null);
     }
 
+    // C7.2: chronology is decided here, not in the browser. A refused proposal reopens the
+    // editor with the PO's entries and note, and the corrected resubmission is recorded.
+    [Fact]
+    public async Task RefusedProposal_ReopensTheEditorWithTheEntries_AndTheCorrectedResubmissionIsRecorded()
+    {
+        await using var fixture = await Fixture.CreateAsync(Completed(StageCodes.FS, Jan(1), Jan(10)), InProgress(StageCodes.IPA, Jan(11)));
+        await using var db = fixture.NewContext();
+        var page = fixture.EditActualsPage(db, "Project Officer", Lead);
+        page.Input = await ProposalInputAsync(db, null, Row(StageCodes.FS, completed: Jan(12)), Row(StageCodes.IPA, start: Jan(11)));
+        page.Input.Note = "Per signed register";
+
+        Assert.IsType<RedirectToPageResult>(await page.OnPostAsync(ProjectId, CancellationToken.None));
+        Assert.StartsWith("IPA:", Assert.IsType<string>(page.TempData["Error"]), StringComparison.Ordinal);
+        await using (var verify = fixture.NewContext())
+        {
+            Assert.Empty(await verify.ActualCorrectionRevisions.ToListAsync());
+        }
+
+        var payload = Assert.IsType<string>(page.TempData[ActualsEditorRecovery.TempDataKey]);
+        var editor = await fixture.RenderEditorAsync(db);
+        var reopened = ActualsEditorRecovery.Restore(editor, payload, ProjectId, Lead, ActualsSubmissionMode.Proposal);
+        Assert.True(reopened.RestoredSubmission);
+        Assert.Contains("Correct IPA in the same update", Assert.Single(reopened.SubmissionErrors), StringComparison.Ordinal);
+        Assert.Equal(Jan(12), reopened.EnteredValues[StageCodes.FS].CompletedOn);
+        Assert.Equal("Per signed register", reopened.EnteredNote);
+        // A form rendered for direct publication never receives a proposal's entries.
+        Assert.Same(editor, ActualsEditorRecovery.Restore(editor, payload, ProjectId, Lead, ActualsSubmissionMode.Direct));
+
+        var resubmit = fixture.EditActualsPage(db, "Project Officer", Lead);
+        resubmit.Input = await ProposalInputAsync(db, null, Row(StageCodes.FS, completed: Jan(12)), Row(StageCodes.IPA, start: Jan(12)));
+        Assert.IsType<RedirectToPageResult>(await resubmit.OnPostAsync(ProjectId, CancellationToken.None));
+        Assert.Contains("Submitted for HoD or Admin approval", Assert.IsType<string>(resubmit.TempData["Flash"]), StringComparison.Ordinal);
+        await fixture.AssertOfficialAsync(StageCodes.FS, Jan(1), Jan(10));
+    }
+
     [Theory]
     [InlineData("HoD", Other)]
     [InlineData("Admin", Other)]
@@ -454,7 +489,6 @@ public sealed class ActualCorrectionProposalPageTests
         Assert.Contains("Input.BasedOnSubmittedOn", editor, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"Withdraw\"", editor, StringComparison.Ordinal);
         Assert.Contains("data-official-start", editor, StringComparison.Ordinal);
-        Assert.Contains("data-predecessors=\"@string.Join(\",\", row.PredecessorCodes)\"", editor, StringComparison.Ordinal);
         Assert.Contains("Submit for approval", modal, StringComparison.Ordinal);
         Assert.Contains("data-backfill-mode", modal, StringComparison.Ordinal);
         Assert.Equal(2, hosts.Split("[\"ActualsProposalSubmission\"] = Model.CanSubmitActualProposals").Length - 1);

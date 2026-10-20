@@ -348,6 +348,72 @@ public class ProjectTimelineUiTests
     }
 
 
+    // C7.2: the rendered editor carries no chronology `min`; a refused post reopens it with the
+    // user's entries in editable fields only and the server's stage-specific messages.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ActualsEditor_RefusedPost_RendersEntriesAndServerMessagesWithoutChronologyMin(bool direct)
+    {
+        var editor = new ActualsEditorVm
+        {
+            ProjectId = 7,
+            Today = new DateOnly(2026, 3, 1),
+            BaselineVersion = 1,
+            Rows = new[]
+            {
+                new ActualsEditorRowVm
+                {
+                    StageCode = "SOW", StageName = "Statement of Work", Status = StageStatus.Completed, IsEditable = true,
+                    ActualStart = new DateOnly(2026, 2, 1), CompletedOn = new DateOnly(2026, 2, 10),
+                    EarliestAllowedStartDate = new DateOnly(2026, 1, 20), StartBoundarySourceName = "FS", StageToken = "t-sow"
+                },
+                new ActualsEditorRowVm
+                {
+                    StageCode = "IPA", StageName = "In-Principle Approval", Status = StageStatus.Completed, IsEditable = true,
+                    ActualStart = new DateOnly(2026, 2, 11), CompletedOn = new DateOnly(2026, 2, 20),
+                    EarliestAllowedStartDate = new DateOnly(2026, 2, 10), StartBoundarySourceName = "Statement of Work",
+                    StageToken = "t-ipa", IsArppManaged = true
+                }
+            }
+        };
+        var payload = ActualsEditorRecovery.Serialize(
+            new ActualsEditInput
+            {
+                ProjectId = 7,
+                BaselineVersion = 1,
+                SubmissionMode = direct ? ActualsSubmissionMode.Direct : ActualsSubmissionMode.Proposal,
+                Note = "Per register",
+                Rows = new[]
+                {
+                    new ActualsEditRowInput { StageCode = "SOW", StageToken = "t-sow", ActualStart = new DateOnly(2026, 2, 1), CompletedOn = new DateOnly(2026, 2, 12) },
+                    // IPA's completion is ARPP-controlled (disabled), so only its start was posted.
+                    new ActualsEditRowInput { StageCode = "IPA", StageToken = "t-ipa", ActualStart = new DateOnly(2026, 2, 11) }
+                }.ToList()
+            },
+            null,
+            "user",
+            new[] { "IPA: Actual start 11 Feb 2026 would be before Statement of Work Actual completion 12 Feb 2026. Correct IPA in the same update." });
+        var restored = ActualsEditorRecovery.Restore(
+            editor, payload, 7, "user", direct ? ActualsSubmissionMode.Direct : ActualsSubmissionMode.Proposal);
+
+        var html = await RenderActualsEditorAsync(restored, direct);
+
+        Assert.Contains("data-actuals-restored=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-actuals-submission-errors", html, StringComparison.Ordinal);
+        Assert.Contains("Correct IPA in the same update.", html, StringComparison.Ordinal);
+        Assert.Contains(direct ? "Nothing was saved." : "Nothing was submitted.", html, StringComparison.Ordinal);
+        Assert.Matches("id=\"actual-completed-SOW\"[^>]*value=\"2026-02-12\"", html);
+        Assert.Matches("id=\"actual-start-IPA\"[^>]*value=\"2026-02-11\"", html);
+        Assert.Matches("id=\"actual-completed-IPA\"[^>]*value=\"2026-02-20\"", html);
+        Assert.DoesNotMatch(@"<input[^>]*type=""date""[^>]*\smin=", html);
+        Assert.Equal(!direct, html.Contains(">Per register</textarea>", StringComparison.Ordinal));
+
+        var fresh = await RenderActualsEditorAsync(editor, direct);
+        Assert.DoesNotContain("data-actuals-restored=\"true\"", fresh, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-actuals-submission-errors", fresh, StringComparison.Ordinal);
+    }
+
     private static int CountOccurrences(string value, string search)
     {
         var count = 0;
@@ -369,33 +435,6 @@ public class ProjectTimelineUiTests
         bool isLegacy = false,
         bool canManageHistoricalStageHistory = false)
     {
-        using var scope = Services.CreateScope();
-        var provider = scope.ServiceProvider;
-        var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
-        var tempDataProvider = provider.GetRequiredService<ITempDataProvider>();
-
-        var httpContext = new DefaultHttpContext
-        {
-            RequestServices = provider,
-            User = BuildPrincipal(isHoD ? new[] { "HoD" } : Array.Empty<string>())
-        };
-
-        RazorPageTestRouting.EnableEndpointRouting(httpContext);
-        var routeData = new RouteData();
-        routeData.Values["page"] = "/Projects/Overview";
-        var actionContext = new ActionContext(httpContext, routeData, new PageActionDescriptor
-        {
-            ViewEnginePath = "/Projects/Overview",
-            RelativePath = "/Pages/Projects/Overview.cshtml"
-        });
-        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/Shared/_ProjectTimeline.cshtml", isMainPage: false);
-
-        if (!viewResult.Success)
-        {
-            throw new InvalidOperationException("Unable to locate _ProjectTimeline partial view.");
-        }
-
-        await using var writer = new StringWriter();
         var panel = new ProjectTimelinePanelVm
         {
             Timeline = model,
@@ -413,11 +452,54 @@ public class ProjectTimelineUiTests
         {
             Model = panel
         };
+        return await RenderPartialAsync("/Pages/Shared/_ProjectTimeline.cshtml", viewData, isHoD ? new[] { "HoD" } : Array.Empty<string>());
+    }
+
+    private static async Task<string> RenderPartialAsync(string viewPath, ViewDataDictionary viewData, string[] roles)
+    {
+        using var scope = Services.CreateScope();
+        var provider = scope.ServiceProvider;
+        var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
+        var tempDataProvider = provider.GetRequiredService<ITempDataProvider>();
+
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = provider,
+            User = BuildPrincipal(roles)
+        };
+
+        RazorPageTestRouting.EnableEndpointRouting(httpContext);
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/Projects/Overview";
+        var actionContext = new ActionContext(httpContext, routeData, new PageActionDescriptor
+        {
+            ViewEnginePath = "/Projects/Overview",
+            RelativePath = "/Pages/Projects/Overview.cshtml"
+        });
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: viewPath, isMainPage: false);
+
+        if (!viewResult.Success)
+        {
+            throw new InvalidOperationException($"Unable to locate {viewPath}.");
+        }
+
+        await using var writer = new StringWriter();
         var tempData = new TempDataDictionary(httpContext, tempDataProvider);
         var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());
 
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
+    }
+
+    private static Task<string> RenderActualsEditorAsync(ActualsEditorVm model, bool direct)
+    {
+        var viewData = new ViewDataDictionary<ActualsEditorVm>(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        {
+            Model = model,
+            ["ActualsDirectPublication"] = direct,
+            ["ActualsProposalSubmission"] = !direct
+        };
+        return RenderPartialAsync("/Pages/Projects/Timeline/_EditActualsForm.cshtml", viewData, direct ? new[] { "HoD" } : new[] { "Project Officer" });
     }
 
     private static ClaimsPrincipal BuildPrincipal(string[] roles)

@@ -29,9 +29,16 @@ public sealed class ActualsEditorVm
     // Phase D-3e: the assigned PO's latest revision when it was rejected and nothing is pending.
     public ActualRejectionNoticeVm? LastRejection { get; init; }
 
-    // Project stages that bound chronology but have no editor row (e.g. a configured
-    // extension stage), so the client sees the same dependency graph as the server.
-    public IReadOnlyList<ActualsChronologyStageVm> UnrenderedChronologyStages { get; init; } = Array.Empty<ActualsChronologyStageVm>();
+    // A refused post (ActualsEditorRecovery, applied last by Overview): the server's
+    // validation messages and, when the form is unchanged, the user's entries by stage code.
+    public IReadOnlyList<string> SubmissionErrors { get; init; } = Array.Empty<string>();
+
+    public bool RestoredSubmission { get; init; }
+
+    public IReadOnlyDictionary<string, ActualsEnteredValues> EnteredValues { get; init; } =
+        new Dictionary<string, ActualsEnteredValues>(StringComparer.OrdinalIgnoreCase);
+
+    public string? EnteredNote { get; init; }
 
     public ActualsEditorVm WithLastRejection(ActualCorrectionRevision revision, string? currentUserId) => new()
     {
@@ -40,7 +47,6 @@ public sealed class ActualsEditorVm
         BaselineVersion = BaselineVersion,
         PendingProposal = PendingProposal,
         Rows = Rows,
-        UnrenderedChronologyStages = UnrenderedChronologyStages,
         LastRejection = new ActualRejectionNoticeVm(
             revision.RevisionNo,
             revision.ClosedOn,
@@ -79,8 +85,7 @@ public sealed class ActualsEditorVm
             },
             Rows = prefill
                 ? Rows.Select(row => items.TryGetValue(row.StageCode, out var item) ? row.WithProposal(item) : row).ToArray()
-                : Rows,
-            UnrenderedChronologyStages = UnrenderedChronologyStages
+                : Rows
         };
     }
 
@@ -93,14 +98,6 @@ public sealed class ActualsEditorVm
                 .Where(code => !Rows.Any(row => string.Equals(row.StageCode, code, StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
 }
-
-/// <summary>Official effective chronology facts of a project stage that has no editor row.</summary>
-public sealed record ActualsChronologyStageVm(
-    string StageCode,
-    string StageName,
-    StageStatus Status,
-    DateOnly? CompletedOn,
-    IReadOnlyList<string> PredecessorCodes);
 
 /// <summary>Identity and status of a pending Actual correction proposal, as rendered in the editors.</summary>
 public sealed record ActualProposalSummaryVm(
@@ -170,14 +167,6 @@ public sealed class ActualsEditorRowVm
 
     public string? StartBoundarySourceName { get; init; }
 
-    // Direct required predecessors from the project's workflow, so the editor can re-derive
-    // chronology boundaries on the dependency graph rather than display order.
-    public IReadOnlyList<string> PredecessorCodes { get; init; } = Array.Empty<string>();
-
-    // A retained PNC row while PNC is not applicable: the server neither bounds it nor
-    // reports violations on it (ActualTimelineValidationService.FindViolations).
-    public bool ExcludedFromChronology { get; init; }
-
     public bool IsAutoCompleted { get; init; }
 
     public bool RequiresBackfill { get; init; }
@@ -217,8 +206,6 @@ public sealed class ActualsEditorRowVm
         CompletedOn = CompletedOn,
         EarliestAllowedStartDate = EarliestAllowedStartDate,
         StartBoundarySourceName = StartBoundarySourceName,
-        PredecessorCodes = PredecessorCodes,
-        ExcludedFromChronology = ExcludedFromChronology,
         IsAutoCompleted = IsAutoCompleted,
         RequiresBackfill = RequiresBackfill,
         HasPendingDecision = HasPendingDecision,
