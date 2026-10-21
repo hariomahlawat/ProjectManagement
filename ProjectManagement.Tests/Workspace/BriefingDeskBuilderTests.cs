@@ -1,6 +1,7 @@
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.Workspace;
+using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
 using Xunit;
 
@@ -163,6 +164,104 @@ public sealed class BriefingDeskBuilderTests
         Assert.Null(item.ProcurementPanelId);
         Assert.Null(Assert.Single(item.Improvements).PanelId);
     }
+
+    // SECTION: Returned items and the current-stage plan form
+    [Fact]
+    public void Project_ReturnedItem_IsTheFirstCheck_WithTheHodNote_AndBlocksReadiness()
+    {
+        var returned = new WorkspaceAttentionItemVm
+        {
+            ProjectId = 1,
+            Type = "Timeline",
+            Detail = "Timeline plan returned for correction",
+            ActionText = "Correct",
+            ActionUrl = "/Projects/Overview/1?oc=plan#timeline",
+            DueOrEventDateUtc = new DateTime(2026, 10, 19, 6, 0, 0, DateTimeKind.Utc),
+            ReviewerNote = "  Align DEVP with the vendor schedule. "
+        };
+
+        var desk = BriefingDeskBuilder.Build(new BriefingDeskInput(
+            Today,
+            new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) },
+            Array.Empty<BriefingDeskIdeaInput>(),
+            Array.Empty<BriefingDeskTaskInput>(),
+            Array.Empty<WorkspaceConferenceDirectionActionVm>(),
+            null,
+            Array.Empty<BriefingDeskWaitingVm>(),
+            new[] { returned }));
+
+        var item = SingleItem(desk);
+        var first = item.Checks[0];
+        Assert.Equal("Timeline plan returned for correction", first.Label);
+        Assert.Equal("Returned on 19 Oct 2026. HoD: \u201cAlign DEVP with the vendor schedule.\u201d", first.Detail);
+        Assert.Equal("Correct and resubmit", first.ActionText);
+        Assert.Equal(BriefingDeskCheckState.Open, first.State);
+        Assert.False(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_MissingPdc_OffersTheShortPlanForm_WhenThePlanIsClean()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: null) with { PlanEditor = Editor() };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var panel = Assert.IsType<BriefingDeskPlanPanelVm>(item.PlanPanel);
+        Assert.Equal("desk-project-1-plan", panel.PanelId);
+        Assert.Equal("DEVP", panel.StageCode);
+        Assert.Equal("token-1", panel.EditToken);
+        Assert.StartsWith("/Workspace?", panel.ReturnUrl);
+        Assert.Equal("desk-project-1-plan", item.Checks.Single(check => check.Key == "pdc").PanelId);
+    }
+
+    [Theory]
+    [InlineData("draft")]
+    [InlineData("pending")]
+    [InlineData("locked")]
+    [InlineData("blocked")]
+    public void Project_ShortPlanForm_IsWithheldWhenOtherChangesWouldRideAlong(string condition)
+    {
+        var state = condition switch
+        {
+            "draft" => new PlanEditorStateVm { HasMyDraft = true, EditToken = "t" },
+            "pending" => new PlanEditorStateVm { HasPendingSubmission = true, EditToken = "t" },
+            "locked" => new PlanEditorStateVm { IsLocked = true, EditToken = "t" },
+            _ => new PlanEditorStateVm { CanSubmit = false, EditToken = "t" }
+        };
+        var project = Project(daysSinceUpdate: 1, pdcInDays: null) with { PlanEditor = Editor(state) };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.Null(item.PlanPanel);
+        var pdc = item.Checks.Single(check => check.Key == "pdc");
+        Assert.Null(pdc.PanelId);
+        Assert.Contains("oc=plan", pdc.ActionUrl);
+    }
+
+    [Fact]
+    public void Project_FuturePdc_HasNoPlanForm()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with { PlanEditor = Editor() };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.Null(item.PlanPanel);
+    }
+
+    private static PlanEditorVm Editor(PlanEditorStateVm? state = null)
+        => new()
+        {
+            State = state ?? new PlanEditorStateVm { EditToken = "token-1" },
+            Exact = new PlanEditVm
+            {
+                ProjectId = 1,
+                Rows = new()
+                {
+                    new PlanEditVm.PlanEditRow { Code = "SO", Name = "Supply Order", Status = StageStatus.Completed },
+                    new PlanEditVm.PlanEditRow { Code = "DEVP", Name = "Development", Status = StageStatus.InProgress, PlannedStart = new DateOnly(2026, 2, 1) }
+                }
+            }
+        };
 
     [Fact]
     public void Project_StageStrip_MarksPastCurrentAndFutureStages()

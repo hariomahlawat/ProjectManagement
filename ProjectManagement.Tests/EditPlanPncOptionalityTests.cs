@@ -396,6 +396,149 @@ public class EditPlanPncOptionalityTests
         Assert.Empty(await db.ProjectScheduleSettings.ToListAsync());
     }
 
+    // SECTION: Briefing desk return (current-stage form)
+    [Theory]
+    [InlineData("/Workspace?mode=project-officer&view=overview&focus=desk-project-2#desk-project-2", true)]
+    [InlineData("https://example.test/Workspace", false)]
+    [InlineData(null, false)]
+    public async Task ExactSubmit_ReturnsToTheDeskOnlyForALocalWorkspaceAddress(string? returnUrl, bool toDesk)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        SeedStageTemplates(db);
+        db.Projects.Add(new Project
+        {
+            Id = 2,
+            Name = "Exact",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var page = new EditPlanModel(db, audit, new PlanGenerationService(db), planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            ReturnUrl = returnUrl,
+            Input = new PlanEditInput
+            {
+                ProjectId = 2,
+                Mode = PlanEditorModes.Exact,
+                Action = PlanEditActions.Submit,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new() { Code = StageCodes.IPA, Name = "IPA", PlannedStart = new DateOnly(2024, 3, 1), PlannedDue = new DateOnly(2024, 3, 15) }
+                }
+            }
+        };
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(2, CancellationToken.None);
+
+        Assert.False(page.TempData.ContainsKey("Error"), page.TempData["Error"] as string);
+        Assert.Equal(PlanVersionStatus.PendingApproval, (await db.PlanVersions.SingleAsync()).Status);
+        if (toDesk)
+        {
+            var redirect = Assert.IsType<LocalRedirectResult>(result);
+            Assert.Equal(returnUrl, redirect.Url);
+            Assert.Equal("Plan submitted for HoD review.", page.TempData["ToastSuccess"]);
+        }
+        else
+        {
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+            Assert.Equal("Plan submitted for HoD review.", page.TempData["Flash"]);
+        }
+    }
+
+    [Fact]
+    public async Task ExactSubmit_PdcOnly_IsAcceptedWithoutAPlannedStart()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        SeedStageTemplates(db);
+        db.Projects.Add(new Project { Id = 2, Name = "Exact", LeadPoUserId = "po-user", WorkflowVersion = PlanConstants.StageTemplateVersionV1 });
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var page = new EditPlanModel(db, audit, new PlanGenerationService(db), planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            ReturnUrl = "/Workspace?mode=project-officer",
+            Input = new PlanEditInput
+            {
+                ProjectId = 2,
+                Mode = PlanEditorModes.Exact,
+                Action = PlanEditActions.Submit,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new() { Code = StageCodes.IPA, Name = "IPA", PlannedStart = null, PlannedDue = new DateOnly(2024, 3, 15) }
+                }
+            }
+        };
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(2, CancellationToken.None);
+
+        Assert.IsType<LocalRedirectResult>(result);
+        var plan = await db.PlanVersions.Include(p => p.StagePlans).SingleAsync();
+        Assert.Equal(PlanVersionStatus.PendingApproval, plan.Status);
+        var ipa = plan.StagePlans.Single(stage => stage.StageCode == StageCodes.IPA);
+        Assert.Null(ipa.PlannedStart);
+        Assert.Equal(new DateOnly(2024, 3, 15), ipa.PlannedDue);
+    }
+
+    [Fact]
+    public async Task ExactSubmit_RefusedFromTheDesk_StillOpensTheFullEditor()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        SeedStageTemplates(db);
+        db.Projects.Add(new Project { Id = 2, Name = "Exact", LeadPoUserId = "po-user", WorkflowVersion = PlanConstants.StageTemplateVersionV1 });
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var page = new EditPlanModel(db, audit, new PlanGenerationService(db), planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            ReturnUrl = "/Workspace?mode=project-officer",
+            Input = new PlanEditInput
+            {
+                ProjectId = 2,
+                Mode = PlanEditorModes.Exact,
+                Action = PlanEditActions.Submit,
+                Rows = new List<PlanEditInputRow>
+                {
+                    // Start after due: refused before anything is saved.
+                    new() { Code = StageCodes.IPA, Name = "IPA", PlannedStart = new DateOnly(2024, 3, 15), PlannedDue = new DateOnly(2024, 3, 1) }
+                }
+            }
+        };
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(2, CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("/Projects/Overview", redirect.PageName);
+        Assert.Equal("plan-edit", page.TempData["OpenOffcanvas"]);
+        Assert.False(page.TempData.ContainsKey("ToastSuccess"));
+    }
+
     private static void SeedStageTemplates(ApplicationDbContext db)
     {
         db.StageTemplates.AddRange(

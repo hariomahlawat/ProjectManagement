@@ -34,6 +34,7 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly IMemoryCache _cache;
     private readonly IOfficerConferenceReadService _conference;
     private readonly ProjectProcurementReadService _procurement;
+    private readonly ProjectManagement.Services.Stages.PlanReadService _planRead;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -47,7 +48,8 @@ public sealed class ProjectOfficerWorkspaceService
         IErpUsageQueryService erpUsage,
         IMemoryCache cache,
         IOfficerConferenceReadService conference,
-        ProjectProcurementReadService procurement)
+        ProjectProcurementReadService procurement,
+        ProjectManagement.Services.Stages.PlanReadService planRead)
     {
         _db = db;
         _users = users;
@@ -61,6 +63,7 @@ public sealed class ProjectOfficerWorkspaceService
         _cache = cache;
         _conference = conference;
         _procurement = procurement;
+        _planRead = planRead;
     }
 
     // SECTION: Workspace composition
@@ -197,6 +200,7 @@ public sealed class ProjectOfficerWorkspaceService
         var pending = await LoadPendingApprovalsAsync(userId, projects, tasks, ct);
         var lastTaskProgress = await LoadLastTaskProgressAsync(userId, tasks, ct);
         var procurementEdits = await LoadProcurementEditorsAsync(projects, health, ct);
+        var planEditors = await LoadPlanEditorsAsync(userId, matrixRows, pending.PlanSinceByProject, ct);
         var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
             _db,
             userId,
@@ -223,7 +227,8 @@ public sealed class ProjectOfficerWorkspaceService
                     stagesByProject.GetValueOrDefault(row.ProjectId) ?? Array.Empty<BriefingDeskStageInput>(),
                     pending.PlanSinceByProject.TryGetValue(row.ProjectId, out var planSince) ? planSince : null,
                     pending.ActualsSinceByProject.TryGetValue(row.ProjectId, out var actualsSince) ? actualsSince : null,
-                    procurementEdits.GetValueOrDefault(row.ProjectId)))
+                    procurementEdits.GetValueOrDefault(row.ProjectId),
+                    planEditors.GetValueOrDefault(row.ProjectId)))
                 .ToList(),
             ideas.Select(idea => new BriefingDeskIdeaInput(idea)).ToList(),
             tasks
@@ -291,6 +296,31 @@ public sealed class ProjectOfficerWorkspaceService
                 completed.Contains,
                 returnUrl: WorkspaceRouteHelper.BriefingDeskItem(anchor),
                 idPrefix: $"{anchor}-");
+        }
+
+        return editors;
+    }
+
+    // SECTION: Plan editor state for the desk's current-stage form
+    // Read with the same PlanReadService as Project Overview, and only for projects whose
+    // current-stage PDC is missing or overdue with nothing already awaiting approval.
+    private async Task<IReadOnlyDictionary<int, ProjectManagement.ViewModels.PlanEditorVm>> LoadPlanEditorsAsync(
+        string userId,
+        IReadOnlyList<WorkspaceProjectMatrixRowVm> rows,
+        IReadOnlyDictionary<int, DateTimeOffset> pendingPlans,
+        CancellationToken ct)
+    {
+        var editors = new Dictionary<int, ProjectManagement.ViewModels.PlanEditorVm>();
+        foreach (var row in rows)
+        {
+            var hasStage = !string.IsNullOrWhiteSpace(row.CurrentStageCode) && row.CurrentStageCode != "—";
+            var needsPdc = row.HasOverdueCurrentStage || row.CurrentStagePdc is null;
+            if (!hasStage || !needsPdc || pendingPlans.ContainsKey(row.ProjectId))
+            {
+                continue;
+            }
+
+            editors[row.ProjectId] = await _planRead.GetAsync(row.ProjectId, userId, ct);
         }
 
         return editors;
@@ -1232,8 +1262,9 @@ public sealed class ProjectOfficerWorkspaceService
             Severity = "Danger",
             BadgeText = "Returned",
             ActionText = "Correct",
-            ActionUrl = WorkspaceRouteHelper.ProjectTimeline(p.ProjectId),
-            DueOrEventDateUtc = p.RejectedOn?.UtcDateTime
+            ActionUrl = WorkspaceRouteHelper.ProjectPlanEdit(p.ProjectId),
+            DueOrEventDateUtc = p.RejectedOn?.UtcDateTime,
+            ReviewerNote = p.RejectionNote
         }));
 
         var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(10).ToListAsync(ct);
@@ -1251,7 +1282,8 @@ public sealed class ProjectOfficerWorkspaceService
             BadgeText = "Returned",
             ActionText = "Correct",
             ActionUrl = WorkspaceRouteHelper.ProjectTimeline(r.ProjectId),
-            DueOrEventDateUtc = r.DecidedOn?.UtcDateTime
+            DueOrEventDateUtc = r.DecidedOn?.UtcDateTime,
+            ReviewerNote = r.DecisionNote
         }));
 
         var rejectedMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOnUtc.HasValue && r.DecidedOnUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOnUtc).Take(10).ToListAsync(ct);
@@ -1269,7 +1301,8 @@ public sealed class ProjectOfficerWorkspaceService
             BadgeText = "Returned",
             ActionText = "Correct",
             ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(r.ProjectId),
-            DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime
+            DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime,
+            ReviewerNote = r.DecisionNote
         }));
 
         var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(10).ToListAsync(ct);
@@ -1287,7 +1320,28 @@ public sealed class ProjectOfficerWorkspaceService
             BadgeText = "Returned",
             ActionText = "Correct",
             ActionUrl = WorkspaceRouteHelper.ProjectDocumentRequest(r.ProjectId),
-            DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime
+            DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime,
+            ReviewerNote = r.ReviewerNote
+        }));
+
+        // Date corrections the HoD returned, unless a newer one is pending or approved.
+        var rejectedActuals = await _db.ActualCorrectionRevisions.AsNoTracking().Include(r => r.Project).Where(r => r.SubmittedByUserId == userId && r.Status == ActualCorrectionRevisionStatus.Rejected && r.ClosedOn.HasValue && r.ClosedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.ClosedOn).Take(10).ToListAsync(ct);
+        var rejectedActualProjectIds = rejectedActuals.Select(r => r.ProjectId).ToArray();
+        var newerActualProjects = await _db.ActualCorrectionRevisions.AsNoTracking().Where(r => rejectedActualProjectIds.Contains(r.ProjectId) && (r.Status == ActualCorrectionRevisionStatus.Pending || r.Status == ActualCorrectionRevisionStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ClosedOn ?? r.SubmittedOn }).ToListAsync(ct);
+        rejectedActuals = rejectedActuals.Where(r => !newerActualProjects.Any(n => n.ProjectId == r.ProjectId && r.ClosedOn.HasValue && n.EventAt > r.ClosedOn.Value)).Take(5).ToList();
+        items.AddRange(rejectedActuals.Select(r => new WorkspaceAttentionItemVm
+        {
+            ProjectId = r.ProjectId,
+            WorkItemKey = $"project:{r.ProjectId}",
+            Type = "Actuals",
+            Title = r.Project?.Name ?? "Date correction",
+            Detail = "Date correction returned by HoD",
+            Severity = "Danger",
+            BadgeText = "Returned",
+            ActionText = "Correct",
+            ActionUrl = WorkspaceRouteHelper.ProjectTimelineActuals(r.ProjectId),
+            DueOrEventDateUtc = r.ClosedOn?.UtcDateTime,
+            ReviewerNote = r.DecisionNote
         }));
         return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(12).ToList();
     }

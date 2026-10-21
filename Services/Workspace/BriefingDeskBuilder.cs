@@ -25,7 +25,8 @@ public sealed record BriefingDeskProjectInput(
     IReadOnlyList<BriefingDeskStageInput> Stages,
     DateTimeOffset? PendingPlanSinceUtc = null,
     DateTimeOffset? PendingActualsSinceUtc = null,
-    ProcurementEditVm? ProcurementEdit = null);
+    ProcurementEditVm? ProcurementEdit = null,
+    PlanEditorVm? PlanEditor = null);
 
 public sealed record BriefingDeskStageInput(string Code, string Name, StageStatus Status, int SortOrder);
 
@@ -63,12 +64,18 @@ public static class BriefingDeskBuilder
         OfficerConferenceItemVm? ConferenceItem(ConferenceItemKind kind, int id)
             => conferenceItems.GetValueOrDefault((kind, id));
 
+        var returnedByProject = input.Returned
+            .Where(item => item.ProjectId.HasValue)
+            .GroupBy(item => item.ProjectId!.Value)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<WorkspaceAttentionItemVm>)group.ToList());
+
         var projects = input.Projects
             .Select(project => BuildProject(
                 project,
                 input.Today,
                 ConferenceItem(ConferenceItemKind.Project, project.Row.ProjectId),
-                pendingDirections.Contains((ConferenceItemKind.Project, project.Row.ProjectId))))
+                pendingDirections.Contains((ConferenceItemKind.Project, project.Row.ProjectId)),
+                returnedByProject.GetValueOrDefault(project.Row.ProjectId) ?? Array.Empty<WorkspaceAttentionItemVm>()))
             .ToList();
         var ideas = input.Ideas
             .Select(idea => BuildIdea(
@@ -130,25 +137,30 @@ public static class BriefingDeskBuilder
         BriefingDeskProjectInput input,
         DateOnly today,
         OfficerConferenceItemVm? conference,
-        bool directionAwaitingProgress)
+        bool directionAwaitingProgress,
+        IReadOnlyList<WorkspaceAttentionItemVm> returned)
     {
         var row = input.Row;
         var hasStage = !string.IsNullOrWhiteSpace(row.CurrentStageCode) && row.CurrentStageCode != "—";
-        var checks = new List<BriefingDeskCheckVm>
-        {
-            ProjectUpdateCheck(row, conference, directionAwaitingProgress)
-        };
+        var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{row.ProjectId}";
 
+        // Anything the HoD sent back comes first: it blocks the brief until it is corrected.
+        var checks = returned
+            .OrderByDescending(item => item.DueOrEventDateUtc)
+            .Select(ReturnedCheck)
+            .ToList();
+        checks.Add(ProjectUpdateCheck(row, conference, directionAwaitingProgress));
+
+        var planPanel = hasStage ? ShortPlanPanel(input, row, anchor) : null;
         if (hasStage)
         {
-            checks.Add(ProjectPdcCheck(row, input.PendingPlanSinceUtc));
+            checks.Add(ProjectPdcCheck(row, input.PendingPlanSinceUtc, planPanel?.PanelId));
             if (row.IsCurrentStageStartMissing)
             {
                 checks.Add(ProjectStartCheck(row, input.PendingActualsSinceUtc));
             }
         }
 
-        var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{row.ProjectId}";
         var procurementPanelId = input.ProcurementEdit is null ? null : $"{anchor}-procurement";
         var improvements = ProjectImprovements(row.RecordHealth, procurementPanelId);
 
@@ -173,6 +185,7 @@ public static class BriefingDeskBuilder
             Improvements = improvements,
             ProcurementEdit = input.ProcurementEdit,
             ProcurementPanelId = procurementPanelId,
+            PlanPanel = planPanel,
             ImprovementPoints = improvements.Sum(item => item.Points),
             RecordHealthPercent = row.RecordHealthPercent,
             Conference = conference
@@ -215,7 +228,76 @@ public static class BriefingDeskBuilder
         };
     }
 
-    private static BriefingDeskCheckVm ProjectPdcCheck(WorkspaceProjectMatrixRowVm row, DateTimeOffset? pendingPlanSinceUtc)
+    // SECTION: Returned items
+    private static BriefingDeskCheckVm ReturnedCheck(WorkspaceAttentionItemVm item)
+    {
+        var returnedOn = item.DueOrEventDateUtc is DateTime at
+            ? $" on {FormatDay(WorkspaceNudgeService.ToIstDate(at))}"
+            : string.Empty;
+        return new BriefingDeskCheckVm
+        {
+            Key = $"returned:{item.Type}",
+            Label = item.Detail,
+            Detail = string.IsNullOrWhiteSpace(item.ReviewerNote)
+                ? $"Returned{returnedOn}. No note was given."
+                : $"Returned{returnedOn}. HoD: “{item.ReviewerNote.Trim()}”",
+            State = BriefingDeskCheckState.Open,
+            Route = BriefingDeskRoute.Approval,
+            ActionText = "Correct and resubmit",
+            ActionUrl = item.ActionUrl
+        };
+    }
+
+    // SECTION: Current-stage plan form
+    // The short form posts only the current stage's row to the plan editor's own handler,
+    // which then validates and submits the whole plan exactly as the full editor does. It is
+    // offered only when nothing else would ride along: no private draft, no pending or locked
+    // submission, and a current stage that is still plannable.
+    internal static BriefingDeskPlanPanelVm? ShortPlanPanel(
+        BriefingDeskProjectInput input,
+        WorkspaceProjectMatrixRowVm row,
+        string anchor)
+    {
+        var editor = input.PlanEditor;
+        var needsPdc = row.HasOverdueCurrentStage || row.CurrentStagePdc is null;
+        if (editor is null || !needsPdc || input.PendingPlanSinceUtc is not null)
+        {
+            return null;
+        }
+
+        var state = editor.State;
+        if (state.IsLocked || !state.CanSubmit || state.HasMyDraft || state.HasPendingSubmission)
+        {
+            return null;
+        }
+
+        var stage = editor.Exact.Rows.FirstOrDefault(candidate =>
+            string.Equals(candidate.Code, row.CurrentStageCode, StringComparison.OrdinalIgnoreCase));
+        if (stage is null || stage.Status is StageStatus.Completed or StageStatus.Skipped)
+        {
+            return null;
+        }
+
+        return new BriefingDeskPlanPanelVm
+        {
+            PanelId = $"{anchor}-plan",
+            ProjectId = row.ProjectId,
+            ProjectName = row.ProjectName,
+            EditToken = state.EditToken,
+            StageCode = stage.Code,
+            StageName = stage.Name,
+            PlannedStart = stage.PlannedStart,
+            PlannedDue = stage.PlannedDue,
+            IsOverdue = row.HasOverdueCurrentStage,
+            ReturnUrl = WorkspaceRouteHelper.BriefingDeskItem(anchor),
+            FullEditorUrl = WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, stage.Code)
+        };
+    }
+
+    private static BriefingDeskCheckVm ProjectPdcCheck(
+        WorkspaceProjectMatrixRowVm row,
+        DateTimeOffset? pendingPlanSinceUtc,
+        string? panelId = null)
     {
         var code = row.CurrentStageCode;
         var planUrl = WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, code);
@@ -246,7 +328,8 @@ public static class BriefingDeskBuilder
                 State = BriefingDeskCheckState.Open,
                 Route = BriefingDeskRoute.Approval,
                 ActionText = "Propose date",
-                ActionUrl = planUrl
+                ActionUrl = planUrl,
+                PanelId = panelId
             };
         }
 
@@ -260,7 +343,8 @@ public static class BriefingDeskBuilder
                 State = BriefingDeskCheckState.Open,
                 Route = BriefingDeskRoute.Approval,
                 ActionText = "Propose dates",
-                ActionUrl = planUrl
+                ActionUrl = planUrl,
+                PanelId = panelId
             };
         }
 

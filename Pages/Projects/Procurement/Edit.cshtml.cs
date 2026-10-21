@@ -262,19 +262,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
         }
 
         internal static string? DeskReturnUrl(string? returnUrl)
-        {
-            if (string.IsNullOrWhiteSpace(returnUrl)
-                || returnUrl.Contains('\\')
-                || returnUrl.StartsWith("//", StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            return returnUrl.Equals("/Workspace", StringComparison.OrdinalIgnoreCase)
-                || returnUrl.StartsWith("/Workspace?", StringComparison.OrdinalIgnoreCase)
-                ? returnUrl
-                : null;
-        }
+            => ProjectManagement.Services.Workspace.WorkspaceRouteHelper.SafeDeskReturnUrl(returnUrl);
 
         private async Task RollbackSafelyAsync(
             Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,

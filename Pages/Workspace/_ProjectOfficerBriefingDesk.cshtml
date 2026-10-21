@@ -237,4 +237,60 @@
             <div class="offcanvas-body"><partial name="Projects/Procurement/_EditFormBody" model="item.ProcurementEdit" /></div>
         </div>
     }
+
+    @* Current-stage plan form: posts this one stage to the plan editor's own handler, which
+       validates and submits the whole plan for HoD approval. A refusal opens the full editor. *@
+    @foreach (var panel in allItems.Where(candidate => candidate.PlanPanel is not null).Select(candidate => candidate.PlanPanel!))
+    {
+        <div class="offcanvas offcanvas-end bd-drawer" tabindex="-1" id="@panel.PanelId" aria-labelledby="@panel.PanelId-title">
+            <div class="offcanvas-header">
+                <div>
+                    <h2 class="bd-drawer__title" id="@panel.PanelId-title">@panel.StageName PDC</h2>
+                    <p class="bd-drawer__subtitle">@panel.ProjectName</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <form method="post"
+                      class="bd-plan-form"
+                      asp-page="/Projects/Timeline/EditPlan"
+                      asp-route-id="@panel.ProjectId"
+                      asp-route-returnUrl="@panel.ReturnUrl">
+                    <input type="hidden" name="Input.Mode" value="@ProjectManagement.ViewModels.PlanEditorModes.Exact" />
+                    <input type="hidden" name="Input.ProjectId" value="@panel.ProjectId" />
+                    <input type="hidden" name="Input.EditToken" value="@panel.EditToken" />
+                    <input type="hidden" name="Input.Rows[0].Code" value="@panel.StageCode" />
+                    <input type="hidden" name="Input.Rows[0].Name" value="@panel.StageName" />
+
+                    @if (panel.IsOverdue && panel.PlannedDue is DateOnly passed)
+                    {
+                        <p class="bd-plan-form__alert">The planned completion date, @passed.ToString("dd MMM yyyy"), has passed. Propose a revised date.</p>
+                    }
+
+                    @* The editor writes back exactly what is posted, so the existing planned start
+                       travels unchanged; only the PDC is asked for. *@
+                    <input type="hidden" name="Input.Rows[0].PlannedStart" value="@(panel.PlannedStart?.ToString("yyyy-MM-dd"))" />
+                    @if (panel.PlannedStart is DateOnly plannedStart)
+                    {
+                        <p class="bd-plan-form__note">Planned start stays @plannedStart.ToString("dd MMM yyyy"). The PDC must be on or after it.</p>
+                    }
+                    <div class="bd-plan-form__field">
+                        <label for="@panel.PanelId-due">Planned completion (PDC)</label>
+                        <input class="form-control" type="date" id="@panel.PanelId-due" name="Input.Rows[0].PlannedDue" required
+                               value="@(panel.PlannedDue?.ToString("yyyy-MM-dd"))" />
+                    </div>
+
+                    <p class="bd-plan-form__note">
+                        Only @panel.StageCode changes. Other stages keep their planned dates, and the HoD approves the plan as a whole.
+                        If later stages need to move too, use the full plan editor.
+                    </p>
+
+                    <div class="bd-plan-form__actions">
+                        <button type="submit" class="bd-btn bd-btn--primary" name="Input.Action" value="@ProjectManagement.ViewModels.PlanEditActions.Submit">Submit for HoD approval</button>
+                        <a class="bd-link bd-link--small" href="@panel.FullEditorUrl">Open full plan editor</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
 </div>
