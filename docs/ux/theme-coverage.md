@@ -8,16 +8,16 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **8554** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **8544** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
-198 literals.
+188 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `navigation-shell.css` | 94 | 39 |
-| `pages/project-portfolio.css` | 67 | 2 |
+| `pages/project-portfolio.css` | 57 | 2 |
 | `components/prism-confirm-dialog.css` | 22 | 0 |
 | `projects/timeline.css` | 13 | 1 |
 | `pages/project-lifecycle-actions.css` | 2 | 0 |
@@ -51,7 +51,7 @@ Totals: **8554** stylesheet literals in 84 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `notebook.css` | 397 | 263 |
+| `notebook.css` | 397 | 264 |
 | `pages/photos-people.css` | 183 | 109 |
 | `pages/photos-library.css` | 169 | 99 |
 | `pages/search.css` | 114 | 77 |
@@ -111,7 +111,7 @@ Totals: **8554** stylesheet literals in 84 files, **6** in inline view styles.
 | `activities/index.css` | 62 | 0 |
 | `action-task-actions.css` | 57 | 0 |
 | `action-task-details-redesign.css` | 55 | 0 |
-| `tasks.css` | 50 | 15 |
+| `tasks.css` | 50 | 0 |
 | `project-office-reports/ffc-record-workspace.css` | 45 | 0 |
 | `project-office-reports/visits-details.css` | 40 | 0 |
 | `project-office-reports/visits.css` | 37 | 0 |
