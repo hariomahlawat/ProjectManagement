@@ -59,6 +59,12 @@ test('quoted strings are not counted as colours', () => {
   assert.equal(countLiterals("'#fff' #000"), 1);
 });
 
+test('named colours are counted case-insensitively', () => {
+  const { countLiterals } = require('./theme-coverage');
+  assert.equal(countLiterals('White'), 1);
+  assert.equal(countLiterals('BLACK'), 1);
+});
+
 test('a dark longhand does not cover a sibling longhand that still paints', () => {
   const css = `
     .a { background-image: linear-gradient(#fff, #eee); }

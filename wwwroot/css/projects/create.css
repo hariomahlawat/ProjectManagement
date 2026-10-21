@@ -608,9 +608,9 @@
     --pc-border: #2c3035;
     --pc-text: #f0f2f4;
     --pc-muted: #9aa0a6;
-    --pc-primary: #4d74e6;
+    --pc-primary: #6ea8fe;
     --pc-primary-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --pc-danger: #d9475a;
+    --pc-danger: #f87171;
     background: #0e0f11;
 }
 

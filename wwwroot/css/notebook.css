@@ -4636,7 +4636,7 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .notebook-rail__item b {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-commandbar .eyebrow {
@@ -4690,7 +4690,7 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .notebook-label-chips span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-card {
@@ -4771,7 +4771,7 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .notebook-check-toggle.is-done {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-checklist-toggle {
@@ -4862,7 +4862,7 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .notebook-section-header > span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-card-actions {
@@ -5704,7 +5704,7 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .notebook-check-toggle.is-done {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-check-text {
@@ -5712,7 +5712,7 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .notebook-check-text.is-done {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-modal__dialog {

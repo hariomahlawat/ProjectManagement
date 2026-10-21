@@ -777,14 +777,14 @@
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :root[data-bs-theme="dark"] {
-    --category-dcd: #4e74e6;
-    --category-coe: #2f8d2f;
-    --category-rnd: #b4691a;
+    --category-dcd: #6ea8fe;
+    --category-coe: #4ade80;
+    --category-rnd: #fbbf24;
     --cw-ink: #e6e8eb;
     --cw-muted: #9aa0a6;
     --cw-line: #2c3035;
     --cw-soft: #16181b;
-    --cw-blue: #4f76dc;
+    --cw-blue: #6ea8fe;
     --cw-blue-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
     --cw-card: #16181b;
     --cw-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
@@ -890,7 +890,7 @@
 
 :where([data-bs-theme="dark"]) .cw-stage-board,
 :where([data-bs-theme="dark"]) .cw-officer-board {
-    scrollbar-color: #7b8188 #eef2f6;
+    scrollbar-color: #8a9097 #eef2f6;
 }
 
 :where([data-bs-theme="dark"]) .cw-stage-column {
@@ -954,38 +954,38 @@
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card {
-    --officer-accent: #547ac6;
+    --officer-accent: #6ea8fe;
     --officer-tint: #16181b;
     box-shadow: 0 5px 14px rgba(0, 0, 0, 0.21);
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card--accent-0 {
-    --officer-accent: #4e7bc4;
+    --officer-accent: #6ea8fe;
     --officer-tint: #16181b;
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card--accent-1 {
-    --officer-accent: #2d8882;
+    --officer-accent: #85e0da;
     --officer-tint: #1e2125;
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card--accent-2 {
-    --officer-accent: #856acd;
+    --officer-accent: #9e85e0;
     --officer-tint: #16181b;
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card--accent-3 {
-    --officer-accent: #427ec0;
+    --officer-accent: #85b1e0;
     --officer-tint: #16181b;
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card--accent-4 {
-    --officer-accent: #6e842c;
+    --officer-accent: #c9e085;
     --officer-tint: #1e2125;
 }
 
 :where([data-bs-theme="dark"]) .cw-officer-card--accent-5 {
-    --officer-accent: #c6547f;
+    --officer-accent: #e085a7;
     --officer-tint: #16181b;
 }
 
@@ -994,6 +994,7 @@
 }
 
 :where([data-bs-theme="dark"]) .cw-avatar {
+    background: color-mix(in srgb, var(--officer-accent) 55%, #000);
     color: #fff;
 }
 
@@ -1047,7 +1048,7 @@
 }
 
 :where([data-bs-theme="dark"]) .cw-empty i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cw-empty strong {
@@ -1104,7 +1105,7 @@
 }
 
 :where([data-bs-theme="dark"]) .cw-local-rail__group-label > i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cw-local-rail nav a {
@@ -1148,7 +1149,7 @@
 }
 
 :where([data-bs-theme="dark"]) .cw-drag-handle {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cw-drag-handle:hover,
@@ -1213,7 +1214,7 @@
 :where([data-bs-theme="dark"]) .po-command-visibility .cw-drag-handle--static,
 :where([data-bs-theme="dark"]) .po-command-visibility .cw-drag-handle--static:hover,
 :where([data-bs-theme="dark"]) .po-command-visibility .cw-drag-handle--static:focus-visible {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cw-conference-action:hover,

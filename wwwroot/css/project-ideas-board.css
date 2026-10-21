@@ -1156,9 +1156,9 @@
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :where([data-bs-theme="dark"]) .pi-index-page {
-    --pi-navy: #3c79e3;
-    --pi-navy-strong: #3a79e3;
-    --pi-blue: #4079dd;
+    --pi-navy: #6ea8fe;
+    --pi-navy-strong: #6ea8fe;
+    --pi-blue: #6ea8fe;
     --pi-blue-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
     --pi-ink: #e6e8eb;
     --pi-text: #e6e8eb;
@@ -1194,6 +1194,8 @@
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-new-idea:hover {
     color: #fff;
+    background: color-mix(in srgb, var(--pi-navy-strong) 55%, #000);
+    border-color: color-mix(in srgb, var(--pi-navy-strong) 55%, #000);
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-command-surface {
@@ -1215,6 +1217,8 @@
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-tabs a.active {
     color: #fff;
+    border-color: color-mix(in srgb, var(--pi-navy) 55%, #000);
+    background: color-mix(in srgb, var(--pi-navy) 55%, #000);
     box-shadow: 0 5px 13px rgba(0, 0, 0, 0.55);
 }
 
@@ -1408,7 +1412,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-table-date-separator {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-table-stale {
@@ -1426,7 +1430,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-no-updates {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-table-open {
@@ -1469,7 +1473,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-card-stale-separator {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pi-index-page .pi-card-metadata b {

@@ -93,12 +93,12 @@
 .at-task-side-card {
     border: 1px solid #dde5ef;
     border-radius: .86rem;
-    background: #fff;
+    background: var(--pm-card, #fff);
     box-shadow: 0 4px 14px rgba(15, 23, 42, .03);
 }
 .at-task-section { padding: .78rem .9rem; }
 .at-task-side-card { padding: .78rem .82rem; }
-.at-task-section-label { color: #64748b; font-size: .67rem; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
+.at-task-section-label { color: var(--pm-accent-slate-mid, #64748b); font-size: .67rem; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
 .at-task-brief-card { padding-top: .68rem; padding-bottom: .7rem; }
 .at-task-brief-copy { margin-top: .28rem; color: #172b4d; font-size: .91rem; line-height: 1.46; white-space: pre-line; }
 .at-task-brief-copy.is-muted { color: #7b8ba1; }
@@ -133,19 +133,19 @@
 .at-task-history-remarks { margin-top: .26rem; color: #566980; font-size: .73rem; line-height: 1.4; white-space: pre-line; }
 
 /* Shared remark/timeline primitives for the full page. */
-.at-v2-remark-composer { display: grid; gap: .45rem; border: 1px solid #cbd8ef; border-radius: .8rem; background: #fff; transition: border-color .16s ease, box-shadow .16s ease; }
+.at-v2-remark-composer { display: grid; gap: .45rem; border: 1px solid #cbd8ef; border-radius: .8rem; background: var(--pm-card, #fff); transition: border-color .16s ease, box-shadow .16s ease; }
 .at-v2-remark-composer:focus-within { border-color: #90aee8; box-shadow: 0 0 0 3px rgba(37, 99, 235, .08); }
 .at-v2-remark-composer.is-conference { border-color: #c8c1ff; background: #fcfbff; }
 .at-v2-remark-composer textarea { resize: vertical; border: 0; padding: .35rem .25rem; box-shadow: none !important; font-size: .88rem; }
-.at-v2-remark-types { display: inline-flex; width: max-content; gap: .2rem; padding: .16rem; border-radius: .55rem; background: #f1f5f9; }
-.at-v2-remark-types button { border: 0; border-radius: .42rem; background: transparent; color: #64748b; padding: .22rem .48rem; font-size: .72rem; font-weight: 750; }
-.at-v2-remark-types button.is-active { background: #fff; color: #173f8f; box-shadow: 0 1px 3px rgba(15,23,42,.1); }
+.at-v2-remark-types { display: inline-flex; width: max-content; gap: .2rem; padding: .16rem; border-radius: .55rem; background: var(--pm-surface-ghost, #f1f5f9); }
+.at-v2-remark-types button { border: 0; border-radius: .42rem; background: transparent; color: var(--pm-accent-slate-mid, #64748b); padding: .22rem .48rem; font-size: .72rem; font-weight: 750; }
+.at-v2-remark-types button.is-active { background: var(--pm-card, #fff); color: #173f8f; box-shadow: 0 1px 3px rgba(15,23,42,.1); }
 .at-v2-remark-composer.is-conference .at-v2-remark-types button.is-active { color: #4f46b8; }
 .at-v2-composer-footer { display: flex; align-items: center; gap: .5rem; min-width: 0; }
 .at-v2-attach-button { display: inline-flex; align-items: center; gap: .3rem; margin: 0; color: #45607f; cursor: pointer; font-size: .78rem; font-weight: 650; }
 .at-v2-file-summary { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #73839a; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .at-v2-update-stream { display: grid; }
-.at-v2-update-card { border: 1px solid #dfe6ef; border-radius: .74rem; background: #fff; }
+.at-v2-update-card { border: 1px solid #dfe6ef; border-radius: .74rem; background: var(--pm-card, #fff); }
 .at-v2-update-card.is-conference { border-color: #d7d2ff; background: #fbfaff; }
 .at-v2-update-card.is-progress { border-left: 3px solid #cbd5e1; }
 .at-v2-update-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
@@ -153,12 +153,12 @@
 .at-v2-update-heading time { color: #7b8ba1; font-size: .69rem; white-space: nowrap; }
 .at-progress-event-title { color: #40536d; font-size: .7rem; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
 .at-v2-update-body { margin-top: .38rem; color: #1f334f; line-height: 1.5; white-space: pre-line; }
-.at-v2-update-author { margin-top: .4rem; color: #64748b; font-size: .72rem; font-weight: 600; }
+.at-v2-update-author { margin-top: .4rem; color: var(--pm-accent-slate-mid, #64748b); font-size: .72rem; font-weight: 600; }
 .at-v2-update-files { display: grid; gap: .3rem; margin-top: .5rem; }
-.at-v2-update-file { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .35rem; padding: .38rem .48rem; border: 1px solid #e0e7f1; border-radius: .5rem; background: #f8fafc; color: #244a85; font-size: .75rem; text-decoration: none; }
+.at-v2-update-file { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .35rem; padding: .38rem .48rem; border: 1px solid #e0e7f1; border-radius: .5rem; background: var(--pm-surface-subtle, #f8fafc); color: #244a85; font-size: .75rem; text-decoration: none; }
 .at-v2-update-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .at-v2-update-file small { color: #7b8ba1; }
-.at-update-context { display: flex; flex-wrap: wrap; gap: .25rem .55rem; margin-top: .38rem; color: #64748b; font-size: .72rem; }
+.at-update-context { display: flex; flex-wrap: wrap; gap: .25rem .55rem; margin-top: .38rem; color: var(--pm-accent-slate-mid, #64748b); font-size: .72rem; }
 .at-task-empty-state { padding: .8rem; border: 1px dashed #d9e2ee; border-radius: .7rem; color: #75869c; font-size: .8rem; text-align: center; }
 
 @media (max-width: 980px) {
@@ -202,3 +202,191 @@
 .at-task-history-change > div { display: grid; grid-template-columns: 3.5rem 1fr; gap: .4rem; align-items: start; }
 .at-task-history-change span { color: #7a899e; font-size: .66rem; text-transform: uppercase; letter-spacing: .03em; }
 .at-task-history-change p { margin: 0; color: #4f6077; font-size: .72rem; line-height: 1.4; white-space: pre-line; }
+
+/* ============================================================
+   Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
+   Light is unchanged; these rules only apply under data-bs-theme="dark".
+   Palette: docs/ux/dark-theme-palette.md
+   ============================================================ */
+:where([data-bs-theme="dark"]) .at-task-workspace-header {
+    border-bottom: 1px solid #2c3035;
+    box-shadow: 0 7px 18px rgba(0, 0, 0, 0.21);
+}
+
+:where([data-bs-theme="dark"]) .at-task-back-link {
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-task-back-link:hover {
+    color: #6ea8fe;
+}
+
+:where([data-bs-theme="dark"]) .at-task-workspace-kicker {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-workspace-kicker::after {
+    color: #8a9097;
+}
+
+:where([data-bs-theme="dark"]) .at-task-workspace h1 {
+    color: #6ea8fe;
+}
+
+:where([data-bs-theme="dark"]) .at-task-workspace-meta {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-workspace-header .at-task-action-bar {
+    border-top: 1px solid #2c3035;
+}
+
+:where([data-bs-theme="dark"]) .at-task-section,
+:where([data-bs-theme="dark"]) .at-task-side-card {
+    border: 1px solid #2c3035;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+:where([data-bs-theme="dark"]) .at-task-brief-copy {
+    color: #e6e8eb;
+}
+
+:where([data-bs-theme="dark"]) .at-task-brief-copy.is-muted {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-section-header h2 {
+    color: #6ea8fe;
+}
+
+:where([data-bs-theme="dark"]) .at-task-property-row {
+    border-bottom: 1px solid #2c3035;
+}
+
+:where([data-bs-theme="dark"]) .at-task-property-row:last-of-type {
+    border-bottom: 0;
+}
+
+:where([data-bs-theme="dark"]) .at-task-property-key {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-property-value {
+    color: #e6e8eb;
+}
+
+:where([data-bs-theme="dark"]) .at-task-side-remarks {
+    border-top: 1px solid #2c3035;
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-card summary {
+    color: #e6e8eb;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-list article {
+    border: 1px solid #2c3035;
+    background: #16181b;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-summary {
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-remarks {
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-remark-composer {
+    border: 1px solid color-mix(in srgb, #6ea8fe 30%, #16181b);
+}
+
+:where([data-bs-theme="dark"]) .at-v2-remark-composer:focus-within {
+    border-color: #6ea8fe;
+    box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.25);
+}
+
+:where([data-bs-theme="dark"]) .at-v2-remark-composer.is-conference {
+    border-color: color-mix(in srgb, #7d6ef7 30%, #16181b);
+    background: #16181b;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-remark-types button.is-active {
+    color: #6ea8fe;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+:where([data-bs-theme="dark"]) .at-v2-remark-composer.is-conference .at-v2-remark-types button.is-active {
+    color: #6ea8fe;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-attach-button {
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-file-summary {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-card {
+    border: 1px solid #2c3035;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-card.is-conference {
+    border-color: color-mix(in srgb, #7d6ef7 30%, #16181b);
+    background: #16181b;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-card.is-progress {
+    border-left: 3px solid #3a3f45;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-heading time {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-progress-event-title {
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-body {
+    color: #e6e8eb;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-file {
+    border: 1px solid #2c3035;
+    color: #6ea8fe;
+}
+
+:where([data-bs-theme="dark"]) .at-v2-update-file small {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-empty-state {
+    border: 1px dashed #2c3035;
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-changes {
+    border-top: 1px solid #2c3035;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-changes > summary {
+    color: #6ea8fe;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-change {
+    background: #16181b;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-change > strong {
+    color: #b4b9bf;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-change span {
+    color: #9aa0a6;
+}
+
+:where([data-bs-theme="dark"]) .at-task-history-change p {
+    color: #b4b9bf;
+}

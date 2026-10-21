@@ -820,10 +820,10 @@ table.ongoing-table td.col-remarks .pm-remark-text {
     --oc-border: #2c3035;
     --oc-surface: #16181b;
     --oc-surface-soft: #16181b;
-    --oc-primary: #4876e5;
-    --oc-success: #278d55;
-    --oc-warning: #ab6e18;
-    --oc-danger: #cd5555;
+    --oc-primary: #6ea8fe;
+    --oc-success: #4ade80;
+    --oc-warning: #fbbf24;
+    --oc-danger: #f87171;
 }
 
 :where([data-bs-theme="dark"]) .ongoing-top {
@@ -869,7 +869,7 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 }
 
 :where([data-bs-theme="dark"]) .ongoing-card__thumb-placeholder {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .ongoing-card__title a {
@@ -924,7 +924,7 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 }
 
 :where([data-bs-theme="dark"]) .briefing-timeline__rail {
-    scrollbar-color: #7b8188 transparent;
+    scrollbar-color: #8a9097 transparent;
 }
 
 :where([data-bs-theme="dark"]) .briefing-stage__node {
@@ -935,6 +935,8 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 
 :where([data-bs-theme="dark"]) .briefing-stage.is-complete .briefing-stage__node {
     color: #fff;
+    border-color: color-mix(in srgb, var(--oc-success) 55%, #000);
+    background: color-mix(in srgb, var(--oc-success) 55%, #000);
 }
 
 :where([data-bs-theme="dark"]) .briefing-stage.is-past-missing .briefing-stage__node {
@@ -951,6 +953,8 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 
 :where([data-bs-theme="dark"]) .briefing-stage.is-current .briefing-stage__node {
     color: #fff;
+    border-color: color-mix(in srgb, var(--oc-primary) 55%, #000);
+    background: color-mix(in srgb, var(--oc-primary) 55%, #000);
     box-shadow: 0 0 0 4px rgba(110, 168, 254, 0.25);
 }
 

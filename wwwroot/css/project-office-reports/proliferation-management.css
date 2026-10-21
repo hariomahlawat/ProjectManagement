@@ -415,6 +415,7 @@
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :where([data-bs-theme="dark"]) .pro-hero {
+    background: radial-gradient(circle at top left, color-mix(in srgb, var(--pro-hero-start) 55%, #000), color-mix(in srgb, var(--pro-hero-end) 55%, #000));
     box-shadow: 0 1.75rem 3rem -1.75rem rgba(0, 0, 0, 0.6);
 }
 

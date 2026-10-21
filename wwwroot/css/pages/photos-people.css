@@ -1628,7 +1628,7 @@ a.identity-workload-pill:hover {
     --people-muted: #9aa0a6;
     --people-line: #2c3035;
     --people-soft: #16181b;
-    --people-accent: #3e7bd5;
+    --people-accent: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .people-eyebrow {

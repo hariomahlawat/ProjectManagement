@@ -897,16 +897,16 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :where([data-bs-theme="dark"]) .ipr-register-page {
-    --ipr-blue: #4a76e5;
-    --ipr-blue-dark: #4978de;
+    --ipr-blue: #6ea8fe;
+    --ipr-blue-dark: #6ea8fe;
     --ipr-blue-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --ipr-green: #298c60;
+    --ipr-green: #4ade80;
     --ipr-green-soft: #1e2125;
-    --ipr-amber: #a87018;
+    --ipr-amber: #fbbf24;
     --ipr-amber-soft: color-mix(in srgb, #fbbf24 10%, #16181b);
-    --ipr-red: #ca565c;
+    --ipr-red: #f87171;
     --ipr-red-soft: color-mix(in srgb, #f87171 8%, #16181b);
-    --ipr-violet: #8069de;
+    --ipr-violet: #9582e3;
     --ipr-violet-soft: color-mix(in srgb, #8b6ef7 8%, #16181b);
     --ipr-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
 }
@@ -962,6 +962,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 }
 
 :where([data-bs-theme="dark"]) .ipr-header-filter-button__count {
+    background: color-mix(in srgb, var(--ipr-blue) 55%, #000);
     color: #fff;
 }
 
@@ -1054,7 +1055,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 }
 
 :where([data-bs-theme="dark"]) .ipr-pagination-compact__button.is-disabled {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .ipr-density-toggle {
@@ -1140,7 +1141,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 }
 
 :where([data-bs-theme="dark"]) .ipr-no-file {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .ipr-pagination-bar .page-link:focus-visible {

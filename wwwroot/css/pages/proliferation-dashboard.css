@@ -334,6 +334,10 @@
     background: rgba(110, 168, 254, 0.3);
 }
 
+:where([data-bs-theme="dark"]) .reconciliation-panel .nav-link.active {
+    background: color-mix(in srgb, var(--pm-accent-blue-bolder) 55%, #000);
+}
+
 :where([data-bs-theme="dark"]) .effective-badge {
     background: rgba(110, 168, 254, 0.17);
 }

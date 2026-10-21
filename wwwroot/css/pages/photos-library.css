@@ -1189,7 +1189,7 @@
     --photos-line: #2c3035;
     --photos-surface: #16181b;
     --photos-soft: #16181b;
-    --photos-accent: #3e7bd5;
+    --photos-accent: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .photos-library__eyebrow {
@@ -1309,11 +1309,11 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__heading > span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__position {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__actions a,
@@ -1350,7 +1350,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__info dt {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__info p {
@@ -1391,7 +1391,7 @@
     --photos-ink: #f0f2f4;
     --photos-muted: #9aa0a6;
     --photos-line: #2c3035;
-    --photos-accent: #4876e5;
+    --photos-accent: #6ea8fe;
     --photos-soft: #16181b;
 }
 
@@ -1435,6 +1435,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-control b {
+    background: color-mix(in srgb, var(--photos-accent) 55%, #000);
     color: #fff;
 }
 
@@ -1528,7 +1529,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-empty > i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .photos-page-btn {

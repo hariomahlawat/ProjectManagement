@@ -84,3 +84,33 @@ test('country-card mode does not require Leaflet', () => {
   assert.equal(dom.window.L, undefined);
   assert.doesNotThrow(() => dom.window.eval(script));
 });
+
+test('map colours follow the theme tokens and restyle when the theme changes', async () => {
+  const dom = new JSDOM(`<!doctype html><html><head><style>
+      [data-bs-theme="dark"] #ffcFootprintMap { --ffc-map-land: #25282d; }
+    </style></head><body>
+    <main data-ffc-footprint data-view="map" data-metric="total" data-geo-url="/map.geojson">
+      <div id="ffcFootprintMap"></div>
+      <div data-ffc-map-legend></div>
+    </main>
+    <script type="application/json" id="ffc-footprint-data">[]</script>
+  </body></html>`, { runScripts: 'outside-only', url: 'https://prism.test/ProjectOfficeReports/FFC/Footprint?view=map' });
+  const { window } = dom;
+  const styleCalls = [];
+  const geoLayer = { addTo() { return this; }, getBounds: () => ({ isValid: () => false }), setStyle(fn) { styleCalls.push(fn({ properties: { iso3: 'XXX' } })); } };
+  window.L = {
+    map: () => ({ setView() {}, fitBounds() {}, invalidateSize() {} }),
+    geoJSON: (data, options) => { styleCalls.push(options.style({ properties: { iso3: 'XXX' } })); return geoLayer; },
+    featureGroup: () => ({ getBounds: () => ({ isValid: () => false }) })
+  };
+  window.fetch = async () => ({ ok: true, json: async () => ({ type: 'FeatureCollection', features: [] }) });
+  window.eval(script);
+  await new Promise(resolve => setTimeout(resolve, 10));
+
+  assert.equal(styleCalls[0].fillColor, '#f7f9fc'); // Light keeps the built-in colour
+
+  window.document.documentElement.setAttribute('data-bs-theme', 'dark');
+  await new Promise(resolve => setTimeout(resolve, 10));
+
+  assert.equal(styleCalls.at(-1).fillColor, '#25282d');
+});

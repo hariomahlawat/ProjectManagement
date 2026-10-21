@@ -37,9 +37,29 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
   manage) and the ARPP library. Older hand-written dark rules in a navy palette
   (IPR, officer conference, workspace, activity strip, ToT, FFC) were moved to graphite.
   Not seen: the Compendium cover editor (it needs a saved Compendium).
-- **Not yet covered:** wave 4 in [theme coverage](theme-coverage.md): Action tracker, tasks
-  (`tasks.css` still follows `prefers-color-scheme`), office reports, Admin and the rest.
-  Dark stays opt-in until it is converted.
+- **Wave 4 covered and checked (2026-10-21):** Action tracker (overview and board), Tasks,
+  Decision Centre, ERP usage, Industry directory, Activities, office reports (Visits, Social
+  media, Training, ToT, FFC proposals, detailed table, records, global footprint map, ARPP
+  administration and reconciliation), Admin (every page in its menu), Notifications,
+  Account settings, Developer and Sign-in. The FFC footprint map reads its country colours
+  from `--ffc-map-*` custom properties (Light keeps its built-in values); Leaflet's own
+  controls and tooltips are themed centrally. `tasks.css` no longer follows
+  `prefers-color-scheme`. Not seen: the signed-out landing page (signed-in users are sent
+  to the Dashboard) and action-task detail pages (no tasks in the dev data).
+- **Coverage now:** 71 dark gaps site-wide, down from 8,567 before the theme work; all are
+  deliberate (print proofs, the Procurement Process page's own always-dark journey, solid
+  danger/warning button fills, keyframe glows). See [theme coverage](theme-coverage.md).
+
+### Is Dark ready to offer?
+
+Recommendation (the owner decides): **yes, offer it prominently, keep Light the default for
+now.** Every page reachable from the navigation has been checked in Dark with its dialogs
+and drawers, Light has been proven unchanged at each step, and the ratchet in `npm test`
+stops new hard-coded colours. Before making **System** the default, run one release with
+Dark opt-in so users can report anything the scans missed (rare states, data-dependent
+colours such as charts with many series, exported previews), and review the few pages that
+were not reachable in the dev data (above). Changing the default is one line in
+`theme-preference.js` (`DEFAULT_PREFERENCE`).
 - **Rollback.** Remove the `<script src="~/js/core/theme-preference.js">` line from
   `_Layout.cshtml`: every dark rule is scoped to `[data-bs-theme="dark"]`, so the site
   renders Light for everyone, including users who chose Dark.
@@ -92,9 +112,11 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
 - **Primary buttons** keep a solid `#2563eb` in dark so white text stays above AA; the
   lifted accent `#6ea8fe` is for text, marks and focus, not fills behind white text.
 - **Tokens used both ways.** `--pm-primary` and page accent tokens (`--oc-success`,
-  `--officer-accent`, ...) are used both as fills behind white text and as text on the card.
-  In dark they take a *balanced* tone: the same hue at relative luminance about 0.2, which
-  keeps about 4:1 contrast both ways (`--pm-primary` is `#3f79e2`).
+  `--officer-accent`, ...) are used both as fills behind white text and as text on the card,
+  and no single colour reaches 4.5:1 in both roles. In dark the token is the lifted text
+  accent (`--pm-primary` is `#6ea8fe`, 7.5:1 on the card), and every rule that puts white
+  text on it gets a generated fill of the same token mixed 55% with black
+  (`color-mix(in srgb, var(--token) 55%, #000)`), which keeps white text at 4.5:1 or better.
 - **Component overrides** live with their component: the shell in
   `navigation-shell.css`; shared Bootstrap and drawer rules at the end of `site.css`; the
   Overview's section tokens in `project-portfolio.css` ("V6"), which now read the site

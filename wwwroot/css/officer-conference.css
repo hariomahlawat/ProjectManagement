@@ -2021,13 +2021,13 @@
     --oc-line: #2c3035;
     --oc-soft: #16181b;
     --oc-card: #16181b;
-    --oc-blue: #4f76dc;
+    --oc-blue: #6ea8fe;
     --oc-blue-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --oc-conference: #7c6ecf;
+    --oc-conference: #9385e0;
     --oc-conference-soft: #16181b;
-    --oc-direction: #c7566e;
+    --oc-direction: #f87171;
     --oc-direction-soft: #16181b;
-    --oc-warning: #b16c19;
+    --oc-warning: #fbbf24;
     --oc-warning-soft: color-mix(in srgb, #fbbf24 9%, #16181b);
     --oc-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
 }
@@ -2166,7 +2166,7 @@
 }
 
 :where([data-bs-theme="dark"]) .oc-item__direction--empty .oc-no-direction i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .oc-state {
@@ -2202,7 +2202,7 @@
 }
 
 :where([data-bs-theme="dark"]) .oc-direction__timestamp {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .oc-progress-label {
@@ -2281,6 +2281,8 @@
 }
 
 :where([data-bs-theme="dark"]) .oc-editor-save {
+    border: 1px solid color-mix(in srgb, var(--oc-conference) 55%, #000);
+    background: color-mix(in srgb, var(--oc-conference) 55%, #000);
     color: #fff;
 }
 

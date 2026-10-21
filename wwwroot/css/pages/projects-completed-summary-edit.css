@@ -477,10 +477,10 @@
     --cpe-line: #2c3035;
     --cpe-bg: #0e0f11;
     --cpe-surface: #16181b;
-    --cpe-blue: #4976e5;
-    --cpe-blue-dark: #4d75e2;
-    --cpe-red: #ce5555;
-    --cpe-green: #178c63;
+    --cpe-blue: #6ea8fe;
+    --cpe-blue-dark: #6ea8fe;
+    --cpe-red: #f87171;
+    --cpe-green: #4ade80;
 }
 
 :where([data-bs-theme="dark"]) .cpe-back {
@@ -658,6 +658,8 @@
 
 :where([data-bs-theme="dark"]) .cpe-button-primary {
     color: #fff;
+    border-color: color-mix(in srgb, var(--cpe-blue) 55%, #000);
+    background: color-mix(in srgb, var(--cpe-blue) 55%, #000);
 }
 
 :where([data-bs-theme="dark"]) .cpe-button-secondary:hover {
@@ -667,4 +669,5 @@
 
 :where([data-bs-theme="dark"]) .cpe-button-primary:hover {
     color: #fff;
+    background: color-mix(in srgb, var(--cpe-blue-dark) 55%, #000);
 }

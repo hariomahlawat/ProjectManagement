@@ -1685,11 +1685,12 @@ body.cpw-drawer-open { overflow: hidden; }
     --cpw-line: #2c3035;
     --cpw-surface: #16181b;
     --cpw-bg: #0e0f11;
-    --cpw-blue: #4976e5;
-    --cpw-blue-dark: #4d76e5;
-    --cpw-green: #148c5f;
-    --cpw-amber: #a57118;
-    --cpw-cyan: #1f82bf;
+    --cpw-blue: #6ea8fe;
+    --cpw-blue-dark: #6ea8fe;
+    --cpw-green: #4ade80;
+    --cpw-amber: #fbbf24;
+    --cpw-red: #f87171;
+    --cpw-cyan: #7cbfe9;
     --cpw-slate: #9aa0a6;
 }
 
@@ -1705,11 +1706,14 @@ body.cpw-drawer-open { overflow: hidden; }
 
 :where([data-bs-theme="dark"]) .cpw-btn-primary {
     color: #fff;
+    border-color: color-mix(in srgb, var(--cpw-blue) 55%, #000);
+    background: color-mix(in srgb, var(--cpw-blue) 55%, #000);
     box-shadow: 0 7px 18px rgba(0, 0, 0, 0.55);
 }
 
 :where([data-bs-theme="dark"]) .cpw-btn-primary:hover {
     color: #fff;
+    background: color-mix(in srgb, var(--cpw-blue-dark) 55%, #000);
 }
 
 :where([data-bs-theme="dark"]) .cpw-btn-ghost {
@@ -1848,7 +1852,7 @@ body.cpw-drawer-open { overflow: hidden; }
 }
 
 :where([data-bs-theme="dark"]) .cpw-table th a span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cpw-table th[aria-sort="ascending"] a,

@@ -56,6 +56,20 @@ test('only the selector subject marks a page canvas', () => {
   assert.notEqual(darkColour('#f2f6fc', 'background', '', { selector: '.ideas-page .tabs a:hover' }), '#0e0f11');
 });
 
+test('white text on an accent-token fill deepens the fill instead of sharing one colour', () => {
+  const { output } = convert(':root { --brand: #3568e8; } .chip { background: var(--brand); color: #fff; } .link { color: var(--brand); }');
+  // The token is lifted for text...
+  assert.match(output, /:root\[data-bs-theme="dark"\] \{\n {4}--brand: #6ea8fe;/);
+  // ...and the fill behind white text is the same token mixed with black.
+  assert.match(output, /\.chip \{\n {4}background: color-mix\(in srgb, var\(--brand\) 55%, #000\);/);
+  assert.doesNotMatch(output, /\.link \{\n {4}color: color-mix/);
+});
+
+test('site accent fills behind white text are deepened too', () => {
+  const { output } = convert('.pill { background: var(--pm-primary); color: #fff; }');
+  assert.match(output, /background: color-mix\(in srgb, var\(--pm-primary\) 55%, #000\);/);
+});
+
 test('colour words inside quoted strings are left alone', () => {
   const { output, generated } = convert('.x::before { content: "black"; color: black; }');
   assert.equal(generated, 1);
@@ -84,6 +98,21 @@ test('light islands restore the page tokens that Dark redefines', () => {
     [data-bs-theme="dark"] :is(.proof) { color-scheme: light; }`;
   const { output } = convert(css);
   assert.match(output, /:root\[data-bs-theme="dark"\] :is\(\.proof\) \{\n {4}--ink: #15231f;\n {4}--paper: #fbfaf6;/);
+});
+
+test('a light island restores the root token value, not a later scoped override', () => {
+  const css = `
+    .page { --paper: #fbfaf6; }
+    @media (max-width: 600px) { .page { --paper: #f1f1f1; } }
+    .proof { background: var(--paper); }
+    [data-bs-theme="dark"] :is(.proof) { color-scheme: light; }`;
+  const { output } = convert(css);
+  assert.match(output, /:root\[data-bs-theme="dark"\] :is\(\.proof\) \{\n {4}--paper: #fbfaf6;/);
+});
+
+test('named colours match case-insensitively', () => {
+  const { generated } = convert('.a { background: White; } .b { color: BLACK; }');
+  assert.equal(generated, 2);
 });
 
 test('island selectors are dropped from grouped rules; the rest still convert', () => {
