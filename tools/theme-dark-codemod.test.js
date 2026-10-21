@@ -74,3 +74,12 @@ test('light islands and their BEM parts and descendants get no dark rules', () =
   assert.doesNotMatch(output, /\]\) \.proof/);
   assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.card \{/);
 });
+
+test('light islands restore the page tokens that Dark redefines', () => {
+  const css = `
+    .page { --ink: #15231f; --paper: #fbfaf6; }
+    .proof { background: var(--paper); color: var(--ink); }
+    [data-bs-theme="dark"] :is(.proof) { color-scheme: light; }`;
+  const { output } = convert(css);
+  assert.match(output, /:root\[data-bs-theme="dark"\] :is\(\.proof\) \{\n {4}--ink: #15231f;\n {4}--paper: #fbfaf6;/);
+});

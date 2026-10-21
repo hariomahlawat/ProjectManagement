@@ -367,6 +367,22 @@ function convert(source) {
     }
   }
 
+  // Light islands inherit custom properties from the page, and the page's tokens were just
+  // redefined for Dark. Restore their Light values inside the islands.
+  if (islands.size && blocks.has('')) {
+    const defs = new Map();
+    for (const rule of rules) {
+      if (isDarkSelector(rule.selector)) continue;
+      for (const d of rule.declarations) if (d.property.startsWith('--') && !defs.has(d.property)) defs.set(d.property, d.value);
+    }
+    const redefined = new Set();
+    for (const text of blocks.get('')) for (const m of text.matchAll(/^ {4}(--[\w-]+):/gm)) redefined.add(m[1]);
+    const restore = [...redefined].filter((name) => defs.has(name)).sort().map((name) => `    ${name}: ${defs.get(name).trim()};`);
+    if (restore.length) {
+      blocks.get('').push(`/* Light islands keep the page's Light tokens. */\n:root[data-bs-theme="dark"] :is(${[...islands].map((name) => `.${name}`).join(', ')}) {\n${restore.join('\n')}\n}`);
+    }
+  }
+
   let output = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) {
     output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);

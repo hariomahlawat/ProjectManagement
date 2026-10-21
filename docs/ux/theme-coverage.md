@@ -72,7 +72,7 @@ Totals: **8317** stylesheet literals in 84 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `pages/projects-publications.css` | 1302 | 804 |
+| `pages/projects-publications.css` | 1302 | 806 |
 | `process-flow.css` | 552 | 265 |
 | `pages/project-briefing-decks.css` | 247 | 172 |
 | `project-ideas.css` | 228 | 150 |
