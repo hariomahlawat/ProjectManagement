@@ -26,7 +26,7 @@ Sections follow the Conference view order: Projects, Ideas, Tasks. Empty section
 
 | Item | Brief-ready when | Shown but never required |
 | --- | --- | --- |
-| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set and not overdue, or a plan awaiting HoD approval; an in-progress stage has an actual start, or a date correction awaiting approval | Record-health gaps, grouped by the editor that fixes them, with the points each would add |
+| Project | Nothing returned by the HoD left uncorrected; a PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set and not overdue, or a plan awaiting HoD approval; an in-progress stage has an actual start, or a date correction awaiting approval | Record-health gaps, grouped by the editor that fixes them, with the points each would add |
 | Idea | Activity within the existing 15-day idea rule; the latest direction answered with a note | — |
 | Task | Progress by the PO within 7 days; the latest direction answered; if overdue, submitted for closure or flagged blocked. A submitted task waits on the assigner and counts as ready | — |
 
@@ -49,8 +49,26 @@ are unchanged. The desk adds its own check that the item is assigned to the sign
 Procurement figures open in a side panel on the desk. The panel is the Project Overview
 editor (`Projects/Procurement/_EditFormBody`), built by the shared `ProcurementEditVmFactory`, so
 locks and ARPP messages match. It posts to the existing procurement page with a `returnUrl`.
-That page returns only to a local `/Workspace` address (`EditModel.DeskReturnUrl`), and
-otherwise keeps its original redirect to Project Overview.
+That page returns only to a local `/Workspace` address
+(`WorkspaceRouteHelper.SafeDeskReturnUrl`, shared with the plan editor), and otherwise keeps
+its original redirect to Project Overview.
+
+**Current-stage PDC form.** When a project's current-stage PDC is missing or overdue, and
+nothing else would be submitted along with it, "Propose date(s)" opens a short side panel that
+asks only for the PDC. "Nothing else" means no private draft, no submission pending or locked,
+and the plan open for submission. The panel posts one row to the plan editor's own handler
+(`Timeline/EditPlan`, exact mode, Submit): the stage code and name, the new PDC, and the
+existing planned start unchanged. The editor writes back exactly the rows it receives, so the
+start must travel with the row. The handler then validates and submits the whole plan through
+`PlanApprovalService`, exactly as the full editor does. Other stages keep their planned dates.
+A successful submission returns to the desk (`ReturnUrl`, local `/Workspace` only). A refusal
+keeps the editor's existing behaviour: the full editor reopens on Project Overview with the
+entry and the reasons. In every other state the check links to the full editor.
+
+**Returned items** (plan, actual-date correction, stage change, project details or document
+request sent back by the HoD) appear first on their project's card, with the HoD's note and a
+"Correct and resubmit" link. A returned item keeps the card from being brief-ready. They are
+still listed under **Returned to you**.
 
 Approval-routed work (plan dates, actual-date corrections, project details, documents) is
 linked to the exact editor. Plan links use `?oc=plan&stage=<code>`, which opens the plan

@@ -81,6 +81,11 @@ public class EditPlanModel : PageModel
     [BindProperty]
     public DateTimeOffset? WithdrawSubmittedOn { get; set; }
 
+    // Set by the briefing desk's current-stage form. Used only after a successful
+    // submission; every refusal still reopens the full editor on Project Overview.
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
     public IActionResult OnGet(int id) => NotFound();
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
@@ -442,6 +447,14 @@ public class EditPlanModel : PageModel
         // Audit and replacement must commit together. Any failed submission
         // returns before this point; disposal rolls back the proposed edit.
         await revisionSave.CommitAsync(cancellationToken);
+
+        if (submitForApproval &&
+            ProjectManagement.Services.Workspace.WorkspaceRouteHelper.SafeDeskReturnUrl(ReturnUrl) is { } deskUrl)
+        {
+            TempData.Remove("Flash");
+            TempData["ToastSuccess"] = "Plan submitted for HoD review.";
+            return LocalRedirect(deskUrl);
+        }
 
         if (!submitForApproval)
         {

@@ -65,6 +65,23 @@ internal static class WorkspaceRouteHelper
     public static string ProjectOfficerWorkspace(string view = "overview")
         => $"/Workspace?mode=project-officer&view={Uri.EscapeDataString(string.IsNullOrWhiteSpace(view) ? "overview" : view)}";
 
+    // An editor opened from the briefing desk may return only to a local /Workspace address.
+    // Anything else (absolute, protocol-relative, backslash or another path) is refused.
+    public static string? SafeDeskReturnUrl(string? returnUrl)
+    {
+        if (string.IsNullOrWhiteSpace(returnUrl)
+            || returnUrl.Contains('\\')
+            || returnUrl.StartsWith("//", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return returnUrl.Equals("/Workspace", StringComparison.OrdinalIgnoreCase)
+            || returnUrl.StartsWith("/Workspace?", StringComparison.OrdinalIgnoreCase)
+            ? returnUrl
+            : null;
+    }
+
     // Returns to the briefing desk with the named card open and in view.
     public static string BriefingDeskItem(string anchorId)
         => $"/Workspace?mode=project-officer&view=overview&focus={Uri.EscapeDataString(anchorId)}#{anchorId}";

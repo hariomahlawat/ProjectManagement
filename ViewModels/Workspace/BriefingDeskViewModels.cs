@@ -72,6 +72,9 @@ public sealed class BriefingDeskItemVm
 
     public string? ProcurementPanelId { get; init; }
 
+    /// <summary>Short current-stage plan form; null when the full editor is needed.</summary>
+    public BriefingDeskPlanPanelVm? PlanPanel { get; init; }
+
     public string? TaskRowVersion { get; init; }
 
     public bool CanSubmitTask { get; init; }
@@ -164,6 +167,31 @@ public sealed class BriefingDeskCheckVm
     public string? PanelId { get; init; }
 
     public int Points { get; init; }
+}
+
+public sealed class BriefingDeskPlanPanelVm
+{
+    public string PanelId { get; init; } = string.Empty;
+
+    public int ProjectId { get; init; }
+
+    public string ProjectName { get; init; } = string.Empty;
+
+    public string EditToken { get; init; } = string.Empty;
+
+    public string StageCode { get; init; } = string.Empty;
+
+    public string StageName { get; init; } = string.Empty;
+
+    public DateOnly? PlannedStart { get; init; }
+
+    public DateOnly? PlannedDue { get; init; }
+
+    public bool IsOverdue { get; init; }
+
+    public string ReturnUrl { get; init; } = string.Empty;
+
+    public string FullEditorUrl { get; init; } = string.Empty;
 }
 
 public sealed class BriefingDeskItemRenderVm

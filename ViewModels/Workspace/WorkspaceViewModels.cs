@@ -421,6 +421,9 @@ public sealed class WorkspaceAttentionItemVm
     public string ActionUrl { get; set; } = string.Empty;
 
     public DateTime? DueOrEventDateUtc { get; set; }
+
+    /// <summary>The reviewer's note on a returned item, when one was given.</summary>
+    public string? ReviewerNote { get; set; }
 }
 
 public sealed class WorkspaceProjectMatrixRowVm
