@@ -374,6 +374,11 @@ function createNotebookBoard(root = document) {
       const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
       if (countEl) countEl.textContent = String(count);
     });
+    const othersHeader = root.querySelector('[data-notebook-section-header="others"]');
+    if (othersHeader) {
+      const countOf = (name) => Number(root.querySelector(`[data-notebook-board="${name}"]`)?.dataset.itemCount || 0);
+      othersHeader.hidden = countOf("pinned") === 0 || countOf("others") === 0;
+    }
   };
   const refreshEmptyState = () => {
     const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector("[data-notebook-empty-state]") || root.querySelector("[data-notebook-empty]");
@@ -4887,10 +4892,15 @@ function renderNotebookLabelNavigation(shell, labels = []) {
       if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) {
         link.classList.add("is-active");
       }
-      link.innerHTML = `<i class="bi bi-tag"></i><span>${escapeLabelHtml(label.name)}</span><b>${Number(label.count || 0)}</b>`;
+      const count = Number(label.count || 0);
+      link.innerHTML = `<i class="bi bi-tag" aria-hidden="true"></i><span>${escapeLabelHtml(label.name)}</span><b>${count > 0 ? count : ""}</b>`;
       rail.appendChild(link);
     });
   }
+  const group = shell.querySelector("[data-notebook-label-group]");
+  if (group) group.hidden = safeLabels.length === 0;
+  const create = shell.querySelector("[data-notebook-label-create]");
+  if (create) create.hidden = safeLabels.length !== 0;
   const directory = shell.querySelector("[data-notebook-label-directory-list]");
   if (directory) {
     directory.innerHTML = "";
@@ -5008,6 +5018,32 @@ async function updateSystemPreferenceWithSingleRetry(key, payload) {
     throw error;
   }
 }
+function initNotebookLabelGroup(shell) {
+  const group = shell.querySelector("[data-notebook-label-group]");
+  const toggle = group?.querySelector("[data-notebook-label-group-toggle]");
+  const list = group?.querySelector("[data-notebook-label-rail]");
+  if (!group || !toggle || !list) return;
+  const apply = (collapsed) => {
+    group.dataset.collapsed = String(collapsed);
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    list.hidden = collapsed;
+  };
+  let stored = false;
+  try {
+    stored = localStorage.getItem(LABEL_GROUP_STORAGE_KEY) === "true";
+  } catch {
+    stored = false;
+  }
+  apply(stored && String(shell.dataset.view || "").toLowerCase() !== "labels");
+  toggle.addEventListener("click", () => {
+    const collapsed = group.dataset.collapsed !== "true";
+    apply(collapsed);
+    try {
+      localStorage.setItem(LABEL_GROUP_STORAGE_KEY, String(collapsed));
+    } catch {
+    }
+  });
+}
 function initNotebookApp() {
   const shell = document.querySelector(".notebook-shell");
   if (!shell) return;
@@ -5035,7 +5071,7 @@ function initNotebookApp() {
       const normalizedKey = key.toLowerCase();
       const displayValue = normalizedKey === "shared" ? numericValue + systemSharedCount : normalizedKey === "home" ? numericValue + systemHomeCount : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
-        el.textContent = String(displayValue);
+        el.textContent = displayValue > 0 || !el.closest(".notebook-rail") ? String(displayValue) : "";
         if (key.toLowerCase() === "overdue") {
           const isCurrentView = String(shell.dataset.view || "").toLowerCase() === "overdue";
           el.closest(".notebook-rail__item")?.toggleAttribute("hidden", displayValue <= 0 && !isCurrentView);
@@ -5119,6 +5155,7 @@ function initNotebookApp() {
     }
   });
   renderNotebookLabelNavigation(shell, labels);
+  initNotebookLabelGroup(shell);
   composer = initNotebookComposer(shell.querySelector("[data-notebook-composer]"), board, view, { showGlobalError, applyCounts });
   document.querySelector("[data-notebook-global-error-close]")?.addEventListener("click", () => {
     globalError.hidden = true;
@@ -5610,6 +5647,7 @@ function initNotebookApp() {
     history.replaceState(history.state, "", url);
   });
 }
+var LABEL_GROUP_STORAGE_KEY;
 var init_notebook_app = __esm({
   "wwwroot/js/notebook/notebook-app.js"() {
     init_notebook_utils();
@@ -5627,6 +5665,7 @@ var init_notebook_app = __esm({
     init_notebook_drag_order();
     init_notebook_masonry_grid();
     init_notebook_collaborators();
+    LABEL_GROUP_STORAGE_KEY = "prism.notebook.labelsCollapsed";
   }
 });
 

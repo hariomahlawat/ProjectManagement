@@ -5,27 +5,40 @@
 @{
     ViewData["Title"] = "My Notebook";
     ViewData["UseFullWidth"] = true;
-    var emptyTitle = Model.Notebook.View switch
+    var hasQuery = !string.IsNullOrWhiteSpace(Model.Query);
+    var emptyTitle = hasQuery ? "No matching items" : Model.Notebook.View switch
     {
-        "labels" => "No labels yet.",
-        "today" => "No reminders due today.",
-        "overdue" => "No overdue reminders.",
-        "reminders" => "No active reminders.",
-        "archive" or "archived" => "No archived items.",
-        "completed" => "No completed items.",
-        "trash" => "Trash is empty.",
-        "shared" => "Nothing shared with you yet.",
-        _ => "No notebook items yet."
+        "labels" => "Nothing has this label yet",
+        "today" => "Nothing due today",
+        "overdue" => "No overdue reminders",
+        "reminders" => "No upcoming reminders",
+        "archive" or "archived" => "No archived items",
+        "completed" => "No completed items",
+        "trash" => "Trash is empty",
+        "shared" => "Nothing shared with you yet",
+        _ => "Your notes will appear here"
     };
-    var emptyText = Model.Notebook.View switch
+    var emptyText = hasQuery ? "Try a different word, or clear the search." : Model.Notebook.View switch
     {
-        "labels" => "Add tags to notebook items, then browse by label here.",
+        "labels" => "Add this label to a note from the label button on its card.",
         "today" or "overdue" or "reminders" => "Add a reminder to any note or checklist.",
-        "shared" => "Items shared by PRISM or other users will appear here.",
-        "archive" or "archived" => "Archived notes will appear here.",
-        "completed" => "Completed notes will appear here.",
-        "trash" => "Items moved to Trash will appear here until permanently deleted.",
-        _ => "Use quick capture or create a structured notebook item."
+        "shared" => "Notes that PRISM or colleagues share with you appear here.",
+        "archive" or "archived" => "Archive a note to keep it without cluttering All Notes.",
+        "completed" => "Reminders you mark as done appear here.",
+        "trash" => "Notes in Trash are deleted permanently after 30 days.",
+        _ => "Use “Take a note…” above to add a note, checklist or reminder."
+    };
+    var emptyIcon = hasQuery ? "bi-search" : Model.Notebook.View switch
+    {
+        "labels" => "bi-tag",
+        "today" => "bi-calendar-check",
+        "overdue" => "bi-exclamation-circle",
+        "reminders" => "bi-bell",
+        "shared" => "bi-people",
+        "archive" or "archived" => "bi-archive",
+        "completed" => "bi-check2-circle",
+        "trash" => "bi-trash3",
+        _ => "bi-journal-text"
     };
     var selectedLabelName = Model.Notebook.Tags
         .FirstOrDefault(label => string.Equals(label.Name, Model.Notebook.Tag, StringComparison.OrdinalIgnoreCase))?.Name
@@ -41,7 +54,7 @@
         "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => selectedLabelName,
         "labels" => "Labels",
         "trash" => "Trash",
-        _ => "My Notebook"
+        _ => "All Notes"
     };
     var viewSubtitle = Model.Notebook.View switch
     {
@@ -56,6 +69,13 @@
         "trash" => "Items in Trash are permanently deleted after 30 days.",
         _ => "Notes, checklists and reminders."
     };
+    // All Notes splits results into Pinned and Others; every other view uses Items.
+    var resultCount = Model.Notebook.View == "home"
+        ? Model.Notebook.PinnedItems.Count + Model.Notebook.OtherItems.Count
+        : Model.Notebook.Items.Count;
+    var headingTitle = hasQuery ? $"Results for “{Model.Query!.Trim()}”" : viewTitle;
+    var headingSubtitle = hasQuery ? $"{resultCount} {(resultCount == 1 ? "item" : "items")} in {viewTitle}" : viewSubtitle;
+    var hasLabels = Model.Notebook.Tags.Any();
     var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
@@ -67,49 +87,62 @@
     </div>
     <script id="notebook-label-catalog" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Notebook.Tags.Select(tag => new { id = tag.Id, name = tag.Name, count = tag.Count })))</script>
     <aside class="notebook-rail" aria-label="Notebook views">
-        <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
-
+        @* Counts appear only where they ask for attention; zero renders empty. *@
         @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "home" or "today" or "overdue" or "reminders" or "shared"))
         {
-            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url" hidden="@(item.Key == "overdue" && item.Count == 0 && !item.IsActive)"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
+            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url" aria-current="@(item.IsActive ? "page" : null)" hidden="@(item.Key == "overdue" && item.Count == 0 && !item.IsActive)"><i class="bi @item.Icon" aria-hidden="true"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@(item.Count > 0 ? item.Count.ToString() : string.Empty)</b></a>
         }
 
-        <div class="notebook-rail-labels notebook-rail-labels--flat" data-notebook-label-rail aria-label="Notebook labels">
-            @foreach (var label in Model.Notebook.Tags)
-            {
-                <a asp-page="/Notebook/Index"
-                   asp-route-view="labels"
-                   asp-route-tag="@label.Name"
-                   class="notebook-rail__item notebook-rail__item--label @(string.Equals(Model.Notebook.Tag, label.Name, StringComparison.OrdinalIgnoreCase) ? "is-active" : "")">
-                    <i class="bi bi-tag"></i><span>@label.Name</span><b>@label.Count</b>
-                </a>
-            }
+        <div class="notebook-rail__group" data-notebook-label-group data-collapsed="false" hidden="@(!hasLabels)">
+            <div class="notebook-rail__group-header">
+                <button type="button" class="notebook-rail__group-toggle" data-notebook-label-group-toggle aria-expanded="true" aria-controls="notebook-label-rail">
+                    <i class="bi bi-chevron-down" aria-hidden="true"></i><span>Labels</span>
+                </button>
+                <button type="button" class="notebook-rail__group-action" data-open-label-manager aria-haspopup="dialog" aria-label="Edit labels" title="Edit labels">
+                    <i class="bi bi-pencil" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="notebook-label-rail" class="notebook-rail-labels notebook-rail-labels--flat" data-notebook-label-rail aria-label="Notebook labels">
+                @foreach (var label in Model.Notebook.Tags)
+                {
+                    var labelIsActive = string.Equals(Model.Notebook.Tag, label.Name, StringComparison.OrdinalIgnoreCase);
+                    <a asp-page="/Notebook/Index"
+                       asp-route-view="labels"
+                       asp-route-tag="@label.Name"
+                       aria-current="@(labelIsActive ? "page" : null)"
+                       class="notebook-rail__item notebook-rail__item--label @(labelIsActive ? "is-active" : "")">
+                        <i class="bi bi-tag" aria-hidden="true"></i><span>@label.Name</span><b>@(label.Count > 0 ? label.Count.ToString() : string.Empty)</b>
+                    </a>
+                }
+            </div>
         </div>
 
         <button type="button"
                 class="notebook-rail__item notebook-rail__item--button"
                 data-open-label-manager
-                aria-haspopup="dialog">
-            <i class="bi bi-pencil"></i><span>Edit labels</span><b aria-hidden="true"></b>
+                data-notebook-label-create
+                aria-haspopup="dialog"
+                hidden="@hasLabels">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i><span>Create label</span><b aria-hidden="true"></b>
         </button>
 
         <div class="notebook-rail__separator" aria-hidden="true"></div>
 
         @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "archive" or "completed" or "trash"))
         {
-            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
+            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url" aria-current="@(item.IsActive ? "page" : null)"><i class="bi @item.Icon" aria-hidden="true"></i><span>@item.Label</span><b aria-hidden="true"></b></a>
         }
     </aside>
 
     <main class="notebook-main">
         <section class="notebook-commandbar">
-            <div class="notebook-commandbar__heading"><h1>@viewTitle</h1><p>@viewSubtitle</p></div>
+            <div class="notebook-commandbar__heading"><h1>@headingTitle</h1><p>@headingSubtitle</p></div>
             <div class="notebook-command-actions">
                 @if (Model.Notebook.View == "trash" && Model.Notebook.Items.Any())
                 {
                     <button type="button" class="btn btn-sm btn-outline-danger" data-empty-notebook-trash><i class="bi bi-trash3"></i> Empty trash</button>
                 }
-                <form method="get" class="notebook-search" aria-label="Search this notebook"><input type="hidden" name="view" value="@Model.Notebook.View" /><input type="hidden" name="filter" value="@Model.Notebook.Filter" /><input type="hidden" name="tag" value="@Model.Notebook.Tag" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search this notebook" aria-label="Search this notebook" /></form>
+                <form method="get" class="notebook-search" aria-label="Search this notebook"><input type="hidden" name="view" value="@Model.Notebook.View" /><input type="hidden" name="filter" value="@Model.Notebook.Filter" /><input type="hidden" name="tag" value="@Model.Notebook.Tag" /><i class="bi bi-search" aria-hidden="true"></i><input name="Query" value="@Model.Query" placeholder="Search this notebook" aria-label="Search this notebook" enterkeyhint="search" autocomplete="off" />@if (hasQuery) { <a class="notebook-search__clear" asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-filter="@Model.Notebook.Filter" asp-route-tag="@Model.Notebook.Tag" aria-label="Clear search" title="Clear search"><i class="bi bi-x-lg" aria-hidden="true"></i></a> }</form>
                 <div class="notebook-view-toggle" role="group" aria-label="Board layout">
                     <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
                     <button type="button" data-notebook-view="list" aria-label="List view"><i class="bi bi-list-ul"></i></button>
@@ -203,7 +236,7 @@
                 </div>
             </section>
             <section class="notebook-board-section" data-notebook-section="others">
-                <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@otherVisibleCount</span></div>
+                <div class="notebook-section-header" data-notebook-section-header="others" hidden="@(pinnedVisibleCount == 0 || otherVisibleCount == 0)"><h2>Others</h2><span data-notebook-count="others">@otherVisibleCount</span></div>
                 <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@otherVisibleCount">
                     @for (var index = 0; index <= ownedOthers.Length; index++)
                     {
@@ -224,7 +257,7 @@
                 </div>
                 @if (!hasAnyHomeItems)
                 {
-                    <div class="notebook-empty notebook-empty-compact" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p></div>
+                    <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p></div>
                 }
             </section>
         }
@@ -261,7 +294,7 @@
 
             @if (!showPrismShared && !hasPeopleShared)
             {
-                <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p></div>
+                <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p></div>
             }
         }
         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
@@ -285,8 +318,8 @@
                         "reminders" or "today" or "overdue" => "Reminder",
                         _ => "Note"
                     };
-                    var cta = Model.Notebook.View is "archive" or "archived" or "completed" or "trash" ? null : $"New {emptyType}";
-                    <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" data-notebook-create-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
+                    var cta = hasQuery || Model.Notebook.View is "archive" or "archived" or "completed" or "trash" ? null : $"New {emptyType}";
+                    <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" data-notebook-create-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
                 }
             </section>
         }

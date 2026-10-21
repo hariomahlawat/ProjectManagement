@@ -116,3 +116,22 @@ test('notebook board counts a home system note as a visual card without requirin
   assert.equal(element.dataset.itemCount, '2');
   assert.equal(dom.window.document.querySelector('[data-notebook-count="others"]').textContent, '2');
 });
+
+test('the Others heading shows only when Pinned and Others both have cards', () => {
+  const markup = (pinned, others) => `
+    <section data-notebook-section="pinned"><div data-notebook-board="pinned">${pinned}</div></section>
+    <section data-notebook-section="others">
+      <div data-notebook-section-header="others"><span data-notebook-count="others"></span></div>
+      <div data-notebook-board="others">${others}</div>
+    </section>`;
+  const card = (id) => `<article data-note-id="${id}"></article>`;
+  const headerHidden = (pinned, others) => {
+    const dom = new JSDOM(markup(pinned, others));
+    loadBoard(dom).refreshSectionVisibility();
+    return dom.window.document.querySelector('[data-notebook-section-header="others"]').hidden;
+  };
+
+  assert.equal(headerHidden('', card(1)), true, 'nothing pinned');
+  assert.equal(headerHidden(card(1), ''), true, 'nothing else');
+  assert.equal(headerHidden(card(1), card(2)), false, 'both sections');
+});
