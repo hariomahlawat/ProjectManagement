@@ -64,3 +64,15 @@ test('named colours are counted case-insensitively', () => {
   assert.equal(countLiterals('White'), 1);
   assert.equal(countLiterals('BLACK'), 1);
 });
+
+test('a dark longhand does not cover a sibling longhand that still paints', () => {
+  const css = `
+    .a { background-image: linear-gradient(#fff, #eee); }
+    [data-bs-theme="dark"] .a { background-color: #111; }
+    .b { border-left-color: #ddd; }
+    [data-bs-theme="dark"] .b { border-top-color: #333; }
+    .c { background: #fafafa; border: 1px solid #ddd; }
+    [data-bs-theme="dark"] .c { background-color: #111; border-color: #333; }`;
+  // .a (2 literals) and .b (1) are gaps; .c is covered by the colour longhands.
+  assert.deepEqual(analyseCss(css, 'wwwroot/css/x.css'), { literals: 5, gaps: 3, darkRules: 3 });
+});

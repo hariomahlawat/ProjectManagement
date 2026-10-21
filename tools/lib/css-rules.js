@@ -114,4 +114,49 @@ function propertyFamily(property) {
   return p;
 }
 
-module.exports = { mask, readRules, isDarkSelector, splitSelector, lightSelectorOf, propertyFamily };
+// Whether a dark declaration of `darkProp` replaces a light declaration of `lightProp` on the
+// same element. A shorthand replaces its longhands; a longhand does not replace its siblings
+// (a dark background-color leaves a light background-image painting). A colour longhand
+// replaces a shorthand only when the light value is just a colour (no gradient or image).
+function overrides(darkProp, lightProp, lightValue = '') {
+  const d = darkProp.toLowerCase();
+  const l = lightProp.toLowerCase();
+  if (d === l) return true;
+  if (d.startsWith('--') || l.startsWith('--')) return false;
+  const plainColour = !/gradient|url\(/i.test(lightValue);
+  if (d === 'background') return l.startsWith('background-');
+  if (d === 'background-color') return l === 'background' && plainColour;
+  if (d === 'border') return /^border-((top|right|bottom|left)(-(color|width|style))?|color|width|style)$/.test(l);
+  if (d === 'border-color') return /^border(-(top|right|bottom|left))?(-color)?$/.test(l);
+  const side = d.match(/^border-(top|right|bottom|left)(-color)?$/);
+  if (side) return l === `border-${side[1]}-color` || (side[2] && l === `border-${side[1]}`);
+  if (d === 'outline') return /^outline-(color|width|style)$/.test(l);
+  if (d === 'outline-color') return l === 'outline';
+  return false;
+}
+
+// Dark coverage per light selector and at-rule scope: which properties dark rules declare.
+function darkCoverage(rules) {
+  const index = new Map();
+  for (const rule of rules) {
+    if (!isDarkSelector(rule.selector)) continue;
+    const scope = rule.atRules.join('|');
+    for (const part of splitSelector(rule.selector)) {
+      const key = `${lightSelectorOf(part)}|${scope}`;
+      if (!index.has(key)) index.set(key, []);
+      for (const d of rule.declarations) index.get(key).push(d.property);
+    }
+  }
+  return index;
+}
+
+// A top-level dark rule covers every width; a scoped one only its own at-rule scope.
+function isCovered(index, part, property, value, scope) {
+  for (const s of new Set(['', scope])) {
+    const props = index.get(`${part}|${s}`);
+    if (props && props.some((p) => overrides(p, property, value))) return true;
+  }
+  return false;
+}
+
+module.exports = { mask, readRules, isDarkSelector, splitSelector, lightSelectorOf, propertyFamily, overrides, darkCoverage, isCovered };

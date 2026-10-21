@@ -19,7 +19,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { readRules, isDarkSelector, splitSelector, lightSelectorOf, propertyFamily } = require('./lib/css-rules');
+const { readRules, isDarkSelector, splitSelector, lightSelectorOf, propertyFamily, darkCoverage, isCovered } = require('./lib/css-rules');
 
 const ROOT = path.resolve(__dirname, '..');
 const CSS_ROOT = path.join(ROOT, 'wwwroot', 'css');
@@ -86,17 +86,10 @@ function countLiterals(text) {
 function analyseCss(source, file) {
   const isSite = file.endsWith('wwwroot/css/site.css');
   const rules = readRules(source);
-  const covered = new Set();
-  let darkRules = 0;
-  for (const rule of rules) {
-    if (!isDarkSelector(rule.selector)) continue;
-    darkRules += 1;
-    for (const part of splitSelector(rule.selector)) {
-      const light = lightSelectorOf(part);
-      // Scoped by at-rules: a dark rule inside a media query only covers that query.
-      for (const d of rule.declarations) covered.add(`${light}|${propertyFamily(d.property)}|${rule.atRules.join('|')}`);
-    }
-  }
+  // Which properties dark rules declare, per selector and at-rule scope; a dark declaration
+  // covers a light one only if it actually replaces it (see overrides in lib/css-rules.js).
+  const coverage = darkCoverage(rules);
+  const darkRules = rules.filter((rule) => isDarkSelector(rule.selector)).length;
   let literals = 0;
   let gaps = 0;
   for (const rule of rules) {
@@ -108,11 +101,9 @@ function analyseCss(source, file) {
       const n = countLiterals(d.value);
       if (!n) continue;
       literals += n;
-      const family = propertyFamily(d.property);
       // A top-level dark rule covers every width; a scoped one only its own query.
       const scope = rule.atRules.join('|');
-      const isCovered = (part) => covered.has(`${part}|${family}|`) || covered.has(`${part}|${family}|${scope}`);
-      if (!parts.every(isCovered)) gaps += n;
+      if (!parts.every((part) => isCovered(coverage, part, d.property, d.value, scope))) gaps += n;
     }
   }
   return { literals, gaps, darkRules };

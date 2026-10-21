@@ -29,7 +29,7 @@ Totals: **8095** stylesheet literals in 85 files, **6** in inline view styles.
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `site.css` | 442 | 331 |
-| `workspace.css` | 279 | 207 |
+| `workspace.css` | 279 | 208 |
 | `command-workspace.css` | 232 | 165 |
 | `officer-conference.css` | 202 | 139 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
@@ -41,7 +41,7 @@ Totals: **8095** stylesheet literals in 85 files, **6** in inline view styles.
 | `projects/create.css` | 44 | 24 |
 | `todo-widget.css` | 39 | 22 |
 | `widgets/ffc-simulator-map.css` | 32 | 19 |
-| `erp-activity-strip.css` | 22 | 13 |
+| `erp-activity-strip.css` | 22 | 14 |
 | `widgets/ops-signals.css` | 13 | 6 |
 | `components/pm-table.css` | 1 | 1 |
 

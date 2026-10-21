@@ -377,6 +377,11 @@
     background: #1e2125;
 }
 
+:where([data-bs-theme="dark"]) .erp-activity-strip__cell.not-monitored,
+:where([data-bs-theme="dark"]) .erp-year-heatmap__cell.not-monitored {
+    border-style: dashed;
+}
+
 :where([data-bs-theme="dark"]) .erp-activity-strip__cell.is-historical,
 :where([data-bs-theme="dark"]) .erp-year-heatmap__cell.is-historical {
     border-style: dashed;

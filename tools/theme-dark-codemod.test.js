@@ -137,3 +137,16 @@ test('a light island keeps its own palette over a dark rule for its shared base 
   assert.ok(base > 0 && island > base, 'island restated after the base dark rule');
   assert.match(output.slice(island), /^:where\(\[data-bs-theme="dark"\]\) \.thumb--light \{\n {4}background: #f7f7f5;/);
 });
+
+test('a top-level dark rule covers the same selector inside a media query', () => {
+  const css = `
+    .a { color: #333; }
+    @media (max-width: 600px) { .a { color: #444; } }
+    [data-bs-theme="dark"] .a { color: #ddd; }`;
+  assert.equal(convert(css).generated, 0);
+});
+
+test('a dark background-color does not stop a light gradient from converting', () => {
+  const css = `.a { background-image: linear-gradient(#fff, #f7f9fc); } [data-bs-theme="dark"] .a { background-color: #111; }`;
+  assert.equal(convert(css).generated, 1);
+});

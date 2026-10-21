@@ -4710,6 +4710,10 @@
     color: #9aa0a6;
 }
 
+:where([data-bs-theme="dark"]) .po-activity-day-cell.not-monitored {
+    border-style: dashed;
+}
+
 :where([data-bs-theme="dark"]) .po-activity-day-cell.is-historical {
     border-style: dashed;
 }
