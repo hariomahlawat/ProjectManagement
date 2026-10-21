@@ -9,6 +9,11 @@
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
     var isTrash = string.Equals(Model.View, "trash", StringComparison.OrdinalIgnoreCase);
+    // Urgency group used by the grouped reminder views, from the facts the service resolved.
+    var reminderGroup = item.ReminderAtUtc is null ? string.Empty
+        : item.IsPastDue ? "past-due"
+        : item.IsDueToday ? "today"
+        : "upcoming";
 
     static string FriendlyFirstName(string? displayName)
     {
@@ -50,7 +55,7 @@
 }
 
 @* SECTION: Notebook board card *@
-<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" data-can-edit-content="@item.CanEditContent.ToString().ToLowerInvariant()" data-can-manage-metadata="@item.CanManageMetadata.ToString().ToLowerInvariant()" data-reorderable="@((!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner).ToString().ToLowerInvariant())" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-reminder-group="@reminderGroup" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" data-can-edit-content="@item.CanEditContent.ToString().ToLowerInvariant()" data-can-manage-metadata="@item.CanManageMetadata.ToString().ToLowerInvariant()" data-reorderable="@((!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner).ToString().ToLowerInvariant())" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
     @if (!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner)
     {
         <button type="button" class="notebook-card-drag-handle" data-notebook-drag-handle hidden aria-label="Rearrange @item.Title" aria-grabbed="false" title="Drag to rearrange"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button>

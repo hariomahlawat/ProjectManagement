@@ -393,12 +393,16 @@ function createNotebookBoard(root = document) {
     const systemCount = root.querySelectorAll("[data-notebook-system-card]").length;
     empty.hidden = notebookCount + systemCount > 0;
   };
+  const groupBoardFor = (card) => {
+    const key = card?.dataset?.reminderGroup;
+    return key ? root.querySelector(`[data-notebook-group="${key}"] [data-notebook-board]`) : null;
+  };
   const keepCurrentBoard = (current) => current?.parentElement?.matches?.("[data-notebook-board]") && !root.querySelector('[data-notebook-board="pinned"]');
   const upsertCard = (id, html, isPinned, options = {}) => {
     const current = findCard(id);
-    const targetBoard = keepCurrentBoard(current) ? current.parentElement : getBoard(isPinned);
-    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
     const fragment = htmlToCardElement(html, id);
+    const targetBoard = groupBoardFor(fragment) || (keepCurrentBoard(current) ? current.parentElement : getBoard(isPinned));
+    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
     const sameBoard = current && current.parentElement === targetBoard;
     const preservePosition = options.preservePosition !== false;
     if (sameBoard && preservePosition) {
@@ -422,7 +426,7 @@ function createNotebookBoard(root = document) {
   };
   const insertCard = (html, pinned = false) => {
     const fragment = htmlToCardElement(html);
-    const board = getBoard(pinned);
+    const board = groupBoardFor(fragment) || getBoard(pinned);
     if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? "pinned" : "others"}" was not found.`);
     board.prepend(fragment);
     refreshSectionVisibility();
