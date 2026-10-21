@@ -58,3 +58,9 @@ test('quoted strings are not counted as colours', () => {
   assert.equal(countLiterals('"#000"'), 0);
   assert.equal(countLiterals("'#fff' #000"), 1);
 });
+
+test('named colours are counted case-insensitively', () => {
+  const { countLiterals } = require('./theme-coverage');
+  assert.equal(countLiterals('White'), 1);
+  assert.equal(countLiterals('BLACK'), 1);
+});

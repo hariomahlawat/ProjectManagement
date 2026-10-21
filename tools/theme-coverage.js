@@ -47,7 +47,7 @@ const WAVES = [
 ];
 
 // Named white/black count too (background: white is a light island like #fff).
-const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(|(?<![\w-])(?:white|black)(?![\w-])/g;
+const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(|(?<![\w-])(?:white|black)(?![\w-])/gi; // named colours are case-insensitive (White, BLACK)
 
 function toPosix(file) {
   return path.relative(ROOT, file).split(path.sep).join('/');

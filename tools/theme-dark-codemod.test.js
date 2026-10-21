@@ -97,3 +97,18 @@ test('light islands restore the page tokens that Dark redefines', () => {
   const { output } = convert(css);
   assert.match(output, /:root\[data-bs-theme="dark"\] :is\(\.proof\) \{\n {4}--ink: #15231f;\n {4}--paper: #fbfaf6;/);
 });
+
+test('a light island restores the root token value, not a later scoped override', () => {
+  const css = `
+    .page { --paper: #fbfaf6; }
+    @media (max-width: 600px) { .page { --paper: #f1f1f1; } }
+    .proof { background: var(--paper); }
+    [data-bs-theme="dark"] :is(.proof) { color-scheme: light; }`;
+  const { output } = convert(css);
+  assert.match(output, /:root\[data-bs-theme="dark"\] :is\(\.proof\) \{\n {4}--paper: #fbfaf6;/);
+});
+
+test('named colours match case-insensitively', () => {
+  const { generated } = convert('.a { background: White; } .b { color: BLACK; }');
+  assert.equal(generated, 2);
+});

@@ -45,7 +45,7 @@ const DARK = {
 };
 
 // Named white/black count too (color-mix(in srgb, x 10%, white) is common); other names are rare.
-const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\([^()]*\)|(?<![\w-])(?:white|black)(?![\w-])/g;
+const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\([^()]*\)|(?<![\w-])(?:white|black)(?![\w-])/gi; // named colours are case-insensitive (White, BLACK)
 
 // ---------- colour maths ----------
 function parseColour(text) {
@@ -303,10 +303,20 @@ function convert(source) {
   // Accent tokens are lifted for text in Dark (#6ea8fe-like, 4.5:1+ on the card), which is too
   // light behind white text. Find the tokens that end up lifted: site accents, this file's
   // literal accent tokens, and tokens that alias either.
+  // Each token's Light value: its first definition outside any at-rule (the root/page value),
+  // so a later component or media-query override never stands in for it.
   const defs = new Map();
+  const defScoped = new Set();
   for (const rule of rules) {
     if (isDarkSelector(rule.selector)) continue;
-    for (const d of rule.declarations) if (d.property.startsWith('--')) defs.set(d.property, d.value);
+    const scoped = rule.atRules.length > 0;
+    for (const d of rule.declarations) {
+      if (!d.property.startsWith('--')) continue;
+      if (!defs.has(d.property) || (defScoped.has(d.property) && !scoped)) {
+        defs.set(d.property, d.value);
+        if (scoped) defScoped.add(d.property); else defScoped.delete(d.property);
+      }
+    }
   }
   const lifted = new Set();
   for (const [name, value] of defs) {
