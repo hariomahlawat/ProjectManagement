@@ -354,7 +354,7 @@ button.project-intelligence-card:hover {
     display: grid;
     place-items: center;
     border-radius: .75rem;
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, white);
+    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, var(--pm-card, #fff));
     color: var(--pm-accent-blue, #3f6ff0);
 }
 
@@ -848,7 +848,7 @@ button.project-intelligence-card:hover {
     background: var(--portfolio-soft);
 }
 .pm-stage-outcome__primary {
-    background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 55%, white) !important;
+    background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 55%, var(--pm-card, #fff)) !important;
     border-color: color-mix(in srgb, var(--bs-success, #198754) 28%, var(--portfolio-border)) !important;
 }
 .pm-stage-outcome strong,
@@ -1032,7 +1032,7 @@ button.project-intelligence-card:hover {
     padding: .65rem .7rem;
     border: 1px dashed color-mix(in srgb, var(--bs-warning, #ffc107) 38%, var(--portfolio-border));
     border-radius: .7rem;
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 55%, white);
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 55%, var(--pm-card, #fff));
 }
 
 .project-profile-missing strong,
@@ -1071,7 +1071,7 @@ button.project-intelligence-card:hover {
     height: 2.25rem;
     border-radius: .65rem;
     color: var(--pm-accent-blue, #3f6ff0);
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, white);
+    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, var(--pm-card, #fff));
 }
 
 .procurement-empty-state__content,
@@ -1132,7 +1132,7 @@ button.project-intelligence-card:hover {
 
 .project-lifecycle-summary__grid > .is-attention {
     border: 1px solid color-mix(in srgb, var(--bs-danger, #dc3545) 28%, var(--portfolio-border));
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 48%, white);
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 48%, var(--pm-card, #fff));
 }
 
 .project-lifecycle-summary__grid strong {
@@ -1488,7 +1488,7 @@ button.project-intelligence-card:hover {
 
 .project-exploitation-card .pm-right-summary-card__footer {
     padding: .6rem .8rem;
-    background: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, white);
+    background: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, var(--pm-card, #fff));
 }
 
 .project-exploitation-card .pm-summary-footer-actions {

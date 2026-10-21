@@ -64,14 +64,22 @@
     syncControls(preference);
   }
 
-  function setPreference(value) {
-    var preference = normalise(value);
-    writePreference(preference);
-    apply(preference);
-    return preference;
+  // The page's current choice, kept in memory so it holds even when storage cannot save it
+  // (printing, System following the OS). Storage only seeds it and syncs other tabs.
+  var current = readPreference();
+
+  function currentPreference() {
+    return current;
   }
 
-  apply(readPreference());
+  function setPreference(value) {
+    current = normalise(value);
+    writePreference(current);
+    apply(current);
+    return current;
+  }
+
+  apply(current);
 
   global.document.addEventListener('click', function (event) {
     var target = event.target;
@@ -86,19 +94,20 @@
   });
 
   global.document.addEventListener('DOMContentLoaded', function () {
-    syncControls(readPreference());
+    syncControls(current);
   });
 
   // Another tab changed the choice.
   global.addEventListener('storage', function (event) {
     if (event.key === STORAGE_KEY) {
-      apply(readPreference());
+      current = readPreference();
+      apply(current);
     }
   });
 
   if (darkQuery) {
     var onSystemChange = function () {
-      if (readPreference() === 'system') {
+      if (current === 'system') {
         apply('system');
       }
     };
@@ -111,16 +120,16 @@
 
   global.addEventListener('beforeprint', function () {
     printing = true;
-    apply(readPreference());
+    apply(current);
   });
   global.addEventListener('afterprint', function () {
     printing = false;
-    apply(readPreference());
+    apply(current);
   });
 
   global.PMThemePreference = {
-    get: readPreference,
+    get: currentPreference,
     set: setPreference,
-    resolved: function () { return resolve(readPreference()); }
+    resolved: function () { return resolve(current); }
   };
 })(window);

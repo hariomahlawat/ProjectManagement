@@ -102,3 +102,24 @@ test('prints in light', () => {
   window.dispatchEvent(new window.Event('afterprint'));
   assert.equal(theme(document), 'dark');
 });
+
+test('without storage, a chosen Dark survives a print cycle', () => {
+  const { window, document } = createDom({ storageThrows: true });
+
+  document.getElementById('dark').click();
+  window.dispatchEvent(new window.Event('beforeprint'));
+  window.dispatchEvent(new window.Event('afterprint'));
+
+  assert.equal(theme(document), 'dark');
+  assert.equal(window.PMThemePreference.get(), 'dark');
+});
+
+test('without storage, a chosen System keeps following the operating system', () => {
+  const { document, setSystemDark } = createDom({ storageThrows: true, systemDark: false });
+
+  document.getElementById('system').click();
+  assert.equal(theme(document), null);
+
+  setSystemDark(true);
+  assert.equal(theme(document), 'dark');
+});
