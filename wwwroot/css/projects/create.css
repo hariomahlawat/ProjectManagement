@@ -602,7 +602,7 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .project-create-page {
+:where([data-bs-theme="dark"]) .project-create-page {
     --pc-surface: #16181b;
     --pc-surface-soft: #16181b;
     --pc-border: #2c3035;
@@ -614,110 +614,110 @@
     background: #0e0f11;
 }
 
-[data-bs-theme="dark"] .project-create-validation-summary {
+:where([data-bs-theme="dark"]) .project-create-validation-summary {
     border: 1px solid color-mix(in srgb, #f87171 30%, #16181b);
     background: color-mix(in srgb, #f87171 8%, #16181b);
 }
 
-[data-bs-theme="dark"] .project-form-section,
-[data-bs-theme="dark"] .project-advanced {
+:where([data-bs-theme="dark"]) .project-form-section,
+:where([data-bs-theme="dark"]) .project-advanced {
     box-shadow: 0 5px 18px rgba(0, 0, 0, 0.19);
 }
 
-[data-bs-theme="dark"] .project-field__label {
+:where([data-bs-theme="dark"]) .project-field__label {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .project-field__optional {
+:where([data-bs-theme="dark"]) .project-field__optional {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .project-control {
+:where([data-bs-theme="dark"]) .project-control {
     border-color: #2c3035;
 }
 
-[data-bs-theme="dark"] .project-control:focus {
+:where([data-bs-theme="dark"]) .project-control:focus {
     border-color: #6ea8fe;
     box-shadow: 0 0 0 .2rem rgba(0, 0, 0, 0.4);
 }
 
-[data-bs-theme="dark"] .project-name-warning {
+:where([data-bs-theme="dark"]) .project-name-warning {
     border: 1px solid color-mix(in srgb, #fbbf24 30%, #16181b);
     background: color-mix(in srgb, #fbbf24 9%, #16181b);
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .project-option-card {
+:where([data-bs-theme="dark"]) .project-option-card {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .project-option-card:hover,
-[data-bs-theme="dark"] .project-option-card:has(.form-check-input:checked) {
+:where([data-bs-theme="dark"]) .project-option-card:hover,
+:where([data-bs-theme="dark"]) .project-option-card:has(.form-check-input:checked) {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
 }
 
-[data-bs-theme="dark"] .project-option-card:has(.form-check-input:focus-visible) {
+:where([data-bs-theme="dark"]) .project-option-card:has(.form-check-input:focus-visible) {
     box-shadow: 0 0 0 .2rem rgba(0, 0, 0, 0.4);
 }
 
-[data-bs-theme="dark"] .project-option-card__icon,
-[data-bs-theme="dark"] .project-status-card__icon {
+:where([data-bs-theme="dark"]) .project-option-card__icon,
+:where([data-bs-theme="dark"]) .project-status-card__icon {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
 }
 
-[data-bs-theme="dark"] .project-advanced__chevron {
+:where([data-bs-theme="dark"]) .project-advanced__chevron {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .project-advanced__body {
+:where([data-bs-theme="dark"]) .project-advanced__body {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .project-status-card {
+:where([data-bs-theme="dark"]) .project-status-card {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .project-status-card.is-active {
+:where([data-bs-theme="dark"]) .project-status-card.is-active {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
 }
 
-[data-bs-theme="dark"] .project-status-card__fields {
+:where([data-bs-theme="dark"]) .project-status-card__fields {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .project-status-message {
+:where([data-bs-theme="dark"]) .project-status-message {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-combobox__clear,
-[data-bs-theme="dark"] .project-combobox__toggle {
+:where([data-bs-theme="dark"]) .project-combobox__clear,
+:where([data-bs-theme="dark"]) .project-combobox__toggle {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .project-combobox__list {
+:where([data-bs-theme="dark"]) .project-combobox__list {
     border: 1px solid #2c3035;
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
 }
 
-[data-bs-theme="dark"] .project-combobox__option {
+:where([data-bs-theme="dark"]) .project-combobox__option {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .project-combobox__option:hover,
-[data-bs-theme="dark"] .project-combobox__option[aria-selected="true"],
-[data-bs-theme="dark"] .project-combobox__option.is-active {
+:where([data-bs-theme="dark"]) .project-combobox__option:hover,
+:where([data-bs-theme="dark"]) .project-combobox__option[aria-selected="true"],
+:where([data-bs-theme="dark"]) .project-combobox__option.is-active {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-create-actions {
+:where([data-bs-theme="dark"]) .project-create-actions {
     background: linear-gradient(to top, #16181b 72%, rgba(255, 255, 255, 0));
 }
 
-[data-bs-theme="dark"] .project-create-actions__inner {
+:where([data-bs-theme="dark"]) .project-create-actions__inner {
     border: 1px solid #2c3035;
     background: rgba(22, 24, 27, 0.96);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);

@@ -8,41 +8,41 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **8544** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **8317** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
-188 literals.
+182 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `navigation-shell.css` | 94 | 39 |
-| `pages/project-portfolio.css` | 57 | 2 |
-| `components/prism-confirm-dialog.css` | 22 | 0 |
-| `projects/timeline.css` | 13 | 1 |
-| `pages/project-lifecycle-actions.css` | 2 | 0 |
+| `navigation-shell.css` | 88 | 42 |
+| `pages/project-portfolio.css` | 57 | 47 |
+| `components/prism-confirm-dialog.css` | 22 | 8 |
+| `projects/timeline.css` | 13 | 6 |
+| `pages/project-lifecycle-actions.css` | 2 | 2 |
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-2011 literals.
+2010 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 443 | 301 |
-| `workspace.css` | 279 | 187 |
-| `command-workspace.css` | 232 | 150 |
-| `officer-conference.css` | 202 | 125 |
-| `pages/projects-completed-summary.css` | 186 | 131 |
-| `calendar.css` | 184 | 111 |
-| `pages/dashboard.css` | 144 | 82 |
-| `projects/ongoing-conference.css` | 97 | 58 |
-| `projects/index.css` | 79 | 62 |
+| `site.css` | 442 | 317 |
+| `workspace.css` | 279 | 208 |
+| `command-workspace.css` | 232 | 165 |
+| `officer-conference.css` | 202 | 139 |
+| `pages/projects-completed-summary.css` | 186 | 140 |
+| `calendar.css` | 184 | 112 |
+| `pages/dashboard.css` | 144 | 86 |
+| `projects/ongoing-conference.css` | 97 | 59 |
+| `projects/index.css` | 79 | 67 |
 | `projects/create.css` | 44 | 24 |
 | `todo-widget.css` | 39 | 22 |
 | `widgets/ffc-simulator-map.css` | 32 | 19 |
-| `erp-activity-strip.css` | 22 | 12 |
-| `widgets/project-pulse.css` | 16 | 9 |
-| `widgets/ops-signals.css` | 11 | 5 |
+| `erp-activity-strip.css` | 22 | 14 |
+| `widgets/project-pulse.css` | 16 | 24 |
+| `widgets/ops-signals.css` | 11 | 6 |
 | `components/pm-table.css` | 1 | 1 |
 
 ## Wave 2: Notebook, Photos, Documents, Search
@@ -51,14 +51,14 @@ Totals: **8544** stylesheet literals in 84 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `notebook.css` | 397 | 264 |
-| `pages/photos-people.css` | 183 | 109 |
-| `pages/photos-library.css` | 169 | 99 |
-| `pages/search.css` | 114 | 77 |
-| `docrepo-ui.css` | 75 | 50 |
+| `notebook.css` | 397 | 272 |
+| `pages/photos-people.css` | 183 | 114 |
+| `pages/photos-library.css` | 169 | 110 |
+| `pages/search.css` | 114 | 79 |
+| `docrepo-ui.css` | 75 | 51 |
 | `pages/photos-person-profile.css` | 75 | 55 |
-| `pages/photos-curation.css` | 53 | 35 |
-| `pages/photos-reference-readiness.css` | 50 | 38 |
+| `pages/photos-curation.css` | 53 | 38 |
+| `pages/photos-reference-readiness.css` | 50 | 39 |
 | `pages/project-photos.css` | 30 | 20 |
 | `docrepo-reader.css` | 19 | 15 |
 | `pages/project-video-upload.css` | 16 | 8 |
@@ -68,29 +68,29 @@ Totals: **8544** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 3: Project pages and reports
 
-3254 literals.
+3034 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `pages/projects-publications.css` | 1372 | 0 |
-| `process-flow.css` | 570 | 0 |
-| `pages/project-briefing-decks.css` | 289 | 0 |
-| `project-ideas.css` | 264 | 0 |
-| `site-ipr.css` | 224 | 29 |
-| `project-ideas-board.css` | 132 | 0 |
-| `pages/projects-reports.css` | 94 | 0 |
-| `pages/projects-completed-summary-edit.css` | 68 | 0 |
-| `pages/project-remarks.css` | 46 | 0 |
-| `pages/projects-compendium.css` | 45 | 0 |
-| `analytics.css` | 40 | 0 |
-| `progress-review.css` | 26 | 0 |
-| `pages/proliferation-reports.css` | 24 | 5 |
-| `pages/proliferation-dashboard.css` | 18 | 0 |
-| `project-office-reports/proliferation-management.css` | 18 | 23 |
-| `proliferation.css` | 14 | 0 |
-| `projects/arpp-library.css` | 8 | 0 |
+| `pages/projects-publications.css` | 1302 | 813 |
+| `process-flow.css` | 552 | 265 |
+| `pages/project-briefing-decks.css` | 247 | 176 |
+| `project-ideas.css` | 228 | 150 |
+| `site-ipr.css` | 205 | 153 |
+| `project-ideas-board.css` | 124 | 76 |
+| `pages/projects-reports.css` | 89 | 64 |
+| `pages/projects-completed-summary-edit.css` | 66 | 40 |
+| `pages/projects-compendium.css` | 41 | 22 |
+| `pages/project-remarks.css` | 40 | 29 |
+| `analytics.css` | 38 | 33 |
+| `pages/proliferation-reports.css` | 21 | 13 |
+| `progress-review.css` | 21 | 16 |
+| `pages/proliferation-dashboard.css` | 18 | 14 |
+| `project-office-reports/proliferation-management.css` | 18 | 10 |
+| `proliferation.css` | 14 | 13 |
+| `projects/arpp-library.css` | 8 | 8 |
 | `project-office-reports/proliferation.css` | 1 | 6 |
-| `stage-tracker.css` | 1 | 0 |
+| `stage-tracker.css` | 1 | 1 |
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 

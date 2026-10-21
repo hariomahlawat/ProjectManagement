@@ -442,53 +442,53 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .todo-widget--attention {
+:where([data-bs-theme="dark"]) .todo-widget--attention {
     --mission-panel-border: rgba(251, 191, 36, 0.45);
     --mission-panel-shadow: 0 24px 42px -32px rgba(0, 0, 0, 0.6);
     --mission-panel-header-bg: linear-gradient(135deg, rgba(251, 191, 36, 0.28), rgba(22, 24, 27, 0.8));
 }
 
-[data-bs-theme="dark"] .todo-widget--attention-overdue {
+:where([data-bs-theme="dark"]) .todo-widget--attention-overdue {
     --mission-panel-border: rgba(248, 113, 113, 0.45);
     --mission-panel-shadow: 0 28px 48px -30px rgba(0, 0, 0, 0.6);
     --mission-panel-header-bg: linear-gradient(135deg, rgba(248, 113, 113, 0.21), rgba(251, 191, 36, 0.25));
 }
 
-[data-bs-theme="dark"] .todo-widget__attention-line {
+:where([data-bs-theme="dark"]) .todo-widget__attention-line {
     background: rgba(251, 191, 36, 0.21);
     border: 1px solid rgba(251, 191, 36, 0.45);
 }
 
-[data-bs-theme="dark"] .todo-widget--attention-overdue .todo-widget__attention-line {
+:where([data-bs-theme="dark"]) .todo-widget--attention-overdue .todo-widget__attention-line {
     background: rgba(248, 113, 113, 0.14);
     border-color: rgba(248, 113, 113, 0.45);
 }
 
-[data-bs-theme="dark"] .todo-widget__attention-icon {
+:where([data-bs-theme="dark"]) .todo-widget__attention-icon {
     background: rgba(255, 255, 255, 0.05);
 }
 
-[data-bs-theme="dark"] .mission-panel__header {
+:where([data-bs-theme="dark"]) .mission-panel__header {
     border-bottom: 1px solid rgba(110, 168, 254, 0.2);
 }
 
-[data-bs-theme="dark"] .mission-panel__kpi {
+:where([data-bs-theme="dark"]) .mission-panel__kpi {
     background: linear-gradient(135deg, var(--mission-kpi-bg), rgba(22, 24, 27, 0.72));
 }
 
-[data-bs-theme="dark"] .todo-list {
+:where([data-bs-theme="dark"]) .todo-list {
     --todo-row-shadow: 0 16px 40px -30px rgba(0, 0, 0, 0.6);
 }
 
-[data-bs-theme="dark"] .todo-dot-normal {
+:where([data-bs-theme="dark"]) .todo-dot-normal {
     color: rgba(230, 232, 235, 0.6);
 }
 
-[data-bs-theme="dark"] .todo-kebab:hover,
-[data-bs-theme="dark"] .todo-kebab:focus-visible {
+:where([data-bs-theme="dark"]) .todo-kebab:hover,
+:where([data-bs-theme="dark"]) .todo-kebab:focus-visible {
     background-color: rgba(255, 255, 255, 0.07);
 }
 
-[data-bs-theme="dark"] .todo-kebab:focus-visible {
+:where([data-bs-theme="dark"]) .todo-kebab:focus-visible {
     outline: 2px solid rgba(110, 168, 254, 0.45);
 }

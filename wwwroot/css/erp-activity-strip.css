@@ -256,11 +256,11 @@
 }
 
 [data-bs-theme="dark"] .erp-activity-strip {
-    color: #aeb9c9;
+    color: #b4b9bf;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip__heading strong {
-    color: #e2e9f4;
+    color: #e6e8eb;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip__heading span,
@@ -269,24 +269,24 @@
 [data-bs-theme="dark"] .erp-year-heatmap__footer,
 [data-bs-theme="dark"] .erp-year-heatmap__months,
 [data-bs-theme="dark"] .erp-year-heatmap__table th {
-    color: #aeb9c9;
+    color: #b4b9bf;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip--header {
-    border-color: #35445a;
-    background: #1b2738;
+    border-color: #3a3f45;
+    background: #25282d;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip__cell.level-0,
 [data-bs-theme="dark"] .erp-year-heatmap__cell.level-0 {
-    border-color: #39485c;
-    background: #2a3648;
+    border-color: #3a3f45;
+    background: #2c3035;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip__cell.level-1,
 [data-bs-theme="dark"] .erp-year-heatmap__cell.level-1 {
-    border-color: #3c7053;
-    background: #315f45;
+    border-color: #3a3f45;
+    background: #3a3f45;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip__cell.level-2,
@@ -303,14 +303,14 @@
 
 [data-bs-theme="dark"] .erp-activity-strip__cell.not-monitored,
 [data-bs-theme="dark"] .erp-year-heatmap__cell.not-monitored {
-    border-color: #526176;
+    border-color: #3a3f45;
     background: transparent;
 }
 
 [data-bs-theme="dark"] .erp-activity-strip__cell.non-working,
 [data-bs-theme="dark"] .erp-year-heatmap__cell.non-working {
-    border-color: #435166;
-    background: repeating-linear-gradient(135deg, #273345 0 3px, #202a39 3px 5px);
+    border-color: #3a3f45;
+    background: repeating-linear-gradient(135deg, #2c3035 0 3px, #25282d 3px 5px);
 }
 
 @media (max-width: 430px) {
@@ -371,13 +371,23 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .erp-activity-strip__cell,
-[data-bs-theme="dark"] .erp-year-heatmap__cell {
-    border: 1px solid rgba(133, 169, 224, 0.16);
+:where([data-bs-theme="dark"]) .erp-activity-strip__cell,
+:where([data-bs-theme="dark"]) .erp-year-heatmap__cell {
+    border: 1px solid rgba(255, 255, 255, 0.14);
     background: #1e2125;
 }
 
-[data-bs-theme="dark"] .erp-activity-strip__cell.is-today,
-[data-bs-theme="dark"] .erp-year-heatmap__cell.is-today {
+:where([data-bs-theme="dark"]) .erp-activity-strip__cell.not-monitored,
+:where([data-bs-theme="dark"]) .erp-year-heatmap__cell.not-monitored {
+    border-style: dashed;
+}
+
+:where([data-bs-theme="dark"]) .erp-activity-strip__cell.is-historical,
+:where([data-bs-theme="dark"]) .erp-year-heatmap__cell.is-historical {
+    border-style: dashed;
+}
+
+:where([data-bs-theme="dark"]) .erp-activity-strip__cell.is-today,
+:where([data-bs-theme="dark"]) .erp-year-heatmap__cell.is-today {
     outline: 2px solid rgba(110, 168, 254, 0.35);
 }

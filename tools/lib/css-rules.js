@@ -101,6 +101,7 @@ function lightSelectorOf(darkPart) {
   return darkPart
     .replace(/^:root\[data-bs-theme\s*=\s*["']?dark["']?\]/, ':root')
     .replace(/^html\[data-bs-theme\s*=\s*["']?dark["']?\]/, 'html')
+    .replace(/^:where\(\[data-bs-theme\s*=\s*["']?dark["']?\]\)\s*/, '')
     .replace(/^\[data-bs-theme\s*=\s*["']?dark["']?\]\s*/, '')
     .trim();
 }

@@ -975,352 +975,363 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .pm-gs-page {
+:where([data-bs-theme="dark"]) .pm-gs-page {
     background: radial-gradient(circle at 50% 12%, rgba(110, 168, 254, 0.08), transparent 31rem),
         var(--pm-surface, #f7f9fc);
 }
 
-[data-bs-theme="dark"] .pm-gs-brandmark {
+:where([data-bs-theme="dark"]) .pm-gs-brandmark {
     border: 1px solid #2c3035;
     background: rgba(22, 24, 27, 0.72);
     color: #6ea8fe;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
-[data-bs-theme="dark"] .pm-gs-hero__title {
+:where([data-bs-theme="dark"]) .pm-gs-hero__title {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .pm-gs-search,
-[data-bs-theme="dark"] .pm-gs-top__search {
+:where([data-bs-theme="dark"]) .pm-gs-search,
+:where([data-bs-theme="dark"]) .pm-gs-top__search {
     border: 1px solid #2c3035;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
 }
 
-[data-bs-theme="dark"] .pm-gs-search:focus-within,
-[data-bs-theme="dark"] .pm-gs-top__search:focus-within {
+:where([data-bs-theme="dark"]) .pm-gs-search:focus-within,
+:where([data-bs-theme="dark"]) .pm-gs-top__search:focus-within {
     border-color: #6ea8fe;
     box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.25), 0 12px 34px rgba(110, 168, 254, 0.25);
 }
 
-[data-bs-theme="dark"] .pm-gs-search__icon,
-[data-bs-theme="dark"] .pm-gs-top__icon {
+:where([data-bs-theme="dark"]) .pm-gs-search__icon,
+:where([data-bs-theme="dark"]) .pm-gs-top__icon {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-search__input,
-[data-bs-theme="dark"] .pm-gs-top__input {
+:where([data-bs-theme="dark"]) .pm-gs-search__input,
+:where([data-bs-theme="dark"]) .pm-gs-top__input {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .pm-gs-search__clear,
-[data-bs-theme="dark"] .pm-gs-top__clear {
+:where([data-bs-theme="dark"]) .pm-gs-search__clear,
+:where([data-bs-theme="dark"]) .pm-gs-top__clear {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-search__clear:hover,
-[data-bs-theme="dark"] .pm-gs-top__clear:hover {
+:where([data-bs-theme="dark"]) .pm-gs-search__clear:hover,
+:where([data-bs-theme="dark"]) .pm-gs-top__clear:hover {
     background: #1e2125;
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .pm-gs-search__btn,
-[data-bs-theme="dark"] .pm-gs-top__button {
+:where([data-bs-theme="dark"]) .pm-gs-search__btn,
+:where([data-bs-theme="dark"]) .pm-gs-top__button {
+    background: #315ee8;
+    color: #fff;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
 }
 
-[data-bs-theme="dark"] .pm-gs-hero__hints {
+:where([data-bs-theme="dark"]) .pm-gs-search__btn:hover,
+:where([data-bs-theme="dark"]) .pm-gs-top__button:hover {
+    background: #244fd2;
+}
+
+:where([data-bs-theme="dark"]) .pm-gs-hero__hints {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-hero__hints a {
+:where([data-bs-theme="dark"]) .pm-gs-hero__hints a {
     border: 1px solid #2c3035;
     background: rgba(255, 255, 255, 0.05);
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-hero__hints a:hover {
+:where([data-bs-theme="dark"]) .pm-gs-hero__hints a:hover {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-top {
+:where([data-bs-theme="dark"]) .pm-gs-top {
     border-bottom: 1px solid #2c3035;
     background: rgba(22, 24, 27, 0.95);
 }
 
-[data-bs-theme="dark"] .pm-gs-top__search {
+:where([data-bs-theme="dark"]) .pm-gs-top__search {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.19);
 }
 
-[data-bs-theme="dark"] .pm-gs-tab {
+:where([data-bs-theme="dark"]) .pm-gs-tab {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-tab:hover {
+:where([data-bs-theme="dark"]) .pm-gs-tab:hover {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-tab.is-active {
+:where([data-bs-theme="dark"]) .pm-gs-tab.is-active {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-tab__count {
+:where([data-bs-theme="dark"]) .pm-gs-tab.is-active::after {
+    background: #315ee8;
+}
+
+:where([data-bs-theme="dark"]) .pm-gs-tab__count {
     background: #1e2125;
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-meta {
+:where([data-bs-theme="dark"]) .pm-gs-meta {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-meta strong {
+:where([data-bs-theme="dark"]) .pm-gs-meta strong {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-engine-diagnostic {
+:where([data-bs-theme="dark"]) .pm-gs-engine-diagnostic {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-engine-diagnostic.is-fallback {
+:where([data-bs-theme="dark"]) .pm-gs-engine-diagnostic.is-fallback {
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .pm-gs-correction {
+:where([data-bs-theme="dark"]) .pm-gs-correction {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-correction a {
+:where([data-bs-theme="dark"]) .pm-gs-correction a {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter > summary {
+:where([data-bs-theme="dark"]) .pm-gs-filter > summary {
     border: 1px solid #2c3035;
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__panel {
+:where([data-bs-theme="dark"]) .pm-gs-filter__panel {
     border: 1px solid #2c3035;
     box-shadow: 0 16px 38px rgba(0, 0, 0, 0.4);
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__option {
+:where([data-bs-theme="dark"]) .pm-gs-filter__option {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__option:hover {
+:where([data-bs-theme="dark"]) .pm-gs-filter__option:hover {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__option small {
+:where([data-bs-theme="dark"]) .pm-gs-filter__option small {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__actions {
+:where([data-bs-theme="dark"]) .pm-gs-filter__actions {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit {
+:where([data-bs-theme="dark"]) .pm-gs-hit {
     border-bottom: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__breadcrumb {
+:where([data-bs-theme="dark"]) .pm-gs-hit__breadcrumb {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__status {
+:where([data-bs-theme="dark"]) .pm-gs-hit__status {
     border: 1px solid #2c3035;
     background: #16181b;
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__title {
+:where([data-bs-theme="dark"]) .pm-gs-hit__title {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__subtitle {
+:where([data-bs-theme="dark"]) .pm-gs-hit__subtitle {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__snippet {
+:where([data-bs-theme="dark"]) .pm-gs-hit__snippet {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__meta {
+:where([data-bs-theme="dark"]) .pm-gs-hit__meta {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__match {
+:where([data-bs-theme="dark"]) .pm-gs-hit__match {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__match .bi {
+:where([data-bs-theme="dark"]) .pm-gs-hit__match .bi {
     color: #85e0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__sep {
+:where([data-bs-theme="dark"]) .pm-gs-hit__sep {
     color: #7b8188;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__related {
+:where([data-bs-theme="dark"]) .pm-gs-hit__related {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-related-chip {
+:where([data-bs-theme="dark"]) .pm-gs-related-chip {
     border: 1px solid #2c3035;
     background: #16181b;
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-nores {
+:where([data-bs-theme="dark"]) .pm-gs-nores {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .pm-gs-nores__icon {
+:where([data-bs-theme="dark"]) .pm-gs-nores__icon {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-nores h2 {
+:where([data-bs-theme="dark"]) .pm-gs-nores h2 {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .pm-gs-nores p {
+:where([data-bs-theme="dark"]) .pm-gs-nores p {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestions {
+:where([data-bs-theme="dark"]) .pm-gs-suggestions {
     border: 1px solid #2c3035;
     box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestion {
+:where([data-bs-theme="dark"]) .pm-gs-suggestion {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestion:hover,
-[data-bs-theme="dark"] .pm-gs-suggestion.is-active {
+:where([data-bs-theme="dark"]) .pm-gs-suggestion:hover,
+:where([data-bs-theme="dark"]) .pm-gs-suggestion.is-active {
     background: #1e2125;
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestion__title {
+:where([data-bs-theme="dark"]) .pm-gs-suggestion__title {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestion__subtitle {
+:where([data-bs-theme="dark"]) .pm-gs-suggestion__subtitle {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestion__source {
+:where([data-bs-theme="dark"]) .pm-gs-suggestion__source {
     border: 1px solid #2c3035;
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-suggestion-all {
+:where([data-bs-theme="dark"]) .pm-gs-suggestion-all {
     border-top: 1px solid #2c3035;
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__group + .pm-gs-filter__group {
+:where([data-bs-theme="dark"]) .pm-gs-filter__group + .pm-gs-filter__group {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__group legend {
+:where([data-bs-theme="dark"]) .pm-gs-filter__group legend {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__dates label {
+:where([data-bs-theme="dark"]) .pm-gs-filter__dates label {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__dates input {
+:where([data-bs-theme="dark"]) .pm-gs-filter__dates input {
     border: 1px solid #2c3035;
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__section {
+:where([data-bs-theme="dark"]) .pm-gs-filter__section {
     border-bottom: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__section > summary {
+:where([data-bs-theme="dark"]) .pm-gs-filter__section > summary {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__section > summary::after {
+:where([data-bs-theme="dark"]) .pm-gs-filter__section > summary::after {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__section > summary span {
+:where([data-bs-theme="dark"]) .pm-gs-filter__section > summary span {
     color: #7b8188;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__facet-search {
+:where([data-bs-theme="dark"]) .pm-gs-filter__facet-search {
     border: 1px solid #2c3035;
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__facet-search:focus {
+:where([data-bs-theme="dark"]) .pm-gs-filter__facet-search:focus {
     border-color: #6ea8fe;
     box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.25);
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__show-more {
+:where([data-bs-theme="dark"]) .pm-gs-filter__show-more {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__show-more:hover {
+:where([data-bs-theme="dark"]) .pm-gs-filter__show-more:hover {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__hint {
+:where([data-bs-theme="dark"]) .pm-gs-filter__hint {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__actions {
+:where([data-bs-theme="dark"]) .pm-gs-filter__actions {
     border-top: 1px solid #2c3035;
     background: rgba(22, 24, 27, 0.97);
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.2);
 }
 
-[data-bs-theme="dark"] .pm-gs-active-filter {
+:where([data-bs-theme="dark"]) .pm-gs-active-filter {
     border: 1px solid #2c3035;
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .pm-gs-active-filter:hover {
+:where([data-bs-theme="dark"]) .pm-gs-active-filter:hover {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     color: #6ea8fe;
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .pm-gs-active-filter--clear {
+:where([data-bs-theme="dark"]) .pm-gs-active-filter--clear {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-related-chip:hover {
+:where([data-bs-theme="dark"]) .pm-gs-related-chip:hover {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     color: #6ea8fe;
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__active-count,
-[data-bs-theme="dark"] .pm-gs-filter__selection-count {
+:where([data-bs-theme="dark"]) .pm-gs-filter__active-count,
+:where([data-bs-theme="dark"]) .pm-gs-filter__selection-count {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__section > summary .pm-gs-filter__selection-count {
+:where([data-bs-theme="dark"]) .pm-gs-filter__section > summary .pm-gs-filter__selection-count {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__loading {
+:where([data-bs-theme="dark"]) .pm-gs-filter__loading {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .pm-gs-filter__loading--error {
+:where([data-bs-theme="dark"]) .pm-gs-filter__loading--error {
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .pm-gs-hit__match .bi {
+:where([data-bs-theme="dark"]) .pm-gs-hit__match .bi {
     color: #9aa0a6;
 }

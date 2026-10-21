@@ -246,43 +246,43 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .project-video-upload__section {
+:where([data-bs-theme="dark"]) .project-video-upload__section {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
-[data-bs-theme="dark"] .project-video-upload__section-heading > span {
+:where([data-bs-theme="dark"]) .project-video-upload__section-heading > span {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-video-dropzone {
+:where([data-bs-theme="dark"]) .project-video-dropzone {
     border: 1.5px dashed #3a3f45;
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .project-video-dropzone:hover,
-[data-bs-theme="dark"] .project-video-dropzone:focus-within,
-[data-bs-theme="dark"] .project-video-dropzone.is-dragging {
+:where([data-bs-theme="dark"]) .project-video-dropzone:hover,
+:where([data-bs-theme="dark"]) .project-video-dropzone:focus-within,
+:where([data-bs-theme="dark"]) .project-video-dropzone.is-dragging {
     border-color: #6ea8fe;
     background: #16181b;
     box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.25);
 }
 
-[data-bs-theme="dark"] .project-video-dropzone__icon {
+:where([data-bs-theme="dark"]) .project-video-dropzone__icon {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-video-selected {
+:where([data-bs-theme="dark"]) .project-video-selected {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .project-video-selected__icon {
+:where([data-bs-theme="dark"]) .project-video-selected__icon {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-video-upload__actions {
+:where([data-bs-theme="dark"]) .project-video-upload__actions {
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(22, 24, 27, 0.94);
     box-shadow: 0 14px 38px rgba(0, 0, 0, 0.4);

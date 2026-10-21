@@ -30,10 +30,16 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
   frame, upload), Global Search, and project Photos, Videos and Documents with their
   upload and reorder pages. PDF page rendering inside the reader was not seen (the dev
   storage has no PDF files); the reader stage stays dark as in Light.
-- **Not yet covered:** waves 3 and 4 in [theme coverage](theme-coverage.md): the other
-  project pages and reports, Action tracker, tasks (`tasks.css` still follows
-  `prefers-color-scheme`), office reports and Admin. Dark stays opt-in until they are
-  converted.
+- **Wave 3 covered and checked (2026-10-21):** Publications (overview, Brochure and
+  Compendium builders; print proofs stay paper-white), Procurement Process, Briefing Decks,
+  Ideation board and idea pages, IPR register, project Reports, the Completed-summary
+  editor, Remarks, Analytics, Progress Review, Proliferation (records, overview, reports,
+  manage) and the ARPP library. Older hand-written dark rules in a navy palette
+  (IPR, officer conference, workspace, activity strip, ToT, FFC) were moved to graphite.
+  Not seen: the Compendium cover editor (it needs a saved Compendium).
+- **Not yet covered:** wave 4 in [theme coverage](theme-coverage.md): Action tracker, tasks
+  (`tasks.css` still follows `prefers-color-scheme`), office reports, Admin and the rest.
+  Dark stays opt-in until it is converted.
 - **Rollback.** Remove the `<script src="~/js/core/theme-preference.js">` line from
   `_Layout.cshtml`: every dark rule is scoped to `[data-bs-theme="dark"]`, so the site
   renders Light for everyone, including users who chose Dark.
@@ -96,11 +102,18 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
 - **Converting a page** (the wave workflow):
   1. `node tools/theme-dark-codemod.js wwwroot/css/<file>.css`. It swaps literals for
      tokens where the light value is identical (`#fff` → `var(--pm-card, #fff)`), then
-     appends a generated `[data-bs-theme="dark"]` section that repaints every remaining
-     literal by role: surfaces by lightness (page, card, tile, raised), slate and navy text
+     appends a generated dark section (`:where([data-bs-theme="dark"]) <selector>`, so each
+     dark rule has exactly the light rule's specificity and the cascade matches Light) that
+     repaints every remaining literal by role: surfaces by lightness (page, card, tile, raised), slate and navy text
      to off-white or grey, hued text to the palette accent, pastel fills to tints of the
      card, focus rings kept in the accent, dense dark scrims kept dark, and solid status
-     fills kept as they are. Review the section; it is a first pass.
+     fills kept as they are. Kept colours and state rules (`.x.active`, `.x:hover`) are
+     stated again in the dark section so a repainted rule for another class cannot override
+     them. Review the section; it is a first pass. Regenerate by deleting the generated
+     section and re-running; hand-written dark rules go above it and survive.
+     `--regraphite` moves older hand-written dark rules from navy to the graphite steps
+     (accents, status tints and white are kept; light islands with `color-scheme: light` are
+     skipped).
   2. Open the page and every modal or offcanvas on it in the browser, in Dark and Light,
      and scan for light fills and text under 3.2:1, and look at screenshots: mid-grey
      islands slip past a luminance threshold. Set third-party widget variables by hand
@@ -108,6 +121,9 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
      background (the document reader used `--pm-text-contrast`), `--pm-card` as "white"
      text, and bare `<input>`s that relied on the browser's white default (dark falls back
      to the input colour at zero specificity; give them a page rule if they sit in a pill).
+     Bootstrap's fixed greys (`--bs-gray-*`), `.text-dark` and `.table-light` are remapped
+     centrally in `site.css`. Print proofs and previews of printed output are light
+     islands: re-apply Light's tokens on the proof container with `color-scheme: light`.
   3. `node tools/theme-coverage.js --write` to lower the baseline. `npm test` fails if any
      stylesheet gains literals or gaps (a gap is a literal no dark rule repaints; it
      includes colours kept on purpose, such as white text on a solid fill).
