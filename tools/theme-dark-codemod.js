@@ -156,6 +156,8 @@ function darkColour(text, role, context = '', hint = {}) {
   // while text with a real hue (links, teal, green) is lifted.
   let neutral = hsl.chroma < 0.04 || (hsl.s < 0.5 && hsl.chroma < 0.12);
   if (role === 'text' && (hsl.s < 0.3 || (hsl.l < 0.35 && hsl.chroma < 0.22))) neutral = true;
+  // Desaturated slates (disabled fills like #aebbd0) are greys for surfaces and borders too.
+  if ((role === 'background' || role === 'border') && hsl.s < 0.5 && hsl.chroma < 0.2) neutral = true;
 
   if (c.a < 1 && role === 'accent') role = 'background';
   if (c.a < 1) {
@@ -201,7 +203,8 @@ function darkColour(text, role, context = '', hint = {}) {
       if (hsl.l >= 0.93) return DARK.tile;
       if (hsl.l >= 0.86) return DARK.raised;
       if (hsl.l >= 0.6) return DARK.hairline;
-      return hsl.l < 0.35 ? text : DARK.strong;
+      if (hsl.l < 0.35) return hsl.chroma > 0.08 ? DARK.raised : text; // navy panels become graphite; true greys stay
+      return DARK.strong;
     }
     if (hsl.l >= 0.75) {
       const pct = Math.min(Math.max(Math.round((1 - hsl.l) * 120) + 4, 8), 30);

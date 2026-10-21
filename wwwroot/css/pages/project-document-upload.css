@@ -11,13 +11,13 @@
 .project-document-upload-project { margin: .25rem 0 .45rem; font-size: 1rem; font-weight: 700; }
 
 .project-document-upload-section { margin-bottom: 1rem; overflow: hidden; border: 0; box-shadow: 0 10px 30px rgba(15, 23, 42, .055); }
-.project-document-upload-section__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--pdu-border); background: #f8fafc; }
+.project-document-upload-section__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--pdu-border); background: var(--pm-surface-subtle, #f8fafc); }
 .project-document-upload-section__header h2 { margin: 0; font-size: 1rem; }
 .project-document-upload-section__header p { margin: .2rem 0 0; color: var(--pdu-muted); font-size: .8rem; }
 .project-document-upload-step { display: grid; flex: 0 0 2rem; width: 2rem; height: 2rem; place-items: center; border-radius: 999px; background: #e8efff; color: #2f63d8; font-weight: 700; }
 .project-document-upload-section .card-body { padding: 1.2rem; }
 
-.project-document-dropzone { min-height: 190px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; padding: 1.5rem; border: 1.5px dashed #cbd5e1; border-radius: .9rem; background: #fff; text-align: center; cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
+.project-document-dropzone { min-height: 190px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; padding: 1.5rem; border: 1.5px dashed #cbd5e1; border-radius: .9rem; background: var(--pm-card, #fff); text-align: center; cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
 .project-document-dropzone:hover, .project-document-dropzone:focus-visible, .project-document-dropzone.is-dragover { border-color: #3769e5; background: #f6f8ff; outline: none; }
 .project-document-dropzone__icon { display: grid; width: 3.1rem; height: 3.1rem; place-items: center; margin-bottom: .35rem; border-radius: .85rem; background: #edf2ff; color: #3769e5; font-size: 1.3rem; }
 .project-document-dropzone span, .project-document-dropzone small { color: var(--pdu-muted); }
@@ -25,7 +25,7 @@
 .project-document-selected { margin-top: 1rem; }
 .project-document-selected__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; }
 .project-document-selected__list { display: grid; gap: .65rem; }
-.project-document-file { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .75rem; border: 1px solid var(--pdu-border); border-radius: .8rem; background: #fff; }
+.project-document-file { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .75rem; border: 1px solid var(--pdu-border); border-radius: .8rem; background: var(--pm-card, #fff); }
 .project-document-file__icon { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: .65rem; background: #edf2ff; color: #3769e5; }
 .project-document-file__body { min-width: 0; }
 .project-document-file__name { overflow: hidden; color: var(--pdu-muted); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -33,10 +33,10 @@
 .project-document-file__remove { align-self: center; }
 
 .project-document-upload-fields { display: grid; gap: 1rem; }
-.project-document-use-option { padding: .9rem 1rem; border: 1px solid var(--pdu-border); border-radius: .8rem; background: #fff; }
+.project-document-use-option { padding: .9rem 1rem; border: 1px solid var(--pdu-border); border-radius: .8rem; background: var(--pm-card, #fff); }
 .project-document-use-option .form-check-label { display: grid; gap: .12rem; }
 .project-document-use-option .form-check-label span { color: var(--pdu-muted); font-size: .78rem; }
-.project-document-use-option.is-disabled { background: #f8fafc; }
+.project-document-use-option.is-disabled { background: var(--pm-surface-subtle, #f8fafc); }
 
 .project-document-upload-actions { position: sticky; bottom: .7rem; z-index: 20; display: flex; justify-content: flex-end; gap: .65rem; margin-top: 1rem; padding: .75rem; border: 1px solid rgba(203, 213, 225, .85); border-radius: .9rem; background: rgba(255, 255, 255, .95); box-shadow: 0 12px 35px rgba(15, 23, 42, .12); backdrop-filter: blur(10px); }
 
@@ -55,7 +55,7 @@
   padding: 1rem 1.25rem;
   cursor: pointer;
   list-style: none;
-  background: #f8fafc;
+  background: var(--pm-surface-subtle, #f8fafc);
   border-radius: inherit;
 }
 .project-document-optional > summary::-webkit-details-marker { display: none; }
@@ -64,3 +64,49 @@
 .project-document-optional > summary i { transition: transform .15s ease; }
 .project-document-optional[open] > summary { border-bottom: 1px solid var(--pdu-border); border-radius: .9rem .9rem 0 0; }
 .project-document-optional[open] > summary i { transform: rotate(180deg); }
+
+/* ============================================================
+   Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
+   Light is unchanged; these rules only apply under data-bs-theme="dark".
+   Palette: docs/ux/dark-theme-palette.md
+   ============================================================ */
+[data-bs-theme="dark"] .project-document-upload-page {
+    --pdu-border: #2c3035;
+    --pdu-muted: #9aa0a6;
+}
+
+[data-bs-theme="dark"] .project-document-upload-section {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
+}
+
+[data-bs-theme="dark"] .project-document-upload-step {
+    background: color-mix(in srgb, #6ea8fe 9%, #16181b);
+    color: #6ea8fe;
+}
+
+[data-bs-theme="dark"] .project-document-dropzone {
+    border: 1.5px dashed #3a3f45;
+}
+
+[data-bs-theme="dark"] .project-document-dropzone:hover,
+[data-bs-theme="dark"] .project-document-dropzone:focus-visible,
+[data-bs-theme="dark"] .project-document-dropzone.is-dragover {
+    border-color: #6ea8fe;
+    background: #16181b;
+}
+
+[data-bs-theme="dark"] .project-document-dropzone__icon {
+    background: color-mix(in srgb, #6ea8fe 8%, #16181b);
+    color: #6ea8fe;
+}
+
+[data-bs-theme="dark"] .project-document-file__icon {
+    background: color-mix(in srgb, #6ea8fe 8%, #16181b);
+    color: #6ea8fe;
+}
+
+[data-bs-theme="dark"] .project-document-upload-actions {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(22, 24, 27, 0.95);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+}

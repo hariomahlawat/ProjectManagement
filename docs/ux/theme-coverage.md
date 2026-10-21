@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **8740** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **8544** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -28,7 +28,7 @@ Totals: **8740** stylesheet literals in 84 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 443 | 300 |
+| `site.css` | 443 | 301 |
 | `workspace.css` | 279 | 187 |
 | `command-workspace.css` | 232 | 150 |
 | `officer-conference.css` | 202 | 125 |
@@ -47,24 +47,24 @@ Totals: **8740** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 2: Notebook, Photos, Documents, Search
 
-1408 literals.
+1212 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `notebook.css` | 497 | 0 |
-| `pages/photos-people.css` | 209 | 0 |
-| `pages/photos-library.css` | 176 | 0 |
-| `pages/search.css` | 121 | 0 |
-| `pages/photos-person-profile.css` | 79 | 0 |
-| `docrepo-ui.css` | 78 | 0 |
-| `pages/photos-curation.css` | 55 | 0 |
-| `pages/photos-reference-readiness.css` | 54 | 2 |
-| `pages/project-video-upload.css` | 32 | 0 |
-| `pages/project-photos.css` | 30 | 0 |
-| `pages/project-videos.css` | 22 | 0 |
-| `pages/project-document-upload.css` | 21 | 0 |
-| `docrepo-reader.css` | 19 | 0 |
-| `pages/project-documents.css` | 15 | 0 |
+| `notebook.css` | 397 | 264 |
+| `pages/photos-people.css` | 183 | 109 |
+| `pages/photos-library.css` | 169 | 99 |
+| `pages/search.css` | 114 | 77 |
+| `docrepo-ui.css` | 75 | 50 |
+| `pages/photos-person-profile.css` | 75 | 55 |
+| `pages/photos-curation.css` | 53 | 35 |
+| `pages/photos-reference-readiness.css` | 50 | 38 |
+| `pages/project-photos.css` | 30 | 20 |
+| `docrepo-reader.css` | 19 | 15 |
+| `pages/project-video-upload.css` | 16 | 8 |
+| `pages/project-document-upload.css` | 15 | 8 |
+| `pages/project-videos.css` | 11 | 8 |
+| `pages/project-documents.css` | 5 | 3 |
 
 ## Wave 3: Project pages and reports
 
