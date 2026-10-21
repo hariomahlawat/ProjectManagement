@@ -38,7 +38,16 @@
                 <span class="bd-check__state bd-check__state--done">Done</span>
                 break;
             default:
-                if (!string.IsNullOrWhiteSpace(check.ActionUrl) && !string.IsNullOrWhiteSpace(check.ActionText))
+                if (!string.IsNullOrWhiteSpace(check.PanelId) && !string.IsNullOrWhiteSpace(check.ActionText))
+                {
+                    <button type="button"
+                            class="bd-btn @(check.Route == BriefingDeskRoute.Direct ? "bd-btn--direct" : "bd-btn--approval")"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#@check.PanelId"
+                            aria-controls="@check.PanelId">@check.ActionText<span class="visually-hidden">: @check.Label</span></button>
+                    <small class="bd-check__route">@(check.Route == BriefingDeskRoute.Direct ? "You complete it here" : "Needs HoD approval")</small>
+                }
+                else if (!string.IsNullOrWhiteSpace(check.ActionUrl) && !string.IsNullOrWhiteSpace(check.ActionText))
                 {
                     <a class="bd-btn @(check.Route == BriefingDeskRoute.Direct ? "bd-btn--direct" : "bd-btn--approval")" href="@check.ActionUrl">@check.ActionText<span class="visually-hidden">: @check.Label</span></a>
                     <small class="bd-check__route">@(check.Route == BriefingDeskRoute.Direct ? "You complete it" : "Needs HoD approval")</small>

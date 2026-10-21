@@ -47,8 +47,38 @@
             <a class="bd-link" asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="conference">
                 <i class="bi bi-easel2" aria-hidden="true"></i>Open my conference view
             </a>
+            @if (desk.NotReadyCount > 0)
+            {
+                <button type="button" class="bd-btn bd-btn--primary" data-bd-round-start>
+                    <i class="bi bi-play-circle" aria-hidden="true"></i>Start weekly round · @desk.NotReadyCount item@(desk.NotReadyCount == 1 ? string.Empty : "s")
+                </button>
+            }
         </div>
     </header>
+
+    @* Weekly round: one not-ready card at a time. The state lives in this tab only, so a post
+       that reloads the page resumes the round on the same card. *@
+    <section class="bd-round" data-bd-round hidden aria-labelledby="bd-round-title">
+        <div class="bd-round__copy">
+            <span class="bd-round__kicker">Weekly round</span>
+            <h2 class="bd-round__title" id="bd-round-title" data-bd-round-title aria-live="polite"></h2>
+            <progress class="bd-round__bar" data-bd-round-bar max="1" value="0"></progress>
+        </div>
+        <div class="bd-round__actions">
+            <button type="button" class="bd-btn bd-btn--quiet" data-bd-round-prev>Previous</button>
+            <button type="button" class="bd-btn bd-btn--primary" data-bd-round-next>Next item</button>
+            <button type="button" class="bd-btn bd-btn--ghost" data-bd-round-exit>Exit round</button>
+        </div>
+    </section>
+
+    <section class="bd-round-done" data-bd-round-done hidden tabindex="-1" aria-labelledby="bd-round-done-title">
+        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+        <div class="bd-round-done__copy">
+            <h2 id="bd-round-done-title">Round complete</h2>
+            <p data-bd-round-summary></p>
+        </div>
+        <button type="button" class="bd-btn bd-btn--quiet" data-bd-round-close>Back to the desk</button>
+    </section>
 
     @if (desk.TotalCount > 0)
     {
@@ -193,4 +223,18 @@
             </section>
         </aside>
     </div>
+    @* Side panels live outside the cards: a collapsed card hides its body, and a panel inside it. *@
+    @foreach (var item in allItems.Where(candidate => candidate.ProcurementEdit is not null && candidate.ProcurementPanelId is not null))
+    {
+        <div class="offcanvas offcanvas-end bd-drawer" tabindex="-1" id="@item.ProcurementPanelId" aria-labelledby="@item.ProcurementPanelId-title">
+            <div class="offcanvas-header">
+                <div>
+                    <h2 class="bd-drawer__title" id="@item.ProcurementPanelId-title">Procurement details</h2>
+                    <p class="bd-drawer__subtitle">@item.Title</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body"><partial name="Projects/Procurement/_EditFormBody" model="item.ProcurementEdit" /></div>
+        </div>
+    }
 </div>

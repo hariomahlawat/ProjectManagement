@@ -67,6 +67,11 @@ public sealed class BriefingDeskItemVm
 
     public int ImprovementPoints { get; init; }
 
+    /// <summary>Procurement editor shown in a panel on the desk; null when not needed.</summary>
+    public ProjectManagement.ViewModels.ProcurementEditVm? ProcurementEdit { get; init; }
+
+    public string? ProcurementPanelId { get; init; }
+
     public string? TaskRowVersion { get; init; }
 
     public bool CanSubmitTask { get; init; }
@@ -154,6 +159,9 @@ public sealed class BriefingDeskCheckVm
     public string? ActionUrl { get; init; }
 
     public string? StateText { get; init; }
+
+    /// <summary>When set, the action opens this panel on the desk instead of navigating.</summary>
+    public string? PanelId { get; init; }
 
     public int Points { get; init; }
 }

@@ -623,29 +623,7 @@ namespace ProjectManagement.Pages.Projects
             }
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
-            ProcurementEdit = new ProcurementEditVm
-            {
-                Input = new ProcurementEditInput
-                {
-                    ProjectId = id,
-                    IpaCost = Procurement.IpaCost,
-                    AonCost = Procurement.AonCost,
-                    BenchmarkCost = Procurement.BenchmarkCost,
-                    L1Cost = Procurement.L1Cost,
-                    PncCost = Procurement.PncCost,
-                    SupplyOrderDate = Procurement.SupplyOrderDate
-                },
-                CanEditIpaCost =
-                    Completed(ProcurementStageRules.StageForIpaCost) &&
-                    !Procurement.IsIpaManagedByArpp,
-                IsIpaManagedByArpp = Procurement.IsIpaManagedByArpp,
-                IpaManagementMessage = BuildIpaManagementMessage(Procurement),
-                CanEditAonCost = Completed(ProcurementStageRules.StageForAonCost),
-                CanEditBenchmarkCost = Completed(ProcurementStageRules.StageForBenchmarkCost),
-                CanEditL1Cost = Completed(ProcurementStageRules.StageForL1Cost),
-                CanEditPncCost = Completed(ProcurementStageRules.StageForPncCost),
-                CanEditSupplyOrderDate = Completed(ProcurementStageRules.StageForSupplyOrder)
-            };
+            ProcurementEdit = ProcurementEditVmFactory.Create(id, Procurement, Completed);
 
             AssignRoles = await BuildAssignRolesVmAsync(project);
 
@@ -2955,48 +2933,6 @@ namespace ProjectManagement.Pages.Projects
                 HodOptions = hodOptions,
                 PoOptions = poOptions
             };
-        }
-
-        private static string? BuildIpaManagementMessage(ProcurementAtAGlanceVm procurement)
-        {
-            var position = procurement.IpaPosition;
-            if (position?.IsManagedByArpp != true)
-            {
-                return null;
-            }
-
-            var issueSequence = position.IssueSequence.GetValueOrDefault();
-            var documentLabel = issueSequence == 0
-                ? "Original ARPP"
-                : $"Addendum No. {issueSequence}";
-
-            var parts = new List<string>
-            {
-                "Managed through ARPP",
-                documentLabel
-            };
-
-            if (position.IssueDate.HasValue)
-            {
-                parts.Add(position.IssueDate.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture));
-            }
-
-            if (!string.IsNullOrWhiteSpace(position.SerialNumber))
-            {
-                parts.Add($"Ser No. {position.SerialNumber.Trim()}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(position.PppNumber))
-            {
-                parts.Add($"PPP No. {position.PppNumber.Trim()}");
-            }
-
-            if (position.Category.HasValue)
-            {
-                parts.Add(ArppDisplayNames.For(position.Category.Value));
-            }
-
-            return string.Join(" · ", parts) + ". Update the authoritative value in the ARPP register.";
         }
 
         private async Task<IReadOnlyList<ProjectCategory>> BuildCategoryPathAsync(int categoryId, CancellationToken ct)
