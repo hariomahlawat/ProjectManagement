@@ -234,7 +234,63 @@ export function initNotebookApp() {
   };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
-  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts, onOpen: (item, modal) => renderEditorMoreMenu(item, modal) });
+
+  // SECTION: More menu inside the open note
+  // Mirrors the note's own card actions (Done plus its More menu), so the editor offers
+  // exactly what the board allows for this note's status and the user's access. Choosing
+  // one closes the editor (flushing any pending save) and runs the card action, which
+  // keeps one implementation of each lifecycle mutation, including Undo for Trash.
+  function renderEditorMoreMenu(item, modal) {
+    const more = modal?.querySelector('[data-notebook-editor-more]');
+    const menu = more?.querySelector('[data-notebook-editor-more-menu]');
+    if (!more || !menu) return;
+    more.removeAttribute('open');
+    const card = item?.id ? board.findCard(item.id) : null;
+    const sources = card ? [...card.querySelectorAll('[data-action="complete-note"], .notebook-card-more__menu > [data-action], .notebook-card-more__menu > .notebook-menu-separator')] : [];
+    const entries = [];
+    sources.forEach((source, index) => {
+      if (source.classList.contains('notebook-menu-separator')) {
+        if (entries.length && index < sources.length - 1) entries.push(Object.assign(document.createElement('span'), { className: 'notebook-menu-separator' }));
+        return;
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'menuitem');
+      button.dataset.editorAction = source.dataset.action;
+      button.textContent = source.dataset.action === 'complete-note' ? 'Mark as done' : source.textContent.trim();
+      if (source.classList.contains('text-danger')) button.classList.add('text-danger');
+      entries.push(button);
+    });
+    menu.replaceChildren(...entries);
+    more.hidden = !entries.some((entry) => entry.tagName === 'BUTTON');
+
+    // A short note's dialog would clip the menu, so it is placed against the window.
+    if (!more.dataset.positionBound) {
+      more.dataset.positionBound = 'true';
+      more.addEventListener('toggle', () => {
+        if (!more.open) return;
+        const anchor = more.querySelector('summary').getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = `${Math.round(anchor.bottom + 6)}px`;
+        menu.style.right = `${Math.round(document.documentElement.clientWidth - anchor.right)}px`;
+      });
+      more.closest('.notebook-modal__dialog')?.addEventListener('scroll', () => more.removeAttribute('open'), { passive: true });
+    }
+  }
+
+  document.addEventListener('click', async (event) => {
+    const choice = event.target.closest('[data-notebook-editor-more-menu] [data-editor-action]');
+    const more = document.querySelector('[data-notebook-editor-more][open]');
+    if (more && !event.target.closest('[data-notebook-editor-more]')) more.removeAttribute('open');
+    if (!choice) return;
+    event.preventDefault();
+    choice.closest('details')?.removeAttribute('open');
+    const id = editor.getCurrentItem?.()?.id;
+    await editor.requestClose();
+    if (!id || editor.isOpen()) return;
+    board.findCard(id)?.querySelector(`[data-action="${CSS.escape(choice.dataset.editorAction)}"]`)?.click();
+  });
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts, showToast: showNotebookToast });
   const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), {
     showGlobalError,

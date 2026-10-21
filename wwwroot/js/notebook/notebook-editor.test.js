@@ -168,7 +168,7 @@ test('Notebook Index renders the editor template partial', () => {
 });
 
 
-test('resizeNotebookBodyEditor keeps short notes compact and caps long notes', async () => {
+test('resizeNotebookBodyEditor keeps short notes compact and lets long notes grow', async () => {
   const { resizeNotebookBodyEditor } = await loadEditorModule();
   const textarea = { style: {}, scrollHeight: 40 };
 
@@ -177,11 +177,11 @@ test('resizeNotebookBodyEditor keeps short notes compact and caps long notes', a
   assert.equal(textarea.style.height, '64px');
   assert.equal(textarea.style.overflowY, 'hidden');
 
-  textarea.scrollHeight = 420;
+  textarea.scrollHeight = 1230;
   const longNote = resizeNotebookBodyEditor(textarea, 'Note');
-  assert.equal(longNote.height, 260);
-  assert.equal(longNote.overflowing, true);
-  assert.equal(textarea.style.overflowY, 'auto');
+  assert.equal(longNote.height, 1230);
+  assert.equal(longNote.overflowing, false);
+  assert.equal(textarea.style.overflowY, 'hidden');
 });
 
 test('resizeNotebookBodyEditor gives checklist description a smaller compact baseline', async () => {
@@ -192,4 +192,26 @@ test('resizeNotebookBodyEditor gives checklist description a smaller compact bas
 
   assert.equal(result.height, 46);
   assert.equal(textarea.style.height, '46px');
+});
+
+test('formatNotebookEditedAt shows a time today and a date otherwise, in IST', async () => {
+  const { formatNotebookEditedAt } = await loadEditorModule();
+  const now = new Date('2026-10-21T10:00:00+05:30');
+
+  assert.equal(formatNotebookEditedAt('2026-10-21T08:05:00+05:30', now), 'Edited 08:05');
+  assert.equal(formatNotebookEditedAt('2026-10-20T23:30:00+05:30', now), 'Edited 20 Oct');
+  assert.equal(formatNotebookEditedAt('2025-03-02T12:00:00+05:30', now), 'Edited 2 Mar 2025');
+  assert.equal(formatNotebookEditedAt(null, now), '');
+  assert.equal(formatNotebookEditedAt('not a date', now), '');
+});
+
+test('editor template keeps labels visible and offers a More menu', () => {
+  const template = fs.readFileSync(path.resolve(__dirname, '../../..', 'Pages', 'Notebook', '_NotebookEditorTemplate.cshtml'), 'utf8');
+  const css = fs.readFileSync(path.resolve(__dirname, '../../..', 'wwwroot', 'css', 'notebook.css'), 'utf8');
+
+  assert.match(template, /data-notebook-editor-labels/);
+  assert.match(template, /data-notebook-editor-more[\s\S]*data-notebook-editor-more-menu/);
+  // Existing notes close from the header only; new items do not offer sharing before save.
+  assert.match(css, /\.notebook-modal:not\(\.is-create-mode\) \.notebook-editor-close-button \{\s*display: none;/);
+  assert.match(css, /\.notebook-modal\.is-create-mode \[data-action="share-note-editor"\] \{\s*display: none;/);
 });
