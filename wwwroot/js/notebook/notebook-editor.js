@@ -101,12 +101,30 @@ export function serialiseNotebookContent({ title = '', body = '', type = 'Note',
 }
 
 
+// The body grows with its content; the dialog scrolls instead of a small inner box.
+const NOTEBOOK_BODY_UNBOUNDED_HEIGHT = 1_000_000;
+
 export function resizeNotebookBodyEditor(textarea, itemType = 'Note') {
   const isChecklist = String(itemType || '').toLowerCase() === 'checklist';
   return resizeTextareaToContent(textarea, {
     minimumHeight: isChecklist ? 46 : 64,
-    maximumHeight: isChecklist ? 150 : 260
+    maximumHeight: NOTEBOOK_BODY_UNBOUNDED_HEIGHT
   });
+}
+
+// "Edited 14:05" today, "Edited 21 Oct" this year, "Edited 21 Oct 2025" otherwise (IST).
+export function formatNotebookEditedAt(value, now = new Date()) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  const zone = 'Asia/Kolkata';
+  const dayKey = (d) => d.toLocaleDateString('en-CA', { timeZone: zone });
+  const yearOf = (d) => d.toLocaleDateString('en-GB', { timeZone: zone, year: 'numeric' });
+  if (dayKey(date) === dayKey(now)) {
+    return `Edited ${date.toLocaleTimeString('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false })}`;
+  }
+  const options = { timeZone: zone, day: 'numeric', month: 'short' };
+  if (yearOf(date) !== yearOf(now)) options.year = 'numeric';
+  return `Edited ${date.toLocaleDateString('en-GB', options)}`;
 }
 
 // SECTION: Notebook modal editor lifecycle and coordinated mutations
@@ -221,6 +239,34 @@ export function initNotebookEditor(board, view, options = {}) {
     if (discard) discard.hidden = !['network', 'server', 'error', 'client-version', 'session-expired', 'forbidden'].includes(state);
     if (signIn) signIn.hidden = state !== 'session-expired';
     if (copy) copy.hidden = !['session-expired', 'forbidden', 'network', 'server', 'error'].includes(state);
+  }
+
+  // SECTION: Labels shown on the open note
+  // The label picker keeps its chips inside a popover; these chips keep the note's
+  // labels visible while editing. Owners can click one to open the picker.
+  function setEditorLabels(values) {
+    labelPicker?.setValue(values);
+    const root = modal?.querySelector('[data-notebook-editor-labels]');
+    if (!root) return;
+    const names = (Array.isArray(values) ? values : []).map((label) => label?.name ?? label).filter(Boolean);
+    const editable = canManageMetadata();
+    root.replaceChildren(...names.map((name) => {
+      const chip = document.createElement(editable ? 'button' : 'span');
+      chip.className = 'notebook-tag-chip';
+      chip.textContent = name;
+      if (editable) {
+        chip.type = 'button';
+        chip.title = 'Edit labels';
+        chip.dataset.editorLabelChip = '';
+      }
+      return chip;
+    }));
+    root.hidden = names.length === 0;
+  }
+
+  // An untouched note shows when it was last edited; after a save the status reads "Saved".
+  function showLastEdited(target = item) {
+    setSaveStatus(formatNotebookEditedAt(target?.updatedAtUtc), SaveState.Idle);
   }
 
   function renderConflictState() {
@@ -500,7 +546,7 @@ export function initNotebookEditor(board, view, options = {}) {
   function applyAuthoritativeItem(updated) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || '');
-    labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
+    setEditorLabels((updated.labels || []).map((label) => label?.name ?? label));
     const isOwner = canManageMetadata(updated);
     const labelHost = modal.querySelector('[data-notebook-label-picker]');
     if (labelHost) labelHost.hidden = !isOwner;
@@ -534,7 +580,7 @@ export function initNotebookEditor(board, view, options = {}) {
     applyAuthoritativeItem(item);
     clearConflictState();
     currentSaveError = null;
-    setSaveStatus('', SaveState.Idle);
+    showLastEdited();
   }
 
   function build() {
@@ -574,6 +620,10 @@ export function initNotebookEditor(board, view, options = {}) {
 
     modal.addEventListener('click', (event) => {
       if (event.target.closest('[data-close]')) requestClose();
+      if (event.target.closest('[data-editor-label-chip]')) {
+        event.stopPropagation();
+        modal.querySelector('[data-notebook-editor-toolbar] [data-label-picker-toggle]')?.click();
+      }
     });
     modal.addEventListener('keydown', trapFocus);
     titleInput.addEventListener('input', () => {
@@ -1050,7 +1100,7 @@ export function initNotebookEditor(board, view, options = {}) {
         const labelsResponse = await NotebookApi.setLabels(item.id, pendingLabels, item.version);
         item = requireMutationItem(labelsResponse, 'The labels response did not contain the updated note.');
         draftSourceVersion = item.version;
-        labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+        setEditorLabels((item.labels || []).map((label) => label?.name ?? label));
         await reconcileMutation({ response: labelsResponse, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError });
         setSaveStatus('Saved', SaveState.Saved);
       }
@@ -1165,7 +1215,7 @@ export function initNotebookEditor(board, view, options = {}) {
 
   async function changeLabels(labels, previousLabels) {
     if (!item || !canManageMetadata() || isConflictBlocked()) {
-      labelPicker?.setValue(previousLabels || []);
+      setEditorLabels(previousLabels || []);
       return;
     }
     const nextLabels = normaliseLabels(labels);
@@ -1175,7 +1225,7 @@ export function initNotebookEditor(board, view, options = {}) {
       const response = await NotebookApi.setLabels(item.id, nextLabels, item.version);
       item = requireMutationItem(response, 'The labels response did not contain the updated note.');
       draftSourceVersion = item.version;
-      labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+      setEditorLabels((item.labels || []).map((label) => label?.name ?? label));
       await reconcileMutation({
         response, board, view, getCardHtml: NotebookApi.getCardHtml,
         applyCounts: options.applyCounts, preservePosition: true,
@@ -1192,7 +1242,7 @@ export function initNotebookEditor(board, view, options = {}) {
           message: 'This note changed elsewhere. Resolve the conflict before applying labels.'
         });
       } else {
-        labelPicker?.setValue(previousLabels || []);
+        setEditorLabels(previousLabels || []);
         handleEditorError(error);
       }
     } finally {
@@ -1240,6 +1290,7 @@ export function initNotebookEditor(board, view, options = {}) {
     refreshEditorLayout();
     setBackgroundInert(true);
     (canEditContent() ? modal.querySelector('[data-modal-title]') : modal.querySelector('[data-close]:not(.notebook-modal__backdrop)'))?.focus();
+    options.onOpen?.(item, modal);
     if (openOptions.pushHistory !== false) {
       openedByPushState = true;
       history.pushState({ ...(history.state || {}), notebookModal: true, notebookNoteId: id }, '', buildNoteUrl(id));
@@ -1290,7 +1341,7 @@ export function initNotebookEditor(board, view, options = {}) {
 
     applyAuthoritativeItem(updated);
     clearStoredDraft(updated.id);
-    setSaveStatus('', SaveState.Idle);
+    showLastEdited(updated);
   }
 
   return {

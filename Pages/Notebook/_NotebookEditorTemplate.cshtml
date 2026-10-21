@@ -27,6 +27,14 @@
                             aria-label="Pin note">
                         <i class="bi bi-pin-angle"></i>
                     </button>
+                    @* Filled from the note's own card actions when the editor opens, so it
+                       follows the same permissions and status rules as the board. *@
+                    <details class="notebook-editor-more" data-notebook-editor-more hidden>
+                        <summary class="notebook-action-icon" aria-label="More actions" title="More actions">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </summary>
+                        <div class="notebook-card-more__menu notebook-editor-more__menu" role="menu" data-notebook-editor-more-menu></div>
+                    </details>
                     <button type="button"
                             class="notebook-action-icon notebook-modal__close"
                             data-close
@@ -56,6 +64,10 @@
                  class="notebook-checklist-editor"
                  hidden></div>
 
+            <div class="notebook-editor-labels"
+                 data-notebook-editor-labels
+                 aria-label="Labels"
+                 hidden></div>
 
 
             <button type="button"

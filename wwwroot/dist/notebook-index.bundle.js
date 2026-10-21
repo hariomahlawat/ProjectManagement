@@ -1998,8 +1998,21 @@ function resizeNotebookBodyEditor(textarea, itemType = "Note") {
   const isChecklist = String(itemType || "").toLowerCase() === "checklist";
   return resizeTextareaToContent(textarea, {
     minimumHeight: isChecklist ? 46 : 64,
-    maximumHeight: isChecklist ? 150 : 260
+    maximumHeight: NOTEBOOK_BODY_UNBOUNDED_HEIGHT
   });
+}
+function formatNotebookEditedAt(value, now = /* @__PURE__ */ new Date()) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  const zone = "Asia/Kolkata";
+  const dayKey = (d) => d.toLocaleDateString("en-CA", { timeZone: zone });
+  const yearOf = (d) => d.toLocaleDateString("en-GB", { timeZone: zone, year: "numeric" });
+  if (dayKey(date) === dayKey(now)) {
+    return `Edited ${date.toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hour12: false })}`;
+  }
+  const options = { timeZone: zone, day: "numeric", month: "short" };
+  if (yearOf(date) !== yearOf(now)) options.year = "numeric";
+  return `Edited ${date.toLocaleDateString("en-GB", options)}`;
 }
 function initNotebookEditor(board, view, options = {}) {
   let modal;
@@ -2096,6 +2109,28 @@ function initNotebookEditor(board, view, options = {}) {
     if (discard) discard.hidden = !["network", "server", "error", "client-version", "session-expired", "forbidden"].includes(state3);
     if (signIn) signIn.hidden = state3 !== "session-expired";
     if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state3);
+  }
+  function setEditorLabels(values) {
+    labelPicker?.setValue(values);
+    const root = modal?.querySelector("[data-notebook-editor-labels]");
+    if (!root) return;
+    const names = (Array.isArray(values) ? values : []).map((label) => label?.name ?? label).filter(Boolean);
+    const editable = canManageMetadata();
+    root.replaceChildren(...names.map((name) => {
+      const chip = document.createElement(editable ? "button" : "span");
+      chip.className = "notebook-tag-chip";
+      chip.textContent = name;
+      if (editable) {
+        chip.type = "button";
+        chip.title = "Edit labels";
+        chip.dataset.editorLabelChip = "";
+      }
+      return chip;
+    }));
+    root.hidden = names.length === 0;
+  }
+  function showLastEdited(target = item) {
+    setSaveStatus(formatNotebookEditedAt(target?.updatedAtUtc), SaveState.Idle);
   }
   function renderConflictState() {
     const panel = modal?.querySelector("[data-notebook-conflict]");
@@ -2354,7 +2389,7 @@ function initNotebookEditor(board, view, options = {}) {
   function applyAuthoritativeItem(updated) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || "");
-    labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
+    setEditorLabels((updated.labels || []).map((label) => label?.name ?? label));
     const isOwner = canManageMetadata(updated);
     const labelHost = modal.querySelector("[data-notebook-label-picker]");
     if (labelHost) labelHost.hidden = !isOwner;
@@ -2387,7 +2422,7 @@ function initNotebookEditor(board, view, options = {}) {
     applyAuthoritativeItem(item);
     clearConflictState();
     currentSaveError = null;
-    setSaveStatus("", SaveState.Idle);
+    showLastEdited();
   }
   function build() {
     modal = cloneNotebookEditorTemplate(document);
@@ -2421,6 +2456,10 @@ function initNotebookEditor(board, view, options = {}) {
     );
     modal.addEventListener("click", (event) => {
       if (event.target.closest("[data-close]")) requestClose();
+      if (event.target.closest("[data-editor-label-chip]")) {
+        event.stopPropagation();
+        modal.querySelector("[data-notebook-editor-toolbar] [data-label-picker-toggle]")?.click();
+      }
     });
     modal.addEventListener("keydown", trapFocus);
     titleInput.addEventListener("input", () => {
@@ -2837,7 +2876,7 @@ function initNotebookEditor(board, view, options = {}) {
         const labelsResponse = await NotebookApi.setLabels(item.id, pendingLabels, item.version);
         item = requireMutationItem(labelsResponse, "The labels response did not contain the updated note.");
         draftSourceVersion = item.version;
-        labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+        setEditorLabels((item.labels || []).map((label) => label?.name ?? label));
         await reconcileMutation({ response: labelsResponse, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError });
         setSaveStatus("Saved", SaveState.Saved);
       }
@@ -2944,7 +2983,7 @@ function initNotebookEditor(board, view, options = {}) {
   }
   async function changeLabels(labels, previousLabels) {
     if (!item || !canManageMetadata() || isConflictBlocked()) {
-      labelPicker?.setValue(previousLabels || []);
+      setEditorLabels(previousLabels || []);
       return;
     }
     const nextLabels = normaliseLabels(labels);
@@ -2954,7 +2993,7 @@ function initNotebookEditor(board, view, options = {}) {
       const response = await NotebookApi.setLabels(item.id, nextLabels, item.version);
       item = requireMutationItem(response, "The labels response did not contain the updated note.");
       draftSourceVersion = item.version;
-      labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+      setEditorLabels((item.labels || []).map((label) => label?.name ?? label));
       await reconcileMutation({
         response,
         board,
@@ -2975,7 +3014,7 @@ function initNotebookEditor(board, view, options = {}) {
           message: "This note changed elsewhere. Resolve the conflict before applying labels."
         });
       } else {
-        labelPicker?.setValue(previousLabels || []);
+        setEditorLabels(previousLabels || []);
         handleEditorError(error);
       }
     } finally {
@@ -3021,6 +3060,7 @@ function initNotebookEditor(board, view, options = {}) {
     refreshEditorLayout();
     setBackgroundInert(true);
     (canEditContent() ? modal.querySelector("[data-modal-title]") : modal.querySelector("[data-close]:not(.notebook-modal__backdrop)"))?.focus();
+    options.onOpen?.(item, modal);
     if (openOptions.pushHistory !== false) {
       openedByPushState = true;
       history.pushState({ ...history.state || {}, notebookModal: true, notebookNoteId: id }, "", buildNoteUrl(id));
@@ -3067,7 +3107,7 @@ function initNotebookEditor(board, view, options = {}) {
     }
     applyAuthoritativeItem(updated);
     clearStoredDraft(updated.id);
-    setSaveStatus("", SaveState.Idle);
+    showLastEdited(updated);
   }
   return {
     open,
@@ -3159,7 +3199,7 @@ function isRetryableSaveError(error) {
   if (error?.code === "notebook_network_error") return true;
   return [500, 502, 503, 504].includes(error?.status);
 }
-var ConflictType, SaveState, EditorSelectors, guidPattern;
+var ConflictType, SaveState, EditorSelectors, NOTEBOOK_BODY_UNBOUNDED_HEIGHT, guidPattern;
 var init_notebook_editor = __esm({
   "wwwroot/js/notebook/notebook-editor.js"() {
     init_notebook_api();
@@ -3198,6 +3238,7 @@ var init_notebook_editor = __esm({
       reloadLatest: "[data-notebook-reload-latest]",
       copyLocal: "[data-notebook-copy-local]"
     });
+    NOTEBOOK_BODY_UNBOUNDED_HEIGHT = 1e6;
     guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   }
 });
@@ -5081,7 +5122,58 @@ function initNotebookApp() {
   };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
-  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts, onOpen: (item, modal) => renderEditorMoreMenu(item, modal) });
+  function fillEditorMoreMenu(item, more, menu) {
+    const card = item?.id ? board.findCard(item.id) : null;
+    const sources = card ? [...card.querySelectorAll('[data-action="complete-note"], .notebook-card-more__menu > [data-action], .notebook-card-more__menu > .notebook-menu-separator')] : [];
+    const entries = [];
+    sources.forEach((source, index) => {
+      if (source.classList.contains("notebook-menu-separator")) {
+        if (entries.length && index < sources.length - 1) entries.push(Object.assign(document.createElement("span"), { className: "notebook-menu-separator" }));
+        return;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "menuitem");
+      button.dataset.editorAction = source.dataset.action;
+      button.textContent = source.dataset.action === "complete-note" ? "Mark as done" : source.textContent.trim();
+      if (source.classList.contains("text-danger")) button.classList.add("text-danger");
+      entries.push(button);
+    });
+    menu.replaceChildren(...entries);
+    more.hidden = !entries.some((entry) => entry.tagName === "BUTTON");
+  }
+  function renderEditorMoreMenu(item, modal) {
+    const more = modal?.querySelector("[data-notebook-editor-more]");
+    const menu = more?.querySelector("[data-notebook-editor-more-menu]");
+    if (!more || !menu) return;
+    more.removeAttribute("open");
+    fillEditorMoreMenu(item, more, menu);
+    if (!more.dataset.positionBound) {
+      more.dataset.positionBound = "true";
+      more.addEventListener("toggle", () => {
+        if (!more.open) return;
+        fillEditorMoreMenu(editor.getCurrentItem?.(), more, menu);
+        const anchor = more.querySelector("summary").getBoundingClientRect();
+        menu.style.position = "fixed";
+        menu.style.top = `${Math.round(anchor.bottom + 6)}px`;
+        menu.style.right = `${Math.round(document.documentElement.clientWidth - anchor.right)}px`;
+      });
+      more.closest(".notebook-modal__dialog")?.addEventListener("scroll", () => more.removeAttribute("open"), { passive: true });
+    }
+  }
+  document.addEventListener("click", async (event) => {
+    const choice = event.target.closest("[data-notebook-editor-more-menu] [data-editor-action]");
+    const more = document.querySelector("[data-notebook-editor-more][open]");
+    if (more && !event.target.closest("[data-notebook-editor-more]")) more.removeAttribute("open");
+    if (!choice) return;
+    event.preventDefault();
+    choice.closest("details")?.removeAttribute("open");
+    const id = editor.getCurrentItem?.()?.id;
+    await editor.requestClose();
+    if (!id || editor.isOpen()) return;
+    board.findCard(id)?.querySelector(`[data-action="${CSS.escape(choice.dataset.editorAction)}"]`)?.click();
+  });
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts, showToast: showNotebookToast });
   const labelManager = initNotebookLabelManager(document.querySelector("[data-notebook-label-manager]"), {
     showGlobalError,
