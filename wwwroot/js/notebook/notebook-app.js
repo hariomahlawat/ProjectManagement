@@ -29,10 +29,17 @@ export function renderNotebookLabelNavigation(shell, labels = []) {
       if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) {
         link.classList.add('is-active');
       }
-      link.innerHTML = `<i class="bi bi-tag"></i><span>${escapeLabelHtml(label.name)}</span><b>${Number(label.count || 0)}</b>`;
+      const count = Number(label.count || 0);
+      link.innerHTML = `<i class="bi bi-tag" aria-hidden="true"></i><span>${escapeLabelHtml(label.name)}</span><b>${count > 0 ? count : ''}</b>`;
       rail.appendChild(link);
     });
   }
+
+  // The Labels group exists only when there are labels; otherwise the rail offers Create label.
+  const group = shell.querySelector('[data-notebook-label-group]');
+  if (group) group.hidden = safeLabels.length === 0;
+  const create = shell.querySelector('[data-notebook-label-create]');
+  if (create) create.hidden = safeLabels.length !== 0;
 
   const directory = shell.querySelector('[data-notebook-label-directory-list]');
   if (directory) {
@@ -164,6 +171,34 @@ async function updateSystemPreferenceWithSingleRetry(key, payload) {
   }
 }
 
+// SECTION: Collapsible Labels group in the rail
+// Collapsed state is a per-browser convenience; the group always opens while one of
+// its labels is the current view so the selection stays visible.
+const LABEL_GROUP_STORAGE_KEY = 'prism.notebook.labelsCollapsed';
+
+function initNotebookLabelGroup(shell) {
+  const group = shell.querySelector('[data-notebook-label-group]');
+  const toggle = group?.querySelector('[data-notebook-label-group-toggle]');
+  const list = group?.querySelector('[data-notebook-label-rail]');
+  if (!group || !toggle || !list) return;
+
+  const apply = (collapsed) => {
+    group.dataset.collapsed = String(collapsed);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    list.hidden = collapsed;
+  };
+
+  let stored = false;
+  try { stored = localStorage.getItem(LABEL_GROUP_STORAGE_KEY) === 'true'; } catch { stored = false; }
+  apply(stored && String(shell.dataset.view || '').toLowerCase() !== 'labels');
+
+  toggle.addEventListener('click', () => {
+    const collapsed = group.dataset.collapsed !== 'true';
+    apply(collapsed);
+    try { localStorage.setItem(LABEL_GROUP_STORAGE_KEY, String(collapsed)); } catch { /* storage unavailable */ }
+  });
+}
+
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
   const shell = document.querySelector('.notebook-shell'); if (!shell) return;
@@ -188,7 +223,8 @@ export function initNotebookApp() {
           ? numericValue + systemHomeCount
           : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
-        el.textContent = String(displayValue);
+        // Rail counts stay quiet at zero; section headings always show their number.
+        el.textContent = displayValue > 0 || !el.closest('.notebook-rail') ? String(displayValue) : '';
         if (key.toLowerCase() === 'overdue') {
           const isCurrentView = String(shell.dataset.view || '').toLowerCase() === 'overdue';
           el.closest('.notebook-rail__item')?.toggleAttribute('hidden', displayValue <= 0 && !isCurrentView);
@@ -275,6 +311,7 @@ export function initNotebookApp() {
     }
   });
   renderNotebookLabelNavigation(shell, labels);
+  initNotebookLabelGroup(shell);
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'prism.notebook.view';

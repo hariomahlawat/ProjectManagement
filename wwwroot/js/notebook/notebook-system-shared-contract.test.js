@@ -55,3 +55,8 @@ test('client board accounting treats the live system card as a visible surface',
   assert.match(board, /\[data-notebook-system-card\]/);
   assert.match(board, /querySelectorAll\(VISUAL_CARD_SELECTOR\)\.length/);
 });
+
+test('search result counts include a visible PRISM system card', () => {
+  // The card renders from ShowConferenceDigest, which already applies view, label and query.
+  assert.match(index, /var resultCount = [\s\S]*?\+ \(Model\.ShowConferenceDigest \? 1 : 0\);/);
+});

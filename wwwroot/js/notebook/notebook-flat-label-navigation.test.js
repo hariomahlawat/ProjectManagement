@@ -83,3 +83,23 @@ test('legacy Labels root is redirected to Home with the editor requested', () =>
   assert.match(source, /View,\s*"labels"/);
   assert.match(source, /view = "home", editLabels = true/);
 });
+
+test('the Labels group appears with labels and Create label replaces it without them', () => {
+  const dom = new JSDOM(
+    '<div class="notebook-shell"><div data-notebook-label-group><div data-notebook-label-rail></div></div><button data-notebook-label-create></button></div>',
+    { url: 'https://example.test/Notebook?view=home' }
+  );
+  const { renderNotebookLabelNavigation } = loadRenderer(dom);
+  const shell = dom.window.document.querySelector('.notebook-shell');
+  const group = shell.querySelector('[data-notebook-label-group]');
+  const create = shell.querySelector('[data-notebook-label-create]');
+
+  renderNotebookLabelNavigation(shell, [{ id: 1, name: 'Ideas', count: 0 }]);
+  assert.equal(group.hidden, false);
+  assert.equal(create.hidden, true);
+  assert.equal(shell.querySelector('[data-notebook-label-rail] b').textContent, '', 'zero counts stay empty');
+
+  renderNotebookLabelNavigation(shell, []);
+  assert.equal(group.hidden, true);
+  assert.equal(create.hidden, false);
+});

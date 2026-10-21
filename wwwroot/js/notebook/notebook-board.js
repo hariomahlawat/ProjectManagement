@@ -62,6 +62,12 @@ export function createNotebookBoard(root = document) {
       const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
       if (countEl) countEl.textContent = String(count);
     });
+    // "Others" only means something next to "Pinned", so its heading shows when both have cards.
+    const othersHeader = root.querySelector('[data-notebook-section-header="others"]');
+    if (othersHeader) {
+      const countOf = (name) => Number(root.querySelector(`[data-notebook-board="${name}"]`)?.dataset.itemCount || 0);
+      othersHeader.hidden = countOf('pinned') === 0 || countOf('others') === 0;
+    }
   };
   const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const notebookCount = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); const systemCount = root.querySelectorAll('[data-notebook-system-card]').length; empty.hidden = notebookCount + systemCount > 0; };
 
