@@ -29,10 +29,17 @@ export function renderNotebookLabelNavigation(shell, labels = []) {
       if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) {
         link.classList.add('is-active');
       }
-      link.innerHTML = `<i class="bi bi-tag"></i><span>${escapeLabelHtml(label.name)}</span><b>${Number(label.count || 0)}</b>`;
+      const count = Number(label.count || 0);
+      link.innerHTML = `<i class="bi bi-tag" aria-hidden="true"></i><span>${escapeLabelHtml(label.name)}</span><b>${count > 0 ? count : ''}</b>`;
       rail.appendChild(link);
     });
   }
+
+  // The Labels group exists only when there are labels; otherwise the rail offers Create label.
+  const group = shell.querySelector('[data-notebook-label-group]');
+  if (group) group.hidden = safeLabels.length === 0;
+  const create = shell.querySelector('[data-notebook-label-create]');
+  if (create) create.hidden = safeLabels.length !== 0;
 
   const directory = shell.querySelector('[data-notebook-label-directory-list]');
   if (directory) {
@@ -164,6 +171,34 @@ async function updateSystemPreferenceWithSingleRetry(key, payload) {
   }
 }
 
+// SECTION: Collapsible Labels group in the rail
+// Collapsed state is a per-browser convenience; the group always opens while one of
+// its labels is the current view so the selection stays visible.
+const LABEL_GROUP_STORAGE_KEY = 'prism.notebook.labelsCollapsed';
+
+function initNotebookLabelGroup(shell) {
+  const group = shell.querySelector('[data-notebook-label-group]');
+  const toggle = group?.querySelector('[data-notebook-label-group-toggle]');
+  const list = group?.querySelector('[data-notebook-label-rail]');
+  if (!group || !toggle || !list) return;
+
+  const apply = (collapsed) => {
+    group.dataset.collapsed = String(collapsed);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    list.hidden = collapsed;
+  };
+
+  let stored = false;
+  try { stored = localStorage.getItem(LABEL_GROUP_STORAGE_KEY) === 'true'; } catch { stored = false; }
+  apply(stored && String(shell.dataset.view || '').toLowerCase() !== 'labels');
+
+  toggle.addEventListener('click', () => {
+    const collapsed = group.dataset.collapsed !== 'true';
+    apply(collapsed);
+    try { localStorage.setItem(LABEL_GROUP_STORAGE_KEY, String(collapsed)); } catch { /* storage unavailable */ }
+  });
+}
+
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
   const shell = document.querySelector('.notebook-shell'); if (!shell) return;
@@ -172,9 +207,50 @@ export function initNotebookApp() {
   const view = new URL(location.href).searchParams.get('view') || 'home';
   const board = createNotebookBoard(shell);
   let composer;
-  const globalError = document.querySelector('[data-notebook-global-error]');
-  const globalErrorText = document.querySelector('[data-notebook-global-error-text]');
-  const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
+  // SECTION: One feedback channel
+  // Errors use the same toast region as confirmations. They stay until dismissed, so a
+  // message such as "Reload the page" cannot disappear before it is read.
+  const showGlobalError = (message) => {
+    const text = message || 'Notebook action failed.';
+    if (!showNotebookToast({ message: text, tone: 'error', duration: 0 })) shell.dataset.error = text;
+  };
+
+  // SECTION: Undoable lifecycle moves
+  const UNDO_TOAST_MS = 6000;
+  const rememberCardPlace = (card) => ({ board: card?.parentElement || null, next: card?.nextElementSibling || null });
+  // "Empty trash" only makes sense while Trash has cards.
+  const syncEmptyTrashButton = () => {
+    const button = document.querySelector('[data-empty-notebook-trash]');
+    if (button) button.hidden = !shell.querySelector('[data-notebook-board] [data-note-id]');
+  };
+  function restoreCardPlace(id, place) {
+    const restored = board.findCard(id);
+    if (!restored || !place?.board?.isConnected) return;
+    const next = place.next?.isConnected && place.next.parentElement === place.board ? place.next : null;
+    place.board.insertBefore(restored, next);
+    board.refreshSectionVisibility();
+    board.refreshEmptyState();
+    syncEmptyTrashButton();
+  }
+  function offerUndo({ message, id, place, undo }) {
+    showNotebookToast({
+      message,
+      actionText: 'Undo',
+      duration: UNDO_TOAST_MS,
+      onAction: async () => {
+        try {
+          const restored = await undo();
+          applyCounts(restored?.counts);
+          // Mutation responses carry Home-board markup; Trash cards need their own actions.
+          const response = view === 'trash' ? { ...restored, cardHtml: null } : restored;
+          await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
+          restoreCardPlace(id, place);
+        } catch (error) {
+          showGlobalError(error?.message || 'Undo failed.');
+        }
+      }
+    });
+  }
   const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || '0', 10) || 0);
   let systemHomeCount = Math.max(0, Number.parseInt(shell.dataset.systemHomeCount || '0', 10) || 0);
   const applyCounts = (counts) => {
@@ -188,7 +264,8 @@ export function initNotebookApp() {
           ? numericValue + systemHomeCount
           : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
-        el.textContent = String(displayValue);
+        // Rail counts stay quiet at zero; section headings always show their number.
+        el.textContent = displayValue > 0 || !el.closest('.notebook-rail') ? String(displayValue) : '';
         if (key.toLowerCase() === 'overdue') {
           const isCurrentView = String(shell.dataset.view || '').toLowerCase() === 'overdue';
           el.closest('.notebook-rail__item')?.toggleAttribute('hidden', displayValue <= 0 && !isCurrentView);
@@ -198,7 +275,70 @@ export function initNotebookApp() {
   };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
-  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts, onOpen: (item, modal) => renderEditorMoreMenu(item, modal) });
+
+  // SECTION: More menu inside the open note
+  // Mirrors the note's own card actions (Done plus its More menu), so the editor offers
+  // exactly what the board allows for this note's status and the user's access. Choosing
+  // one closes the editor (flushing any pending save) and runs the card action, which
+  // keeps one implementation of each lifecycle mutation, including Undo for Trash.
+  function fillEditorMoreMenu(item, more, menu) {
+    const card = item?.id ? board.findCard(item.id) : null;
+    const sources = card ? [...card.querySelectorAll('[data-action="complete-note"], .notebook-card-more__menu > [data-action], .notebook-card-more__menu > .notebook-menu-separator')] : [];
+    const entries = [];
+    sources.forEach((source, index) => {
+      if (source.classList.contains('notebook-menu-separator')) {
+        if (entries.length && index < sources.length - 1) entries.push(Object.assign(document.createElement('span'), { className: 'notebook-menu-separator' }));
+        return;
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'menuitem');
+      button.dataset.editorAction = source.dataset.action;
+      button.textContent = source.dataset.action === 'complete-note' ? 'Mark as done' : source.textContent.trim();
+      if (source.classList.contains('text-danger')) button.classList.add('text-danger');
+      entries.push(button);
+    });
+    menu.replaceChildren(...entries);
+    more.hidden = !entries.some((entry) => entry.tagName === 'BUTTON');
+  }
+
+  function renderEditorMoreMenu(item, modal) {
+    const more = modal?.querySelector('[data-notebook-editor-more]');
+    const menu = more?.querySelector('[data-notebook-editor-more-menu]');
+    if (!more || !menu) return;
+    more.removeAttribute('open');
+    fillEditorMoreMenu(item, more, menu);
+
+    if (!more.dataset.positionBound) {
+      more.dataset.positionBound = 'true';
+      more.addEventListener('toggle', () => {
+        if (!more.open) return;
+        // Rebuilt on every open: the card is re-rendered after edits made in the
+        // editor (adding or removing a reminder changes whether Done applies).
+        fillEditorMoreMenu(editor.getCurrentItem?.(), more, menu);
+        // A short note's dialog would clip the menu, so it is placed against the window.
+        const anchor = more.querySelector('summary').getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = `${Math.round(anchor.bottom + 6)}px`;
+        menu.style.right = `${Math.round(document.documentElement.clientWidth - anchor.right)}px`;
+      });
+      more.closest('.notebook-modal__dialog')?.addEventListener('scroll', () => more.removeAttribute('open'), { passive: true });
+    }
+  }
+
+  document.addEventListener('click', async (event) => {
+    const choice = event.target.closest('[data-notebook-editor-more-menu] [data-editor-action]');
+    const more = document.querySelector('[data-notebook-editor-more][open]');
+    if (more && !event.target.closest('[data-notebook-editor-more]')) more.removeAttribute('open');
+    if (!choice) return;
+    event.preventDefault();
+    choice.closest('details')?.removeAttribute('open');
+    const id = editor.getCurrentItem?.()?.id;
+    await editor.requestClose();
+    if (!id || editor.isOpen()) return;
+    board.findCard(id)?.querySelector(`[data-action="${CSS.escape(choice.dataset.editorAction)}"]`)?.click();
+  });
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts, showToast: showNotebookToast });
   const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), {
     showGlobalError,
@@ -275,8 +415,8 @@ export function initNotebookApp() {
     }
   });
   renderNotebookLabelNavigation(shell, labels);
+  initNotebookLabelGroup(shell);
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
-  document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'prism.notebook.view';
   const legacyStorageKeys = ['notebook.boardView', 'notebook-board-view'];
   const viewButtons = [...shell.querySelectorAll('[data-notebook-view]')];
@@ -622,40 +762,39 @@ export function initNotebookApp() {
           updateCardConcurrencyState(card, updated);
           await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card, reconcileFailureMessage: `The note was ${updated.isPinned ? 'pinned' : 'unpinned'}, but the board could not refresh. Reload the page.` });
         }
-        if (action.dataset.action === 'archive-note') { const response = await NotebookApi.archiveItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
-        if (action.dataset.action === 'complete-note') { const response = await NotebookApi.completeItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
-        if (action.dataset.action === 'reopen-note') { const response = await NotebookApi.reopenItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
-        if (action.dataset.action === 'restore-note') { const response = await NotebookApi.restoreItem(id, card.dataset.version); const updated = requireMutationItem(response); updateCardConcurrencyState(card, updated); if (view === 'archive' || view === 'archived') { board.removeCard(id); applyCounts(response?.counts); } else { await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card }); } }
-        if (action.dataset.action === 'duplicate-note') { const response = await NotebookApi.duplicateItem(id); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError }); }
-        if (action.dataset.action === 'delete-note') {
-          const response = await NotebookApi.moveToTrash(id, card.dataset.version);
+        // Lifecycle moves take the card off this board; each one confirms and offers Undo,
+        // which runs the inverse command and puts the card back where it was.
+        const moveOff = async ({ run, message, undo }) => {
+          const place = rememberCardPlace(card);
+          const response = await run();
           board.removeCard(response?.removedItemId || id);
           applyCounts(response?.counts);
-          showNotebookToast({
-            message: 'Note moved to Trash.',
-            tone: 'neutral',
-            actionText: 'Undo',
-            onAction: async () => {
-              const restoreVersion = response?.item?.version || card.dataset.version;
-              const restored = await NotebookApi.restoreFromTrash(id, restoreVersion);
-              applyCounts(restored?.counts);
-              if (view !== 'trash') await reconcileMutation({ response: restored, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
-            }
-          });
+          syncEmptyTrashButton();
+          const version = () => response?.item?.version || card.dataset.version;
+          offerUndo({ message, id, place, undo: () => undo(version()) });
+        };
+        if (action.dataset.action === 'archive-note') await moveOff({ run: () => NotebookApi.archiveItem(id, card.dataset.version), message: 'Note archived.', undo: (version) => NotebookApi.restoreItem(id, version) });
+        if (action.dataset.action === 'complete-note') await moveOff({ run: () => NotebookApi.completeItem(id, card.dataset.version), message: 'Marked as done.', undo: (version) => NotebookApi.reopenItem(id, version) });
+        if (action.dataset.action === 'reopen-note') await moveOff({ run: () => NotebookApi.reopenItem(id, card.dataset.version), message: 'Note reopened.', undo: (version) => NotebookApi.completeItem(id, version) });
+        if (action.dataset.action === 'restore-note') {
+          if (view === 'archive' || view === 'archived') {
+            await moveOff({ run: () => NotebookApi.restoreItem(id, card.dataset.version), message: 'Note restored.', undo: (version) => NotebookApi.archiveItem(id, version) });
+          } else {
+            const response = await NotebookApi.restoreItem(id, card.dataset.version); const updated = requireMutationItem(response); updateCardConcurrencyState(card, updated);
+            await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card });
+          }
         }
-        if (action.dataset.action === 'restore-trash-note') {
-          const response = await NotebookApi.restoreFromTrash(id, card.dataset.version);
-          board.removeCard(id);
-          applyCounts(response?.counts);
-          showNotebookToast({ message: 'Note restored.', tone: 'success' });
-        }
+        if (action.dataset.action === 'duplicate-note') { const response = await NotebookApi.duplicateItem(id); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError }); showNotebookToast({ message: 'Copy created.' }); }
+        if (action.dataset.action === 'delete-note') await moveOff({ run: () => NotebookApi.moveToTrash(id, card.dataset.version), message: 'Note moved to Trash.', undo: (version) => NotebookApi.restoreFromTrash(id, version) });
+        if (action.dataset.action === 'restore-trash-note') await moveOff({ run: () => NotebookApi.restoreFromTrash(id, card.dataset.version), message: 'Note restored.', undo: (version) => NotebookApi.moveToTrash(id, version) });
         if (action.dataset.action === 'delete-permanently') {
           const confirmed = await confirmNotebookAction({ title: 'Delete permanently?', message: 'This note and its checklist data will be permanently removed.', detail: 'This action cannot be undone.', confirmText: 'Delete permanently', tone: 'danger', backdropCancels: false });
           if (!confirmed) return;
           const response = await NotebookApi.deletePermanently(id, card.dataset.version);
           board.removeCard(response?.removedItemId || id);
           applyCounts(response?.counts);
-          showNotebookToast({ message: 'Note permanently deleted.', tone: 'neutral' });
+          syncEmptyTrashButton();
+          showNotebookToast({ message: 'Note permanently deleted.' });
         }
         if (action.dataset.action === 'convert-note') { const response = action.dataset.convertTo === 'Checklist' ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version); const converted = requireMutationItem(response); updateCardConcurrencyState(card, converted); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card }); }
       } catch (error) { showGlobalError(error.message || 'Notebook action failed.'); }
@@ -670,11 +809,12 @@ export function initNotebookApp() {
     try {
       const response = await NotebookApi.emptyTrash();
       document.querySelectorAll('[data-notebook-board] [data-note-id]').forEach(card => card.remove());
-      document.querySelectorAll('[data-notebook-board]').forEach(boardElement => { boardElement.dataset.itemCount = '0'; });
       applyCounts(response?.counts);
+      board.refreshSectionVisibility();
+      board.refreshEmptyState();
       button.hidden = true;
-      showNotebookToast({ message: `${response?.removed || 0} item(s) permanently deleted.`, tone: 'neutral' });
-      location.reload();
+      const removed = Number(response?.removed || 0);
+      showNotebookToast({ message: `${removed} ${removed === 1 ? 'item' : 'items'} permanently deleted.` });
     } catch (error) { showGlobalError(error.message || 'Trash could not be emptied.'); button.disabled = false; }
   });
 

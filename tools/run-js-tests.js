@@ -27,6 +27,7 @@ const explicitTests = [
   path.join('tools', 'check-views.test.js'),
   path.join('tools', 'theme-coverage.test.js'),
   path.join('tools', 'theme-dark-codemod.test.js'),
+  path.join('tools', 'css-dead-declarations.test.js'),
 ];
 
 function findTestFiles(directory) {

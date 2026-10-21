@@ -9,7 +9,7 @@ function loadModule() {
   let source = fs.readFileSync(file, 'utf8');
   source = source
     .replace(/export function /g, 'function ')
-    .concat('\nmodule.exports = { toIstIsoFromParts, toIstPartsFromIso, istScheduleInstant, isFutureIstSchedule, getIstTodayValue, getReminderPreset, getDefaultReminderSchedule, formatReminderSummary };');
+    .concat('\nmodule.exports = { toIstIsoFromParts, toIstPartsFromIso, istScheduleInstant, isFutureIstSchedule, getIstTodayValue, getReminderPreset, getDefaultReminderSchedule, formatReminderSummary, formatReminderPresetLabel };');
   const context = { module: { exports: {} }, exports: {}, Date, Intl, Math, Number, String, Boolean };
   vm.createContext(context);
   vm.runInContext(source, context);
@@ -62,4 +62,14 @@ test('future validation and readable summary use IST', () => {
   assert.equal(isFutureIstSchedule('2026-07-18', '08:30', now), true);
   assert.equal(isFutureIstSchedule('2026-07-18', '07:30', now), false);
   assert.equal(formatReminderSummary('2026-07-19', '09:00', now), 'Tomorrow at 09:00 IST');
+});
+
+test('preset labels name the exact time they set', () => {
+  const { formatReminderPresetLabel } = loadModule();
+  const morning = new Date('2026-07-18T02:31:10.000Z'); // Saturday 08:01 IST
+  assert.equal(formatReminderPresetLabel('later-today', morning), 'Later today · 08:30');
+  assert.equal(formatReminderPresetLabel('tomorrow-morning', morning), 'Tomorrow · 09:00');
+  assert.equal(formatReminderPresetLabel('next-monday', morning), 'Mon 20 Jul · 09:00');
+  const evening = new Date('2026-07-18T15:10:00.000Z'); // 20:40 IST, nothing left today
+  assert.equal(formatReminderPresetLabel('later-today', evening), 'Later today');
 });

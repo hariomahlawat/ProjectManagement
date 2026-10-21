@@ -4,6 +4,7 @@ import { reconcileMutation } from './notebook-reconcile.js';
 import { applyNotebookSurfaceColour, initNotebookColourPicker } from './notebook-colour-picker.js';
 import { initNotebookLabelPicker, refreshNotebookLabelCatalog } from './notebook-label-picker.js';
 import { resizeTextareaToContent } from './notebook-textarea-autosize.js';
+import { createReminderScheduler, formatReminderSummary, isFutureIstSchedule } from './notebook-reminder-scheduler.js';
 
 const QUICK_DRAFT_PREFIX = 'prism.notebook.quickDraft';
 const DRAFT_DEBOUNCE_MS = 250;
@@ -22,6 +23,10 @@ export function initNotebookComposer(root, board, view, options = {}) {
   const checklistButton = root.querySelector('[data-composer-open-checklist]');
   const colourPickerRoot = root.querySelector('[data-notebook-colour-picker]');
   const labelPickerRoot = root.querySelector('[data-notebook-label-picker]');
+  const reminderPanel = root.querySelector('[data-composer-reminder-panel]');
+  const reminderToggle = root.querySelector('[data-composer-reminder-toggle]');
+  const reminderChip = root.querySelector('[data-composer-reminder-chip]');
+  const reminderText = root.querySelector('[data-composer-reminder-text]');
   const showGlobalError = options.showGlobalError || (() => {});
   const applyCounts = options.applyCounts || (() => {});
   const currentUserId = root.closest('.notebook-shell')?.dataset.currentUserId || 'current';
@@ -35,6 +40,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
   let clientRequestId = crypto.randomUUID();
   let colourPicker = null;
   let labelPicker = null;
+  let reminder = null; // { date, time, iso } once a future time is chosen
 
   const checklist = createChecklistEditor(checklistRoot, { onChange: scheduleDraftSave });
   colourPicker = colourPickerRoot ? initNotebookColourPicker(colourPickerRoot, {
@@ -50,6 +56,41 @@ export function initNotebookComposer(root, board, view, options = {}) {
     onError: (error) => showGlobalError(error?.message || 'Unable to create the label.')
   }) : null;
 
+  // SECTION: Reminder for the new note
+  // Any valid future time becomes the reminder immediately and shows as a chip; a preset
+  // also closes the panel. A note with a reminder appears under Reminders.
+  const scheduler = reminderPanel ? createReminderScheduler(reminderPanel, {
+    onChange: (value) => {
+      if (value.iso && isFutureIstSchedule(value.date, value.time)) setReminder(value);
+    }
+  }) : null;
+
+  function renderReminder() {
+    if (reminderChip) reminderChip.hidden = !reminder;
+    if (reminderText) reminderText.textContent = reminder ? formatReminderSummary(reminder.date, reminder.time) : '';
+    reminderToggle?.classList.toggle('is-active', Boolean(reminder));
+  }
+
+  function setReminder(value) {
+    reminder = { date: value.date, time: value.time, iso: value.iso };
+    renderReminder();
+    scheduleDraftSave();
+  }
+
+  function setReminderPanelOpen(open) {
+    if (!reminderPanel) return;
+    reminderPanel.hidden = !open;
+    reminderToggle?.setAttribute('aria-expanded', String(open));
+    if (open) scheduler?.updatePresentation();
+  }
+
+  function clearReminder() {
+    reminder = null;
+    scheduler?.clear();
+    setReminderPanelOpen(false);
+    renderReminder();
+  }
+
   const refreshBodyLayout = () => {
     if (!body || mode === 'checklist') return;
     resizeTextareaToContent(body, { minimumHeight: 56, maximumHeight: 200 });
@@ -60,6 +101,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     if (closeButton) closeButton.disabled = disabled;
     if (checklistButton) checklistButton.disabled = disabled;
     if (pin) pin.disabled = disabled;
+    if (reminderToggle) reminderToggle.disabled = disabled;
     colourPicker?.setBusy(disabled);
     labelPicker?.setBusy(disabled);
   };
@@ -90,7 +132,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     body: body.value.trim(),
     type: mode === 'checklist' ? 'Checklist' : 'Note',
     priority: 'Normal',
-    reminderAtUtc: null,
+    reminderAtUtc: reminder?.iso ?? null,
     colorKey: colourPicker?.getValue() || null,
     isPinned,
     labels: labelPicker?.getValue() || [],
@@ -123,6 +165,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
       isPinned,
       colorKey: colourPicker?.getValue() || null,
       labels: labelPicker?.getValue() || [],
+      reminder,
       clientRequestId,
       savedAtUtc: new Date().toISOString()
     }));
@@ -159,6 +202,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     created = null;
     clientRequestId = crypto.randomUUID();
     renderPinState();
+    clearReminder();
     setStatus('');
     refreshBodyLayout();
     if (clearDraft) clearStoredDraft();
@@ -175,6 +219,10 @@ export function initNotebookComposer(root, board, view, options = {}) {
     labelPicker?.setValue(Array.isArray(draft.labels) ? draft.labels : []);
     applyNotebookSurfaceColour(root, draft.colorKey || '');
     renderPinState();
+    if (draft.reminder?.date && draft.reminder?.time && isFutureIstSchedule(draft.reminder.date, draft.reminder.time)) {
+      scheduler?.setValue(draft.reminder);
+      setReminder({ ...draft.reminder, iso: scheduler?.getValue().iso ?? draft.reminder.iso });
+    }
     if (typeof draft.clientRequestId === 'string' && draft.clientRequestId) clientRequestId = draft.clientRequestId;
     setMode(draft.mode === 'checklist' ? 'checklist' : 'note', { persist: false });
     return true;
@@ -182,13 +230,28 @@ export function initNotebookComposer(root, board, view, options = {}) {
 
   // SECTION: Mutation and reconciliation lifecycle
   async function closeComposer() {
-    const data = payload();
+    let data = payload();
     if (!meaningful(data)) {
       reset();
       setMode('collapsed', { persist: false });
       return true;
     }
     if (isSaving) return false;
+    // Whatever is in the reminder fields is what gets saved: an earlier accepted time must
+    // not be submitted in place of an edited one, and an invalid or past time keeps the box
+    // open (with the panel and its error showing) instead of being silently dropped.
+    const entered = scheduler?.getValue();
+    if (entered && (entered.date || entered.time)) {
+      const check = scheduler.validate({ focus: true });
+      if (!check.valid) {
+        setReminderPanelOpen(true);
+        scheduler.validate({ focus: true }); // opening the panel clears the message; show it again
+        setStatus('Fix the reminder time or remove it.');
+        return false;
+      }
+      setReminder(scheduler.getValue());
+      data = payload();
+    }
     colourPicker?.close();
     labelPicker?.close();
     if (draftTimer) window.clearTimeout(draftTimer);
@@ -244,6 +307,26 @@ export function initNotebookComposer(root, board, view, options = {}) {
     checklist.focusFirst();
   });
   closeButton?.addEventListener('click', closeComposer);
+  reminderToggle?.addEventListener('click', () => setReminderPanelOpen(reminderPanel?.hidden ?? false));
+  root.querySelector('[data-composer-reminder-toggle-chip]')?.addEventListener('click', () => setReminderPanelOpen(true));
+  root.querySelector('[data-composer-reminder-clear]')?.addEventListener('click', () => { clearReminder(); scheduleDraftSave(); });
+  reminderPanel?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-reminder-preset]') && reminder) setReminderPanelOpen(false);
+  });
+  root.querySelector('[data-composer-open-reminder]')?.addEventListener('click', () => {
+    if (isSaving) return;
+    setMode('note');
+    setReminderPanelOpen(true);
+    title.focus();
+  });
+
+  // Clicking anywhere outside the open composer saves and closes it, as in Keep. Dialogs,
+  // toasts and the label manager are separate surfaces and do not count as "outside".
+  document.addEventListener('pointerdown', (event) => {
+    if (mode === 'collapsed' || isSaving || root.contains(event.target)) return;
+    if (event.target.closest?.('.notebook-modal, .notebook-toast-region, [data-notebook-label-manager], .notebook-confirm, .modal')) return;
+    closeComposer();
+  });
   pin?.addEventListener('click', () => {
     if (isSaving) return;
     isPinned = !isPinned;

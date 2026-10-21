@@ -1,10 +1,24 @@
 import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 // SECTION: Deterministic Notebook bundle settings
 const minify = process.argv.includes('--minify');
 
+// Sources are read with LF line endings so the source map (which embeds them) is the same
+// on a Windows checkout with CRLF files as in CI; otherwise check:notebook-assets fails.
+const normaliseLineEndings = {
+  name: 'normalise-line-endings',
+  setup(context) {
+    context.onLoad({ filter: /\.m?js$/ }, async (args) => ({
+      contents: (await readFile(args.path, 'utf8')).replace(/\r\n/g, '\n'),
+      loader: 'js'
+    }));
+  }
+};
+
 await build({
+  plugins: [normaliseLineEndings],
   entryPoints: ['wwwroot/js/pages/notebook-index.js'],
   outfile: 'wwwroot/dist/notebook-index.bundle.js',
   bundle: true,

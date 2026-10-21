@@ -52,6 +52,8 @@ npm run lint:views
 
 `npm test` also runs the theme-coverage ratchet (`tools/theme-coverage.test.js`): it fails when a stylesheet gains literal colours, or literals that no dark-theme rule repaints, beyond `tools/theme-coverage-baseline.json`. Use the site tokens instead; after converting a page, run `node tools/theme-coverage.js --write` to lower the baseline (it refuses to raise one without `--allow-increase`). See [the dark theme doc](ux/dark-theme-palette.md).
 
+`npm test` also fails if `wwwroot/css/notebook.css` contains a dead declaration (`tools/css-dead-declarations.test.js`): one that a later rule with the same selector, in the same or an unconditional media context, always overrides. Such leftovers accumulate when a fix is layered on top instead of edited in place. `node tools/css-dead-declarations.js <file.css>` lists them; `--fix` removes them and merges same-selector rules only where no rule in between sets a related property, so the cascade result cannot change.
+
 ## Notebook assets
 
 Notebook source inputs include JavaScript under `wwwroot/js`, the Notebook build tooling and the npm manifests. Committed outputs include the Notebook bundle, source map and manifest under `wwwroot/dist`.
@@ -65,6 +67,8 @@ npm run check:notebook-assets
 ```
 
 Do not hand-edit generated Notebook outputs to make a check pass. Change the source/build inputs and regenerate.
+
+The build reads sources with LF line endings, so a Windows checkout (CRLF working files) produces the same source map as CI. `check:notebook-assets` runs the build with Node directly and prints an error if a step cannot start, rather than exiting silently.
 
 ## Database migration validation
 

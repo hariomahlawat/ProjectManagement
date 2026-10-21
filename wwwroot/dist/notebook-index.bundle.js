@@ -374,6 +374,17 @@ function createNotebookBoard(root = document) {
       const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
       if (countEl) countEl.textContent = String(count);
     });
+    root.querySelectorAll("[data-notebook-group]").forEach((section) => {
+      const count = section.querySelector("[data-notebook-board]")?.querySelectorAll(VISUAL_CARD_SELECTOR).length || 0;
+      section.hidden = count === 0;
+      const countEl = section.querySelector("[data-notebook-group-count]");
+      if (countEl) countEl.textContent = String(count);
+    });
+    const othersHeader = root.querySelector('[data-notebook-section-header="others"]');
+    if (othersHeader) {
+      const countOf = (name) => Number(root.querySelector(`[data-notebook-board="${name}"]`)?.dataset.itemCount || 0);
+      othersHeader.hidden = countOf("pinned") === 0 || countOf("others") === 0;
+    }
   };
   const refreshEmptyState = () => {
     const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector("[data-notebook-empty-state]") || root.querySelector("[data-notebook-empty]");
@@ -382,11 +393,16 @@ function createNotebookBoard(root = document) {
     const systemCount = root.querySelectorAll("[data-notebook-system-card]").length;
     empty.hidden = notebookCount + systemCount > 0;
   };
+  const groupBoardFor = (card) => {
+    const key = card?.dataset?.reminderGroup;
+    return key ? root.querySelector(`[data-notebook-group="${key}"] [data-notebook-board]`) : null;
+  };
+  const keepCurrentBoard = (current) => current?.parentElement?.matches?.("[data-notebook-board]") && !root.querySelector('[data-notebook-board="pinned"]');
   const upsertCard = (id, html, isPinned, options = {}) => {
     const current = findCard(id);
-    const targetBoard = getBoard(isPinned);
-    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
     const fragment = htmlToCardElement(html, id);
+    const targetBoard = groupBoardFor(fragment) || (keepCurrentBoard(current) ? current.parentElement : getBoard(isPinned));
+    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
     const sameBoard = current && current.parentElement === targetBoard;
     const preservePosition = options.preservePosition !== false;
     if (sameBoard && preservePosition) {
@@ -410,7 +426,7 @@ function createNotebookBoard(root = document) {
   };
   const insertCard = (html, pinned = false) => {
     const fragment = htmlToCardElement(html);
-    const board = getBoard(pinned);
+    const board = groupBoardFor(fragment) || getBoard(pinned);
     if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? "pinned" : "others"}" was not found.`);
     board.prepend(fragment);
     refreshSectionVisibility();
@@ -1234,6 +1250,248 @@ var init_notebook_label_picker = __esm({
   }
 });
 
+// wwwroot/js/notebook/notebook-reminder-scheduler.js
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+function parseDateParts(dateValue) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateValue || "").trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+  return { year, month, day };
+}
+function parseTimeParts(timeValue) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(timeValue || "").trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return { hour, minute };
+}
+function istCalendarDate(date = /* @__PURE__ */ new Date()) {
+  return new Date(date.getTime() + IST_OFFSET_MINUTES * MINUTE_MS);
+}
+function toDateValue(date) {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+function toTimeValue(date) {
+  return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
+}
+function addIstDays(parts, days) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day) + days * DAY_MS);
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+}
+function partsToDateValue(parts) {
+  return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`;
+}
+function nextRoundedIstDate(now = /* @__PURE__ */ new Date(), intervalMinutes = 30) {
+  const current = istCalendarDate(now);
+  const minuteOfDay = current.getUTCHours() * 60 + current.getUTCMinutes();
+  const roundedMinutes = (Math.floor(minuteOfDay / intervalMinutes) + 1) * intervalMinutes;
+  const dayOffset = Math.floor(roundedMinutes / (24 * 60));
+  const minuteWithinDay = roundedMinutes % (24 * 60);
+  const dateOnly = addIstDays({
+    year: current.getUTCFullYear(),
+    month: current.getUTCMonth() + 1,
+    day: current.getUTCDate()
+  }, dayOffset);
+  return {
+    date: partsToDateValue(dateOnly),
+    time: `${pad2(Math.floor(minuteWithinDay / 60))}:${pad2(minuteWithinDay % 60)}`
+  };
+}
+function toIstIsoFromParts(dateValue, timeValue) {
+  const date = parseDateParts(dateValue);
+  const time = parseTimeParts(timeValue);
+  if (!date || !time) return null;
+  return `${partsToDateValue(date)}T${pad2(time.hour)}:${pad2(time.minute)}:00+05:30`;
+}
+function istScheduleInstant(dateValue, timeValue) {
+  const date = parseDateParts(dateValue);
+  const time = parseTimeParts(timeValue);
+  if (!date || !time) return null;
+  return new Date(Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute) - IST_OFFSET_MINUTES * MINUTE_MS);
+}
+function isFutureIstSchedule(dateValue, timeValue, now = /* @__PURE__ */ new Date(), minimumLeadMinutes = 1) {
+  const instant = istScheduleInstant(dateValue, timeValue);
+  return Boolean(instant && instant.getTime() > now.getTime() + minimumLeadMinutes * MINUTE_MS);
+}
+function getIstTodayValue(now = /* @__PURE__ */ new Date()) {
+  return toDateValue(istCalendarDate(now));
+}
+function toIstPartsFromIso(value) {
+  if (!value) return { date: "", time: "" };
+  const instant = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(instant.getTime())) return { date: "", time: "" };
+  const local = istCalendarDate(instant);
+  return { date: toDateValue(local), time: toTimeValue(local) };
+}
+function getReminderPreset(preset, now = /* @__PURE__ */ new Date()) {
+  const currentIst = istCalendarDate(now);
+  const today = {
+    year: currentIst.getUTCFullYear(),
+    month: currentIst.getUTCMonth() + 1,
+    day: currentIst.getUTCDate()
+  };
+  if (preset === "later-today") {
+    const rounded = nextRoundedIstDate(now, 30);
+    const sameDay = rounded.date === partsToDateValue(today);
+    const hour = Number(rounded.time.slice(0, 2));
+    return sameDay && hour < 20 ? rounded : null;
+  }
+  if (preset === "tomorrow-morning") {
+    return { date: partsToDateValue(addIstDays(today, 1)), time: "09:00" };
+  }
+  if (preset === "next-monday") {
+    const weekday = currentIst.getUTCDay();
+    const daysUntilMonday = weekday === 1 ? 7 : (8 - weekday) % 7;
+    return { date: partsToDateValue(addIstDays(today, daysUntilMonday || 7)), time: "09:00" };
+  }
+  return null;
+}
+function formatReminderPresetLabel(preset, now = /* @__PURE__ */ new Date()) {
+  const value = getReminderPreset(preset, now);
+  if (preset === "later-today") return value ? `Later today · ${value.time}` : "Later today";
+  if (!value) return "";
+  if (preset === "tomorrow-morning") return `Tomorrow · ${value.time}`;
+  const instant = istScheduleInstant(value.date, value.time);
+  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" }).format(instant).replace(",", "");
+  return `${day} · ${value.time}`;
+}
+function getDefaultReminderSchedule(now = /* @__PURE__ */ new Date()) {
+  return getReminderPreset("later-today", now) || getReminderPreset("tomorrow-morning", now);
+}
+function formatReminderSummary(dateValue, timeValue, now = /* @__PURE__ */ new Date()) {
+  const instant = istScheduleInstant(dateValue, timeValue);
+  if (!instant) return "";
+  const targetIst = istCalendarDate(instant);
+  const nowIst = istCalendarDate(now);
+  const targetDay = Date.UTC(targetIst.getUTCFullYear(), targetIst.getUTCMonth(), targetIst.getUTCDate());
+  const today = Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate());
+  const dayDifference = Math.round((targetDay - today) / DAY_MS);
+  const prefix = dayDifference === 0 ? "Today" : dayDifference === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    year: targetIst.getUTCFullYear() !== nowIst.getUTCFullYear() ? "numeric" : void 0,
+    timeZone: "Asia/Kolkata"
+  }).format(instant);
+  const time = new Intl.DateTimeFormat("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata"
+  }).format(instant);
+  return `${prefix} at ${time} IST`;
+}
+function createReminderScheduler(root, options = {}) {
+  if (!root) throw new Error("Reminder scheduler root is required.");
+  const nowProvider = options.nowProvider || (() => /* @__PURE__ */ new Date());
+  const dateInput = root.querySelector("[data-reminder-date]");
+  const timeInput = root.querySelector("[data-reminder-time]");
+  const summary = root.querySelector("[data-reminder-summary]");
+  const error = root.querySelector("[data-reminder-error]");
+  const presetButtons = [...root.querySelectorAll("[data-reminder-preset]")];
+  if (!dateInput || !timeInput || !summary || !error) throw new Error("Reminder scheduler markup is incomplete.");
+  let touched = false;
+  function setError(message = "") {
+    error.textContent = message;
+    error.hidden = !message;
+    dateInput.setAttribute("aria-invalid", message ? "true" : "false");
+    timeInput.setAttribute("aria-invalid", message ? "true" : "false");
+  }
+  function updatePresentation({ validate = false } = {}) {
+    const now = nowProvider();
+    dateInput.min = getIstTodayValue(now);
+    const laterToday = getReminderPreset("later-today", now);
+    presetButtons.forEach((button) => {
+      const label = formatReminderPresetLabel(button.dataset.reminderPreset, now);
+      if (label) button.textContent = label;
+    });
+    const laterButton = presetButtons.find((button) => button.dataset.reminderPreset === "later-today");
+    if (laterButton) {
+      laterButton.disabled = !laterToday;
+      laterButton.title = laterToday ? "" : "No suitable time remains today.";
+    }
+    summary.textContent = formatReminderSummary(dateInput.value, timeInput.value, now);
+    summary.hidden = !summary.textContent;
+    if (validate && (dateInput.value || timeInput.value)) validateSchedule();
+    else setError("");
+  }
+  function setValue(value = {}, { markTouched = false, validate = false } = {}) {
+    dateInput.value = value.date || "";
+    timeInput.value = value.time || "";
+    touched = Boolean(markTouched);
+    updatePresentation({ validate });
+  }
+  function setDefault() {
+    setValue(getDefaultReminderSchedule(nowProvider()), { markTouched: false });
+  }
+  function clear() {
+    setValue({}, { markTouched: false });
+  }
+  function getValue() {
+    return {
+      date: dateInput.value,
+      time: timeInput.value,
+      iso: toIstIsoFromParts(dateInput.value, timeInput.value),
+      touched
+    };
+  }
+  function validateSchedule({ focus = false } = {}) {
+    let message = "";
+    if (!dateInput.value) message = "Select a reminder date.";
+    else if (!timeInput.value) message = "Select a reminder time.";
+    else if (!isFutureIstSchedule(dateInput.value, timeInput.value, nowProvider())) message = "Choose a future date and time.";
+    setError(message);
+    if (message && focus) (!dateInput.value ? dateInput : timeInput).focus();
+    return { valid: !message, message };
+  }
+  presetButtons.forEach((button) => button.addEventListener("click", () => {
+    const value = getReminderPreset(button.dataset.reminderPreset, nowProvider());
+    if (!value) return;
+    setValue(value, { markTouched: true, validate: true });
+    options.onChange?.(getValue());
+  }));
+  [dateInput, timeInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      touched = true;
+      updatePresentation();
+      options.onChange?.(getValue());
+    });
+    input.addEventListener("change", () => {
+      touched = true;
+      updatePresentation({ validate: true });
+      options.onChange?.(getValue());
+    });
+    input.addEventListener("blur", () => {
+      if (dateInput.value || timeInput.value) validateSchedule();
+    });
+  });
+  updatePresentation();
+  return {
+    clear,
+    focus: () => dateInput.focus(),
+    getValue,
+    setDefault,
+    setValue,
+    validate: validateSchedule,
+    updatePresentation
+  };
+}
+var IST_OFFSET_MINUTES, MINUTE_MS, DAY_MS;
+var init_notebook_reminder_scheduler = __esm({
+  "wwwroot/js/notebook/notebook-reminder-scheduler.js"() {
+    IST_OFFSET_MINUTES = 330;
+    MINUTE_MS = 6e4;
+    DAY_MS = 24 * 60 * MINUTE_MS;
+  }
+});
+
 // wwwroot/js/notebook/notebook-composer.js
 function initNotebookComposer(root, board, view, options = {}) {
   if (!root) return null;
@@ -1248,6 +1506,10 @@ function initNotebookComposer(root, board, view, options = {}) {
   const checklistButton = root.querySelector("[data-composer-open-checklist]");
   const colourPickerRoot = root.querySelector("[data-notebook-colour-picker]");
   const labelPickerRoot = root.querySelector("[data-notebook-label-picker]");
+  const reminderPanel = root.querySelector("[data-composer-reminder-panel]");
+  const reminderToggle = root.querySelector("[data-composer-reminder-toggle]");
+  const reminderChip = root.querySelector("[data-composer-reminder-chip]");
+  const reminderText = root.querySelector("[data-composer-reminder-text]");
   const showGlobalError = options.showGlobalError || (() => {
   });
   const applyCounts = options.applyCounts || (() => {
@@ -1262,6 +1524,7 @@ function initNotebookComposer(root, board, view, options = {}) {
   let clientRequestId = crypto.randomUUID();
   let colourPicker = null;
   let labelPicker = null;
+  let reminder = null;
   const checklist = createChecklistEditor(checklistRoot, { onChange: scheduleDraftSave });
   colourPicker = colourPickerRoot ? initNotebookColourPicker(colourPickerRoot, {
     value: "",
@@ -1275,6 +1538,33 @@ function initNotebookComposer(root, board, view, options = {}) {
     onChange: () => scheduleDraftSave(),
     onError: (error) => showGlobalError(error?.message || "Unable to create the label.")
   }) : null;
+  const scheduler = reminderPanel ? createReminderScheduler(reminderPanel, {
+    onChange: (value) => {
+      if (value.iso && isFutureIstSchedule(value.date, value.time)) setReminder(value);
+    }
+  }) : null;
+  function renderReminder() {
+    if (reminderChip) reminderChip.hidden = !reminder;
+    if (reminderText) reminderText.textContent = reminder ? formatReminderSummary(reminder.date, reminder.time) : "";
+    reminderToggle?.classList.toggle("is-active", Boolean(reminder));
+  }
+  function setReminder(value) {
+    reminder = { date: value.date, time: value.time, iso: value.iso };
+    renderReminder();
+    scheduleDraftSave();
+  }
+  function setReminderPanelOpen(open) {
+    if (!reminderPanel) return;
+    reminderPanel.hidden = !open;
+    reminderToggle?.setAttribute("aria-expanded", String(open));
+    if (open) scheduler?.updatePresentation();
+  }
+  function clearReminder() {
+    reminder = null;
+    scheduler?.clear();
+    setReminderPanelOpen(false);
+    renderReminder();
+  }
   const refreshBodyLayout = () => {
     if (!body || mode === "checklist") return;
     resizeTextareaToContent(body, { minimumHeight: 56, maximumHeight: 200 });
@@ -1286,6 +1576,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     if (closeButton) closeButton.disabled = disabled;
     if (checklistButton) checklistButton.disabled = disabled;
     if (pin) pin.disabled = disabled;
+    if (reminderToggle) reminderToggle.disabled = disabled;
     colourPicker?.setBusy(disabled);
     labelPicker?.setBusy(disabled);
   };
@@ -1313,7 +1604,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     body: body.value.trim(),
     type: mode === "checklist" ? "Checklist" : "Note",
     priority: "Normal",
-    reminderAtUtc: null,
+    reminderAtUtc: reminder?.iso ?? null,
     colorKey: colourPicker?.getValue() || null,
     isPinned,
     labels: labelPicker?.getValue() || [],
@@ -1340,6 +1631,7 @@ function initNotebookComposer(root, board, view, options = {}) {
       isPinned,
       colorKey: colourPicker?.getValue() || null,
       labels: labelPicker?.getValue() || [],
+      reminder,
       clientRequestId,
       savedAtUtc: (/* @__PURE__ */ new Date()).toISOString()
     }));
@@ -1373,6 +1665,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     created = null;
     clientRequestId = crypto.randomUUID();
     renderPinState();
+    clearReminder();
     setStatus("");
     refreshBodyLayout();
     if (clearDraft) clearStoredDraft();
@@ -1388,18 +1681,34 @@ function initNotebookComposer(root, board, view, options = {}) {
     labelPicker?.setValue(Array.isArray(draft.labels) ? draft.labels : []);
     applyNotebookSurfaceColour(root, draft.colorKey || "");
     renderPinState();
+    if (draft.reminder?.date && draft.reminder?.time && isFutureIstSchedule(draft.reminder.date, draft.reminder.time)) {
+      scheduler?.setValue(draft.reminder);
+      setReminder({ ...draft.reminder, iso: scheduler?.getValue().iso ?? draft.reminder.iso });
+    }
     if (typeof draft.clientRequestId === "string" && draft.clientRequestId) clientRequestId = draft.clientRequestId;
     setMode(draft.mode === "checklist" ? "checklist" : "note", { persist: false });
     return true;
   }
   async function closeComposer() {
-    const data = payload();
+    let data = payload();
     if (!meaningful(data)) {
       reset();
       setMode("collapsed", { persist: false });
       return true;
     }
     if (isSaving) return false;
+    const entered = scheduler?.getValue();
+    if (entered && (entered.date || entered.time)) {
+      const check = scheduler.validate({ focus: true });
+      if (!check.valid) {
+        setReminderPanelOpen(true);
+        scheduler.validate({ focus: true });
+        setStatus("Fix the reminder time or remove it.");
+        return false;
+      }
+      setReminder(scheduler.getValue());
+      data = payload();
+    }
     colourPicker?.close();
     labelPicker?.close();
     if (draftTimer) window.clearTimeout(draftTimer);
@@ -1456,6 +1765,26 @@ function initNotebookComposer(root, board, view, options = {}) {
     checklist.focusFirst();
   });
   closeButton?.addEventListener("click", closeComposer);
+  reminderToggle?.addEventListener("click", () => setReminderPanelOpen(reminderPanel?.hidden ?? false));
+  root.querySelector("[data-composer-reminder-toggle-chip]")?.addEventListener("click", () => setReminderPanelOpen(true));
+  root.querySelector("[data-composer-reminder-clear]")?.addEventListener("click", () => {
+    clearReminder();
+    scheduleDraftSave();
+  });
+  reminderPanel?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-reminder-preset]") && reminder) setReminderPanelOpen(false);
+  });
+  root.querySelector("[data-composer-open-reminder]")?.addEventListener("click", () => {
+    if (isSaving) return;
+    setMode("note");
+    setReminderPanelOpen(true);
+    title.focus();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (mode === "collapsed" || isSaving || root.contains(event.target)) return;
+    if (event.target.closest?.(".notebook-modal, .notebook-toast-region, [data-notebook-label-manager], .notebook-confirm, .modal")) return;
+    closeComposer();
+  });
   pin?.addEventListener("click", () => {
     if (isSaving) return;
     isPinned = !isPinned;
@@ -1488,6 +1817,7 @@ var init_notebook_composer = __esm({
     init_notebook_colour_picker();
     init_notebook_label_picker();
     init_notebook_textarea_autosize();
+    init_notebook_reminder_scheduler();
     QUICK_DRAFT_PREFIX = "prism.notebook.quickDraft";
     DRAFT_DEBOUNCE_MS = 250;
   }
@@ -1709,235 +2039,6 @@ var init_notebook_confirm_dialog = __esm({
   }
 });
 
-// wwwroot/js/notebook/notebook-reminder-scheduler.js
-function pad2(value) {
-  return String(value).padStart(2, "0");
-}
-function parseDateParts(dateValue) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateValue || "").trim());
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const probe = new Date(Date.UTC(year, month - 1, day));
-  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
-  return { year, month, day };
-}
-function parseTimeParts(timeValue) {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(timeValue || "").trim());
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return null;
-  return { hour, minute };
-}
-function istCalendarDate(date = /* @__PURE__ */ new Date()) {
-  return new Date(date.getTime() + IST_OFFSET_MINUTES * MINUTE_MS);
-}
-function toDateValue(date) {
-  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
-}
-function toTimeValue(date) {
-  return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
-}
-function addIstDays(parts, days) {
-  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day) + days * DAY_MS);
-  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
-}
-function partsToDateValue(parts) {
-  return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`;
-}
-function nextRoundedIstDate(now = /* @__PURE__ */ new Date(), intervalMinutes = 30) {
-  const current = istCalendarDate(now);
-  const minuteOfDay = current.getUTCHours() * 60 + current.getUTCMinutes();
-  const roundedMinutes = (Math.floor(minuteOfDay / intervalMinutes) + 1) * intervalMinutes;
-  const dayOffset = Math.floor(roundedMinutes / (24 * 60));
-  const minuteWithinDay = roundedMinutes % (24 * 60);
-  const dateOnly = addIstDays({
-    year: current.getUTCFullYear(),
-    month: current.getUTCMonth() + 1,
-    day: current.getUTCDate()
-  }, dayOffset);
-  return {
-    date: partsToDateValue(dateOnly),
-    time: `${pad2(Math.floor(minuteWithinDay / 60))}:${pad2(minuteWithinDay % 60)}`
-  };
-}
-function toIstIsoFromParts(dateValue, timeValue) {
-  const date = parseDateParts(dateValue);
-  const time = parseTimeParts(timeValue);
-  if (!date || !time) return null;
-  return `${partsToDateValue(date)}T${pad2(time.hour)}:${pad2(time.minute)}:00+05:30`;
-}
-function istScheduleInstant(dateValue, timeValue) {
-  const date = parseDateParts(dateValue);
-  const time = parseTimeParts(timeValue);
-  if (!date || !time) return null;
-  return new Date(Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute) - IST_OFFSET_MINUTES * MINUTE_MS);
-}
-function isFutureIstSchedule(dateValue, timeValue, now = /* @__PURE__ */ new Date(), minimumLeadMinutes = 1) {
-  const instant = istScheduleInstant(dateValue, timeValue);
-  return Boolean(instant && instant.getTime() > now.getTime() + minimumLeadMinutes * MINUTE_MS);
-}
-function getIstTodayValue(now = /* @__PURE__ */ new Date()) {
-  return toDateValue(istCalendarDate(now));
-}
-function toIstPartsFromIso(value) {
-  if (!value) return { date: "", time: "" };
-  const instant = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(instant.getTime())) return { date: "", time: "" };
-  const local = istCalendarDate(instant);
-  return { date: toDateValue(local), time: toTimeValue(local) };
-}
-function getReminderPreset(preset, now = /* @__PURE__ */ new Date()) {
-  const currentIst = istCalendarDate(now);
-  const today = {
-    year: currentIst.getUTCFullYear(),
-    month: currentIst.getUTCMonth() + 1,
-    day: currentIst.getUTCDate()
-  };
-  if (preset === "later-today") {
-    const rounded = nextRoundedIstDate(now, 30);
-    const sameDay = rounded.date === partsToDateValue(today);
-    const hour = Number(rounded.time.slice(0, 2));
-    return sameDay && hour < 20 ? rounded : null;
-  }
-  if (preset === "tomorrow-morning") {
-    return { date: partsToDateValue(addIstDays(today, 1)), time: "09:00" };
-  }
-  if (preset === "next-monday") {
-    const weekday = currentIst.getUTCDay();
-    const daysUntilMonday = weekday === 1 ? 7 : (8 - weekday) % 7;
-    return { date: partsToDateValue(addIstDays(today, daysUntilMonday || 7)), time: "09:00" };
-  }
-  return null;
-}
-function getDefaultReminderSchedule(now = /* @__PURE__ */ new Date()) {
-  return getReminderPreset("later-today", now) || getReminderPreset("tomorrow-morning", now);
-}
-function formatReminderSummary(dateValue, timeValue, now = /* @__PURE__ */ new Date()) {
-  const instant = istScheduleInstant(dateValue, timeValue);
-  if (!instant) return "";
-  const targetIst = istCalendarDate(instant);
-  const nowIst = istCalendarDate(now);
-  const targetDay = Date.UTC(targetIst.getUTCFullYear(), targetIst.getUTCMonth(), targetIst.getUTCDate());
-  const today = Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate());
-  const dayDifference = Math.round((targetDay - today) / DAY_MS);
-  const prefix = dayDifference === 0 ? "Today" : dayDifference === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-    year: targetIst.getUTCFullYear() !== nowIst.getUTCFullYear() ? "numeric" : void 0,
-    timeZone: "Asia/Kolkata"
-  }).format(instant);
-  const time = new Intl.DateTimeFormat("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Asia/Kolkata"
-  }).format(instant);
-  return `${prefix} at ${time} IST`;
-}
-function createReminderScheduler(root, options = {}) {
-  if (!root) throw new Error("Reminder scheduler root is required.");
-  const nowProvider = options.nowProvider || (() => /* @__PURE__ */ new Date());
-  const dateInput = root.querySelector("[data-reminder-date]");
-  const timeInput = root.querySelector("[data-reminder-time]");
-  const summary = root.querySelector("[data-reminder-summary]");
-  const error = root.querySelector("[data-reminder-error]");
-  const presetButtons = [...root.querySelectorAll("[data-reminder-preset]")];
-  if (!dateInput || !timeInput || !summary || !error) throw new Error("Reminder scheduler markup is incomplete.");
-  let touched = false;
-  function setError(message = "") {
-    error.textContent = message;
-    error.hidden = !message;
-    dateInput.setAttribute("aria-invalid", message ? "true" : "false");
-    timeInput.setAttribute("aria-invalid", message ? "true" : "false");
-  }
-  function updatePresentation({ validate = false } = {}) {
-    const now = nowProvider();
-    dateInput.min = getIstTodayValue(now);
-    const laterToday = getReminderPreset("later-today", now);
-    const laterButton = presetButtons.find((button) => button.dataset.reminderPreset === "later-today");
-    if (laterButton) {
-      laterButton.disabled = !laterToday;
-      laterButton.title = laterToday ? "" : "No suitable time remains today.";
-    }
-    summary.textContent = formatReminderSummary(dateInput.value, timeInput.value, now);
-    summary.hidden = !summary.textContent;
-    if (validate && (dateInput.value || timeInput.value)) validateSchedule();
-    else setError("");
-  }
-  function setValue(value = {}, { markTouched = false, validate = false } = {}) {
-    dateInput.value = value.date || "";
-    timeInput.value = value.time || "";
-    touched = Boolean(markTouched);
-    updatePresentation({ validate });
-  }
-  function setDefault() {
-    setValue(getDefaultReminderSchedule(nowProvider()), { markTouched: false });
-  }
-  function clear() {
-    setValue({}, { markTouched: false });
-  }
-  function getValue() {
-    return {
-      date: dateInput.value,
-      time: timeInput.value,
-      iso: toIstIsoFromParts(dateInput.value, timeInput.value),
-      touched
-    };
-  }
-  function validateSchedule({ focus = false } = {}) {
-    let message = "";
-    if (!dateInput.value) message = "Select a reminder date.";
-    else if (!timeInput.value) message = "Select a reminder time.";
-    else if (!isFutureIstSchedule(dateInput.value, timeInput.value, nowProvider())) message = "Choose a future date and time.";
-    setError(message);
-    if (message && focus) (!dateInput.value ? dateInput : timeInput).focus();
-    return { valid: !message, message };
-  }
-  presetButtons.forEach((button) => button.addEventListener("click", () => {
-    const value = getReminderPreset(button.dataset.reminderPreset, nowProvider());
-    if (!value) return;
-    setValue(value, { markTouched: true, validate: true });
-    options.onChange?.(getValue());
-  }));
-  [dateInput, timeInput].forEach((input) => {
-    input.addEventListener("input", () => {
-      touched = true;
-      updatePresentation();
-      options.onChange?.(getValue());
-    });
-    input.addEventListener("change", () => {
-      touched = true;
-      updatePresentation({ validate: true });
-      options.onChange?.(getValue());
-    });
-    input.addEventListener("blur", () => {
-      if (dateInput.value || timeInput.value) validateSchedule();
-    });
-  });
-  updatePresentation();
-  return {
-    clear,
-    focus: () => dateInput.focus(),
-    getValue,
-    setDefault,
-    setValue,
-    validate: validateSchedule,
-    updatePresentation
-  };
-}
-var IST_OFFSET_MINUTES, MINUTE_MS, DAY_MS;
-var init_notebook_reminder_scheduler = __esm({
-  "wwwroot/js/notebook/notebook-reminder-scheduler.js"() {
-    IST_OFFSET_MINUTES = 330;
-    MINUTE_MS = 6e4;
-    DAY_MS = 24 * 60 * MINUTE_MS;
-  }
-});
-
 // wwwroot/js/notebook/notebook-editor.js
 function requireEditorElement(root, selector) {
   const element = root?.querySelector?.(selector);
@@ -1993,8 +2094,21 @@ function resizeNotebookBodyEditor(textarea, itemType = "Note") {
   const isChecklist = String(itemType || "").toLowerCase() === "checklist";
   return resizeTextareaToContent(textarea, {
     minimumHeight: isChecklist ? 46 : 64,
-    maximumHeight: isChecklist ? 150 : 260
+    maximumHeight: NOTEBOOK_BODY_UNBOUNDED_HEIGHT
   });
+}
+function formatNotebookEditedAt(value, now = /* @__PURE__ */ new Date()) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  const zone = "Asia/Kolkata";
+  const dayKey = (d) => d.toLocaleDateString("en-CA", { timeZone: zone });
+  const yearOf = (d) => d.toLocaleDateString("en-GB", { timeZone: zone, year: "numeric" });
+  if (dayKey(date) === dayKey(now)) {
+    return `Edited ${date.toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hour12: false })}`;
+  }
+  const options = { timeZone: zone, day: "numeric", month: "short" };
+  if (yearOf(date) !== yearOf(now)) options.year = "numeric";
+  return `Edited ${date.toLocaleDateString("en-GB", options)}`;
 }
 function initNotebookEditor(board, view, options = {}) {
   let modal;
@@ -2091,6 +2205,28 @@ function initNotebookEditor(board, view, options = {}) {
     if (discard) discard.hidden = !["network", "server", "error", "client-version", "session-expired", "forbidden"].includes(state3);
     if (signIn) signIn.hidden = state3 !== "session-expired";
     if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state3);
+  }
+  function setEditorLabels(values) {
+    labelPicker?.setValue(values);
+    const root = modal?.querySelector("[data-notebook-editor-labels]");
+    if (!root) return;
+    const names = (Array.isArray(values) ? values : []).map((label) => label?.name ?? label).filter(Boolean);
+    const editable = canManageMetadata();
+    root.replaceChildren(...names.map((name) => {
+      const chip = document.createElement(editable ? "button" : "span");
+      chip.className = "notebook-tag-chip";
+      chip.textContent = name;
+      if (editable) {
+        chip.type = "button";
+        chip.title = "Edit labels";
+        chip.dataset.editorLabelChip = "";
+      }
+      return chip;
+    }));
+    root.hidden = names.length === 0;
+  }
+  function showLastEdited(target = item) {
+    setSaveStatus(formatNotebookEditedAt(target?.updatedAtUtc), SaveState.Idle);
   }
   function renderConflictState() {
     const panel = modal?.querySelector("[data-notebook-conflict]");
@@ -2349,7 +2485,7 @@ function initNotebookEditor(board, view, options = {}) {
   function applyAuthoritativeItem(updated) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || "");
-    labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
+    setEditorLabels((updated.labels || []).map((label) => label?.name ?? label));
     const isOwner = canManageMetadata(updated);
     const labelHost = modal.querySelector("[data-notebook-label-picker]");
     if (labelHost) labelHost.hidden = !isOwner;
@@ -2363,7 +2499,7 @@ function initNotebookEditor(board, view, options = {}) {
       if (icon) icon.className = `bi ${isOwner ? "bi-person-plus" : "bi-people"}`;
     }
     applyNotebookSurfaceColour(modal.querySelector(".notebook-modal__dialog"), updated.colorKey || "");
-    modal.querySelector("[data-modal-title]").value = updated.title || "";
+    modal.querySelector("[data-modal-title]").value = updated.title === "Untitled" ? "" : updated.title || "";
     modal.querySelector("[data-modal-body]").value = updated.body || "";
     refreshEditorLayout();
     modal.querySelector("[data-modal-checklist]").hidden = updated.type !== "Checklist";
@@ -2382,7 +2518,7 @@ function initNotebookEditor(board, view, options = {}) {
     applyAuthoritativeItem(item);
     clearConflictState();
     currentSaveError = null;
-    setSaveStatus("", SaveState.Idle);
+    showLastEdited();
   }
   function build() {
     modal = cloneNotebookEditorTemplate(document);
@@ -2416,6 +2552,10 @@ function initNotebookEditor(board, view, options = {}) {
     );
     modal.addEventListener("click", (event) => {
       if (event.target.closest("[data-close]")) requestClose();
+      if (event.target.closest("[data-editor-label-chip]")) {
+        event.stopPropagation();
+        modal.querySelector("[data-notebook-editor-toolbar] [data-label-picker-toggle]")?.click();
+      }
     });
     modal.addEventListener("keydown", trapFocus);
     titleInput.addEventListener("input", () => {
@@ -2832,7 +2972,7 @@ function initNotebookEditor(board, view, options = {}) {
         const labelsResponse = await NotebookApi.setLabels(item.id, pendingLabels, item.version);
         item = requireMutationItem(labelsResponse, "The labels response did not contain the updated note.");
         draftSourceVersion = item.version;
-        labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+        setEditorLabels((item.labels || []).map((label) => label?.name ?? label));
         await reconcileMutation({ response: labelsResponse, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError });
         setSaveStatus("Saved", SaveState.Saved);
       }
@@ -2939,7 +3079,7 @@ function initNotebookEditor(board, view, options = {}) {
   }
   async function changeLabels(labels, previousLabels) {
     if (!item || !canManageMetadata() || isConflictBlocked()) {
-      labelPicker?.setValue(previousLabels || []);
+      setEditorLabels(previousLabels || []);
       return;
     }
     const nextLabels = normaliseLabels(labels);
@@ -2949,7 +3089,7 @@ function initNotebookEditor(board, view, options = {}) {
       const response = await NotebookApi.setLabels(item.id, nextLabels, item.version);
       item = requireMutationItem(response, "The labels response did not contain the updated note.");
       draftSourceVersion = item.version;
-      labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+      setEditorLabels((item.labels || []).map((label) => label?.name ?? label));
       await reconcileMutation({
         response,
         board,
@@ -2970,7 +3110,7 @@ function initNotebookEditor(board, view, options = {}) {
           message: "This note changed elsewhere. Resolve the conflict before applying labels."
         });
       } else {
-        labelPicker?.setValue(previousLabels || []);
+        setEditorLabels(previousLabels || []);
         handleEditorError(error);
       }
     } finally {
@@ -3016,6 +3156,7 @@ function initNotebookEditor(board, view, options = {}) {
     refreshEditorLayout();
     setBackgroundInert(true);
     (canEditContent() ? modal.querySelector("[data-modal-title]") : modal.querySelector("[data-close]:not(.notebook-modal__backdrop)"))?.focus();
+    options.onOpen?.(item, modal);
     if (openOptions.pushHistory !== false) {
       openedByPushState = true;
       history.pushState({ ...history.state || {}, notebookModal: true, notebookNoteId: id }, "", buildNoteUrl(id));
@@ -3062,7 +3203,7 @@ function initNotebookEditor(board, view, options = {}) {
     }
     applyAuthoritativeItem(updated);
     clearStoredDraft(updated.id);
-    setSaveStatus("", SaveState.Idle);
+    showLastEdited(updated);
   }
   return {
     open,
@@ -3154,7 +3295,7 @@ function isRetryableSaveError(error) {
   if (error?.code === "notebook_network_error") return true;
   return [500, 502, 503, 504].includes(error?.status);
 }
-var ConflictType, SaveState, EditorSelectors, guidPattern;
+var ConflictType, SaveState, EditorSelectors, NOTEBOOK_BODY_UNBOUNDED_HEIGHT, guidPattern;
 var init_notebook_editor = __esm({
   "wwwroot/js/notebook/notebook-editor.js"() {
     init_notebook_api();
@@ -3193,6 +3334,7 @@ var init_notebook_editor = __esm({
       reloadLatest: "[data-notebook-reload-latest]",
       copyLocal: "[data-notebook-copy-local]"
     });
+    NOTEBOOK_BODY_UNBOUNDED_HEIGHT = 1e6;
     guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   }
 });
@@ -3642,7 +3784,7 @@ function initNotebookCreateEditor(board, view, options = {}) {
       draftStore.remove(activeDraftType);
       closeInternal();
       reset("Note");
-      showToast({ message: `${payload.type} created.`, tone: "success" });
+      showToast({ message: `${payload.type} created.` });
     } catch (error) {
       setFeedback(error.message || "Unable to create the notebook item.", true);
       persistDraftNow();
@@ -3770,6 +3912,10 @@ function initNotebookToastRegion(root = document.querySelector("[data-notebook-t
 }
 function showNotebookToast({ message, tone = "neutral", actionText = "", onAction = null, duration = 3500 } = {}) {
   if (!region || !message) return null;
+  const duplicate = [...region.querySelectorAll(".notebook-toast")].find((existing) => existing.dataset.tone === tone && existing.firstElementChild?.textContent === message);
+  if (duplicate && tone === "error") return { id: duplicate.id, close: () => removeToast(duplicate) };
+  const visible = [...region.querySelectorAll(".notebook-toast")];
+  visible.slice(0, Math.max(0, visible.length - (MAX_VISIBLE_TOASTS - 1))).forEach(removeToast);
   const toast = document.createElement("div");
   const id = `notebook-toast-${++nextId}`;
   toast.id = id;
@@ -3814,11 +3960,12 @@ function removeToast(toast) {
   if (toast._notebookTimer) window.clearTimeout(toast._notebookTimer);
   toast.remove();
 }
-var region, nextId;
+var region, nextId, MAX_VISIBLE_TOASTS;
 var init_notebook_toast = __esm({
   "wwwroot/js/notebook/notebook-toast.js"() {
     region = null;
     nextId = 0;
+    MAX_VISIBLE_TOASTS = 3;
   }
 });
 
@@ -4327,6 +4474,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       preview,
       pointerId,
       pointer: { x: clientX, y: clientY },
+      start: { x: state3.startX, y: state3.startY },
       offsetX: clientX - rect.left,
       offsetY: clientY - rect.top,
       originalKeys: state3.originalKeys,
@@ -4345,7 +4493,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       cancelPointerArm();
       return;
     }
-    const { card, board, placeholder, preview, originalKeys, pointerId } = dragState;
+    const { card, board, placeholder, preview, originalKeys, pointerId, pointer, start } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
     board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
@@ -4353,6 +4501,16 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     shell.classList.remove("is-pointer-dragging");
     document.body.classList.remove("notebook-is-dragging");
     shell.releasePointerCapture?.(pointerId);
+    const orderChanged = allCards(board).map(cardKey).join("|") !== originalKeys.join("|");
+    const wasClick = save && !orderChanged && Math.hypot(pointer.x - start.x, pointer.y - start.y) <= CLICK_SLOP_PX;
+    if (save && !orderChanged) {
+      dragState = null;
+      pointerState = null;
+      shell.dispatchEvent(new CustomEvent("notebook:drag-end", { bubbles: true, detail: { saved: false } }));
+      boardController.refreshSectionVisibility();
+      if (wasClick) card.querySelector('[data-action="open-note"], [data-card-passive-open]')?.click();
+      return;
+    }
     if (save) {
       persist(board, originalKeys);
       suppressClickUntil = performance.now() + 300;
@@ -4504,7 +4662,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     }
   };
 }
-var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, VISUAL_ROW_SORT_TOLERANCE_PX, VISUAL_ROW_MATCH_TOLERANCE_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
+var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, CLICK_SLOP_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, VISUAL_ROW_SORT_TOLERANCE_PX, VISUAL_ROW_MATCH_TOLERANCE_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
 var init_notebook_drag_order = __esm({
   "wwwroot/js/notebook/notebook-drag-order.js"() {
     BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
@@ -4513,6 +4671,7 @@ var init_notebook_drag_order = __esm({
     CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
     ALL_CARD_SELECTOR = "[data-note-id], [data-notebook-system-home-card]";
     DRAG_THRESHOLD_PX = 6;
+    CLICK_SLOP_PX = 16;
     TOUCH_LONG_PRESS_MS = 300;
     TOUCH_CANCEL_DISTANCE_PX = 8;
     INSERTION_HYSTERESIS_PX = 10;
@@ -4887,10 +5046,15 @@ function renderNotebookLabelNavigation(shell, labels = []) {
       if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) {
         link.classList.add("is-active");
       }
-      link.innerHTML = `<i class="bi bi-tag"></i><span>${escapeLabelHtml(label.name)}</span><b>${Number(label.count || 0)}</b>`;
+      const count = Number(label.count || 0);
+      link.innerHTML = `<i class="bi bi-tag" aria-hidden="true"></i><span>${escapeLabelHtml(label.name)}</span><b>${count > 0 ? count : ""}</b>`;
       rail.appendChild(link);
     });
   }
+  const group = shell.querySelector("[data-notebook-label-group]");
+  if (group) group.hidden = safeLabels.length === 0;
+  const create = shell.querySelector("[data-notebook-label-create]");
+  if (create) create.hidden = safeLabels.length !== 0;
   const directory = shell.querySelector("[data-notebook-label-directory-list]");
   if (directory) {
     directory.innerHTML = "";
@@ -5008,6 +5172,32 @@ async function updateSystemPreferenceWithSingleRetry(key, payload) {
     throw error;
   }
 }
+function initNotebookLabelGroup(shell) {
+  const group = shell.querySelector("[data-notebook-label-group]");
+  const toggle = group?.querySelector("[data-notebook-label-group-toggle]");
+  const list = group?.querySelector("[data-notebook-label-rail]");
+  if (!group || !toggle || !list) return;
+  const apply = (collapsed) => {
+    group.dataset.collapsed = String(collapsed);
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    list.hidden = collapsed;
+  };
+  let stored = false;
+  try {
+    stored = localStorage.getItem(LABEL_GROUP_STORAGE_KEY) === "true";
+  } catch {
+    stored = false;
+  }
+  apply(stored && String(shell.dataset.view || "").toLowerCase() !== "labels");
+  toggle.addEventListener("click", () => {
+    const collapsed = group.dataset.collapsed !== "true";
+    apply(collapsed);
+    try {
+      localStorage.setItem(LABEL_GROUP_STORAGE_KEY, String(collapsed));
+    } catch {
+    }
+  });
+}
 function initNotebookApp() {
   const shell = document.querySelector(".notebook-shell");
   if (!shell) return;
@@ -5016,16 +5206,43 @@ function initNotebookApp() {
   const view = new URL(location.href).searchParams.get("view") || "home";
   const board = createNotebookBoard(shell);
   let composer;
-  const globalError = document.querySelector("[data-notebook-global-error]");
-  const globalErrorText = document.querySelector("[data-notebook-global-error-text]");
   const showGlobalError = (message) => {
-    if (!globalError || !globalErrorText) {
-      shell.dataset.error = message || "Notebook action failed.";
-      return;
-    }
-    globalErrorText.textContent = message || "Notebook action failed.";
-    globalError.hidden = false;
+    const text = message || "Notebook action failed.";
+    if (!showNotebookToast({ message: text, tone: "error", duration: 0 })) shell.dataset.error = text;
   };
+  const UNDO_TOAST_MS = 6e3;
+  const rememberCardPlace = (card) => ({ board: card?.parentElement || null, next: card?.nextElementSibling || null });
+  const syncEmptyTrashButton = () => {
+    const button = document.querySelector("[data-empty-notebook-trash]");
+    if (button) button.hidden = !shell.querySelector("[data-notebook-board] [data-note-id]");
+  };
+  function restoreCardPlace(id, place) {
+    const restored = board.findCard(id);
+    if (!restored || !place?.board?.isConnected) return;
+    const next = place.next?.isConnected && place.next.parentElement === place.board ? place.next : null;
+    place.board.insertBefore(restored, next);
+    board.refreshSectionVisibility();
+    board.refreshEmptyState();
+    syncEmptyTrashButton();
+  }
+  function offerUndo({ message, id, place, undo }) {
+    showNotebookToast({
+      message,
+      actionText: "Undo",
+      duration: UNDO_TOAST_MS,
+      onAction: async () => {
+        try {
+          const restored = await undo();
+          applyCounts(restored?.counts);
+          const response = view === "trash" ? { ...restored, cardHtml: null } : restored;
+          await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
+          restoreCardPlace(id, place);
+        } catch (error) {
+          showGlobalError(error?.message || "Undo failed.");
+        }
+      }
+    });
+  }
   const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || "0", 10) || 0);
   let systemHomeCount = Math.max(0, Number.parseInt(shell.dataset.systemHomeCount || "0", 10) || 0);
   const applyCounts = (counts) => {
@@ -5035,7 +5252,7 @@ function initNotebookApp() {
       const normalizedKey = key.toLowerCase();
       const displayValue = normalizedKey === "shared" ? numericValue + systemSharedCount : normalizedKey === "home" ? numericValue + systemHomeCount : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
-        el.textContent = String(displayValue);
+        el.textContent = displayValue > 0 || !el.closest(".notebook-rail") ? String(displayValue) : "";
         if (key.toLowerCase() === "overdue") {
           const isCurrentView = String(shell.dataset.view || "").toLowerCase() === "overdue";
           el.closest(".notebook-rail__item")?.toggleAttribute("hidden", displayValue <= 0 && !isCurrentView);
@@ -5045,7 +5262,58 @@ function initNotebookApp() {
   };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
-  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts, onOpen: (item, modal) => renderEditorMoreMenu(item, modal) });
+  function fillEditorMoreMenu(item, more, menu) {
+    const card = item?.id ? board.findCard(item.id) : null;
+    const sources = card ? [...card.querySelectorAll('[data-action="complete-note"], .notebook-card-more__menu > [data-action], .notebook-card-more__menu > .notebook-menu-separator')] : [];
+    const entries = [];
+    sources.forEach((source, index) => {
+      if (source.classList.contains("notebook-menu-separator")) {
+        if (entries.length && index < sources.length - 1) entries.push(Object.assign(document.createElement("span"), { className: "notebook-menu-separator" }));
+        return;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "menuitem");
+      button.dataset.editorAction = source.dataset.action;
+      button.textContent = source.dataset.action === "complete-note" ? "Mark as done" : source.textContent.trim();
+      if (source.classList.contains("text-danger")) button.classList.add("text-danger");
+      entries.push(button);
+    });
+    menu.replaceChildren(...entries);
+    more.hidden = !entries.some((entry) => entry.tagName === "BUTTON");
+  }
+  function renderEditorMoreMenu(item, modal) {
+    const more = modal?.querySelector("[data-notebook-editor-more]");
+    const menu = more?.querySelector("[data-notebook-editor-more-menu]");
+    if (!more || !menu) return;
+    more.removeAttribute("open");
+    fillEditorMoreMenu(item, more, menu);
+    if (!more.dataset.positionBound) {
+      more.dataset.positionBound = "true";
+      more.addEventListener("toggle", () => {
+        if (!more.open) return;
+        fillEditorMoreMenu(editor.getCurrentItem?.(), more, menu);
+        const anchor = more.querySelector("summary").getBoundingClientRect();
+        menu.style.position = "fixed";
+        menu.style.top = `${Math.round(anchor.bottom + 6)}px`;
+        menu.style.right = `${Math.round(document.documentElement.clientWidth - anchor.right)}px`;
+      });
+      more.closest(".notebook-modal__dialog")?.addEventListener("scroll", () => more.removeAttribute("open"), { passive: true });
+    }
+  }
+  document.addEventListener("click", async (event) => {
+    const choice = event.target.closest("[data-notebook-editor-more-menu] [data-editor-action]");
+    const more = document.querySelector("[data-notebook-editor-more][open]");
+    if (more && !event.target.closest("[data-notebook-editor-more]")) more.removeAttribute("open");
+    if (!choice) return;
+    event.preventDefault();
+    choice.closest("details")?.removeAttribute("open");
+    const id = editor.getCurrentItem?.()?.id;
+    await editor.requestClose();
+    if (!id || editor.isOpen()) return;
+    board.findCard(id)?.querySelector(`[data-action="${CSS.escape(choice.dataset.editorAction)}"]`)?.click();
+  });
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts, showToast: showNotebookToast });
   const labelManager = initNotebookLabelManager(document.querySelector("[data-notebook-label-manager]"), {
     showGlobalError,
@@ -5119,11 +5387,8 @@ function initNotebookApp() {
     }
   });
   renderNotebookLabelNavigation(shell, labels);
+  initNotebookLabelGroup(shell);
   composer = initNotebookComposer(shell.querySelector("[data-notebook-composer]"), board, view, { showGlobalError, applyCounts });
-  document.querySelector("[data-notebook-global-error-close]")?.addEventListener("click", () => {
-    globalError.hidden = true;
-    globalErrorText.textContent = "";
-  });
   const storageKey = "prism.notebook.view";
   const legacyStorageKeys = ["notebook.boardView", "notebook-board-view"];
   const viewButtons = [...shell.querySelectorAll("[data-notebook-view]")];
@@ -5480,65 +5745,43 @@ function initNotebookApp() {
           updateCardConcurrencyState(card, updated);
           await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card, reconcileFailureMessage: `The note was ${updated.isPinned ? "pinned" : "unpinned"}, but the board could not refresh. Reload the page.` });
         }
-        if (action.dataset.action === "archive-note") {
-          const response = await NotebookApi.archiveItem(id, card.dataset.version);
-          board.removeCard(id);
+        const moveOff = async ({ run, message, undo }) => {
+          const place = rememberCardPlace(card);
+          const response = await run();
+          board.removeCard(response?.removedItemId || id);
           applyCounts(response?.counts);
-        }
-        if (action.dataset.action === "complete-note") {
-          const response = await NotebookApi.completeItem(id, card.dataset.version);
-          board.removeCard(id);
-          applyCounts(response?.counts);
-        }
-        if (action.dataset.action === "reopen-note") {
-          const response = await NotebookApi.reopenItem(id, card.dataset.version);
-          board.removeCard(id);
-          applyCounts(response?.counts);
-        }
+          syncEmptyTrashButton();
+          const version = () => response?.item?.version || card.dataset.version;
+          offerUndo({ message, id, place, undo: () => undo(version()) });
+        };
+        if (action.dataset.action === "archive-note") await moveOff({ run: () => NotebookApi.archiveItem(id, card.dataset.version), message: "Note archived.", undo: (version) => NotebookApi.restoreItem(id, version) });
+        if (action.dataset.action === "complete-note") await moveOff({ run: () => NotebookApi.completeItem(id, card.dataset.version), message: "Marked as done.", undo: (version) => NotebookApi.reopenItem(id, version) });
+        if (action.dataset.action === "reopen-note") await moveOff({ run: () => NotebookApi.reopenItem(id, card.dataset.version), message: "Note reopened.", undo: (version) => NotebookApi.completeItem(id, version) });
         if (action.dataset.action === "restore-note") {
-          const response = await NotebookApi.restoreItem(id, card.dataset.version);
-          const updated = requireMutationItem(response);
-          updateCardConcurrencyState(card, updated);
           if (view === "archive" || view === "archived") {
-            board.removeCard(id);
-            applyCounts(response?.counts);
+            await moveOff({ run: () => NotebookApi.restoreItem(id, card.dataset.version), message: "Note restored.", undo: (version) => NotebookApi.archiveItem(id, version) });
           } else {
+            const response = await NotebookApi.restoreItem(id, card.dataset.version);
+            const updated = requireMutationItem(response);
+            updateCardConcurrencyState(card, updated);
             await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card });
           }
         }
         if (action.dataset.action === "duplicate-note") {
           const response = await NotebookApi.duplicateItem(id);
           await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
+          showNotebookToast({ message: "Copy created." });
         }
-        if (action.dataset.action === "delete-note") {
-          const response = await NotebookApi.moveToTrash(id, card.dataset.version);
-          board.removeCard(response?.removedItemId || id);
-          applyCounts(response?.counts);
-          showNotebookToast({
-            message: "Note moved to Trash.",
-            tone: "neutral",
-            actionText: "Undo",
-            onAction: async () => {
-              const restoreVersion = response?.item?.version || card.dataset.version;
-              const restored = await NotebookApi.restoreFromTrash(id, restoreVersion);
-              applyCounts(restored?.counts);
-              if (view !== "trash") await reconcileMutation({ response: restored, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
-            }
-          });
-        }
-        if (action.dataset.action === "restore-trash-note") {
-          const response = await NotebookApi.restoreFromTrash(id, card.dataset.version);
-          board.removeCard(id);
-          applyCounts(response?.counts);
-          showNotebookToast({ message: "Note restored.", tone: "success" });
-        }
+        if (action.dataset.action === "delete-note") await moveOff({ run: () => NotebookApi.moveToTrash(id, card.dataset.version), message: "Note moved to Trash.", undo: (version) => NotebookApi.restoreFromTrash(id, version) });
+        if (action.dataset.action === "restore-trash-note") await moveOff({ run: () => NotebookApi.restoreFromTrash(id, card.dataset.version), message: "Note restored.", undo: (version) => NotebookApi.moveToTrash(id, version) });
         if (action.dataset.action === "delete-permanently") {
           const confirmed = await confirmNotebookAction({ title: "Delete permanently?", message: "This note and its checklist data will be permanently removed.", detail: "This action cannot be undone.", confirmText: "Delete permanently", tone: "danger", backdropCancels: false });
           if (!confirmed) return;
           const response = await NotebookApi.deletePermanently(id, card.dataset.version);
           board.removeCard(response?.removedItemId || id);
           applyCounts(response?.counts);
-          showNotebookToast({ message: "Note permanently deleted.", tone: "neutral" });
+          syncEmptyTrashButton();
+          showNotebookToast({ message: "Note permanently deleted." });
         }
         if (action.dataset.action === "convert-note") {
           const response = action.dataset.convertTo === "Checklist" ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version);
@@ -5561,13 +5804,12 @@ function initNotebookApp() {
     try {
       const response = await NotebookApi.emptyTrash();
       document.querySelectorAll("[data-notebook-board] [data-note-id]").forEach((card) => card.remove());
-      document.querySelectorAll("[data-notebook-board]").forEach((boardElement) => {
-        boardElement.dataset.itemCount = "0";
-      });
       applyCounts(response?.counts);
+      board.refreshSectionVisibility();
+      board.refreshEmptyState();
       button.hidden = true;
-      showNotebookToast({ message: `${response?.removed || 0} item(s) permanently deleted.`, tone: "neutral" });
-      location.reload();
+      const removed = Number(response?.removed || 0);
+      showNotebookToast({ message: `${removed} ${removed === 1 ? "item" : "items"} permanently deleted.` });
     } catch (error) {
       showGlobalError(error.message || "Trash could not be emptied.");
       button.disabled = false;
@@ -5610,6 +5852,7 @@ function initNotebookApp() {
     history.replaceState(history.state, "", url);
   });
 }
+var LABEL_GROUP_STORAGE_KEY;
 var init_notebook_app = __esm({
   "wwwroot/js/notebook/notebook-app.js"() {
     init_notebook_utils();
@@ -5627,6 +5870,7 @@ var init_notebook_app = __esm({
     init_notebook_drag_order();
     init_notebook_masonry_grid();
     init_notebook_collaborators();
+    LABEL_GROUP_STORAGE_KEY = "prism.notebook.labelsCollapsed";
   }
 });
 

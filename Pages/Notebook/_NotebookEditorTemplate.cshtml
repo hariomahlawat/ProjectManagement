@@ -12,6 +12,7 @@
                        data-modal-title
                        class="notebook-modal__title"
                        maxlength="220"
+                       placeholder="Title"
                        aria-label="Note title" />
                 <div class="notebook-modal__header-actions">
                     <button type="button"
@@ -27,6 +28,14 @@
                             aria-label="Pin note">
                         <i class="bi bi-pin-angle"></i>
                     </button>
+                    @* Filled from the note's own card actions when the editor opens, so it
+                       follows the same permissions and status rules as the board. *@
+                    <details class="notebook-editor-more" data-notebook-editor-more hidden>
+                        <summary class="notebook-action-icon" aria-label="More actions" title="More actions">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </summary>
+                        <div class="notebook-card-more__menu notebook-editor-more__menu" role="menu" data-notebook-editor-more-menu></div>
+                    </details>
                     <button type="button"
                             class="notebook-action-icon notebook-modal__close"
                             data-close
@@ -56,6 +65,10 @@
                  class="notebook-checklist-editor"
                  hidden></div>
 
+            <div class="notebook-editor-labels"
+                 data-notebook-editor-labels
+                 aria-label="Labels"
+                 hidden></div>
 
 
             <button type="button"
@@ -83,8 +96,8 @@
                     </div>
                     <div class="notebook-reminder-presets" aria-label="Quick reminder times">
                         <button type="button" data-reminder-preset="later-today">Later today</button>
-                        <button type="button" data-reminder-preset="tomorrow-morning">Tomorrow 09:00</button>
-                        <button type="button" data-reminder-preset="next-monday">Next Monday 09:00</button>
+                        <button type="button" data-reminder-preset="tomorrow-morning">Tomorrow · 09:00</button>
+                        <button type="button" data-reminder-preset="next-monday">Next Monday · 09:00</button>
                     </div>
                     <div class="notebook-reminder-date-time">
                         <label>
@@ -147,8 +160,8 @@
                         </div>
                         <div class="notebook-reminder-presets" aria-label="Quick reminder times">
                             <button type="button" data-reminder-preset="later-today">Later today</button>
-                            <button type="button" data-reminder-preset="tomorrow-morning">Tomorrow 09:00</button>
-                            <button type="button" data-reminder-preset="next-monday">Next Monday 09:00</button>
+                            <button type="button" data-reminder-preset="tomorrow-morning">Tomorrow · 09:00</button>
+                            <button type="button" data-reminder-preset="next-monday">Next Monday · 09:00</button>
                         </div>
                         <div class="notebook-reminder-date-time">
                             <label>

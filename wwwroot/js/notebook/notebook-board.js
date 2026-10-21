@@ -62,13 +62,34 @@ export function createNotebookBoard(root = document) {
       const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
       if (countEl) countEl.textContent = String(count);
     });
+    // Reminder views group cards by urgency; an emptied group hides and counts stay true.
+    root.querySelectorAll('[data-notebook-group]').forEach((section) => {
+      const count = section.querySelector('[data-notebook-board]')?.querySelectorAll(VISUAL_CARD_SELECTOR).length || 0;
+      section.hidden = count === 0;
+      const countEl = section.querySelector('[data-notebook-group-count]');
+      if (countEl) countEl.textContent = String(count);
+    });
+    // "Others" only means something next to "Pinned", so its heading shows when both have cards.
+    const othersHeader = root.querySelector('[data-notebook-section-header="others"]');
+    if (othersHeader) {
+      const countOf = (name) => Number(root.querySelector(`[data-notebook-board="${name}"]`)?.dataset.itemCount || 0);
+      othersHeader.hidden = countOf('pinned') === 0 || countOf('others') === 0;
+    }
   };
   const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const notebookCount = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); const systemCount = root.querySelectorAll('[data-notebook-system-card]').length; empty.hidden = notebookCount + systemCount > 0; };
 
   // SECTION: Card mutation helpers
-  const upsertCard = (id, html, isPinned, options = {}) => { const current = findCard(id); const targetBoard = getBoard(isPinned); if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? 'pinned' : 'others'}" was not found.`); const fragment = htmlToCardElement(html, id); const sameBoard = current && current.parentElement === targetBoard; const preservePosition = options.preservePosition !== false; if (sameBoard && preservePosition) { current.replaceWith(fragment); } else { current?.remove(); options.prepend === false ? targetBoard.append(fragment) : targetBoard.prepend(fragment); } refreshSectionVisibility(); refreshEmptyState(); return fragment; };
+  // Grouped reminder views place a card on the board of its urgency group (rendered by the
+  // server from IsPastDue / IsDueToday). Without a matching group, and without Pinned/Others
+  // boards, a card stays on the board it is already on.
+  const groupBoardFor = (card) => {
+    const key = card?.dataset?.reminderGroup;
+    return key ? root.querySelector(`[data-notebook-group="${key}"] [data-notebook-board]`) : null;
+  };
+  const keepCurrentBoard = (current) => current?.parentElement?.matches?.('[data-notebook-board]') && !root.querySelector('[data-notebook-board="pinned"]');
+  const upsertCard = (id, html, isPinned, options = {}) => { const current = findCard(id); const fragment = htmlToCardElement(html, id); const targetBoard = groupBoardFor(fragment) || (keepCurrentBoard(current) ? current.parentElement : getBoard(isPinned)); if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? 'pinned' : 'others'}" was not found.`); const sameBoard = current && current.parentElement === targetBoard; const preservePosition = options.preservePosition !== false; if (sameBoard && preservePosition) { current.replaceWith(fragment); } else { current?.remove(); options.prepend === false ? targetBoard.append(fragment) : targetBoard.prepend(fragment); } refreshSectionVisibility(); refreshEmptyState(); return fragment; };
   const replaceCard = (id, html) => { const current = findCard(id); if (!current) return null; const fragment = htmlToCardElement(html, id); current.replaceWith(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
-  const insertCard = (html, pinned = false) => { const fragment = htmlToCardElement(html); const board = getBoard(pinned); if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? 'pinned' : 'others'}" was not found.`); board.prepend(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
+  const insertCard = (html, pinned = false) => { const fragment = htmlToCardElement(html); const board = groupBoardFor(fragment) || getBoard(pinned); if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? 'pinned' : 'others'}" was not found.`); board.prepend(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
   const removeCard = (id) => { findCard(id)?.remove(); refreshSectionVisibility(); refreshEmptyState(); };
   return { findCard, getSection, getBoard, replaceCard, insertCard, upsertCard, removeCard, refreshSectionVisibility, refreshBoardLayout, refreshEmptyState, htmlToCardElement };
 }

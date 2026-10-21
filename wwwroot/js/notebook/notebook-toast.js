@@ -6,8 +6,17 @@ export function initNotebookToastRegion(root = document.querySelector('[data-not
   return { show: showNotebookToast, clear: clearNotebookToasts };
 }
 
+const MAX_VISIBLE_TOASTS = 3;
+
 export function showNotebookToast({ message, tone = 'neutral', actionText = '', onAction = null, duration = 3500 } = {}) {
   if (!region || !message) return null;
+  // The same error raised twice (for example by a retried action) is shown once.
+  const duplicate = [...region.querySelectorAll('.notebook-toast')]
+    .find((existing) => existing.dataset.tone === tone && existing.firstElementChild?.textContent === message);
+  if (duplicate && tone === 'error') return { id: duplicate.id, close: () => removeToast(duplicate) };
+  // Older messages give way so the stack never covers the board.
+  const visible = [...region.querySelectorAll('.notebook-toast')];
+  visible.slice(0, Math.max(0, visible.length - (MAX_VISIBLE_TOASTS - 1))).forEach(removeToast);
   const toast = document.createElement('div');
   const id = `notebook-toast-${++nextId}`;
   toast.id = id;

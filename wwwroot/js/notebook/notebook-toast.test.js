@@ -36,3 +36,15 @@ test('toast action executes and removes toast', async () => {
   assert.equal(called, 1);
   assert.equal(dom.window.document.querySelector('.notebook-toast'), null);
 });
+
+test('a repeated error is shown once and the stack keeps at most three toasts', () => {
+  const { api, dom } = load();
+  api.initNotebookToastRegion();
+  api.showNotebookToast({ message: 'Save failed.', tone: 'error', duration: 0 });
+  api.showNotebookToast({ message: 'Save failed.', tone: 'error', duration: 0 });
+  assert.equal(dom.window.document.querySelectorAll('.notebook-toast').length, 1);
+
+  ['One.', 'Two.', 'Three.'].forEach((message) => api.showNotebookToast({ message, duration: 0 }));
+  const texts = [...dom.window.document.querySelectorAll('.notebook-toast > span')].map((span) => span.textContent);
+  assert.deepEqual(texts, ['One.', 'Two.', 'Three.'], 'oldest message gives way');
+});

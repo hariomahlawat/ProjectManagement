@@ -116,3 +116,57 @@ test('notebook board counts a home system note as a visual card without requirin
   assert.equal(element.dataset.itemCount, '2');
   assert.equal(dom.window.document.querySelector('[data-notebook-count="others"]').textContent, '2');
 });
+
+test('the Others heading shows only when Pinned and Others both have cards', () => {
+  const markup = (pinned, others) => `
+    <section data-notebook-section="pinned"><div data-notebook-board="pinned">${pinned}</div></section>
+    <section data-notebook-section="others">
+      <div data-notebook-section-header="others"><span data-notebook-count="others"></span></div>
+      <div data-notebook-board="others">${others}</div>
+    </section>`;
+  const card = (id) => `<article data-note-id="${id}"></article>`;
+  const headerHidden = (pinned, others) => {
+    const dom = new JSDOM(markup(pinned, others));
+    loadBoard(dom).refreshSectionVisibility();
+    return dom.window.document.querySelector('[data-notebook-section-header="others"]').hidden;
+  };
+
+  assert.equal(headerHidden('', card(1)), true, 'nothing pinned');
+  assert.equal(headerHidden(card(1), ''), true, 'nothing else');
+  assert.equal(headerHidden(card(1), card(2)), false, 'both sections');
+});
+
+test('grouped reminder boards hide empty groups and keep updated cards in their group', () => {
+  const dom = new JSDOM(`
+    <section data-notebook-group="past-due"><span data-notebook-group-count>1</span><div data-notebook-board><article data-note-id="a"></article></div></section>
+    <section data-notebook-group="today"><span data-notebook-group-count>1</span><div data-notebook-board><article data-note-id="b"></article></div></section>`);
+  const board = loadBoard(dom);
+  const doc = dom.window.document;
+
+  board.upsertCard('b', '<article data-note-id="b" data-updated="true"></article>', true, { preservePosition: false });
+  assert.equal(doc.querySelector('[data-notebook-group="today"] [data-note-id="b"]').dataset.updated, 'true', 'stays in Today');
+
+  board.removeCard('a');
+  assert.equal(doc.querySelector('[data-notebook-group="past-due"]').hidden, true);
+  assert.equal(doc.querySelector('[data-notebook-group="past-due"] [data-notebook-group-count]').textContent, '0');
+  assert.equal(doc.querySelector('[data-notebook-group="today"]').hidden, false);
+});
+
+test('a rescheduled or new reminder lands in the group its server-rendered card names', () => {
+  const dom = new JSDOM(`
+    <section data-notebook-group="past-due"><span data-notebook-group-count></span><div data-notebook-board><article data-note-id="a" data-reminder-group="past-due"></article><article data-note-id="x" data-reminder-group="past-due"></article></div></section>
+    <section data-notebook-group="today"><span data-notebook-group-count></span><div data-notebook-board></div></section>
+    <section data-notebook-group="upcoming"><span data-notebook-group-count></span><div data-notebook-board></div></section>`);
+  const board = loadBoard(dom);
+  const doc = dom.window.document;
+  const groupOf = (id) => doc.querySelector(`[data-note-id="${id}"]`).closest('[data-notebook-group]').dataset.notebookGroup;
+
+  // Past due -> later today, even when the caller asks to preserve position.
+  board.upsertCard('a', '<article data-note-id="a" data-reminder-group="today"></article>', false, { preservePosition: true });
+  assert.equal(groupOf('a'), 'today');
+  assert.equal(doc.querySelector('[data-notebook-group="today"] [data-notebook-group-count]').textContent, '1');
+
+  board.insertCard('<article data-note-id="b" data-reminder-group="upcoming"></article>');
+  assert.equal(groupOf('b'), 'upcoming');
+  assert.equal(doc.querySelector('[data-notebook-group="upcoming"]').hidden, false);
+});
