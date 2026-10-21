@@ -1139,7 +1139,7 @@ public sealed class ProjectOfficerWorkspaceService
     // SECTION: Returned items are surfaced as actionable corrections for the PO.
     // The action queue and side list show a short preview (30 days, a few per type). Desk cards
     // decide brief-ready from it, so they ask for every unresolved return in a longer horizon.
-    private const int DeskReturnedHorizonDays = 180;
+    internal const int DeskReturnedHorizonDays = 180;
 
     private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct, bool complete = false)
     {

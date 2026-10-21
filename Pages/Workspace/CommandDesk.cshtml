@@ -1,0 +1,306 @@
+@page "/Workspace/CommandDesk"
+@model ProjectManagement.Pages.Workspace.CommandDeskModel
+@using ProjectManagement.ViewModels.Workspace
+@{
+    ViewData["Title"] = "Command Desk | Comdt / HoD Workspace";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
+    var desk = Model.Desk;
+    const int listCap = 8;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/erp-activity-strip.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/command-desk.css" asp-append-version="true" />
+}
+
+<div class="command-workspace is-nav-expanded" data-command-workspace>
+    @await Html.PartialAsync("_CommandWorkspaceRail", Model.CommandRail)
+
+    <main class="cw-workspace-content">
+        <div class="cd">
+            <header class="cd-header">
+                <p class="cd-header__meta">@desk.Today.ToString("dddd dd MMM yyyy") · Command desk</p>
+                <h1 class="cd-header__title">What moved, what's lagging, what's gone quiet</h1>
+            </header>
+
+            @* SECTION: What moved forward *@
+            <section class="cd-section cd-section--good" aria-labelledby="cd-good-title">
+                <div class="cd-section__head">
+                    <h2 id="cd-good-title" class="cd-section__title">What moved forward</h2>
+                    <nav class="cd-window" aria-label="Period">
+                        @foreach (var days in new[] { 15, 30 })
+                        {
+                            var current = desk.WindowDays == days;
+                            <a asp-page="/Workspace/CommandDesk"
+                               asp-route-window="@days"
+                               class="cd-window__option @(current ? "is-active" : null)"
+                               aria-current="@(current ? "true" : null)">Last @days days</a>
+                        }
+                    </nav>
+                </div>
+
+                @if (desk.MovedForward.Count == 0)
+                {
+                    <p class="cd-empty">Nothing recorded as completed, closed, granted or delivered in the last @desk.WindowDays days.</p>
+                }
+                else
+                {
+                    <ul class="cd-counts" role="list">
+                        @foreach (var count in desk.MovedForward)
+                        {
+                            <li>
+                                @if (string.IsNullOrWhiteSpace(count.Url))
+                                {
+                                    <span class="cd-count"><strong>@count.Count.ToString("N0")</strong> @count.Label</span>
+                                }
+                                else
+                                {
+                                    <a class="cd-count" href="@count.Url"><strong>@count.Count.ToString("N0")</strong> @count.Label</a>
+                                }
+                            </li>
+                        }
+                    </ul>
+                    @if (desk.Wins.Count > 0)
+                    {
+                        <ul class="cd-wins" role="list">
+                            @foreach (var win in desk.Wins)
+                            {
+                                <li class="cd-win">
+                                    <i class="bi bi-check-circle-fill cd-win__mark" aria-hidden="true"></i>
+                                    @if (string.IsNullOrWhiteSpace(win.Url))
+                                    {
+                                        <span class="cd-win__text">@win.Text</span>
+                                    }
+                                    else
+                                    {
+                                        <a class="cd-win__text" href="@win.Url">@win.Text</a>
+                                    }
+                                    <span class="cd-win__meta">@win.Meta</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </section>
+
+            @* SECTION: Waiting on you — shown only when something waits on this viewer *@
+            @if (desk.WaitingOnYou.Count > 0)
+            {
+                <section class="cd-section" aria-labelledby="cd-waiting-title">
+                    <div class="cd-section__head">
+                        <h2 id="cd-waiting-title" class="cd-section__title">Waiting on you <span class="cd-section__count">@desk.WaitingOnYouTotal</span></h2>
+                        <span class="cd-section__links">
+                            @if (desk.CanOpenDecisionCentre)
+                            {
+                                <a href="/Approvals/Pending">Open Decision Centre</a>
+                            }
+                            <a href="/ActionTasks">Open task register</a>
+                        </span>
+                    </div>
+                    <ul class="cd-rows" role="list">
+                        @foreach (var decision in desk.WaitingOnYou.Take(listCap))
+                        {
+                            <li class="cd-row">
+                                <span class="cd-row__main">
+                                    <strong class="cd-row__title">@decision.Title</strong>
+                                    <span class="cd-row__sub">@decision.TypeLabel · @decision.ByName</span>
+                                </span>
+                                <span class="cd-row__age">@decision.AgeLabel</span>
+                                <a class="btn btn-sm btn-outline-primary cd-row__action" href="@decision.Url">@decision.ActionLabel</a>
+                            </li>
+                        }
+                    </ul>
+                    @if (desk.WaitingOnYou.Count > listCap)
+                    {
+                        <p class="cd-more-note">Showing the oldest @listCap of @desk.WaitingOnYouTotal. The rest are in the Decision Centre and the task register.</p>
+                    }
+                </section>
+            }
+
+            @* SECTION: What's lagging *@
+            <section class="cd-section" aria-labelledby="cd-lagging-title">
+                <h2 id="cd-lagging-title" class="cd-section__title">What's lagging</h2>
+
+                @if (desk.IsLaggingEmpty)
+                {
+                    <p class="cd-empty">Nothing is lagging: no PDC due within 30 days, no unanswered direction, no blocked or due task.</p>
+                }
+
+                @if (desk.PdcWatch.Count > 0)
+                {
+                    <div class="cd-block" aria-labelledby="cd-pdc-title">
+                        <div class="cd-block__head">
+                            <h3 id="cd-pdc-title" class="cd-block__title">PDC watch</h3>
+                            <span class="cd-block__summary">@desk.PdcOverdueCount overdue · @desk.PdcDueSoonCount due within 30 days</span>
+                        </div>
+                        <ul class="cd-rows" role="list">
+                            @foreach (var pdc in desk.PdcWatch.Take(listCap))
+                            {
+                                @await Html.PartialAsync("_CommandDeskPdcRow", pdc)
+                            }
+                        </ul>
+                        @if (desk.PdcWatch.Count > listCap)
+                        {
+                            <details class="cd-more">
+                                <summary>Show all @desk.PdcWatch.Count</summary>
+                                <ul class="cd-rows" role="list">
+                                    @foreach (var pdc in desk.PdcWatch.Skip(listCap))
+                                    {
+                                        @await Html.PartialAsync("_CommandDeskPdcRow", pdc)
+                                    }
+                                </ul>
+                            </details>
+                        }
+                    </div>
+                }
+
+                @if (desk.Directions.Count > 0)
+                {
+                    <div class="cd-block" aria-labelledby="cd-directions-title">
+                        <div class="cd-block__head">
+                            <h3 id="cd-directions-title" class="cd-block__title">Directions awaiting progress</h3>
+                            <span class="cd-block__summary">@desk.Directions.Count open · @desk.DirectionsOlderThanWeekCount older than 7 days</span>
+                        </div>
+                        <ul class="cd-rows" role="list">
+                            @foreach (var direction in desk.Directions.Take(listCap))
+                            {
+                                @await Html.PartialAsync("_CommandDeskDirectionRow", direction)
+                            }
+                        </ul>
+                        @if (desk.Directions.Count > listCap)
+                        {
+                            <details class="cd-more">
+                                <summary>Show all @desk.Directions.Count</summary>
+                                <ul class="cd-rows" role="list">
+                                    @foreach (var direction in desk.Directions.Skip(listCap))
+                                    {
+                                        @await Html.PartialAsync("_CommandDeskDirectionRow", direction)
+                                    }
+                                </ul>
+                            </details>
+                        }
+                    </div>
+                }
+
+                @if (desk.Tasks.Count > 0)
+                {
+                    var taskSummary = new List<string>();
+                    if (desk.TasksBlockedCount > 0) taskSummary.Add($"{desk.TasksBlockedCount} blocked");
+                    if (desk.TasksOverdueCount > 0) taskSummary.Add($"{desk.TasksOverdueCount} overdue");
+                    if (desk.TasksDueSoonCount > 0) taskSummary.Add($"{desk.TasksDueSoonCount} due within 7 days");
+                    <div class="cd-block" aria-labelledby="cd-tasks-title">
+                        <div class="cd-block__head">
+                            <h3 id="cd-tasks-title" class="cd-block__title">Tasks</h3>
+                            <span class="cd-block__summary">@string.Join(" · ", taskSummary)</span>
+                        </div>
+                        <ul class="cd-rows" role="list">
+                            @foreach (var task in desk.Tasks.Take(listCap))
+                            {
+                                @await Html.PartialAsync("_CommandDeskTaskRow", task)
+                            }
+                        </ul>
+                        @if (desk.Tasks.Count > listCap)
+                        {
+                            <details class="cd-more">
+                                <summary>Show all @desk.Tasks.Count</summary>
+                                <ul class="cd-rows" role="list">
+                                    @foreach (var task in desk.Tasks.Skip(listCap))
+                                    {
+                                        @await Html.PartialAsync("_CommandDeskTaskRow", task)
+                                    }
+                                </ul>
+                            </details>
+                        }
+                    </div>
+                }
+
+                @if (desk.Attention.Count > 0 || !desk.NothingReturned)
+                {
+                    <div class="cd-block" aria-labelledby="cd-attention-title">
+                        <div class="cd-block__head">
+                            <h3 id="cd-attention-title" class="cd-block__title">Needs attention</h3>
+                        </div>
+                        <ul class="cd-attention" role="list">
+                            @foreach (var reason in desk.Attention)
+                            {
+                                <li>
+                                    <details class="cd-attention__item">
+                                        <summary>
+                                            <span><strong>@reason.Count</strong> @reason.Label</span>
+                                            <span class="cd-attention__cta">By officer</span>
+                                        </summary>
+                                        <ul class="cd-officers" role="list">
+                                            @foreach (var officer in reason.ByOfficer)
+                                            {
+                                                <li>
+                                                    @if (string.IsNullOrWhiteSpace(officer.Url))
+                                                    {
+                                                        <span class="cd-officer">@officer.OfficerName · @officer.Count</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <a class="cd-officer" href="@officer.Url" title="Open @officer.OfficerName's conference review">@officer.OfficerName · @officer.Count</a>
+                                                    }
+                                                </li>
+                                            }
+                                        </ul>
+                                    </details>
+                                </li>
+                            }
+                        </ul>
+                        @if (desk.NothingReturned)
+                        {
+                            <p class="cd-quiet-note"><i class="bi bi-check2" aria-hidden="true"></i> Nothing returned by the HoD is left uncorrected.</p>
+                        }
+                    </div>
+                }
+            </section>
+
+            @* SECTION: What's gone quiet *@
+            <section class="cd-section" aria-labelledby="cd-quiet-title">
+                <div class="cd-section__head">
+                    <h2 id="cd-quiet-title" class="cd-section__title">What's gone quiet</h2>
+                    <span class="cd-block__summary">Registers past their expected frequency</span>
+                </div>
+                @if (desk.QuietRegisters.Count == 0)
+                {
+                    <p class="cd-empty">All @desk.CurrentRegisterCount registers have entries within their expected frequency.</p>
+                }
+                else
+                {
+                    <ul class="cd-rows" role="list">
+                        @foreach (var register in desk.QuietRegisters)
+                        {
+                            <li class="cd-row cd-row--register">
+                                <strong class="cd-row__title">@register.Label</strong>
+                                <span class="cd-row__sub">
+                                    @if (register.LastOn.HasValue)
+                                    {
+                                        @:None recorded since @register.LastOn.Value.ToString("dd MMM yyyy") <span class="cd-row__days">(@register.DaysSince days)</span>
+                                    }
+                                    else
+                                    {
+                                        @:Nothing recorded yet
+                                    }
+                                </span>
+                                <span class="cd-row__age">Expected every @register.ExpectedDays days</span>
+                                <a class="cd-row__link" href="@register.Url">Open register</a>
+                            </li>
+                        }
+                    </ul>
+                    @if (desk.CurrentRegisterCount > 0)
+                    {
+                        <p class="cd-quiet-note">@desk.CurrentRegisterCount other @(desk.CurrentRegisterCount == 1 ? "register is" : "registers are") current.</p>
+                    }
+                }
+                <p class="cd-footnote">"None recorded" can mean nothing happened or nothing was entered. Check with the register's owner. IPR, ToT and FFC are not flagged here; they appear under What moved forward.</p>
+            </section>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
+}

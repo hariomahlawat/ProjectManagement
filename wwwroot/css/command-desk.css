@@ -1,0 +1,432 @@
+/* ==========================================================================
+   Command desk (HoD / Comdt)
+   Colours come only from site tokens so Light and Dark stay coherent.
+   ========================================================================== */
+
+.cd {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-width: 72rem;
+    color: var(--pm-text);
+    min-width: 0;
+}
+
+/* SECTION: Header ------------------------------------------------------- */
+.cd-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.cd-header__meta {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--pm-text-secondary);
+}
+
+.cd-header__title {
+    margin: 0;
+    font-size: clamp(1.4rem, 1.15rem + 0.9vw, 1.8rem);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--pm-text-strong);
+}
+
+/* SECTION: Sections and blocks ----------------------------------------- */
+.cd-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1.1rem 1.25rem;
+    background: var(--pm-card);
+    border: 1px solid var(--pm-border);
+    border-radius: 0.875rem;
+}
+
+.cd-section--good {
+    border-color: var(--pm-success-soft-border);
+}
+
+.cd-section__head,
+.cd-block__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.cd-section__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.cd-section__count {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.55rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    border-radius: 999px;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+    vertical-align: middle;
+}
+
+.cd-section__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.cd-section__links a,
+.cd-row__link {
+    color: var(--pm-primary-strong);
+    text-decoration: none;
+}
+
+.cd-section__links a:hover,
+.cd-section__links a:focus-visible,
+.cd-row__link:hover,
+.cd-row__link:focus-visible {
+    text-decoration: underline;
+}
+
+.cd-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--pm-border-subtle);
+}
+
+.cd-block__title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.cd-block__summary {
+    font-size: 0.8125rem;
+    color: var(--pm-text-secondary);
+}
+
+.cd-empty,
+.cd-footnote,
+.cd-quiet-note,
+.cd-more-note {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--pm-text-secondary);
+}
+
+.cd-footnote {
+    font-size: 0.8125rem;
+}
+
+/* SECTION: What moved forward ------------------------------------------ */
+.cd-window {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border-radius: 0.6rem;
+    background: var(--pm-surface-subtle);
+}
+
+.cd-window__option {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.1rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.45rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+    text-decoration: none;
+}
+
+.cd-window__option.is-active {
+    background: var(--pm-card);
+    color: var(--pm-text-strong);
+    box-shadow: var(--pm-shadow);
+}
+
+.cd-counts,
+.cd-wins,
+.cd-rows,
+.cd-attention,
+.cd-officers {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cd-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.cd-count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.6rem;
+    background: var(--pm-success-soft-bg);
+    color: var(--pm-success-soft-text);
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.cd-count strong {
+    font-size: 1.05rem;
+}
+
+a.cd-count:hover,
+a.cd-count:focus-visible {
+    text-decoration: underline;
+}
+
+.cd-wins {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.cd-win {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.6rem;
+    font-size: 0.9rem;
+}
+
+.cd-win__mark {
+    color: var(--pm-success);
+}
+
+.cd-win__text {
+    color: var(--pm-text-strong);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+a.cd-win__text:hover,
+a.cd-win__text:focus-visible {
+    text-decoration: underline;
+}
+
+.cd-win__meta {
+    font-size: 0.8125rem;
+    color: var(--pm-text-secondary);
+}
+
+/* SECTION: Rows ---------------------------------------------------------- */
+.cd-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.cd-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.9rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--pm-border-subtle);
+}
+
+.cd-rows > .cd-row:last-child {
+    border-bottom: 0;
+}
+
+.cd-row__main {
+    display: flex;
+    flex: 1 1 18rem;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.cd-row__title {
+    font-weight: 600;
+    color: var(--pm-text-strong);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+a.cd-row__title:hover,
+a.cd-row__title:focus-visible {
+    color: var(--pm-primary-strong);
+    text-decoration: underline;
+}
+
+.cd-row__sub,
+.cd-row__date,
+.cd-row__age {
+    font-size: 0.8125rem;
+    color: var(--pm-text-secondary);
+}
+
+.cd-row__date,
+.cd-row__age {
+    white-space: nowrap;
+}
+
+.cd-row__days {
+    color: var(--pm-text-slate);
+}
+
+.cd-row__quote {
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--pm-text);
+    overflow-wrap: anywhere;
+}
+
+.cd-row--register .cd-row__title {
+    flex: 0 0 9rem;
+}
+
+.cd-row--register .cd-row__sub {
+    flex: 1 1 14rem;
+}
+
+.cd-row__action {
+    white-space: nowrap;
+}
+
+/* SECTION: Pills --------------------------------------------------------- */
+.cd-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cd-pill--danger {
+    background: var(--pm-danger-soft-bg);
+    color: var(--pm-danger-soft-text);
+    border: 1px solid var(--pm-danger-soft-border);
+}
+
+.cd-pill--warning {
+    background: var(--pm-status-warning-bg);
+    color: var(--pm-status-warning-text);
+}
+
+.cd-pill--muted {
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-secondary);
+}
+
+.cd-pill--note {
+    background: var(--pm-surface-lilac);
+    color: var(--pm-accent-indigo);
+}
+
+/* SECTION: Show all and needs attention -------------------------------- */
+.cd-more > summary,
+.cd-attention__item > summary {
+    cursor: pointer;
+    color: var(--pm-primary-strong);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.cd-more > summary {
+    padding: 0.35rem 0;
+}
+
+.cd-attention {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.cd-attention__item {
+    border: 1px solid var(--pm-border-subtle);
+    border-radius: 0.6rem;
+    background: var(--pm-surface-subtle);
+}
+
+.cd-attention__item > summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    color: var(--pm-text);
+    font-weight: 500;
+    list-style: none;
+}
+
+.cd-attention__item > summary::-webkit-details-marker {
+    display: none;
+}
+
+.cd-attention__cta {
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+}
+
+.cd-attention__item[open] .cd-attention__cta::after {
+    content: " ▴";
+}
+
+.cd-officers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0 0.8rem 0.7rem;
+}
+
+.cd-officer {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--pm-border);
+    background: var(--pm-card);
+    color: var(--pm-text);
+    font-size: 0.8125rem;
+    text-decoration: none;
+}
+
+a.cd-officer:hover,
+a.cd-officer:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-primary-strong);
+}
+
+.cd-quiet-note .bi {
+    color: var(--pm-success);
+}
+
+@media (max-width: 575.98px) {
+    .cd-section {
+        padding: 0.9rem 1rem;
+    }
+
+    .cd-row--register .cd-row__title {
+        flex-basis: 100%;
+    }
+}
+
+.cd-row__quote--clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
