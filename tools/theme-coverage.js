@@ -91,7 +91,8 @@ function analyseCss(source, file) {
     darkRules += 1;
     for (const part of splitSelector(rule.selector)) {
       const light = lightSelectorOf(part);
-      for (const d of rule.declarations) covered.add(`${light}|${propertyFamily(d.property)}`);
+      // Scoped by at-rules: a dark rule inside a media query only covers that query.
+      for (const d of rule.declarations) covered.add(`${light}|${propertyFamily(d.property)}|${rule.atRules.join('|')}`);
     }
   }
   let literals = 0;
@@ -106,10 +107,21 @@ function analyseCss(source, file) {
       if (!n) continue;
       literals += n;
       const family = propertyFamily(d.property);
-      if (!parts.every((part) => covered.has(`${part}|${family}`))) gaps += n;
+      // A top-level dark rule covers every width; a scoped one only its own query.
+      const scope = rule.atRules.join('|');
+      const isCovered = (part) => covered.has(`${part}|${family}|`) || covered.has(`${part}|${family}|${scope}`);
+      if (!parts.every(isCovered)) gaps += n;
     }
   }
   return { literals, gaps, darkRules };
+}
+
+// Literal colours in inline style attributes, in both quote forms: style="..." and style='...'.
+function countInlineStyleLiterals(source) {
+  let count = 0;
+  // (?<![\w-]) so data-style="..." and similar attributes are not mistaken for style.
+  for (const match of source.matchAll(/(?<![\w-])style\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) count += countLiterals(match[1] ?? match[2]);
+  return count;
 }
 
 function analyseViews() {
@@ -117,8 +129,7 @@ function analyseViews() {
   for (const root of VIEW_ROOTS) {
     for (const file of walk(root, '.cshtml')) {
       const source = fs.readFileSync(file, 'utf8');
-      let count = 0;
-      for (const match of source.matchAll(/style\s*=\s*"([^"]*)"/g)) count += countLiterals(match[1]);
+      const count = countInlineStyleLiterals(source);
       if (count > 0) results[toPosix(file)] = count;
     }
   }
@@ -238,7 +249,7 @@ function main(argv) {
   return 0;
 }
 
-module.exports = { analyseCss, countLiterals, stripVarFallbacks, measure, readBaseline, compare, EXEMPT };
+module.exports = { analyseCss, countInlineStyleLiterals, countLiterals, stripVarFallbacks, measure, readBaseline, compare, EXEMPT };
 
 if (require.main === module) {
   process.exitCode = main(process.argv.slice(2));
