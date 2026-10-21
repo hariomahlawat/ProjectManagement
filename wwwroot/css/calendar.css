@@ -1789,93 +1789,93 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .calendar-new-event {
+:where([data-bs-theme="dark"]) .calendar-new-event {
     box-shadow: 0 5px 14px rgba(0, 0, 0, 0.5);
 }
 
-[data-bs-theme="dark"] .calendar-workbench {
+:where([data-bs-theme="dark"]) .calendar-workbench {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.21);
 }
 
-[data-bs-theme="dark"] .calendar-icon-button:hover,
-[data-bs-theme="dark"] .calendar-today-button:hover {
-    border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
+:where([data-bs-theme="dark"]) .calendar-icon-button:hover,
+:where([data-bs-theme="dark"]) .calendar-today-button:hover {
+    border-color: #3a3f45;
     background: #16181b;
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-view-switch {
+:where([data-bs-theme="dark"]) .calendar-view-switch {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .calendar-view-switch button {
+:where([data-bs-theme="dark"]) .calendar-view-switch button {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-view-switch button:hover {
+:where([data-bs-theme="dark"]) .calendar-view-switch button:hover {
     color: #6ea8fe;
     background: rgba(22, 24, 27, 0.75);
 }
 
-[data-bs-theme="dark"] .calendar-view-switch button.active {
+:where([data-bs-theme="dark"]) .calendar-view-switch button.active {
     color: #6ea8fe;
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
 }
 
-[data-bs-theme="dark"] .calendar-preferences .form-check-label {
+:where([data-bs-theme="dark"]) .calendar-preferences .form-check-label {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__button {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__button {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__button:hover,
-[data-bs-theme="dark"] .calendar-holiday-help__button[aria-expanded="true"] {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__button:hover,
+:where([data-bs-theme="dark"]) .calendar-holiday-help__button[aria-expanded="true"] {
     border-color: #3a3f45;
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__button:focus-visible {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__button:focus-visible {
     outline: 3px solid rgba(110, 168, 254, 0.26);
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__menu {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__menu {
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__item {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__item {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__item + .calendar-holiday-help__item {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__item + .calendar-holiday-help__item {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-help__item small {
+:where([data-bs-theme="dark"]) .calendar-holiday-help__item small {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-guide__mark--gazetted {
+:where([data-bs-theme="dark"]) .calendar-holiday-guide__mark--gazetted {
     border-left: 3px solid #f87171;
     background: color-mix(in srgb, #f87171 11%, #16181b);
 }
 
-[data-bs-theme="dark"] .calendar-holiday-guide__mark--observed {
+:where([data-bs-theme="dark"]) .calendar-holiday-guide__mark--observed {
     border: 1px dashed #fbbf24;
     background: color-mix(in srgb, #fbbf24 17%, #16181b);
 }
 
-[data-bs-theme="dark"] .calendar-holiday-guide__mark--info {
+:where([data-bs-theme="dark"]) .calendar-holiday-guide__mark--info {
     border: 1px solid #a273f2;
     color: #a77de8;
 }
 
-[data-bs-theme="dark"] .calendar-card {
+:where([data-bs-theme="dark"]) .calendar-card {
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.23);
 }
 
-[data-bs-theme="dark"] .fc {
+:where([data-bs-theme="dark"]) .fc {
     --fc-border-color: #2c3035;
     --fc-page-bg-color: #16181b;
     --fc-neutral-bg-color: #16181b;
@@ -1883,431 +1883,440 @@
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .fc-theme-standard td,
-[data-bs-theme="dark"] .fc-theme-standard th {
+:where([data-bs-theme="dark"]) .fc-theme-standard td,
+:where([data-bs-theme="dark"]) .fc-theme-standard th {
     border-color: #2c3035;
 }
 
-[data-bs-theme="dark"] .fc .fc-col-header-cell-cushion {
+:where([data-bs-theme="dark"]) .fc .fc-col-header-cell-cushion {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .fc .fc-daygrid-day-number {
+:where([data-bs-theme="dark"]) .fc .fc-daygrid-day-number {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .fc .fc-day-other .fc-daygrid-day-number {
+:where([data-bs-theme="dark"]) .fc .fc-day-other .fc-daygrid-day-number {
     color: #7b8188;
 }
 
-[data-bs-theme="dark"] .fc .fc-day-today {
+:where([data-bs-theme="dark"]) .fc .fc-day-today {
     background: rgba(110, 168, 254, 0.06) !important;
 }
 
-[data-bs-theme="dark"] .fc .fc-day-sat,
-[data-bs-theme="dark"] .fc .fc-day-sun {
-    background-image: linear-gradient(to bottom, rgba(133, 171, 224, 0.06), rgba(133, 171, 224, 0.06));
+:where([data-bs-theme="dark"]) .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    color: #fff;
+    background: #3970e8;
 }
 
-[data-bs-theme="dark"] .fc .fc-daygrid-more-link {
+:where([data-bs-theme="dark"]) .fc .fc-day-sat,
+:where([data-bs-theme="dark"]) .fc .fc-day-sun {
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0));
+}
+
+:where([data-bs-theme="dark"]) .fc .fc-daygrid-more-link {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .fc .fc-timegrid-axis-cushion,
-[data-bs-theme="dark"] .fc .fc-timegrid-slot-label-cushion {
+:where([data-bs-theme="dark"]) .fc .fc-timegrid-axis-cushion,
+:where([data-bs-theme="dark"]) .fc .fc-timegrid-slot-label-cushion {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .fc .fc-list-day-cushion {
+:where([data-bs-theme="dark"]) .fc .fc-list-day-cushion {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .fc .fc-list-event:hover td {
+:where([data-bs-theme="dark"]) .fc .fc-list-event:hover td {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .fc .fc-event.pm-cat-birthday,
-[data-bs-theme="dark"] .fc .fc-event.pm-cat-celebration {
+:where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-birthday,
+:where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-celebration {
     --pm-bg: #0e0f11;
     --pm-fg: #eb7aa7;
-    --pm-br: #e97cac;
+    --pm-br: #de3982;
     border-color: color-mix(in srgb, #e97cae 30%, #16181b) !important;
 }
 
-[data-bs-theme="dark"] .fc .fc-event.pm-cat-anniversary {
+:where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-anniversary {
     --pm-bg: #0e0f11;
     --pm-fg: #77eee5;
-    --pm-br: #72f3e7;
+    --pm-br: #148b80;
     border-color: #85e0d3 !important;
 }
 
-[data-bs-theme="dark"] .fc .fc-event.pm-celebration-event:hover,
-[data-bs-theme="dark"] .fc .fc-event.pm-celebration-event:focus {
+:where([data-bs-theme="dark"]) .fc .fc-event.pm-celebration-event:hover,
+:where([data-bs-theme="dark"]) .fc .fc-event.pm-celebration-event:focus {
     box-shadow: 0 0 0 2px rgba(133, 170, 224, 0.27);
 }
 
-[data-bs-theme="dark"] .fc .pm-holiday--gazetted {
+:where([data-bs-theme="dark"]) .fc .pm-holiday--gazetted {
     background-image: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.17));
     box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.6);
 }
 
-[data-bs-theme="dark"] .fc .pm-holiday--rh-observed {
+:where([data-bs-theme="dark"]) .fc .pm-holiday--rh-observed {
     background-image: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.17));
     box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.6);
 }
 
-[data-bs-theme="dark"] .fc .fc-timegrid-col.pm-holiday--gazetted .fc-timegrid-col-frame,
-[data-bs-theme="dark"] .fc .fc-timegrid-col-frame.pm-holiday--gazetted {
+:where([data-bs-theme="dark"]) .fc .fc-timegrid-col.pm-holiday--gazetted .fc-timegrid-col-frame,
+:where([data-bs-theme="dark"]) .fc .fc-timegrid-col-frame.pm-holiday--gazetted {
     background-image: linear-gradient(180deg, rgba(248, 113, 113, 0.14), rgba(248, 113, 113, 0.08));
 }
 
-[data-bs-theme="dark"] .fc .fc-timegrid-col.pm-holiday--rh-observed .fc-timegrid-col-frame,
-[data-bs-theme="dark"] .fc .fc-timegrid-col-frame.pm-holiday--rh-observed {
+:where([data-bs-theme="dark"]) .fc .fc-timegrid-col.pm-holiday--rh-observed .fc-timegrid-col-frame,
+:where([data-bs-theme="dark"]) .fc .fc-timegrid-col-frame.pm-holiday--rh-observed {
     background-image: linear-gradient(180deg, rgba(251, 191, 36, 0.14), rgba(251, 191, 36, 0.08));
 }
 
-[data-bs-theme="dark"] .fc .pm-holiday--gazetted .fc-daygrid-day-number {
+:where([data-bs-theme="dark"]) .fc .pm-holiday--gazetted .fc-daygrid-day-number {
     color: #f87171;
     background: rgba(248, 113, 113, 0.3);
     box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.45);
 }
 
-[data-bs-theme="dark"] .fc .pm-holiday--rh-observed .fc-daygrid-day-number {
+:where([data-bs-theme="dark"]) .fc .pm-holiday--rh-observed .fc-daygrid-day-number {
     color: #f2a373;
     background: rgba(251, 191, 36, 0.3);
     box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45);
 }
 
-[data-bs-theme="dark"] .fc .pm-holiday--rh-info .fc-daygrid-day-number {
+:where([data-bs-theme="dark"]) .fc .pm-holiday--rh-info .fc-daygrid-day-number {
     color: #a77de8;
 }
 
-[data-bs-theme="dark"] .pm-holiday-badge--gazetted {
+:where([data-bs-theme="dark"]) .pm-holiday-badge--gazetted {
     border-color: rgba(248, 113, 113, 0.45);
     background: rgba(248, 113, 113, 0.3);
     color: #f87171;
 }
 
-[data-bs-theme="dark"] .pm-holiday-badge--rh-observed {
+:where([data-bs-theme="dark"]) .pm-holiday-badge--rh-observed {
     border-color: rgba(251, 191, 36, 0.45);
     background: rgba(251, 191, 36, 0.3);
     color: #f2a373;
 }
 
-[data-bs-theme="dark"] .pm-holiday-badge--rh-info {
+:where([data-bs-theme="dark"]) .pm-holiday-badge--rh-info {
     border-color: rgba(162, 115, 242, 0.45);
     color: #a77de8;
 }
 
-[data-bs-theme="dark"] .calendar-card-footer {
+:where([data-bs-theme="dark"]) .calendar-card-footer {
     border-top: 1px solid #2c3035;
     background: #16181b;
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-holiday-footer__label {
+:where([data-bs-theme="dark"]) .calendar-holiday-footer__label {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .legend-dot.pm-holiday--gazetted {
+:where([data-bs-theme="dark"]) .legend-dot.pm-holiday--gazetted {
+    background: #dc2626;
     box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.3);
 }
 
-[data-bs-theme="dark"] .legend-dot.pm-holiday--rh-observed {
+:where([data-bs-theme="dark"]) .legend-dot.pm-holiday--rh-observed {
+    background: #d97706;
     box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3);
 }
 
-[data-bs-theme="dark"] .legend-dot.pm-holiday--rh-info {
+:where([data-bs-theme="dark"]) .legend-dot.pm-holiday--rh-info {
     border: 1px solid #a273f2;
     background: color-mix(in srgb, #856ef7 8%, #16181b);
 }
 
-[data-bs-theme="dark"] .calendar-empty-state {
+:where([data-bs-theme="dark"]) .calendar-empty-state {
     border: 1px dashed #3a3f45;
     background: rgba(22, 24, 27, 0.94);
 }
 
-[data-bs-theme="dark"] .calendar-offcanvas {
+:where([data-bs-theme="dark"]) .calendar-offcanvas {
     background: #0e0f11;
     box-shadow: -14px 0 34px rgba(0, 0, 0, 0.4);
 }
 
-[data-bs-theme="dark"] .calendar-details-icon {
+:where([data-bs-theme="dark"]) .calendar-details-icon {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-details-icon.is-birthday {
+:where([data-bs-theme="dark"]) .calendar-details-icon.is-birthday {
     border-color: color-mix(in srgb, #e97cae 30%, #16181b);
     background: color-mix(in srgb, #eb7ab8 8%, #16181b);
     color: #ee77a8;
 }
 
-[data-bs-theme="dark"] .calendar-details-icon.is-anniversary {
+:where([data-bs-theme="dark"]) .calendar-details-icon.is-anniversary {
     border-color: #85e0d3;
     background: color-mix(in srgb, #75f0cc 9%, #16181b);
     color: #77eee5;
 }
 
-[data-bs-theme="dark"] .calendar-details-icon.is-event {
+:where([data-bs-theme="dark"]) .calendar-details-icon.is-event {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-details-offcanvas[data-event-type="birthday"] .calendar-details-meta-row > i,
-[data-bs-theme="dark"] .calendar-details-offcanvas[data-event-type="celebration"] .calendar-details-meta-row > i {
+:where([data-bs-theme="dark"]) .calendar-details-offcanvas[data-event-type="birthday"] .calendar-details-meta-row > i,
+:where([data-bs-theme="dark"]) .calendar-details-offcanvas[data-event-type="celebration"] .calendar-details-meta-row > i {
     color: #ee77a8;
 }
 
-[data-bs-theme="dark"] .calendar-details-offcanvas[data-event-type="anniversary"] .calendar-details-meta-row > i {
+:where([data-bs-theme="dark"]) .calendar-details-offcanvas[data-event-type="anniversary"] .calendar-details-meta-row > i {
     color: #77eee5;
 }
 
-[data-bs-theme="dark"] .calendar-details-section {
+:where([data-bs-theme="dark"]) .calendar-details-section {
     border-top: 1px solid #2c3035;
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-details-category {
+:where([data-bs-theme="dark"]) .calendar-details-category {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-details-category.is-visit {
+:where([data-bs-theme="dark"]) .calendar-details-category.is-visit {
     border-color: color-mix(in srgb, #6ec8f7 30%, #16181b);
     background: color-mix(in srgb, #6ec0f7 8%, #16181b);
     color: #6ec7f7;
 }
 
-[data-bs-theme="dark"] .calendar-details-category.is-insp {
+:where([data-bs-theme="dark"]) .calendar-details-category.is-insp {
     border-color: color-mix(in srgb, #fbbf24 30%, #16181b);
     background: color-mix(in srgb, #fbbf24 9%, #16181b);
     color: #f2a373;
 }
 
-[data-bs-theme="dark"] .calendar-details-category.is-conference {
+:where([data-bs-theme="dark"]) .calendar-details-category.is-conference {
     border-color: color-mix(in srgb, #866ef7 30%, #16181b);
     background: color-mix(in srgb, #856ef7 8%, #16181b);
     color: #a77de8;
 }
 
-[data-bs-theme="dark"] .calendar-editor-header {
+:where([data-bs-theme="dark"]) .calendar-editor-header {
     border-bottom: 1px solid #2c3035;
     background: linear-gradient(135deg, var(--pm-card, #ffffff) 0%, #16181b 100%);
 }
 
-[data-bs-theme="dark"] .calendar-editor-icon {
+:where([data-bs-theme="dark"]) .calendar-editor-icon {
     border: 1px solid color-mix(in srgb, #6ea8fe 30%, #16181b);
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-editor-eyebrow {
+:where([data-bs-theme="dark"]) .calendar-editor-eyebrow {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-editor-header .offcanvas-title {
+:where([data-bs-theme="dark"]) .calendar-editor-header .offcanvas-title {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-editor-hint {
+:where([data-bs-theme="dark"]) .calendar-editor-hint {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-event-form-body {
+:where([data-bs-theme="dark"]) .calendar-event-form-body {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .calendar-form-section {
+:where([data-bs-theme="dark"]) .calendar-form-section {
     border: 1px solid #2c3035;
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.19);
 }
 
-[data-bs-theme="dark"] .calendar-form-section-header h6 {
+:where([data-bs-theme="dark"]) .calendar-form-section-header h6 {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-form-section-header p {
+:where([data-bs-theme="dark"]) .calendar-form-section-header p {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-event-editor .form-label {
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-label {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-required {
+:where([data-bs-theme="dark"]) .calendar-required {
     color: #f87171;
 }
 
-[data-bs-theme="dark"] .calendar-optional {
+:where([data-bs-theme="dark"]) .calendar-optional {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-event-editor .form-control,
-[data-bs-theme="dark"] .calendar-event-editor .form-select,
-[data-bs-theme="dark"] .calendar-event-editor .input-group-text {
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-control,
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-select,
+:where([data-bs-theme="dark"]) .calendar-event-editor .input-group-text {
     border-color: #2c3035;
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-event-editor .form-control::placeholder {
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-control::placeholder {
     color: #7b8188;
 }
 
-[data-bs-theme="dark"] .calendar-event-editor .form-control:focus,
-[data-bs-theme="dark"] .calendar-event-editor .form-select:focus {
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-control:focus,
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-select:focus {
     border-color: #6ea8fe;
     box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.25);
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch {
+:where([data-bs-theme="dark"]) .calendar-all-day-switch {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch .form-check-label {
+:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-label {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-duration-hint {
+:where([data-bs-theme="dark"]) .calendar-duration-hint {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-duration-hint:not(:empty)::before {
+:where([data-bs-theme="dark"]) .calendar-duration-hint:not(:empty)::before {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-field-error {
+:where([data-bs-theme="dark"]) .calendar-field-error {
     color: #f87171;
 }
 
-[data-bs-theme="dark"] .calendar-repeat-options {
+:where([data-bs-theme="dark"]) .calendar-repeat-options {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-field-caption {
+:where([data-bs-theme="dark"]) .calendar-field-caption {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-weekday-picker span {
+:where([data-bs-theme="dark"]) .calendar-weekday-picker span {
     border: 1px solid #2c3035;
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-weekday-picker input:checked + span {
+:where([data-bs-theme="dark"]) .calendar-weekday-picker input:checked + span {
     border-color: #6ea8fe;
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #6ea8fe;
     box-shadow: inset 0 0 0 1px rgba(110, 168, 254, 0.25);
 }
 
-[data-bs-theme="dark"] .calendar-weekday-picker input:focus-visible + span {
+:where([data-bs-theme="dark"]) .calendar-weekday-picker input:focus-visible + span {
     outline: 2px solid #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-repeat-end {
+:where([data-bs-theme="dark"]) .calendar-repeat-end {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-radio-option {
+:where([data-bs-theme="dark"]) .calendar-radio-option {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-radio-option .form-check-label {
+:where([data-bs-theme="dark"]) .calendar-radio-option .form-check-label {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .calendar-repeat-on-date .form-control:disabled {
+:where([data-bs-theme="dark"]) .calendar-repeat-on-date .form-control:disabled {
     color: #7b8188;
 }
 
-[data-bs-theme="dark"] .calendar-editor-footer {
+:where([data-bs-theme="dark"]) .calendar-editor-footer {
     border-top: 1px solid #2c3035;
     background: rgba(22, 24, 27, 0.98);
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.24);
 }
 
-[data-bs-theme="dark"] .calendar-editor-footer #btnSaveEvent {
+:where([data-bs-theme="dark"]) .calendar-editor-footer #btnSaveEvent {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.53);
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch .form-check-input:checked {
+:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-input:checked {
+    background-color: #315ee8;
     border-color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-inline-hint {
+:where([data-bs-theme="dark"]) .calendar-inline-hint {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-inline-hint i {
+:where([data-bs-theme="dark"]) .calendar-inline-hint i {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .calendar-date-time-row {
+:where([data-bs-theme="dark"]) .calendar-date-time-row {
     border: 1px solid #2c3035;
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .calendar-advanced-summary .bi {
+:where([data-bs-theme="dark"]) .calendar-advanced-summary .bi {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-advanced-title {
+:where([data-bs-theme="dark"]) .calendar-advanced-title {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-advanced-copy {
+:where([data-bs-theme="dark"]) .calendar-advanced-copy {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .calendar-advanced-body {
+:where([data-bs-theme="dark"]) .calendar-advanced-body {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-collapsible-section + .calendar-collapsible-section {
+:where([data-bs-theme="dark"]) .calendar-collapsible-section + .calendar-collapsible-section {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-event-editor .form-control.is-valid,
-[data-bs-theme="dark"] .calendar-event-editor .form-select.is-valid,
-[data-bs-theme="dark"] .calendar-event-editor .was-validated .form-control:valid,
-[data-bs-theme="dark"] .calendar-event-editor .was-validated .form-select:valid {
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-control.is-valid,
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-select.is-valid,
+:where([data-bs-theme="dark"]) .calendar-event-editor .was-validated .form-control:valid,
+:where([data-bs-theme="dark"]) .calendar-event-editor .was-validated .form-select:valid {
     border-color: #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-event-editor .form-control.is-valid:focus,
-[data-bs-theme="dark"] .calendar-event-editor .form-select.is-valid:focus,
-[data-bs-theme="dark"] .calendar-event-editor .was-validated .form-control:valid:focus,
-[data-bs-theme="dark"] .calendar-event-editor .was-validated .form-select:valid:focus {
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-control.is-valid:focus,
+:where([data-bs-theme="dark"]) .calendar-event-editor .form-select.is-valid:focus,
+:where([data-bs-theme="dark"]) .calendar-event-editor .was-validated .form-control:valid:focus,
+:where([data-bs-theme="dark"]) .calendar-event-editor .was-validated .form-select:valid:focus {
     border-color: #6ea8fe;
     box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.25);
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch,
-[data-bs-theme="dark"] .calendar-all-day-switch .form-check-label {
+:where([data-bs-theme="dark"]) .calendar-all-day-switch,
+:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-label {
     color: #b4b9bf !important;
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch .form-check-input {
-    border-color: #85ade0;
+:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-input {
+    border-color: #3a3f45;
     background-color: #25282d;
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch .form-check-input:checked {
+:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-input:checked {
     border-color: #6ea8fe !important;
+    background-color: #315ee8 !important;
 }
 
-[data-bs-theme="dark"] .calendar-date-time-grid {
+:where([data-bs-theme="dark"]) .calendar-date-time-grid {
     border: 1px solid #2c3035;
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .calendar-date-time-row + .calendar-date-time-row {
+:where([data-bs-theme="dark"]) .calendar-date-time-row + .calendar-date-time-row {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .calendar-date-time-heading .form-label {
+:where([data-bs-theme="dark"]) .calendar-date-time-heading .form-label {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .calendar-all-day-switch .form-check-input:checked + .form-check-label {
+:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-input:checked + .form-check-label {
     color: #6ea8fe !important;
 }

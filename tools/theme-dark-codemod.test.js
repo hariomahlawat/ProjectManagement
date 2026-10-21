@@ -13,13 +13,14 @@ test('swaps a literal for a token only when the light value is identical', () =>
 test('generates a dark rule with the same selector and leaves light rules alone', () => {
   const { output } = convert('.a, .b:hover { background: #f7f9fc; color: #10213b; }');
   assert.match(output, /^\.a, \.b:hover \{ background: #f7f9fc; color: #10213b; \}/);
-  assert.match(output, /\[data-bs-theme="dark"\] \.a,\n\[data-bs-theme="dark"\] \.b:hover \{/);
+  // :where() keeps the light rule's specificity.
+  assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.a,\n:where\(\[data-bs-theme="dark"\]\) \.b:hover \{/);
 });
 
 test('keeps media queries around generated rules and skips print', () => {
   const { output } = convert('@media (max-width: 600px) { .a { background: #f7f9fc; } } @media print { .p { color: #333; } }');
-  assert.match(output, /@media \(max-width: 600px\) \{\n {4}\[data-bs-theme="dark"\] \.a/);
-  assert.doesNotMatch(output, /\[data-bs-theme="dark"\] \.p/);
+  assert.match(output, /@media \(max-width: 600px\) \{\n {4}:where\(\[data-bs-theme="dark"\]\) \.a/);
+  assert.doesNotMatch(output, /\]\) \.p/);
 });
 
 test('does not repeat a rule that a dark rule already repaints', () => {
@@ -38,4 +39,19 @@ test('maps colours by role onto the graphite palette', () => {
   assert.equal(darkColour('#ffc107', 'background'), '#ffc107'); // solid status fill keeps its colour
   assert.equal(darkColour('rgba(23, 23, 23, .72)', 'background'), 'rgba(0, 0, 0, 0.72)'); // scrim stays dark
   assert.match(darkColour('rgba(49, 94, 232, .2)', 'shadow', '0 0 0 3px rgba(49, 94, 232, .2)'), /^rgba\(110, 168, 254, /); // focus ring
+});
+
+test('re-asserts state rules after a repainted base rule, in source order', () => {
+  const { output, reasserted } = convert('.tabs a { color: #40516d; } .tabs a.active { color: #fff; background: var(--navy); } .tabs a:hover { color: var(--navy); }');
+  assert.equal(reasserted, 2);
+  const base = output.indexOf(':where([data-bs-theme="dark"]) .tabs a {');
+  const active = output.indexOf(':where([data-bs-theme="dark"]) .tabs a.active {');
+  const hover = output.indexOf(':where([data-bs-theme="dark"]) .tabs a:hover {');
+  assert.ok(base > 0 && active > base && hover > active);
+  assert.match(output.slice(active), /color: #fff;/);
+});
+
+test('only the selector subject marks a page canvas', () => {
+  assert.equal(darkColour('#f2f6fc', 'background', '', { selector: '.ideas-page' }), '#0e0f11');
+  assert.notEqual(darkColour('#f2f6fc', 'background', '', { selector: '.ideas-page .tabs a:hover' }), '#0e0f11');
 });

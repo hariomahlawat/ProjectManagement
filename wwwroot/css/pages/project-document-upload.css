@@ -70,42 +70,42 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .project-document-upload-page {
+:where([data-bs-theme="dark"]) .project-document-upload-page {
     --pdu-border: #2c3035;
     --pdu-muted: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .project-document-upload-section {
+:where([data-bs-theme="dark"]) .project-document-upload-section {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
 }
 
-[data-bs-theme="dark"] .project-document-upload-step {
+:where([data-bs-theme="dark"]) .project-document-upload-step {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-document-dropzone {
+:where([data-bs-theme="dark"]) .project-document-dropzone {
     border: 1.5px dashed #3a3f45;
 }
 
-[data-bs-theme="dark"] .project-document-dropzone:hover,
-[data-bs-theme="dark"] .project-document-dropzone:focus-visible,
-[data-bs-theme="dark"] .project-document-dropzone.is-dragover {
+:where([data-bs-theme="dark"]) .project-document-dropzone:hover,
+:where([data-bs-theme="dark"]) .project-document-dropzone:focus-visible,
+:where([data-bs-theme="dark"]) .project-document-dropzone.is-dragover {
     border-color: #6ea8fe;
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .project-document-dropzone__icon {
+:where([data-bs-theme="dark"]) .project-document-dropzone__icon {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-document-file__icon {
+:where([data-bs-theme="dark"]) .project-document-file__icon {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-document-upload-actions {
+:where([data-bs-theme="dark"]) .project-document-upload-actions {
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(22, 24, 27, 0.95);
     box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);

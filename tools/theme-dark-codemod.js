@@ -44,10 +44,13 @@ const DARK = {
   secondary: '#b4b9bf', muted: '#9aa0a6', faint: '#7b8188',
 };
 
-const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\([^()]*\)/g;
+// Named white/black count too (color-mix(in srgb, x 10%, white) is common); other names are rare.
+const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\([^()]*\)|(?<![\w-])(?:white|black)(?![\w-])/g;
 
 // ---------- colour maths ----------
 function parseColour(text) {
+  if (/^white$/i.test(text)) return { r: 255, g: 255, b: 255, a: 1 };
+  if (/^black$/i.test(text)) return { r: 0, g: 0, b: 0, a: 1 };
   let m = text.match(/^#([0-9a-f]{3,8})$/i);
   if (m) {
     let hex = m[1];
@@ -134,7 +137,13 @@ function roleOf(property, colour) {
     if (/bg|background|surface|card|fill|panel|track|tint|soft|wash|base|canvas|row|stripe|hover/.test(p)) return 'background';
     if (/text|ink|fg|color|muted|label|title|heading/.test(p)) return 'text';
     if (/accent|primary|secondary|success|warning|danger|info|brand|tone|status|good|fair|poor|red|green|blue|amber|teal|indigo|purple|orange|violet|cyan/.test(p)) return 'accent';
-    return colour && toHsl(colour).l > 0.6 ? 'background' : 'text';
+    if (colour) {
+      const hsl = toHsl(colour);
+      // An unnamed saturated colour token (--pi-navy, --brand) is usually a fill and a text colour.
+      if (hsl.s >= 0.35 && hsl.chroma >= 0.2 && hsl.l < 0.6) return 'accent';
+      return hsl.l > 0.6 ? 'background' : 'text';
+    }
+    return 'text';
   }
   if (p.includes('shadow')) return 'shadow';
   if (p.startsWith('border') || p.startsWith('outline') || p === 'column-rule' || p === 'column-rule-color') return 'border';
@@ -196,7 +205,10 @@ function darkColour(text, role, context = '', hint = {}) {
   }
 
   if (role === 'background') {
-    const isPage = PAGE_TOKEN.test(hint.property || '') || (!String(hint.property || '').startsWith('--') && PAGE.test(hint.selector || ''));
+    // Only the selector's subject decides: '.x-page' is a canvas, '.x-page .tabs a' is not.
+    const subjects = String(hint.selector || '').split(',').map((part) => part.trim().split(/\s*[>+~]\s*|\s+/).filter(Boolean).pop() || '');
+    const isPage = PAGE_TOKEN.test(hint.property || '')
+      || (!String(hint.property || '').startsWith('--') && subjects.every((subject) => subject && PAGE.test(` ${subject}`)));
     if (isPage && hsl.l >= 0.9 && hsl.l < 0.985 && hsl.chroma < 0.12) return DARK.page;
     if (neutral) {
       if (hsl.l >= 0.97) return DARK.card;
@@ -249,7 +261,9 @@ function swapFor(property, literal) {
 function darkSelector(part) {
   if (/^:root\b/.test(part)) return part.replace(/^:root/, ':root[data-bs-theme="dark"]');
   if (/^html\b/.test(part)) return part.replace(/^html/, 'html[data-bs-theme="dark"]');
-  return `[data-bs-theme="dark"] ${part}`;
+  // :where() keeps the light rule's specificity, so the dark rules follow the same cascade
+  // (states and modifiers still win as they do in Light); being later in the file decides ties.
+  return `:where([data-bs-theme="dark"]) ${part}`;
 }
 
 function convert(source) {
@@ -266,51 +280,77 @@ function convert(source) {
   const blocks = new Map(); // at-rule chain -> [rule text]
   let swapped = 0;
   let generated = 0;
+  let reasserted = 0;
+  const hint = (rule, d) => ({ property: d.property, selector: rule.selector });
+  const mapValue = (rule, d, value) => value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(value, offset)
+    ? literal
+    : darkColour(literal, roleOf(d.property, parseColour(literal)), value, hint(rule, d))));
 
-  for (const rule of rules) {
-    if (isDarkSelector(rule.selector)) continue;
-    if (rule.atRules.some((at) => /^@(keyframes|font-face|-webkit-keyframes|page)/.test(at) || /^@media[^{]*\b(print|prefers-color-scheme)\b/.test(at))) continue;
-    const parts = splitSelector(rule.selector);
-    const darkDeclarations = [];
-    for (const d of rule.declarations) {
-      const literals = [...d.value.matchAll(LITERAL)];
-      if (!literals.length || /\bvar\(/.test(d.value) && /^(?:rgba?|hsla?)\(\s*var/.test(d.value)) continue;
+  // Pass 1 finds the selectors that get a dark rule. Pass 2 emits them in source order, and
+  // also re-asserts later state or modifier rules of those selectors (.x.active, .x:hover,
+  // .x[aria-current]), which would otherwise lose to the dark base rule at equal specificity.
+  const planned = new Set();
+  const plannedFor = (family) => [...planned].filter((key) => key.endsWith(`|${family}`)).map((key) => key.slice(0, key.length - family.length - 1));
+  for (const pass of [1, 2]) {
+    for (const rule of rules) {
+      if (isDarkSelector(rule.selector)) continue;
+      if (rule.atRules.some((at) => /^@(keyframes|font-face|-webkit-keyframes|page)/.test(at) || /^@media[^{]*\b(print|prefers-color-scheme)\b/.test(at))) continue;
+      const parts = splitSelector(rule.selector);
       const atKey = rule.atRules.join('|');
-      const alreadyCovered = parts.every((part) => covered.has(`${part}|${propertyFamily(d.property)}|${atKey}`));
+      const darkDeclarations = [];
+      for (const d of rule.declarations) {
+        const family = propertyFamily(d.property);
+        const alreadyCovered = parts.every((part) => covered.has(`${part}|${family}|${atKey}`));
+        const literals = [...d.value.matchAll(LITERAL)];
 
-      // 1. Exact token swaps, in place.
-      let value = d.value;
-      let remaining = 0;
-      value = value.replace(LITERAL, (literal, offset) => {
-        if (isInsideVarFallback(d.value, offset)) return literal;
-        const swap = swapFor(d.property, literal);
-        if (swap) {
-          swapped += 1;
-          return swap;
+        if (pass === 2 && !alreadyCovered && COLOUR_FAMILIES.has(family)
+          && !parts.some((part) => planned.has(`${part}|${family}`))
+          && parts.some((part) => plannedFor(family).some((base) => compoundExtends(base, part)))) {
+          // A state of a repainted selector: repeat it (mapped) after the base dark rule.
+          const swappedValue = d.value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(d.value, offset) ? literal : swapFor(d.property, literal) || literal));
+          darkDeclarations.push(`    ${d.property}: ${mapValue(rule, d, swappedValue)}${d.important ? ' !important' : ''};`);
+          reasserted += 1;
         }
-        remaining += 1;
-        return literal;
-      });
-      if (value !== d.value) edits.push({ start: d.valueStart, end: d.valueEnd, text: rawWithValue(source, d, value) });
-      if (!remaining || alreadyCovered) continue;
+        if (!literals.length) continue;
 
-      // 2. A dark counterpart for what is left.
-      let changed = false;
-      const darkValue = value.replace(LITERAL, (literal, offset) => {
-        if (isInsideVarFallback(value, offset)) return literal;
-        const mapped = darkColour(literal, roleOf(d.property, parseColour(literal)), value, { property: d.property, selector: rule.selector });
-        if (mapped !== literal) changed = true;
-        return mapped;
-      });
-      if (changed) {
-        darkDeclarations.push(`    ${d.property}: ${darkValue}${d.important ? ' !important' : ''};`);
-        generated += 1;
+        // 1. Exact token swaps, in place.
+        let remaining = 0;
+        const value = d.value.replace(LITERAL, (literal, offset) => {
+          if (isInsideVarFallback(d.value, offset)) return literal;
+          const swap = swapFor(d.property, literal);
+          if (swap) {
+            if (pass === 2) swapped += 1;
+            return swap;
+          }
+          remaining += 1;
+          return literal;
+        });
+        if (pass === 2 && value !== d.value) edits.push({ start: d.valueStart, end: d.valueEnd, text: rawWithValue(source, d, value) });
+        if (!remaining || alreadyCovered) continue;
+
+        // 2. A dark counterpart for what is left.
+        const darkValue = mapValue(rule, d, value);
+        if (darkValue === value) {
+          // A colour kept on purpose (white text on a solid fill) is stated again in Dark, so a
+          // repainted rule for another class on the same element cannot override it.
+          if (pass === 2 && COLOUR_FAMILIES.has(family) && !darkDeclarations.some((line) => line.startsWith(`    ${d.property}:`))) {
+            darkDeclarations.push(`    ${d.property}: ${value}${d.important ? ' !important' : ''};`);
+            reasserted += 1;
+          }
+          continue;
+        }
+        if (pass === 1) {
+          for (const part of parts) planned.add(`${part}|${family}`);
+        } else if (!darkDeclarations.some((line) => line.startsWith(`    ${d.property}:`))) {
+          darkDeclarations.push(`    ${d.property}: ${darkValue}${d.important ? ' !important' : ''};`);
+          generated += 1;
+        }
       }
-    }
-    if (darkDeclarations.length) {
-      const key = rule.atRules.join('\n');
-      if (!blocks.has(key)) blocks.set(key, []);
-      blocks.get(key).push(`${parts.map(darkSelector).join(',\n')} {\n${darkDeclarations.join('\n')}\n}`);
+      if (pass === 2 && darkDeclarations.length) {
+        const key = rule.atRules.join('\n');
+        if (!blocks.has(key)) blocks.set(key, []);
+        blocks.get(key).push(`${parts.map(darkSelector).join(',\n')} {\n${darkDeclarations.join('\n')}\n}`);
+      }
     }
   }
 
@@ -330,7 +370,19 @@ function convert(source) {
     const header = `/* ============================================================\n   ${MARKER}.\n   Light is unchanged; these rules only apply under data-bs-theme="dark".\n   Palette: docs/ux/dark-theme-palette.md\n   ============================================================ */`;
     output = `${output.replace(/\s*$/, '')}\n\n${header}\n${sections.join('\n\n')}\n`.replace(/\r?\n/g, eol);
   }
-  return { output, swapped, generated };
+  return { output, swapped, generated, reasserted };
+}
+
+const COLOUR_FAMILIES = new Set(['color', 'background', 'border', 'outline', 'box-shadow', 'fill', 'stroke', 'text-decoration-color', 'caret-color']);
+
+// True when a selector part is another with extra classes, pseudo-classes or attributes on
+// some of its compounds, e.g. '.tabs a.active' extends '.tabs a'.
+function compoundExtends(base, part) {
+  const tokens = (text) => text.replace(/\s*([>+~])\s*/g, ' $1 ').trim().split(/\s+/);
+  const a = tokens(base);
+  const b = tokens(part);
+  if (a.length !== b.length || base === part) return false;
+  return a.every((t, i) => b[i] === t || (b[i].startsWith(t) && /^[:.[]/.test(b[i].slice(t.length))));
 }
 
 function isInsideVarFallback(value, offset) {
@@ -357,15 +409,72 @@ function indent(text) {
   return text.split('\n').map((line) => (line ? `    ${line}` : line)).join('\n');
 }
 
-module.exports = { convert, darkColour, roleOf, swapFor };
+// ---------- regraphite: older hand-written dark rules used a navy palette ----------
+const GRAPHITE_SURFACES = [DARK.page, DARK.card, DARK.tile, DARK.raised, DARK.hairline, DARK.strong];
+const GRAPHITE_TEXT = [DARK.strongText, DARK.text, '#c4c8cd', DARK.secondary, DARK.muted, '#8a9097', DARK.faint];
+
+function luminanceOf(c) {
+  const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+
+function nearestByLuminance(c, palette) {
+  const target = Math.log(luminanceOf(c) + 0.05);
+  return palette.reduce((best, hex) => {
+    const d = Math.abs(Math.log(luminanceOf(parseColour(hex)) + 0.05) - target);
+    return d < best.d ? { hex, d } : best;
+  }, { hex: palette[0], d: Infinity }).hex;
+}
+
+// Snaps navy and slate greys to the nearest graphite step; accents and palette values stay.
+function regraphiteColour(text) {
+  const c = parseColour(text);
+  if (!c) return text;
+  if (c.r === 255 && c.g === 255 && c.b === 255) return text; // white text on a fill is deliberate
+  const hsl = toHsl(c);
+  // Accents, status colours and saturated pastels (status text like #bbf7d0) keep their hue.
+  if ((hsl.chroma >= 0.25 && hsl.s >= 0.35) || (hsl.s >= 0.5 && hsl.chroma >= 0.1)) return text;
+  const hex = hsl.l < 0.45 ? nearestByLuminance(c, GRAPHITE_SURFACES) : hsl.l > 0.55 ? nearestByLuminance(c, GRAPHITE_TEXT) : null;
+  if (!hex) return text;
+  if (c.a >= 1) return hex;
+  const g = parseColour(hex);
+  return `rgba(${g.r}, ${g.g}, ${g.b}, ${round(c.a)})`;
+}
+
+function regraphite(source) {
+  const marker = source.search(/\/\* =+\r?\n   Dark theme \(generated by tools\/theme-dark-codemod\.js/);
+  const limit = marker < 0 ? source.length : marker;
+  const edits = [];
+  for (const rule of readRules(source)) {
+    if (!isDarkSelector(rule.selector) || /^:root\[data-bs-theme/.test(rule.selector.trim())) continue;
+    // A light island (print proofs) keeps Light's values on purpose.
+    if (rule.declarations.some((d) => d.property === 'color-scheme' && /light/.test(d.value))) continue;
+    for (const d of rule.declarations) {
+      if (d.valueStart >= limit) continue;
+      const value = d.value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(d.value, offset) ? literal : regraphiteColour(literal)));
+      if (value !== d.value) edits.push({ start: d.valueStart, end: d.valueEnd, text: rawWithValue(source, d, value) });
+    }
+  }
+  let output = source;
+  for (const edit of edits.sort((a, b) => b.start - a.start)) output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);
+  return { output, changed: edits.length };
+}
+
+module.exports = { convert, darkColour, roleOf, swapFor, regraphite, regraphiteColour };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   for (const file of args.filter((a) => !a.startsWith('--'))) {
     const source = fs.readFileSync(file, 'utf8');
-    const { output, swapped, generated } = convert(source);
+    if (args.includes('--regraphite')) {
+      const { output, changed } = regraphite(source);
+      if (!dryRun) fs.writeFileSync(file, output);
+      console.log(`${path.basename(file)}: ${changed} hand-written dark declarations moved to graphite${dryRun ? ' (dry run)' : ''}`);
+      continue;
+    }
+    const { output, swapped, generated, reasserted } = convert(source);
     if (!dryRun) fs.writeFileSync(file, output);
-    console.log(`${path.basename(file)}: ${swapped} token swaps, ${generated} dark declarations${dryRun ? ' (dry run)' : ''}`);
+    console.log(`${path.basename(file)}: ${swapped} token swaps, ${generated} dark declarations, ${reasserted} state re-assertions${dryRun ? ' (dry run)' : ''}`);
   }
 }

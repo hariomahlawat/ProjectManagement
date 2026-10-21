@@ -163,9 +163,9 @@
     background: #f7f9fc;
 }
 [data-bs-theme="dark"] .person-account-link__current .person-account-link__profile-state {
-    background: rgba(148, 163, 184, .08);
-    border-color: rgba(148, 163, 184, .25);
-    color: #cbd5e1;
+    background: rgba(154, 160, 166, 0.08);
+    border-color: rgba(154, 160, 166, 0.25);
+    color: #c4c8cd;
 }
 [data-bs-theme="dark"] .person-account-link__current .person-account-link__profile-state.is-photo {
     background: rgba(52, 211, 153, .08);
@@ -261,159 +261,163 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .reference-readiness {
+:where([data-bs-theme="dark"]) .reference-readiness {
     background: rgba(255, 255, 255, 0.05);
 }
 
-[data-bs-theme="dark"] .reference-readiness__row > span {
+:where([data-bs-theme="dark"]) .reference-readiness__row > span {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .reference-readiness__row > strong {
+:where([data-bs-theme="dark"]) .reference-readiness__row > strong {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .reference-readiness p {
+:where([data-bs-theme="dark"]) .reference-readiness p {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .reference-readiness small {
+:where([data-bs-theme="dark"]) .reference-readiness small {
     color: #f87171;
 }
 
-[data-bs-theme="dark"] .reference-readiness.is-ready {
+:where([data-bs-theme="dark"]) .reference-readiness.is-ready {
     border-color: rgba(74, 222, 128, 0.34);
     background: rgba(74, 222, 128, 0.06);
 }
 
-[data-bs-theme="dark"] .reference-readiness.is-pending {
+:where([data-bs-theme="dark"]) .reference-readiness.is-pending {
     border-color: rgba(110, 168, 254, 0.31);
     background: rgba(110, 168, 254, 0.06);
 }
 
-[data-bs-theme="dark"] .reference-readiness.is-repairable {
+:where([data-bs-theme="dark"]) .reference-readiness.is-repairable {
     border-color: rgba(251, 191, 36, 0.45);
     background: rgba(251, 191, 36, 0.08);
 }
 
-[data-bs-theme="dark"] .reference-readiness.is-blocked {
+:where([data-bs-theme="dark"]) .reference-readiness.is-blocked {
     border-color: rgba(255, 255, 255, 0.16);
 }
 
-[data-bs-theme="dark"] .reference-readiness.is-caution {
+:where([data-bs-theme="dark"]) .reference-readiness.is-caution {
     border-color: rgba(251, 191, 36, 0.45);
     background: rgba(251, 191, 36, 0.11);
 }
 
-[data-bs-theme="dark"] .reference-readiness.is-caution .reference-readiness__row > strong {
+:where([data-bs-theme="dark"]) .reference-readiness.is-caution .reference-readiness__row > strong {
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .person-account-link {
+:where([data-bs-theme="dark"]) .person-account-link {
     background: rgba(22, 24, 27, 0.82);
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .person-account-link__intro p {
+:where([data-bs-theme="dark"]) .person-account-link__intro p {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .person-account-link__avatar {
+:where([data-bs-theme="dark"]) .person-account-link__avatar {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
 }
 
-[data-bs-theme="dark"] .person-account-link__current strong,
-[data-bs-theme="dark"] .person-account-user strong {
+:where([data-bs-theme="dark"]) .person-account-link__current strong,
+:where([data-bs-theme="dark"]) .person-account-user strong {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .person-account-link__current span,
-[data-bs-theme="dark"] .person-account-user span {
+:where([data-bs-theme="dark"]) .person-account-link__current span,
+:where([data-bs-theme="dark"]) .person-account-user span {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .person-account-link__current small,
-[data-bs-theme="dark"] .person-account-user small {
+:where([data-bs-theme="dark"]) .person-account-link__current small,
+:where([data-bs-theme="dark"]) .person-account-user small {
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .person-account-link__search label {
+:where([data-bs-theme="dark"]) .person-account-link__search label {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .person-account-link__results {
+:where([data-bs-theme="dark"]) .person-account-link__results {
     border-top: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .person-account-user {
+:where([data-bs-theme="dark"]) .person-account-user {
     border-bottom: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .person-account-link__setup-panel {
+:where([data-bs-theme="dark"]) .person-account-user:last-child {
+    border-bottom: 0;
+}
+
+:where([data-bs-theme="dark"]) .person-account-link__setup-panel {
     border: 1px solid #2c3035;
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
 }
 
-[data-bs-theme="dark"] .person-account-link__setup-panel > p {
+:where([data-bs-theme="dark"]) .person-account-link__setup-panel > p {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .person-account-user__avatar {
+:where([data-bs-theme="dark"]) .person-account-user__avatar {
     background: color-mix(in srgb, #6ea8fe 9%, #16181b);
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .person-account-link--linked.has-concern {
+:where([data-bs-theme="dark"]) .person-account-link--linked.has-concern {
     border-color: rgba(248, 113, 113, 0.42);
 }
 
-[data-bs-theme="dark"] .person-account-link__current .person-account-link__profile-state.is-initials {
+:where([data-bs-theme="dark"]) .person-account-link__current .person-account-link__profile-state.is-initials {
     background: #16181b;
 }
 
-[data-bs-theme="dark"] .person-account-link__concern {
+:where([data-bs-theme="dark"]) .person-account-link__concern {
     background: color-mix(in srgb, #fbbf24 11%, #16181b);
     border: 1px solid #fbbf24;
 }
 
-[data-bs-theme="dark"] .person-account-link__concern strong {
+:where([data-bs-theme="dark"]) .person-account-link__concern strong {
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .person-account-link__concern p {
+:where([data-bs-theme="dark"]) .person-account-link__concern p {
     color: #b4b9bf;
 }
 
-[data-bs-theme="dark"] .person-account-link__concern small {
+:where([data-bs-theme="dark"]) .person-account-link__concern small {
     color: #fbbf24;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__comparison > section {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__comparison > section {
     border: 1px solid #2c3035;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__label {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__label {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__portrait,
-[data-bs-theme="dark"] .prism-user-link-confirm__account-avatar {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__portrait,
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__account-avatar {
     background: #1e2125;
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__comparison strong {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__comparison strong {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__comparison small {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__comparison small {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__bridge {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__bridge {
     color: #9aa0a6;
 }
 
-[data-bs-theme="dark"] .prism-user-link-confirm__check {
+:where([data-bs-theme="dark"]) .prism-user-link-confirm__check {
     border: 1px solid #2c3035;
 }

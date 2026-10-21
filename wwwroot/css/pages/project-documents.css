@@ -28,16 +28,16 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .project-document-library__list {
+:where([data-bs-theme="dark"]) .project-document-library__list {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.23);
 }
 
-[data-bs-theme="dark"] .project-document-library__icon {
+:where([data-bs-theme="dark"]) .project-document-library__icon {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-document-library__empty .card-body > span {
+:where([data-bs-theme="dark"]) .project-document-library__empty .card-body > span {
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
     color: #6ea8fe;
 }

@@ -240,36 +240,37 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-[data-bs-theme="dark"] .project-video-library__count {
+:where([data-bs-theme="dark"]) .project-video-library__count {
     color: #e6e8eb;
 }
 
-[data-bs-theme="dark"] .project-video-card {
+:where([data-bs-theme="dark"]) .project-video-card {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.21);
 }
 
-[data-bs-theme="dark"] .project-video-card__media {
+:where([data-bs-theme="dark"]) .project-video-card__media {
     background: #25282d;
 }
 
-[data-bs-theme="dark"] .project-video-card__featured {
+:where([data-bs-theme="dark"]) .project-video-card__featured {
     background: rgba(0, 0, 0, 0.82);
+    color: #fff;
 }
 
-[data-bs-theme="dark"] .project-video-library__empty .card-body > span {
+:where([data-bs-theme="dark"]) .project-video-library__empty .card-body > span {
     background: rgba(110, 168, 254, 0.14);
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .project-video-dialog {
+:where([data-bs-theme="dark"]) .project-video-dialog {
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
 }
 
-[data-bs-theme="dark"] .project-video-dialog::backdrop {
+:where([data-bs-theme="dark"]) .project-video-dialog::backdrop {
     background: rgba(255, 255, 255, 0.12);
 }
 
-[data-bs-theme="dark"] .project-video-dialog__icon {
+:where([data-bs-theme="dark"]) .project-video-dialog__icon {
     background: color-mix(in srgb, #f87171 11%, #16181b);
     color: #f87171;
 }
