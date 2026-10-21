@@ -4677,13 +4677,13 @@ body.notebook-confirm-open { overflow: hidden; }
     column-width: auto !important;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-board > .notebook-card {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] {
     display: flex;
     align-items: center;
     min-height: 48px;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-body {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] > .notebook-card-body {
     display: flex;
     flex: 1 1 auto;
     align-items: center;
@@ -4692,24 +4692,25 @@ body.notebook-confirm-open { overflow: hidden; }
     padding: 8px 14px;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-link {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-link {
     display: flex;
-    flex: 1 1 auto;
+    /* Basis 0: title and preview absorb any squeeze, so labels keep their size. */
+    flex: 1 1 0;
     align-items: baseline;
     gap: .75rem;
     min-width: 0;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-topline {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-topline {
     order: -1;
     flex: 0 0 auto;
     margin: 0;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-title {
-    /* The title keeps its width (up to half the row); the preview takes what is left. */
-    flex: 0 0 auto;
-    max-width: 50%;
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-title {
+    /* The title takes the width it needs (up to 70%); the preview gets what is left. */
+    flex: 0 1 auto;
+    max-width: 70%;
     margin: 0;
     overflow: hidden;
     font-size: .92rem;
@@ -4717,7 +4718,7 @@ body.notebook-confirm-open { overflow: hidden; }
     white-space: nowrap;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-preview {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-preview {
     display: block;
     flex: 1 1 0;
     min-width: 0;
@@ -4730,72 +4731,92 @@ body.notebook-confirm-open { overflow: hidden; }
     -webkit-line-clamp: unset;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-checklist-preview {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-checklist-preview {
     flex: 0 0 auto;
     margin: 0;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-checklist-preview > :not(strong) {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-checklist-preview > :not(strong) {
     display: none;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-checklist-preview > strong {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-checklist-preview > strong {
     color: var(--pm-text-muted, #6b7280);
     font-size: .75rem;
     font-weight: 650;
     white-space: nowrap;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-meta,
-.notebook-shell[data-board-view="list"] .notebook-card-tags {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-meta {
     flex: 0 0 auto;
     flex-wrap: nowrap;
     margin: 0;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-meta:empty {
+/* Labels give way before the title does: the group shrinks and long chips truncate. */
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-tags {
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    max-width: 40%;
+    margin: 0;
+    overflow: hidden;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-tags > .notebook-tag-chip {
+    flex: 0 1 auto;
+    min-width: 2.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-meta:empty {
     display: none;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-sharing-summary {
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] > .notebook-sharing-summary {
     flex: 0 0 auto;
     max-width: 14rem;
     margin: 0 14px 0 0;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-actions {
-    top: 50%;
-    bottom: auto;
-    transform: translateY(-50%);
+/* Actions sit in the row flow (hidden until hover) so they reserve their width and never
+   cover labels or sharing text when they appear. */
+.notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] > .notebook-card-actions {
+    position: static;
+    flex: 0 0 auto;
+    align-self: center;
+    margin-right: 8px;
 }
 
 @media (max-width: 700px) {
     /* Narrow screens: title and preview on the first line, status below. */
-    .notebook-shell[data-board-view="list"] .notebook-card-body {
+    .notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] > .notebook-card-body {
         flex-wrap: wrap;
         row-gap: 4px;
     }
 
-    .notebook-shell[data-board-view="list"] .notebook-card-link {
+    .notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-link {
         flex-basis: 100%;
     }
 
-    .notebook-shell[data-board-view="list"] .notebook-card-title {
+    .notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] .notebook-card-title {
         max-width: 75%;
     }
 
-    .notebook-shell[data-board-view="list"] .notebook-sharing-summary {
+    .notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] > .notebook-sharing-summary {
         display: none;
     }
 }
 
 @media (hover: none) {
     /* Touch screens always show card actions, so in a row they get their own line. */
-    .notebook-shell[data-board-view="list"] .notebook-board > .notebook-card {
+    .notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] {
         flex-wrap: wrap;
     }
 
-    .notebook-shell[data-board-view="list"] .notebook-card-actions {
+    .notebook-shell[data-board-view="list"] .notebook-board > [data-note-id] > .notebook-card-actions {
         display: flex;
         flex: 1 0 100%;
         justify-content: flex-end;

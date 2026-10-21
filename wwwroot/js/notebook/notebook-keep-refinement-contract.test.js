@@ -38,7 +38,12 @@ test('existing note editor has a unified bottom action bar', () => {
 
 test('list view renders compact rows and touch screens keep reminder actions visible', () => {
   assert.match(css, /SECTION: List view — compact rows/);
-  assert.match(css, /\.notebook-shell\[data-board-view="list"\] \.notebook-checklist-preview > :not\(strong\) \{\s*display: none;/);
+  // Row layout targets note cards only, so the PRISM digest card keeps its own layout.
+  assert.match(css, /\.notebook-shell\[data-board-view="list"\] \.notebook-board > \[data-note-id\] \.notebook-checklist-preview > :not\(strong\) \{\s*display: none;/);
+  assert.doesNotMatch(css, /\.notebook-shell\[data-board-view="list"\] \.notebook-card-body \{/);
+  // Long labels shrink instead of overflowing; actions reserve their width in the row.
+  assert.match(css, /\[data-note-id\] \.notebook-card-tags \{\s*flex: 0 1 auto;[\s\S]*?min-width: 0;/);
+  assert.match(css, /\[data-note-id\] > \.notebook-card-actions \{\s*position: static;\s*flex: 0 0 auto;/);
   assert.doesNotMatch(css, /grid-template-columns: minmax\(0, 720px\)/, 'list view is no longer a single 720px column of cards');
   // Without this, cards with a reminder had no actions (including Done) on touch screens.
   assert.match(css, /@media \(hover: none\) \{[\s\S]*?\.notebook-card\.has-due-action:not\(:hover\):not\(:focus-within\) \.notebook-card-actions \{[\s\S]*?visibility: visible;/);
