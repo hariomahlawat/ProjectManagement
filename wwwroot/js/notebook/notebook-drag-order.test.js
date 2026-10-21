@@ -323,3 +323,55 @@ test('checklist text remains a passive card surface while the checkbox stays pro
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#toggle')), true);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#rowtext')), false);
 });
+
+function loadEngine(dom) {
+  let source = fs.readFileSync('wwwroot/js/notebook/notebook-drag-order.js', 'utf8');
+  source = source.replace(/export function initNotebookDragOrder/, 'function initNotebookDragOrder')
+    .replace(/export const notebookDragOrderTestHelpers =/, 'const notebookDragOrderTestHelpers =');
+  source += '\nmodule.exports = initNotebookDragOrder;';
+  const win = dom.window;
+  const context = {
+    module: { exports: {} }, exports: {}, document: win.document, window: win, Element: win.Element,
+    MutationObserver: win.MutationObserver, CustomEvent: win.CustomEvent, performance: win.performance,
+    requestAnimationFrame: (callback) => callback(), console
+  };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  return context.module.exports;
+}
+
+function pointer(win, target, type, x, y) {
+  const event = new win.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+  Object.defineProperty(event, 'pointerId', { value: 1 });
+  Object.defineProperty(event, 'pointerType', { value: 'mouse' });
+  target.dispatchEvent(event);
+}
+
+test('a press that drifts past the drag threshold but ends in place opens the note instead of saving', () => {
+  const dom = new JSDOM(`<div class="notebook-shell" data-view="home" data-board-view="grid">
+    <div data-notebook-board="pinned">
+      <article data-note-id="a" data-version="v1" data-reorderable="true"><a data-action="open-note" href="#">A</a><h3 class="notebook-card-title">A</h3></article>
+      <article data-note-id="b" data-version="v2" data-reorderable="true"><a data-action="open-note" href="#">B</a></article>
+    </div></div>`);
+  const win = dom.window;
+  const initNotebookDragOrder = loadEngine(dom);
+  const saves = [];
+  const shell = win.document.querySelector('.notebook-shell');
+  initNotebookDragOrder(shell, { refreshSectionVisibility() {} }, {
+    api: { reorderItems: async (...args) => { saves.push(args); }, setSystemItemPlacement: async () => ({}) }
+  });
+  let opened = 0;
+  win.document.querySelector('[data-note-id="a"] [data-action="open-note"]').addEventListener('click', () => { opened += 1; });
+
+  const title = win.document.querySelector('[data-note-id="a"] .notebook-card-title');
+  pointer(win, title, 'pointerdown', 100, 100);
+  pointer(win, title, 'pointermove', 104, 102); // under the 6px threshold: still a click
+  pointer(win, title, 'pointermove', 108, 103); // 8px: the drag engine picks the card up
+  assert.equal(shell.classList.contains('is-pointer-dragging'), true);
+  pointer(win, shell, 'pointerup', 108, 103);
+
+  assert.equal(shell.classList.contains('is-pointer-dragging'), false);
+  assert.equal(opened, 1, 'the note opens');
+  assert.equal(saves.length, 0, 'an unchanged order is not saved');
+  assert.deepEqual([...win.document.querySelectorAll('[data-notebook-board] > article')].map((c) => c.dataset.noteId), ['a', 'b']);
+});

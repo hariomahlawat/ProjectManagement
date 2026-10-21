@@ -4402,6 +4402,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       preview,
       pointerId,
       pointer: { x: clientX, y: clientY },
+      start: { x: state3.startX, y: state3.startY },
       offsetX: clientX - rect.left,
       offsetY: clientY - rect.top,
       originalKeys: state3.originalKeys,
@@ -4420,7 +4421,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       cancelPointerArm();
       return;
     }
-    const { card, board, placeholder, preview, originalKeys, pointerId } = dragState;
+    const { card, board, placeholder, preview, originalKeys, pointerId, pointer, start } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
     board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
@@ -4428,6 +4429,16 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     shell.classList.remove("is-pointer-dragging");
     document.body.classList.remove("notebook-is-dragging");
     shell.releasePointerCapture?.(pointerId);
+    const orderChanged = allCards(board).map(cardKey).join("|") !== originalKeys.join("|");
+    const wasClick = save && !orderChanged && Math.hypot(pointer.x - start.x, pointer.y - start.y) <= CLICK_SLOP_PX;
+    if (save && !orderChanged) {
+      dragState = null;
+      pointerState = null;
+      shell.dispatchEvent(new CustomEvent("notebook:drag-end", { bubbles: true, detail: { saved: false } }));
+      boardController.refreshSectionVisibility();
+      if (wasClick) card.querySelector('[data-action="open-note"], [data-card-passive-open]')?.click();
+      return;
+    }
     if (save) {
       persist(board, originalKeys);
       suppressClickUntil = performance.now() + 300;
@@ -4579,7 +4590,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     }
   };
 }
-var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, VISUAL_ROW_SORT_TOLERANCE_PX, VISUAL_ROW_MATCH_TOLERANCE_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
+var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, CLICK_SLOP_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, VISUAL_ROW_SORT_TOLERANCE_PX, VISUAL_ROW_MATCH_TOLERANCE_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
 var init_notebook_drag_order = __esm({
   "wwwroot/js/notebook/notebook-drag-order.js"() {
     BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
@@ -4588,6 +4599,7 @@ var init_notebook_drag_order = __esm({
     CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
     ALL_CARD_SELECTOR = "[data-note-id], [data-notebook-system-home-card]";
     DRAG_THRESHOLD_PX = 6;
+    CLICK_SLOP_PX = 16;
     TOUCH_LONG_PRESS_MS = 300;
     TOUCH_CANCEL_DISTANCE_PX = 8;
     INSERTION_HYSTERESIS_PX = 10;
