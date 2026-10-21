@@ -22,6 +22,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'components', 'prism-confirm-dialog.test.js'),
   path.join('wwwroot', 'js', 'core', 'declarative-actions.test.js'),
   path.join('wwwroot', 'js', 'core', 'page-handled-contract.test.js'),
+  path.join('wwwroot', 'js', 'core', 'theme-preference.test.js'),
   path.join('tools', 'check-views.test.js'),
 ];
 

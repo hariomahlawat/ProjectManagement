@@ -32,6 +32,9 @@
     {
         <meta name="csrf-token" content="@antiforgeryRequestToken" />
     }
+    @* Before the stylesheets, without defer: it sets data-bs-theme on <html> before first
+       paint so a dark-theme user never sees a light flash. Light leaves <html> untouched. *@
+    <script src="~/js/core/theme-preference.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />

@@ -41,6 +41,7 @@
     --pm-text-muted: #6b7280;
     --pm-muted: var(--pm-text-muted);
     --pm-text-contrast: #0f172a;
+    --pm-text-strong: #0f172a; /* headings and key values; matches every existing fallback */
     --pm-text-inverted: #ffffff;
     --pm-text-tertiary: #6c757d;
     --pm-text-muted-strong: #5c7080;
@@ -208,6 +209,243 @@
     --bs-body-color: var(--pm-text);
     --bs-border-color: var(--pm-border);
     --bs-card-bg: var(--pm-card);
+}
+
+/* -- SECTION: Dark theme tokens (neutral graphite) --
+   Opt-in: wwwroot/js/core/theme-preference.js sets data-bs-theme="dark" on <html> only when
+   the user picks Dark (or System on a dark OS). Light is the default and has no attribute,
+   so nothing here applies to it. Palette and rationale: docs/ux/dark-theme-palette.md.
+   Scoped to :root so it outranks the light :root block above (Bootstrap's own dark block
+   loses to it), which used to pin --bs-body-bg light under data-bs-theme="dark". */
+:root[data-bs-theme="dark"] {
+    --pm-theme-name: dark;
+    color-scheme: dark;
+    /* Graphite scale: page -> card -> tile, each a step lighter */
+    --pm-dark-page: #0e0f11;
+    --pm-dark-card: #16181b;
+    --pm-dark-tile: #1e2125;
+    --pm-dark-raised: #25282d;
+    --pm-dark-hairline: #2c3035;
+    --pm-dark-strong-border: #3a3f45;
+    --pm-dark-text: #e6e8eb;
+    --pm-dark-text-muted: #9aa0a6;
+    --pm-dark-accent: #6ea8fe;
+    /* Brand & core palette: blue is the accent, lifted for dark */
+    --pm-primary: #6ea8fe;
+    --pm-primary-hover: #8bb9fe;
+    --pm-primary-soft: color-mix(in srgb, #6ea8fe 16%, #16181b);
+    --pm-primary-strong: #9ec5fe;
+    /* Neutrals & surfaces */
+    --pm-main-bg: var(--pm-dark-page);
+    --pm-page-bg: var(--pm-dark-page);
+    --pm-surface-soft: var(--pm-dark-card);
+    --pm-surface-bg: var(--pm-dark-card);
+    --pm-surface-steel: var(--pm-dark-card);
+    --pm-surface-subtle: var(--pm-dark-tile);
+    --pm-surface: var(--pm-dark-tile);
+    --pm-surface-muted: var(--pm-dark-hairline);
+    --pm-surface-veil: var(--pm-dark-tile);
+    --pm-surface-plain: var(--pm-dark-tile);
+    --pm-surface-mist: var(--pm-dark-tile);
+    --pm-surface-ghost: var(--pm-dark-tile);
+    --pm-surface-porcelain: var(--pm-dark-tile);
+    --pm-surface-silver: var(--pm-dark-raised);
+    --pm-surface-haze: var(--pm-dark-raised);
+    --pm-surface-ice: var(--pm-dark-raised);
+    --pm-surface-foam: color-mix(in srgb, #6ea8fe 10%, #16181b);
+    --pm-surface-lilac: color-mix(in srgb, #a78bfa 14%, #16181b);
+    --pm-surface-violet: color-mix(in srgb, #a78bfa 10%, #16181b);
+    --pm-surface-mint: color-mix(in srgb, #4ade80 10%, #16181b);
+    --pm-skeleton: var(--pm-dark-hairline);
+    /* Text: soft off-white, never pure white */
+    --pm-text: var(--pm-dark-text);
+    --pm-text-strong: #f0f2f4;
+    --pm-text-contrast: #f0f2f4;
+    --pm-text-secondary: #b4b9bf;
+    --pm-text-muted: var(--pm-dark-text-muted);
+    --pm-text-tertiary: var(--pm-dark-text-muted);
+    --pm-text-muted-strong: #a8aeb4;
+    --pm-text-dim: var(--pm-dark-text-muted);
+    --pm-text-true: var(--pm-dark-text);
+    --pm-text-gray-soft: #8a9097;
+    --pm-text-slate: #c4c8cd;
+    --pm-text-project: var(--pm-dark-text);
+    --pm-text-project-muted: var(--pm-dark-text-muted);
+    /* Borders: low-contrast hairlines */
+    --pm-border: var(--pm-dark-hairline);
+    --pm-border-subtle: #24272b;
+    --pm-border-faint: #24272b;
+    --pm-border-muted: var(--pm-dark-hairline);
+    --pm-border-soft: var(--pm-dark-hairline);
+    --pm-border-strong: var(--pm-dark-strong-border);
+    --pm-border-alt: var(--pm-dark-strong-border);
+    --pm-border-outline: var(--pm-dark-strong-border);
+    /* Status: lifted so text keeps AA on the card surface; soft fills are tints of the card */
+    --pm-success: #4ade80;
+    --pm-success-strong: #86efac;
+    --pm-success-contrast: #4ade80;
+    --pm-success-soft-bg: color-mix(in srgb, #4ade80 12%, #16181b);
+    --pm-success-soft-text: #86efac;
+    --pm-success-soft-border: color-mix(in srgb, #4ade80 35%, #16181b);
+    --pm-warning: #fbbf24;
+    --pm-warning-strong: #fcd34d;
+    --pm-warning-muted: #fbbf24;
+    --pm-warning-contrast: #fcd34d;
+    --pm-warning-soft-bg: color-mix(in srgb, #fbbf24 12%, #16181b);
+    --pm-warning-soft-text: #fcd34d;
+    --pm-warning-soft-border: color-mix(in srgb, #fbbf24 35%, #16181b);
+    --pm-danger: #f87171;
+    --pm-danger-strong: #fca5a5;
+    --pm-danger-emphasis: #f87171;
+    --pm-danger-invert: #fca5a5;
+    --pm-danger-accent: #f87171;
+    --pm-danger-soft-bg: color-mix(in srgb, #f87171 12%, #16181b);
+    --pm-danger-soft-text: #fca5a5;
+    --pm-danger-soft-border: color-mix(in srgb, #f87171 35%, #16181b);
+    --pm-info: #38bdf8;
+    --pm-info-strong: #7dd3fc;
+    --pm-info-contrast: #7dd3fc;
+    --pm-info-soft-bg: color-mix(in srgb, #38bdf8 12%, #16181b);
+    --pm-info-soft-text: #7dd3fc;
+    --pm-info-soft-border: color-mix(in srgb, #38bdf8 35%, #16181b);
+    --pm-status-success-bg: color-mix(in srgb, #4ade80 14%, #16181b);
+    --pm-status-success-text: #86efac;
+    --pm-status-warning-bg: color-mix(in srgb, #fbbf24 14%, #16181b);
+    --pm-status-warning-text: #fcd34d;
+    --pm-status-danger-bg: color-mix(in srgb, #f87171 14%, #16181b);
+    --pm-status-danger-text: #fca5a5;
+    --pm-status-info-bg: color-mix(in srgb, #6ea8fe 14%, #16181b);
+    --pm-status-info-text: #9ec5fe;
+    --pm-chip-border: var(--pm-dark-strong-border);
+    --pm-divider: var(--pm-dark-hairline);
+    /* Accents: the blues used as text or marks move to the lifted accent */
+    --pm-accent-blue: #6ea8fe;
+    --pm-accent-blue-strong: #6ea8fe;
+    --pm-accent-blue-bolder: #9ec5fe;
+    --pm-accent-blue-tint: color-mix(in srgb, #6ea8fe 12%, #16181b);
+    --pm-accent-blue-soft-3: color-mix(in srgb, #6ea8fe 20%, #16181b);
+    --pm-accent-blue-soft-2: color-mix(in srgb, #6ea8fe 28%, #16181b);
+    --pm-accent-blue-soft-1: color-mix(in srgb, #6ea8fe 40%, #16181b);
+    --pm-accent-indigo: #a5b4fc;
+    --pm-accent-indigo-bright: #818cf8;
+    --pm-accent-amber: #fbbf24;
+    --pm-accent-slate: #6b7178;
+    --pm-accent-slate-strong: #b4b9bf;
+    --pm-accent-slate-mid: var(--pm-dark-text-muted);
+    --pm-accent-info-soft: color-mix(in srgb, #6ea8fe 14%, #16181b);
+    --pm-accent-info-muted: color-mix(in srgb, #38bdf8 14%, #16181b);
+    --pm-accent-highlight-soft: color-mix(in srgb, #fbbf24 16%, #16181b);
+    --pm-accent-rgb: 110, 168, 254;
+    --pm-success-rgb: 74, 222, 128;
+    --pm-danger-rgb: 248, 113, 113;
+    /* Project palette (headers, hero areas) */
+    --pm-project-hero-gradient-start: var(--pm-dark-card);
+    --pm-project-hero-gradient-mid: var(--pm-dark-card);
+    --pm-project-surface: var(--pm-dark-tile);
+    --pm-project-ink: var(--pm-dark-text);
+    --pm-project-ink-strong: #f0f2f4;
+    --pm-project-ink-deep: #f0f2f4;
+    --pm-project-ink-muted: var(--pm-dark-text);
+    --pm-project-ink-alt: var(--pm-dark-text);
+    --pm-project-text: #b4b9bf;
+    --pm-project-text-soft: var(--pm-dark-text-muted);
+    --pm-project-text-contrast: #b4b9bf;
+    --pm-project-text-deep: var(--pm-dark-text);
+    --pm-project-text-fade: var(--pm-dark-text-muted);
+    --pm-project-link: #9ec5fe;
+    --pm-project-border: var(--pm-dark-hairline);
+    --pm-project-border-soft: var(--pm-dark-hairline);
+    /* Charts */
+    --pm-chart-grid: var(--pm-dark-hairline);
+    --pm-chart-axis: var(--pm-dark-text-muted);
+    --pm-chart-accent-1: #6ea8fe;
+    /* Effects: depth comes from lighter surfaces, so shadows stay faint */
+    --pm-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+    /* Bootstrap mappings. --bs-body-bg is the card surface, not the page: Bootstrap paints
+       modals, dropdowns, offcanvas, popovers, list groups, active tabs and unchecked
+       checkboxes with it. The page itself is painted by the body rule below. */
+    --bs-body-bg: var(--pm-dark-card);
+    --bs-body-bg-rgb: 22, 24, 27;
+    --bs-body-color: var(--pm-dark-text);
+    --bs-body-color-rgb: 230, 232, 235;
+    --bs-emphasis-color: #f0f2f4;
+    --bs-emphasis-color-rgb: 240, 242, 244;
+    --bs-secondary-color: rgba(230, 232, 235, .68);
+    --bs-secondary-color-rgb: 230, 232, 235;
+    --bs-secondary-bg: var(--pm-dark-raised);
+    --bs-secondary-bg-rgb: 37, 40, 45;
+    --bs-tertiary-color: rgba(230, 232, 235, .5);
+    --bs-tertiary-color-rgb: 230, 232, 235;
+    --bs-tertiary-bg: var(--pm-dark-tile);
+    --bs-tertiary-bg-rgb: 30, 33, 37;
+    --bs-heading-color: inherit;
+    --bs-border-color: var(--pm-dark-hairline);
+    --bs-border-color-translucent: rgba(255, 255, 255, .1);
+    --bs-card-bg: var(--pm-dark-card);
+    --bs-link-color: #6ea8fe;
+    --bs-link-color-rgb: 110, 168, 254;
+    --bs-link-hover-color: #9ec5fe;
+    --bs-link-hover-color-rgb: 158, 197, 254;
+    --bs-focus-ring-color: rgba(110, 168, 254, .35);
+    --bs-primary-text-emphasis: #9ec5fe;
+    --bs-primary-bg-subtle: color-mix(in srgb, #6ea8fe 14%, #16181b);
+    --bs-primary-border-subtle: color-mix(in srgb, #6ea8fe 35%, #16181b);
+    --bs-secondary-text-emphasis: #c4c8cd;
+    --bs-secondary-bg-subtle: var(--pm-dark-tile);
+    --bs-secondary-border-subtle: var(--pm-dark-strong-border);
+    --bs-success-text-emphasis: #86efac;
+    --bs-success-bg-subtle: color-mix(in srgb, #4ade80 12%, #16181b);
+    --bs-success-border-subtle: color-mix(in srgb, #4ade80 35%, #16181b);
+    --bs-warning-text-emphasis: #fcd34d;
+    --bs-warning-bg-subtle: color-mix(in srgb, #fbbf24 12%, #16181b);
+    --bs-warning-border-subtle: color-mix(in srgb, #fbbf24 35%, #16181b);
+    --bs-danger-text-emphasis: #fca5a5;
+    --bs-danger-bg-subtle: color-mix(in srgb, #f87171 12%, #16181b);
+    --bs-danger-border-subtle: color-mix(in srgb, #f87171 35%, #16181b);
+    --bs-info-text-emphasis: #7dd3fc;
+    --bs-info-bg-subtle: color-mix(in srgb, #38bdf8 12%, #16181b);
+    --bs-info-border-subtle: color-mix(in srgb, #38bdf8 35%, #16181b);
+    --bs-light-text-emphasis: #e6e8eb;
+    --bs-light-bg-subtle: var(--pm-dark-tile);
+    --bs-light-border-subtle: var(--pm-dark-hairline);
+    --bs-dark-text-emphasis: #e6e8eb;
+    --bs-dark-bg-subtle: var(--pm-dark-page);
+    --bs-dark-border-subtle: var(--pm-dark-hairline);
+}
+
+/* Dark: status text utilities use the lifted colours (solid .bg-* fills keep Bootstrap's,
+   so white text on them still reads). White/light fills become graphite surfaces. */
+[data-bs-theme="dark"] .text-primary { color: var(--pm-dark-accent) !important; }
+[data-bs-theme="dark"] .text-success { color: #4ade80 !important; }
+[data-bs-theme="dark"] .text-warning { color: #fbbf24 !important; }
+[data-bs-theme="dark"] .text-danger { color: #f87171 !important; }
+[data-bs-theme="dark"] .text-info { color: #38bdf8 !important; }
+[data-bs-theme="dark"] .text-body { color: var(--pm-dark-text) !important; }
+[data-bs-theme="dark"] .bg-white,
+[data-bs-theme="dark"] .bg-body { background-color: var(--pm-dark-card) !important; }
+[data-bs-theme="dark"] .bg-light { background-color: var(--pm-dark-tile) !important; }
+[data-bs-theme="dark"] .border-light { border-color: var(--pm-dark-hairline) !important; }
+
+/* Dark: inputs sit one step above the card; .bg-white/.bg-light become graphite surfaces. */
+[data-bs-theme="dark"] :is(.form-control, .form-select, .input-group-text) {
+    background-color: var(--pm-dark-tile);
+    border-color: var(--pm-dark-strong-border);
+    color: var(--pm-dark-text);
+}
+[data-bs-theme="dark"] :is(.form-control, .form-select):focus {
+    background-color: var(--pm-dark-tile);
+    border-color: color-mix(in srgb, var(--pm-dark-accent) 70%, var(--pm-dark-card));
+}
+[data-bs-theme="dark"] :is(.form-control, .form-select):disabled,
+[data-bs-theme="dark"] .form-control[readonly] {
+    background-color: var(--pm-dark-card);
+}
+[data-bs-theme="dark"] .form-control::placeholder {
+    color: #7b8188;
+}
+[data-bs-theme="dark"] .form-check-input:not(:checked) {
+    background-color: var(--pm-dark-tile);
+    border-color: var(--pm-dark-strong-border);
 }
 
 body {
@@ -11293,4 +11531,132 @@ main[role="main"].analytics-main > .pm-page-shell {
 
 [data-bs-theme="dark"] .account-photo-identity__concern small {
   color: #c9b878;
+}
+
+/* ---------- Dark theme: shared components ----------
+   Components that paint literal light colours or that sit on top of a solid accent.
+   Light mode never matches these selectors (see the dark token block at the top). */
+[data-bs-theme="dark"] .btn-primary {
+    --bs-btn-color: #ffffff;
+    --bs-btn-bg: #2563eb;
+    --bs-btn-border-color: #2563eb;
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-hover-bg: #3b74f0;
+    --bs-btn-hover-border-color: #3b74f0;
+    --bs-btn-active-color: #ffffff;
+    --bs-btn-active-bg: #1d4ed8;
+    --bs-btn-active-border-color: #1d4ed8;
+    --bs-btn-disabled-color: #ffffff;
+    --bs-btn-disabled-bg: #2563eb;
+    --bs-btn-disabled-border-color: #2563eb;
+    --bs-btn-focus-shadow-rgb: 110, 168, 254;
+    background: var(--bs-btn-bg);
+    border-color: var(--bs-btn-border-color);
+}
+[data-bs-theme="dark"] .btn-primary:hover {
+    background: var(--bs-btn-hover-bg);
+    border-color: var(--bs-btn-hover-border-color);
+}
+[data-bs-theme="dark"] .btn-outline-primary {
+    --bs-btn-color: var(--pm-dark-accent);
+    --bs-btn-border-color: color-mix(in srgb, var(--pm-dark-accent) 55%, var(--pm-dark-card));
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-hover-bg: #2563eb;
+    --bs-btn-hover-border-color: #2563eb;
+    --bs-btn-active-color: #ffffff;
+    --bs-btn-active-bg: #1d4ed8;
+    --bs-btn-active-border-color: #1d4ed8;
+    --bs-btn-disabled-color: var(--pm-dark-accent);
+    --bs-btn-disabled-border-color: color-mix(in srgb, var(--pm-dark-accent) 40%, var(--pm-dark-card));
+}
+[data-bs-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: #b4b9bf;
+    --bs-btn-border-color: var(--pm-dark-strong-border);
+    --bs-btn-hover-color: var(--pm-dark-text);
+    --bs-btn-hover-bg: var(--pm-dark-raised);
+    --bs-btn-hover-border-color: var(--pm-dark-strong-border);
+    --bs-btn-active-color: var(--pm-dark-text);
+    --bs-btn-active-bg: var(--pm-dark-raised);
+    --bs-btn-active-border-color: var(--pm-dark-strong-border);
+}
+[data-bs-theme="dark"] .btn-light {
+    --bs-btn-color: var(--pm-dark-text);
+    --bs-btn-bg: var(--pm-dark-tile);
+    --bs-btn-border-color: var(--pm-dark-strong-border);
+    --bs-btn-hover-color: var(--pm-dark-text);
+    --bs-btn-hover-bg: var(--pm-dark-raised);
+    --bs-btn-hover-border-color: var(--pm-dark-strong-border);
+    --bs-btn-active-color: var(--pm-dark-text);
+    --bs-btn-active-bg: var(--pm-dark-raised);
+    --bs-btn-active-border-color: var(--pm-dark-strong-border);
+}
+[data-bs-theme="dark"] .pm-card {
+    border-color: var(--pm-dark-hairline);
+    box-shadow: none;
+}
+[data-bs-theme="dark"] .pm-card-header {
+    background: var(--pm-card);
+    border-bottom-color: var(--pm-dark-hairline);
+    box-shadow: none;
+}
+[data-bs-theme="dark"] .modal-content,
+[data-bs-theme="dark"] .offcanvas,
+[data-bs-theme="dark"] .dropdown-menu {
+    border-color: var(--pm-dark-hairline);
+}
+[data-bs-theme="dark"] .dropdown-menu {
+    --bs-dropdown-link-hover-bg: var(--pm-dark-tile);
+    --bs-dropdown-link-active-bg: #2563eb;
+    --bs-dropdown-divider-bg: var(--pm-dark-hairline);
+    --bs-dropdown-box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .45);
+}
+[data-bs-theme="dark"] .modal-backdrop {
+    --bs-backdrop-opacity: .65;
+}
+[data-bs-theme="dark"] .pm-drawer__overlay {
+    background: rgba(0, 0, 0, .6);
+}
+[data-bs-theme="dark"] .pm-drawer__panel {
+    border-right-color: var(--pm-dark-hairline);
+}
+[data-bs-theme="dark"] .pm-drawer__brand-mark,
+[data-bs-theme="dark"] .pm-drawer__user-avatar {
+    background: color-mix(in srgb, var(--pm-dark-accent) 18%, var(--pm-dark-card));
+    box-shadow: none;
+}
+[data-bs-theme="dark"] .pm-drawer__user {
+    background: var(--pm-dark-tile);
+    border-color: var(--pm-dark-hairline);
+    box-shadow: none;
+}
+[data-bs-theme="dark"] .pm-drawer__entry:hover,
+[data-bs-theme="dark"] .pm-drawer__entry:focus {
+    background: var(--pm-dark-tile);
+}
+[data-bs-theme="dark"] .pm-drawer__entry.is-active {
+    background: color-mix(in srgb, var(--pm-dark-accent) 14%, var(--pm-dark-card));
+    border-color: color-mix(in srgb, var(--pm-dark-accent) 30%, var(--pm-dark-card));
+}
+[data-bs-theme="dark"] .pm-drawer__close:hover,
+[data-bs-theme="dark"] .pm-drawer__close:focus,
+[data-bs-theme="dark"] .pm-drawer__collapse-toggle:hover,
+[data-bs-theme="dark"] .pm-drawer__collapse-toggle:focus {
+    background-color: var(--pm-dark-raised);
+}
+[data-bs-theme="dark"] .pm-drawer__collapse-toggle {
+    border-color: var(--pm-dark-hairline);
+    background: var(--pm-dark-tile);
+}
+[data-bs-theme="dark"] .pm-drawer__accent--danger,
+[data-bs-theme="dark"] .pm-drawer__accent--danger .pm-drawer__icon,
+[data-bs-theme="dark"] .pm-drawer__accent--danger:hover,
+[data-bs-theme="dark"] .pm-drawer__accent--danger:focus,
+[data-bs-theme="dark"] .pm-drawer__accent--danger.is-active {
+    color: #f87171;
+}
+[data-bs-theme="dark"] .pm-drawer__accent--danger:hover,
+[data-bs-theme="dark"] .pm-drawer__accent--danger:focus,
+[data-bs-theme="dark"] .pm-drawer__accent--danger.is-active {
+    background: color-mix(in srgb, #f87171 12%, var(--pm-dark-card));
+    border-color: color-mix(in srgb, #f87171 30%, var(--pm-dark-card));
 }

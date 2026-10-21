@@ -371,130 +371,68 @@
     }
 }
 
-/* Dark theme adjustments */
-body[data-bs-theme="dark"] .todo-widget {
-    --mission-panel-surface: rgba(17, 22, 36, .94);
-    --mission-panel-border: rgba(102, 170, 255, .35);
-    --mission-panel-shadow: 0 28px 56px -28px rgba(8, 18, 44, .85);
-    --mission-panel-header-bg: linear-gradient(135deg, rgba(30, 64, 175, .4), rgba(16, 185, 129, .22));
-    --mission-panel-ring-track: rgba(102, 170, 255, .42);
-    --mission-scroll-thumb: rgba(125, 170, 255, .55);
-    --todo-row-hover-bg: rgba(13, 110, 253, .22);
-    --todo-row-hover-border: rgba(125, 170, 255, .4);
+/* Dark theme (graphite; docs/ux/dark-theme-palette.md). Follows the site theme choice on
+   <html>, not the operating system, so Light stays light for everyone. */
+[data-bs-theme="dark"] .todo-widget {
+    --mission-panel-surface: var(--pm-dark-card);
+    --mission-panel-border: var(--pm-dark-hairline);
+    --mission-panel-shadow: 0 18px 40px -24px rgba(0, 0, 0, .6);
+    --mission-panel-header-bg: linear-gradient(135deg, color-mix(in srgb, var(--pm-dark-accent) 14%, var(--pm-dark-card)), color-mix(in srgb, #4ade80 8%, var(--pm-dark-card)));
+    --mission-panel-ring-track: var(--pm-dark-hairline);
+    --mission-scroll-thumb: var(--pm-dark-strong-border);
+    --todo-row-hover-bg: var(--pm-dark-tile);
+    --todo-row-hover-border: var(--pm-dark-strong-border);
 }
 
-body[data-bs-theme="dark"] .todo-row {
-    background-color: rgba(17, 22, 36, .85);
-    box-shadow: inset 0 0 0 1px rgba(125, 170, 255, .16);
+[data-bs-theme="dark"] .todo-row {
+    background-color: var(--pm-dark-card);
+    box-shadow: inset 0 0 0 1px var(--pm-dark-hairline);
 }
 
-    body[data-bs-theme="dark"] .todo-row:hover,
-    body[data-bs-theme="dark"] .todo-row:focus-within {
-        box-shadow: 0 18px 38px -28px rgba(8, 18, 44, .65);
-    }
-
-body[data-bs-theme="dark"] .mission-panel__link {
-    color: var(--pm-accent-blue-soft-1);
+[data-bs-theme="dark"] .todo-row:hover,
+[data-bs-theme="dark"] .todo-row:focus-within {
+    box-shadow: inset 0 0 0 1px var(--pm-dark-strong-border);
 }
 
-    body[data-bs-theme="dark"] .mission-panel__link:hover,
-    body[data-bs-theme="dark"] .mission-panel__link:focus-visible {
-        color: var(--pm-accent-blue-soft-1);
-    }
-
-body[data-bs-theme="dark"] .mission-panel__kpi {
-    --mission-kpi-bg: rgba(102, 170, 255, .24);
-    --mission-kpi-border: rgba(102, 170, 255, .4);
-    --mission-kpi-color: var(--pm-accent-blue-soft-2);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+[data-bs-theme="dark"] .mission-panel__link,
+[data-bs-theme="dark"] .mission-panel__link:hover,
+[data-bs-theme="dark"] .mission-panel__link:focus-visible {
+    color: var(--pm-dark-accent);
 }
 
-    body[data-bs-theme="dark"] .mission-panel__kpi.bg-warning {
-        --mission-kpi-bg: rgba(240, 180, 0, .32);
-        --mission-kpi-border: rgba(240, 180, 0, .5);
-        --mission-kpi-color: var(--pm-accent-amber-soft);
-    }
-
-    body[data-bs-theme="dark"] .mission-panel__kpi.bg-info {
-        --mission-kpi-bg: rgba(20, 184, 166, .32);
-        --mission-kpi-border: rgba(20, 184, 166, .48);
-        --mission-kpi-color: var(--pm-accent-teal-soft);
-    }
-
-    body[data-bs-theme="dark"] .mission-panel__kpi.bg-primary {
-        --mission-kpi-bg: rgba(77, 124, 255, .34);
-        --mission-kpi-border: rgba(102, 170, 255, .52);
-        --mission-kpi-color: var(--pm-accent-blue-soft-3);
-    }
-
-body[data-bs-theme="dark"] .mission-ring::after {
-    box-shadow: inset 0 0 0 1px rgba(125, 170, 255, .28);
+[data-bs-theme="dark"] .mission-panel__kpi {
+    --mission-kpi-bg: color-mix(in srgb, var(--pm-dark-accent) 16%, var(--pm-dark-card));
+    --mission-kpi-border: color-mix(in srgb, var(--pm-dark-accent) 35%, var(--pm-dark-card));
+    --mission-kpi-color: #9ec5fe;
+    box-shadow: none;
 }
 
-body[data-bs-theme="dark"] .mission-ring__caption {
-    color: rgba(203, 213, 225, .8);
+[data-bs-theme="dark"] .mission-panel__kpi.bg-warning {
+    --mission-kpi-bg: color-mix(in srgb, #fbbf24 16%, var(--pm-dark-card));
+    --mission-kpi-border: color-mix(in srgb, #fbbf24 35%, var(--pm-dark-card));
+    --mission-kpi-color: #fcd34d;
 }
 
-body[data-bs-theme="dark"] .pm-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(125, 170, 255, .7);
+[data-bs-theme="dark"] .mission-panel__kpi.bg-info {
+    --mission-kpi-bg: color-mix(in srgb, #2dd4bf 16%, var(--pm-dark-card));
+    --mission-kpi-border: color-mix(in srgb, #2dd4bf 35%, var(--pm-dark-card));
+    --mission-kpi-color: #5eead4;
 }
 
-/* Dark-by-preference (when explicit theme not forced to light) */
-@media (prefers-color-scheme: dark) {
-    body:not([data-bs-theme="light"]) .todo-widget {
-        --mission-panel-surface: rgba(17, 22, 36, .94);
-        --mission-panel-border: rgba(102, 170, 255, .35);
-        --mission-panel-shadow: 0 28px 56px -28px rgba(8, 18, 44, .85);
-        --mission-panel-header-bg: linear-gradient(135deg, rgba(30, 64, 175, .4), rgba(16, 185, 129, .22));
-        --mission-panel-ring-track: rgba(102, 170, 255, .42);
-        --mission-scroll-thumb: rgba(125, 170, 255, .55);
-        --todo-row-hover-bg: rgba(13, 110, 253, .22);
-        --todo-row-hover-border: rgba(125, 170, 255, .4);
-    }
+[data-bs-theme="dark"] .mission-panel__kpi.bg-primary {
+    --mission-kpi-bg: color-mix(in srgb, var(--pm-dark-accent) 20%, var(--pm-dark-card));
+    --mission-kpi-border: color-mix(in srgb, var(--pm-dark-accent) 40%, var(--pm-dark-card));
+    --mission-kpi-color: #9ec5fe;
+}
 
-    body:not([data-bs-theme="light"]) .mission-panel__link {
-        color: var(--pm-accent-blue-soft-1);
-    }
+[data-bs-theme="dark"] .mission-ring::after {
+    box-shadow: inset 0 0 0 1px var(--pm-dark-hairline);
+}
 
-        body:not([data-bs-theme="light"]) .mission-panel__link:hover,
-        body:not([data-bs-theme="light"]) .mission-panel__link:focus-visible {
-            color: var(--pm-accent-blue-soft-1);
-        }
+[data-bs-theme="dark"] .mission-ring__caption {
+    color: var(--pm-dark-text-muted);
+}
 
-    body:not([data-bs-theme="light"]) .mission-panel__kpi {
-        --mission-kpi-bg: rgba(102, 170, 255, .24);
-        --mission-kpi-border: rgba(102, 170, 255, .4);
-        --mission-kpi-color: var(--pm-accent-blue-soft-2);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
-    }
-
-        body:not([data-bs-theme="light"]) .mission-panel__kpi.bg-warning {
-            --mission-kpi-bg: rgba(240, 180, 0, .32);
-            --mission-kpi-border: rgba(240, 180, 0, .5);
-            --mission-kpi-color: var(--pm-accent-amber-soft);
-        }
-
-        body:not([data-bs-theme="light"]) .mission-panel__kpi.bg-info {
-            --mission-kpi-bg: rgba(20, 184, 166, .32);
-            --mission-kpi-border: rgba(20, 184, 166, .48);
-            --mission-kpi-color: var(--pm-accent-teal-soft);
-        }
-
-        body:not([data-bs-theme="light"]) .mission-panel__kpi.bg-primary {
-            --mission-kpi-bg: rgba(77, 124, 255, .34);
-            --mission-kpi-border: rgba(102, 170, 255, .52);
-            --mission-kpi-color: var(--pm-accent-blue-soft-3);
-        }
-
-    body:not([data-bs-theme="light"]) .mission-ring::after {
-        box-shadow: inset 0 0 0 1px rgba(125, 170, 255, .28);
-    }
-
-    body:not([data-bs-theme="light"]) .mission-ring__caption {
-        color: rgba(203, 213, 225, .8);
-    }
-
-    body:not([data-bs-theme="light"]) .pm-scroll::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(125, 170, 255, .7);
-    }
+[data-bs-theme="dark"] .pm-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: #4a4f56;
 }

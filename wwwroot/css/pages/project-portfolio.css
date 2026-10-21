@@ -191,14 +191,14 @@
 
 .project-lifecycle-lockup--completed {
     border-color: color-mix(in srgb, var(--bs-success, #198754) 46%, var(--portfolio-border));
-    color: color-mix(in srgb, var(--bs-success, #198754) 75%, #0f172a);
+    color: color-mix(in srgb, var(--bs-success, #198754) 75%, var(--pm-text-strong, #0f172a));
     background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 68%, var(--pm-card, #fff));
     box-shadow: 0 5px 14px rgba(22, 101, 52, .08);
 }
 
 .project-lifecycle-lockup--cancelled {
     border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 40%, var(--portfolio-border));
-    color: color-mix(in srgb, var(--bs-danger, #dc3545) 68%, #0f172a);
+    color: color-mix(in srgb, var(--bs-danger, #dc3545) 68%, var(--pm-text-strong, #0f172a));
     background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 58%, var(--pm-card, #fff));
     box-shadow: 0 5px 14px rgba(153, 27, 27, .07);
 }
@@ -354,7 +354,7 @@ button.project-intelligence-card:hover {
     display: grid;
     place-items: center;
     border-radius: .75rem;
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, white);
+    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, var(--pm-card, #fff));
     color: var(--pm-accent-blue, #3f6ff0);
 }
 
@@ -848,7 +848,7 @@ button.project-intelligence-card:hover {
     background: var(--portfolio-soft);
 }
 .pm-stage-outcome__primary {
-    background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 55%, white) !important;
+    background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 55%, var(--pm-card, #fff)) !important;
     border-color: color-mix(in srgb, var(--bs-success, #198754) 28%, var(--portfolio-border)) !important;
 }
 .pm-stage-outcome strong,
@@ -894,8 +894,8 @@ button.project-intelligence-card:hover {
 
 .project-terminal-badge--cancelled {
     border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 25%, transparent);
-    color: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #0f172a);
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 62%, #fff);
+    color: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, var(--pm-text-strong, #0f172a));
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 62%, var(--pm-card, #fff));
 }
 
 .project-timeline-terminal-note {
@@ -909,7 +909,7 @@ button.project-intelligence-card:hover {
 
 .project-timeline-terminal-note--cancelled {
     border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 24%, var(--portfolio-border));
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 30%, #fff);
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 30%, var(--pm-card, #fff));
 }
 
 .project-timeline-history-status {
@@ -936,7 +936,7 @@ button.project-intelligence-card:hover {
     height: 2.15rem;
     border-radius: .65rem;
     color: var(--pm-accent-blue, #3f6ff0);
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, #fff);
+    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, var(--pm-card, #fff));
 }
 
 .project-timeline-empty-history strong,
@@ -959,7 +959,7 @@ button.project-intelligence-card:hover {
 .pm-pill-cancelled {
     border: 1px solid color-mix(in srgb, var(--bs-danger, #dc3545) 24%, transparent);
     color: color-mix(in srgb, var(--bs-danger, #dc3545) 68%, #334155);
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 54%, #fff);
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 54%, var(--pm-card, #fff));
 }
 
 .project-lifecycle-panel .pm-item.is-terminal-unresolved::before {
@@ -1032,7 +1032,7 @@ button.project-intelligence-card:hover {
     padding: .65rem .7rem;
     border: 1px dashed color-mix(in srgb, var(--bs-warning, #ffc107) 38%, var(--portfolio-border));
     border-radius: .7rem;
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 55%, white);
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 55%, var(--pm-card, #fff));
 }
 
 .project-profile-missing strong,
@@ -1071,7 +1071,7 @@ button.project-intelligence-card:hover {
     height: 2.25rem;
     border-radius: .65rem;
     color: var(--pm-accent-blue, #3f6ff0);
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, white);
+    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, var(--pm-card, #fff));
 }
 
 .procurement-empty-state__content,
@@ -1132,7 +1132,7 @@ button.project-intelligence-card:hover {
 
 .project-lifecycle-summary__grid > .is-attention {
     border: 1px solid color-mix(in srgb, var(--bs-danger, #dc3545) 28%, var(--portfolio-border));
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 48%, white);
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 48%, var(--pm-card, #fff));
 }
 
 .project-lifecycle-summary__grid strong {
@@ -1488,7 +1488,7 @@ button.project-intelligence-card:hover {
 
 .project-exploitation-card .pm-right-summary-card__footer {
     padding: .6rem .8rem;
-    background: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, white);
+    background: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, var(--pm-card, #fff));
 }
 
 .project-exploitation-card .pm-summary-footer-actions {
@@ -1656,7 +1656,7 @@ button.project-intelligence-card:hover {
     padding: .72rem .78rem;
     border: 1px solid color-mix(in srgb, var(--bs-warning) 38%, var(--portfolio-border));
     border-radius: .72rem;
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 58%, #fff);
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 58%, var(--pm-card, #fff));
 }
 
 .pm-stage-pending-update__header {
@@ -1709,7 +1709,7 @@ button.project-intelligence-card:hover {
     padding: .72rem .8rem;
     border: 1px solid color-mix(in srgb, var(--bs-primary) 26%, var(--portfolio-border));
     border-radius: .72rem;
-    background: color-mix(in srgb, var(--bs-primary-bg-subtle, #cfe2ff) 38%, #fff);
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle, #cfe2ff) 38%, var(--pm-card, #fff));
 }
 
 .stage-update-approval-note > i {
@@ -1738,7 +1738,7 @@ button.project-intelligence-card:hover {
     padding: .9rem;
     border: 1px solid var(--portfolio-border);
     border-radius: .78rem;
-    background: #fff;
+    background: var(--pm-card, #fff);
 }
 
 .stage-update-row__header {
@@ -1794,7 +1794,7 @@ button.project-intelligence-card:hover {
 #stageRequestModal .modal-header,
 #stageRequestModal .modal-footer {
     flex: 0 0 auto;
-    background: #fff;
+    background: var(--pm-card, #fff);
     z-index: 2;
 }
 
@@ -1857,7 +1857,7 @@ button.project-intelligence-card:hover {
     border-radius: 999px;
     padding: .12rem .42rem;
     border: 1px solid var(--portfolio-border);
-    background: #fff;
+    background: var(--pm-card, #fff);
     color: var(--portfolio-muted);
     font-size: .66rem;
     font-weight: 600;
@@ -1871,7 +1871,7 @@ button.project-intelligence-card:hover {
 
 .stage-update-summary__kind.is-revision {
     border-color: color-mix(in srgb, var(--bs-warning) 42%, var(--portfolio-border));
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 48%, #fff);
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 48%, var(--pm-card, #fff));
     color: var(--bs-warning-text-emphasis, #664d03);
 }
 
@@ -1972,7 +1972,7 @@ button.project-intelligence-card:hover {
     border: 1px solid var(--portfolio-border);
     border-radius: .75rem;
     overflow: hidden;
-    background: #fff;
+    background: var(--pm-card, #fff);
 }
 
 .project-document-preview__row {
@@ -2113,7 +2113,7 @@ button.project-intelligence-card:hover {
     border-radius: .75rem;
     color: inherit;
     text-decoration: none;
-    background: #fff;
+    background: var(--pm-card, #fff);
     transition: border-color .15s ease, background-color .15s ease;
 }
 
@@ -3913,27 +3913,26 @@ button.project-intelligence-card--tot:focus-visible {
     .project-portfolio .remarks-body { padding-left: 0; }
 }
 
-/* Dark theme (planned): neutral graphite, not navy; blue is an accent only. Values and
-   rationale: docs/ux/dark-theme-palette.md. The site has no dark palette yet (it pins
-   --bs-body-bg light), so these literals stand in; point them at site tokens later. */
-[data-bs-theme="dark"] :is(.project-portfolio .offcanvas, .project-portfolio .modal, #recordCompletenessModal, #discardDraftModal) {
-    color-scheme: dark;
-}
+/* Dark theme: neutral graphite, not navy; blue is an accent only. The site tokens in
+   site.css carry the palette (docs/ux/dark-theme-palette.md); these only pick the role. */
 [data-bs-theme="dark"] :is(.project-portfolio, #recordCompletenessModal, #discardDraftModal) {
-    --v6-surface: #16181b;
-    --v6-tile: #1e2125;
-    --v6-input: #1e2125;
-    --v6-text: #e6e8eb;
-    --v6-accent: #6ea8fe;
-    --v6-accent-soft: color-mix(in srgb, #6ea8fe 16%, #16181b);
-    --v6-good: #4ade80;
-    --v6-fair: #fbbf24;
-    --v6-poor: #f87171;
+    --v6-surface: var(--pm-card);
+    --v6-tile: var(--pm-surface-subtle);
+    --v6-input: var(--pm-surface-subtle);
+    --v6-text: var(--pm-text);
+    --v6-accent: var(--pm-accent-blue);
+    --v6-accent-soft: color-mix(in srgb, var(--v6-accent) 16%, var(--v6-surface));
+    --v6-good: var(--pm-success);
+    --v6-fair: var(--pm-warning);
+    --v6-poor: var(--pm-danger);
     --v6-shadow: rgba(0, 0, 0, .35);
     --v6-shadow-strong: rgba(0, 0, 0, .55);
-    --portfolio-border: #2c3035;
-    --portfolio-muted: #9aa0a6;
+    --portfolio-border: var(--pm-border);
+    --portfolio-muted: var(--pm-text-muted);
+    --portfolio-soft: color-mix(in srgb, var(--pm-accent-blue) 8%, var(--pm-card));
+    --portfolio-soft-strong: color-mix(in srgb, var(--pm-accent-blue) 14%, var(--pm-card));
 }
+[data-bs-theme="dark"] .project-record-health-modal__summary span { color: var(--pm-text-secondary); }
 
 @media (prefers-reduced-motion: reduce) {
     .project-portfolio .pm-card,

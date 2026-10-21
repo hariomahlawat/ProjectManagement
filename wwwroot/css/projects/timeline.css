@@ -359,6 +359,12 @@
   border-color: var(--bs-gray-200);
 }
 
+[data-bs-theme="dark"] .pm-pill-muted {
+  background-color: var(--pm-surface-subtle);
+  color: var(--pm-text-muted);
+  border-color: var(--pm-border);
+}
+
 .pm-pill-primary {
   background-color: rgba(var(--bs-primary-rgb), 0.12);
   color: var(--bs-primary);
