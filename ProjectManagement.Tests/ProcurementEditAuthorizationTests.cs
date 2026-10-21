@@ -119,6 +119,54 @@ public sealed class ProcurementEditAuthorizationTests
         Assert.Empty(await db.StageChangeLogs.ToListAsync());
     }
 
+    // SECTION: Return to the briefing desk
+    [Fact]
+    public async Task OnPostAsync_FromTheBriefingDesk_ReturnsToTheDeskWithAToast()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateDbAsync(connection);
+        var page = CreatePage(db, "Project Officer", "assigned-po");
+        page.ReturnUrl = "/Workspace?mode=project-officer&view=overview&focus=desk-project-23#desk-project-23";
+
+        var result = await page.OnPostAsync(ProjectId, CancellationToken.None);
+
+        var redirect = Assert.IsType<LocalRedirectResult>(result);
+        Assert.Equal(page.ReturnUrl, redirect.Url);
+        Assert.Equal("Procurement details updated.", page.TempData["ToastSuccess"]);
+        Assert.False(page.TempData.ContainsKey("Flash"));
+    }
+
+    [Fact]
+    public async Task OnPostAsync_WithAReturnUrlOutsideTheWorkspace_KeepsTheProjectOverviewRedirect()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateDbAsync(connection);
+        var page = CreatePage(db, "Project Officer", "assigned-po");
+        page.ReturnUrl = "https://example.test/Workspace";
+
+        var result = await page.OnPostAsync(ProjectId, CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("/Projects/Overview", redirect.PageName);
+        Assert.Equal("Procurement details updated.", page.TempData["Flash"]);
+    }
+
+    [Theory]
+    [InlineData("/Workspace", "/Workspace")]
+    [InlineData("/Workspace?mode=project-officer#desk-project-1", "/Workspace?mode=project-officer#desk-project-1")]
+    [InlineData("/workspace?mode=project-officer", "/workspace?mode=project-officer")]
+    [InlineData("//evil.example/Workspace", null)]
+    [InlineData(@"/\evil.example", null)]
+    [InlineData("https://evil.example/Workspace?x", null)]
+    [InlineData("/Projects/Overview/1", null)]
+    [InlineData("/WorkspaceEvil", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void DeskReturnUrl_AcceptsOnlyTheLocalWorkspace(string? candidate, string? expected)
+        => Assert.Equal(expected, EditModel.DeskReturnUrl(candidate));
+
     private static async Task<ApplicationDbContext> CreateDbAsync(
         SqliteConnection connection,
         bool requiresBackfill = false,

@@ -12,4 +12,10 @@ public sealed class ProcurementEditVm
     public bool CanEditL1Cost { get; init; }
     public bool CanEditPncCost { get; init; }
     public bool CanEditSupplyOrderDate { get; init; }
+
+    /// <summary>Where the save returns; set by the briefing desk, null on Project Overview.</summary>
+    public string? ReturnUrl { get; init; }
+
+    /// <summary>Prefix for element ids, so several editors can share one page.</summary>
+    public string IdPrefix { get; init; } = string.Empty;
 }

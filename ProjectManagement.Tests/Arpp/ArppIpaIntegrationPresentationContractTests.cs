@@ -21,7 +21,8 @@ public sealed class ArppIpaIntegrationPresentationContractTests
     [Fact]
     public void ProcurementEditorManagementMessage_IdentifiesExactCurrentArppSource()
     {
-        var pageModel = ReadRepoFile("Pages", "Projects", "Overview.cshtml.cs");
+        // The builder is shared by Project Overview and the PO briefing desk.
+        var pageModel = ReadRepoFile("Services", "Projects", "ProcurementEditVmFactory.cs");
 
         Assert.Contains("BuildIpaManagementMessage", pageModel, StringComparison.Ordinal);
         Assert.Contains("Original ARPP", pageModel, StringComparison.Ordinal);

@@ -46,10 +46,24 @@ are unchanged. The desk adds its own check that the item is assigned to the sign
 | Submit task for closure | `IActionTaskService.SubmitTaskAsync` | Waits on the assigner |
 | Flag task blocked | `IActionTaskService.UpdateStatusAsync` (Blocked, reason required) | Blocker shown in conference |
 
+Procurement figures open in a side panel on the desk. The panel is the Project Overview
+editor (`Projects/Procurement/_EditFormBody`), built by the shared `ProcurementEditVmFactory`, so
+locks and ARPP messages match. It posts to the existing procurement page with a `returnUrl`.
+That page returns only to a local `/Workspace` address (`EditModel.DeskReturnUrl`), and
+otherwise keeps its original redirect to Project Overview.
+
 Approval-routed work (plan dates, actual-date corrections, project details, documents) is
 linked to the exact editor. Plan links use `?oc=plan&stage=<code>`, which opens the plan
 editor with that stage's planned due date focused. While a submission is pending, the card
 shows **With HoD** and the item appears under **With others**.
+
+## Weekly round
+
+**Start weekly round** walks the PO through every not-ready card, one at a time, in desk order.
+The meters, the side column and the section headings are hidden while it runs. The round is
+kept in `sessionStorage` (this tab only), so a post that reloads the page resumes on the same
+card. It ends with a summary of how many items from the round are now brief-ready. If storage
+is unavailable, the round still works within the page.
 
 ## Not on the desk
 

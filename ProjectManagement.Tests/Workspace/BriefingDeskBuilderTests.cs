@@ -125,6 +125,46 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_ProcurementGap_OpensTheDeskPanelWhenTheEditorIsLoaded()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            HealthPercent = 60,
+            GapDetails = new[]
+            {
+                Gap("L1_COST", "Procurement at a glance", "L1 Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement"),
+                Gap("DOCS", "Published project documents", "1 additional project document", 5m, "/Projects/1/Documents")
+            }
+        };
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: health) with
+        {
+            ProcurementEdit = new ProjectManagement.ViewModels.ProcurementEditVm()
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.Equal("desk-project-1-procurement", item.ProcurementPanelId);
+        Assert.Equal("desk-project-1-procurement", item.Improvements.Single(check => check.Route == BriefingDeskRoute.Direct).PanelId);
+        Assert.Null(item.Improvements.Single(check => check.Route == BriefingDeskRoute.Approval).PanelId);
+    }
+
+    [Fact]
+    public void Project_ProcurementGap_FallsBackToTheLinkWithoutAnEditor()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            GapDetails = new[] { Gap("L1_COST", "Procurement at a glance", "L1 Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement") }
+        };
+
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, health: health) }));
+
+        Assert.Null(item.ProcurementPanelId);
+        Assert.Null(Assert.Single(item.Improvements).PanelId);
+    }
+
+    [Fact]
     public void Project_StageStrip_MarksPastCurrentAndFutureStages()
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));

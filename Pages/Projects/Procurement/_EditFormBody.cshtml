@@ -5,7 +5,7 @@
     // lakh or crore (procurement-inr-preview.js) so a missing or extra zero is easy to spot.
     void CostField(string key, string label, decimal? value, bool canEdit, string lockedNote, string? managedNote = null)
     {
-        var id = $"Input_{key}";
+        var id = $"{Model.IdPrefix}Input_{key}";
         var hintId = $"{id}_Hint";
         <div class="col-md-6">
             <label for="@id" class="form-label">@label</label>
@@ -39,7 +39,7 @@
     }
 }
 
-<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Input.ProjectId" class="procurement-edit-form">
+<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Input.ProjectId" asp-route-returnUrl="@Model.ReturnUrl" class="procurement-edit-form">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Input.ProjectId" value="@Model.Input.ProjectId" />
 
@@ -61,17 +61,17 @@
         }
 
         <div class="col-md-6">
-            <label for="Input_SupplyOrderDate" class="form-label">Supply order date</label>
+            <label for="@(Model.IdPrefix)Input_SupplyOrderDate" class="form-label">Supply order date</label>
             <div class="input-group procurement-cost-input@(Model.CanEditSupplyOrderDate ? string.Empty : " is-locked")">
                 <span class="input-group-text" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
-                <input class="form-control" type="date" id="Input_SupplyOrderDate" name="Input.SupplyOrderDate"
-                       aria-describedby="Input_SupplyOrderDate_Hint"
+                <input class="form-control" type="date" id="@(Model.IdPrefix)Input_SupplyOrderDate" name="Input.SupplyOrderDate"
+                       aria-describedby="@(Model.IdPrefix)Input_SupplyOrderDate_Hint"
                        value="@(Model.Input.SupplyOrderDate.HasValue ? Model.Input.SupplyOrderDate.Value.ToString("yyyy-MM-dd") : null)"
                        @(Model.CanEditSupplyOrderDate ? null : "disabled") />
             </div>
             @if (!Model.CanEditSupplyOrderDate)
             {
-                <div class="form-text" id="Input_SupplyOrderDate_Hint"><i class="bi bi-lock" aria-hidden="true"></i> Unlocks when Supply Order is completed.</div>
+                <div class="form-text" id="@(Model.IdPrefix)Input_SupplyOrderDate_Hint"><i class="bi bi-lock" aria-hidden="true"></i> Unlocks when Supply Order is completed.</div>
             }
         </div>
     </div>

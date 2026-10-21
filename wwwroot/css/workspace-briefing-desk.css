@@ -1051,3 +1051,171 @@
     font-weight: 400;
     color: var(--pm-text-secondary);
 }
+
+/* SECTION: Weekly round ------------------------------------------------- */
+.bd-round {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--pm-primary-soft);
+    border: 1px solid var(--pm-accent-blue-soft-1);
+    border-radius: 0.875rem;
+    scroll-margin-top: 5rem;
+}
+
+.bd-round[hidden],
+.bd-round-done[hidden] {
+    display: none;
+}
+
+.bd-round__copy {
+    flex: 1 1 18rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.bd-round__kicker {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pm-primary-strong);
+}
+
+.bd-round__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.bd-round__bar {
+    appearance: none;
+    width: 100%;
+    max-width: 26rem;
+    height: 0.375rem;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--pm-card);
+}
+
+.bd-round__bar::-webkit-progress-bar {
+    background: var(--pm-card);
+    border-radius: 999px;
+}
+
+.bd-round__bar::-webkit-progress-value {
+    background: var(--pm-primary);
+    border-radius: 999px;
+}
+
+.bd-round__bar::-moz-progress-bar {
+    background: var(--pm-primary);
+    border-radius: 999px;
+}
+
+.bd-round__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.bd-btn--ghost {
+    color: var(--pm-text-secondary);
+    background: transparent;
+}
+
+.bd-btn--ghost:hover {
+    color: var(--pm-text-strong);
+    background: var(--pm-surface-subtle);
+}
+
+.bd-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Focus mode: one card, no distractions. */
+.bd.is-round .bd-meters,
+.bd.is-round .bd-rail,
+.bd.is-round .bd-section__head,
+.bd.is-round [data-bd-round-start] {
+    display: none;
+}
+
+.bd-card.bd-round-hidden {
+    display: none;
+}
+
+.bd-round-done {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 1.1rem 1.25rem;
+    color: var(--pm-success-soft-text);
+    background: var(--pm-success-soft-bg);
+    border: 1px solid var(--pm-success-soft-border);
+    border-radius: 0.875rem;
+}
+
+.bd-round-done > .bi {
+    font-size: 1.75rem;
+}
+
+.bd-round-done__copy {
+    flex: 1 1 16rem;
+    min-width: 0;
+}
+
+.bd-round-done__copy h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.bd-round-done__copy p {
+    margin: 0.2rem 0 0;
+    font-size: 0.9rem;
+}
+
+/* SECTION: Side panels -------------------------------------------------- */
+.bd-drawer.offcanvas {
+    color: var(--pm-text);
+    background: var(--pm-card);
+    border-left: 1px solid var(--pm-border);
+}
+
+.bd-drawer__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.bd-drawer__subtitle {
+    margin: 0.2rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--pm-text-secondary);
+}
+
+.bd-drawer .form-control:disabled {
+    border-style: dashed;
+    color: var(--pm-text-secondary);
+    background: var(--pm-surface-subtle);
+    cursor: not-allowed;
+}
+
+.bd-drawer .procurement-cost-input.is-locked .input-group-text {
+    border-style: dashed;
+}
+
+.bd-drawer .procurement-inr-preview--live {
+    color: var(--pm-success-contrast);
+    font-weight: 700;
+}

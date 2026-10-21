@@ -42,6 +42,10 @@ namespace ProjectManagement.Pages.Projects.Procurement
         [BindProperty]
         public ProcurementEditInput Input { get; set; } = new();
 
+        // Set when the editor was opened from the Project Officer briefing desk.
+        [BindProperty(SupportsGet = true)]
+        public string? ReturnUrl { get; set; }
+
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
             var projectExists = await _db.Projects.AnyAsync(p => p.Id == id, ct);
@@ -90,8 +94,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
 
             if (!ModelState.IsValid)
             {
-                TempData["Error"] = "Unable to save procurement details. Please review your input.";
-                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+                return Back(id, error: "Unable to save procurement details. Please review your input.");
             }
 
             var stages = await _db.ProjectStages
@@ -142,14 +145,12 @@ namespace ProjectManagement.Pages.Projects.Procurement
 
             if (errors.Count > 0)
             {
-                TempData["Error"] = string.Join(" ", errors);
-                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+                return Back(id, error: string.Join(" ", errors));
             }
 
             if (Input.SupplyOrderDate is { } date && date > DateOnly.FromDateTime(DateTime.UtcNow))
             {
-                TempData["Error"] = "Supply Order Date cannot be in the future.";
-                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+                return Back(id, error: "Supply Order Date cannot be in the future.");
             }
 
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -195,8 +196,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
             catch (ArppManagedIpaException)
             {
                 await RollbackSafelyAsync(tx, id, CancellationToken.None);
-                TempData["Error"] = "IPA Cost is managed through ARPP for this project and cannot be edited here.";
-                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+                return Back(id, error: "IPA Cost is managed through ARPP for this project and cannot be edited here.");
             }
             catch (DbUpdateException ex)
             {
@@ -211,26 +211,69 @@ namespace ProjectManagement.Pages.Projects.Procurement
                     postgres?.ConstraintName,
                     postgres?.TableName);
 
-                TempData["Error"] = string.Equals(
+                return Back(id, error: string.Equals(
                     postgres?.ConstraintName,
                     "CK_ProjectStages_CompletedHasDate",
                     StringComparison.Ordinal)
                     ? "Procurement details could not be saved because the project-stage database rule is not aligned. The application update must complete its pending migration before retrying."
-                    : "Procurement details could not be saved because the database rejected the update. No changes were committed.";
-
-                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+                    : "Procurement details could not be saved because the database rejected the update. No changes were committed.");
             }
             catch (Exception ex)
             {
                 await RollbackSafelyAsync(tx, id, CancellationToken.None);
                 _logger.LogError(ex, "Failed to save procurement details for project {ProjectId}.", id);
 
-                TempData["Error"] = "Procurement details could not be saved. No changes were committed. Please try again or contact the administrator if the problem persists.";
+                return Back(id, error: "Procurement details could not be saved. No changes were committed. Please try again or contact the administrator if the problem persists.");
+            }
+
+            return Back(id, success: "Procurement details updated.");
+        }
+
+        // SECTION: Return destination
+        // The briefing desk sends a /Workspace return address; anything else (or nothing)
+        // keeps the original behaviour of reopening the Project Overview panel.
+        private IActionResult Back(int id, string? error = null, string? success = null)
+        {
+            var deskUrl = DeskReturnUrl(ReturnUrl);
+            if (deskUrl is null)
+            {
+                if (error is not null)
+                {
+                    TempData["Error"] = error;
+                }
+                else if (success is not null)
+                {
+                    TempData["Flash"] = success;
+                }
+
                 return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
 
-            TempData["Flash"] = "Procurement details updated.";
-            return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+            if (error is not null)
+            {
+                TempData["ToastError"] = error;
+            }
+            else if (success is not null)
+            {
+                TempData["ToastSuccess"] = success;
+            }
+
+            return LocalRedirect(deskUrl);
+        }
+
+        internal static string? DeskReturnUrl(string? returnUrl)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl)
+                || returnUrl.Contains('\\')
+                || returnUrl.StartsWith("//", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return returnUrl.Equals("/Workspace", StringComparison.OrdinalIgnoreCase)
+                || returnUrl.StartsWith("/Workspace?", StringComparison.OrdinalIgnoreCase)
+                ? returnUrl
+                : null;
         }
 
         private async Task RollbackSafelyAsync(

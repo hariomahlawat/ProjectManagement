@@ -40,6 +40,8 @@
 <article class="bd-card @(item.IsBriefReady ? "bd-card--ready" : "bd-card--open") @(Model.IsOpen ? "is-expanded" : string.Empty)"
          id="@anchor"
          data-bd-card
+         data-bd-ready="@(item.IsBriefReady ? "true" : "false")"
+         data-bd-title="@item.Title"
          aria-labelledby="@anchor-title">
     <div class="bd-card__head">
         <h3 class="bd-card__heading" id="@anchor-title">

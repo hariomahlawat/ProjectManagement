@@ -12,8 +12,10 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Usage;
 using ProjectManagement.Services;
+using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -31,6 +33,7 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly IErpUsageQueryService _erpUsage;
     private readonly IMemoryCache _cache;
     private readonly IOfficerConferenceReadService _conference;
+    private readonly ProjectProcurementReadService _procurement;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -43,7 +46,8 @@ public sealed class ProjectOfficerWorkspaceService
         IProjectOfficerConferenceActionQuery conferenceActions,
         IErpUsageQueryService erpUsage,
         IMemoryCache cache,
-        IOfficerConferenceReadService conference)
+        IOfficerConferenceReadService conference,
+        ProjectProcurementReadService procurement)
     {
         _db = db;
         _users = users;
@@ -56,6 +60,7 @@ public sealed class ProjectOfficerWorkspaceService
         _erpUsage = erpUsage;
         _cache = cache;
         _conference = conference;
+        _procurement = procurement;
     }
 
     // SECTION: Workspace composition
@@ -191,6 +196,7 @@ public sealed class ProjectOfficerWorkspaceService
         var conference = await _conference.GetForProjectOfficerAsync(userId, ct);
         var pending = await LoadPendingApprovalsAsync(userId, projects, tasks, ct);
         var lastTaskProgress = await LoadLastTaskProgressAsync(userId, tasks, ct);
+        var procurementEdits = await LoadProcurementEditorsAsync(projects, health, ct);
         var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
             _db,
             userId,
@@ -216,7 +222,8 @@ public sealed class ProjectOfficerWorkspaceService
                     row,
                     stagesByProject.GetValueOrDefault(row.ProjectId) ?? Array.Empty<BriefingDeskStageInput>(),
                     pending.PlanSinceByProject.TryGetValue(row.ProjectId, out var planSince) ? planSince : null,
-                    pending.ActualsSinceByProject.TryGetValue(row.ProjectId, out var actualsSince) ? actualsSince : null))
+                    pending.ActualsSinceByProject.TryGetValue(row.ProjectId, out var actualsSince) ? actualsSince : null,
+                    procurementEdits.GetValueOrDefault(row.ProjectId)))
                 .ToList(),
             ideas.Select(idea => new BriefingDeskIdeaInput(idea)).ToList(),
             tasks
@@ -244,6 +251,49 @@ public sealed class ProjectOfficerWorkspaceService
         vm.RecordGapCount = health.Values.Sum(item => item.GapDetails.Count);
         vm.UpcomingEvents = upcomingEvents.Items;
         vm.UpcomingEventCount = upcomingEvents.TotalCount;
+    }
+
+    // SECTION: Procurement editors for the desk
+    // Loaded only for projects with a procurement gap, and built by the same factory as
+    // Project Overview so the desk panel has identical locks and ARPP messages.
+    private async Task<IReadOnlyDictionary<int, ProcurementEditVm>> LoadProcurementEditorsAsync(
+        IReadOnlyList<Project> projects,
+        IReadOnlyDictionary<int, WorkspaceRecordHealthVm> health,
+        CancellationToken ct)
+    {
+        var projectIds = health.Values
+            .Where(item => item.GapDetails.Any(gap => BriefingDeskBuilder.IsProcurementEditor(gap.ActionUrl)))
+            .Select(item => item.ProjectId)
+            .ToArray();
+        if (projectIds.Length == 0)
+        {
+            return new Dictionary<int, ProcurementEditVm>();
+        }
+
+        var procurement = await _procurement.GetManyAsync(projectIds, ct);
+        var projectsById = projects.ToDictionary(project => project.Id);
+        var editors = new Dictionary<int, ProcurementEditVm>();
+        foreach (var projectId in projectIds)
+        {
+            if (!projectsById.TryGetValue(projectId, out var project))
+            {
+                continue;
+            }
+
+            var completed = project.ProjectStages
+                .Where(stage => stage.Status == StageStatus.Completed && !string.IsNullOrWhiteSpace(stage.StageCode))
+                .Select(stage => stage.StageCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{projectId}";
+            editors[projectId] = ProcurementEditVmFactory.Create(
+                projectId,
+                procurement.GetValueOrDefault(projectId) ?? ProcurementAtAGlanceVm.Empty,
+                completed.Contains,
+                returnUrl: WorkspaceRouteHelper.BriefingDeskItem(anchor),
+                idPrefix: $"{anchor}-");
+        }
+
+        return editors;
     }
 
     // SECTION: Work the Project Officer has submitted and is waiting on

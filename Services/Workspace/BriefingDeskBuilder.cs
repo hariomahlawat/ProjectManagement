@@ -2,6 +2,7 @@ using System.Globalization;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.ActionTasks;
+using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -23,7 +24,8 @@ public sealed record BriefingDeskProjectInput(
     WorkspaceProjectMatrixRowVm Row,
     IReadOnlyList<BriefingDeskStageInput> Stages,
     DateTimeOffset? PendingPlanSinceUtc = null,
-    DateTimeOffset? PendingActualsSinceUtc = null);
+    DateTimeOffset? PendingActualsSinceUtc = null,
+    ProcurementEditVm? ProcurementEdit = null);
 
 public sealed record BriefingDeskStageInput(string Code, string Name, StageStatus Status, int SortOrder);
 
@@ -146,7 +148,9 @@ public static class BriefingDeskBuilder
             }
         }
 
-        var improvements = ProjectImprovements(row.RecordHealth);
+        var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{row.ProjectId}";
+        var procurementPanelId = input.ProcurementEdit is null ? null : $"{anchor}-procurement";
+        var improvements = ProjectImprovements(row.RecordHealth, procurementPanelId);
 
         return new BriefingDeskItemVm
         {
@@ -167,6 +171,8 @@ public static class BriefingDeskBuilder
             },
             Checks = checks,
             Improvements = improvements,
+            ProcurementEdit = input.ProcurementEdit,
+            ProcurementPanelId = procurementPanelId,
             ImprovementPoints = improvements.Sum(item => item.Points),
             RecordHealthPercent = row.RecordHealthPercent,
             Conference = conference
@@ -303,7 +309,9 @@ public static class BriefingDeskBuilder
     // SECTION: Record-health improvements
     // Gaps are grouped by the editor that fixes them. The current-stage PDC is excluded
     // because the required PDC check above already covers it.
-    internal static IReadOnlyList<BriefingDeskCheckVm> ProjectImprovements(WorkspaceRecordHealthVm? health)
+    internal static IReadOnlyList<BriefingDeskCheckVm> ProjectImprovements(
+        WorkspaceRecordHealthVm? health,
+        string? procurementPanelId = null)
     {
         if (health is null)
         {
@@ -335,6 +343,8 @@ public static class BriefingDeskBuilder
                     IsRequired = false,
                     ActionText = gaps[0].ActionText,
                     ActionUrl = group.Key,
+                    // Procurement opens in a panel on the desk when its editor model is loaded.
+                    PanelId = IsProcurementEditor(group.Key) ? procurementPanelId : null,
                     Points = points
                 };
             })
@@ -345,6 +355,9 @@ public static class BriefingDeskBuilder
 
     // Procurement figures and project media are edited directly by the assigned PO; other
     // editors (project details, documents, historical dates) submit for HoD approval.
+    internal static bool IsProcurementEditor(string actionUrl)
+        => actionUrl.Contains("oc=procurement", StringComparison.OrdinalIgnoreCase);
+
     internal static bool IsDirectEditor(string actionUrl)
         => actionUrl.Contains("oc=procurement", StringComparison.OrdinalIgnoreCase)
             || actionUrl.Contains("/Photos", StringComparison.OrdinalIgnoreCase)
