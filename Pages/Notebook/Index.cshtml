@@ -70,9 +70,12 @@
         _ => "Notes, checklists and reminders."
     };
     // All Notes splits results into Pinned and Others; every other view uses Items.
-    var resultCount = Model.Notebook.View == "home"
+    // ShowConferenceDigest is the same fact that renders the live PRISM card in this
+    // view, so a visible system card counts as a result too.
+    var resultCount = (Model.Notebook.View == "home"
         ? Model.Notebook.PinnedItems.Count + Model.Notebook.OtherItems.Count
-        : Model.Notebook.Items.Count;
+        : Model.Notebook.Items.Count)
+        + (Model.ShowConferenceDigest ? 1 : 0);
     var headingTitle = hasQuery ? $"Results for “{Model.Query!.Trim()}”" : viewTitle;
     var headingSubtitle = hasQuery ? $"{resultCount} {(resultCount == 1 ? "item" : "items")} in {viewTitle}" : viewSubtitle;
     var hasLabels = Model.Notebook.Tags.Any();
