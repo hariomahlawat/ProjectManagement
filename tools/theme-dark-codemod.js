@@ -343,8 +343,23 @@ function convert(source) {
     for (const rule of rules) {
       if (isDarkSelector(rule.selector)) continue;
       if (rule.atRules.some((at) => /^@(keyframes|font-face|-webkit-keyframes|page)/.test(at) || /^@media[^{]*\b(print|prefers-color-scheme)\b/.test(at))) continue;
-      const parts = splitSelector(rule.selector);
-      if (islands.size && parts.every(inIsland)) continue;
+      // Island selectors are dropped from grouped rules (.proof, .card { ... }), so only the
+      // ordinary selectors get a dark rule. The island's own colours are stated again in the
+      // dark section, in source order, so a dark rule for a shared base class (.thumb) cannot
+      // repaint a light island (.thumb--light) at equal specificity.
+      const allParts = splitSelector(rule.selector);
+      const islandParts = islands.size ? allParts.filter(inIsland) : [];
+      if (pass === 2 && islandParts.length) {
+        const keep = rule.declarations.filter((d) => COLOUR_FAMILIES.has(propertyFamily(d.property)) || d.property === 'background-image');
+        if (keep.length) {
+          const key = rule.atRules.join('\n');
+          if (!blocks.has(key)) blocks.set(key, []);
+          blocks.get(key).push(`${islandParts.map(darkSelector).join(',\n')} {\n${keep.map((d) => `    ${d.property}: ${d.value}${d.important ? ' !important' : ''};`).join('\n')}\n}`);
+          reasserted += keep.length;
+        }
+      }
+      const parts = allParts.filter((part) => !islandParts.includes(part));
+      if (!parts.length) continue;
       const atKey = rule.atRules.join('|');
       const darkDeclarations = [];
       for (const d of rule.declarations) {
