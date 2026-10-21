@@ -24,10 +24,16 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
   list, Ongoing, Completed register, Create), Calendar (including FullCalendar's own
   variables) and the shared `site.css` components, with every modal and offcanvas on those
   pages. The to-do widget now follows the site choice instead of `prefers-color-scheme`.
-- **Not yet covered:** waves 2 to 4 in [theme coverage](theme-coverage.md): Notebook,
-  Photos, Documents, Search, the other project pages and reports, Action tracker, tasks
-  (`tasks.css` still follows `prefers-color-scheme`), office reports and Admin. Dark stays
-  opt-in until they are converted.
+- **Wave 2 covered and checked (2026-10-21):** Notebook (views, composer, open note;
+  coloured notes become muted tints), Photos (library, viewer, filters, collections,
+  People and the three review queues), Document Repository (list and card views, reader
+  frame, upload), Global Search, and project Photos, Videos and Documents with their
+  upload and reorder pages. PDF page rendering inside the reader was not seen (the dev
+  storage has no PDF files); the reader stage stays dark as in Light.
+- **Not yet covered:** waves 3 and 4 in [theme coverage](theme-coverage.md): the other
+  project pages and reports, Action tracker, tasks (`tasks.css` still follows
+  `prefers-color-scheme`), office reports and Admin. Dark stays opt-in until they are
+  converted.
 - **Rollback.** Remove the `<script src="~/js/core/theme-preference.js">` line from
   `_Layout.cshtml`: every dark rule is scoped to `[data-bs-theme="dark"]`, so the site
   renders Light for everyone, including users who chose Dark.
@@ -96,8 +102,12 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
      card, focus rings kept in the accent, dense dark scrims kept dark, and solid status
      fills kept as they are. Review the section; it is a first pass.
   2. Open the page and every modal or offcanvas on it in the browser, in Dark and Light,
-     and scan for light fills and text under 3.2:1 (third-party widgets such as
-     FullCalendar have their own variables; set those by hand).
+     and scan for light fills and text under 3.2:1, and look at screenshots: mid-grey
+     islands slip past a luminance threshold. Set third-party widget variables by hand
+     (FullCalendar). Watch for tokens used against their role: a text token as a
+     background (the document reader used `--pm-text-contrast`), `--pm-card` as "white"
+     text, and bare `<input>`s that relied on the browser's white default (dark falls back
+     to the input colour at zero specificity; give them a page rule if they sit in a pill).
   3. `node tools/theme-coverage.js --write` to lower the baseline. `npm test` fails if any
      stylesheet gains literals or gaps (a gap is a literal no dark rule repaints; it
      includes colours kept on purpose, such as white text on a solid fill).

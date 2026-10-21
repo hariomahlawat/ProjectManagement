@@ -475,6 +475,13 @@
 [data-bs-theme="dark"] .form-control::placeholder {
     color: #7b8188;
 }
+/* Dark: native fields without a class would otherwise get the browser's grey dark default.
+   Zero specificity, so any page or component rule still wins. */
+:where([data-bs-theme="dark"]) :where(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=submit], [type=button], [type=reset], [type=image]), textarea, select) {
+    background-color: var(--pm-dark-tile);
+    color: var(--pm-dark-text);
+    border-color: var(--pm-dark-strong-border);
+}
 [data-bs-theme="dark"] .form-check-input:not(:checked) {
     background-color: var(--pm-dark-tile);
     border-color: var(--pm-dark-strong-border);
