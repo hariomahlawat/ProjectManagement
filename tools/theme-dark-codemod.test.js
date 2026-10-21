@@ -63,7 +63,7 @@ test('colour words inside quoted strings are left alone', () => {
   assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.x::before \{\n {4}color: #f0f2f4;/);
 });
 
-test('light islands and their BEM parts and descendants get no dark rules', () => {
+test('light islands and their BEM parts and descendants keep their Light colours', () => {
   const css = `
     .proof { background: #fff; }
     .proof--wide { background: #f8fafc; }
@@ -71,7 +71,9 @@ test('light islands and their BEM parts and descendants get no dark rules', () =
     .card { background: #f7f9fc; }
     [data-bs-theme="dark"] :is(.proof) { color-scheme: light; --pm-card: #ffffff; }`;
   const { output } = convert(css);
-  assert.doesNotMatch(output, /\]\) \.proof/);
+  // Island rules are only restated with their Light values, never mapped to graphite.
+  assert.doesNotMatch(output, /\]\) \.proof[^{]*\{\n {4}(background|color): #(16181b|1e2125|25282d|b4b9bf)/);
+  assert.match(output, /\]\) \.proof \{\n {4}background: #fff;/);
   assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.card \{/);
 });
 
@@ -82,4 +84,27 @@ test('light islands restore the page tokens that Dark redefines', () => {
     [data-bs-theme="dark"] :is(.proof) { color-scheme: light; }`;
   const { output } = convert(css);
   assert.match(output, /:root\[data-bs-theme="dark"\] :is\(\.proof\) \{\n {4}--ink: #15231f;\n {4}--paper: #fbfaf6;/);
+});
+
+test('island selectors are dropped from grouped rules; the rest still convert', () => {
+  const css = `
+    .proof, .ordinary { background: #f7f9fc; }
+    [data-bs-theme="dark"] :is(.proof) { color-scheme: light; }`;
+  const { output } = convert(css);
+  assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.ordinary \{\n {4}background: #16181b;/);
+  assert.doesNotMatch(output, /\]\) \.proof,/);
+  assert.match(output, /\]\) \.proof \{\n {4}background: #f7f9fc;/);
+});
+
+test('a light island keeps its own palette over a dark rule for its shared base class', () => {
+  const css = `
+    .thumb { background: #f3f3f3; }
+    .thumb--light { background: #f7f7f5; }
+    .thumb--light .thumb__bar { background: #7a263a; }
+    [data-bs-theme="dark"] :is(.thumb--light) { color-scheme: light; }`;
+  const { output } = convert(css);
+  const base = output.indexOf(':where([data-bs-theme="dark"]) .thumb {');
+  const island = output.indexOf(':where([data-bs-theme="dark"]) .thumb--light {');
+  assert.ok(base > 0 && island > base, 'island restated after the base dark rule');
+  assert.match(output.slice(island), /^:where\(\[data-bs-theme="dark"\]\) \.thumb--light \{\n {4}background: #f7f7f5;/);
 });
