@@ -34,12 +34,12 @@
                 @await Html.PartialAsync("_ProjectOfficerActivity", Model)
                 break;
             default:
-                @await Html.PartialAsync("_ProjectOfficerOverview", Model)
+                @await Html.PartialAsync("_ProjectOfficerBriefingDesk", Model)
                 break;
         }
     </main>
 </div>
-@if (activeView is "overview" or "projects")
+@if (activeView is "projects")
 {
     @await Html.PartialAsync("_ProjectOfficerRecordModals", vm)
 }

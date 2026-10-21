@@ -637,6 +637,7 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDo
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.BriefingDeskCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IProjectOfficerConferenceActionQuery, ProjectManagement.Services.Workspace.ProjectOfficerConferenceActionQuery>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceProjectScopeService, ProjectManagement.Services.Workspace.ConferenceProjectScopeService>();

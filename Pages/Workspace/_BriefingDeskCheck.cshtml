@@ -1,0 +1,57 @@
+@using ProjectManagement.ViewModels.Workspace
+@model BriefingDeskCheckVm
+@{
+    var check = Model;
+    var stateClass = check.State switch
+    {
+        BriefingDeskCheckState.Done => "bd-check--done",
+        BriefingDeskCheckState.Waiting => "bd-check--waiting",
+        _ => "bd-check--open"
+    };
+    var stateLabel = check.State switch
+    {
+        BriefingDeskCheckState.Done => "Done",
+        BriefingDeskCheckState.Waiting => "Waiting",
+        _ => check.IsRequired ? "To do" : "Optional"
+    };
+    var icon = check.State switch
+    {
+        BriefingDeskCheckState.Done => "bi-check-lg",
+        BriefingDeskCheckState.Waiting => "bi-hourglass-split",
+        _ => string.Empty
+    };
+}
+<li class="bd-check @stateClass">
+    <span class="bd-check__mark" aria-hidden="true">@if (!string.IsNullOrEmpty(icon)) { <i class="bi @icon"></i> }</span>
+    <div class="bd-check__copy">
+        <span class="visually-hidden">@stateLabel: </span>
+        <strong>@check.Label</strong>
+        <span>@check.Detail@(check.Points > 0 ? $" · +{check.Points} pts" : string.Empty)</span>
+    </div>
+    <div class="bd-check__action">
+        @switch (check.State)
+        {
+            case BriefingDeskCheckState.Waiting:
+                <span class="bd-check__state bd-check__state--waiting">@check.StateText</span>
+                break;
+            case BriefingDeskCheckState.Done:
+                <span class="bd-check__state bd-check__state--done">Done</span>
+                break;
+            default:
+                if (!string.IsNullOrWhiteSpace(check.ActionUrl) && !string.IsNullOrWhiteSpace(check.ActionText))
+                {
+                    <a class="bd-btn @(check.Route == BriefingDeskRoute.Direct ? "bd-btn--direct" : "bd-btn--approval")" href="@check.ActionUrl">@check.ActionText<span class="visually-hidden">: @check.Label</span></a>
+                    <small class="bd-check__route">@(check.Route == BriefingDeskRoute.Direct ? "You complete it" : "Needs HoD approval")</small>
+                }
+                else if (check.Route == BriefingDeskRoute.Update)
+                {
+                    <small class="bd-check__route">Write it in the box</small>
+                }
+                else
+                {
+                    <small class="bd-check__route">Use the buttons below</small>
+                }
+                break;
+        }
+    </div>
+</li>

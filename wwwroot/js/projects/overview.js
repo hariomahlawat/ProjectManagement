@@ -950,7 +950,10 @@
         let planFocusStage = null;
         planEdit.addEventListener('show.bs.offcanvas', function (event) {
             const trigger = event.relatedTarget;
-            planFocusStage = trigger instanceof Element ? trigger.getAttribute('data-plan-focus-stage') : null;
+            // A programmatic open (deep link) has no trigger and keeps the stage it set.
+            if (trigger instanceof Element) {
+                planFocusStage = trigger.getAttribute('data-plan-focus-stage');
+            }
         });
         planEdit.addEventListener('shown.bs.offcanvas', function () {
             const target = resolvePlanEditFocus(planEdit, planFocusStage);
@@ -962,6 +965,8 @@
 
         const planMarker = document.getElementById('open-plan-edit');
         if (planMarker && planMarker.dataset.open === '1') {
+            // A workspace link (?oc=plan&stage=DEVP) names the stage whose PDC to edit.
+            planFocusStage = planMarker.getAttribute('data-plan-focus-stage') || null;
             const instance = bootstrap.Offcanvas.getOrCreateInstance(planEdit);
             instance.show();
         }

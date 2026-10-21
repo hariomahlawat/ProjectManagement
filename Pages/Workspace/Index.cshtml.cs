@@ -18,7 +18,11 @@ public class IndexModel : PageModel
     private readonly IOfficerConferenceReadService _conferenceReadService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAuthorizationService _authorization;
+    private readonly BriefingDeskCommandService _deskCommands;
     private readonly ILogger<IndexModel> _logger;
+
+    public const string DeskDraftAnchorKey = "BriefingDesk.DraftAnchor";
+    public const string DeskDraftTextKey = "BriefingDesk.DraftText";
 
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
@@ -38,6 +42,7 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? PatternModule { get; set; }
     [BindProperty(SupportsGet = true)] public string? PatternSignal { get; set; }
     [BindProperty(SupportsGet = true)] public string? ActivityPeriod { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Focus { get; set; }
 
     public IndexModel(
         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
@@ -45,6 +50,7 @@ public class IndexModel : PageModel
         IOfficerConferenceReadService conferenceReadService,
         UserManager<ApplicationUser> userManager,
         IAuthorizationService authorization,
+        BriefingDeskCommandService deskCommands,
         ILogger<IndexModel> logger)
     {
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService;
@@ -52,6 +58,7 @@ public class IndexModel : PageModel
         _conferenceReadService = conferenceReadService;
         _userManager = userManager;
         _authorization = authorization;
+        _deskCommands = deskCommands;
         _logger = logger;
     }
 
@@ -284,6 +291,68 @@ public class IndexModel : PageModel
                 StatusCode = StatusCodes.Status500InternalServerError
             };
         }
+    }
+
+    // SECTION: Briefing desk commands
+    // Each post returns to the desk with the same card open; failures keep the typed text.
+    public Task<IActionResult> OnPostDeskProjectUpdateAsync(int itemId, string? body, CancellationToken ct)
+        => RunDeskCommandAsync(ConferenceItemKind.Project, itemId, body,
+            userId => _deskCommands.PostProjectUpdateAsync(User, userId, itemId, body, ct));
+
+    public Task<IActionResult> OnPostDeskIdeaNoteAsync(int itemId, string? body, CancellationToken ct)
+        => RunDeskCommandAsync(ConferenceItemKind.ProjectIdea, itemId, body,
+            userId => _deskCommands.PostIdeaNoteAsync(User, userId, itemId, body, ct));
+
+    public Task<IActionResult> OnPostDeskTaskProgressAsync(int itemId, string? body, CancellationToken ct)
+        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, body,
+            userId => _deskCommands.PostTaskProgressAsync(User, userId, itemId, body, ct));
+
+    public Task<IActionResult> OnPostDeskTaskSubmitAsync(int itemId, string? rowVersion, string? note, CancellationToken ct)
+        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, null,
+            userId => _deskCommands.SubmitTaskAsync(User, userId, itemId, rowVersion, note, ct));
+
+    public Task<IActionResult> OnPostDeskTaskBlockedAsync(int itemId, string? rowVersion, string? note, CancellationToken ct)
+        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, null,
+            userId => _deskCommands.FlagTaskBlockedAsync(User, userId, itemId, rowVersion, note, ct));
+
+    private async Task<IActionResult> RunDeskCommandAsync(
+        ConferenceItemKind kind,
+        int itemId,
+        string? draft,
+        Func<string, Task<BriefingDeskCommandResult>> command)
+    {
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+
+        var result = await command(userId);
+        switch (result.Outcome)
+        {
+            case BriefingDeskCommandOutcome.Forbidden:
+                return Forbid();
+            case BriefingDeskCommandOutcome.NotFound:
+                return NotFound();
+        }
+
+        var anchor = $"desk-{BriefingDeskLabels.KindKey(kind)}-{itemId}";
+        if (result.Succeeded)
+        {
+            TempData["ToastSuccess"] = result.Message;
+            TempData.Remove(DeskDraftAnchorKey);
+            TempData.Remove(DeskDraftTextKey);
+        }
+        else
+        {
+            TempData["ToastError"] = result.Message;
+            if (!string.IsNullOrWhiteSpace(draft))
+            {
+                TempData[DeskDraftAnchorKey] = anchor;
+                TempData[DeskDraftTextKey] = draft.Length > BriefingDeskCommandService.MaxBodyLength
+                    ? draft[..BriefingDeskCommandService.MaxBodyLength]
+                    : draft;
+            }
+        }
+
+        return LocalRedirect(WorkspaceRouteHelper.BriefingDeskItem(anchor));
     }
 
     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)
