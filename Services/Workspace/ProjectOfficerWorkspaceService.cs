@@ -146,7 +146,7 @@ public sealed class ProjectOfficerWorkspaceService
                 vm.ActivityStrip = vm.ActivityYear.Recent;
                 break;
             default:
-                await PopulateOverviewAsync(vm, userId, today, ct);
+                await PopulateOverviewAsync(vm, userId, principal, today, ct);
                 break;
         }
 
@@ -178,6 +178,7 @@ public sealed class ProjectOfficerWorkspaceService
     private async Task PopulateOverviewAsync(
         ProjectOfficerWorkspaceVm vm,
         string userId,
+        ClaimsPrincipal principal,
         DateOnly today,
         CancellationToken ct)
     {
@@ -240,7 +241,9 @@ public sealed class ProjectOfficerWorkspaceService
             operational.ConferenceDirections,
             conference,
             pending.Waiting,
-            operational.ReturnedItems));
+            await BuildReturnedItemsAsync(userId, ct, complete: true),
+            PlanDirectSaveRole: principal.IsInRole(ProjectManagement.Configuration.RoleNames.Admin)
+                || principal.IsInRole(ProjectManagement.Configuration.RoleNames.HoD)));
 
         ApplyOperationalContext(vm, operational);
         CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
@@ -1244,14 +1247,21 @@ public sealed class ProjectOfficerWorkspaceService
         string Category);
 
     // SECTION: Returned items are surfaced as actionable corrections for the PO.
-    private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct)
+    // The action queue and side list show a short preview (30 days, a few per type). Desk cards
+    // decide brief-ready from it, so they ask for every unresolved return in a longer horizon.
+    private const int DeskReturnedHorizonDays = 180;
+
+    private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct, bool complete = false)
     {
+        var fetchLimit = complete ? int.MaxValue : 10;
+        var keepLimit = complete ? int.MaxValue : 5;
+        var totalLimit = complete ? int.MaxValue : 12;
         var items = new List<WorkspaceAttentionItemVm>();
-        var returnedCutoffUtc = DateTimeOffset.UtcNow.AddDays(-30);
-        var rejectedPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => (p.CreatedByUserId == userId || p.SubmittedByUserId == userId) && p.RejectedOn.HasValue && p.RejectedOn >= returnedCutoffUtc).OrderByDescending(p => p.RejectedOn).Take(10).ToListAsync(ct);
+        var returnedCutoffUtc = DateTimeOffset.UtcNow.AddDays(complete ? -DeskReturnedHorizonDays : -30);
+        var rejectedPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => (p.CreatedByUserId == userId || p.SubmittedByUserId == userId) && p.RejectedOn.HasValue && p.RejectedOn >= returnedCutoffUtc).OrderByDescending(p => p.RejectedOn).Take(fetchLimit).ToListAsync(ct);
         var rejectedPlanProjectIds = rejectedPlans.Select(p => p.ProjectId).ToArray();
         var newerPlanProjects = await _db.PlanVersions.AsNoTracking().Where(p => rejectedPlanProjectIds.Contains(p.ProjectId) && (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Approved)).Select(p => new { p.ProjectId, EventAt = p.SubmittedOn ?? p.ApprovedOn ?? p.CreatedOn }).ToListAsync(ct);
-        rejectedPlans = rejectedPlans.Where(p => !newerPlanProjects.Any(n => n.ProjectId == p.ProjectId && p.RejectedOn.HasValue && n.EventAt > p.RejectedOn.Value)).Take(5).ToList();
+        rejectedPlans = rejectedPlans.Where(p => !newerPlanProjects.Any(n => n.ProjectId == p.ProjectId && p.RejectedOn.HasValue && n.EventAt > p.RejectedOn.Value)).Take(keepLimit).ToList();
         items.AddRange(rejectedPlans.Select(p => new WorkspaceAttentionItemVm
         {
             ProjectId = p.ProjectId,
@@ -1267,10 +1277,10 @@ public sealed class ProjectOfficerWorkspaceService
             ReviewerNote = p.RejectionNote
         }));
 
-        var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(10).ToListAsync(ct);
+        var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(fetchLimit).ToListAsync(ct);
         var rejectedStageProjectIds = rejectedStages.Select(r => r.ProjectId).ToArray();
         var newerStageProjects = await _db.StageChangeRequests.AsNoTracking().Where(r => rejectedStageProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOn ?? r.RequestedOn }).ToListAsync(ct);
-        rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(5).ToList();
+        rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(keepLimit).ToList();
         items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm
         {
             ProjectId = r.ProjectId,
@@ -1286,10 +1296,10 @@ public sealed class ProjectOfficerWorkspaceService
             ReviewerNote = r.DecisionNote
         }));
 
-        var rejectedMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOnUtc.HasValue && r.DecidedOnUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOnUtc).Take(10).ToListAsync(ct);
+        var rejectedMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOnUtc.HasValue && r.DecidedOnUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOnUtc).Take(fetchLimit).ToListAsync(ct);
         var rejectedMetaProjectIds = rejectedMeta.Select(r => r.ProjectId).ToArray();
         var newerMetaProjects = await _db.ProjectMetaChangeRequests.AsNoTracking().Where(r => rejectedMetaProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOnUtc ?? r.RequestedOnUtc }).ToListAsync(ct);
-        rejectedMeta = rejectedMeta.Where(r => !newerMetaProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOnUtc.HasValue && n.EventAt > r.DecidedOnUtc.Value)).Take(5).ToList();
+        rejectedMeta = rejectedMeta.Where(r => !newerMetaProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOnUtc.HasValue && n.EventAt > r.DecidedOnUtc.Value)).Take(keepLimit).ToList();
         items.AddRange(rejectedMeta.Select(r => new WorkspaceAttentionItemVm
         {
             ProjectId = r.ProjectId,
@@ -1305,10 +1315,10 @@ public sealed class ProjectOfficerWorkspaceService
             ReviewerNote = r.DecisionNote
         }));
 
-        var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(10).ToListAsync(ct);
+        var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(fetchLimit).ToListAsync(ct);
         var rejectedDocumentProjectIds = rejectedDocuments.Select(r => r.ProjectId).ToArray();
         var newerDocumentProjects = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => rejectedDocumentProjectIds.Contains(r.ProjectId) && (r.Status == ProjectDocumentRequestStatus.Submitted || r.Status == ProjectDocumentRequestStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ReviewedAtUtc ?? r.RequestedAtUtc }).ToListAsync(ct);
-        rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentProjects.Any(n => n.ProjectId == r.ProjectId && r.ReviewedAtUtc.HasValue && n.EventAt > r.ReviewedAtUtc.Value)).Take(5).ToList();
+        rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentProjects.Any(n => n.ProjectId == r.ProjectId && r.ReviewedAtUtc.HasValue && n.EventAt > r.ReviewedAtUtc.Value)).Take(keepLimit).ToList();
         items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm
         {
             ProjectId = r.ProjectId,
@@ -1325,10 +1335,10 @@ public sealed class ProjectOfficerWorkspaceService
         }));
 
         // Date corrections the HoD returned, unless a newer one is pending or approved.
-        var rejectedActuals = await _db.ActualCorrectionRevisions.AsNoTracking().Include(r => r.Project).Where(r => r.SubmittedByUserId == userId && r.Status == ActualCorrectionRevisionStatus.Rejected && r.ClosedOn.HasValue && r.ClosedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.ClosedOn).Take(10).ToListAsync(ct);
+        var rejectedActuals = await _db.ActualCorrectionRevisions.AsNoTracking().Include(r => r.Project).Where(r => r.SubmittedByUserId == userId && r.Status == ActualCorrectionRevisionStatus.Rejected && r.ClosedOn.HasValue && r.ClosedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.ClosedOn).Take(fetchLimit).ToListAsync(ct);
         var rejectedActualProjectIds = rejectedActuals.Select(r => r.ProjectId).ToArray();
         var newerActualProjects = await _db.ActualCorrectionRevisions.AsNoTracking().Where(r => rejectedActualProjectIds.Contains(r.ProjectId) && (r.Status == ActualCorrectionRevisionStatus.Pending || r.Status == ActualCorrectionRevisionStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ClosedOn ?? r.SubmittedOn }).ToListAsync(ct);
-        rejectedActuals = rejectedActuals.Where(r => !newerActualProjects.Any(n => n.ProjectId == r.ProjectId && r.ClosedOn.HasValue && n.EventAt > r.ClosedOn.Value)).Take(5).ToList();
+        rejectedActuals = rejectedActuals.Where(r => !newerActualProjects.Any(n => n.ProjectId == r.ProjectId && r.ClosedOn.HasValue && n.EventAt > r.ClosedOn.Value)).Take(keepLimit).ToList();
         items.AddRange(rejectedActuals.Select(r => new WorkspaceAttentionItemVm
         {
             ProjectId = r.ProjectId,
@@ -1343,7 +1353,7 @@ public sealed class ProjectOfficerWorkspaceService
             DueOrEventDateUtc = r.ClosedOn?.UtcDateTime,
             ReviewerNote = r.DecisionNote
         }));
-        return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(12).ToList();
+        return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(totalLimit).ToList();
     }
     private WorkspaceProjectMatrixRowVm BuildActionProjectRow(Project project, string userId, DateOnly today)
     {

@@ -239,6 +239,58 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_ShortPlanForm_IsWithheldForDirectSaveRoles()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: null) with { PlanEditor = Editor() };
+
+        var desk = BriefingDeskBuilder.Build(new BriefingDeskInput(
+            Today,
+            new[] { project },
+            Array.Empty<BriefingDeskIdeaInput>(),
+            Array.Empty<BriefingDeskTaskInput>(),
+            Array.Empty<WorkspaceConferenceDirectionActionVm>(),
+            null,
+            Array.Empty<BriefingDeskWaitingVm>(),
+            Array.Empty<WorkspaceAttentionItemVm>(),
+            PlanDirectSaveRole: true));
+
+        var item = SingleItem(desk);
+        Assert.Null(item.PlanPanel);
+        var pdc = item.Checks.Single(check => check.Key == "pdc");
+        Assert.Null(pdc.PanelId);
+        Assert.Contains("oc=plan", pdc.ActionUrl);
+    }
+
+    [Fact]
+    public void Project_EveryReturnedItemForTheProject_BecomesACheck()
+    {
+        var returned = Enumerable.Range(1, 7)
+            .Select(index => new WorkspaceAttentionItemVm
+            {
+                ProjectId = 1,
+                Type = $"Type{index}",
+                Detail = $"Returned item {index}",
+                ActionUrl = "/Projects/Overview/1",
+                DueOrEventDateUtc = new DateTime(2026, 10, index, 6, 0, 0, DateTimeKind.Utc)
+            })
+            .ToList();
+
+        var desk = BriefingDeskBuilder.Build(new BriefingDeskInput(
+            Today,
+            new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) },
+            Array.Empty<BriefingDeskIdeaInput>(),
+            Array.Empty<BriefingDeskTaskInput>(),
+            Array.Empty<WorkspaceConferenceDirectionActionVm>(),
+            null,
+            Array.Empty<BriefingDeskWaitingVm>(),
+            returned));
+
+        var item = SingleItem(desk);
+        Assert.Equal(7, item.Checks.Count(check => check.Key.StartsWith("returned:", StringComparison.Ordinal)));
+        Assert.Equal("Returned item 7", item.Checks[0].Label);
+    }
+
+    [Fact]
     public void Project_FuturePdc_HasNoPlanForm()
     {
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with { PlanEditor = Editor() };

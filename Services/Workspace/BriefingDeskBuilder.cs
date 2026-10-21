@@ -18,7 +18,9 @@ public sealed record BriefingDeskInput(
     IReadOnlyList<WorkspaceConferenceDirectionActionVm> PendingDirections,
     OfficerConferenceVm? Conference,
     IReadOnlyList<BriefingDeskWaitingVm> WithOthers,
-    IReadOnlyList<WorkspaceAttentionItemVm> Returned);
+    IReadOnlyList<WorkspaceAttentionItemVm> Returned,
+    // HoD and Admin save plans directly; the plan editor refuses a Submit from them.
+    bool PlanDirectSaveRole = false);
 
 public sealed record BriefingDeskProjectInput(
     WorkspaceProjectMatrixRowVm Row,
@@ -75,7 +77,8 @@ public static class BriefingDeskBuilder
                 input.Today,
                 ConferenceItem(ConferenceItemKind.Project, project.Row.ProjectId),
                 pendingDirections.Contains((ConferenceItemKind.Project, project.Row.ProjectId)),
-                returnedByProject.GetValueOrDefault(project.Row.ProjectId) ?? Array.Empty<WorkspaceAttentionItemVm>()))
+                returnedByProject.GetValueOrDefault(project.Row.ProjectId) ?? Array.Empty<WorkspaceAttentionItemVm>(),
+                input.PlanDirectSaveRole))
             .ToList();
         var ideas = input.Ideas
             .Select(idea => BuildIdea(
@@ -138,7 +141,8 @@ public static class BriefingDeskBuilder
         DateOnly today,
         OfficerConferenceItemVm? conference,
         bool directionAwaitingProgress,
-        IReadOnlyList<WorkspaceAttentionItemVm> returned)
+        IReadOnlyList<WorkspaceAttentionItemVm> returned,
+        bool planDirectSaveRole)
     {
         var row = input.Row;
         var hasStage = !string.IsNullOrWhiteSpace(row.CurrentStageCode) && row.CurrentStageCode != "—";
@@ -151,7 +155,7 @@ public static class BriefingDeskBuilder
             .ToList();
         checks.Add(ProjectUpdateCheck(row, conference, directionAwaitingProgress));
 
-        var planPanel = hasStage ? ShortPlanPanel(input, row, anchor) : null;
+        var planPanel = hasStage && !planDirectSaveRole ? ShortPlanPanel(input, row, anchor) : null;
         if (hasStage)
         {
             checks.Add(ProjectPdcCheck(row, input.PendingPlanSinceUtc, planPanel?.PanelId));
