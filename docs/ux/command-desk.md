@@ -35,7 +35,7 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
      - The rule matches the Conference view: an MCO note or a placeholder entry is not a reply.
      - Directions older than 7 days are highlighted.
    - **Tasks**: blocked or overdue tasks first, showing the latest blocking reason from the task audit log. Tasks due within 7 days follow.
-     - Submitted and closed tasks are left out.
+     - Submitted, closed and backlog tasks are left out.
    - **Needs attention**: counts with a by-officer breakdown, linking to that officer's conference review.
      - Items returned by the HoD and not yet corrected: a plan, stage update or project-details request. This is the command-wide form of the PO desk rule, with the same 180-day horizon.
      - Projects with no PDC on their current stage.

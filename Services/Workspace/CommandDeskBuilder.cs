@@ -250,8 +250,10 @@ public static class CommandDeskBuilder
 
     // SECTION: Tasks
     // Submitted tasks wait on the assigner, not the assignee, so they belong under Waiting on you.
+    // Backlog tasks are deferred and unassigned, so an old due date there is not lagging work.
     private static bool IsOpenForLag(CommandDeskTaskInput task)
         => !string.Equals(task.Status, Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(task.Status, Models.ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(task.Status, Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBlocked(CommandDeskTaskInput task)

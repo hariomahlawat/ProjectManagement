@@ -363,6 +363,7 @@ public sealed class CommandDeskService
             .Where(task => !task.IsDeleted
                 && task.Status != ActionTaskStatuses.Closed
                 && task.Status != ActionTaskStatuses.Submitted
+                && task.Status != ActionTaskStatuses.Backlog
                 && (task.Status == ActionTaskStatuses.Blocked || task.DueDate < dueBy))
             .Select(task => new
             {

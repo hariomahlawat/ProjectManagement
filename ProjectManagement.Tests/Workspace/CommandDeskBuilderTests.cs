@@ -108,7 +108,7 @@ public sealed class CommandDeskBuilderTests
 
     // SECTION: Tasks
     [Fact]
-    public void Tasks_PutBlockedAndOverdueFirst_ThenDueWithinAWeek_AndSkipSubmittedOrClosed()
+    public void Tasks_PutBlockedAndOverdueFirst_ThenDueWithinAWeek_AndSkipSubmittedClosedOrBacklog()
     {
         var desk = Build(tasks: new[]
         {
@@ -117,6 +117,7 @@ public sealed class CommandDeskBuilderTests
             Task(3, "Far off", ActionTaskStatuses.Assigned, dueInDays: 20),
             Task(4, "Submitted", ActionTaskStatuses.Submitted, dueInDays: -2),
             Task(5, "Closed", ActionTaskStatuses.Closed, dueInDays: -2),
+            Task(7, "Backlog", ActionTaskStatuses.Backlog, dueInDays: -30),
             Task(6, "Overdue", ActionTaskStatuses.InProgress, dueInDays: -1)
         });
 
