@@ -188,3 +188,19 @@ test('exiting a round restores every card and forgets the round', () => {
     assert.equal(doc.querySelector('[data-bd-round]').hidden, true);
     assert.equal(window.sessionStorage.getItem('prism.briefingDesk.round'), null);
 });
+
+test('recently completed cards are not part of the weekly round', () => {
+    const completed = `<details class="bd-completed" open>${roundCard('desk-project-40', 'false', 'VROP Myanmar')}</details>`;
+    const dom = new JSDOM(`<!DOCTYPE html><html><body><div data-briefing-desk>${roundMarkup}${roundCard('desk-project-1', 'false', 'BFSR')}${completed}</div></body></html>`, {
+        url: 'https://example.test/Workspace?mode=project-officer',
+        runScripts: 'dangerously'
+    });
+    const script = dom.window.document.createElement('script');
+    script.textContent = scriptContent;
+    dom.window.document.body.appendChild(script);
+    const doc = dom.window.document;
+
+    doc.querySelector('[data-bd-round-start]').click();
+
+    assert.equal(doc.querySelector('[data-bd-round-title]').textContent, 'Item 1 of 1: BFSR');
+});

@@ -208,8 +208,10 @@ public sealed class ProjectOfficerActionGroupsRenderVm
 
 public sealed class ProjectOfficerProjectTableRenderVm
 {
-    public IReadOnlyList<WorkspaceProjectMatrixRowVm> Rows { get; init; } = Array.Empty<WorkspaceProjectMatrixRowVm>();
-    public bool Compact { get; init; }
+    /// <summary>The desk's project cards, so the register and the desk always agree.</summary>
+    public IReadOnlyList<BriefingDeskItemVm> Projects { get; init; } = Array.Empty<BriefingDeskItemVm>();
+
+    public IReadOnlyDictionary<int, WorkspaceRecordHealthVm> RecordHealth { get; init; } = new Dictionary<int, WorkspaceRecordHealthVm>();
 }
 
 public sealed class WorkspaceUpcomingEventVm

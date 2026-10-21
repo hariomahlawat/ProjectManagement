@@ -9,23 +9,11 @@
     <main class="cw-workspace-content po-workspace-content @(activeView == "conference" ? "cw-workspace-content--conference po-workspace-content--conference" : string.Empty)">
         @switch (activeView)
         {
-            case "actions":
-                @await Html.PartialAsync("_ProjectOfficerActionQueue", Model)
-                break;
             case "projects":
                 @await Html.PartialAsync("_ProjectOfficerProjects", Model)
                 break;
-            case "tasks":
-                @await Html.PartialAsync("_ProjectOfficerTasks", Model)
-                break;
-            case "ideas":
-                @await Html.PartialAsync("_ProjectOfficerIdeas", Model)
-                break;
             case "conference":
                 @await Html.PartialAsync("_ProjectOfficerConference", Model)
-                break;
-            case "follow-ups":
-                @await Html.PartialAsync("_ProjectOfficerFollowUps", Model)
                 break;
             case "documents":
                 @await Html.PartialAsync("_ProjectOfficerDocuments", Model)

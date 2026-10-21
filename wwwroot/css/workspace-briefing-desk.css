@@ -1260,3 +1260,88 @@
     align-items: center;
     gap: 0.75rem 1rem;
 }
+
+/* SECTION: Section links and recently completed ------------------------- */
+.bd-section__head .bd-link {
+    margin-left: auto;
+}
+
+.bd-section__head span + .bd-link {
+    margin-left: 0.75rem;
+}
+
+.bd-completed {
+    border-top: 1px solid var(--pm-border);
+    padding-top: 0.75rem;
+}
+
+.bd-completed > summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    padding: 0.35rem 0;
+    cursor: pointer;
+    list-style: none;
+}
+
+.bd-completed > summary::-webkit-details-marker {
+    display: none;
+}
+
+.bd-completed > summary::before {
+    content: "\25B8";
+    color: var(--pm-text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.bd-completed[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.bd-completed__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.bd-completed__meta {
+    font-size: 0.8125rem;
+    color: var(--pm-text-secondary);
+}
+
+.bd-completed > .bd-section__items {
+    margin-top: 0.75rem;
+}
+
+/* SECTION: Project register --------------------------------------------- */
+.bd-register__project,
+.bd-register__status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+}
+
+/* The shared project-name style centres itself; names in the register align left. */
+.bd-register__project .po-project-name {
+    align-self: flex-start;
+}
+
+.bd-register__open,
+.bd-register__next {
+    font-size: 0.8125rem;
+    color: var(--pm-primary-strong);
+}
+
+.bd-register__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bd-completed > summary::before {
+        transition: none;
+    }
+}

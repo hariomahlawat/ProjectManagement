@@ -75,20 +75,8 @@
                    asp-route-view="overview"
                    class="@(Active("personal-overview"))"
                    aria-current="@(Current("personal-overview"))"
-                   data-tooltip="Overview">
-                    <i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span>
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="project-officer"
-                   asp-route-view="actions"
-                   class="@(Active("personal-actions"))"
-                   aria-current="@(Current("personal-actions"))"
-                   data-tooltip="Action queue">
-                    <i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span>
-                    @if (Model.ActionQueueCount.HasValue && Model.ActionQueueCount.Value > 0)
-                    {
-                        <b>@Model.ActionQueueCount.Value</b>
-                    }
+                   data-tooltip="Briefing desk">
+                    <i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Briefing desk</span>
                 </a>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="project-officer"
@@ -103,47 +91,11 @@
                    asp-route-view="projects"
                    class="@(Active("personal-projects"))"
                    aria-current="@(Current("personal-projects"))"
-                   data-tooltip="Assigned projects">
-                    <i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span>
+                   data-tooltip="Project register">
+                    <i class="bi bi-kanban" aria-hidden="true"></i><span>Project register</span>
                     @if (Model.AssignedProjectCount > 0)
                     {
                         <b>@Model.AssignedProjectCount</b>
-                    }
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="project-officer"
-                   asp-route-view="tasks"
-                   class="@(Active("personal-tasks"))"
-                   aria-current="@(Current("personal-tasks"))"
-                   data-tooltip="Assigned tasks">
-                    <i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span>
-                    @if (Model.AssignedTaskCount > 0)
-                    {
-                        <b>@Model.AssignedTaskCount</b>
-                    }
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="project-officer"
-                   asp-route-view="ideas"
-                   class="@(Active("personal-ideas"))"
-                   aria-current="@(Current("personal-ideas"))"
-                   data-tooltip="My ideas">
-                    <i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span>
-                    @if (Model.AssignedIdeaCount > 0)
-                    {
-                        <b>@Model.AssignedIdeaCount</b>
-                    }
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="project-officer"
-                   asp-route-view="follow-ups"
-                   class="@(Active("personal-follow-ups"))"
-                   aria-current="@(Current("personal-follow-ups"))"
-                   data-tooltip="Follow-ups">
-                    <i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span>
-                    @if (Model.FollowUpCount > 0)
-                    {
-                        <b>@Model.FollowUpCount</b>
                     }
                 </a>
             </div>
