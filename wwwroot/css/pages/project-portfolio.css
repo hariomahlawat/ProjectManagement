@@ -3977,10 +3977,6 @@ button.project-intelligence-card--tot:focus-visible {
     background: color-mix(in srgb, var(--bs-danger, #dc3545) 82%, #7f1d1d);
 }
 
-:where([data-bs-theme="dark"]) .project-profile-card .project-photo-cover-empty__icon {
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, #16181b);
-}
-
 :where([data-bs-theme="dark"]) .project-lifecycle-summary__progress span {
     background: linear-gradient(90deg, var(--pm-accent-blue, #3f6ff0), #60a5fa);
 }
@@ -3995,10 +3991,6 @@ button.project-intelligence-card--tot:focus-visible {
 
 :where([data-bs-theme="dark"]) .historical-stage-editor__footer {
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
-}
-
-:where([data-bs-theme="dark"]) .pm-stage-outcome__primary {
-    background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 55%, #16181b) !important;
 }
 
 :where([data-bs-theme="dark"]) .pm-pill-cancelled {
@@ -4017,25 +4009,8 @@ button.project-intelligence-card--tot:focus-visible {
     color: color-mix(in srgb, var(--bs-danger, #dc3545) 62%, #e6e8eb);
 }
 
-:where([data-bs-theme="dark"]) .project-profile-missing {
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 55%, #16181b);
-}
-
-:where([data-bs-theme="dark"]) .procurement-empty-state__icon,
-:where([data-bs-theme="dark"]) .project-files-empty__icon {
-    background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, #16181b);
-}
-
-:where([data-bs-theme="dark"]) .project-lifecycle-summary__grid > .is-attention {
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle, #f8d7da) 48%, #16181b);
-}
-
 :where([data-bs-theme="dark"]) .pm-completed-group__summary::before {
     box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.38);
-}
-
-:where([data-bs-theme="dark"]) .project-exploitation-card .pm-right-summary-card__footer {
-    background: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, #16181b);
 }
 
 :where([data-bs-theme="dark"]) #stageRequestModal .modal-footer {

@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **8318** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **8317** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -17,18 +17,18 @@ Totals: **8318** stylesheet literals in 84 files, **6** in inline view styles.
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `navigation-shell.css` | 88 | 42 |
-| `pages/project-portfolio.css` | 57 | 53 |
+| `pages/project-portfolio.css` | 57 | 47 |
 | `components/prism-confirm-dialog.css` | 22 | 8 |
 | `projects/timeline.css` | 13 | 6 |
 | `pages/project-lifecycle-actions.css` | 2 | 2 |
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-2011 literals.
+2010 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 443 | 318 |
+| `site.css` | 442 | 317 |
 | `workspace.css` | 279 | 207 |
 | `command-workspace.css` | 232 | 165 |
 | `officer-conference.css` | 202 | 139 |
@@ -51,7 +51,7 @@ Totals: **8318** stylesheet literals in 84 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `notebook.css` | 397 | 271 |
+| `notebook.css` | 397 | 272 |
 | `pages/photos-people.css` | 183 | 114 |
 | `pages/photos-library.css` | 169 | 110 |
 | `pages/search.css` | 114 | 79 |
@@ -72,7 +72,7 @@ Totals: **8318** stylesheet literals in 84 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `pages/projects-publications.css` | 1302 | 810 |
+| `pages/projects-publications.css` | 1302 | 804 |
 | `process-flow.css` | 552 | 265 |
 | `pages/project-briefing-decks.css` | 247 | 172 |
 | `project-ideas.css` | 228 | 150 |

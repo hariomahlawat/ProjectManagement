@@ -52,3 +52,9 @@ test('inline style literals are counted in both quote forms', () => {
   const { countInlineStyleLiterals } = require('./theme-coverage');
   assert.equal(countInlineStyleLiterals(`<div style="color: #fff"></div><span style='background: #000'></span><p data-style="#fff"></p>`), 2);
 });
+
+test('quoted strings are not counted as colours', () => {
+  const { countLiterals } = require('./theme-coverage');
+  assert.equal(countLiterals('"#000"'), 0);
+  assert.equal(countLiterals("'#fff' #000"), 1);
+});

@@ -276,13 +276,25 @@ function convert(source) {
     }
   }
 
+  // Light islands (print proofs): a dark rule with color-scheme: light names classes whose
+  // contents must keep Light's look. Rules for those classes, their BEM elements/modifiers and
+  // their descendants get no generated dark rules.
+  const islands = new Set();
+  for (const rule of rules) {
+    if (!isDarkSelector(rule.selector)) continue;
+    if (!rule.declarations.some((d) => d.property === 'color-scheme' && /light/.test(d.value))) continue;
+    for (const m of rule.selector.matchAll(/\.([\w-]+)/g)) islands.add(m[1]);
+  }
+  const inIsland = (part) => [...part.matchAll(/\.([\w-]+)/g)].some((m) => [...islands]
+    .some((name) => m[1] === name || m[1].startsWith(`${name}__`) || m[1].startsWith(`${name}--`)));
+
   const edits = [];
   const blocks = new Map(); // at-rule chain -> [rule text]
   let swapped = 0;
   let generated = 0;
   let reasserted = 0;
   const hint = (rule, d) => ({ property: d.property, selector: rule.selector });
-  const mapValue = (rule, d, value) => value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(value, offset)
+  const mapValue = (rule, d, value) => value.replace(LITERAL, (literal, offset) => (isProtected(value, offset)
     ? literal
     : darkColour(literal, roleOf(d.property, parseColour(literal)), value, hint(rule, d))));
 
@@ -296,6 +308,7 @@ function convert(source) {
       if (isDarkSelector(rule.selector)) continue;
       if (rule.atRules.some((at) => /^@(keyframes|font-face|-webkit-keyframes|page)/.test(at) || /^@media[^{]*\b(print|prefers-color-scheme)\b/.test(at))) continue;
       const parts = splitSelector(rule.selector);
+      if (islands.size && parts.every(inIsland)) continue;
       const atKey = rule.atRules.join('|');
       const darkDeclarations = [];
       for (const d of rule.declarations) {
@@ -307,7 +320,7 @@ function convert(source) {
           && !parts.some((part) => planned.has(`${part}|${family}`))
           && parts.some((part) => plannedFor(family).some((base) => compoundExtends(base, part)))) {
           // A state of a repainted selector: repeat it (mapped) after the base dark rule.
-          const swappedValue = d.value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(d.value, offset) ? literal : swapFor(d.property, literal) || literal));
+          const swappedValue = d.value.replace(LITERAL, (literal, offset) => (isProtected(d.value, offset) ? literal : swapFor(d.property, literal) || literal));
           darkDeclarations.push(`    ${d.property}: ${mapValue(rule, d, swappedValue)}${d.important ? ' !important' : ''};`);
           reasserted += 1;
         }
@@ -316,7 +329,7 @@ function convert(source) {
         // 1. Exact token swaps, in place.
         let remaining = 0;
         const value = d.value.replace(LITERAL, (literal, offset) => {
-          if (isInsideVarFallback(d.value, offset)) return literal;
+          if (isProtected(d.value, offset)) return literal;
           const swap = swapFor(d.property, literal);
           if (swap) {
             if (pass === 2) swapped += 1;
@@ -385,6 +398,25 @@ function compoundExtends(base, part) {
   return a.every((t, i) => b[i] === t || (b[i].startsWith(t) && /^[:.[]/.test(b[i].slice(t.length))));
 }
 
+// A match inside a var() fallback or a quoted string (content: "black") is not a colour to map.
+function isProtected(value, offset) {
+  return isInsideString(value, offset) || isInsideVarFallback(value, offset);
+}
+
+function isInsideString(value, offset) {
+  let quote = null;
+  for (let i = 0; i < offset; i++) {
+    const ch = value[i];
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    }
+  }
+  return quote !== null;
+}
+
 function isInsideVarFallback(value, offset) {
   const before = value.slice(0, offset);
   const open = before.lastIndexOf('var(');
@@ -451,7 +483,7 @@ function regraphite(source) {
     if (rule.declarations.some((d) => d.property === 'color-scheme' && /light/.test(d.value))) continue;
     for (const d of rule.declarations) {
       if (d.valueStart >= limit) continue;
-      const value = d.value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(d.value, offset) ? literal : regraphiteColour(literal)));
+      const value = d.value.replace(LITERAL, (literal, offset) => (isProtected(d.value, offset) ? literal : regraphiteColour(literal)));
       if (value !== d.value) edits.push({ start: d.valueStart, end: d.valueEnd, text: rawWithValue(source, d, value) });
     }
   }

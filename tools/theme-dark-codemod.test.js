@@ -55,3 +55,22 @@ test('only the selector subject marks a page canvas', () => {
   assert.equal(darkColour('#f2f6fc', 'background', '', { selector: '.ideas-page' }), '#0e0f11');
   assert.notEqual(darkColour('#f2f6fc', 'background', '', { selector: '.ideas-page .tabs a:hover' }), '#0e0f11');
 });
+
+test('colour words inside quoted strings are left alone', () => {
+  const { output, generated } = convert('.x::before { content: "black"; color: black; }');
+  assert.equal(generated, 1);
+  assert.doesNotMatch(output, /content: "#/);
+  assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.x::before \{\n {4}color: #f0f2f4;/);
+});
+
+test('light islands and their BEM parts and descendants get no dark rules', () => {
+  const css = `
+    .proof { background: #fff; }
+    .proof--wide { background: #f8fafc; }
+    .proof__title, .proof .caption { color: #333; }
+    .card { background: #f7f9fc; }
+    [data-bs-theme="dark"] :is(.proof) { color-scheme: light; --pm-card: #ffffff; }`;
+  const { output } = convert(css);
+  assert.doesNotMatch(output, /\]\) \.proof/);
+  assert.match(output, /:where\(\[data-bs-theme="dark"\]\) \.card \{/);
+});
