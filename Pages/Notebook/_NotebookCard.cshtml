@@ -119,7 +119,12 @@
         <div class="notebook-card-meta">
             @if (item.ReminderAtUtc is not null)
             {
-                <span class="@(item.IsOverdue ? "text-danger" : string.Empty)"><i class="bi bi-bell"></i> @item.ReminderDisplay</span>
+                var reminderTitle = $"{ProjectManagement.Services.Notebook.NotebookReminderFormatter.FormatReminder(item.ReminderAtUtc)} IST{(item.IsPastDue ? " · past due" : string.Empty)}";
+                <span class="notebook-card-reminder @(item.IsPastDue ? "is-past-due" : string.Empty)" title="@reminderTitle"><i class="bi @(item.IsPastDue ? "bi-bell-fill" : "bi-bell")" aria-hidden="true"></i> @item.ReminderDisplay</span>
+            }
+            @if (item.Priority == NotebookPriority.High && item.Status == NotebookItemStatus.Active)
+            {
+                <span class="notebook-card-priority" title="High priority"><i class="bi bi-flag-fill" aria-hidden="true"></i> High</span>
             }
             @if (item.ChecklistTotal > 0 && item.Type != NotebookItemType.Checklist)
             {

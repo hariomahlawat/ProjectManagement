@@ -300,6 +300,39 @@
                 <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p></div>
             }
         }
+        else if (Model.Notebook.View is "reminders" or "today")
+        {
+            @* SECTION: Reminder views grouped by urgency. The grouping only partitions on
+               IsPastDue / IsDueToday, which the service resolves once per item. *@
+            var reminderItems = Model.Notebook.Items;
+            var reminderGroups = new List<(string Key, string Title, NotebookItemListVm[] Items)>
+            {
+                ("past-due", "Past due", reminderItems.Where(item => item.IsPastDue).ToArray()),
+                ("today", Model.Notebook.View == "today" ? "Later today" : "Today", reminderItems.Where(item => !item.IsPastDue && item.IsDueToday).ToArray())
+            };
+            if (Model.Notebook.View == "reminders")
+            {
+                reminderGroups.Add(("upcoming", "Upcoming", reminderItems.Where(item => !item.IsPastDue && !item.IsDueToday).ToArray()));
+            }
+
+            foreach (var group in reminderGroups)
+            {
+                <section class="notebook-board-section" data-notebook-group="@group.Key" hidden="@(group.Items.Length == 0)">
+                    <div class="notebook-section-header"><h2>@group.Title</h2><span data-notebook-group-count>@group.Items.Length</span></div>
+                    <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@group.Items.Length">
+                        @foreach (var item in group.Items)
+                        {
+                            <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (!reminderItems.Any())
+            {
+                <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p>@if (!hasQuery) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="Reminder" data-notebook-create-type="Reminder" class="btn btn-sm btn-primary">New Reminder</a> }</div>
+            }
+        }
         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
         {
             var showSystemInCurrentView = Model.ShowConferenceDigest && Model.ConferenceDigestPreference is not null;

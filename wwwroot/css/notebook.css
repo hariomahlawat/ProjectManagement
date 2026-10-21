@@ -3613,6 +3613,19 @@ body.notebook-confirm-open { overflow: hidden; }
     font-weight: 650;
 }
 
+/* Status tokens carry their own dark values, so these read correctly in both themes. */
+.notebook-card-meta > .notebook-card-reminder.is-past-due {
+    border-color: var(--pm-danger-soft-border, #fca5a5);
+    background: var(--pm-danger-soft-bg, #fee2e2);
+    color: var(--pm-danger-soft-text, #7f1d1d);
+}
+
+.notebook-card-meta > .notebook-card-priority {
+    border-color: var(--pm-warning-soft-border, #fcd34d);
+    background: var(--pm-warning-soft-bg, #fef3c7);
+    color: var(--pm-warning-soft-text, #854d0e);
+}
+
 .notebook-card-tags {
     margin-top: 7px;
 }

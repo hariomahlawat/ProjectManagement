@@ -109,7 +109,11 @@ public class NotebookItemListVm
 
     public IReadOnlyList<NotebookChecklistItemVm> ChecklistPreviewItems { get; set; } = Array.Empty<NotebookChecklistItemVm>();
 
+    // Overdue: due before today (drives the Overdue view and count).
+    // PastDue: the reminder time has passed, including earlier today (drives card urgency).
     public bool IsOverdue { get; set; }
+
+    public bool IsPastDue { get; set; }
 
     public bool IsDueToday { get; set; }
 

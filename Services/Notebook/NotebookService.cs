@@ -1457,7 +1457,7 @@ public sealed class NotebookService : INotebookService
     }
 
 
-    private static NotebookItemDetailVm ToDetailShell(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds, string? currentUserId = null)
+    private static NotebookItemDetailVm ToDetailShell(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset NowUtc) bounds, string? currentUserId = null)
     {
         var list = ToListVm(item, bounds, currentUserId);
         return new NotebookItemDetailVm
@@ -1479,6 +1479,7 @@ public sealed class NotebookService : INotebookService
             ChecklistDone = list.ChecklistDone,
             ChecklistPreviewItems = list.ChecklistPreviewItems,
             IsOverdue = list.IsOverdue,
+            IsPastDue = list.IsPastDue,
             IsDueToday = list.IsDueToday,
             Version = list.Version,
             OwnerId = list.OwnerId,
@@ -1638,13 +1639,13 @@ public sealed class NotebookService : INotebookService
         return query.Where(item => item.ReminderAtUtc != null);
     }
 
-    private static (DateTimeOffset StartUtc, DateTimeOffset EndUtc) TodayBounds(DateTimeOffset nowUtc)
+    private static (DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset NowUtc) TodayBounds(DateTimeOffset nowUtc)
     {
         var bounds = NotebookDateBounds.For(nowUtc);
-        return (bounds.StartUtc, bounds.EndUtc);
+        return (bounds.StartUtc, bounds.EndUtc, nowUtc);
     }
 
-    private static NotebookItemListVm ToListVm(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds, string? currentUserId = null) => new()
+    private static NotebookItemListVm ToListVm(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset NowUtc) bounds, string? currentUserId = null) => new()
     {
         Id = item.Id,
         Title = item.Title,
@@ -1653,7 +1654,7 @@ public sealed class NotebookService : INotebookService
         Status = item.Status,
         Priority = item.Priority,
         ReminderAtUtc = item.ReminderAtUtc,
-        ReminderDisplay = NotebookReminderFormatter.FormatReminder(item.ReminderAtUtc),
+        ReminderDisplay = NotebookReminderFormatter.FormatReminder(item.ReminderAtUtc, bounds.NowUtc),
         IsPinned = item.OwnerId == currentUserId && item.IsPinned,
         IsFavorite = item.IsFavorite,
         ColorKey = item.ColorKey ?? "white",
@@ -1682,13 +1683,14 @@ public sealed class NotebookService : INotebookService
             })
             .ToArray(),
         IsOverdue = item.ReminderAtUtc < bounds.StartUtc && item.Status == NotebookItemStatus.Active,
+        IsPastDue = item.ReminderAtUtc < bounds.NowUtc && item.Status == NotebookItemStatus.Active,
         IsDueToday = item.ReminderAtUtc >= bounds.StartUtc && item.ReminderAtUtc < bounds.EndUtc
     };
 
     private async Task<NotebookItemDetailVm?> LoadSelectedAsync(
         string ownerId,
         Guid? id,
-        (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds,
+        (DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset NowUtc) bounds,
         CancellationToken ct)
     {
         if (id is null)
@@ -1742,7 +1744,7 @@ public sealed class NotebookService : INotebookService
 
     private async Task<NotebookSummaryVm> BuildSummary(
         string ownerId,
-        (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds,
+        (DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset NowUtc) bounds,
         CancellationToken ct)
     {
         var query = _db.NotebookItems
@@ -1767,7 +1769,7 @@ public sealed class NotebookService : INotebookService
     private async Task<IReadOnlyList<NotebookRailItemVm>> BuildRail(
         string ownerId,
         string active,
-        (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds,
+        (DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset NowUtc) bounds,
         CancellationToken ct)
     {
         var accessibleQuery = _db.NotebookItems
