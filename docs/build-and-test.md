@@ -66,6 +66,8 @@ npm run check:notebook-assets
 
 Do not hand-edit generated Notebook outputs to make a check pass. Change the source/build inputs and regenerate.
 
+The build reads sources with LF line endings, so a Windows checkout (CRLF working files) produces the same source map as CI. `check:notebook-assets` runs the build with Node directly and prints an error if a step cannot start, rather than exiting silently.
+
 ## Database migration validation
 
 The repository contains a dedicated PostgreSQL migration workflow at `.github/workflows/database-migrations.yml`.
