@@ -123,6 +123,19 @@ export function getReminderPreset(preset, now = new Date()) {
   return null;
 }
 
+// Preset buttons name the time they will set, so "Later today" is never a surprise.
+export function formatReminderPresetLabel(preset, now = new Date()) {
+  const value = getReminderPreset(preset, now);
+  if (preset === 'later-today') return value ? `Later today · ${value.time}` : 'Later today';
+  if (!value) return '';
+  if (preset === 'tomorrow-morning') return `Tomorrow · ${value.time}`;
+  const instant = istScheduleInstant(value.date, value.time);
+  const day = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+    .format(instant)
+    .replace(',', '');
+  return `${day} · ${value.time}`;
+}
+
 export function getDefaultReminderSchedule(now = new Date()) {
   return getReminderPreset('later-today', now) || getReminderPreset('tomorrow-morning', now);
 }
@@ -175,6 +188,10 @@ export function createReminderScheduler(root, options = {}) {
     const now = nowProvider();
     dateInput.min = getIstTodayValue(now);
     const laterToday = getReminderPreset('later-today', now);
+    presetButtons.forEach((button) => {
+      const label = formatReminderPresetLabel(button.dataset.reminderPreset, now);
+      if (label) button.textContent = label;
+    });
     const laterButton = presetButtons.find((button) => button.dataset.reminderPreset === 'later-today');
     if (laterButton) {
       laterButton.disabled = !laterToday;

@@ -374,6 +374,12 @@ function createNotebookBoard(root = document) {
       const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
       if (countEl) countEl.textContent = String(count);
     });
+    root.querySelectorAll("[data-notebook-group]").forEach((section) => {
+      const count = section.querySelector("[data-notebook-board]")?.querySelectorAll(VISUAL_CARD_SELECTOR).length || 0;
+      section.hidden = count === 0;
+      const countEl = section.querySelector("[data-notebook-group-count]");
+      if (countEl) countEl.textContent = String(count);
+    });
     const othersHeader = root.querySelector('[data-notebook-section-header="others"]');
     if (othersHeader) {
       const countOf = (name) => Number(root.querySelector(`[data-notebook-board="${name}"]`)?.dataset.itemCount || 0);
@@ -387,11 +393,16 @@ function createNotebookBoard(root = document) {
     const systemCount = root.querySelectorAll("[data-notebook-system-card]").length;
     empty.hidden = notebookCount + systemCount > 0;
   };
+  const groupBoardFor = (card) => {
+    const key = card?.dataset?.reminderGroup;
+    return key ? root.querySelector(`[data-notebook-group="${key}"] [data-notebook-board]`) : null;
+  };
+  const keepCurrentBoard = (current) => current?.parentElement?.matches?.("[data-notebook-board]") && !root.querySelector('[data-notebook-board="pinned"]');
   const upsertCard = (id, html, isPinned, options = {}) => {
     const current = findCard(id);
-    const targetBoard = getBoard(isPinned);
-    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
     const fragment = htmlToCardElement(html, id);
+    const targetBoard = groupBoardFor(fragment) || (keepCurrentBoard(current) ? current.parentElement : getBoard(isPinned));
+    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
     const sameBoard = current && current.parentElement === targetBoard;
     const preservePosition = options.preservePosition !== false;
     if (sameBoard && preservePosition) {
@@ -415,7 +426,7 @@ function createNotebookBoard(root = document) {
   };
   const insertCard = (html, pinned = false) => {
     const fragment = htmlToCardElement(html);
-    const board = getBoard(pinned);
+    const board = groupBoardFor(fragment) || getBoard(pinned);
     if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? "pinned" : "others"}" was not found.`);
     board.prepend(fragment);
     refreshSectionVisibility();
@@ -1817,6 +1828,15 @@ function getReminderPreset(preset, now = /* @__PURE__ */ new Date()) {
   }
   return null;
 }
+function formatReminderPresetLabel(preset, now = /* @__PURE__ */ new Date()) {
+  const value = getReminderPreset(preset, now);
+  if (preset === "later-today") return value ? `Later today · ${value.time}` : "Later today";
+  if (!value) return "";
+  if (preset === "tomorrow-morning") return `Tomorrow · ${value.time}`;
+  const instant = istScheduleInstant(value.date, value.time);
+  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" }).format(instant).replace(",", "");
+  return `${day} · ${value.time}`;
+}
 function getDefaultReminderSchedule(now = /* @__PURE__ */ new Date()) {
   return getReminderPreset("later-today", now) || getReminderPreset("tomorrow-morning", now);
 }
@@ -1863,6 +1883,10 @@ function createReminderScheduler(root, options = {}) {
     const now = nowProvider();
     dateInput.min = getIstTodayValue(now);
     const laterToday = getReminderPreset("later-today", now);
+    presetButtons.forEach((button) => {
+      const label = formatReminderPresetLabel(button.dataset.reminderPreset, now);
+      if (label) button.textContent = label;
+    });
     const laterButton = presetButtons.find((button) => button.dataset.reminderPreset === "later-today");
     if (laterButton) {
       laterButton.disabled = !laterToday;

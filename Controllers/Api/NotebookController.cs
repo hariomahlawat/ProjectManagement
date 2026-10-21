@@ -723,6 +723,7 @@ public sealed class NotebookController : Controller
         ChecklistDone = item.ChecklistDone,
         ChecklistPreviewItems = item.ChecklistPreviewItems,
         IsOverdue = item.IsOverdue,
+        IsPastDue = item.IsPastDue,
         IsDueToday = item.IsDueToday,
         Version = item.Version,
         OwnerId = item.OwnerId,
