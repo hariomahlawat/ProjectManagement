@@ -391,6 +391,9 @@
     --pm-project-royal: #a78bfa;
     --pm-project-muted: #8a9097;
     --pm-hero-bg: var(--pm-dark-card);
+    /* Used with literal fallbacks but never defined for Light, so only Dark sets them. */
+    --pm-text-primary: #f0f2f4;
+    --pm-shadow-lg: 0 2rem 3rem rgba(0, 0, 0, .45);
     /* Effects: depth comes from lighter surfaces, so shadows stay faint */
     --pm-shadow: 0 8px 20px rgba(0, 0, 0, .35);
     /* Bootstrap mappings. --bs-body-bg is the card surface, not the page: Bootstrap paints
@@ -470,6 +473,34 @@
 /* .text-dark means "dark ink": keep it on bright solid fills (warning, info), lift it elsewhere. */
 [data-bs-theme="dark"] .text-dark:not(.bg-warning, .bg-info, .text-bg-warning, .text-bg-info, .btn-warning, .btn-info) { color: var(--pm-dark-text) !important; }
 [data-bs-theme="dark"] .text-bg-light { color: var(--pm-dark-text) !important; background-color: var(--pm-dark-tile) !important; }
+/* Leaflet maps (vendor stylesheet): controls, attribution and tooltips. */
+[data-bs-theme="dark"] .leaflet-bar a,
+[data-bs-theme="dark"] .leaflet-control-layers {
+    background-color: var(--pm-dark-tile);
+    border-color: var(--pm-dark-hairline);
+    color: var(--pm-dark-text);
+}
+[data-bs-theme="dark"] .leaflet-bar a:hover,
+[data-bs-theme="dark"] .leaflet-bar a:focus {
+    background-color: var(--pm-dark-raised);
+}
+[data-bs-theme="dark"] .leaflet-bar a.leaflet-disabled {
+    background-color: var(--pm-dark-card);
+    color: #6b7178;
+}
+[data-bs-theme="dark"] .leaflet-control-attribution {
+    background: rgba(22, 24, 27, .8);
+    color: var(--pm-dark-text-muted);
+}
+[data-bs-theme="dark"] .leaflet-tooltip {
+    background-color: var(--pm-dark-raised);
+    border-color: var(--pm-dark-strong-border);
+    color: var(--pm-dark-text);
+}
+[data-bs-theme="dark"] .leaflet-tooltip-top::before { border-top-color: var(--pm-dark-raised); }
+[data-bs-theme="dark"] .leaflet-tooltip-bottom::before { border-bottom-color: var(--pm-dark-raised); }
+[data-bs-theme="dark"] .leaflet-tooltip-left::before { border-left-color: var(--pm-dark-raised); }
+[data-bs-theme="dark"] .leaflet-tooltip-right::before { border-right-color: var(--pm-dark-raised); }
 /* Bootstrap does not remap .table-light for its dark theme. */
 [data-bs-theme="dark"] .table-light {
     --bs-table-color: var(--pm-dark-text);

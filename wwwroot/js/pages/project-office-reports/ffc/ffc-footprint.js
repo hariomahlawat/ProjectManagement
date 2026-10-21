@@ -206,10 +206,17 @@
         return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
     }
 
+    // Map colours come from CSS custom properties so the dark theme can set them; the
+    // fallbacks are the Light colours.
+    function mapColour(name, fallback) {
+        const value = window.getComputedStyle(mapElement).getPropertyValue(`--ffc-map-${name}`).trim();
+        return value || fallback;
+    }
+
     const scale = buildScale(countries.map(getMetricValue));
 
     function shadeForValue(value) {
-        if (value <= 0 || scale.length === 0) return '#e7ecf2';
+        if (value <= 0 || scale.length === 0) return mapColour('zero', '#e7ecf2');
         const index = scale.findIndex(range => value >= range.start && value <= range.end);
         const resolvedIndex = index < 0 ? scale.length - 1 : index;
         return shade(0.28 + resolvedIndex * 0.18);
@@ -235,7 +242,7 @@
         });
         const zero = createElement('div', 'ffc-footprint-legend__item');
         const zeroSample = createElement('span', 'ffc-footprint-legend__sample');
-        zeroSample.style.background = '#e7ecf2';
+        zeroSample.style.background = mapColour('zero', '#e7ecf2');
         zero.append(zeroSample, createElement('span', null, 'Record present, quantity 0'));
         legendElement.append(zero);
     }
@@ -265,13 +272,13 @@
     function countryStyle(feature) {
         const country = countryByIso.get(getFeatureIso(feature));
         if (!country) {
-            return { fillColor: '#f7f9fc', fillOpacity: 1, color: '#95a1b2', weight: .65, opacity: .8 };
+            return { fillColor: mapColour('land', '#f7f9fc'), fillOpacity: 1, color: mapColour('land-border', '#95a1b2'), weight: .65, opacity: .8 };
         }
         const isSelected = String(country.id) === String(selectedCountryId || '');
         return {
             fillColor: shadeForValue(getMetricValue(country)),
             fillOpacity: 1,
-            color: isSelected ? '#123f8c' : '#56667a',
+            color: isSelected ? mapColour('selected', '#123f8c') : mapColour('border', '#56667a'),
             weight: isSelected ? 3.2 : 1.1,
             opacity: 1
         };
@@ -289,7 +296,7 @@
 
         layer.on({
             mouseover: event => {
-                event.target.setStyle({ weight: 2.4, color: '#1f3c67' });
+                event.target.setStyle({ weight: 2.4, color: mapColour('hover', '#1f3c67') });
                 event.target.bringToFront?.();
             },
             mouseout: event => event.target.setStyle(countryStyle(feature)),

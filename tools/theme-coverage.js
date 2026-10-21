@@ -46,7 +46,8 @@ const WAVES = [
   { name: 'Wave 4: Action tracker, tasks, office reports, admin and the rest', match: /./ },
 ];
 
-const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g;
+// Named white/black count too (background: white is a light island like #fff).
+const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(|(?<![\w-])(?:white|black)(?![\w-])/g;
 
 function toPosix(file) {
   return path.relative(ROOT, file).split(path.sep).join('/');
