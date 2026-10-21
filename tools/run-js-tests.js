@@ -12,6 +12,7 @@ const notebookTestsRoot = path.join('wwwroot', 'js', 'notebook');
 const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'action-tasks', 'index.test.js'),
   path.join('wwwroot', 'js', 'pages', 'workspace-index.test.js'),
+  path.join('wwwroot', 'js', 'pages', 'workspace-briefing-desk.test.js'),
   path.join('wwwroot', 'js', 'pages', 'officer-conference.test.js'),
   path.join('wwwroot', 'js', 'calendar.test.js'),
   path.join('wwwroot', 'js', 'project-office-reports', 'ipr', 'index.test.js'),

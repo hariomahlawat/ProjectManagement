@@ -1,0 +1,222 @@
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.ViewModels.Workspace
+@model BriefingDeskItemRenderVm
+@{
+    var item = Model.Item;
+    var anchor = item.AnchorId;
+    var bodyId = $"{anchor}-body";
+    var previewId = $"{anchor}-preview";
+    var inputId = $"{anchor}-say";
+    var kindKey = BriefingDeskLabels.KindKey(item.Kind);
+    var (handler, postLabel, postHint, placeholder, sayTitle) = item.Kind switch
+    {
+        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post update", "Saved as a project remark. Counts as your weekly update.", "One or two lines: what moved, what is blocked, what is next.", "What you’ll say this week"),
+        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress"),
+        _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task")
+    };
+    if (item.DirectionAwaitingProgress)
+    {
+        sayTitle = "What you’ll report on the direction";
+    }
+
+    string ToneClass(BriefingDeskTone tone) => tone switch
+    {
+        BriefingDeskTone.Good => "bd-fact--good",
+        BriefingDeskTone.Warning => "bd-fact--warning",
+        BriefingDeskTone.Danger => "bd-fact--danger",
+        _ => string.Empty
+    };
+
+    string StepClass(BriefingDeskStepState state) => state switch
+    {
+        BriefingDeskStepState.Past => "bd-step--past",
+        BriefingDeskStepState.Current => "bd-step--current",
+        BriefingDeskStepState.Blocked => "bd-step--blocked",
+        _ => string.Empty
+    };
+
+    var conference = item.Conference;
+}
+<article class="bd-card @(item.IsBriefReady ? "bd-card--ready" : "bd-card--open") @(Model.IsOpen ? "is-expanded" : string.Empty)"
+         id="@anchor"
+         data-bd-card
+         aria-labelledby="@anchor-title">
+    <div class="bd-card__head">
+        <h3 class="bd-card__heading" id="@anchor-title">
+            <button type="button"
+                    class="bd-card__toggle"
+                    data-bd-toggle
+                    aria-expanded="@(Model.IsOpen ? "true" : "false")"
+                    aria-controls="@bodyId">
+                <span class="bd-card__kind">@item.KindLabel</span>
+                <span class="bd-card__title">@item.Title</span>
+            </button>
+        </h3>
+        <ul class="bd-card__facts" aria-label="Key facts">
+            @foreach (var fact in item.Facts)
+            {
+                <li class="bd-fact @ToneClass(fact.Tone)">@fact.Text</li>
+            }
+        </ul>
+        @if (item.IsBriefReady)
+        {
+            <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Brief-ready</span>
+        }
+        else
+        {
+            <span class="bd-pill bd-pill--open">@item.OpenCount to do</span>
+        }
+        <i class="bi bi-chevron-down bd-card__chevron" aria-hidden="true"></i>
+    </div>
+
+    @if (item.Strip.Any())
+    {
+        <ol class="bd-strip" aria-label="@(item.Kind == ConferenceItemKind.Project ? "Project stages" : "Task status")">
+            @foreach (var step in item.Strip)
+            {
+                <li class="bd-step @StepClass(step.State)" title="@step.Title" aria-current="@(step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked ? "step" : null)">@step.Label</li>
+            }
+        </ol>
+    }
+
+    <p class="bd-card__next">
+        @if (item.IsBriefReady)
+        {
+            <strong>Ready.</strong>
+        }
+        else
+        {
+            <strong>Next:</strong>
+        }
+        @item.NextStepText
+    </p>
+
+    <div class="bd-card__body" id="@bodyId" hidden="@(Model.IsOpen ? null : "hidden")">
+        @if (item.Direction is not null)
+        {
+            <figure class="bd-direction">
+                <figcaption>
+                    Conference direction · @IstClock.ToIst(item.Direction.CreatedAtUtc).ToString("dd MMM yyyy")
+                    @if (!string.IsNullOrWhiteSpace(item.Direction.AuthorName))
+                    {
+                        <span> · @item.Direction.AuthorName</span>
+                    }
+                    @if (item.DirectionAwaitingProgress)
+                    {
+                        <span class="bd-direction__flag">Awaiting your progress</span>
+                    }
+                </figcaption>
+                <blockquote>@item.Direction.Body</blockquote>
+            </figure>
+        }
+
+        <div class="bd-card__work">
+            <form method="post"
+                  class="bd-say"
+                  asp-page="/Workspace/Index"
+                  asp-page-handler="@handler"
+                  asp-route-mode="project-officer">
+                <input type="hidden" name="itemId" value="@item.ItemId" />
+                <label class="bd-say__label" for="@inputId">@sayTitle</label>
+                <p class="bd-say__last">@item.LastUpdateText</p>
+                <textarea class="bd-say__input"
+                          id="@inputId"
+                          name="body"
+                          rows="4"
+                          maxlength="4000"
+                          required
+                          placeholder="@placeholder">@Model.Draft</textarea>
+                <div class="bd-say__actions">
+                    <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
+                    <span class="bd-say__hint">@postHint</span>
+                </div>
+            </form>
+
+            <div class="bd-checks">
+                <h4 class="bd-checks__title">Before you brief</h4>
+                <ul class="bd-checklist">
+                    @foreach (var check in item.Checks)
+                    {
+                        @await Html.PartialAsync("_BriefingDeskCheck", check)
+                    }
+                </ul>
+
+                @if (item.CanSubmitTask || item.CanFlagTaskBlocked)
+                {
+                    <div class="bd-task-actions">
+                        @if (item.CanSubmitTask)
+                        {
+                            <details class="bd-task-action">
+                                <summary class="bd-btn bd-btn--approval">Submit for closure</summary>
+                                <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskSubmit" asp-route-mode="project-officer" class="bd-task-action__form">
+                                    <input type="hidden" name="itemId" value="@item.ItemId" />
+                                    <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
+                                    <label for="@anchor-submit-note">Closure note</label>
+                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="4000" required placeholder="What was delivered, and where it is recorded."></textarea>
+                                    <button type="submit" class="bd-btn bd-btn--primary">Submit to assigner</button>
+                                </form>
+                            </details>
+                        }
+                        @if (item.CanFlagTaskBlocked)
+                        {
+                            <details class="bd-task-action">
+                                <summary class="bd-btn bd-btn--danger-outline">Flag blocked</summary>
+                                <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskBlocked" asp-route-mode="project-officer" class="bd-task-action__form">
+                                    <input type="hidden" name="itemId" value="@item.ItemId" />
+                                    <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
+                                    <label for="@anchor-blocked-note">What is blocking it?</label>
+                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="4000" required placeholder="The blocker, and who can clear it."></textarea>
+                                    <button type="submit" class="bd-btn bd-btn--danger">Flag blocked</button>
+                                </form>
+                            </details>
+                        }
+                    </div>
+                }
+
+                @if (item.Improvements.Any())
+                {
+                    <h4 class="bd-checks__title bd-checks__title--improve">
+                        Improve the record
+                        <span>@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points</span>
+                    </h4>
+                    <ul class="bd-checklist bd-checklist--improve">
+                        @foreach (var improvement in item.Improvements)
+                        {
+                            @await Html.PartialAsync("_BriefingDeskCheck", improvement)
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+
+        @if (conference is not null)
+        {
+            <div class="bd-preview" id="@previewId" hidden>
+                <p class="bd-preview__label">As shown in your conference review</p>
+                <dl class="bd-preview__grid">
+                    <div><dt>@(item.Kind == ConferenceItemKind.Project ? "Stage" : "Status")</dt><dd>@conference.CurrentStateName</dd></div>
+                    <div><dt>Context</dt><dd>@(string.IsNullOrWhiteSpace(conference.CurrentContext) ? "—" : conference.CurrentContext)</dd></div>
+                    <div><dt>Attention</dt><dd>@(string.IsNullOrWhiteSpace(conference.AttentionText) ? "None" : conference.AttentionText)</dd></div>
+                    @if (conference.RecordHealth is not null)
+                    {
+                        <div><dt>Records</dt><dd>@conference.RecordHealth.HealthPercent% · @conference.RecordHealth.RecordGapCount gap@(conference.RecordHealth.RecordGapCount == 1 ? string.Empty : "s")</dd></div>
+                    }
+                </dl>
+                <dl class="bd-preview__wide">
+                    <div><dt>Latest direction</dt><dd>@(conference.LatestDirection?.Body ?? "No conference direction recorded.")</dd></div>
+                    <div><dt>Progress after direction</dt><dd>@(conference.LatestProgressText ?? conference.EmptyProgressText ?? (string.IsNullOrWhiteSpace(conference.ProgressSummary) ? "No progress recorded." : conference.ProgressSummary))</dd></div>
+                </dl>
+            </div>
+        }
+
+        <div class="bd-card__foot">
+            @if (conference is not null)
+            {
+                <button type="button" class="bd-btn bd-btn--quiet" data-bd-preview-toggle aria-expanded="false" aria-controls="@previewId">
+                    <i class="bi bi-eye" aria-hidden="true"></i><span data-bd-preview-label>See as the Comdt sees it</span>
+                </button>
+            }
+            <a class="bd-link bd-link--small" href="@item.OpenUrl">Open full @kindKey<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        </div>
+    </div>
+</article>

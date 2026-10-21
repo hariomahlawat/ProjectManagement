@@ -33,6 +33,10 @@
     {
         <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
     }
+    @if (!Model.IsCommandMode && Model.View == "overview")
+    {
+        <link rel="stylesheet" href="~/css/workspace-briefing-desk.css" asp-append-version="true" />
+    }
 }
 
 @if (Model.IsCommandMode)
@@ -54,6 +58,10 @@ else
     else
     {
         <script src="~/js/pages/workspace-index.js" asp-append-version="true"></script>
+        @if (Model.View == "overview")
+        {
+            <script src="~/js/pages/workspace-briefing-desk.js" asp-append-version="true"></script>
+        }
         @if (Model.View == "conference")
         {
             <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>

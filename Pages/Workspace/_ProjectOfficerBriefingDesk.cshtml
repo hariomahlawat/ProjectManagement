@@ -1,0 +1,195 @@
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.Services.Workspace
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var vm = Model.Workspace;
+    var desk = vm.BriefingDesk;
+    var todayLabel = IstClock.ToIst(vm.GeneratedAtUtc).ToString("dddd d MMM yyyy");
+    var allItems = desk.Sections.SelectMany(group => group.Items).ToList();
+
+    // One card is open on arrival: the one a post returned to, else the first that needs work.
+    var openAnchor = !string.IsNullOrWhiteSpace(Model.Focus) && allItems.Any(item => item.AnchorId == Model.Focus)
+        ? Model.Focus
+        : allItems.FirstOrDefault(item => !item.IsBriefReady)?.AnchorId;
+    var draftAnchor = TempData.Peek(ProjectManagement.Pages.Workspace.IndexModel.DeskDraftAnchorKey) as string;
+    var draftText = draftAnchor is null ? null : TempData.Peek(ProjectManagement.Pages.Workspace.IndexModel.DeskDraftTextKey) as string;
+
+    string headline;
+    if (desk.TotalCount == 0)
+    {
+        headline = "Nothing is assigned to you yet";
+    }
+    else if (desk.NotReadyCount == 0)
+    {
+        headline = "Everything is brief-ready";
+    }
+    else
+    {
+        headline = $"{desk.ReadyCount} of {desk.TotalCount} items brief-ready";
+    }
+
+    var subline = desk.TotalCount == 0
+        ? "Projects, ideas and tasks assigned to you will appear here."
+        : desk.NotReadyCount == 0
+            ? "Nothing needs you before the next conference."
+            : $"{desk.NotReadyCount} item{(desk.NotReadyCount == 1 ? " needs" : "s need")} you before the next conference. Most can be finished on this page.";
+}
+<div class="bd" data-briefing-desk>
+    <header class="bd-header">
+        <div class="bd-header__copy">
+            <p class="bd-header__meta">@todayLabel · @vm.UserDisplayName</p>
+            <h1 class="bd-header__title">@headline</h1>
+            <p class="bd-header__sub">@subline</p>
+        </div>
+        <div class="bd-header__actions">
+            <a class="bd-link" asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="conference">
+                <i class="bi bi-easel2" aria-hidden="true"></i>Open my conference view
+            </a>
+        </div>
+    </header>
+
+    @if (desk.TotalCount > 0)
+    {
+        <div class="bd-meters" aria-label="Brief-ready summary">
+            @foreach (var deskSection in desk.Sections)
+            {
+                var percent = deskSection.Items.Count == 0 ? 0 : (int)Math.Round(deskSection.ReadyCount * 100d / deskSection.Items.Count);
+                <div class="bd-meter @(percent == 100 ? "bd-meter--complete" : string.Empty)">
+                    <div class="bd-meter__top">
+                        <span class="bd-meter__label">@deskSection.Title</span>
+                        <span class="bd-meter__value">@deskSection.ReadyCount / @deskSection.Items.Count</span>
+                    </div>
+                    <progress class="bd-meter__bar" max="@deskSection.Items.Count" value="@deskSection.ReadyCount" aria-label="@deskSection.Title brief-ready: @deskSection.ReadyCount of @deskSection.Items.Count">@deskSection.ReadyCount of @deskSection.Items.Count</progress>
+                    <span class="bd-meter__caption">brief-ready</span>
+                </div>
+            }
+            <div class="bd-meter bd-meter--summary">
+                <div class="bd-meter__row"><span>With HoD / assigner</span><strong>@desk.WithOthers.Count</strong></div>
+                <div class="bd-meter__row"><span>Returned to you</span><strong class="@(desk.Returned.Count > 0 ? "bd-text-danger" : string.Empty)">@desk.Returned.Count</strong></div>
+                <div class="bd-meter__row"><span>Unread circulars</span><strong>@vm.AotsUnreadCount</strong></div>
+            </div>
+        </div>
+    }
+
+    <div class="bd-layout">
+        <div class="bd-main">
+            @if (desk.TotalCount == 0)
+            {
+                <div class="bd-empty">
+                    <i class="bi bi-inbox" aria-hidden="true"></i>
+                    <div><strong>Your desk is empty</strong><span>When a project, idea or task is assigned to you it appears here, ready to prepare for conference.</span></div>
+                </div>
+            }
+            @foreach (var deskSection in desk.Sections)
+            {
+                <section class="bd-section" aria-labelledby="bd-section-@BriefingDeskLabels.KindKey(deskSection.Kind)">
+                    <div class="bd-section__head">
+                        <h2 id="bd-section-@BriefingDeskLabels.KindKey(deskSection.Kind)">@deskSection.Title</h2>
+                        <span>@deskSection.ReadyCount of @deskSection.Items.Count brief-ready</span>
+                    </div>
+                    <div class="bd-section__items">
+                        @foreach (var item in deskSection.Items)
+                        {
+                            @await Html.PartialAsync("_BriefingDeskItem", new BriefingDeskItemRenderVm
+                            {
+                                Item = item,
+                                IsOpen = item.AnchorId == openAnchor,
+                                Draft = draftAnchor == item.AnchorId ? draftText : null
+                            })
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+
+        <aside class="bd-rail" aria-label="Waiting, reading and this week">
+            @if (desk.Returned.Any())
+            {
+                <section class="bd-panel bd-panel--danger" aria-labelledby="bd-returned-title">
+                    <div class="bd-panel__head"><h2 id="bd-returned-title">Returned to you</h2><span class="bd-count bd-count--danger">@desk.Returned.Count</span></div>
+                    <ul class="bd-list">
+                        @foreach (var item in desk.Returned)
+                        {
+                            <li class="bd-list__item">
+                                <div class="bd-list__copy"><strong>@item.Title</strong><span>@item.Detail@(item.DueOrEventDateUtc is DateTime at ? $" · {IstClock.ToIst(at):dd MMM}" : string.Empty)</span></div>
+                                <a class="bd-btn bd-btn--danger-outline" href="@item.ActionUrl">@item.ActionText<span class="visually-hidden"> @item.Title</span></a>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            <section class="bd-panel" aria-labelledby="bd-waiting-title">
+                <div class="bd-panel__head"><h2 id="bd-waiting-title">With others</h2><span class="bd-panel__meta">@desk.WithOthers.Count waiting</span></div>
+                @if (!desk.WithOthers.Any())
+                {
+                    <p class="bd-panel__empty">Nothing you submitted is waiting for approval.</p>
+                }
+                else
+                {
+                    <ul class="bd-list">
+                        @foreach (var item in desk.WithOthers)
+                        {
+                            <li class="bd-list__item">
+                                <span class="bd-dot bd-dot--waiting" aria-hidden="true"></span>
+                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · with @item.WaitingOn since @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            <section class="bd-panel" aria-labelledby="bd-reading-title">
+                <div class="bd-panel__head"><h2 id="bd-reading-title">Reading</h2><span class="bd-panel__meta">@vm.AotsUnreadCount unread circular@(vm.AotsUnreadCount == 1 ? string.Empty : "s")</span></div>
+                @if (!vm.AotsDocuments.Any())
+                {
+                    <p class="bd-panel__empty">No unread circulars.</p>
+                }
+                else
+                {
+                    <ul class="bd-list">
+                        @foreach (var document in vm.AotsDocuments.Take(4))
+                        {
+                            <li class="bd-list__item">
+                                <a class="bd-list__copy bd-list__copy--link" href="@document.OpenUrl"><strong>@document.Subject</strong><span>@document.Office · @document.Category · @IstClock.ToIst(document.CreatedAtUtc).ToString("dd MMM")</span></a>
+                            </li>
+                        }
+                    </ul>
+                }
+                <a class="bd-link bd-link--small" href="@vm.AotsUrl">Open AOTS inbox<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </section>
+
+            <section class="bd-panel" aria-labelledby="bd-week-title">
+                <div class="bd-panel__head"><h2 id="bd-week-title">This week</h2></div>
+                @if (!vm.PersonalReminders.Any() && !vm.UpcomingEvents.Any())
+                {
+                    <p class="bd-panel__empty">No reminders due and no events in the next 7 days.</p>
+                }
+                else
+                {
+                    <ul class="bd-list">
+                        @foreach (var reminder in vm.PersonalReminders.Take(5))
+                        {
+                            <li class="bd-list__item">
+                                <i class="bi @(reminder.IsPinned ? "bi-pin-angle" : "bi-bell") bd-list__icon" aria-hidden="true"></i>
+                                <a class="bd-list__copy bd-list__copy--link" href="@reminder.OpenUrl"><strong>@reminder.Title</strong><span>@(reminder.IsPinned ? "Pinned" : "Reminder") · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</span></a>
+                            </li>
+                        }
+                        @foreach (var item in vm.UpcomingEvents)
+                        {
+                            <li class="bd-list__item">
+                                <i class="bi bi-calendar-event bd-list__icon" aria-hidden="true"></i>
+                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.LocalDate.ToString("ddd d MMM") · @item.TimeLabel</span></a>
+                            </li>
+                        }
+                    </ul>
+                }
+                <div class="bd-panel__links">
+                    <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
+                    <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
+                </div>
+            </section>
+        </aside>
+    </div>
+</div>

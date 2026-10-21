@@ -50,6 +50,12 @@ internal static class WorkspaceRouteHelper
     public static string ProjectTimelineActuals(int projectId)
         => $"/Projects/Overview/{projectId}?oc=actuals#timeline";
 
+    // Opens the plan editor focused on the named stage's planned completion date.
+    public static string ProjectPlanEdit(int projectId, string? stageCode = null)
+        => string.IsNullOrWhiteSpace(stageCode)
+            ? $"/Projects/Overview/{projectId}?oc=plan#timeline"
+            : $"/Projects/Overview/{projectId}?oc=plan&stage={Uri.EscapeDataString(stageCode)}#timeline";
+
     public static string ProjectDocumentRequest(int projectId)
         => $"/Projects/Documents/UploadRequest?id={projectId}";
 
@@ -58,6 +64,10 @@ internal static class WorkspaceRouteHelper
 
     public static string ProjectOfficerWorkspace(string view = "overview")
         => $"/Workspace?mode=project-officer&view={Uri.EscapeDataString(string.IsNullOrWhiteSpace(view) ? "overview" : view)}";
+
+    // Returns to the briefing desk with the named card open and in view.
+    public static string BriefingDeskItem(string anchorId)
+        => $"/Workspace?mode=project-officer&view=overview&focus={Uri.EscapeDataString(anchorId)}#{anchorId}";
 
     // SECTION: Workspace cross-module routes
     public static string ActionTask(int taskId)

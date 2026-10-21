@@ -30,6 +30,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public ErpActivityStripVm ActivityStrip { get; set; } = new();
     public ErpActivityYearVm ActivityYear { get; set; } = new();
     public WorkspaceDocumentHubVm DocumentHub { get; set; } = new();
+    public BriefingDeskVm BriefingDesk { get; set; } = new();
     public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
@@ -161,7 +162,6 @@ public sealed class ProjectOfficerWorkspaceVm
     public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
-    public CommandOfficerWorkloadVm? CommandWorkloadCard { get; set; }
     public IReadOnlyList<WorkspaceUpcomingEventVm> UpcomingEvents { get; set; } = Array.Empty<WorkspaceUpcomingEventVm>();
 }
 
@@ -501,6 +501,11 @@ public sealed class WorkspaceTaskVm
     public int? DaysOverdue { get; set; }
 
     public string OpenUrl { get; set; } = string.Empty;
+
+    /// <summary>Base64 concurrency token for status commands posted from the workspace.</summary>
+    public string RowVersion { get; set; } = string.Empty;
+
+    public DateTime? SubmittedOnUtc { get; set; }
 }
 
 public sealed class WorkspaceIdeaVm

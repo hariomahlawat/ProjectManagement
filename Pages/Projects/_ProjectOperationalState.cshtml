@@ -14,9 +14,9 @@
 {
     <div id="open-assign-roles" data-open="1"></div>
 }
-@if (TempData["OpenOffcanvas"] as string == "plan-edit")
+@if (TempData["OpenOffcanvas"] as string == "plan-edit" || string.Equals(Context.Request.Query["oc"], "plan", StringComparison.Ordinal))
 {
-    <div id="open-plan-edit" data-open="1"></div>
+    <div id="open-plan-edit" data-open="1" data-plan-focus-stage="@Context.Request.Query["stage"]"></div>
 }
 @if (TempData["OpenOffcanvas"] as string == "plan-review")
 {
