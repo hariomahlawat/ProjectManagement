@@ -560,7 +560,7 @@ export function initNotebookEditor(board, view, options = {}) {
       if (icon) icon.className = `bi ${isOwner ? 'bi-person-plus' : 'bi-people'}`;
     }
     applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), updated.colorKey || '');
-    modal.querySelector('[data-modal-title]').value = updated.title || '';
+    modal.querySelector('[data-modal-title]').value = updated.title === 'Untitled' ? '' : (updated.title || ''); // server default for an empty title
     modal.querySelector('[data-modal-body]').value = updated.body || '';
     refreshEditorLayout();
     modal.querySelector('[data-modal-checklist]').hidden = updated.type !== 'Checklist';
