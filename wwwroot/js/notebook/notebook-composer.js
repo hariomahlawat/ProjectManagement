@@ -230,13 +230,28 @@ export function initNotebookComposer(root, board, view, options = {}) {
 
   // SECTION: Mutation and reconciliation lifecycle
   async function closeComposer() {
-    const data = payload();
+    let data = payload();
     if (!meaningful(data)) {
       reset();
       setMode('collapsed', { persist: false });
       return true;
     }
     if (isSaving) return false;
+    // Whatever is in the reminder fields is what gets saved: an earlier accepted time must
+    // not be submitted in place of an edited one, and an invalid or past time keeps the box
+    // open (with the panel and its error showing) instead of being silently dropped.
+    const entered = scheduler?.getValue();
+    if (entered && (entered.date || entered.time)) {
+      const check = scheduler.validate({ focus: true });
+      if (!check.valid) {
+        setReminderPanelOpen(true);
+        scheduler.validate({ focus: true }); // opening the panel clears the message; show it again
+        setStatus('Fix the reminder time or remove it.');
+        return false;
+      }
+      setReminder(scheduler.getValue());
+      data = payload();
+    }
     colourPicker?.close();
     labelPicker?.close();
     if (draftTimer) window.clearTimeout(draftTimer);

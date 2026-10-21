@@ -1690,13 +1690,25 @@ function initNotebookComposer(root, board, view, options = {}) {
     return true;
   }
   async function closeComposer() {
-    const data = payload();
+    let data = payload();
     if (!meaningful(data)) {
       reset();
       setMode("collapsed", { persist: false });
       return true;
     }
     if (isSaving) return false;
+    const entered = scheduler?.getValue();
+    if (entered && (entered.date || entered.time)) {
+      const check = scheduler.validate({ focus: true });
+      if (!check.valid) {
+        setReminderPanelOpen(true);
+        scheduler.validate({ focus: true });
+        setStatus("Fix the reminder time or remove it.");
+        return false;
+      }
+      setReminder(scheduler.getValue());
+      data = payload();
+    }
     colourPicker?.close();
     labelPicker?.close();
     if (draftTimer) window.clearTimeout(draftTimer);

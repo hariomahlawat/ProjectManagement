@@ -36,3 +36,9 @@ test('quick composer can set a reminder and saves when clicking outside', () => 
   assert.match(composer, /reminderAtUtc: reminder\?\.iso \?\? null/);
   assert.match(composer, /document\.addEventListener\('pointerdown'[\s\S]*?closeComposer\(\);/);
 });
+
+test('quick composer validates the entered reminder before saving', () => {
+  const composer = fs.readFileSync(path.resolve(__dirname, 'notebook-composer.js'), 'utf8');
+  // An edited invalid or past time keeps the box open instead of saving a stale or missing reminder.
+  assert.match(composer, /const entered = scheduler\?\.getValue\(\);[\s\S]*?if \(!check\.valid\) \{[\s\S]*?return false;[\s\S]*?data = payload\(\);/);
+});
