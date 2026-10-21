@@ -12,8 +12,9 @@
     var openAnchor = !string.IsNullOrWhiteSpace(Model.Focus) && allItems.Any(item => item.AnchorId == Model.Focus)
         ? Model.Focus
         : allItems.FirstOrDefault(item => !item.IsBriefReady)?.AnchorId;
-    var draftAnchor = TempData.Peek(ProjectManagement.Pages.Workspace.IndexModel.DeskDraftAnchorKey) as string;
-    var draftText = draftAnchor is null ? null : TempData.Peek(ProjectManagement.Pages.Workspace.IndexModel.DeskDraftTextKey) as string;
+    // Reading TempData (not Peek) consumes the draft, so it is restored once and never again.
+    var draftAnchor = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftAnchorKey] as string;
+    var draftText = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftTextKey] as string;
 
     string headline;
     if (desk.TotalCount == 0)

@@ -1027,3 +1027,27 @@
         transition: none;
     }
 }
+
+/* Conference preview progress entries mirror the Conference view's progress list. */
+.bd-preview dd.bd-preview__entry {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-weight: 500;
+}
+
+.bd-preview dd.bd-preview__entry + dd.bd-preview__entry {
+    margin-top: 0.5rem;
+}
+
+.bd-preview__entry-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--pm-text-secondary);
+}
+
+.bd-preview__entry-meta {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--pm-text-secondary);
+}

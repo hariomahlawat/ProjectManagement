@@ -11,6 +11,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Usage;
 using ProjectManagement.Services;
 using ProjectManagement.ViewModels.Workspace;
@@ -257,10 +258,11 @@ public sealed class ProjectOfficerWorkspaceService
         var waiting = new List<BriefingDeskWaitingVm>();
 
         // Plan and actual-date corrections are project-scoped: a pending submission answers
-        // the current-stage check on the card whoever submitted it.
-        var pendingPlans = await _db.PlanVersions
+        // the current-stage check on the card whoever submitted it. Plans use the canonical
+        // actionable-pending rule, so a superseded or withdrawn submission never counts.
+        var pendingPlans = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
-            .Where(plan => projectIds.Contains(plan.ProjectId) && plan.Status == PlanVersionStatus.PendingApproval)
+            .Where(plan => projectIds.Contains(plan.ProjectId))
             .Select(plan => new { plan.ProjectId, plan.SubmittedOn, plan.CreatedOn })
             .ToListAsync(ct);
         var planSince = pendingPlans

@@ -337,6 +337,8 @@ public class IndexModel : PageModel
         if (result.Succeeded)
         {
             TempData["ToastSuccess"] = result.Message;
+            TempData.Remove(DeskDraftAnchorKey);
+            TempData.Remove(DeskDraftTextKey);
         }
         else
         {

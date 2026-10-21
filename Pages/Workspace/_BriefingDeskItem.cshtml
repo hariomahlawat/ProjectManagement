@@ -204,7 +204,32 @@
                 </dl>
                 <dl class="bd-preview__wide">
                     <div><dt>Latest direction</dt><dd>@(conference.LatestDirection?.Body ?? "No conference direction recorded.")</dd></div>
-                    <div><dt>Progress after direction</dt><dd>@(conference.LatestProgressText ?? conference.EmptyProgressText ?? (string.IsNullOrWhiteSpace(conference.ProgressSummary) ? "No progress recorded." : conference.ProgressSummary))</dd></div>
+                    <div>
+                        <dt>Progress after direction</dt>
+                        @* Mirrors _ConferenceItemRow: entries, else the empty text, else awaiting a first direction. *@
+                        @if (conference.LatestDirection is null)
+                        {
+                            <dd>Awaiting initial direction</dd>
+                        }
+                        else if (conference.ProgressEntries.Count > 0)
+                        {
+                            @foreach (var entry in conference.ProgressEntries)
+                            {
+                                <dd class="bd-preview__entry">
+                                    <span class="bd-preview__entry-label">@entry.Label@(string.IsNullOrWhiteSpace(entry.Title) ? string.Empty : $" · {entry.Title}")</span>
+                                    @(string.IsNullOrWhiteSpace(entry.Body) ? entry.EmptyText : entry.Body)
+                                    @if (!string.IsNullOrWhiteSpace(entry.AuthorName) || entry.ActivityAtUtc.HasValue)
+                                    {
+                                        <small class="bd-preview__entry-meta">@entry.AuthorName@(entry.ActivityAtUtc is DateTime at ? $" · {IstClock.ToIst(at):dd MMM yyyy}" : string.Empty)</small>
+                                    }
+                                </dd>
+                            }
+                        }
+                        else
+                        {
+                            <dd>@(string.IsNullOrWhiteSpace(conference.EmptyProgressText) ? "No progress recorded since the direction." : conference.EmptyProgressText)</dd>
+                        }
+                    </div>
                 </dl>
             </div>
         }
