@@ -16,9 +16,18 @@
 
     <header class="project-photo-library__header">
         <div>
-            <a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id" asp-fragment="media" class="project-photo-page__back">
-                <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to project
-            </a>
+            @if (Model.DeskReturnUrl is not null)
+            {
+                <a href="@Model.DeskReturnUrl" class="project-photo-page__back">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to briefing desk
+                </a>
+            }
+            else
+            {
+                <a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id" asp-fragment="media" class="project-photo-page__back">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to project
+                </a>
+            }
             <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                 <h1 class="mb-0">Project photos</h1>
                 <span class="project-photo-library__count">@Model.Photos.Count</span>
@@ -32,7 +41,7 @@
         </div>
         @if (Model.CanManage)
         {
-            <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">
+            <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i> Upload photo
             </a>
         }
@@ -58,7 +67,7 @@
                 <p>Photos added to this project will appear here.</p>
                 @if (Model.CanManage)
                 {
-                    <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">
+                    <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl">
                         <i class="bi bi-upload" aria-hidden="true"></i> Upload first photo
                     </a>
                 }

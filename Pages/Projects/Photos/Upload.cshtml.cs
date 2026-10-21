@@ -45,6 +45,12 @@ public class UploadModel : PageModel
 
     public bool HasCurrentCoverPhoto => CurrentCoverPhoto is not null;
 
+    // Set when the upload was opened from the Project Officer briefing desk.
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
+    public string? DeskReturnUrl => ProjectManagement.Services.Workspace.WorkspaceRouteHelper.SafeDeskReturnUrl(ReturnUrl);
+
     public async Task<IActionResult> OnGetAsync(int id, bool cover, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -161,8 +167,7 @@ public class UploadModel : PageModel
                     cancellationToken);
             }
 
-            TempData["Flash"] = "Photo uploaded.";
-            return RedirectToPage("./Index", new { id });
+            return AfterUpload(id, "Photo uploaded.");
         }
         catch (InvalidOperationException ex)
         {
@@ -177,6 +182,22 @@ public class UploadModel : PageModel
             ModelState.AddModelError(string.Empty, "There was a problem uploading the photo. Please try again, or contact the Project Office if the problem persists.");
             return Page();
         }
+    }
+
+    // SECTION: Return destination
+    // The briefing desk sends a /Workspace return address; anything else (or nothing)
+    // keeps the original behaviour of returning to the photo gallery.
+    private IActionResult AfterUpload(int id, string message)
+    {
+        var deskUrl = DeskReturnUrl;
+        if (deskUrl is null)
+        {
+            TempData["Flash"] = message;
+            return RedirectToPage("./Index", new { id });
+        }
+
+        TempData["ToastSuccess"] = message;
+        return LocalRedirect(deskUrl);
     }
 
     private static string FriendlyPhotoError(string? message)

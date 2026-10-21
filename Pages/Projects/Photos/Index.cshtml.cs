@@ -46,6 +46,12 @@ public class IndexModel : PageModel
     public bool CanManage { get; private set; }
     public bool CanReorder => CanManage && Photos.Count > 1;
 
+    // Set when the gallery was opened from the Project Officer briefing desk; passed on to Upload.
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
+    public string? DeskReturnUrl => ProjectManagement.Services.Workspace.WorkspaceRouteHelper.SafeDeskReturnUrl(ReturnUrl);
+
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         var result = await LoadProjectAsync(id, cancellationToken);

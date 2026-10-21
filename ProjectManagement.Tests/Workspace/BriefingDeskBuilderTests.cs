@@ -126,6 +126,33 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_MediaGaps_LinkWithTheDeskAsTheReturnAddress()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            HealthPercent = 50,
+            GapDetails = new[]
+            {
+                Gap("PHOTOS", "Supporting media", "3 additional project photos", 6m, "/Projects/1/Photos"),
+                Gap("VIDEO", "Supporting media", "Project video", 4m, "/Projects/1/Videos"),
+                Gap("DOCS", "Published project documents", "1 additional project document", 5m, "/Projects/1/Documents")
+            }
+        };
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: health);
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var returnUrl = Uri.EscapeDataString(WorkspaceRouteHelper.BriefingDeskItem("desk-project-1"));
+        Assert.Equal($"/Projects/1/Photos?returnUrl={returnUrl}", item.Improvements.Single(check => check.Label == "3 additional project photos").ActionUrl);
+        Assert.Equal($"/Projects/1/Videos?returnUrl={returnUrl}", item.Improvements.Single(check => check.Label == "Project video").ActionUrl);
+        Assert.Equal("/Projects/1/Documents", item.Improvements.Single(check => check.Label == "1 additional project document").ActionUrl);
+        Assert.All(
+            item.Improvements.Where(check => check.ActionUrl.Contains("returnUrl=")),
+            check => Assert.Equal(BriefingDeskRoute.Direct, check.Route));
+    }
+
+    [Fact]
     public void Project_ProcurementGap_OpensTheDeskPanelWhenTheEditorIsLoaded()
     {
         var health = new WorkspaceRecordHealthVm

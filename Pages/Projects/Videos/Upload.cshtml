@@ -15,13 +15,13 @@
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
             <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
-            <li class="breadcrumb-item"><a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Videos</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl">Videos</a></li>
             <li class="breadcrumb-item active" aria-current="page">Upload</li>
         </ol>
     </nav>
 
     <header class="project-video-upload__header">
-        <a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id" class="project-video-upload__back">
+        <a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl" class="project-video-upload__back">
             <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to videos
         </a>
         <h1>Upload project video</h1>
@@ -36,6 +36,10 @@
           data-max-size="@Model.MaxFileSizeBytes">
         <input type="hidden" asp-for="Input.ProjectId" />
         <input type="hidden" asp-for="Input.RowVersion" />
+        @if (Model.DeskReturnUrl is not null)
+        {
+            <input type="hidden" name="returnUrl" value="@Model.DeskReturnUrl" />
+        }
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
@@ -102,7 +106,7 @@
         </section>
 
         <div class="project-video-upload__actions">
-            <a class="btn btn-outline-secondary" asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Cancel</a>
+            <a class="btn btn-outline-secondary" asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl">Cancel</a>
             <button type="submit" class="btn btn-primary" data-video-submit>
                 <i class="bi bi-upload" aria-hidden="true"></i> Upload video
             </button>

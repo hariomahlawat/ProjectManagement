@@ -11,7 +11,7 @@
     "wwwroot/css/analytics.css": 38,
     "wwwroot/css/auth-login.css": 60,
     "wwwroot/css/calendar.css": 184,
-    "wwwroot/css/command-workspace.css": 232,
+    "wwwroot/css/command-workspace.css": 231,
     "wwwroot/css/components/pm-table.css": 1,
     "wwwroot/css/components/prism-confirm-dialog.css": 22,
     "wwwroot/css/docrepo-reader.css": 19,
@@ -84,7 +84,7 @@
     "wwwroot/css/widgets/ffc-simulator-map.css": 32,
     "wwwroot/css/widgets/ops-signals.css": 13,
     "wwwroot/css/widgets/project-pulse.css": 46,
-    "wwwroot/css/workspace.css": 252
+    "wwwroot/css/workspace.css": 148
   },
   "gaps": {
     "wwwroot/css/admin.css": 1,
