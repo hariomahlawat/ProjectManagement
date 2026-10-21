@@ -1279,8 +1279,9 @@ public sealed class ProjectOfficerWorkspaceService
 
         var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(fetchLimit).ToListAsync(ct);
         var rejectedStageProjectIds = rejectedStages.Select(r => r.ProjectId).ToArray();
-        var newerStageProjects = await _db.StageChangeRequests.AsNoTracking().Where(r => rejectedStageProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOn ?? r.RequestedOn }).ToListAsync(ct);
-        rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(keepLimit).ToList();
+        var newerStageProjects = await _db.StageChangeRequests.AsNoTracking().Where(r => rejectedStageProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, r.StageCode, EventAt = r.DecidedOn ?? r.RequestedOn }).ToListAsync(ct);
+        // Only a newer request for the same stage resolves a returned one.
+        rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && string.Equals(n.StageCode, r.StageCode, StringComparison.OrdinalIgnoreCase) && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(keepLimit).ToList();
         items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm
         {
             ProjectId = r.ProjectId,
@@ -1317,8 +1318,17 @@ public sealed class ProjectOfficerWorkspaceService
 
         var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(fetchLimit).ToListAsync(ct);
         var rejectedDocumentProjectIds = rejectedDocuments.Select(r => r.ProjectId).ToArray();
-        var newerDocumentProjects = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => rejectedDocumentProjectIds.Contains(r.ProjectId) && (r.Status == ProjectDocumentRequestStatus.Submitted || r.Status == ProjectDocumentRequestStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ReviewedAtUtc ?? r.RequestedAtUtc }).ToListAsync(ct);
-        rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentProjects.Any(n => n.ProjectId == r.ProjectId && r.ReviewedAtUtc.HasValue && n.EventAt > r.ReviewedAtUtc.Value)).Take(keepLimit).ToList();
+        var newerDocumentRequests = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => rejectedDocumentProjectIds.Contains(r.ProjectId) && (r.Status == ProjectDocumentRequestStatus.Submitted || r.Status == ProjectDocumentRequestStatus.Approved)).Select(r => new { r.ProjectId, r.RequestType, r.DocumentId, r.StageId, r.Title, EventAt = r.ReviewedAtUtc ?? r.RequestedAtUtc }).ToListAsync(ct);
+        // Document requests are independent, so only a newer request for the same item
+        // (same document for a replace or delete, same stage and title for an upload)
+        // resolves a returned one; other document activity on the project does not.
+        rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentRequests.Any(n =>
+                n.ProjectId == r.ProjectId
+                && r.ReviewedAtUtc.HasValue
+                && n.EventAt > r.ReviewedAtUtc.Value
+                && DocumentRequestIdentity(n.RequestType, n.DocumentId, n.StageId, n.Title) == DocumentRequestIdentity(r.RequestType, r.DocumentId, r.StageId, r.Title)))
+            .Take(keepLimit)
+            .ToList();
         items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm
         {
             ProjectId = r.ProjectId,
@@ -1355,6 +1365,11 @@ public sealed class ProjectOfficerWorkspaceService
         }));
         return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(totalLimit).ToList();
     }
+    internal static string DocumentRequestIdentity(ProjectDocumentRequestType type, int? documentId, int? stageId, string? title)
+        => type == ProjectDocumentRequestType.Upload
+            ? $"upload|{stageId}|{(title ?? string.Empty).Trim().ToUpperInvariant()}"
+            : $"{type}|{documentId}";
+
     private WorkspaceProjectMatrixRowVm BuildActionProjectRow(Project project, string userId, DateOnly today)
     {
         var neutralHealth = new WorkspaceRecordHealthVm
