@@ -104,22 +104,57 @@ const flatten = (items, out = []) => {
 };
 
 // SECTION: Property relationships
-const PREFIX_SHORTHANDS = ['margin', 'padding', 'background', 'flex', 'font', 'outline', 'transition', 'animation', 'list-style', 'overflow', 'grid-template', 'columns', 'text-decoration', 'border-top', 'border-right', 'border-bottom', 'border-left', 'border-radius', 'inset'];
+// Each shorthand's actual longhands (the properties it resets). Listed explicitly: prefixes
+// are wrong in both directions (flex does not reset flex-direction; border-top does not
+// reset border-top-left-radius; outline does not reset outline-offset).
+const SIDES = ['top', 'right', 'bottom', 'left'];
+const BORDER_SIDE = (side) => [`border-${side}-width`, `border-${side}-style`, `border-${side}-color`];
+const LONGHANDS = {
+  margin: SIDES.map((s) => `margin-${s}`),
+  padding: SIDES.map((s) => `padding-${s}`),
+  inset: SIDES,
+  gap: ['row-gap', 'column-gap'],
+  flex: ['flex-grow', 'flex-shrink', 'flex-basis'],
+  'flex-flow': ['flex-direction', 'flex-wrap'],
+  background: ['background-color', 'background-image', 'background-position', 'background-position-x', 'background-position-y', 'background-size', 'background-repeat', 'background-attachment', 'background-origin', 'background-clip'],
+  font: ['font-style', 'font-variant', 'font-weight', 'font-stretch', 'font-size', 'line-height', 'font-family'],
+  outline: ['outline-color', 'outline-style', 'outline-width'],
+  transition: ['transition-property', 'transition-duration', 'transition-timing-function', 'transition-delay', 'transition-behavior'],
+  animation: ['animation-name', 'animation-duration', 'animation-timing-function', 'animation-delay', 'animation-iteration-count', 'animation-direction', 'animation-fill-mode', 'animation-play-state'],
+  'list-style': ['list-style-type', 'list-style-position', 'list-style-image'],
+  overflow: ['overflow-x', 'overflow-y'],
+  'grid-template': ['grid-template-rows', 'grid-template-columns', 'grid-template-areas'],
+  columns: ['column-width', 'column-count'],
+  'text-decoration': ['text-decoration-line', 'text-decoration-style', 'text-decoration-color', 'text-decoration-thickness'],
+  'border-radius': ['border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius'],
+  'border-width': SIDES.map((s) => `border-${s}-width`),
+  'border-style': SIDES.map((s) => `border-${s}-style`),
+  'border-color': SIDES.map((s) => `border-${s}-color`),
+  'border-image': ['border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset', 'border-image-repeat'],
+  'place-items': ['align-items', 'justify-items'],
+  'place-content': ['align-content', 'justify-content'],
+  'place-self': ['align-self', 'justify-self'],
+  ...Object.fromEntries(SIDES.map((s) => [`border-${s}`, BORDER_SIDE(s)]))
+};
+LONGHANDS.border = [...SIDES.flatMap(BORDER_SIDE), 'border-width', 'border-style', 'border-color', ...SIDES.map((s) => `border-${s}`), 'border-image', ...LONGHANDS['border-image']];
+// A shorthand also resets other shorthands made only of its longhands (border -> border-top).
+for (const [short, longs] of Object.entries(LONGHANDS)) {
+  for (const [other, otherLongs] of Object.entries(LONGHANDS)) {
+    if (other !== short && otherLongs.every((l) => longs.includes(l)) && !longs.includes(other)) longs.push(other);
+  }
+}
 
-// Does setting `short` reset `long`?
+// Does setting `short` reset `long`? (`all` resets every property except custom ones,
+// direction and unicode-bidi.)
 function covers(short, long) {
   if (short === long) return true;
   if (short.startsWith('--') || long.startsWith('--')) return false;
-  if (PREFIX_SHORTHANDS.includes(short) && long.startsWith(`${short}-`)) return true;
-  if (short === 'font' && long === 'line-height') return true;
-  if (short === 'border' && /^border-(top|right|bottom|left|width|style|color|image)(-|$)/.test(long)) return true;
-  if (short === 'inset' && ['top', 'right', 'bottom', 'left'].includes(long)) return true;
-  if (short === 'gap' && ['row-gap', 'column-gap'].includes(long)) return true;
-  const place = { 'place-items': ['align-items', 'justify-items'], 'place-content': ['align-content', 'justify-content'], 'place-self': ['align-self', 'justify-self'] };
-  return Boolean(place[short]?.includes(long));
+  if (short === 'all') return !['direction', 'unicode-bidi'].includes(long);
+  return Boolean(LONGHANDS[short]?.includes(long));
 }
 
-// Conservative "can these two declarations interact?" used before moving anything.
+// Conservative "can these two declarations interact?" used before moving anything: the same
+// family, or one resets the other (e.g. columns / column-width, all / anything).
 function family(prop) {
   if (prop.startsWith('--')) return prop;
   const bare = prop.replace(/^-(webkit|moz|ms|o)-/, '');
@@ -129,7 +164,11 @@ function family(prop) {
   if (/^(place|align|justify)-/.test(bare)) return 'alignment';
   return bare.split('-')[0];
 }
-const related = (a, b) => family(a) === family(b);
+const related = (a, b) => {
+  const bareA = a.replace(/^-(webkit|moz|ms|o)-/, '');
+  const bareB = b.replace(/^-(webkit|moz|ms|o)-/, '');
+  return family(a) === family(b) || covers(bareA, bareB) || covers(bareB, bareA);
+};
 
 // SECTION: Analysis
 function findDead(src) {

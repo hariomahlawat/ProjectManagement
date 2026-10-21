@@ -26,6 +26,23 @@ test('a later shorthand kills earlier longhands, not the reverse', () => {
   assert.deepEqual(deadProps('.a { padding: 0; } .a { padding-top: 1px; }'), []);
 });
 
+test('shorthands only cover their actual longhands', () => {
+  assert.deepEqual(deadProps('.a { flex-direction: column; } .a { flex: 1; }'), []);
+  assert.deepEqual(deadProps('.a { outline-offset: 2px; } .a { outline: 0; }'), []);
+  assert.deepEqual(deadProps('.a { border-top-left-radius: 4px; } .a { border-top: 0; }'), []);
+  assert.deepEqual(deadProps('.a { flex-grow: 2; } .a { flex: 1; }'), ['.a flex-grow']);
+  assert.deepEqual(deadProps('.a { border-top-color: red; } .a { border: 0; }'), ['.a border-top-color']);
+  assert.deepEqual(deadProps('.a { color: red; } .a { all: unset; }'), ['.a color']);
+});
+
+test('fix never moves a declaration past a rule it interacts with through a shorthand', () => {
+  // columns resets column-width, so moving it above .b would change an element with both classes.
+  const css = '.a { color: red; }\n.b { column-width: 100px; }\n.a { columns: 3; }\n';
+  assert.equal(fix(css).folded, 0);
+  const all = '.a { color: red; }\n.b { padding: 1px; }\n.a { all: unset; }\n';
+  assert.equal(fix(all).folded, 0);
+});
+
 test('fix removes dead declarations and only folds rules with nothing competing in between', () => {
   const css = '.a {\n    color: red;\n    margin-top: 0;\n}\n\n.b {\n    margin: 0;\n}\n\n.a {\n    padding: 1px;\n}\n\n.c {\n    color: blue;\n}\n\n.a {\n    color: green;\n}\n';
   const { out, removed, folded } = fix(css);
