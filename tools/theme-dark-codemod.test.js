@@ -39,3 +39,16 @@ test('maps colours by role onto the graphite palette', () => {
   assert.equal(darkColour('rgba(23, 23, 23, .72)', 'background'), 'rgba(0, 0, 0, 0.72)'); // scrim stays dark
   assert.match(darkColour('rgba(49, 94, 232, .2)', 'shadow', '0 0 0 3px rgba(49, 94, 232, .2)'), /^rgba\(110, 168, 254, /); // focus ring
 });
+
+test('a top-level dark rule covers the same selector inside a media query', () => {
+  const css = `
+    .a { color: #333; }
+    @media (max-width: 600px) { .a { color: #444; } }
+    [data-bs-theme="dark"] .a { color: #ddd; }`;
+  assert.equal(convert(css).generated, 0);
+});
+
+test('a dark background-color does not stop a light gradient from converting', () => {
+  const css = `.a { background-image: linear-gradient(#fff, #f7f9fc); } [data-bs-theme="dark"] .a { background-color: #111; }`;
+  assert.equal(convert(css).generated, 1);
+});
