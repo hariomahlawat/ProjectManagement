@@ -75,7 +75,9 @@ function stripVarFallbacks(value) {
 }
 
 function countLiterals(text) {
-  const matches = stripVarFallbacks(text).replace(/\b(?:rgba?|hsla?)\(\s*var\(/g, 'var(').match(COLOUR);
+  // Quoted strings (content: "black") are text, not colours.
+  const unquoted = text.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+  const matches = stripVarFallbacks(unquoted).replace(/\b(?:rgba?|hsla?)\(\s*var\(/g, 'var(').match(COLOUR);
   return matches ? matches.length : 0;
 }
 
