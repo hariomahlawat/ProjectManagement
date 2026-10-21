@@ -39,3 +39,16 @@ test('no stylesheet or view has more literal colours than the baseline', () => {
     'Use the site tokens (docs/ux/dark-theme-palette.md) instead of literal colours.'
   );
 });
+
+test('a dark rule inside a media query only covers that query', () => {
+  const css = `
+    .a { color: #111; }
+    @media (max-width: 600px) { .a { color: #222; } }
+    @media (max-width: 600px) { [data-bs-theme="dark"] .a { color: #eee; } }`;
+  assert.deepEqual(analyseCss(css, 'wwwroot/css/x.css'), { literals: 2, gaps: 1, darkRules: 1 });
+});
+
+test('inline style literals are counted in both quote forms', () => {
+  const { countInlineStyleLiterals } = require('./theme-coverage');
+  assert.equal(countInlineStyleLiterals(`<div style="color: #fff"></div><span style='background: #000'></span><p data-style="#fff"></p>`), 2);
+});
