@@ -466,14 +466,9 @@
 }
 
 .notebook-composer {
-
     width: 100%;
-
     background: var(--pm-card, #fff);
     border: 1px solid #e1e7f0;
-    border-radius: 12px;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, .09);
-
 }
 
 .notebook-composer__collapsed, .notebook-composer__top, .notebook-composer__footer {
@@ -487,15 +482,7 @@
     flex: 1 1 auto;
 }
 
-.notebook-composer__footer {
-    justify-content: space-between;
-    min-height: 2.35rem;
-    padding: .1rem .35rem .2rem .55rem;
-}
-
 .notebook-composer__footer [data-composer-status] {
-    min-width: 0;
-    flex: 1 1 auto;
     color: var(--pm-accent-slate-mid, #64748b);
     font-size: .75rem;
     font-weight: 650;
@@ -505,14 +492,12 @@
     flex: 1;
     border: 0;
     background: transparent;
-
     text-align: left;
     color: var(--pm-accent-slate-mid, #64748b);
 }
 
 .notebook-composer__expanded {
     display: grid;
-    gap: .5rem;
 }
 
     .notebook-composer__top input, .notebook-composer__expanded textarea {
@@ -520,26 +505,10 @@
         border: 0;
         outline: 0;
         background: transparent;
-        padding: .65rem .75rem;
     }
-
-    .notebook-composer__expanded textarea {
-        min-height: 120px;
-        resize: vertical;
-    }
-
-.notebook-checklist-row {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    padding: .25rem 0;
-}
 
     .notebook-checklist-row [data-checklist-text] {
         flex: 1;
-        border: 0;
-        border-bottom: 1px solid var(--pm-border-muted, #e2e8f0);
-        padding: .45rem;
     }
 
 .notebook-composer__form {
@@ -630,8 +599,6 @@
     padding: .75rem 0 .1rem;
 }
 
-
-
 .notebook-board {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -639,47 +606,20 @@
     align-items: start;
 }
 
-.notebook-shell[data-board-view="grid"] .notebook-board {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-}
-
-
-
 /* SECTION: Compact Keep-inspired cards */
 .notebook-card {
-    position: relative;
     z-index: 1;
     display: block;
     width: 100%;
     margin: 0;
-    overflow: visible;
-    border: 1px solid #dfe5ee;
-
     background: var(--pm-card, #fff);
     color: var(--pm-text-strong, #0f172a);
-
-    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
-
-    .notebook-card:hover {
-
-
-        transform: translateY(-1px);
-    }
 
     .notebook-card.is-selected {
         border-color: #315fba;
         box-shadow: 0 0 0 2px rgba(49, 95, 186, .14), 0 8px 20px rgba(15, 23, 42, .075);
     }
-
-    .notebook-card:has(.notebook-card-more[open]),
-    .notebook-card.has-open-menu,
-    .notebook-card.has-open-popover,
-    .notebook-card:has(.notebook-colour-picker__popover:not([hidden])) {
-        z-index: 90;
-    }
-
-
 
 .notebook-card-link,
 .notebook-card-link:hover {
@@ -694,10 +634,6 @@
     display: flex;
     align-items: center;
     gap: .4rem;
-}
-
-.notebook-card-topline {
-    justify-content: space-between;
 }
 
 .notebook-card-indicators {
@@ -719,52 +655,32 @@
 }
 
 .notebook-card-title {
-
-
     font-weight: 700;
-
 }
 
 .notebook-card-preview {
-
-    color: #334155;
-
-
     white-space: pre-line;
     display: -webkit-box;
-
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
 .notebook-card-meta {
     flex-wrap: wrap;
-
 }
 
 .notebook-card-tags {
     display: flex;
     flex-wrap: wrap;
-
-
 }
 
 .notebook-tag-chip {
-    border-radius: 999px;
-    background: rgba(15, 23, 42, .06);
-    color: var(--pm-accent-slate-strong, #475569);
-    padding: .15rem .42rem;
-    font-size: .68rem;
     font-weight: 700;
 }
 
 /* SECTION: Quiet card actions and more menu */
 .notebook-card-actions {
     justify-content: flex-end;
-    min-height: 0;
-
-    opacity: 0;
-    transition: opacity .14s ease;
 }
 
 .notebook-card:hover .notebook-card-actions,
@@ -776,9 +692,6 @@
 
 .notebook-actions {
     display: flex;
-
-    gap: .28rem;
-
     justify-content: flex-end;
 }
 
@@ -787,8 +700,6 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-
-
     border: 1px solid transparent;
     border-radius: 999px;
     background: transparent;
@@ -894,8 +805,6 @@
 
 .notebook-checklist-preview {
     display: grid;
-
-
 }
 
 .notebook-check-row {
@@ -905,24 +814,14 @@
 .notebook-check-toggle {
     display: flex;
     align-items: center;
-
-    width: 100%;
     border: 0;
     background: transparent;
-
-    color: #334155;
     text-align: left;
 }
-
-    .notebook-check-toggle.is-done {
-        color: #94a3b8;
-        text-decoration: line-through;
-    }
 
 .notebook-checklist-preview strong,
 .notebook-checklist-empty {
     color: var(--pm-accent-slate-mid, #64748b);
-
 }
 
 .notebook-checklist-toggle {
@@ -1063,12 +962,6 @@
 
 .notebook-editor-complete {
     margin-top: .75rem;
-}
-
-@media (hover: none) {
-    .notebook-card-actions {
-        opacity: 1;
-    }
 }
 
 @media (max-width: 900px) {
@@ -1282,13 +1175,8 @@
 
 /* SECTION: Keep-style density, masonry and content-driven cards */
 .notebook-composer {
-    max-width: 720px;
     margin: .1rem 0 .15rem;
     padding: .35rem;
-}
-
-.notebook-composer__trigger {
-    padding: .67rem .75rem;
 }
 
 .notebook-viewbar {
@@ -1301,11 +1189,6 @@
 }
 
 /* Grid view uses CSS columns to achieve a Keep-like masonry flow. */
-.notebook-shell[data-board-view="grid"] .notebook-board {
-    display: block;
-    column-width: 250px;
-    column-gap: .85rem;
-}
 
 .notebook-shell[data-board-view="grid"] .notebook-card {
     display: inline-block;
@@ -1316,21 +1199,6 @@
     vertical-align: top;
 }
 
-.notebook-card {
-    border-radius: 11px;
-
-}
-
-
-
-.notebook-card-body {
-    padding: .72rem .78rem .68rem;
-}
-
-.notebook-card-topline {
-    min-height: 1.15rem;
-}
-
 .notebook-card-indicators {
     min-width: 0;
     font-size: .82rem;
@@ -1339,56 +1207,6 @@
 .notebook-card-pin-indicator {
     margin-left: auto;
     color: var(--pm-accent-slate-mid, #64748b);
-}
-
-.notebook-card-title {
-    margin: .25rem 0 .2rem;
-    font-size: .93rem;
-    line-height: 1.25;
-}
-
-.notebook-card-preview {
-    margin: .18rem 0 .28rem;
-    font-size: .8rem;
-    line-height: 1.34;
-    -webkit-line-clamp: 6;
-}
-
-.notebook-checklist-preview {
-    gap: .16rem;
-    margin-top: .3rem;
-}
-
-.notebook-check-toggle {
-    gap: .34rem;
-    padding: .08rem 0;
-    font-size: .8rem;
-    line-height: 1.25;
-}
-
-.notebook-checklist-preview strong,
-.notebook-checklist-empty {
-    margin-top: .12rem;
-    font-size: .72rem;
-}
-
-.notebook-card-meta {
-    margin-top: .28rem;
-}
-
-.notebook-card-tags {
-    gap: .24rem;
-    margin-top: .32rem;
-}
-
-.notebook-card-actions {
-    position: absolute;
-    right: .38rem;
-    bottom: .25rem;
-    z-index: 4;
-    width: auto;
-    padding: 0;
-    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.88) 22%, rgba(255,255,255,.96));
 }
 
 .notebook-card-color-blue .notebook-card-actions {
@@ -1416,19 +1234,7 @@
     width: auto;
 }
 
-.notebook-action-icon,
-.notebook-card-more summary {
-    min-width: 1.72rem;
-    min-height: 1.72rem;
-}
-
 @media (hover: none) {
-    .notebook-card-actions {
-        position: static;
-        width: 100%;
-        padding: .05rem .48rem .38rem;
-        background: transparent !important;
-    }
 
     .notebook-actions {
         justify-content: flex-end;
@@ -1436,46 +1242,20 @@
     }
 }
 
-@media (max-width: 1100px) {
-    .notebook-shell[data-board-view="grid"] .notebook-board {
-        column-width: 230px;
-    }
-}
-
-@media (max-width: 820px) {
-    .notebook-shell[data-board-view="grid"] .notebook-board {
-        column-count: 2;
-        column-width: auto;
-    }
-}
-
-@media (max-width: 560px) {
-    .notebook-shell[data-board-view="grid"] .notebook-board {
-        column-count: 1;
-    }
-}
-
-
 /* SECTION: Adaptive board layout and consolidated command controls */
 .notebook-board[data-layout="grid"] {
     display: grid !important;
-
-
     justify-content: start;
     align-items: start;
     column-width: auto !important;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 280px)) !important;
+    gap: .9rem !important;
 }
 
 .notebook-board[data-layout="grid"] .notebook-card {
     display: block !important;
     width: 100%;
     margin: 0 !important;
-}
-
-.notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
-    display: block;
-
-
 }
 
 .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] .notebook-card {
@@ -1487,68 +1267,12 @@
     vertical-align: top;
 }
 
-.notebook-card.is-completed {
-    border-color: #dfe5ee;
-}
-
-
-
 .notebook-card.is-completed .notebook-card-indicators,
 .notebook-card.is-completed .notebook-card-meta {
     color: var(--pm-accent-slate-mid, #64748b);
 }
 
-@media (max-width: 1100px) {
-    .notebook-board[data-layout="grid"] {
-        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)) !important;
-    }
-
-    .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
-        column-width: 230px;
-    }
-}
-
-@media (max-width: 820px) {
-    .notebook-board[data-layout="grid"] {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    }
-
-    .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
-        column-count: 2;
-        column-width: auto;
-    }
-}
-
-@media (max-width: 560px) {
-    .notebook-board[data-layout="grid"] {
-        grid-template-columns: 1fr !important;
-    }
-
-    .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
-        column-count: 1;
-    }
-}
-
 /* SECTION: Final Keep-style shell, view identity and completed-state refinement */
-.notebook-board[data-layout="grid"] {
-    grid-template-columns: repeat(auto-fill, minmax(230px, 280px)) !important;
-    gap: .9rem !important;
-}
-
-.notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
-    column-width: 238px;
-    column-gap: .9rem;
-}
-
-.notebook-card {
-    border-color: #e1e5eb;
-    box-shadow: 0 2px 7px rgba(15,23,42,.045);
-}
-
-.notebook-card:hover {
-    border-color: #c2cad6;
-    box-shadow: 0 5px 14px rgba(15,23,42,.07);
-}
 
 .notebook-card.is-completed,
 .notebook-card.is-completed.notebook-card-color-amber,
@@ -1582,9 +1306,6 @@
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
     }
 
-    .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
-        column-width: 225px;
-    }
 }
 
 /* SECTION: Unified notebook create editor */
@@ -1628,8 +1349,6 @@
 
 .notebook-composer__close {
   flex: 0 0 auto;
-  min-height: 2rem;
-  padding: .35rem .68rem;
   border: 0;
   border-radius: .55rem;
   background: transparent;
@@ -1645,35 +1364,18 @@
   outline: none;
 }
 
-.notebook-modal.is-create-mode .notebook-modal__dialog {
-  width: min(620px, calc(100vw - 32px));
-  max-height: min(760px, calc(100vh - 32px));
-  overflow: auto;
-}
-
 .notebook-modal.is-create-mode .notebook-modal__body {
-  min-height: 120px;
   resize: vertical;
   overflow-y: auto;
 }
 
 .notebook-create-details {
-  margin: 4px 20px 12px;
-  padding: 14px;
   border: 1px solid rgba(148, 163, 184, .3);
   border-radius: 14px;
   background: rgba(248, 250, 252, .72);
 }
 
-.notebook-create-details__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
 .notebook-create-details label {
-  display: grid;
-  gap: 6px;
   margin: 0;
   font-size: .78rem;
   font-weight: 700;
@@ -1682,8 +1384,6 @@
 
 .notebook-create-details input,
 .notebook-create-details select {
-  width: 100%;
-  min-height: 40px;
   padding: 8px 10px;
   border: 1px solid #d7deea;
   border-radius: 10px;
@@ -1716,7 +1416,6 @@
 }
 
 .notebook-modal.is-create-mode footer {
-  position: sticky;
   bottom: 0;
   z-index: 2;
   display: flex;
@@ -1729,14 +1428,9 @@
 }
 
 @media (max-width: 640px) {
-  .notebook-create-details__grid {
-    grid-template-columns: 1fr;
-  }
 
   .notebook-modal.is-create-mode .notebook-modal__dialog {
-    width: 100%;
     max-width: none;
-    max-height: 100vh;
     border-radius: 0;
   }
 }
@@ -1931,12 +1625,6 @@
 
 /* Card action menus open inward/upward from the bottom action rail. This avoids
    masonry siblings or the viewport edge covering a short menu. */
-.notebook-card .notebook-card-more__menu {
-  top: auto;
-  right: 0;
-  bottom: calc(100% + .4rem);
-  z-index: 1400;
-}
 
 @media (max-height: 640px) {
   .notebook-modal.is-create-mode .notebook-modal__dialog {
@@ -1980,9 +1668,6 @@
 
 /* SECTION: Shared Keep-style colour picker */
 .notebook-editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   min-height: 36px;
   padding: 4px 2px;
 }
@@ -2034,7 +1719,6 @@
   max-width: min(252px, calc(100vw - 24px));
   grid-template-columns: repeat(4, minmax(44px, 1fr));
   gap: 7px;
-  z-index: 1400;
 }
 
 .notebook-colour-choice {
@@ -2353,7 +2037,6 @@ body.notebook-confirm-open { overflow: hidden; }
   .notebook-toast-region { bottom: 12px; }
 }
 
-
 /* SECTION: Notebook Trash */
 .notebook-shell[data-view="trash"] .notebook-card { opacity: .86; }
 .notebook-shell[data-view="trash"] .notebook-card:hover { opacity: 1; }
@@ -2442,20 +2125,14 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 .notebook-card.is-drag-preview {
-    opacity: .97;
     overflow: hidden;
     transform-origin: center center;
-    box-shadow: 0 18px 40px rgba(16,24,40,.22), 0 5px 12px rgba(16,24,40,.14);
     cursor: grabbing;
     will-change: transform;
 }
 
 .notebook-card-placeholder {
-    box-sizing: border-box;
     min-width: 0;
-    border: 2px dashed rgba(91,141,239,.36);
-    border-radius: 12px;
-    background: rgba(91,141,239,.055);
 }
 
 .notebook-card.is-keyboard-dragging {
@@ -2495,7 +2172,6 @@ body.notebook-confirm-open { overflow: hidden; }
         grid-template-columns: 1fr;
     }
 }
-
 
 /* SECTION: Final adaptive Keep-density masonry (authoritative overrides) */
 .notebook-shell[data-board-view="grid"] .notebook-board,
@@ -2540,38 +2216,21 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-card {
     overflow: visible;
     border: 1px solid rgba(60, 64, 67, .22);
-    border-radius: 10px;
     box-shadow: none;
     transform: none;
-    transition: border-color .14s ease, box-shadow .14s ease;
 }
 
 .notebook-card:hover {
-    border-color: rgba(60, 64, 67, .32);
-    box-shadow: 0 1px 2px rgba(60, 64, 67, .12), 0 3px 8px rgba(60, 64, 67, .10);
     transform: none;
 }
 
 .notebook-card-body {
     min-height: 0;
-    padding: 14px 14px 11px;
-}
-
-.notebook-card-topline {
-    min-height: .8rem;
-}
-
-.notebook-card-title {
-    margin: 4px 0 6px;
-    font-size: 1rem;
-    line-height: 1.28;
 }
 
 .notebook-card-preview {
     margin: 0;
-    color: #334155;
     font-size: .875rem;
-    line-height: 1.42;
     -webkit-line-clamp: 12;
 }
 
@@ -2582,8 +2241,6 @@ body.notebook-confirm-open { overflow: hidden; }
 
 .notebook-check-toggle {
     gap: 7px;
-    min-height: 24px;
-    padding: 2px 0;
     font-size: .855rem;
     line-height: 1.32;
 }
@@ -2600,7 +2257,6 @@ body.notebook-confirm-open { overflow: hidden; }
 
 .notebook-card-tags {
     gap: 5px;
-    margin-top: 9px;
     padding-right: 0;
 }
 
@@ -2611,16 +2267,12 @@ body.notebook-confirm-open { overflow: hidden; }
 
 .notebook-card-actions {
     position: absolute;
-    right: 6px;
-    bottom: 5px;
     z-index: 4;
     width: auto;
     min-height: 0;
-    padding: 0;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    background: transparent !important;
     transition: opacity .12s ease, visibility .12s ease;
 }
 
@@ -2640,12 +2292,6 @@ body.notebook-confirm-open { overflow: hidden; }
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-}
-
-.notebook-action-icon,
-.notebook-card-more summary {
-    min-width: 30px;
-    min-height: 30px;
 }
 
 .notebook-card-placeholder {
@@ -2789,14 +2435,12 @@ body.notebook-confirm-open { overflow: hidden; }
     .notebook-collaborator-role { display: none; }
 }
 
-
 /* SECTION: Shared-note relationship and robust action-menu polish */
 .notebook-sharing-summary {
     display: flex;
     align-items: center;
     gap: .38rem;
     min-width: 0;
-    max-width: calc(100% - 8.5rem);
     margin: .35rem 14px 10px;
     color: #5f6b7d;
     font-size: .72rem;
@@ -2974,12 +2618,10 @@ body.notebook-confirm-open { overflow: hidden; }
 
 @media (hover: none) {
     .notebook-checklist-remove { opacity: 1; }
-    .notebook-sharing-summary { max-width: 100%; margin-bottom: .25rem; }
 }
 
 @media (max-width: 560px) {
     .notebook-sharing-summary {
-        max-width: 100%;
         margin-right: 14px;
     }
 }
@@ -3010,8 +2652,6 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 .notebook-modal.is-read-only .notebook-modal__body { resize: none; }
-.notebook-check-toggle--readonly { cursor: default; }
-.notebook-check-toggle--readonly:hover { background: transparent; }
 
 .notebook-checklist-editor.is-read-only .notebook-checklist-row {
     grid-template-columns: auto minmax(0, 1fr);
@@ -3096,11 +2736,6 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-reminder-scheduler[hidden],
 .notebook-create-discard[hidden] {
     display: none !important;
-}
-
-.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details__grid {
-    grid-template-columns: minmax(0, 1fr);
-    max-width: 22rem;
 }
 
 .notebook-reminder-scheduler {
@@ -4159,12 +3794,12 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-conference-shared-card__open {
     position: absolute;
     inset: 0;
-    z-index: 3;
     width: 100%;
     border: 0;
     border-radius: inherit;
     background: transparent;
     cursor: pointer;
+    z-index: 1;
 }
 
 .notebook-conference-shared-card__open:focus-visible {
@@ -4253,8 +3888,6 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 .notebook-conference-shared-card__sharing {
-    position: relative;
-    z-index: 1;
     max-width: calc(100% - 1rem);
     margin-top: .12rem;
     margin-bottom: 9px;
@@ -4404,8 +4037,6 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-conference-digest-item__title {
     display: inline-flex;
     min-width: 0;
-    width: fit-content;
-    max-width: 100%;
     align-items: baseline;
     gap: .3rem;
     color: #1e2f4d;
@@ -4495,7 +4126,6 @@ body.notebook-confirm-open { overflow: hidden; }
 
     .notebook-conference-digest-item__heading {
         flex-direction: column;
-        gap: .08rem;
     }
 
     .notebook-conference-digest-modal__footer {
@@ -4504,9 +4134,6 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 /* SECTION: Personal organisation controls for PRISM-owned Notebook surfaces */
-.notebook-conference-shared-card__open {
-    z-index: 1;
-}
 
 .notebook-conference-shared-card__summary {
     overflow: hidden;
@@ -4597,7 +4224,6 @@ body.notebook-confirm-open { overflow: hidden; }
         gap: .08rem;
     }
 }
-
 
 /* SECTION: Direct-drag floating-surface safety (authoritative overrides) */
 .notebook-card.has-open-menu,
@@ -4825,7 +4451,6 @@ body.notebook-confirm-open { overflow: hidden; }
     }
 }
 
-
 /* ============================================================
    Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
    Light is unchanged; these rules only apply under data-bs-theme="dark".
@@ -4833,7 +4458,6 @@ body.notebook-confirm-open { overflow: hidden; }
    ============================================================ */
 :where([data-bs-theme="dark"]) .notebook-composer {
     border: 1px solid #2c3035;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
 }
 
 :where([data-bs-theme="dark"]) .notebook-composer__checklist,
@@ -4868,10 +4492,6 @@ body.notebook-confirm-open { overflow: hidden; }
     color: #8a9097;
 }
 
-:where([data-bs-theme="dark"]) .notebook-card {
-    border: 1px solid #2c3035;
-}
-
 :where([data-bs-theme="dark"]) .notebook-card.is-selected {
     border-color: #6ea8fe;
     box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.25), 0 8px 20px rgba(0, 0, 0, 0.29);
@@ -4881,14 +4501,6 @@ body.notebook-confirm-open { overflow: hidden; }
 :where([data-bs-theme="dark"]) .notebook-card-meta span {
     background: rgba(22, 24, 27, 0.72);
     border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-:where([data-bs-theme="dark"]) .notebook-card-preview {
-    color: #e6e8eb;
-}
-
-:where([data-bs-theme="dark"]) .notebook-tag-chip {
-    background: rgba(255, 255, 255, 0.05);
 }
 
 :where([data-bs-theme="dark"]) .notebook-action-icon:hover,
@@ -4943,10 +4555,6 @@ body.notebook-confirm-open { overflow: hidden; }
 
 :where([data-bs-theme="dark"]) .notebook-check-toggle {
     color: #e6e8eb;
-}
-
-:where([data-bs-theme="dark"]) .notebook-check-toggle.is-done {
-    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .notebook-checklist-toggle {
@@ -5050,18 +4658,8 @@ body.notebook-confirm-open { overflow: hidden; }
     background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(22, 24, 27, 0.9) 22%, rgba(22, 24, 27, 0.97));
 }
 
-:where([data-bs-theme="dark"]) .notebook-card.is-completed {
-    border-color: #2c3035;
-}
-
 :where([data-bs-theme="dark"]) .notebook-card {
-    border-color: #2c3035;
     box-shadow: 0 2px 7px rgba(0, 0, 0, 0.21);
-}
-
-:where([data-bs-theme="dark"]) .notebook-card:hover {
-    border-color: #3a3f45;
-    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.28);
 }
 
 :where([data-bs-theme="dark"]) .notebook-card.is-completed,
@@ -5405,15 +5003,6 @@ body.notebook-confirm-open { overflow: hidden; }
     outline: 2px solid #6ea8fe;
 }
 
-:where([data-bs-theme="dark"]) .notebook-card.is-drag-preview {
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6), 0 5px 12px rgba(0, 0, 0, 0.45);
-}
-
-:where([data-bs-theme="dark"]) .notebook-card-placeholder {
-    border: 2px dashed rgba(110, 168, 254, 0.45);
-    background: rgba(110, 168, 254, 0.08);
-}
-
 :where([data-bs-theme="dark"]) .notebook-card.is-keyboard-dragging {
     outline: 2px solid #6ea8fe;
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
@@ -5421,15 +5010,6 @@ body.notebook-confirm-open { overflow: hidden; }
 
 :where([data-bs-theme="dark"]) .notebook-card {
     border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-:where([data-bs-theme="dark"]) .notebook-card:hover {
-    border-color: rgba(255, 255, 255, 0.16);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 8px rgba(0, 0, 0, 0.35);
-}
-
-:where([data-bs-theme="dark"]) .notebook-card-preview {
-    color: #e6e8eb;
 }
 
 :where([data-bs-theme="dark"]) .notebook-card-placeholder {
