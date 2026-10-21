@@ -549,7 +549,10 @@ public static class BriefingDeskBuilder
     // timeline rules stop once a project is complete.
     private static BriefingDeskItemVm BuildCompletedProject(OfficerConferenceItemVm conference)
     {
-        var directionAwaitingProgress = conference.LatestDirection is not null && conference.ProgressEntries.Count == 0;
+        // The Conference view always adds a "Project Officer" entry once there is a direction,
+        // holding only placeholder text until the PO replies; only a real remark answers it.
+        var directionAwaitingProgress = conference.LatestDirection is not null
+            && !conference.ProgressEntries.Any(IsProjectOfficerProgress);
         var checks = directionAwaitingProgress
             ? new[]
             {
@@ -588,6 +591,12 @@ public static class BriefingDeskBuilder
             Conference = conference
         };
     }
+
+    internal const string ProjectOfficerProgressLabel = "Project Officer";
+
+    private static bool IsProjectOfficerProgress(ConferenceProgressEntryVm entry)
+        => string.Equals(entry.Label, ProjectOfficerProgressLabel, StringComparison.Ordinal)
+            && (entry.ActivityAtUtc.HasValue || !string.IsNullOrWhiteSpace(entry.Body));
 
     // SECTION: Ideas
     // Brief-ready = recent activity (the existing idea staleness rule) and the latest

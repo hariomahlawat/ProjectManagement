@@ -482,7 +482,7 @@ public sealed class BriefingDeskBuilderTests
                         {
                             Kind = ConferenceItemKind.Project, ItemId = 40, Title = "VROP Myanmar 2025", IsRecentlyCompleted = true,
                             LatestDirection = new ConferenceDirectionVm { Body = "Share lessons learnt" },
-                            ProgressEntries = new[] { new ConferenceProgressEntryVm { Label = "PO update", Body = "Lessons learnt shared." } }
+                            ProgressEntries = new[] { new ConferenceProgressEntryVm { Label = "Project Officer", Body = "Lessons learnt shared.", ActivityAtUtc = new DateTime(2026, 10, 15, 5, 0, 0, DateTimeKind.Utc) } }
                         }
                     }
                 }
@@ -493,6 +493,44 @@ public sealed class BriefingDeskBuilderTests
 
         Assert.True(Assert.Single(desk.RecentlyCompleted).IsBriefReady);
         Assert.Empty(desk.Sections);
+    }
+
+    [Theory]
+    [InlineData("placeholder")]
+    [InlineData("mco-only")]
+    public void RecentlyCompletedProject_PlaceholderOrMcoEntry_StillAwaitsThePo(string entries)
+    {
+        var placeholder = new ConferenceProgressEntryVm
+        {
+            Label = "Project Officer",
+            EmptyText = "Progress update awaited. No Project Officer remark has been recorded since the direction was issued."
+        };
+        var mco = new ConferenceProgressEntryVm { Label = "MCO", Body = "Vendor paperwork filed.", ActivityAtUtc = new DateTime(2026, 10, 15, 5, 0, 0, DateTimeKind.Utc) };
+        var conference = new OfficerConferenceVm
+        {
+            Sections = new[]
+            {
+                new OfficerConferenceSectionVm
+                {
+                    Kind = ConferenceItemKind.Project,
+                    Items = new[]
+                    {
+                        new OfficerConferenceItemVm
+                        {
+                            Kind = ConferenceItemKind.Project, ItemId = 40, Title = "VROP Myanmar 2025", IsRecentlyCompleted = true,
+                            LatestDirection = new ConferenceDirectionVm { Body = "Share lessons learnt" },
+                            ProgressEntries = entries == "placeholder" ? new[] { placeholder } : new[] { placeholder, mco }
+                        }
+                    }
+                }
+            }
+        };
+
+        var item = Assert.Single(Build(conference: conference).RecentlyCompleted);
+
+        Assert.False(item.IsBriefReady);
+        Assert.True(item.DirectionAwaitingProgress);
+        Assert.Equal("Report progress on the direction", Assert.Single(item.Checks).Label);
     }
 
     // SECTION: Builders
