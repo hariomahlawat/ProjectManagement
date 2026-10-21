@@ -176,7 +176,7 @@ public static class BriefingDeskBuilder
         }
 
         var procurementPanelId = input.ProcurementEdit is null ? null : $"{anchor}-procurement";
-        var improvements = ProjectImprovements(row.RecordHealth, procurementPanelId);
+        var improvements = ProjectImprovements(row.RecordHealth, procurementPanelId, WorkspaceRouteHelper.BriefingDeskItem(anchor));
 
         return new BriefingDeskItemVm
         {
@@ -409,7 +409,8 @@ public static class BriefingDeskBuilder
     // because the required PDC check above already covers it.
     internal static IReadOnlyList<BriefingDeskCheckVm> ProjectImprovements(
         WorkspaceRecordHealthVm? health,
-        string? procurementPanelId = null)
+        string? procurementPanelId = null,
+        string? deskReturnUrl = null)
     {
         if (health is null)
         {
@@ -440,7 +441,8 @@ public static class BriefingDeskBuilder
                     Route = route,
                     IsRequired = false,
                     ActionText = gaps[0].ActionText,
-                    ActionUrl = group.Key,
+                    // Photo and video uploads come back to the desk when given its address.
+                    ActionUrl = IsMediaEditor(group.Key) ? WithReturnUrl(group.Key, deskReturnUrl) : group.Key,
                     // Procurement opens in a panel on the desk when its editor model is loaded.
                     PanelId = IsProcurementEditor(group.Key) ? procurementPanelId : null,
                     Points = points
@@ -456,10 +458,26 @@ public static class BriefingDeskBuilder
     internal static bool IsProcurementEditor(string actionUrl)
         => actionUrl.Contains("oc=procurement", StringComparison.OrdinalIgnoreCase);
 
-    internal static bool IsDirectEditor(string actionUrl)
-        => actionUrl.Contains("oc=procurement", StringComparison.OrdinalIgnoreCase)
-            || actionUrl.Contains("/Photos", StringComparison.OrdinalIgnoreCase)
+    internal static bool IsMediaEditor(string actionUrl)
+        => actionUrl.Contains("/Photos", StringComparison.OrdinalIgnoreCase)
             || actionUrl.Contains("/Videos", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsDirectEditor(string actionUrl)
+        => IsProcurementEditor(actionUrl) || IsMediaEditor(actionUrl);
+
+    private static string WithReturnUrl(string url, string? returnUrl)
+    {
+        if (string.IsNullOrEmpty(returnUrl))
+        {
+            return url;
+        }
+
+        var hash = url.IndexOf('#');
+        var path = hash < 0 ? url : url[..hash];
+        var fragment = hash < 0 ? string.Empty : url[hash..];
+        var separator = path.Contains('?') ? '&' : '?';
+        return $"{path}{separator}returnUrl={Uri.EscapeDataString(returnUrl)}{fragment}";
+    }
 
     private static string ShortFieldLabel(WorkspaceRecordGapVm gap)
         => gap.FieldLabel.EndsWith(" — Actual Completion", StringComparison.Ordinal)

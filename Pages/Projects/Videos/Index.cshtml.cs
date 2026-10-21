@@ -41,6 +41,12 @@ public sealed class IndexModel : PageModel
     public string ProjectRowVersion { get; private set; } = string.Empty;
     public bool CanManage { get; private set; }
 
+    // Set when the library was opened from the Project Officer briefing desk; passed on to Upload.
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
+    public string? DeskReturnUrl => ProjectManagement.Services.Workspace.WorkspaceRouteHelper.SafeDeskReturnUrl(ReturnUrl);
+
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         if (_userContext.User.Identity?.IsAuthenticated != true)

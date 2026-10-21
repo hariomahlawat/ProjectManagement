@@ -53,6 +53,11 @@ That page returns only to a local `/Workspace` address
 (`WorkspaceRouteHelper.SafeDeskReturnUrl`, shared with the plan editor), and otherwise keeps
 its original redirect to Project Overview.
 
+Photo and video gaps link to the full gallery and video library pages, not a side panel. The
+desk adds its own address as `returnUrl`; the gallery or library passes it to the upload page,
+and a successful upload returns to the desk with a toast. Without a local `/Workspace` address
+the upload returns to the gallery or library as before.
+
 **Current-stage PDC form.** When a project's current-stage PDC is missing or overdue, and
 nothing else would be submitted along with it, "Propose date(s)" opens a short side panel that
 asks only for the PDC. "Nothing else" means no private draft, no submission pending or locked,

@@ -80,13 +80,13 @@
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
             <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
-            <li class="breadcrumb-item"><a asp-page="./Index" asp-route-id="@Model.Project.Id">Photos</a></li>
+            <li class="breadcrumb-item"><a asp-page="./Index" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl">Photos</a></li>
             <li class="breadcrumb-item active" aria-current="page">Upload</li>
         </ol>
     </nav>
 
     <header class="project-photo-page__header">
-        <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="project-photo-page__back">
+        <a asp-page="./Index" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl" class="project-photo-page__back">
             <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to photos
         </a>
         <h1>Upload project photo</h1>
@@ -102,6 +102,10 @@
           data-allowed-content-types="@allowedContentTypesValue">
         <input asp-for="Input.ProjectId" type="hidden" />
         <input asp-for="Input.RowVersion" type="hidden" />
+        @if (Model.DeskReturnUrl is not null)
+        {
+            <input type="hidden" name="returnUrl" value="@Model.DeskReturnUrl" />
+        }
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
@@ -265,7 +269,7 @@
         </section>
 
         <div class="project-photo-actions">
-            <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-outline-secondary">Cancel</a>
+            <a asp-page="./Index" asp-route-id="@Model.Project.Id" asp-route-returnUrl="@Model.DeskReturnUrl" class="btn btn-outline-secondary">Cancel</a>
             <button type="submit" class="btn btn-primary" data-photo-submit data-busy-label="Uploading…">
                 <i class="bi bi-upload" aria-hidden="true"></i> Upload photo
             </button>

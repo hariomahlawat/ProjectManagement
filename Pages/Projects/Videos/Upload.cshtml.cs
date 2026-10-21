@@ -46,6 +46,12 @@ public sealed class UploadModel : PageModel
     public Project Project { get; private set; } = null!;
     public long MaxFileSizeBytes => _options.MaxFileSizeBytes;
 
+    // Set when the upload was opened from the Project Officer briefing desk.
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
+    public string? DeskReturnUrl => ProjectManagement.Services.Workspace.WorkspaceRouteHelper.SafeDeskReturnUrl(ReturnUrl);
+
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         var projectResult = await LoadManagedProjectAsync(id, cancellationToken);
@@ -111,8 +117,7 @@ public sealed class UploadModel : PageModel
                 Input.SetAsFeatured,
                 cancellationToken);
 
-            TempData["Flash"] = "Video uploaded.";
-            return RedirectToPage("/Projects/Videos/Index", new { id = Project.Id });
+            return AfterUpload(Project.Id, "Video uploaded.");
         }
         catch (InvalidOperationException ex)
         {
@@ -132,6 +137,22 @@ public sealed class UploadModel : PageModel
             ModelState.AddModelError(string.Empty, "The video could not be uploaded. Please try again.");
             return Page();
         }
+    }
+
+    // SECTION: Return destination
+    // The briefing desk sends a /Workspace return address; anything else (or nothing)
+    // keeps the original behaviour of returning to the video library.
+    private IActionResult AfterUpload(int id, string message)
+    {
+        var deskUrl = DeskReturnUrl;
+        if (deskUrl is null)
+        {
+            TempData["Flash"] = message;
+            return RedirectToPage("/Projects/Videos/Index", new { id });
+        }
+
+        TempData["ToastSuccess"] = message;
+        return LocalRedirect(deskUrl);
     }
 
     private async Task<(Project? Project, IActionResult? Result)> LoadManagedProjectAsync(
