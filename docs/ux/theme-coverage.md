@@ -29,7 +29,7 @@ Totals: **8317** stylesheet literals in 84 files, **6** in inline view styles.
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `site.css` | 442 | 317 |
-| `workspace.css` | 279 | 207 |
+| `workspace.css` | 279 | 208 |
 | `command-workspace.css` | 232 | 165 |
 | `officer-conference.css` | 202 | 139 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
@@ -40,7 +40,7 @@ Totals: **8317** stylesheet literals in 84 files, **6** in inline view styles.
 | `projects/create.css` | 44 | 24 |
 | `todo-widget.css` | 39 | 22 |
 | `widgets/ffc-simulator-map.css` | 32 | 19 |
-| `erp-activity-strip.css` | 22 | 13 |
+| `erp-activity-strip.css` | 22 | 14 |
 | `widgets/project-pulse.css` | 16 | 24 |
 | `widgets/ops-signals.css` | 11 | 6 |
 | `components/pm-table.css` | 1 | 1 |
@@ -111,7 +111,7 @@ Totals: **8317** stylesheet literals in 84 files, **6** in inline view styles.
 | `activities/index.css` | 62 | 0 |
 | `action-task-actions.css` | 57 | 0 |
 | `action-task-details-redesign.css` | 55 | 0 |
-| `tasks.css` | 50 | 15 |
+| `tasks.css` | 50 | 0 |
 | `project-office-reports/ffc-record-workspace.css` | 45 | 0 |
 | `project-office-reports/visits-details.css` | 40 | 0 |
 | `project-office-reports/visits.css` | 37 | 0 |
