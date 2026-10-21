@@ -5123,11 +5123,7 @@ function initNotebookApp() {
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts, onOpen: (item, modal) => renderEditorMoreMenu(item, modal) });
-  function renderEditorMoreMenu(item, modal) {
-    const more = modal?.querySelector("[data-notebook-editor-more]");
-    const menu = more?.querySelector("[data-notebook-editor-more-menu]");
-    if (!more || !menu) return;
-    more.removeAttribute("open");
+  function fillEditorMoreMenu(item, more, menu) {
     const card = item?.id ? board.findCard(item.id) : null;
     const sources = card ? [...card.querySelectorAll('[data-action="complete-note"], .notebook-card-more__menu > [data-action], .notebook-card-more__menu > .notebook-menu-separator')] : [];
     const entries = [];
@@ -5146,10 +5142,18 @@ function initNotebookApp() {
     });
     menu.replaceChildren(...entries);
     more.hidden = !entries.some((entry) => entry.tagName === "BUTTON");
+  }
+  function renderEditorMoreMenu(item, modal) {
+    const more = modal?.querySelector("[data-notebook-editor-more]");
+    const menu = more?.querySelector("[data-notebook-editor-more-menu]");
+    if (!more || !menu) return;
+    more.removeAttribute("open");
+    fillEditorMoreMenu(item, more, menu);
     if (!more.dataset.positionBound) {
       more.dataset.positionBound = "true";
       more.addEventListener("toggle", () => {
         if (!more.open) return;
+        fillEditorMoreMenu(editor.getCurrentItem?.(), more, menu);
         const anchor = more.querySelector("summary").getBoundingClientRect();
         menu.style.position = "fixed";
         menu.style.top = `${Math.round(anchor.bottom + 6)}px`;

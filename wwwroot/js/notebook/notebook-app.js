@@ -241,11 +241,7 @@ export function initNotebookApp() {
   // exactly what the board allows for this note's status and the user's access. Choosing
   // one closes the editor (flushing any pending save) and runs the card action, which
   // keeps one implementation of each lifecycle mutation, including Undo for Trash.
-  function renderEditorMoreMenu(item, modal) {
-    const more = modal?.querySelector('[data-notebook-editor-more]');
-    const menu = more?.querySelector('[data-notebook-editor-more-menu]');
-    if (!more || !menu) return;
-    more.removeAttribute('open');
+  function fillEditorMoreMenu(item, more, menu) {
     const card = item?.id ? board.findCard(item.id) : null;
     const sources = card ? [...card.querySelectorAll('[data-action="complete-note"], .notebook-card-more__menu > [data-action], .notebook-card-more__menu > .notebook-menu-separator')] : [];
     const entries = [];
@@ -264,12 +260,23 @@ export function initNotebookApp() {
     });
     menu.replaceChildren(...entries);
     more.hidden = !entries.some((entry) => entry.tagName === 'BUTTON');
+  }
 
-    // A short note's dialog would clip the menu, so it is placed against the window.
+  function renderEditorMoreMenu(item, modal) {
+    const more = modal?.querySelector('[data-notebook-editor-more]');
+    const menu = more?.querySelector('[data-notebook-editor-more-menu]');
+    if (!more || !menu) return;
+    more.removeAttribute('open');
+    fillEditorMoreMenu(item, more, menu);
+
     if (!more.dataset.positionBound) {
       more.dataset.positionBound = 'true';
       more.addEventListener('toggle', () => {
         if (!more.open) return;
+        // Rebuilt on every open: the card is re-rendered after edits made in the
+        // editor (adding or removing a reminder changes whether Done applies).
+        fillEditorMoreMenu(editor.getCurrentItem?.(), more, menu);
+        // A short note's dialog would clip the menu, so it is placed against the window.
         const anchor = more.querySelector('summary').getBoundingClientRect();
         menu.style.position = 'fixed';
         menu.style.top = `${Math.round(anchor.bottom + 6)}px`;

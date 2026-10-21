@@ -215,3 +215,10 @@ test('editor template keeps labels visible and offers a More menu', () => {
   assert.match(css, /\.notebook-modal:not\(\.is-create-mode\) \.notebook-editor-close-button \{\s*display: none;/);
   assert.match(css, /\.notebook-modal\.is-create-mode \[data-action="share-note-editor"\] \{\s*display: none;/);
 });
+
+test('editor More menu is rebuilt from the current card each time it opens', () => {
+  const app = fs.readFileSync(path.resolve(__dirname, 'notebook-app.js'), 'utf8');
+  // Reminder edits re-render the card while the editor stays open, so a menu built only
+  // on open would offer a stale "Mark as done" (or miss a new one).
+  assert.match(app, /addEventListener\('toggle', \(\) => \{\s*if \(!more\.open\) return;[\s\S]*?fillEditorMoreMenu\(editor\.getCurrentItem\?\.\(\), more, menu\);/);
+});
