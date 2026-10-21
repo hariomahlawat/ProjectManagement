@@ -7,6 +7,9 @@ const ALL_CARD_SELECTOR = '[data-note-id], [data-notebook-system-home-card]';
 // These selectors are intentionally element-matchable: movePlaceholder() uses
 // Element.matches() to calculate the placeholder's true sibling index.
 const DRAG_THRESHOLD_PX = 6;
+// A press that starts a drag but ends where it began, within this distance, was a click
+// with a shaky hand or trackpad: the note opens instead of being silently "rearranged".
+const CLICK_SLOP_PX = 16;
 const TOUCH_LONG_PRESS_MS = 300;
 const TOUCH_CANCEL_DISTANCE_PX = 8;
 const INSERTION_HYSTERESIS_PX = 10;
@@ -419,6 +422,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       preview,
       pointerId,
       pointer: { x: clientX, y: clientY },
+      start: { x: state.startX, y: state.startY },
       offsetX: clientX - rect.left,
       offsetY: clientY - rect.top,
       originalKeys: state.originalKeys,
@@ -439,7 +443,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       cancelPointerArm();
       return;
     }
-    const { card, board, placeholder, preview, originalKeys, pointerId } = dragState;
+    const { card, board, placeholder, preview, originalKeys, pointerId, pointer, start } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
     board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
@@ -447,6 +451,18 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     shell.classList.remove('is-pointer-dragging');
     document.body.classList.remove('notebook-is-dragging');
     shell.releasePointerCapture?.(pointerId);
+    const orderChanged = allCards(board).map(cardKey).join('|') !== originalKeys.join('|');
+    const wasClick = save && !orderChanged && Math.hypot(pointer.x - start.x, pointer.y - start.y) <= CLICK_SLOP_PX;
+    if (save && !orderChanged) {
+      // Nothing moved: no save, and no click suppression. Pointer capture means the
+      // browser will not fire a click, so a near-stationary press opens the note here.
+      dragState = null;
+      pointerState = null;
+      shell.dispatchEvent(new CustomEvent('notebook:drag-end', { bubbles: true, detail: { saved: false } }));
+      boardController.refreshSectionVisibility();
+      if (wasClick) card.querySelector('[data-action="open-note"], [data-card-passive-open]')?.click();
+      return;
+    }
     if (save) {
       persist(board, originalKeys);
       suppressClickUntil = performance.now() + 300;
