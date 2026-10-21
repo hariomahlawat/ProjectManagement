@@ -145,7 +145,7 @@
 
 .reconciliation-panel .nav-link.active {
   background: var(--pm-accent-blue-bolder);
-  color: var(--pm-card);
+  color: var(--pm-text-inverted, #fff);
 }
 
 .reconciliation-panel .tab-pane {

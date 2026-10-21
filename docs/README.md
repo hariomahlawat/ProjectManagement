@@ -31,6 +31,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Infrastructure and services](infrastructure-services.md) | Cross-cutting helpers, workers and service abstractions. |
 | [Razor Pages catalogue](razor-pages.md) | UI/page inventory and role checks. |
 | [Dark theme palette](ux/dark-theme-palette.md) | Neutral-graphite dark theme: palette, principles, the opt-in Light/Dark/System switch, what is covered and how to convert a page. |
+| [Theme coverage](ux/theme-coverage.md) | Generated per-stylesheet count of literal colours and dark-theme gaps, grouped into conversion waves; enforced by `npm test`. |
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |

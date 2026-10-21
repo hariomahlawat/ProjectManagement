@@ -19,11 +19,15 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
   Project Overview page with all 17 of its drawers and dialogs, on several projects
   (ongoing, completed, with and without remarks). Checked with a scan for light fills and
   for text under 3.2:1 contrast, in Dark and in Light.
-- **Not yet covered:** other pages that paint literal light colours of their own. Known:
-  the Dashboard body, the Remarks page (`project-remarks.css`), and anything with
-  page-local `#fff`/`#f8fafc` backgrounds. `tasks.css` and `todo-widget.css` still follow
-  `prefers-color-scheme` directly rather than the site choice. Convert these page by page
-  (remap literals to the site tokens) before making Dark more prominent or the default.
+- **Wave 1 covered and checked (2026-10-21):** Dashboard, My Workspace (every Project
+  Officer and Command view, Conference Review and its detail page), Projects (repository
+  list, Ongoing, Completed register, Create), Calendar (including FullCalendar's own
+  variables) and the shared `site.css` components, with every modal and offcanvas on those
+  pages. The to-do widget now follows the site choice instead of `prefers-color-scheme`.
+- **Not yet covered:** waves 2 to 4 in [theme coverage](theme-coverage.md): Notebook,
+  Photos, Documents, Search, the other project pages and reports, Action tracker, tasks
+  (`tasks.css` still follows `prefers-color-scheme`), office reports and Admin. Dark stays
+  opt-in until they are converted.
 - **Rollback.** Remove the `<script src="~/js/core/theme-preference.js">` line from
   `_Layout.cshtml`: every dark rule is scoped to `[data-bs-theme="dark"]`, so the site
   renders Light for everyone, including users who chose Dark.
@@ -75,13 +79,30 @@ Status: owner-approved direction (2026-10-21). The site-wide foundation is built
   `--pm-dark-text`, `--pm-dark-text-muted`, `--pm-dark-accent` (defined only in dark).
 - **Primary buttons** keep a solid `#2563eb` in dark so white text stays above AA; the
   lifted accent `#6ea8fe` is for text, marks and focus, not fills behind white text.
+- **Tokens used both ways.** `--pm-primary` and page accent tokens (`--oc-success`,
+  `--officer-accent`, ...) are used both as fills behind white text and as text on the card.
+  In dark they take a *balanced* tone: the same hue at relative luminance about 0.2, which
+  keeps about 4:1 contrast both ways (`--pm-primary` is `#3f79e2`).
 - **Component overrides** live with their component: the shell in
   `navigation-shell.css`; shared Bootstrap and drawer rules at the end of `site.css`; the
   Overview's section tokens in `project-portfolio.css` ("V6"), which now read the site
   tokens instead of literals.
-- **Converting a page:** replace literal light colours with the site tokens where the
-  light value is identical (for example `#fff` → `var(--pm-card, #fff)`), so Light does not
-  change; otherwise add a `[data-bs-theme="dark"]` rule next to the light one.
+- **Converting a page** (the wave workflow):
+  1. `node tools/theme-dark-codemod.js wwwroot/css/<file>.css`. It swaps literals for
+     tokens where the light value is identical (`#fff` → `var(--pm-card, #fff)`), then
+     appends a generated `[data-bs-theme="dark"]` section that repaints every remaining
+     literal by role: surfaces by lightness (page, card, tile, raised), slate and navy text
+     to off-white or grey, hued text to the palette accent, pastel fills to tints of the
+     card, focus rings kept in the accent, dense dark scrims kept dark, and solid status
+     fills kept as they are. Review the section; it is a first pass.
+  2. Open the page and every modal or offcanvas on it in the browser, in Dark and Light,
+     and scan for light fills and text under 3.2:1 (third-party widgets such as
+     FullCalendar have their own variables; set those by hand).
+  3. `node tools/theme-coverage.js --write` to lower the baseline. `npm test` fails if any
+     stylesheet gains literals or gaps (a gap is a literal no dark rule repaints; it
+     includes colours kept on purpose, such as white text on a solid fill).
+  4. Prove Light is unchanged: every non-dark rule must be identical after resolving
+     token fallbacks.
 
 ### Hard-coded light surfaces on the Overview (resolved)
 
