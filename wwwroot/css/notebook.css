@@ -1316,17 +1316,6 @@
     vertical-align: top;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-board {
-    display: grid;
-    grid-template-columns: minmax(0, 720px);
-    gap: .75rem;
-    justify-content: start;
-}
-
-.notebook-shell[data-board-view="list"] .notebook-card {
-    margin: 0;
-}
-
 .notebook-card {
     border-radius: 11px;
 
@@ -1496,16 +1485,6 @@
     break-inside: avoid;
     page-break-inside: avoid;
     vertical-align: top;
-}
-
-.notebook-shell[data-board-view="list"] .notebook-board,
-.notebook-shell[data-board-view="list"] .notebook-board[data-layout="grid"],
-.notebook-shell[data-board-view="list"] .notebook-board[data-layout="masonry"] {
-    display: grid !important;
-    grid-template-columns: minmax(0, 720px) !important;
-    gap: .75rem !important;
-    justify-content: start;
-    column-width: auto !important;
 }
 
 .notebook-card.is-completed {
@@ -2714,7 +2693,10 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 @media (hover: none) {
-    .notebook-card-actions {
+    /* Touch has no hover, so actions are always shown — including on reminder cards,
+       which the rule above otherwise hides until hover. */
+    .notebook-card-actions,
+    .notebook-card.has-due-action:not(:hover):not(:focus-within) .notebook-card-actions {
         position: static;
         width: 100%;
         padding: 2px 8px 7px;
@@ -4681,6 +4663,147 @@ body.notebook-confirm-open { overflow: hidden; }
     --notebook-muted: #9aa0a6;
     --notebook-text: #e6e8eb;
 }
+
+/* SECTION: List view — compact rows
+   One scannable line per item: title, a one-line preview, then status and labels.
+   Checklists show their progress instead of their rows; actions appear on hover. */
+.notebook-shell[data-board-view="list"] .notebook-board,
+.notebook-shell[data-board-view="list"] .notebook-board[data-layout="grid"],
+.notebook-shell[data-board-view="list"] .notebook-board[data-layout="masonry"] {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+    max-width: 1100px;
+    column-width: auto !important;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-board > .notebook-card {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-body {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+    padding: 8px 14px;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-link {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: .75rem;
+    min-width: 0;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-topline {
+    order: -1;
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-title {
+    /* The title keeps its width (up to half the row); the preview takes what is left. */
+    flex: 0 0 auto;
+    max-width: 50%;
+    margin: 0;
+    overflow: hidden;
+    font-size: .92rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-preview {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--pm-text-muted, #6b7280);
+    font-size: .85rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    -webkit-line-clamp: unset;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-checklist-preview {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-checklist-preview > :not(strong) {
+    display: none;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-checklist-preview > strong {
+    color: var(--pm-text-muted, #6b7280);
+    font-size: .75rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-meta,
+.notebook-shell[data-board-view="list"] .notebook-card-tags {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    margin: 0;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-meta:empty {
+    display: none;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-sharing-summary {
+    flex: 0 0 auto;
+    max-width: 14rem;
+    margin: 0 14px 0 0;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-actions {
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+}
+
+@media (max-width: 700px) {
+    /* Narrow screens: title and preview on the first line, status below. */
+    .notebook-shell[data-board-view="list"] .notebook-card-body {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .notebook-shell[data-board-view="list"] .notebook-card-link {
+        flex-basis: 100%;
+    }
+
+    .notebook-shell[data-board-view="list"] .notebook-card-title {
+        max-width: 75%;
+    }
+
+    .notebook-shell[data-board-view="list"] .notebook-sharing-summary {
+        display: none;
+    }
+}
+
+@media (hover: none) {
+    /* Touch screens always show card actions, so in a row they get their own line. */
+    .notebook-shell[data-board-view="list"] .notebook-board > .notebook-card {
+        flex-wrap: wrap;
+    }
+
+    .notebook-shell[data-board-view="list"] .notebook-card-actions {
+        display: flex;
+        flex: 1 0 100%;
+        justify-content: flex-end;
+        padding: 0 8px 4px;
+        transform: none;
+    }
+}
+
 
 /* ============================================================
    Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
