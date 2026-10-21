@@ -1182,32 +1182,6 @@
     color: #b91c1c;
 }
 
-/* SECTION: Notebook async error feedback */
-.notebook-global-error {
-    align-items: center;
-    background: #fff1f2;
-    border: 1px solid #fecdd3;
-    border-radius: 0.75rem;
-    color: #9f1239;
-    display: flex;
-    gap: 0.75rem;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
-}
-
-    .notebook-global-error[hidden] {
-        display: none;
-    }
-
-    .notebook-global-error button {
-        background: transparent;
-        border: 0;
-        color: inherit;
-        font-size: 1.25rem;
-        line-height: 1;
-    }
-
 /* SECTION: Notebook modal save feedback and explicit conflict resolution */
 .notebook-save-feedback {
     align-items: center;
@@ -4871,12 +4845,6 @@ body.notebook-confirm-open { overflow: hidden; }
 :where([data-bs-theme="dark"]) .notebook-modal__save-state[data-state="error"],
 :where([data-bs-theme="dark"]) .notebook-modal__save-state[data-state="conflict"] {
     color: #f87171;
-}
-
-:where([data-bs-theme="dark"]) .notebook-global-error {
-    background: color-mix(in srgb, #f87171 8%, #16181b);
-    border: 1px solid color-mix(in srgb, #f87171 30%, #16181b);
-    color: #ef7697;
 }
 
 :where([data-bs-theme="dark"]) .notebook-modal__save-state[data-state="error"],

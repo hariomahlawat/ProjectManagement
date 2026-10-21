@@ -183,12 +183,6 @@
                     </section>
         }
 
-        @* SECTION: Visible async operation errors *@
-        <div class="notebook-global-error" data-notebook-global-error role="alert" hidden>
-            <span data-notebook-global-error-text></span>
-            <button type="button" data-notebook-global-error-close aria-label="Dismiss error">×</button>
-        </div>
-
         @* SECTION: Card-first notebook board *@
         @if (Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
         {
@@ -258,10 +252,8 @@
                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
                 </div>
-                @if (!hasAnyHomeItems)
-                {
-                    <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p></div>
-                }
+                @* Rendered up front so it can appear when the last card leaves. *@
+                <div class="notebook-empty" data-notebook-empty-state hidden="@hasAnyHomeItems"><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p></div>
             </section>
         }
         else if (Model.Notebook.View == "shared")
@@ -328,10 +320,7 @@
                 </section>
             }
 
-            @if (!reminderItems.Any())
-            {
-                <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p>@if (!hasQuery) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="Reminder" data-notebook-create-type="Reminder" class="btn btn-sm btn-primary">New Reminder</a> }</div>
-            }
+            <div class="notebook-empty" data-notebook-empty-state hidden="@reminderItems.Any()"><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p>@if (!hasQuery) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="Reminder" data-notebook-create-type="Reminder" class="btn btn-sm btn-primary">New Reminder</a> }</div>
         }
         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
         {
@@ -347,15 +336,14 @@
                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
                 </div>
-                @if (!Model.Notebook.Items.Any() && !showSystemInCurrentView)
-                {
+                @{
                     var emptyType = Model.Notebook.View switch
                     {
                         "reminders" or "today" or "overdue" => "Reminder",
                         _ => "Note"
                     };
                     var cta = hasQuery || Model.Notebook.View is "archive" or "archived" or "completed" or "trash" ? null : $"New {emptyType}";
-                    <div class="notebook-empty" data-notebook-empty-state><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" data-notebook-create-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
+                    <div class="notebook-empty" data-notebook-empty-state hidden="@(Model.Notebook.Items.Any() || showSystemInCurrentView)"><i class="bi @emptyIcon notebook-empty__icon" aria-hidden="true"></i><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" data-notebook-create-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
                 }
             </section>
         }

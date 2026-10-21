@@ -405,7 +405,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       draftStore.remove(activeDraftType);
       closeInternal();
       reset('Note');
-      showToast({ message: `${payload.type} created.`, tone: 'success' });
+      showToast({ message: `${payload.type} created.` });
     } catch (error) {
       setFeedback(error.message || 'Unable to create the notebook item.', true);
       persistDraftNow();
