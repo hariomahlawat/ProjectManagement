@@ -225,7 +225,6 @@
 .cw-empty strong { color:#344863; }
 .cw-empty span { font-size:.75rem; }
 
-
 @media (max-width:1100px) {
     .cw-command-bar { flex-wrap:wrap; }
     .cw-command-bar__action { margin-left:auto; }
@@ -595,15 +594,6 @@
 .cw-order-feedback.is-error { color:#b4233b; }
 
 /* SECTION: The Project Officer sees the identical command card without a reorder affordance. */
-.po-command-visibility .cw-drag-handle--static,
-.po-command-visibility .cw-drag-handle--static:hover,
-.po-command-visibility .cw-drag-handle--static:focus-visible {
-    color: #91a0b3;
-    background: transparent;
-    cursor: default;
-    outline: none;
-    touch-action: auto;
-}
 
 /* SECTION: Command-only entry to the compact officer conference review. */
 .cw-officer-identity { flex:1 1 auto; }
@@ -1209,12 +1199,6 @@
 
 :where([data-bs-theme="dark"]) .cw-order-feedback.is-error {
     color: #f87171;
-}
-
-:where([data-bs-theme="dark"]) .po-command-visibility .cw-drag-handle--static,
-:where([data-bs-theme="dark"]) .po-command-visibility .cw-drag-handle--static:hover,
-:where([data-bs-theme="dark"]) .po-command-visibility .cw-drag-handle--static:focus-visible {
-    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cw-conference-action:hover,
