@@ -5924,18 +5924,18 @@ body.compendium-structure-editor-mode {
     --pub-border-strong: #3a3f45;
     --pub-surface: #16181b;
     --pub-bg: #0e0f11;
-    --pub-green-950: #208a7c;
-    --pub-green-900: #248a78;
-    --pub-green-800: #238b75;
-    --pub-green-700: #238b73;
+    --pub-green-950: #83e2d5;
+    --pub-green-900: #85e0d0;
+    --pub-green-800: #85e0cd;
+    --pub-green-700: #85e0cc;
     --pub-green-100: #1e2125;
     --pub-green-50: #16181b;
-    --pub-gold: #96772b;
-    --pub-blue: #5074e6;
+    --pub-gold: #fbbf24;
+    --pub-blue: #6ea8fe;
     --pub-blue-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --pub-warning: #a47217;
+    --pub-warning: #fbbf24;
     --pub-warning-bg: #0e0f11;
-    --pub-danger: #c85861;
+    --pub-danger: #f87171;
     --pub-danger-bg: #0e0f11;
     --pub-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
 }
@@ -6161,6 +6161,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .publication-step {
+    background: color-mix(in srgb, var(--pub-green-800) 55%, #000);
     color: #fff;
 }
 
@@ -6322,7 +6323,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .brochure-selected-item__handle {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .brochure-selected-item__thumb {
@@ -7206,7 +7207,7 @@ body.compendium-structure-editor-mode {
 
 :where([data-bs-theme="dark"]) .brochure-preset-save-menu .dropdown-item:disabled,
 :where([data-bs-theme="dark"]) .brochure-preset-save-menu .dropdown-item.disabled {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .brochure-preset-control__meta {
@@ -7542,7 +7543,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .compendium-order-handle {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .compendium-order-copy strong {
@@ -7828,7 +7829,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .compendium-order-state.is-review {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .compendium-current-findings {
@@ -7939,7 +7940,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .compendium-crop-empty {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .compendium-crop-status {
@@ -7951,11 +7952,11 @@ body.compendium-structure-editor-mode {
 :where([data-bs-theme="dark"]) .compendium-order-card .btn:disabled {
     border-color: #2c3035 !important;
     background: #1e2125 !important;
-    color: #7b8188 !important;
+    color: #8a9097 !important;
 }
 
 :where([data-bs-theme="dark"]) .compendium-output-actions .btn:disabled i {
-    color: #7b8188 !important;
+    color: #8a9097 !important;
 }
 
 :where([data-bs-theme="dark"]) .compendium-readiness-empty {
@@ -8783,7 +8784,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .compendium-structure-editor-project-state .is-review {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .compendium-structure-editor-bulk {
@@ -8887,7 +8888,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .compendium-structure-editor-project-card.is-auto-ordered .compendium-structure-editor-project-grip {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .compendium-structure-editor-project-card strong {
@@ -8955,7 +8956,7 @@ body.compendium-structure-editor-mode {
 :where([data-bs-theme="dark"]) .compendium-output-dock__actions .btn[aria-disabled="true"] {
     border-color: #2c3035 !important;
     background: #1e2125 !important;
-    color: #7b8188 !important;
+    color: #8a9097 !important;
 }
 
 :where([data-bs-theme="dark"]) .compendium-structure-editor-save-state,
@@ -9624,7 +9625,7 @@ body.compendium-structure-editor-mode {
 }
 
 :where([data-bs-theme="dark"]) .compendium-guide__workflow > i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .compendium-guide__map article {

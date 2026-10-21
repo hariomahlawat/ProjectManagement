@@ -659,7 +659,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-person-profile__meta > span + span::before {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .photos-person-profile__meta strong {

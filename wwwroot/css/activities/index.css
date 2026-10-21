@@ -830,7 +830,7 @@
     --activities-muted: #9aa0a6;
     --activities-surface: #16181b;
     --activities-soft: #16181b;
-    --activities-accent: #4877de;
+    --activities-accent: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .activities-page-header h1 {
@@ -922,7 +922,7 @@
 }
 
 :where([data-bs-theme="dark"]) .activity-card__brief.is-empty {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .activity-card__evidence {
@@ -944,7 +944,7 @@
 }
 
 :where([data-bs-theme="dark"]) .activity-card__no-evidence {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .activities-table thead th {
@@ -976,7 +976,7 @@
 }
 
 :where([data-bs-theme="dark"]) .activities-table__none {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .activities-empty {

@@ -226,7 +226,7 @@
 }
 
 :where([data-bs-theme="dark"]) .at-task-workspace-kicker::after {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .at-task-workspace h1 {

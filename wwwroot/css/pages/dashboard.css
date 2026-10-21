@@ -682,14 +682,14 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
     --db-border-soft: #2c3035;
     --db-text: #f0f2f4;
     --db-muted: #9aa0a6;
-    --db-primary: #4a76e0;
-    --db-primary-dark: #4978dd;
+    --db-primary: #6ea8fe;
+    --db-primary-dark: #6ea8fe;
     --db-primary-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --db-indigo: #7c6add;
-    --db-teal: #168987;
-    --db-green: #228c5e;
-    --db-amber: #a87018;
-    --db-red: #d64a61;
+    --db-indigo: #9182e3;
+    --db-teal: #7beae7;
+    --db-green: #4ade80;
+    --db-amber: #fbbf24;
+    --db-red: #f87171;
     --db-shadow: 0 5px 18px rgba(0, 0, 0, 0.21);
     --db-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.31);
 }
@@ -909,7 +909,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 }
 
 :where([data-bs-theme="dark"]) .db-recent-row>i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .db-idea-summary__primary {
@@ -953,7 +953,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 }
 
 :where([data-bs-theme="dark"]) .db-ffc-primary-stats span i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .db-ffc-primary-stats .is-planned {
@@ -970,7 +970,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 }
 
 :where([data-bs-theme="dark"]) .db-ffc-breakdown p i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .db-country-row:focus-visible {
@@ -982,7 +982,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 }
 
 :where([data-bs-theme="dark"]) .db-country-row>i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .db-processing-alert.is-warning .db-utility-card__icon {

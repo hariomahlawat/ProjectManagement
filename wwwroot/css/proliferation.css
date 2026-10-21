@@ -3158,7 +3158,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pf-kpi--primary {
-    background: linear-gradient(135deg, var(--bs-primary), color-mix(in srgb, var(--bs-primary) 72%, #25282d));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--bs-primary) 55%, #000), color-mix(in srgb, color-mix(in srgb, var(--bs-primary) 55%, #000) 72%, #25282d));
 }
 
 :where([data-bs-theme="dark"]) .pf-kpi--primary > span,
@@ -3167,7 +3167,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pf-total-hero {
-    background: linear-gradient(135deg, var(--bs-primary), color-mix(in srgb, var(--bs-primary) 67%, #25282d));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--bs-primary) 55%, #000), color-mix(in srgb, color-mix(in srgb, var(--bs-primary) 55%, #000) 67%, #25282d));
 }
 
 :where([data-bs-theme="dark"]) .pf-total-hero__label {

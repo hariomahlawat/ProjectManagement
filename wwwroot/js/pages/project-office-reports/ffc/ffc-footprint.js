@@ -343,6 +343,14 @@
         })
         .then(geoJson => {
             const geoLayer = window.L.geoJSON(geoJson, { style: countryStyle, onEachFeature: bindFeature }).addTo(map);
+            // Leaflet copies the colours into inline SVG styles, so restyle when the theme
+            // changes (the user's choice, or printing, which switches to Light).
+            if (typeof window.MutationObserver === 'function') {
+                new window.MutationObserver(() => {
+                    geoLayer.setStyle(countryStyle);
+                    renderLegend();
+                }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+            }
             const activeLayerList = Array.from(activeLayers.values()).map(item => item.layer);
             activeBounds = activeLayerList.length
                 ? window.L.featureGroup(activeLayerList).getBounds()

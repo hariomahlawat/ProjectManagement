@@ -3938,9 +3938,9 @@
 :root[data-bs-theme="dark"] {
     --po-navy-950: #f0f2f4;
     --po-navy-900: #e6e8eb;
-    --po-navy-800: #4f7bc9;
-    --po-blue-700: #4479dc;
-    --po-blue-600: #4779d9;
+    --po-navy-800: #6ea8fe;
+    --po-blue-700: #6ea8fe;
+    --po-blue-600: #6ea8fe;
     --po-blue-100: color-mix(in srgb, #6ea8fe 9%, #16181b);
     --po-blue-50: #16181b;
     --po-text: #e6e8eb;
@@ -3949,13 +3949,13 @@
     --po-line-soft: #2c3035;
     --po-surface: #16181b;
     --po-page: #0e0f11;
-    --po-danger: #cf5164;
+    --po-danger: #f87171;
     --po-danger-soft: color-mix(in srgb, #f87171 8%, #16181b);
-    --po-warning: #a87018;
+    --po-warning: #fbbf24;
     --po-warning-soft: color-mix(in srgb, #fbbf24 12%, #16181b);
-    --po-success: #2f8c56;
+    --po-success: #4ade80;
     --po-success-soft: #1e2125;
-    --po-purple: #8e68cd;
+    --po-purple: #a785e0;
     --po-purple-soft: color-mix(in srgb, #a883e2 9%, #16181b);
     --po-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
 }
@@ -3974,6 +3974,7 @@
 
 :where([data-bs-theme="dark"]) .po-command__mark {
     color: #fff;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--po-navy-800) 55%, #000), color-mix(in srgb, var(--po-blue-600) 55%, #000));
     box-shadow: 0 7px 16px rgba(0, 0, 0, 0.53);
 }
 
@@ -4016,11 +4017,13 @@
 
 :where([data-bs-theme="dark"]) .po-btn--primary {
     color: #fff;
+    background: color-mix(in srgb, var(--po-blue-600) 55%, #000);
     box-shadow: 0 5px 12px rgba(0, 0, 0, 0.53);
 }
 
 :where([data-bs-theme="dark"]) .po-btn--primary:hover {
     color: #fff;
+    background: color-mix(in srgb, var(--po-blue-700) 55%, #000);
 }
 
 :where([data-bs-theme="dark"]) .po-command__metrics {
@@ -4219,7 +4222,7 @@
 }
 
 :where([data-bs-theme="dark"]) .po-follow-list > a > i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .po-follow-compact__category {
@@ -4236,11 +4239,11 @@
 }
 
 :where([data-bs-theme="dark"]) .po-follow-compact__item > i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .cw-drag-handle--static:hover {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .po-upcoming__head {
@@ -4278,7 +4281,7 @@
 }
 
 :where([data-bs-theme="dark"]) .po-upcoming-item__arrow {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .po-upcoming__footer {

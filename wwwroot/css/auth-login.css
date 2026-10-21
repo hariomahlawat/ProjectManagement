@@ -785,8 +785,8 @@ body:has(.auth-page) main > .pm-page-shell--focused {
    ============================================================ */
 :root[data-bs-theme="dark"] {
     --auth-navy: #e6e8eb;
-    --auth-blue: #4975e5;
-    --auth-blue-dark: #4d76e0;
+    --auth-blue: #6ea8fe;
+    --auth-blue-dark: #6ea8fe;
     --auth-muted: #9aa0a6;
     --auth-line: #2c3035;
     --auth-soft: #16181b;
@@ -874,7 +874,7 @@ body:has(.auth-page) main > .pm-page-shell--focused {
 }
 
 :where([data-bs-theme="dark"]) .auth-input::placeholder {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .auth-input:hover {
@@ -904,13 +904,13 @@ body:has(.auth-page) main > .pm-page-shell--focused {
 }
 
 :where([data-bs-theme="dark"]) .auth-submit {
-    background: linear-gradient(135deg, var(--auth-blue), #4e78ee);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--auth-blue) 55%, #000), #4e78ee);
     color: #fff;
     box-shadow: 0 13px 27px rgba(0, 0, 0, 0.6);
 }
 
 :where([data-bs-theme="dark"]) .auth-submit:hover {
-    background: linear-gradient(135deg, var(--auth-blue-dark), #426ee7);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--auth-blue-dark) 55%, #000), #426ee7);
     color: #fff;
     box-shadow: 0 16px 32px rgba(0, 0, 0, 0.6);
 }

@@ -1143,7 +1143,7 @@
 }
 
 :where([data-bs-theme="dark"]) .projects-search > i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .projects-search .form-control {
@@ -1169,7 +1169,7 @@
 }
 
 :where([data-bs-theme="dark"]) .projects-filter-choice small {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .projects-filter-choice input:checked + span {
@@ -1222,7 +1222,7 @@
 }
 
 :where([data-bs-theme="dark"]) .project-card__open-icon {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .project-card__metadata {
@@ -1230,7 +1230,7 @@
 }
 
 :where([data-bs-theme="dark"]) .project-card__metadata dt {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .project-card__metadata dd {
@@ -1294,6 +1294,8 @@
 }
 
 :where([data-bs-theme="dark"]) .projects-pagination .page-item.active .page-link {
+    border-color: color-mix(in srgb, var(--projects-primary) 55%, #000);
+    background: color-mix(in srgb, var(--projects-primary) 55%, #000);
     color: #fff;
 }
 
@@ -1314,7 +1316,7 @@
 }
 
 :where([data-bs-theme="dark"]) .project-card__metadata dt {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .project-card__metadata dd {
@@ -1365,7 +1367,7 @@
 }
 
 :where([data-bs-theme="dark"]) .projects-sort i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .projects-sort.is-active i {

@@ -848,7 +848,7 @@
 }
 
 :where([data-bs-theme="dark"]) .social-index-summary > span + span::before {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .social-index-summary strong {
@@ -865,7 +865,7 @@
 }
 
 :where([data-bs-theme="dark"]) .social-register-thumb__fallback {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .social-register-meta {

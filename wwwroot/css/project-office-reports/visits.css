@@ -920,10 +920,10 @@
     --visit-border-subtle: color-mix(in srgb, #6ea8fe 30%, #16181b);
     --visit-text-muted: #9aa0a6;
     --visit-text-heading: #f0f2f4;
-    --visit-kpi-accent-blue: #3879e3;
-    --visit-kpi-accent-teal: #1a84b3;
-    --visit-kpi-accent-green: #198e44;
-    --visit-kpi-accent-amber: #a77118;
+    --visit-kpi-accent-blue: #6ea8fe;
+    --visit-kpi-accent-teal: #6fccf6;
+    --visit-kpi-accent-green: #4ade80;
+    --visit-kpi-accent-amber: #fbbf24;
     --visit-row-hover: #16181b;
 }
 

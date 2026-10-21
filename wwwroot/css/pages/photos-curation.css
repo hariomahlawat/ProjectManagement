@@ -355,7 +355,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__caption-block > span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__caption-block p {

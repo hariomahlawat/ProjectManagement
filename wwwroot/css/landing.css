@@ -1300,8 +1300,8 @@ body:has(.landing-page) main > .pm-page-shell--landing {
     --landing-navy: #f0f2f4;
     --landing-ink: #e6e8eb;
     --landing-muted: #b4b9bf;
-    --landing-blue: #4975e5;
-    --landing-blue-dark: #4d76e0;
+    --landing-blue: #6ea8fe;
+    --landing-blue-dark: #6ea8fe;
     --landing-line: #2c3035;
     --landing-soft: #16181b;
     --landing-card: rgba(22, 24, 27, 0.92);
@@ -1349,14 +1349,14 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 }
 
 :where([data-bs-theme="dark"]) .landing-btn--primary {
-    background: linear-gradient(135deg, var(--landing-blue) 0%, #4d77ed 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--landing-blue) 55%, #000) 0%, #4d77ed 100%);
     color: #fff;
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6);
 }
 
 :where([data-bs-theme="dark"]) .landing-btn--primary:hover {
     color: #fff;
-    background: linear-gradient(135deg, var(--landing-blue-dark) 0%, #426ee7 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--landing-blue-dark) 55%, #000) 0%, #426ee7 100%);
 }
 
 :where([data-bs-theme="dark"]) .landing-btn--secondary {
@@ -1394,7 +1394,7 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card {
-    --accent: #4975e5;
+    --accent: #6ea8fe;
     border: 1px solid #2c3035;
     background: linear-gradient(180deg, rgba(22, 24, 27, 0.98), rgba(22, 24, 27, 0.98));
     box-shadow: 0 13px 30px rgba(0, 0, 0, 0.24);
@@ -1410,23 +1410,23 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card--indigo {
-    --accent: #6572db;
+    --accent: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card--violet {
-    --accent: #8f64db;
+    --accent: #a683e2;
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card--teal {
-    --accent: #218a88;
+    --accent: #83e2e0;
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card--green {
-    --accent: #2f8c55;
+    --accent: #4ade80;
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card--amber {
-    --accent: #a96f1e;
+    --accent: #fbbf24;
 }
 
 :where([data-bs-theme="dark"]) .landing-capability-card h3,

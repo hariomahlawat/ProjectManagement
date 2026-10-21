@@ -575,8 +575,8 @@
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :where([data-bs-theme="dark"]) .ffc-footprint {
-    --ffc-installed: #2e8c55;
-    --ffc-delivered: #4476e4;
+    --ffc-installed: #4ade80;
+    --ffc-delivered: #6ea8fe;
     --ffc-planned: #2c3035;
     --ffc-muted-surface: color-mix(in srgb, var(--bs-secondary-bg) 72%, #16181b);
 }

@@ -1115,13 +1115,13 @@
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :where([data-bs-theme="dark"]) .project-reports-page {
-    --reports-navy: #3b7dcf;
+    --reports-navy: #6ea8fe;
     --reports-ink: #f0f2f4;
     --reports-muted: #9aa0a6;
     --reports-border: #2c3035;
     --reports-soft: #16181b;
     --reports-blue-soft: color-mix(in srgb, #6ea8fe 9%, #16181b);
-    --reports-warning: #ab6f18;
+    --reports-warning: #fbbf24;
     --reports-warning-soft: color-mix(in srgb, #fbbf24 9%, #16181b);
 }
 

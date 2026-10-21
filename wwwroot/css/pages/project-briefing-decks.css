@@ -4276,12 +4276,12 @@ body.pbd-profile-drawer-open {
    ============================================================ */
 :where([data-bs-theme="dark"]) .command-workspace--briefing-decks {
     --pbd-navy: #e6e8eb;
-    --pbd-blue: #427bd6;
+    --pbd-blue: #6ea8fe;
     --pbd-blue-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --pbd-teal: #178a87;
-    --pbd-green: #288c56;
-    --pbd-amber: #af6c19;
-    --pbd-red: #e24033;
+    --pbd-teal: #7ce9e7;
+    --pbd-green: #4ade80;
+    --pbd-amber: #fbbf24;
+    --pbd-red: #f87171;
     --pbd-ink: #f0f2f4;
     --pbd-muted: #9aa0a6;
     --pbd-border: #2c3035;
@@ -4396,7 +4396,7 @@ body.pbd-profile-drawer-open {
 }
 
 :where([data-bs-theme="dark"]) .pbd-empty-projects i {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pbd-project-table th {
@@ -4423,7 +4423,7 @@ body.pbd-profile-drawer-open {
 }
 
 :where([data-bs-theme="dark"]) .pbd-drag {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pbd-stage {
@@ -4867,7 +4867,7 @@ body.pbd-profile-drawer-open {
 }
 
 :where([data-bs-theme="dark"]) .pbd-additional-slide-card__handle {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pbd-additional-slide-card__handle:hover,
@@ -5053,5 +5053,5 @@ body.pbd-profile-drawer-open {
 }
 
 :where([data-bs-theme="dark"]) .pbd-summary-dependent-option.is-disabled small {
-    color: #7b8188;
+    color: #8a9097;
 }

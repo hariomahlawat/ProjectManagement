@@ -314,6 +314,7 @@
 
 :where([data-bs-theme="dark"]) .ffc-ppt-export__section-heading > span {
     color: #fff;
+    background: color-mix(in srgb, var(--bs-primary) 55%, #000);
 }
 
 :where([data-bs-theme="dark"]) .ffc-ppt-choice {

@@ -3311,16 +3311,16 @@
     --admin-text: #f0f2f4;
     --admin-text-secondary: #b4b9bf;
     --admin-text-muted: #9aa0a6;
-    --admin-primary: #5074e6;
-    --admin-primary-strong: #5475e0;
+    --admin-primary: #6ea8fe;
+    --admin-primary-strong: #6ea8fe;
     --admin-primary-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
-    --admin-success: #178f44;
+    --admin-success: #4ade80;
     --admin-success-soft: color-mix(in srgb, #4ade80 9%, #16181b);
-    --admin-warning: #ab6f18;
+    --admin-warning: #fbbf24;
     --admin-warning-soft: color-mix(in srgb, #fbbf24 9%, #16181b);
-    --admin-danger: #e24033;
+    --admin-danger: #f87171;
     --admin-danger-soft: color-mix(in srgb, #f87171 8%, #16181b);
-    --admin-info: #1b82bb;
+    --admin-info: #6ec7f7;
     --admin-info-soft: color-mix(in srgb, #6ea8fe 8%, #16181b);
     --admin-shadow: 0 10px 30px -24px rgba(0, 0, 0, 0.6);
 }
@@ -3475,7 +3475,7 @@
 }
 
 :where([data-bs-theme="dark"]) .admin-link-tile__arrow {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .admin-user-status-card {
@@ -3548,6 +3548,8 @@
 }
 
 :where([data-bs-theme="dark"]) .admin-pagination .is-current span {
+    border-color: color-mix(in srgb, var(--admin-primary) 55%, #000);
+    background: color-mix(in srgb, var(--admin-primary) 55%, #000);
     color: #fff;
 }
 
@@ -3631,6 +3633,8 @@
 }
 
 :where([data-bs-theme="dark"]) .admin-role-option.is-selected .admin-role-option__check {
+    border-color: color-mix(in srgb, var(--admin-primary) 55%, #000);
+    background: color-mix(in srgb, var(--admin-primary) 55%, #000);
     color: #fff;
 }
 
@@ -3711,6 +3715,8 @@
 }
 
 :where([data-bs-theme="dark"]) .admin-pagination .page-item.active .page-link {
+    border-color: color-mix(in srgb, var(--admin-primary) 55%, #000);
+    background: color-mix(in srgb, var(--admin-primary) 55%, #000);
     color: #fff;
 }
 

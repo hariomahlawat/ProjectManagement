@@ -3647,12 +3647,12 @@
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
 :where([data-bs-theme="dark"]) .process-page {
-    --journey-muted: #7b8188;
+    --journey-muted: #8a9097;
     --journey-faint: #9aa0a6;
-    --journey-blue: #207cdf;
-    --journey-cyan: #1985ae;
-    --journey-maroon: #e3395a;
-    --journey-amber: #a87118;
+    --journey-blue: #6ea8fe;
+    --journey-cyan: #6ed1f7;
+    --journey-maroon: #f87171;
+    --journey-amber: #fbbf24;
     --journey-panel: rgba(110, 168, 254, 0.3);
     --journey-line: rgba(110, 168, 254, 0.23);
     --journey-bg: #25282d;
@@ -3694,7 +3694,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-hero__content > p {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-primary-action {
@@ -3732,7 +3732,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-hero__meta span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-commandbar {
@@ -3878,7 +3878,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-node.is-past .process-node__index {
-    color: #7b8188;
+    color: #8a9097;
     border-color: rgba(74, 222, 128, 0.26);
     background: rgba(74, 222, 128, 0.17);
 }
@@ -3922,7 +3922,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-loading__error span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-scene__identity {
@@ -3954,7 +3954,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-map-tools span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-stage-nav {
@@ -4338,7 +4338,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-introduction__content > p {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-introduction__meta > div {
@@ -4351,15 +4351,15 @@
 }
 
 :where([data-bs-theme="dark"]) .process-introduction__meta span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-page {
-    --process-path-end: #467ec1;
-    --process-active-start: #4477e4;
-    --process-active-end: #1d81ca;
-    --process-conditional-start: #aa7019;
-    --process-conditional-end: #a27321;
+    --process-path-end: #6ea8fe;
+    --process-active-start: #6ea8fe;
+    --process-active-end: #6ea8fe;
+    --process-conditional-start: #fbbf24;
+    --process-conditional-end: #fbbf24;
     color: #e6e8eb;
 }
 
@@ -4645,7 +4645,7 @@
 }
 
 :where([data-bs-theme="dark"]) .stage-checklist {
-    scrollbar-color: #7b8188 transparent;
+    scrollbar-color: #8a9097 transparent;
 }
 
 :where([data-bs-theme="dark"]) .stage-checklist__item {
@@ -4698,9 +4698,9 @@
 }
 
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] {
-    --process-path-start: #487ec2;
-    --process-path-end: #4a7dc3;
-    --process-conditional-start: #a77028;
+    --process-path-start: #6ea8fe;
+    --process-path-end: #6ea8fe;
+    --process-conditional-start: #fbbf24;
     --process-conditional-end: color-mix(in srgb, #fbbf24 30%, #16181b);
 }
 
@@ -4804,7 +4804,7 @@
 
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] .stage-purpose-block > p,
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] .stage-section-heading small {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] .stage-inline-action,
@@ -4830,7 +4830,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] .stage-checklist__state {
-    color: #7b8188;
+    color: #8a9097;
     border-color: rgba(110, 168, 254, 0.21);
     background: rgba(255, 255, 255, 0);
 }
@@ -4906,7 +4906,7 @@
 }
 
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] .process-stage-search-dialog p {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .process-page[data-process-theme="dark"] .process-stage-search-dialog kbd,

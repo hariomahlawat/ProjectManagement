@@ -493,11 +493,11 @@
     --decision-border: #2c3035;
     --decision-surface: #16181b;
     --decision-soft: #16181b;
-    --decision-blue: #4b75e5;
-    --decision-green: #1a8c5d;
-    --decision-amber: #a47217;
-    --decision-red: #d24e59;
-    --decision-purple: #816cd5;
+    --decision-blue: #6ea8fe;
+    --decision-green: #4ade80;
+    --decision-amber: #fbbf24;
+    --decision-red: #f87171;
+    --decision-purple: #9885e0;
     --decision-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
 }
 

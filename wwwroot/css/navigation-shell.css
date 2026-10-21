@@ -862,7 +862,7 @@ body.pm-drawer-open {
 
 [data-bs-theme="dark"] .pm-top-search__icon,
 [data-bs-theme="dark"] .pm-top-search__input::placeholder {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 [data-bs-theme="dark"] .pm-top-search__input {
@@ -921,7 +921,7 @@ body.pm-drawer-open {
 }
 
 [data-bs-theme="dark"] .pm-module-subnav__icon {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 [data-bs-theme="dark"] .pm-module-subnav__item:hover .pm-module-subnav__icon {

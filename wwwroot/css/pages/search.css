@@ -1170,7 +1170,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pm-gs-hit__sep {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pm-gs-hit__related {
@@ -1262,7 +1262,7 @@
 }
 
 :where([data-bs-theme="dark"]) .pm-gs-filter__section > summary span {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .pm-gs-filter__facet-search {

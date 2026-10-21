@@ -41,7 +41,7 @@ const SWAPS = {
 const DARK = {
   page: '#0e0f11', card: '#16181b', tile: '#1e2125', raised: '#25282d',
   hairline: '#2c3035', strong: '#3a3f45', text: '#e6e8eb', strongText: '#f0f2f4',
-  secondary: '#b4b9bf', muted: '#9aa0a6', faint: '#7b8188',
+  secondary: '#b4b9bf', muted: '#9aa0a6', faint: '#8a9097',
 };
 
 // Named white/black count too (color-mix(in srgb, x 10%, white) is common); other names are rare.
@@ -201,7 +201,9 @@ function darkColour(text, role, context = '', hint = {}) {
   if (role === 'accent') {
     if (neutral) return darkColour(text, hsl.l > 0.6 ? 'background' : 'text', context, hint);
     if (hsl.l >= 0.8) return darkColour(text, 'background', context, hint); // a pale accent is a tint
-    return balanced(hsl);
+    // Lifted for text (4.5:1+ on the card). Where it is a fill behind white text, convert()
+    // deepens it again for that rule, so one colour never has to serve both.
+    return lifted(hsl);
   }
 
   if (role === 'background') {
@@ -286,6 +288,30 @@ function convert(source) {
     ? literal
     : darkColour(literal, roleOf(d.property, parseColour(literal)), value, hint(rule, d))));
 
+  // Accent tokens are lifted for text in Dark (#6ea8fe-like, 4.5:1+ on the card), which is too
+  // light behind white text. Find the tokens that end up lifted: site accents, this file's
+  // literal accent tokens, and tokens that alias either.
+  const defs = new Map();
+  for (const rule of rules) {
+    if (isDarkSelector(rule.selector)) continue;
+    for (const d of rule.declarations) if (d.property.startsWith('--')) defs.set(d.property, d.value);
+  }
+  const lifted = new Set();
+  for (const [name, value] of defs) {
+    const colour = parseColour(value.trim());
+    if (colour && roleOf(name, colour) === 'accent' && darkColour(value.trim(), 'accent') !== value.trim()) lifted.add(name);
+  }
+  const refsLifted = (value) => [...value.matchAll(/var\(\s*(--[\w-]+)/g)].some((m) => SITE_LIFTED.test(m[1]) || lifted.has(m[1]));
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const [name, value] of defs) if (!lifted.has(name) && refsLifted(value)) { lifted.add(name); changed = true; }
+  }
+  const hasLightText = (rule) => rule.declarations.some((d) => d.property === 'color' && LIGHT_TEXT.test(d.value.trim()));
+  // White text on an accent-token fill: the fill takes the same token mixed with black, which
+  // keeps white text at 4.5:1 or better in Dark.
+  const deepen = (value) => value.replace(/var\(\s*(--[\w-]+)\s*(?:,[^()]*(?:\([^()]*\)[^()]*)*)?\)/g,
+    (match, name) => (SITE_LIFTED.test(name) || lifted.has(name) ? `color-mix(in srgb, ${match} 55%, #000)` : match));
+
   // Pass 1 finds the selectors that get a dark rule. Pass 2 emits them in source order, and
   // also re-asserts later state or modifier rules of those selectors (.x.active, .x:hover,
   // .x[aria-current]), which would otherwise lose to the dark base rule at equal specificity.
@@ -310,6 +336,13 @@ function convert(source) {
           const swappedValue = d.value.replace(LITERAL, (literal, offset) => (isInsideVarFallback(d.value, offset) ? literal : swapFor(d.property, literal) || literal));
           darkDeclarations.push(`    ${d.property}: ${mapValue(rule, d, swappedValue)}${d.important ? ' !important' : ''};`);
           reasserted += 1;
+        }
+        if (pass === 2 && !alreadyCovered && (family === 'background' || family === 'border')
+          && refsLifted(d.value) && hasLightText(rule)
+          && !darkDeclarations.some((line) => line.startsWith(`    ${d.property}:`))) {
+          darkDeclarations.push(`    ${d.property}: ${deepen(mapValue(rule, d, d.value))}${d.important ? ' !important' : ''};`);
+          generated += 1;
+          continue;
         }
         if (!literals.length) continue;
 
@@ -372,6 +405,11 @@ function convert(source) {
   }
   return { output, swapped, generated, reasserted };
 }
+
+// Site tokens whose Dark value is a lifted text accent (see the dark block in site.css).
+const SITE_LIFTED = /^(--pm-(primary|primary-hover|primary-strong|accent-(blue|blue-strong|blue-bolder|indigo|indigo-bright|purple|teal|teal-strong|pink|navy|navy-strong|amber|ffc)|success|success-strong|warning|danger|danger-emphasis|danger-accent|info)|--bs-(primary|success|danger|warning|info))$/;
+// White (or near-white) text, as used on solid fills.
+const LIGHT_TEXT = /^(#fff(fff)?|white|var\(--(pm-text-inverted|bs-white)[^)]*\)|rgba?\(255,\s*255,\s*255(,\s*(0?\.(8[5-9]|9\d*)|1))?\))(\s*!\s*important)?$/i;
 
 const COLOUR_FAMILIES = new Set(['color', 'background', 'border', 'outline', 'box-shadow', 'fill', 'stroke', 'text-decoration-color', 'caret-color']);
 

@@ -847,8 +847,8 @@
     --activity-muted: #9aa0a6;
     --activity-ink: #e6e8eb;
     --activity-soft: #16181b;
-    --activity-primary: #5075e3;
-    --activity-danger: #de4151;
+    --activity-primary: #6ea8fe;
+    --activity-danger: #f87171;
     --activity-warning-bg: color-mix(in srgb, #fbbf24 12%, #16181b);
     --activity-warning-border: #fbbf24;
 }
@@ -1036,7 +1036,7 @@
 
 :where([data-bs-theme="dark"]) .activity-photo-viewer__loading,
 :where([data-bs-theme="dark"]) .activity-photo-viewer__error {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .activity-photo-viewer__error {

@@ -1897,7 +1897,7 @@
 }
 
 :where([data-bs-theme="dark"]) .fc .fc-day-other .fc-daygrid-day-number {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .fc .fc-day-today {
@@ -1935,14 +1935,14 @@
 :where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-celebration {
     --pm-bg: #0e0f11;
     --pm-fg: #eb7aa7;
-    --pm-br: #de3982;
+    --pm-br: #e97cac;
     border-color: color-mix(in srgb, #e97cae 30%, #16181b) !important;
 }
 
 :where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-anniversary {
     --pm-bg: #0e0f11;
     --pm-fg: #77eee5;
-    --pm-br: #148b80;
+    --pm-br: #72f3e7;
     border-color: #85e0d3 !important;
 }
 
@@ -2157,7 +2157,7 @@
 }
 
 :where([data-bs-theme="dark"]) .calendar-event-editor .form-control::placeholder {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .calendar-event-editor .form-control:focus,
@@ -2223,7 +2223,7 @@
 }
 
 :where([data-bs-theme="dark"]) .calendar-repeat-on-date .form-control:disabled {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .calendar-editor-footer {

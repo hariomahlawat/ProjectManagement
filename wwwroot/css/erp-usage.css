@@ -347,7 +347,7 @@
 
 :where([data-bs-theme="dark"]) .erp-usage-metric.is-pending > span {
     background: var(--pm-surface-subtle, #f8fafc);
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .erp-usage-metric.is-pending strong {

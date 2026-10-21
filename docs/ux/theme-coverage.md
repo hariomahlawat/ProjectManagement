@@ -17,7 +17,7 @@ Totals: **8096** stylesheet literals in 85 files, **6** in inline view styles.
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `navigation-shell.css` | 88 | 42 |
-| `pages/project-portfolio.css` | 57 | 54 |
+| `pages/project-portfolio.css` | 57 | 48 |
 | `components/prism-confirm-dialog.css` | 22 | 8 |
 | `projects/timeline.css` | 13 | 6 |
 | `pages/project-lifecycle-actions.css` | 2 | 2 |
@@ -28,7 +28,7 @@ Totals: **8096** stylesheet literals in 85 files, **6** in inline view styles.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 443 | 327 |
+| `site.css` | 443 | 332 |
 | `workspace.css` | 279 | 207 |
 | `command-workspace.css` | 232 | 165 |
 | `officer-conference.css` | 202 | 139 |
@@ -85,7 +85,7 @@ Totals: **8096** stylesheet literals in 85 files, **6** in inline view styles.
 | `analytics.css` | 38 | 33 |
 | `pages/proliferation-reports.css` | 21 | 13 |
 | `progress-review.css` | 21 | 16 |
-| `pages/proliferation-dashboard.css` | 18 | 14 |
+| `pages/proliferation-dashboard.css` | 18 | 15 |
 | `project-office-reports/proliferation-management.css` | 18 | 10 |
 | `proliferation.css` | 14 | 13 |
 | `projects/arpp-library.css` | 8 | 8 |

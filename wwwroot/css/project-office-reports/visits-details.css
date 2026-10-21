@@ -441,7 +441,7 @@
 }
 
 :where([data-bs-theme="dark"]) .visit-photo-viewer__eyebrow {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .visit-photo-viewer__title {
@@ -501,7 +501,7 @@
 }
 
 :where([data-bs-theme="dark"]) .visit-photo-viewer__hint {
-    color: #7b8188;
+    color: #8a9097;
 }
 
 :where([data-bs-theme="dark"]) .visit-photo-viewer__hint kbd {

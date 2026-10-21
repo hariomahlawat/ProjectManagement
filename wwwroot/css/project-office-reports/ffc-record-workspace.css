@@ -1303,11 +1303,11 @@ button[data-ffc-submitting-text]:disabled {
     --ffc-surface-soft: #16181b;
     --ffc-text: #f0f2f4;
     --ffc-muted: #9aa0a6;
-    --ffc-primary: #4477e4;
+    --ffc-primary: #6ea8fe;
     --ffc-primary-soft: color-mix(in srgb, #6ea8fe 13%, #16181b);
-    --ffc-success: #178f44;
+    --ffc-success: #4ade80;
     --ffc-success-soft: color-mix(in srgb, #4ade80 13%, #16181b);
-    --ffc-warning: #ab6f18;
+    --ffc-warning: #fbbf24;
     --ffc-warning-soft: color-mix(in srgb, #fbbf24 17%, #16181b);
     --ffc-neutral-soft: #25282d;
 }
