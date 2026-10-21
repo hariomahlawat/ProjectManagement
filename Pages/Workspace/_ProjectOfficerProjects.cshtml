@@ -2,23 +2,28 @@
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var vm = Model.Workspace;
-    var showFilters = vm.ProjectMatrix.Count > 8;
-    var stages = vm.ProjectMatrix
-        .Select(row => row.CurrentStageCode)
+    var projects = vm.BriefingDesk.Sections
+        .Where(section => section.Kind == ConferenceItemKind.Project)
+        .SelectMany(section => section.Items)
+        .ToList();
+    var showFilters = projects.Count > 8;
+    var stages = projects
+        .Select(item => item.Strip.FirstOrDefault(step => step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked)?.Label)
         .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Select(value => value!)
         .Distinct()
         .OrderBy(value => value)
         .ToList();
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
-        <div><span class="po-eyebrow">My work</span><h1>Assigned projects</h1><p>Stage position, update recency, timeline readiness and overall record health.</p></div>
+        <div><span class="po-eyebrow">My work</span><h1>Project register</h1><p>Every assigned project in one table, read from the briefing desk. Select a project to open its card.</p></div>
         <div class="po-dedicated-hero__metric"><strong>@vm.AssignedProjectCount</strong><span>active projects</span></div>
     </header>
 
     <section class="po-panel po-projects-panel">
         <div class="po-panel__head">
-            <div><span class="po-panel__kicker">Portfolio register</span><h2>Project status</h2><p>Select a record health score to view exact record gaps.</p></div>
+            <div><span class="po-panel__kicker">Assigned projects</span><h2>Project status</h2><p>Select a record health score to view exact record gaps.</p></div>
             <a href="@vm.MyProjectsUrl" class="po-link">Open project register<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
         </div>
 
@@ -36,12 +41,16 @@
                         }
                     </select>
                 </label>
-                <label><span class="visually-hidden">Attention</span><select data-po-project-attention><option value="">All projects</option><option value="critical">Critical</option><option value="attention">Needs attention</option><option value="current">Current</option></select></label>
+                <label><span class="visually-hidden">Attention</span><select data-po-project-attention><option value="">All projects</option><option value="attention">Needs work</option><option value="current">Brief-ready</option></select></label>
                 <button type="button" data-po-clear-filters disabled>Reset</button>
             </div>
         }
 
-        @await Html.PartialAsync("_ProjectOfficerProjectTable", new ProjectOfficerProjectTableRenderVm { Rows = vm.ProjectMatrix })
+        @await Html.PartialAsync("_ProjectOfficerProjectTable", new ProjectOfficerProjectTableRenderVm
+        {
+            Projects = projects,
+            RecordHealth = vm.RecordHealth.ToDictionary(health => health.ProjectId)
+        })
         @if (showFilters)
         {
             <div class="po-filter-empty" data-po-filter-empty hidden>No projects match the selected filters.</div>

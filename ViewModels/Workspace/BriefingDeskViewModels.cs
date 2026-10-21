@@ -11,6 +11,9 @@ public sealed class BriefingDeskVm
 
     public IReadOnlyList<BriefingDeskSectionVm> Sections { get; init; } = Array.Empty<BriefingDeskSectionVm>();
 
+    /// <summary>Completed projects still shown in conference review; not counted as work.</summary>
+    public IReadOnlyList<BriefingDeskItemVm> RecentlyCompleted { get; init; } = Array.Empty<BriefingDeskItemVm>();
+
     public IReadOnlyList<BriefingDeskWaitingVm> WithOthers { get; init; } = Array.Empty<BriefingDeskWaitingVm>();
 
     public IReadOnlyList<WorkspaceAttentionItemVm> Returned { get; init; } = Array.Empty<WorkspaceAttentionItemVm>();

@@ -83,8 +83,27 @@ kept in `sessionStorage` (this tab only), so a post that reloads the page resume
 card. It ends with a summary of how many items from the round are now brief-ready. If storage
 is unavailable, the round still works within the page.
 
-## Not on the desk
+## Recently completed projects
 
-The previous overview's Command view card and ERP activity heatmap were removed from the
-landing page. ERP activity stays under **My ERP activity**. The Action queue, Assigned
-projects and other PO views are unchanged.
+Completed projects stay in the Conference view for a while, so the PO may still be asked about
+them. They appear in a collapsed **Recently completed** section under the desk, built from the
+Conference view's own items (`IsRecentlyCompleted`). It opens by itself when a direction there
+still needs an answer. These projects never count towards brief-ready, have no weekly-update
+or timeline checks, and are not part of the weekly round.
+
+## Workspace menu
+
+The PO menu has five entries: **Briefing desk**, **My conference review**, **Project register**,
+**My documents** and **My ERP activity**.
+
+- **Project register** (`view=projects`) is a table built from the desk's own project cards
+  (stage and PDC, last update, record health with the gap breakdown, and readiness). The two
+  pages cannot disagree. Each row links to its desk card.
+- The Action queue, Assigned tasks, My ideas and Follow-ups views were folded into the desk.
+  Their addresses still work and redirect to the desk (`IsFoldedIntoDesk`): tasks to
+  `#bd-section-task`, ideas to `#bd-section-idea`, follow-ups to `#bd-week-title`.
+- The task and idea registers are linked from the desk's Tasks and Ideas section headings. The
+  side panel lists reminders and events for the **next 14 days**.
+
+The previous overview's Command view card and ERP activity heatmap were removed from the landing
+page. ERP activity stays under **My ERP activity**.

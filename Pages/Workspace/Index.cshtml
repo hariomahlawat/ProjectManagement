@@ -12,15 +12,11 @@
         }
         : Model.View switch
         {
-            "actions" => "Action Queue | Project Officer Workspace",
-            "projects" => "Assigned Projects | Project Officer Workspace",
-            "tasks" => "Assigned Tasks | Project Officer Workspace",
-            "ideas" => "My Ideas | Project Officer Workspace",
+            "projects" => "Project Register | Project Officer Workspace",
             "conference" => "My Conference Review | Project Officer Workspace",
-            "follow-ups" => "Follow-ups | Project Officer Workspace",
             "documents" => "My Documents | Project Officer Workspace",
             "activity" => "My ERP Activity | Project Officer Workspace",
-            _ => "Project Officer Workspace"
+            _ => "Briefing Desk | Project Officer Workspace"
         };
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "workspace";
@@ -33,7 +29,7 @@
     {
         <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
     }
-    @if (!Model.IsCommandMode && Model.View == "overview")
+    @if (!Model.IsCommandMode && Model.View is "overview" or "projects")
     {
         <link rel="stylesheet" href="~/css/workspace-briefing-desk.css" asp-append-version="true" />
     }

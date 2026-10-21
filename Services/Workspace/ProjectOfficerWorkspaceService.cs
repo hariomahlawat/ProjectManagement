@@ -106,30 +106,20 @@ public sealed class ProjectOfficerWorkspaceService
         var navigation = await LoadNavigationSummaryAsync(
             userId,
             today,
-            includeActionCount: view is not ProjectOfficerWorkspaceView.Overview and not ProjectOfficerWorkspaceView.Actions,
+            // The menu no longer shows an action-queue badge; the desk carries its own counts.
+            includeActionCount: false,
             ct);
         var vm = CreateWorkspaceShell(userId, principal, user, navigation);
 
         switch (view)
         {
-            case ProjectOfficerWorkspaceView.Actions:
-                await PopulateActionQueueAsync(vm, userId, today, ct);
-                break;
             case ProjectOfficerWorkspaceView.Projects:
-                await PopulateProjectsAsync(vm, userId, today, ct);
-                break;
-            case ProjectOfficerWorkspaceView.Tasks:
-                await PopulateTasksAsync(vm, userId, today, ct);
-                break;
-            case ProjectOfficerWorkspaceView.Ideas:
-                await PopulateIdeasAsync(vm, userId, today, ct);
+                // The project register reads the desk's own data, so the two always agree.
+                await PopulateOverviewAsync(vm, userId, principal, today, ct);
                 break;
             case ProjectOfficerWorkspaceView.Conference:
                 // Conference content is composed by OfficerConferenceReadService. This
                 // service still provides the lightweight PO workspace navigation shell.
-                break;
-            case ProjectOfficerWorkspaceView.FollowUps:
-                await PopulateFollowUpsAsync(vm, userId, ct);
                 break;
             case ProjectOfficerWorkspaceView.Documents:
                 if (includeDocuments)
@@ -207,7 +197,7 @@ public sealed class ProjectOfficerWorkspaceService
             userId,
             _clock.UtcNow,
             ct,
-            windowDays: 7,
+            windowDays: 14,
             maxItems: 5);
 
         var stagesByProject = projects.ToDictionary(
@@ -451,106 +441,6 @@ public sealed class ProjectOfficerWorkspaceService
         IReadOnlyList<BriefingDeskWaitingVm> Waiting,
         IReadOnlyDictionary<int, DateTimeOffset> PlanSinceByProject,
         IReadOnlyDictionary<int, DateTimeOffset> ActualsSinceByProject);
-
-    private async Task PopulateActionQueueAsync(
-        ProjectOfficerWorkspaceVm vm,
-        string userId,
-        DateOnly today,
-        CancellationToken ct)
-    {
-        var projects = await LoadAssignedProjectsAsync(userId, ct);
-        var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
-        var ideas = await LoadProjectIdeasAsync(userId, today, ct);
-        var actionRows = projects
-            .Select(project => BuildActionProjectRow(project, userId, today))
-            .OrderBy(ProjectAttentionRank)
-            .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
-            .ThenBy(row => row.ProjectName)
-            .ToList();
-        var operational = await LoadOperationalContextAsync(
-            userId,
-            today,
-            projects,
-            tasks,
-            ideas,
-            actionRows,
-            vm.AotsUnreadCount,
-            ct);
-
-        ApplyOperationalContext(vm, operational);
-        CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
-        vm.ProjectTimelineIssueCount = actionRows.Count(HasProjectTimelineIssue);
-    }
-
-    private async Task PopulateProjectsAsync(
-        ProjectOfficerWorkspaceVm vm,
-        string userId,
-        DateOnly today,
-        CancellationToken ct)
-    {
-        var projects = await LoadAssignedProjectsAsync(userId, ct);
-        var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
-        var matrixRows = BuildProjectMatrix(projects, health, userId, today);
-        var averageHealth = health.Count == 0
-            ? 0
-            : (int)Math.Round(health.Values.Average(item => item.HealthPercent));
-
-        vm.ProjectMatrix = matrixRows;
-        vm.RecordHealth = health.Values
-            .OrderBy(item => item.HealthPercent)
-            .ThenBy(item => item.ProjectName)
-            .ToList();
-        vm.RecordGapCount = health.Values.Sum(item => item.GapDetails.Count);
-        vm.ProjectsNeedingAttentionCount = matrixRows.Count(RequiresProjectAttention);
-        vm.ProjectTimelineIssueCount = matrixRows.Count(HasProjectTimelineIssue);
-        vm.PortfolioHealthPercent = averageHealth;
-        vm.PortfolioHealthLabel = HealthSummaryLabel(health.Count, averageHealth);
-        vm.RecordHealthSummaryLabel = HealthSummaryLabel(health.Count, averageHealth);
-    }
-
-    private async Task PopulateTasksAsync(
-        ProjectOfficerWorkspaceVm vm,
-        string userId,
-        DateOnly today,
-        CancellationToken ct)
-    {
-        var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
-        vm.OfficialTasks = tasks;
-        vm.OverdueTaskCount = tasks.Count(task => task.IsOverdue);
-        vm.OfficialTaskCount = tasks.Count;
-    }
-
-    private async Task PopulateIdeasAsync(
-        ProjectOfficerWorkspaceVm vm,
-        string userId,
-        DateOnly today,
-        CancellationToken ct)
-    {
-        var ideas = await LoadProjectIdeasAsync(userId, today, ct);
-        vm.Ideas = OrderIdeas(ideas);
-        vm.AssignedIdeaCount = ideas.Count;
-        vm.IdeasNeedingUpdateCount = ideas.Count(idea => idea.NeedsUpdate);
-    }
-
-    private async Task PopulateFollowUpsAsync(
-        ProjectOfficerWorkspaceVm vm,
-        string userId,
-        CancellationToken ct)
-    {
-        var reminders = await LoadPersonalRemindersAsync(userId, ct);
-        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
-            _db,
-            userId,
-            _clock.UtcNow,
-            ct,
-            windowDays: 14,
-            maxItems: 5);
-
-        vm.PersonalReminders = reminders;
-        vm.UpcomingEvents = upcomingEvents.Items;
-        vm.UpcomingEventCount = upcomingEvents.TotalCount;
-        vm.NavigationFollowUpCount = reminders.Count;
-    }
 
     private async Task<ProjectOfficerOperationalContext> LoadOperationalContextAsync(
         string userId,

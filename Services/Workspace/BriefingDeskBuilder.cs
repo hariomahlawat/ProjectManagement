@@ -106,9 +106,19 @@ public static class BriefingDeskBuilder
             .ToList();
         var all = sections.SelectMany(section => section.Items).ToList();
 
+        // Recently completed projects still appear in conference review, so the PO may be
+        // asked about them. They are listed apart and never count towards brief-ready.
+        var recentlyCompleted = conferenceItems.Values
+            .Where(item => item.Kind == ConferenceItemKind.Project && item.IsRecentlyCompleted)
+            .Select(BuildCompletedProject)
+            .OrderBy(item => item.IsBriefReady)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return new BriefingDeskVm
         {
             Sections = sections,
+            RecentlyCompleted = recentlyCompleted,
             ReadyCount = all.Count(item => item.IsBriefReady),
             TotalCount = all.Count,
             WithOthers = input.WithOthers.OrderBy(item => item.SinceUtc).ToList(),
@@ -533,6 +543,60 @@ public static class BriefingDeskBuilder
                 return new BriefingDeskStepVm(stage.Code, stage.Name, state);
             })
             .ToList();
+
+    // SECTION: Recently completed projects
+    // Only an unanswered conference direction asks for anything; the weekly update and
+    // timeline rules stop once a project is complete.
+    private static BriefingDeskItemVm BuildCompletedProject(OfficerConferenceItemVm conference)
+    {
+        // The Conference view always adds a "Project Officer" entry once there is a direction,
+        // holding only placeholder text until the PO replies; only a real remark answers it.
+        var directionAwaitingProgress = conference.LatestDirection is not null
+            && !conference.ProgressEntries.Any(IsProjectOfficerProgress);
+        var checks = directionAwaitingProgress
+            ? new[]
+            {
+                new BriefingDeskCheckVm
+                {
+                    Key = "update",
+                    Label = "Report progress on the direction",
+                    Detail = "No progress recorded since the latest direction.",
+                    State = BriefingDeskCheckState.Open,
+                    Route = BriefingDeskRoute.Update
+                }
+            }
+            : Array.Empty<BriefingDeskCheckVm>();
+
+        var facts = new List<BriefingDeskFactVm>
+        {
+            new(string.IsNullOrWhiteSpace(conference.CurrentContext) ? "Completed" : conference.CurrentContext!, BriefingDeskTone.Good)
+        };
+        if (conference.RecordHealth is { } health)
+        {
+            facts.Add(new BriefingDeskFactVm($"Records {health.HealthPercent}%", health.HealthPercent >= 80 ? BriefingDeskTone.Good : BriefingDeskTone.Neutral));
+        }
+
+        return new BriefingDeskItemVm
+        {
+            Kind = ConferenceItemKind.Project,
+            ItemId = conference.ItemId,
+            Title = conference.Title,
+            OpenUrl = conference.OpenUrl,
+            Facts = facts,
+            Direction = conference.LatestDirection,
+            DirectionAwaitingProgress = directionAwaitingProgress,
+            LastUpdateText = "Completed projects stay in your conference review for a while after completion.",
+            Checks = checks,
+            RecordHealthPercent = conference.RecordHealth?.HealthPercent,
+            Conference = conference
+        };
+    }
+
+    internal const string ProjectOfficerProgressLabel = "Project Officer";
+
+    private static bool IsProjectOfficerProgress(ConferenceProgressEntryVm entry)
+        => string.Equals(entry.Label, ProjectOfficerProgressLabel, StringComparison.Ordinal)
+            && (entry.ActivityAtUtc.HasValue || !string.IsNullOrWhiteSpace(entry.Body));
 
     // SECTION: Ideas
     // Brief-ready = recent activity (the existing idea staleness rule) and the latest

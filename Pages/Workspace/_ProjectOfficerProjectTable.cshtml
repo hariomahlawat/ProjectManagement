@@ -1,28 +1,75 @@
+@using ProjectManagement.Services.Workspace
 @using ProjectManagement.ViewModels.Workspace
 @model ProjectOfficerProjectTableRenderVm
-@if (!Model.Rows.Any())
+@if (!Model.Projects.Any())
 {
-    <div class="po-empty"><i class="bi bi-kanban"></i><div><strong>No assigned projects</strong><span>Projects assigned to you will appear here.</span></div></div>
+    <div class="po-empty"><i class="bi bi-kanban" aria-hidden="true"></i><div><strong>No assigned projects</strong><span>Projects assigned to you will appear here.</span></div></div>
 }
 else
 {
     <div class="po-table-wrap">
-        <table class="po-project-table">
-            <thead><tr><th>Project</th><th>Current stage</th><th>Attention required</th><th>Records</th><th>Next action</th></tr></thead>
+        <table class="po-project-table bd-register">
+            <thead><tr><th scope="col">Project</th><th scope="col">Stage and PDC</th><th scope="col">Last update</th><th scope="col">Records</th><th scope="col">Before you brief</th></tr></thead>
             <tbody>
-            @foreach (var row in Model.Rows)
+            @foreach (var item in Model.Projects)
             {
-                var timelineCss = WorkspaceDisplayHelpers.TimelineStatusCss(row);
-                var rowCritical = row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) || timelineCss == "danger";
-                var rowWarning = !rowCritical && (row.UpdateStatus.Equals("Attention", StringComparison.OrdinalIgnoreCase) || timelineCss == "warning" || row.RecordGapCount > 0);
-                var rowClass = rowCritical ? "po-project-row--critical" : rowWarning ? "po-project-row--warning" : "po-project-row--normal";
-                var filterText = $"{row.ProjectName} {row.CurrentStageCode} {row.CurrentStageName} {WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)} {WorkspaceDisplayHelpers.TimelineStatusLabel(row)}".ToLowerInvariant();
-                <tr class="@rowClass" data-po-project-row data-filter-text="@filterText" data-stage="@row.CurrentStageCode.ToLowerInvariant()" data-attention="@(rowCritical ? "critical" : rowWarning ? "attention" : "current")">
-                    <td data-label="Project"><div class="po-project-cell"><span class="po-project-indicator" aria-hidden="true"></span><a class="po-project-name" href="@row.OpenUrl">@row.ProjectName</a></div></td>
-                    <td data-label="Current stage"><div class="po-stage"><strong>@row.CurrentStageCode</strong><span>@WorkspaceDisplayHelpers.CurrentStageDurationLabel(row)</span></div></td>
-                    <td data-label="Attention required"><div class="po-attention-stack"><span class="po-status po-status--stacked po-status--@row.UpdateStatus.ToLowerInvariant()"><i></i><span><strong>@WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)</small></span></span><span class="po-status po-status--stacked po-status--@timelineCss"><i></i><span><strong>@WorkspaceDisplayHelpers.TimelineStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.TimelineStatusDetail(row)</small></span></span></div></td>
-                    <td data-label="Records"><button type="button" class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)" data-bs-toggle="modal" data-bs-target="#recordHealth-@row.ProjectId"><span class="po-record__top"><strong>@row.RecordHealthPercent% health</strong><small>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? "" : "s")</small></span><progress class="po-record__bar" value="@row.RecordHealthPercent" max="100" aria-label="Overall record health: @row.RecordHealthPercent percent">@row.RecordHealthPercent%</progress><span class="po-record__view">View gaps</span></button></td>
-                    <td data-label="Next action"><a class="po-row-action" href="@row.NextActionUrl"><span>@WorkspaceDisplayHelpers.ProjectNextActionLabel(row)</span><i class="bi bi-arrow-right"></i></a></td>
+                // Facts come from the desk: stage, PDC, update, records (in that order).
+                var stageFacts = item.Facts.Where(fact => !fact.Text.StartsWith("Updated", StringComparison.Ordinal)
+                        && !fact.Text.StartsWith("No update", StringComparison.Ordinal)
+                        && !fact.Text.StartsWith("Records", StringComparison.Ordinal))
+                    .ToList();
+                var updateFact = item.Facts.FirstOrDefault(fact => fact.Text.StartsWith("Updated", StringComparison.Ordinal) || fact.Text.StartsWith("No update", StringComparison.Ordinal));
+                var health = Model.RecordHealth.GetValueOrDefault(item.ItemId);
+                var stageCode = item.Strip.FirstOrDefault(step => step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked)?.Label ?? string.Empty;
+                var filterText = $"{item.Title} {stageCode} {item.NextStepText}".ToLowerInvariant();
+                <tr class="@(item.IsBriefReady ? "po-project-row--normal" : "po-project-row--warning")"
+                    data-po-project-row
+                    data-filter-text="@filterText"
+                    data-stage="@stageCode.ToLowerInvariant()"
+                    data-attention="@(item.IsBriefReady ? "current" : "attention")">
+                    <td data-label="Project">
+                        <div class="bd-register__project">
+                            <a class="po-project-name" href="@WorkspaceRouteHelper.BriefingDeskItem(item.AnchorId)">@item.Title</a>
+                            <a class="bd-register__open" href="@item.OpenUrl">Open project<span class="visually-hidden"> @item.Title</span></a>
+                        </div>
+                    </td>
+                    <td data-label="Stage and PDC">
+                        <div class="bd-register__facts">
+                            @foreach (var fact in stageFacts)
+                            {
+                                <span class="bd-fact @(fact.Tone switch { BriefingDeskTone.Danger => "bd-fact--danger", BriefingDeskTone.Warning => "bd-fact--warning", BriefingDeskTone.Good => "bd-fact--good", _ => string.Empty })">@fact.Text</span>
+                            }
+                        </div>
+                    </td>
+                    <td data-label="Last update">
+                        @if (updateFact is not null)
+                        {
+                            <span class="bd-fact @(updateFact.Tone switch { BriefingDeskTone.Danger => "bd-fact--danger", BriefingDeskTone.Warning => "bd-fact--warning", BriefingDeskTone.Good => "bd-fact--good", _ => string.Empty })">@updateFact.Text</span>
+                        }
+                    </td>
+                    <td data-label="Records">
+                        @if (health is not null)
+                        {
+                            <button type="button" class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(health.HealthPercent)" data-bs-toggle="modal" data-bs-target="#recordHealth-@item.ItemId">
+                                <span class="po-record__top"><strong>@health.HealthPercent% health</strong><small>@health.RecordGapCount gap@(health.RecordGapCount == 1 ? "" : "s")</small></span>
+                                <progress class="po-record__bar" value="@health.HealthPercent" max="100" aria-label="Overall record health: @health.HealthPercent percent">@health.HealthPercent%</progress>
+                                <span class="po-record__view">View gaps</span>
+                            </button>
+                        }
+                    </td>
+                    <td data-label="Before you brief">
+                        <div class="bd-register__status">
+                            @if (item.IsBriefReady)
+                            {
+                                <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Brief-ready</span>
+                            }
+                            else
+                            {
+                                <span class="bd-pill bd-pill--open">@item.OpenCount to do</span>
+                            }
+                            <a class="bd-register__next" href="@WorkspaceRouteHelper.BriefingDeskItem(item.AnchorId)">@item.NextStepText</a>
+                        </div>
+                    </td>
                 </tr>
             }
             </tbody>

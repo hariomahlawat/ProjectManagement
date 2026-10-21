@@ -190,8 +190,9 @@
         const start = desk.querySelector('[data-bd-round-start]');
         if (start) {
             start.addEventListener('click', function () {
+                // Recently completed projects are listed apart and are not part of the round.
                 const ids = cards()
-                    .filter(function (card) { return card.dataset.bdReady !== 'true'; })
+                    .filter(function (card) { return card.dataset.bdReady !== 'true' && !card.closest('.bd-completed'); })
                     .map(function (card) { return card.id; });
                 if (ids.length === 0) {
                     return;

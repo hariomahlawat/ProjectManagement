@@ -33,6 +33,26 @@ public static class ProjectOfficerWorkspaceViewParser
         _ => ProjectOfficerWorkspaceView.Overview
     };
 
+    /// <summary>
+    /// Views folded into the briefing desk. Their addresses keep working: the page redirects
+    /// to the desk, at the matching section where there is one.
+    /// </summary>
+    public static bool IsFoldedIntoDesk(this ProjectOfficerWorkspaceView view, out string? deskSection)
+    {
+        deskSection = view switch
+        {
+            ProjectOfficerWorkspaceView.Tasks => "bd-section-task",
+            ProjectOfficerWorkspaceView.Ideas => "bd-section-idea",
+            ProjectOfficerWorkspaceView.FollowUps => "bd-week-title",
+            _ => null
+        };
+
+        return view is ProjectOfficerWorkspaceView.Actions
+            or ProjectOfficerWorkspaceView.Tasks
+            or ProjectOfficerWorkspaceView.Ideas
+            or ProjectOfficerWorkspaceView.FollowUps;
+    }
+
     public static string ToRouteValue(this ProjectOfficerWorkspaceView view) => view switch
     {
         ProjectOfficerWorkspaceView.Actions => "actions",

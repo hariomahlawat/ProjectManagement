@@ -129,6 +129,11 @@ public class IndexModel : PageModel
         else
         {
             var projectOfficerView = ProjectOfficerWorkspaceViewParser.Parse(View);
+            if (projectOfficerView.IsFoldedIntoDesk(out var deskSection))
+            {
+                return RedirectToPage("/Workspace/Index", null, new { mode = "project-officer", view = "overview" }, deskSection);
+            }
+
             View = projectOfficerView.ToRouteValue();
             if (projectOfficerView == ProjectOfficerWorkspaceView.Documents && !CanViewDocuments)
             {

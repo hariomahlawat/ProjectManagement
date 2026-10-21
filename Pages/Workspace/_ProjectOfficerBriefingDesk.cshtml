@@ -118,6 +118,14 @@
                     <div class="bd-section__head">
                         <h2 id="bd-section-@BriefingDeskLabels.KindKey(deskSection.Kind)">@deskSection.Title</h2>
                         <span>@deskSection.ReadyCount of @deskSection.Items.Count brief-ready</span>
+                        @if (deskSection.Kind == ConferenceItemKind.ActionTask)
+                        {
+                            <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open task register<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                        }
+                        else if (deskSection.Kind == ConferenceItemKind.ProjectIdea)
+                        {
+                            <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.ProjectIdeasMine()">Open idea register<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                        }
                     </div>
                     <div class="bd-section__items">
                         @foreach (var item in deskSection.Items)
@@ -132,9 +140,37 @@
                     </div>
                 </section>
             }
+
+            @if (desk.RecentlyCompleted.Any())
+            {
+                var completedNeedsYou = desk.RecentlyCompleted.Count(item => !item.IsBriefReady);
+                <details class="bd-completed" open="@(completedNeedsYou > 0 ? "open" : null)">
+                    <summary>
+                        <span class="bd-completed__title" id="bd-section-completed">Recently completed</span>
+                        <span class="bd-completed__meta">
+                            @desk.RecentlyCompleted.Count project@(desk.RecentlyCompleted.Count == 1 ? string.Empty : "s") still in your conference review
+                            @if (completedNeedsYou > 0)
+                            {
+                                <text> · @completedNeedsYou with a direction to answer</text>
+                            }
+                        </span>
+                    </summary>
+                    <div class="bd-section__items">
+                        @foreach (var item in desk.RecentlyCompleted)
+                        {
+                            @await Html.PartialAsync("_BriefingDeskItem", new BriefingDeskItemRenderVm
+                            {
+                                Item = item,
+                                IsOpen = item.AnchorId == Model.Focus,
+                                Draft = draftAnchor == item.AnchorId ? draftText : null
+                            })
+                        }
+                    </div>
+                </details>
+            }
         </div>
 
-        <aside class="bd-rail" aria-label="Waiting, reading and this week">
+        <aside class="bd-rail" aria-label="Waiting, reading and the next 14 days">
             @if (desk.Returned.Any())
             {
                 <section class="bd-panel bd-panel--danger" aria-labelledby="bd-returned-title">
@@ -192,10 +228,10 @@
             </section>
 
             <section class="bd-panel" aria-labelledby="bd-week-title">
-                <div class="bd-panel__head"><h2 id="bd-week-title">This week</h2></div>
+                <div class="bd-panel__head"><h2 id="bd-week-title">Next 14 days</h2><span class="bd-panel__meta">Reminders and events</span></div>
                 @if (!vm.PersonalReminders.Any() && !vm.UpcomingEvents.Any())
                 {
-                    <p class="bd-panel__empty">No reminders due and no events in the next 7 days.</p>
+                    <p class="bd-panel__empty">No reminders due and no events in the next 14 days.</p>
                 }
                 else
                 {
