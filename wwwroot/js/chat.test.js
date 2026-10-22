@@ -536,3 +536,93 @@ test('a live message arriving while a search hit loads is kept', async () => {
     window.close();
   }
 });
+
+test('a reply sent while a search hit is still loading stays, and the latest page loads', async () => {
+  let releaseHit;
+  const hitGate = new Promise((resolve) => { releaseHit = resolve; });
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) {
+      await hitGate;
+      return { ...pageOf([14, 15], true), hasNewer: true };
+    }
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      // Wrapped: a chat message has its own "body" field, which the fake fetch would unwrap.
+      return { status: 200, body: { id: 100, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: body.body, sentUtc: new Date().toISOString() } };
+    }
+    if (url.includes('/messages?limit=')) return pageOf([98, 99], true);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    win.input.value = 'reply';
+    app.send(win);
+    await tick(); await tick(); await tick();
+    releaseHit(); // the stale slice arrives after the reply was saved
+    await tick(); await tick(); await tick();
+    const ids = Array.from(win.messages, (m) => m.id);
+    assert.ok(ids.includes(100), `reply missing from ${ids}`);
+    assert.ok(ids.includes(99), `latest page missing from ${ids}`);
+    assert.equal(ids.includes(14), false);
+    assert.equal(win.hasNewer, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('switching conversations on the Messages page keeps drafts and unsent messages', async () => {
+  const other = { ...contact, userId: 'other', displayName: 'Other Person', initials: 'OP', lastMessageUtc: '2026-10-21T09:00:00Z' };
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }, other];
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const page = app.page;
+    const first = page.current;
+    first.input.value = 'half-typed';
+    first.messages.push({ id: 0, clientMessageId: 'c-x', senderUserId: 'me', recipientUserId: 'peer', body: 'failed one', failed: true });
+
+    page.open('peer', 0); // clicking the open conversation again
+    assert.equal(page.current, first);
+    assert.equal(first.input.value, 'half-typed');
+
+    page.open('other', 0);
+    await tick();
+    assert.notEqual(page.current, first);
+    assert.equal(first.node.isConnected, false);
+
+    page.open('peer', 0);
+    await tick();
+    assert.equal(page.current, first);
+    assert.equal(first.input.value, 'half-typed');
+    assert.ok(first.messages.some((m) => m.failed && m.body === 'failed one'));
+  } finally {
+    window.close();
+  }
+});
+
+test('a docked draft moves into the Messages page with its conversation', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const docked = app.openWindow('peer', { focus: false });
+    docked.input.value = 'started in the dock';
+    app.page.open('peer', 0);
+    assert.equal(app.windows.get('peer').embedded, true);
+    assert.equal(app.page.current.input.value, 'started in the dock');
+    assert.equal(docked.node.isConnected, false);
+  } finally {
+    window.close();
+  }
+});

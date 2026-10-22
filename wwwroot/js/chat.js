@@ -848,11 +848,10 @@
     const opts = options || {};
     let win = this.windows.get(peerId);
     if (win && win.embedded) {
-      // The Messages page is already showing this conversation: bring it back into view (on a
-      // phone it may be hidden behind the conversation list) and get the contact sheet out of
-      // the way.
+      // The Messages page holds this conversation (on screen or kept aside): show it there,
+      // bring it back into view on a phone, and get the contact sheet out of the way.
       if (opts.focus) {
-        if (this.page) this.page.reveal();
+        if (this.page) this.page.open(peerId, 0);
         if (windowCapacity(global.innerWidth || 1280) === 1 && this.buddyOpen) this.toggleBuddy(false);
         win.input.focus();
         this.maybeMarkRead(win);
@@ -963,7 +962,7 @@
       peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded,
       messages: [], hasMore: false, hasNewer: false, historyLoaded: false, syncing: false, syncAgain: false,
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
-      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [],
+      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0,
     };
 
     if (!embedded) {
@@ -1096,10 +1095,12 @@
       return;
     }
     win.syncing = true;
+    const seq = win.loadSeq;
     const path = this.historyPath(win);
     try {
       if (!win.historyLoaded) {
         const history = await this.request('GET', path);
+        if (seq !== win.loadSeq) return;
         win.messages = mergeMessages(win.messages, history.messages);
         win.hasMore = history.hasMore;
         win.historyLoaded = true;
@@ -1115,6 +1116,7 @@
           },
           knownMax,
           CATCH_UP_PAGES);
+        if (seq !== win.loadSeq) return;
         if (!result.overlaps) {
           // Too much was missed to stitch together: show the recent stretch and let
           // "Show earlier messages" page back from there instead of leaving a silent gap.
@@ -1127,27 +1129,51 @@
       this.renderMessages(win, { stickToBottom: true });
       this.maybeMarkRead(win);
     } catch (_) {
-      if (!win.messages.length) {
+      if (seq === win.loadSeq && !win.messages.length) {
         win.log.replaceChildren(el('li', 'pm-chat__system', 'Messages could not be loaded.'));
       }
     } finally {
-      win.syncing = false;
-      if (win.syncAgain) {
-        win.syncAgain = false;
-        this.loadLatest(win);
+      if (seq === win.loadSeq) {
+        win.syncing = false;
+        if (win.syncAgain) {
+          win.syncAgain = false;
+          this.loadLatest(win);
+        }
       }
     }
   };
 
+  /**
+   * Leaves an older slice (opened from search) for the latest messages. Any load still in
+   * flight is superseded, so its result cannot overwrite the view; unsent and failed messages
+   * are kept.
+   */
+  ChatApp.prototype.jumpToLatest = function (win) {
+    win.loadSeq += 1;
+    win.syncing = false;
+    win.syncAgain = false;
+    win.loading = false;
+    win.hasNewer = false;
+    win.hasMore = false;
+    win.highlightId = 0;
+    win.heldLive = []; // the latest page about to load includes them
+    win.messages = win.messages.filter((m) => !m.id);
+    win.historyLoaded = false;
+    this.loadLatest(win);
+  };
+
   /** Opens a conversation at an older message (a search hit) instead of at the latest. */
   ChatApp.prototype.loadAround = async function (win, messageId) {
+    win.loadSeq += 1;
+    const seq = win.loadSeq;
     win.syncing = true;
     // Until the slice arrives, treat the view as behind: live pushes are held (onMessage) rather
     // than merged into messages this response is about to replace.
     win.hasNewer = true;
     try {
       const history = await this.request('GET', this.historyPath(win, `&before=${messageId + 1}`));
-      win.messages = mergeMessages([], history.messages);
+      if (seq !== win.loadSeq) return; // the person moved on (sent a reply, opened another hit)
+      win.messages = mergeMessages(win.messages.filter((m) => !m.id), history.messages);
       win.hasMore = history.hasMore;
       win.hasNewer = history.hasNewer;
       if (!win.hasNewer && win.heldLive.length) {
@@ -1161,12 +1187,13 @@
       this.renderMessages(win, { scrollToHighlight: true });
       this.maybeMarkRead(win);
     } catch (_) {
+      if (seq !== win.loadSeq) return;
       win.hasNewer = false;
-      win.messages = mergeMessages([], win.heldLive);
+      win.messages = mergeMessages(win.messages.filter((m) => !m.id), win.heldLive);
       win.heldLive = [];
       win.log.replaceChildren(el('li', 'pm-chat__system', 'Messages could not be loaded.'));
     } finally {
-      win.syncing = false;
+      if (seq === win.loadSeq) win.syncing = false;
     }
   };
 
@@ -1195,10 +1222,12 @@
     const newest = win.messages.reduce((max, m) => (m.id > max ? m.id : max), 0);
     if (!newest || win.loading) return;
     win.loading = true;
+    const seq = win.loadSeq;
     const hadFocus = win.node.contains(document.activeElement);
     const keep = win.body.scrollTop;
     try {
       const history = await this.request('GET', this.historyPath(win, `&after=${newest}`));
+      if (seq !== win.loadSeq) return;
       win.messages = mergeMessages(win.messages, history.messages);
       win.hasNewer = history.hasNewer;
       if (!win.hasNewer && win.heldLive.length) {
@@ -1214,7 +1243,7 @@
     } catch (_) {
       // Leave the button so the person can try again.
     } finally {
-      win.loading = false;
+      if (seq === win.loadSeq) win.loading = false;
     }
   };
 
@@ -1302,13 +1331,9 @@
     if (text.length > this.maxLength) return;
 
     if (win.hasNewer) {
-      // Sending from an old slice: jump to the latest first so the new message lands in place.
-      win.hasNewer = false;
-      win.highlightId = 0;
-      win.heldLive = []; // the latest page about to load includes them
-      win.messages = [];
-      win.historyLoaded = false;
-      this.loadLatest(win);
+      // Sending from an old slice (or while one is still loading): jump to the latest first so
+      // the new message lands in place.
+      this.jumpToLatest(win);
     }
 
     const message = {
@@ -1353,7 +1378,8 @@
   function MessagesPage(app, node) {
     this.app = app;
     this.node = node;
-    this.current = null; // embedded window
+    this.current = null; // the embedded window on screen
+    this.views = new Map(); // peerId -> embedded window, kept when switching so drafts survive
     this.searchTimer = null;
     this.searchSeq = 0;
     this.build();
@@ -1440,19 +1466,37 @@
   /** Shows the conversation with peerId, at a given message or at the latest. */
   MessagesPage.prototype.open = function (peerId, atMessageId) {
     const app = this.app;
-    if (this.current) {
-      this.current.node.remove();
-      app.windows.delete(this.current.peerId);
-      this.current = null;
-    }
-    // One view per conversation: a docked window for the same person gives way to the page.
-    if (app.windows.has(peerId)) app.closeWindow(peerId);
+    let win = this.views.get(peerId);
+    const already = !!win && this.current === win;
 
-    const win = app.createWindow(peerId, { embedded: true });
-    app.windows.set(peerId, win);
+    if (this.current && !already) {
+      // Set aside, not destroyed: it stays registered, so it keeps receiving messages, and its
+      // draft and any unsent or failed messages are there when the person comes back.
+      this.current.node.remove();
+    }
+
+    let created = false;
+    if (!win) {
+      // One view per conversation: a docked window for the same person gives way to the page,
+      // handing over its draft and unsent messages.
+      const docked = app.windows.get(peerId);
+      const carry = docked && !docked.embedded
+        ? { draft: docked.input.value, unsent: docked.messages.filter((m) => !m.id) }
+        : null;
+      if (docked) app.closeWindow(peerId);
+      win = app.createWindow(peerId, { embedded: true });
+      if (carry) {
+        win.input.value = carry.draft;
+        win.messages = carry.unsent;
+      }
+      app.windows.set(peerId, win);
+      this.views.set(peerId, win);
+      created = true;
+    }
+
     this.current = win;
     this.placeholder.hidden = true;
-    this.pane.append(win.node);
+    if (!win.node.isConnected) this.pane.append(win.node);
     this.layout.classList.add('has-thread');
     app.renderWindowState(win);
     this.renderConversations();
@@ -1460,14 +1504,13 @@
 
     if (atMessageId) {
       app.loadAround(win, atMessageId);
-    } else {
-      app.loadLatest(win);
+    } else if (win.hasNewer) {
+      app.jumpToLatest(win); // back from a search slice: a plain open means the latest
+    } else if (!already) {
+      if (!created) app.renderMessages(win, { stickToBottom: true });
+      app.loadLatest(win); // first load, or catch up after being set aside
     }
     win.input.focus();
-  };
-
-  MessagesPage.prototype.reveal = function () {
-    this.layout.classList.add('has-thread');
   };
 
   MessagesPage.prototype.updateAddress = function (peerId, at) {
