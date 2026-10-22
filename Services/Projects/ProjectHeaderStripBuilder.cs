@@ -32,13 +32,11 @@ public sealed record ProjectHeaderCostTile(string Value, string? Basis, string D
 public sealed record ProjectHeaderUpdate(bool HasRemark, string Text, string Meta, bool IsStale);
 
 /// <summary>
-/// The header strip for one project: which tiles show, in order, and which tracked tiles
-/// move down into the Project overview card instead. Each tile is rendered once. The latest
-/// update is not a tile: a remark is prose, so it gets a full-width band under the strip.
+/// The header strip for one project: the four tiles it shows, in order. The latest update is
+/// not a tile: a remark is prose, so it gets a full-width band under the strip.
 /// </summary>
 public sealed record ProjectHeaderStripVm(
     IReadOnlyList<ProjectHeaderTile> Tiles,
-    IReadOnlyList<ProjectHeaderTile> InOverviewCard,
     ProjectHeaderStageTile Stage,
     ProjectHeaderCostTile Cost,
     bool ShowsLastUpdate,
@@ -46,37 +44,30 @@ public sealed record ProjectHeaderStripVm(
 {
     public static ProjectHeaderStripVm Empty { get; } = new(
         Array.Empty<ProjectHeaderTile>(),
-        Array.Empty<ProjectHeaderTile>(),
         new ProjectHeaderStageTile("Not started", null, string.Empty, string.Empty),
         new ProjectHeaderCostTile("Not recorded", null, "No cost recorded yet"),
         false,
         new ProjectHeaderUpdate(false, "No remarks yet", string.Empty, false));
 
     public bool Shows(ProjectHeaderTile tile) => Tiles.Contains(tile);
-
-    public bool InCard(ProjectHeaderTile tile) => InOverviewCard.Contains(tile);
 }
 
 /// <summary>
-/// Rules for the Project Overview header strip. The tiles follow the project's phase:
-/// before the supply order the strip tracks schedule, cost and record health; from the
-/// supply order the JDP partner takes record health's place; a completed project leads with
-/// its Transfer of Technology. Every phase but completion also shows the latest update.
+/// Rules for the Project Overview header strip: four tiles in every phase. A project in
+/// progress shows its stage, its cost, the JDP partner and record health; a completed project
+/// shows its Transfer of Technology and proliferation cost in place of stage and cost. Every
+/// phase but completion also shows the latest update.
 /// </summary>
 public static class ProjectHeaderStripBuilder
 {
     public const int StaleUpdateDays = 30;
     public const int PdcSoonDays = 30;
 
-    private static readonly ProjectHeaderTile[] Tracked =
-    {
-        ProjectHeaderTile.Jdp, ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth
-    };
-
     public static ProjectHeaderStripVm Build(
         ProjectLifecycleStatus lifecycle,
         ProjectPortfolioPresentationVm portfolio,
         ProcurementAtAGlanceVm procurement,
+        ProjectCostResolution? projectCost,
         ProjectRemarkSummaryViewModel remarks,
         DateOnly today,
         DateTime nowUtc)
@@ -87,27 +78,20 @@ public static class ProjectHeaderStripBuilder
 
         var tiles = lifecycle switch
         {
-            ProjectLifecycleStatus.Active => IsSupplyOrderPlaced(portfolio, procurement)
-                ? new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp }
-                : new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth },
-            ProjectLifecycleStatus.Completed => new[] { ProjectHeaderTile.Tot, ProjectHeaderTile.Cost, ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth },
-            ProjectLifecycleStatus.Cancelled => new[] { ProjectHeaderTile.Cancellation, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth },
-            _ => new[] { ProjectHeaderTile.Status, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth }
+            ProjectLifecycleStatus.Active => new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp, ProjectHeaderTile.RecordHealth },
+            ProjectLifecycleStatus.Completed => new[] { ProjectHeaderTile.Tot, ProjectHeaderTile.Proliferation, ProjectHeaderTile.Jdp, ProjectHeaderTile.RecordHealth },
+            ProjectLifecycleStatus.Cancelled => new[] { ProjectHeaderTile.Cancellation, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp, ProjectHeaderTile.RecordHealth },
+            _ => new[] { ProjectHeaderTile.Status, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp, ProjectHeaderTile.RecordHealth }
         };
 
         return new ProjectHeaderStripVm(
             tiles,
-            Tracked.Where(tile => !tiles.Contains(tile)).ToArray(),
             BuildStage(portfolio, today),
-            BuildCost(procurement),
+            BuildCost(projectCost, procurement.SupplyOrderDate),
             lifecycle != ProjectLifecycleStatus.Completed,
             BuildLastUpdate(remarks, nowUtc));
     }
 
-    /// <summary>The supply order is placed once its date is recorded or development has begun.</summary>
-    public static bool IsSupplyOrderPlaced(ProjectPortfolioPresentationVm portfolio, ProcurementAtAGlanceVm procurement)
-        => procurement.SupplyOrderDate.HasValue
-            || (portfolio.CurrentStage is { } current && StageBuckets.Of(current.Code) == StageBucket.Development);
 
     // SECTION: Stage & schedule
     public static ProjectHeaderStageTile BuildStage(ProjectPortfolioPresentationVm portfolio, DateOnly today)
@@ -148,34 +132,16 @@ public static class ProjectHeaderStripBuilder
         return new ProjectHeaderStageTile(portfolio.CurrentStageDisplay, schedule, tone, portfolio.CurrentStageDetail);
     }
 
-    // SECTION: Latest cost, with the supply order once it is placed
-    public static ProjectHeaderCostTile BuildCost(ProcurementAtAGlanceVm procurement)
+    // SECTION: Project cost (the one shared rule, ProjectCostResolver), with the supply order
+    public static ProjectHeaderCostTile BuildCost(ProjectCostResolution? projectCost, DateOnly? supplyOrderDate)
     {
-        var known = new (string Basis, decimal? Value)[]
-            {
-                ("PNC", procurement.PncCost),
-                ("L1", procurement.L1Cost),
-                ("Benchmark", procurement.BenchmarkCost),
-                ("AoN", procurement.AonCost),
-                ("IPA", procurement.IpaCost)
-            }
-            .Where(cost => cost.Value.HasValue)
-            .ToArray();
-
-        var supplyOrder = procurement.SupplyOrderDate is { } soDate
+        var detail = supplyOrderDate is { } soDate
             ? $"Supply order · {soDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}"
-            : null;
+            : "Supply order not placed";
 
-        if (known.Length == 0)
-        {
-            return new ProjectHeaderCostTile("Not recorded", null, supplyOrder ?? "No cost recorded yet");
-        }
-
-        var latest = known[0];
-        var detail = supplyOrder
-            ?? (known.Length > 1 ? $"{known[1].Basis} {IndianCurrencyFormatter.FormatCompact(known[1].Value!.Value)}" : $"{latest.Basis} is the only cost recorded");
-
-        return new ProjectHeaderCostTile(IndianCurrencyFormatter.FormatCompact(latest.Value!.Value), latest.Basis, detail);
+        return projectCost?.AmountInRupees is decimal amount
+            ? new ProjectHeaderCostTile(IndianCurrencyFormatter.FormatCompact(amount), projectCost.SourceLabel, detail)
+            : new ProjectHeaderCostTile("Not recorded", null, supplyOrderDate.HasValue ? detail : "No cost recorded yet");
     }
 
     // SECTION: Last update

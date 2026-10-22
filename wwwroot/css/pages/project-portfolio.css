@@ -623,8 +623,6 @@ button.project-intelligence-card:hover {
     .project-command-header__actions { width: 100%; justify-content: flex-start; }
     .project-lifecycle-lockup { order: -1; align-self: stretch; min-width: 0; }
     .project-intelligence-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    /* A three-tile strip: the odd tile out takes the whole row instead of leaving a hole. */
-    .project-intelligence-strip > :last-child:nth-child(odd) { grid-column: 1 / -1; }
     .project-lifecycle-summary__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -4292,12 +4290,99 @@ a.project-intelligence-card:focus-visible {
     .project-latest-update__all { margin-left: 0; }
 }
 
-/* Tracked tiles the strip leaves out at this phase, inside the Project overview card. */
-.project-overview-tracked {
+/* Header stat bar: the four tiles share one frame, divided by hairlines, instead of
+   sitting in separate boxes. Only tiles that act (buttons, links) tint on hover. */
+.project-command-header .project-intelligence-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 0;
+}
+
+.project-command-header .project-intelligence-card {
+    /* Buttons centre their content by default; every cell reads from the top instead. */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: .8rem 1rem .85rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    transform: none;
+}
+
+.project-command-header .project-intelligence-card__pill { align-self: flex-start; }
+
+.project-command-header .project-intelligence-card + .project-intelligence-card {
+    border-left: 1px solid var(--portfolio-border);
+}
+
+.project-command-header button.project-intelligence-card:hover,
+.project-command-header button.project-intelligence-card:focus-visible,
+.project-command-header a.project-intelligence-card:hover,
+.project-command-header a.project-intelligence-card:focus-visible {
+    background: var(--portfolio-soft);
+    transform: none;
+}
+
+/* The ToT tile keeps its status colour as a left rule. */
+.project-command-header .project-intelligence-card--tot {
+    border-left: 3px solid var(--tot-card-tone);
+}
+
+@media (max-width: 991.98px) {
+    .project-command-header .project-intelligence-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .project-command-header .project-intelligence-card:nth-child(odd) { border-left: 0; }
+    .project-command-header .project-intelligence-card:nth-child(n + 3) { border-top: 1px solid var(--portfolio-border); }
+    .project-command-header .project-intelligence-card--tot { border-left: 3px solid var(--tot-card-tone); }
+}
+
+@media (max-width: 575.98px) {
+    .project-command-header .project-intelligence-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+    .project-command-header .project-intelligence-card { padding: .65rem .75rem; }
+}
+
+/* Project overview facts: a plain label/value sheet with hairline rows, two columns when
+   there is room, instead of a grid of boxed tiles. */
+.project-profile-flow .project-facts,
+.project-profile-flow .project-facts.mb-0 {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-    gap: .65rem;
-    margin: .35rem 0 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: 0 2rem;
+    align-items: start;
+}
+
+.project-profile-flow .project-facts__item {
+    display: grid;
+    grid-template-columns: minmax(8.5rem, 10rem) minmax(0, 1fr);
+    gap: .75rem;
+    align-items: baseline;
+    padding: .55rem 0;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--portfolio-border) 70%, transparent);
+    border-radius: 0;
+    background: transparent;
+}
+
+.project-profile-flow .project-facts__item .project-facts__label {
+    margin: 0;
+    color: var(--portfolio-muted);
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.project-profile-flow .project-facts__item .project-facts__value {
+    margin: 0;
+    color: var(--pm-text-strong);
+    font-size: .9rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+@media (max-width: 575.98px) {
+    .project-profile-flow .project-facts { grid-template-columns: 1fr; gap: 0; }
+    .project-profile-flow .project-facts__item { grid-template-columns: minmax(7.5rem, 8.5rem) minmax(0, 1fr); }
 }
 
 /* "Waiting on you": document requests for approvers, as a slim bar under the header. */

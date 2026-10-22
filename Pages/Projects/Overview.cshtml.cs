@@ -668,6 +668,7 @@ namespace ProjectManagement.Pages.Projects
                 project.LifecycleStatus,
                 Portfolio,
                 Procurement,
+                projectCost,
                 RemarkSummary,
                 DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst())),
                 _clock.UtcNow.UtcDateTime);

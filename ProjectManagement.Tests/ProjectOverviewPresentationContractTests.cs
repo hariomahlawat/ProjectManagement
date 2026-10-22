@@ -69,6 +69,21 @@ public sealed class ProjectOverviewPresentationContractTests
     }
 
     [Fact]
+    public void OverviewCard_ShowsPlainFacts_AndOnlyACompletedProjectsDevelopmentCost()
+    {
+        var overview = ReadRepoFile("Pages", "Projects", "_ProjectOverviewCard.cshtml");
+        var tiles = ReadRepoFile("Pages", "Projects", "_ProjectHeaderTile.cshtml");
+
+        // Header tiles render only in the header; the card is a fact sheet.
+        Assert.DoesNotContain("_ProjectHeaderTile", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Initial procurement", overview, StringComparison.Ordinal);
+        Assert.Contains("project?.LifecycleStatus == ProjectLifecycleStatus.Completed && Model.CostSummary.RdCostLakhs.HasValue", overview, StringComparison.Ordinal);
+        Assert.Contains(">Development cost</dt>", overview, StringComparison.Ordinal);
+        Assert.Contains("Project cost</span>", tiles, StringComparison.Ordinal);
+        Assert.Contains("Proliferation cost", tiles, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LatestUpdate_IsAFullWidthBandUnderTheStrip_NotATile()
     {
         var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");

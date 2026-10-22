@@ -1,9 +1,8 @@
 @using ProjectManagement.Services.Projects
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
-    // One tile of the header strip. The same tile can instead render inside the Project
-    // overview card (see ProjectHeaderStripVm.InOverviewCard); it is only ever rendered once,
-    // so the ids that overview.js and overview-multi-jdp.js look up stay unique.
+    // One tile of the header strip. Each tile renders once, so the ids that overview.js and
+    // overview-multi-jdp.js look up stay unique.
     var tile = (ProjectHeaderTile)ViewData["HeaderTile"]!;
     var strip = Model.HeaderStrip;
     var project = Model.Project;
@@ -37,7 +36,7 @@
 
     case ProjectHeaderTile.Cost:
         <a class="project-intelligence-card project-intelligence-card--cost" href="#project-procurement-at-a-glance">
-            <span class="project-intelligence-card__label"><i class="bi bi-currency-rupee project-intelligence-card__glyph" aria-hidden="true"></i>Latest cost</span>
+            <span class="project-intelligence-card__label"><i class="bi bi-currency-rupee project-intelligence-card__glyph" aria-hidden="true"></i>Project cost</span>
             <strong>
                 @strip.Cost.Value
                 @if (!string.IsNullOrWhiteSpace(strip.Cost.Basis))
@@ -106,7 +105,7 @@
                 aria-controls="offcanvasProliferation"
                 aria-label="@(Model.CanManageProliferation ? "Edit proliferation details" : "View proliferation details")">
             <span class="project-intelligence-card__label">
-                <i class="bi bi-boxes project-intelligence-card__glyph" aria-hidden="true"></i>Proliferation
+                <i class="bi bi-boxes project-intelligence-card__glyph" aria-hidden="true"></i>Proliferation cost
                 @if (Model.CanManageProliferation)
                 {
                     <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>

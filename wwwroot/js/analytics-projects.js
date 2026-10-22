@@ -1318,8 +1318,8 @@ function initStageCycleTimeByCostChart() {
   }
 
   const datasets = [
-    buildDataset(stageTimeBucketKeys.below, 'Latest cost below 1 crore', getAccentColor(0)),
-    buildDataset(stageTimeBucketKeys.above, 'Latest cost at or above 1 crore', getAccentColor(2))
+    buildDataset(stageTimeBucketKeys.below, 'Project cost below 1 crore', getAccentColor(0)),
+    buildDataset(stageTimeBucketKeys.above, 'Project cost at or above 1 crore', getAccentColor(2))
   ];
 
     renderWithTheme(canvas, {

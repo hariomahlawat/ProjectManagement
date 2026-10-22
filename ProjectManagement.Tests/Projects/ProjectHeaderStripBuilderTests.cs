@@ -12,59 +12,38 @@ public sealed class ProjectHeaderStripBuilderTests
     private static readonly DateOnly Today = new(2026, 10, 22);
     private static readonly DateTime NowUtc = new(2026, 10, 22, 6, 30, 0, DateTimeKind.Utc);
 
-    // SECTION: Which tiles show at each phase
-    [Fact]
-    public void BeforeTheSupplyOrder_TracksScheduleCostAndHealth()
-    {
-        var strip = Build(Portfolio("TEC", pdcInDays: -76), Procurement(aon: 46_500_000m, ipa: 48_000_000m));
-
-        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth }, strip.Tiles);
-        Assert.Equal(new[] { ProjectHeaderTile.Jdp, ProjectHeaderTile.Proliferation }, strip.InOverviewCard);
-    }
-
+    // SECTION: Which tiles show at each phase (always four)
     [Theory]
+    [InlineData("TEC", false)]
     [InlineData("DEVP", false)]
     [InlineData("EAS", true)]
-    public void FromTheSupplyOrder_JdpTakesRecordHealthsPlace(string currentStage, bool supplyOrderDated)
+    public void ActiveProject_ShowsStageCostJdpAndHealth_BeforeAndAfterTheSupplyOrder(string currentStage, bool supplyOrderDated)
     {
         var strip = Build(
             Portfolio(currentStage, pdcInDays: 10),
             Procurement(l1: 2_599_000m, supplyOrder: supplyOrderDated ? new DateOnly(2026, 1, 29) : null));
 
-        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp }, strip.Tiles);
-        Assert.Equal(new[] { ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth }, strip.InOverviewCard);
+        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp, ProjectHeaderTile.RecordHealth }, strip.Tiles);
     }
 
     [Fact]
-    public void CompletedProject_LeadsWithTransferOfTechnology()
+    public void CompletedProject_LeadsWithToT_AndShowsProliferationCostInPlaceOfCost()
     {
         var strip = Build(Portfolio(null, pdcInDays: null), Procurement(), ProjectLifecycleStatus.Completed);
 
-        Assert.Equal(new[] { ProjectHeaderTile.Tot, ProjectHeaderTile.Cost, ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth }, strip.Tiles);
-        Assert.Equal(new[] { ProjectHeaderTile.Jdp }, strip.InOverviewCard);
-    }
-
-    [Theory]
-    [InlineData(ProjectLifecycleStatus.Active, true)]
-    [InlineData(ProjectLifecycleStatus.Cancelled, true)]
-    [InlineData(ProjectLifecycleStatus.Completed, false)]
-    public void LatestUpdateBand_ShowsUntilTheProjectIsCompleted(ProjectLifecycleStatus lifecycle, bool shows)
-    {
-        var strip = Build(Portfolio("DEVP", pdcInDays: 5), Procurement(), lifecycle);
-
-        Assert.Equal(shows, strip.ShowsLastUpdate);
+        Assert.Equal(new[] { ProjectHeaderTile.Tot, ProjectHeaderTile.Proliferation, ProjectHeaderTile.Jdp, ProjectHeaderTile.RecordHealth }, strip.Tiles);
     }
 
     [Fact]
-    public void EveryTrackedTileRendersExactlyOnce()
+    public void EveryPhaseShowsFourTiles_IncludingJdpAndRecordHealth()
     {
         foreach (var lifecycle in Enum.GetValues<ProjectLifecycleStatus>())
         {
             var strip = Build(Portfolio("DEVP", pdcInDays: 5), Procurement(), lifecycle);
-            foreach (var tile in new[] { ProjectHeaderTile.Jdp, ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth })
-            {
-                Assert.True(strip.Shows(tile) ^ strip.InCard(tile), $"{tile} must render once for {lifecycle}.");
-            }
+
+            Assert.Equal(4, strip.Tiles.Count);
+            Assert.Equal(strip.Tiles.Count, strip.Tiles.Distinct().Count());
+            Assert.True(strip.Shows(ProjectHeaderTile.Jdp) && strip.Shows(ProjectHeaderTile.RecordHealth), $"{lifecycle} shows JDP and record health.");
         }
     }
 
@@ -111,27 +90,28 @@ public sealed class ProjectHeaderStripBuilderTests
         Assert.Null(stage.Schedule);
     }
 
-    // SECTION: Latest cost
+    // SECTION: Project cost (the shared rule's result, with the supply order beneath)
     [Fact]
-    public void CostTile_ShowsTheLatestCost_WithTheEarlierOneBeneath()
+    public void CostTile_ShowsTheProjectCostAndItsBasis_WithTheSupplyOrderBeneath()
     {
-        var cost = ProjectHeaderStripBuilder.BuildCost(Procurement(aon: 46_500_000m, ipa: 48_000_000m));
-
-        Assert.Equal(("₹4.65 Cr", "AoN", "IPA ₹4.8 Cr"), (cost.Value, cost.Basis, cost.Detail));
-    }
-
-    [Fact]
-    public void CostTile_ShowsTheSupplyOrderOnceItIsPlaced()
-    {
-        var cost = ProjectHeaderStripBuilder.BuildCost(Procurement(l1: 2_599_000m, aon: 3_000_000m, supplyOrder: new DateOnly(2026, 1, 29)));
+        var cost = ProjectHeaderStripBuilder.BuildCost(
+            new ProjectCostResolution(0.2599m, ProjectCostSource.L1), new DateOnly(2026, 1, 29));
 
         Assert.Equal(("₹25.99 Lakh", "L1", "Supply order · 29 Jan 2026"), (cost.Value, cost.Basis, cost.Detail));
     }
 
     [Fact]
+    public void CostTile_BeforeTheSupplyOrder_SaysItIsNotPlaced()
+    {
+        var cost = ProjectHeaderStripBuilder.BuildCost(new ProjectCostResolution(4.8m, ProjectCostSource.Ipa), null);
+
+        Assert.Equal(("₹4.8 Cr", "IPA", "Supply order not placed"), (cost.Value, cost.Basis, cost.Detail));
+    }
+
+    [Fact]
     public void CostTile_WithNothingRecorded_SaysSo()
     {
-        var cost = ProjectHeaderStripBuilder.BuildCost(Procurement());
+        var cost = ProjectHeaderStripBuilder.BuildCost(new ProjectCostResolution(null, ProjectCostSource.None), null);
 
         Assert.Equal(("Not recorded", null, "No cost recorded yet"), (cost.Value, cost.Basis, cost.Detail));
     }
@@ -186,7 +166,7 @@ public sealed class ProjectHeaderStripBuilderTests
         ProjectPortfolioPresentationVm portfolio,
         ProcurementAtAGlanceVm procurement,
         ProjectLifecycleStatus lifecycle = ProjectLifecycleStatus.Active)
-        => ProjectHeaderStripBuilder.Build(lifecycle, portfolio, procurement, ProjectRemarkSummaryViewModel.Empty, Today, NowUtc);
+        => ProjectHeaderStripBuilder.Build(lifecycle, portfolio, procurement, null, ProjectRemarkSummaryViewModel.Empty, Today, NowUtc);
 
     private static ProjectPortfolioPresentationVm Portfolio(string? currentCode, int? pdcInDays, StageStatus status = StageStatus.InProgress)
         => new()
