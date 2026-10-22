@@ -646,6 +646,7 @@ builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConfere
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceIdeaCommandService, ProjectManagement.Services.Workspace.ConferenceIdeaCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandDeskService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();
 builder.Services.AddScoped<ActionTaskPermissionService>();

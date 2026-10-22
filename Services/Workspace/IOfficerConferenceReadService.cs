@@ -24,6 +24,14 @@ public interface IOfficerConferenceReadService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Builds the conference view of every officer in command scope, without record health
+    /// or ERP activity, for command summaries. Returns nothing for a non-command user.
+    /// </summary>
+    Task<IReadOnlyList<OfficerConferenceVm>> GetAllForCommandAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Builds the live command digest used by Notebook. Only the latest conference
     /// direction for each in-scope project, idea or task is included. Items without a
     /// conference direction, and officers with no directed items, are omitted.

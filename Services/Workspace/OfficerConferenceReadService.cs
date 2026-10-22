@@ -158,6 +158,33 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             cancellationToken);
     }
 
+    public async Task<IReadOnlyList<OfficerConferenceVm>> GetAllForCommandAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestingUserId)
+            || !await HasCommandConferenceRoleAsync(requestingUserId, cancellationToken))
+        {
+            return Array.Empty<OfficerConferenceVm>();
+        }
+
+        var officers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+        var result = new List<OfficerConferenceVm>(officers.Count);
+        for (var index = 0; index < officers.Count; index++)
+        {
+            // Sequential on purpose: the scoped DbContext does not support concurrent queries.
+            result.Add(await BuildConferenceAsync(
+                officers[index],
+                officers,
+                index,
+                includeOfficerNavigation: false,
+                cancellationToken,
+                includeOfficerContext: false));
+        }
+
+        return result;
+    }
+
     public async Task<ConferenceDirectionDigestVm?> GetLatestDirectionDigestAsync(
         string requestingUserId,
         CancellationToken cancellationToken = default)
@@ -309,7 +336,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
         int selectedIndex,
         bool includeOfficerNavigation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeOfficerContext = true)
     {
         var projectIds = selected.ActiveProjects
             .Select(item => item.ProjectId)
@@ -324,13 +352,13 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         var projectRows = await LoadProjectsAsync(projectIds, cancellationToken);
         var ideaRows = await LoadIdeasAsync(ideaIds, cancellationToken);
         var taskRows = await LoadTasksAsync(taskIds, cancellationToken);
-        var projectRecordHealth = _recordHealth is null
+        var projectRecordHealth = _recordHealth is null || !includeOfficerContext
             ? new Dictionary<int, WorkspaceRecordHealthVm>()
             : await _recordHealth.CalculateForProjectIdsAsync(
                 projectIds,
                 selected.UserId,
                 cancellationToken);
-        var activityStrip = _erpUsage is null
+        var activityStrip = _erpUsage is null || !includeOfficerContext
             ? new ErpActivityStripVm()
             : await _erpUsage.GetActivityStripAsync(
                 selected.UserId,

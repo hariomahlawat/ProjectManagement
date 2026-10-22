@@ -105,6 +105,12 @@
         {
             <div class="cw-local-rail__group cw-local-rail__group--command">
                 <span class="cw-local-rail__group-label"><i class="bi bi-shield-check" aria-hidden="true"></i>Command oversight</span>
+                <a asp-page="/Workspace/CommandDesk"
+                   class="@(Active("command-desk"))"
+                   aria-current="@(Current("command-desk"))"
+                   data-tooltip="Command desk">
+                    <i class="bi bi-binoculars" aria-hidden="true"></i><span>Command desk</span>
+                </a>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
                    asp-route-view="officers"

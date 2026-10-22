@@ -1,0 +1,13 @@
+@model ProjectManagement.ViewModels.Workspace.CommandDeskTaskVm
+<li class="cd-row">
+    <span class="cd-row__main">
+        <a class="cd-row__title" href="@Model.Url">@Model.Title</a>
+        <span class="cd-row__sub">@Model.Who</span>
+        @if (!string.IsNullOrWhiteSpace(Model.BlockedReason))
+        {
+            <q class="cd-row__quote">@Model.BlockedReason</q>
+        }
+    </span>
+    <span class="cd-row__date">Due @Model.Due.ToString("dd MMM yyyy")</span>
+    <span class="cd-pill @(Model.IsDanger ? "cd-pill--danger" : "cd-pill--warning")">@Model.StateLabel</span>
+</li>
