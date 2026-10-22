@@ -293,7 +293,7 @@ public sealed class ProjectPortfolioPresentationVm
         if (current.IsOverdue && current.DaysRemaining is int overdue)
         {
             var days = Math.Abs(overdue);
-            return ($"Recover {current.Name}", $"Current stage is {days} day{(days == 1 ? string.Empty : "s")} overdue");
+            return ($"Set a revised PDC or complete {current.Name}", $"Current stage is {days} day{(days == 1 ? string.Empty : "s")} overdue");
         }
 
         if (current.Status == StageStatus.InProgress && current.DaysRemaining is int remaining)

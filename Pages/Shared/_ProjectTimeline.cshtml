@@ -55,6 +55,29 @@
         .OrderByDescending(item => item.CompletedOn)
         .ThenByDescending(item => item.SortOrder)
         .FirstOrDefault();
+
+    // SECTION: Coming up
+    // On an active project the next two later stages are tagged "Next" and "Then"; the rest
+    // fold into "+N more later stages", keeping each stage's own actions inside the fold.
+    const int visibleLaterStages = 2;
+    var laterStages = isActiveLifecycle
+        ? renderOrder
+            .Where(item => item.Status == StageStatus.NotStarted
+                && !item.HasPendingRequest
+                && !string.Equals(item.Code, currentStageCode, StringComparison.OrdinalIgnoreCase))
+            .ToList()
+        : new List<ProjectManagement.ViewModels.TimelineItemVm>();
+    var foldedLater = laterStages.Skip(visibleLaterStages).ToList();
+    // Fold only when the folded stages are the last ones on the timeline, so nothing else
+    // ends up inside the fold.
+    if (foldedLater.Count == 0 || !renderOrder.TakeLast(foldedLater.Count).SequenceEqual(foldedLater))
+    {
+        foldedLater.Clear();
+    }
+    var laterTag = laterStages
+        .Take(visibleLaterStages)
+        .Select((item, index) => (item.Code, Tag: index == 0 ? "Next" : "Then"))
+        .ToDictionary(entry => entry.Code, entry => entry.Tag, StringComparer.OrdinalIgnoreCase);
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -139,7 +162,7 @@
       var isSettledStage = settledCodes.Contains(s.Code);
       if (isSettledStage && ReferenceEquals(s, settledStages[0]))
       {
-        @:<details class="pm-completed-group" data-timeline-completed-group>
+        @:<details class="pm-completed-group" data-timeline-completed-group open>
         <summary class="pm-completed-group__summary">
           <span class="pm-completed-group__title">@settledGroupTitle</span>
           @if (latestSettledCompletion is not null)
@@ -161,14 +184,30 @@
           (!isActiveLifecycle || !s.HasPendingRequest))
       {
         futureSectionStarted = true;
-        <div class="pm-future-stage-heading" role="separator" aria-label="@(isCancelledLifecycle ? "Stages not reached" : "Later stages")">
-          <span>@(isCancelledLifecycle ? "Stages not reached" : "Later stages")</span>
-          <small>
-            @(isCancelledLifecycle
-              ? "The project ended before these stages began."
-              : "Planned dates may be added when available.")
-          </small>
+        <div class="pm-future-stage-heading" role="separator" aria-label="@(isCancelledLifecycle ? "Stages not reached" : "Coming up")">
+          <span>@(isCancelledLifecycle ? "Stages not reached" : "Coming up")</span>
+          @if (isCancelledLifecycle)
+          {
+            <small>The project ended before these stages began.</small>
+          }
+          else if (!laterStages.Any(item => item.HasPlanDates))
+          {
+            <small>Planned dates may be added when available.</small>
+          }
         </div>
+      }
+
+      if (foldedLater.Count > 0 && ReferenceEquals(s, foldedLater[0]))
+      {
+        @:<details class="pm-later-group" data-timeline-later-group>
+        <summary class="pm-later-group__summary">
+          <span>+@foldedLater.Count more later stage@(foldedLater.Count == 1 ? string.Empty : "s")</span>
+          <span class="pm-later-group__hint" aria-hidden="true">
+            <span class="pm-later-group__hint-closed">Show</span><span class="pm-later-group__hint-open">Hide</span>
+            <i class="bi bi-chevron-down pm-later-group__chevron"></i>
+          </span>
+        </summary>
+        @:<div class="pm-later-group__items">
       }
 
       var isCeasedStage = isCancelledLifecycle &&
@@ -213,6 +252,10 @@
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
             <div class="pm-item-heading">
+              @if (laterTag.TryGetValue(s.Code, out var upcomingTag))
+              {
+                <span class="pm-upcoming-tag">@upcomingTag</span>
+              }
               <span class="@displayedPillClass"
                     data-stage-status
                     data-stage-status-pill>
@@ -529,7 +572,7 @@
             {
               <span class="pm-flag" title="Auto-completed when a later stage finished." data-stage-autocomplete>Inferred</span>
             }
-            <span class="pm-flag pm-flag-danger@(isActiveLifecycle && s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>Overdue</span>
+            <span class="pm-flag pm-flag-danger@(isActiveLifecycle && s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>@(s.DaysRemaining is int late && late < 0 ? $"Overdue {-late} day{(late == -1 ? string.Empty : "s")}" : "Overdue")</span>
             <span class="visually-hidden@(isActiveLifecycle && s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
               @if (isActiveLifecycle && s.HasPendingRequest)
               {
@@ -701,11 +744,16 @@
               <div class="pm-current-stage-dates__item @((s.NeedsPlannedCompletion && !s.HasPendingCompletion) ? "is-attention" : string.Empty)">
                 <span class="pm-date-label">Planned completion</span>
                 <strong>@D(s.PlannedEnd)</strong>
-                @if (s.DaysRemaining is int remaining)
+                @if (s.DaysRemaining is int remaining && remaining >= 0)
                 {
-                  <span class="small @(remaining < 0 ? "text-danger" : remaining <= 7 ? "text-warning-emphasis" : "text-muted")">
-                    @(remaining < 0 ? $"{Math.Abs(remaining)} day{(Math.Abs(remaining) == 1 ? string.Empty : "s")} overdue" : remaining == 0 ? "Due today" : $"{remaining} day{(remaining == 1 ? string.Empty : "s")} remaining")
+                  @* Overdue days are on the stage's Overdue flag, so they are not repeated here. *@
+                  <span class="small @(remaining <= 7 ? "text-warning-emphasis" : "text-muted")">
+                    @(remaining == 0 ? "Due today" : $"{remaining} day{(remaining == 1 ? string.Empty : "s")} remaining")
                   </span>
+                }
+                else if (s.DaysRemaining is int)
+                {
+                  @* Overdue: the planned date is set, so none of the prompts below apply. *@
                 }
                 else if (s.HasPendingCompletion)
                 {
@@ -739,6 +787,11 @@
         </div>
       </div>
       if (isSettledStage && ReferenceEquals(s, settledStages[^1]))
+      {
+        @:</div>
+        @:</details>
+      }
+      if (foldedLater.Count > 0 && ReferenceEquals(s, foldedLater[^1]))
       {
         @:</div>
         @:</details>

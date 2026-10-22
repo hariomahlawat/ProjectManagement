@@ -423,3 +423,97 @@
     border-color: rgba(110, 168, 254, 0.39);
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25), 0 0 0 0.4rem rgba(110, 168, 254, 0.3);
 }
+
+/* ============================================================
+   Coming up: the next two later stages are tagged, the rest fold.
+   Theme tokens only, so Light and Dark follow the site palette.
+   ============================================================ */
+.pm-upcoming-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: .05rem .45rem;
+    border: 1px solid var(--pm-primary);
+    border-radius: .4rem;
+    color: var(--pm-primary-strong);
+    font-size: .68rem;
+    font-weight: 750;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.pm-later-group {
+    margin-top: .1rem;
+}
+
+.pm-later-group__summary {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-height: 2.25rem;
+    padding: .45rem .85rem;
+    border: 1px dashed var(--pm-border-strong);
+    border-radius: .8rem;
+    color: var(--pm-text-secondary);
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.pm-later-group__summary::-webkit-details-marker {
+    display: none;
+}
+
+.pm-later-group__summary:hover {
+    border-color: var(--pm-primary);
+    color: var(--pm-text-strong);
+}
+
+.pm-later-group__summary:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.pm-later-group__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin-left: auto;
+    color: var(--pm-primary-strong);
+}
+
+.pm-later-group__chevron {
+    transition: transform .16s ease;
+}
+
+.pm-later-group[open] .pm-later-group__chevron {
+    transform: rotate(180deg);
+}
+
+.pm-later-group:not([open]) .pm-later-group__hint-open,
+.pm-later-group[open] .pm-later-group__hint-closed {
+    display: none;
+}
+
+.pm-later-group[open] > .pm-later-group__summary {
+    margin-bottom: .5rem;
+}
+
+/* Inside the open completed group the title already says "completed": each row keeps its
+   status pill for screen readers and scripts but does not show it, and rows sit tighter. */
+.pm-completed-group [data-stage-status-pill] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.pm-completed-group .pm-item.is-complete .pm-item-card {
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
