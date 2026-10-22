@@ -116,7 +116,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   membership and forwards to the other members only.
 - **Old pages during a rolling deployment** never receive group traffic they would misread:
   group messages, notices and unsends use their own hub events (`ReceiveGroupMessage`,
-  `GroupMessageUnsent`), and search returns group hits only when asked with `groups=1`.
+  `GroupMessageUnsent`), and search returns group hits only when asked with `groups=true`.
 - Group conversations have `Kind = 'Group'`, a `Title` and a `ManagerUserId`, and no pair
   key; check constraints enforce both shapes. Notices are `ChatMessages` rows with an
   `EventKind` and empty body. Leaving or removal deletes the `ChatParticipants` row.
