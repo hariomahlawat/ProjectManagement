@@ -790,3 +790,121 @@ test('a send in flight when its conversation moves to the Messages page reports 
     window.close();
   }
 });
+
+// --- Status messages, unsend, chat buttons next to names ------------------------------------
+
+test('status messages show for others and my own can be set from the contact list', async () => {
+  const posted = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, statusMessage: 'In review meeting till 4' }];
+    if (url.endsWith('/status') && init.method === 'POST') {
+      posted.push(JSON.parse(init.body).message);
+      return { userId: 'me', message: JSON.parse(init.body).message };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: 'At my desk' };
+    return pageOf([], false);
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    assert.equal(app.statusInput.value, 'At my desk');
+    assert.equal(app.list.querySelector('.pm-chat__contact-note').textContent, 'In review meeting till 4');
+
+    const win = app.openWindow('peer', { focus: false });
+    assert.match(win.status.textContent, /In review meeting till 4/);
+
+    app.onStatus({ userId: 'peer', message: null });
+    assert.equal(app.list.querySelector('.pm-chat__contact-note'), null);
+
+    app.statusInput.value = '  Out   for lunch ';
+    await app.saveMyStatus();
+    assert.deepEqual(posted, ['Out for lunch']);
+    await app.saveMyStatus(); // unchanged: no second request
+    assert.equal(posted.length, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('my recent messages offer Unsend until the window passes, and unsent ones show a placeholder', async () => {
+  const now = Date.now();
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsend') && init.method === 'POST') {
+      return { status: 200, body: { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: '', sentUtc: new Date(now).toISOString(), isUnsent: true } };
+    }
+    if (url.includes('/messages')) {
+      return {
+        messages: [
+          { id: 1, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-1', body: 'old', sentUtc: new Date(now - 10 * 60000).toISOString() },
+          { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'fresh', sentUtc: new Date(now).toISOString() },
+          { id: 3, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-3', body: 'theirs', sentUtc: new Date(now).toISOString() },
+        ],
+        hasMore: false,
+      };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const links = win.log.querySelectorAll('.pm-chat__unsend');
+    assert.equal(links.length, 1, 'only my message from the last five minutes');
+
+    await app.unsend(win, win.messages.find((m) => m.id === 2));
+    const unsent = win.log.querySelector('.is-unsent .pm-chat__bubble');
+    assert.equal(unsent.textContent, 'You unsent a message');
+    assert.equal(win.log.querySelectorAll('.pm-chat__unsend').length, 0);
+
+    app.onUnsent({ id: 3, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-3', body: '', sentUtc: new Date(now).toISOString(), isUnsent: true });
+    const texts = Array.from(win.log.querySelectorAll('.is-unsent .pm-chat__bubble'), (b) => b.textContent);
+    assert.deepEqual(texts, ['You unsent a message', 'Message unsent']);
+    assert.equal(win.log.textContent.includes('theirs'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a refused unsend explains why', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsend') && init.method === 'POST') return { status: 409, body: { detail: 'A message can only be unsent within 5 minutes of sending it.' } };
+    if (url.includes('/messages')) return { messages: [{ id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'fresh', sentUtc: new Date().toISOString() }], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    await app.unsend(win, win.messages[0]);
+    assert.match(win.log.querySelector('.pm-chat__unsend-error').textContent, /within 5 minutes/);
+  } finally {
+    window.close();
+  }
+});
+
+test('names marked data-chat-user get one chat button, never for myself', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [contact] : pageOf([], false)),
+    '<p><span id="po" data-chat-user="peer" data-chat-name="Peer Person">PO Peer Person</span>'
+    + '<span id="me" data-chat-user="me">Me</span><span id="none" data-chat-user="">Unassigned</span></p>');
+  try {
+    await tick();
+    const app = window.PMChat;
+    const doc = window.document;
+    app.attachPersonButtons(doc); // again: must not duplicate
+    assert.equal(doc.querySelectorAll('#po .pm-chat-person').length, 1);
+    assert.equal(doc.querySelector('#po .pm-chat-person').getAttribute('aria-label'), 'Chat with Peer Person');
+    assert.equal(doc.querySelectorAll('#me .pm-chat-person, #none .pm-chat-person').length, 0);
+
+    doc.querySelector('#po .pm-chat-person').click();
+    assert.ok(app.windows.get('peer'));
+    assert.equal(doc.activeElement, app.windows.get('peer').input);
+  } finally {
+    window.close();
+  }
+});

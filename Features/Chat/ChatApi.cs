@@ -42,6 +42,9 @@ public static class ChatApi
         group.MapGet("/contacts", GetContactsAsync);
         group.MapGet("/with/{peerUserId}/messages", GetHistoryAsync);
         group.MapGet("/search", SearchAsync);
+        group.MapGet("/status", GetStatusAsync);
+        group.MapPost("/status", SetStatusAsync);
+        group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync);
         group.MapPost("/messages", SendAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/with/{peerUserId}/read", MarkReadAsync);
 
@@ -96,6 +99,92 @@ public static class ChatApi
         SetNoStoreHeaders(httpContext.Response);
         var history = await chat.GetHistoryAsync(userId, peerUserId, beforeMessageId, limit ?? 40, cancellationToken, afterMessageId);
         return Results.Ok(history);
+    }
+
+    private static async Task<IResult> GetStatusAsync(
+        HttpContext httpContext,
+        ChatService chat,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(new ChatStatusDto(userId, await chat.GetStatusAsync(userId, cancellationToken)));
+    }
+
+    private static async Task<IResult> SetStatusAsync(
+        ChatStatusRequest? request,
+        HttpContext httpContext,
+        ChatService chat,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request?.Message is { Length: > 1000 })
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Status not saved", detail: "The status message is too long.");
+        }
+
+        var stored = await chat.SetStatusAsync(userId, request?.Message, cancellationToken);
+        var status = new ChatStatusDto(userId, stored);
+        // Everyone's buddy list shows it, including this user's other tabs.
+        await hub.Clients.All.StatusChanged(status);
+        return Results.Ok(status);
+    }
+
+    private static async Task<IResult> UnsendAsync(
+        long messageId,
+        HttpContext httpContext,
+        ChatService chat,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await chat.UnsendAsync(userId, messageId, cancellationToken);
+        switch (result.Status)
+        {
+            case ChatUnsendStatus.Unsent:
+                var message = result.Message!;
+                await hub.Clients.Users(message.SenderUserId, message.RecipientUserId).MessageUnsent(message);
+                return Results.Ok(message);
+            case ChatUnsendStatus.TooLate:
+                var minutes = (int)Math.Round(chat.UnsendWindow.TotalMinutes);
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "Too late to unsend",
+                    detail: $"A message can only be unsent within {minutes} minute{(minutes == 1 ? string.Empty : "s")} of sending it.");
+            default:
+                // Not 404: the browser reads 404 from /api/chat as "chat is switched off".
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Cannot unsend",
+                    detail: "Only your own messages can be unsent.");
+        }
     }
 
     private static async Task<IResult> SearchAsync(

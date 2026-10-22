@@ -3553,6 +3553,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("SentUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("UnsentUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId", "Id");
@@ -3560,7 +3563,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("SenderUserId", "ClientMessageId")
                         .IsUnique();
 
-                    b.ToTable("ChatMessages");
+                    b.ToTable("ChatMessages", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChatMessages_UnsentHasNoBody", "\"UnsentUtc\" IS NULL OR \"Body\" = ''");
+                        });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Chat.ChatParticipant", b =>
@@ -3583,6 +3589,25 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("ChatParticipants");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatUserStatus", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)");
+
+                    b.Property<DateTimeOffset>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("ChatUserStatuses");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.DailyLoginStat", b =>

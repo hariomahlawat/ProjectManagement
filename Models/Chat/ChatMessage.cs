@@ -23,5 +23,11 @@ public sealed class ChatMessage
 
     public DateTimeOffset SentUtc { get; set; }
 
+    /// <summary>
+    /// Set when the sender unsends the message (only allowed shortly after sending). The body is
+    /// cleared at the same time, so the text is really gone, not just hidden.
+    /// </summary>
+    public DateTimeOffset? UnsentUtc { get; set; }
+
     public ChatConversation? Conversation { get; set; }
 }

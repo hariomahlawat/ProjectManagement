@@ -8,7 +8,10 @@
  *   GET  {api}/search?q=                        message search across the user's conversations
  *   POST {api}/messages                         { recipientUserId, clientMessageId, body }
  *   POST {api}/with/{peer}/read                 { upToMessageId }
- *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing
+ *   GET/POST {api}/status                       { message } (own status message)
+ *   POST {api}/messages/{id}/unsend             own message, shortly after sending
+ *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
+ *             MessageUnsent / StatusChanged
  *   hub  out: Typing(peerUserId), SetAway(bool)  (ephemeral signals only; nothing is stored)
  *
  * Every piece of user text is written with textContent; nothing from the server is parsed as HTML.
@@ -295,6 +298,8 @@
     this.hubUrl = root.dataset.hubUrl;
     this.messagesUrl = root.dataset.messagesUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
+    this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    this.myStatus = null;
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
     this.dingKey = `prism.chat.ding.${this.me}`;
@@ -326,6 +331,16 @@
     });
     global.addEventListener('focus', () => this.title.stop());
     this.watchActivity();
+
+    this.attachPersonButtons(document);
+    if (typeof global.MutationObserver === 'function' && document.body) {
+      let pending = null;
+      new global.MutationObserver(() => {
+        if (pending) return;
+        pending = global.setTimeout(() => { pending = null; this.attachPersonButtons(document); }, 200);
+      }).observe(document.body, { childList: true, subtree: true });
+    }
+    this.loadMyStatus();
 
     const pageNode = document.querySelector('[data-chat-page]');
     if (pageNode) this.page = new MessagesPage(this, pageNode);
@@ -431,6 +446,7 @@
     if (this.idleTimer) global.clearInterval(this.idleTimer);
     if (this.connection) this.connection.stop().catch(() => {});
     this.title.stop();
+    document.querySelectorAll('.pm-chat-person').forEach((button) => button.remove());
     this.root.hidden = true;
     this.launchers.forEach((b) => { b.hidden = true; });
   };
@@ -464,6 +480,8 @@
     connection.on('PeerRead', (read) => this.onPeerRead(read));
     connection.on('PresenceChanged', (presence) => this.onPresence(presence));
     connection.on('Typing', (typing) => this.onTyping(typing));
+    connection.on('MessageUnsent', (message) => this.onUnsent(message));
+    connection.on('StatusChanged', (status) => this.onStatus(status));
     connection.onreconnecting(() => this.startPolling());
     connection.onreconnected(() => this.resync());
     connection.onclose(() => {
@@ -667,6 +685,36 @@
     if (win) this.renderWindowState(win);
   };
 
+  /** A message was unsent (by this user in another tab, or by the other person). */
+  ChatApp.prototype.onUnsent = function (message) {
+    const peerId = message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
+    const win = this.windows.get(peerId);
+    if (win) this.applyUnsent(win, message);
+    // An unread message that was unsent no longer counts; the server has the exact number.
+    if (message.senderUserId !== this.me) this.refreshContacts();
+  };
+
+  ChatApp.prototype.applyUnsent = function (win, message) {
+    const mark = (list) => list.map((m) => (m.id === message.id ? { ...m, body: '', isUnsent: true } : m));
+    win.messages = mark(win.messages);
+    win.heldLive = mark(win.heldLive);
+    this.renderMessages(win, { stickToBottom: false });
+  };
+
+  ChatApp.prototype.onStatus = function (status) {
+    if (status.userId === this.me) {
+      this.myStatus = status.message || null;
+      this.renderMyStatus();
+      return;
+    }
+    const contact = this.contacts.get(status.userId);
+    if (!contact) return;
+    contact.statusMessage = status.message || null;
+    this.renderContacts();
+    const win = this.windows.get(status.userId);
+    if (win) this.renderWindowState(win);
+  };
+
   ChatApp.prototype.onTyping = function (typing) {
     const win = this.windows.get(typing.userId);
     if (!win) return;
@@ -709,6 +757,27 @@
     close.addEventListener('click', () => this.toggleBuddy(false));
     header.append(close);
 
+    const statusWrap = el('form', 'pm-chat__mystatus');
+    const statusInput = el('input', 'form-control form-control-sm');
+    statusInput.type = 'text';
+    statusInput.maxLength = 140;
+    statusInput.placeholder = 'Set a status message';
+    statusInput.setAttribute('aria-label', 'Your status message, shown to everyone');
+    statusWrap.append(statusInput);
+    statusWrap.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.saveMyStatus();
+      statusInput.blur();
+    });
+    statusInput.addEventListener('blur', () => this.saveMyStatus());
+    statusInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        statusInput.value = this.myStatus || '';
+        statusInput.blur();
+      }
+    });
+    this.statusInput = statusInput;
+
     const searchWrap = el('div', 'pm-chat__search');
     const search = el('input', 'form-control form-control-sm');
     search.type = 'search';
@@ -722,12 +791,39 @@
     this.list.setAttribute('role', 'list');
     this.emptyNote = el('p', 'pm-chat__empty', 'Loading…');
 
-    buddy.append(header, searchWrap, this.list, this.emptyNote);
+    buddy.append(header, statusWrap, searchWrap, this.list, this.emptyNote);
     this.buddy = buddy;
 
     this.windowRow = el('div', 'pm-chat__windows');
     dock.append(this.windowRow, buddy);
     this.root.append(dock);
+  };
+
+  ChatApp.prototype.loadMyStatus = async function () {
+    try {
+      const status = await this.request('GET', '/status');
+      this.myStatus = (status && status.message) || null;
+      this.renderMyStatus();
+    } catch (_) { /* the box just stays empty */ }
+  };
+
+  ChatApp.prototype.renderMyStatus = function () {
+    if (this.statusInput && document.activeElement !== this.statusInput) {
+      this.statusInput.value = this.myStatus || '';
+    }
+  };
+
+  ChatApp.prototype.saveMyStatus = async function () {
+    const text = this.statusInput.value.replace(/\s+/g, ' ').trim();
+    if (text === (this.myStatus || '')) return;
+    try {
+      const status = await this.request('POST', '/status', { message: text });
+      this.myStatus = (status && status.message) || null;
+    } catch (_) {
+      // Leave what was typed; the next blur or Enter tries again.
+      return;
+    }
+    this.renderMyStatus();
   };
 
   ChatApp.prototype.renderSoundToggle = function () {
@@ -807,11 +903,12 @@
       const text = el('span', 'pm-chat__contact-text');
       text.append(el('span', 'pm-chat__contact-name', contact.displayName));
       text.append(el('span', 'pm-chat__contact-meta', contact.rank ? `${contact.rank} · ${statusText(contact)}` : statusText(contact)));
+      if (contact.statusMessage) text.append(el('span', 'pm-chat__contact-note', contact.statusMessage));
       button.append(face, text);
       if (contact.unreadCount > 0) {
         button.append(el('span', 'badge rounded-pill pm-chat__unread', contact.unreadCount > 99 ? '99+' : String(contact.unreadCount)));
       }
-      button.setAttribute('aria-label', `${contact.displayName}, ${statusText(contact)}${contact.unreadCount ? `, ${contact.unreadCount} unread` : ''}`);
+      button.setAttribute('aria-label', `${contact.displayName}, ${statusText(contact)}${contact.statusMessage ? `, ${contact.statusMessage}` : ''}${contact.unreadCount ? `, ${contact.unreadCount} unread` : ''}`);
       button.addEventListener('click', () => this.openWindow(contact.userId, { focus: true }));
       item.append(button);
       return item;
@@ -821,6 +918,30 @@
     this.emptyNote.textContent = all.length ? 'No one matches that search.' : 'No other users yet.';
     this.renderLauncherBadge();
     if (this.page) this.page.renderConversations();
+  };
+
+  /**
+   * Adds a small chat button to every element marked data-chat-user="{userId}" (people's names
+   * elsewhere in PRISM), except the signed-in user. Safe to call repeatedly.
+   */
+  ChatApp.prototype.attachPersonButtons = function (scope) {
+    if (this.stopped) return;
+    scope.querySelectorAll('[data-chat-user]').forEach((node) => {
+      const userId = node.dataset.chatUser;
+      if (!userId || userId === this.me || node.querySelector(':scope > .pm-chat-person')) return;
+      const name = node.dataset.chatName || node.textContent.trim();
+      const button = el('button', 'pm-chat-person');
+      button.type = 'button';
+      button.title = `Chat with ${name}`;
+      button.setAttribute('aria-label', `Chat with ${name}`);
+      button.append(icon('chat-dots'));
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.openWindow(userId, { focus: true });
+      });
+      node.append(button);
+    });
   };
 
   ChatApp.prototype.renderLauncherBadge = function () {
@@ -955,7 +1076,7 @@
       peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded,
       messages: [], hasMore: false, hasNewer: false, historyLoaded: false, syncing: false, syncAgain: false,
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
-      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0,
+      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0, unsendTimer: null,
     };
 
     if (!embedded) {
@@ -1026,7 +1147,9 @@
     setPresence(win.face, contact);
     const typing = win.typingUntil > Date.now();
     win.node.classList.toggle('is-typing', typing);
-    win.status.textContent = typing ? 'typing…' : (win.attention ? 'New message' : statusText(contact));
+    const note = contact && contact.statusMessage ? ` · ${contact.statusMessage}` : '';
+    win.status.textContent = typing ? 'typing…' : (win.attention ? 'New message' : statusText(contact) + note);
+    win.status.title = contact && contact.statusMessage ? contact.statusMessage : '';
 
     const canSend = !!contact && contact.isActive;
     win.form.hidden = !canSend;
@@ -1273,6 +1396,7 @@
     const items = [];
     let lastDay = null;
     let highlighted = null;
+    let nextExpiry = Infinity;
 
     if (!win.messages.length) {
       items.push(el('li', 'pm-chat__system', 'No messages yet. Say hello.'));
@@ -1291,7 +1415,8 @@
         item.classList.add('is-highlight');
         highlighted = item;
       }
-      const bubble = el('div', 'pm-chat__bubble', message.body);
+      const bubble = el('div', 'pm-chat__bubble', message.isUnsent ? (mine ? 'You unsent a message' : 'Message unsent') : message.body);
+      if (message.isUnsent) item.classList.add('is-unsent');
       const meta = el('span', 'pm-chat__time');
       if (message.failed) {
         item.classList.add('is-failed');
@@ -1316,6 +1441,18 @@
           tick.setAttribute('aria-label', seen ? 'Seen' : 'Sent');
           tick.title = seen ? 'Seen' : 'Sent';
           meta.append(' ', tick);
+          const left = this.unsendMs - (Date.now() - Date.parse(message.sentUtc));
+          if (!message.isUnsent && left > 0) {
+            const undo = el('button', 'btn btn-link btn-sm p-0 pm-chat__unsend', 'Unsend');
+            undo.type = 'button';
+            undo.setAttribute('aria-label', 'Unsend this message');
+            undo.addEventListener('click', () => this.unsend(win, message));
+            meta.append(' · ', undo);
+            nextExpiry = Math.min(nextExpiry, left);
+          }
+          if (message.unsendError && !message.isUnsent) {
+            meta.append(' · ', el('span', 'pm-chat__unsend-error', message.unsendError));
+          }
         }
       }
       item.append(bubble, meta);
@@ -1323,12 +1460,27 @@
     }
 
     win.log.replaceChildren(...items);
+    // Take the Unsend link away when its time runs out.
+    if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
+    win.unsendTimer = Number.isFinite(nextExpiry)
+      ? global.setTimeout(() => this.renderMessages(win, { stickToBottom: false }), nextExpiry + 250)
+      : null;
     win.earlier.hidden = !win.hasMore;
     win.newer.hidden = !win.hasNewer;
     if (options && options.scrollToHighlight && highlighted) {
       if (typeof highlighted.scrollIntoView === 'function') highlighted.scrollIntoView({ block: 'center' });
     } else if (options && options.stickToBottom && (nearBottom || win.messages.length <= HISTORY_PAGE)) {
       body.scrollTop = body.scrollHeight;
+    }
+  };
+
+  ChatApp.prototype.unsend = async function (win, message) {
+    try {
+      const result = await this.request('POST', `/messages/${message.id}/unsend`, {});
+      this.applyUnsent(this.viewFor(win), result);
+    } catch (error) {
+      message.unsendError = error.message;
+      this.renderMessages(this.viewFor(win), { stickToBottom: false });
     }
   };
 

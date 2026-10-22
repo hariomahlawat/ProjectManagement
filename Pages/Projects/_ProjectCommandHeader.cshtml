@@ -66,8 +66,8 @@
                 }
                 <span><i class="bi bi-diagram-3" aria-hidden="true"></i> @workflowLabel @project?.WorkflowVersion</span>
                 <span><i class="bi bi-calendar3" aria-hidden="true"></i> @recordDateLabel @(project is { } value ? value.CreatedAt.ToString("dd MMM yyyy") : "—")</span>
-                <span><i class="bi bi-person-badge" aria-hidden="true"></i> PO @DisplayUser(project?.LeadPoUser)</span>
-                <span><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
+                <span data-chat-user="@project?.LeadPoUserId" data-chat-name="@DisplayUser(project?.LeadPoUser)"><i class="bi bi-person-badge" aria-hidden="true"></i> PO @DisplayUser(project?.LeadPoUser)</span>
+                <span data-chat-user="@project?.HodUserId" data-chat-name="@DisplayUser(project?.HodUser)"><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
                 @if (Model.LifecycleSummary.IsLegacy)
                 {
                     <span class="project-command-header__legacy">

@@ -129,6 +129,7 @@ namespace ProjectManagement.Data
         public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
         public DbSet<ChatParticipant> ChatParticipants => Set<ChatParticipant>();
         public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+        public DbSet<ChatUserStatus> ChatUserStatuses => Set<ChatUserStatus>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectDocumentText> ProjectDocumentTexts => Set<ProjectDocumentText>();
@@ -4313,12 +4314,24 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
+            builder.Entity<ChatUserStatus>(e =>
+            {
+                e.HasKey(x => x.UserId);
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.Property(x => x.Message).HasMaxLength(ChatUserStatus.MaxMessageLength).IsRequired();
+            });
+
             builder.Entity<ChatMessage>(e =>
             {
                 e.Property(x => x.SenderUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.Body).HasMaxLength(ChatMessage.MaxBodyLength).IsRequired();
                 e.HasIndex(x => new { x.ConversationId, x.Id });
                 e.HasIndex(x => new { x.SenderUserId, x.ClientMessageId }).IsUnique();
+                // An unsent message keeps its row (so ids, read markers and ticks stay consistent)
+                // but loses its text.
+                e.ToTable(t => t.HasCheckConstraint(
+                    "CK_ChatMessages_UnsentHasNoBody",
+                    "\"UnsentUtc\" IS NULL OR \"Body\" = ''"));
                 e.HasOne(x => x.Conversation)
                     .WithMany()
                     .HasForeignKey(x => x.ConversationId)
