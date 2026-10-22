@@ -119,6 +119,28 @@ public sealed class CommandDeskServiceTests
         Assert.All(desk.Directions, item => Assert.Equal("K Srinath", item.OfficerName));
     }
 
+    [Fact]
+    public async Task TotCompletions_FollowTheTrackerEligibilityRule()
+    {
+        await using var db = NewDb();
+        db.Projects.AddRange(
+            new Project { Id = 20, Name = "Eligible", CreatedByUserId = HodId, LifecycleStatus = ProjectLifecycleStatus.Completed },
+            new Project { Id = 21, Name = "Archived", CreatedByUserId = HodId, LifecycleStatus = ProjectLifecycleStatus.Completed, IsArchived = true },
+            new Project { Id = 22, Name = "Trashed", CreatedByUserId = HodId, LifecycleStatus = ProjectLifecycleStatus.Completed, IsDeleted = true });
+        foreach (var projectId in new[] { 20, 21, 22 })
+        {
+            db.ProjectTots.Add(new ProjectTot { ProjectId = projectId, Status = ProjectTotStatus.Completed, CompletedOn = Today.AddDays(-5) });
+        }
+        await db.SaveChangesAsync();
+
+        var desk = await NewService(db).GetAsync(User(RoleNames.Comdt), ComdtId, null, CancellationToken.None);
+
+        var tot = Assert.Single(desk.MovedForward, count => count.Label.StartsWith("ToT", StringComparison.Ordinal));
+        Assert.Equal(1, tot.Count);
+        Assert.Contains(desk.Wins, win => win.Text == "ToT completed: Eligible");
+        Assert.DoesNotContain(desk.Wins, win => win.Text.Contains("Archived", StringComparison.Ordinal) || win.Text.Contains("Trashed", StringComparison.Ordinal));
+    }
+
     // SECTION: Helpers
     private static ApplicationDbContext NewDb()
     {

@@ -11,6 +11,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Services.Authorization;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
 
@@ -136,8 +137,10 @@ public sealed class CommandDeskService
             .ToListAsync(ct);
         events.AddRange(closedTasks.Select(on => new CommandDeskProgressEvent(CommandDeskProgressKind.TaskClosed, IstDate(on))));
 
+        // The ToT tracker's own eligibility rule, so trashed, archived or repeat-build projects never count.
         var tots = await _db.ProjectTots
             .AsNoTracking()
+            .Where(ProjectTotApplicabilityPolicy.EligibleTotPredicate)
             .Where(tot => tot.Status == ProjectTotStatus.Completed && tot.CompletedOn >= from && tot.CompletedOn <= today)
             .Select(tot => new { tot.ProjectId, CompletedOn = tot.CompletedOn!.Value, ProjectName = tot.Project != null ? tot.Project.Name : null })
             .ToListAsync(ct);
