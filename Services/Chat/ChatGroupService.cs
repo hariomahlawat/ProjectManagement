@@ -386,6 +386,38 @@ public sealed class ChatGroupService
             return Invalid($"A message can be at most {ChatMessage.MaxBodyLength} characters.");
         }
 
+        // Under the group lock, like membership changes: the membership check, the recipient
+        // list and the save see one consistent membership, so a message is never delivered to
+        // someone removed meanwhile, and a sender removed meanwhile cannot post.
+        if (_db.Database.CurrentTransaction is not null)
+        {
+            return await SendCoreAsync(userId, groupId, request, body, cancellationToken);
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var result = await SendCoreAsync(userId, groupId, request, body, cancellationToken);
+        if (result.Status == ChatSendStatus.Sent)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+        else
+        {
+            await transaction.RollbackAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
+    private async Task<ChatGroupSendResult> SendCoreAsync(
+        string userId,
+        long groupId,
+        ChatGroupSendRequest request,
+        string body,
+        CancellationToken cancellationToken)
+    {
+        static ChatGroupSendResult Invalid(string error) => new(ChatSendStatus.Invalid, null, error, Array.Empty<string>());
+
+        await LockGroupAsync(groupId, cancellationToken);
         var group = await FindGroupForMemberAsync(userId, groupId, track: true, cancellationToken);
         if (group is null)
         {
