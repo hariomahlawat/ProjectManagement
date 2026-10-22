@@ -56,6 +56,14 @@ This document lists every supported configuration value, its default, and how th
 | `Notifications:Retention:MaxAge` | `30.00:00:00` (30 days) | Maximum age before a notification becomes eligible for deletion. |
 | `Notifications:Retention:MaxPerUser` | `200` | Hard cap on stored notifications per user; the retention worker trims the oldest extras. |
 
+## Chat
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `Chat:Enabled` | `true` | Shows the chat button and dock and serves `/api/chat` and `/hubs/chat`. `false` hides and refuses them without touching stored messages. Read live. See [chat.md](chat.md). |
+| `Chat:SendPermitLimit` | `20` | Messages one user may send per `Chat:SendWindowSeconds` (HTTP 429 beyond that). |
+| `Chat:SendWindowSeconds` | `10` | Length of the chat send window in seconds. |
+
 ## Uploads (photos & documents)
 
 | Key | Default | Purpose |

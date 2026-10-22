@@ -117,3 +117,4 @@
 20261217000001_AddProposalOwnedPlanningInputs
 20261217000002_VersionPlanningInputAuthority
 20261217053003_AddActualCorrectionProposals
+20261217110004_AddChat

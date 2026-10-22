@@ -33,6 +33,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Dark theme palette](ux/dark-theme-palette.md) | Neutral-graphite dark theme: palette, principles, the opt-in Light/Dark/System switch, what is covered and how to convert a page. |
 | [Theme coverage](ux/theme-coverage.md) | Generated per-stylesheet count of literal colours and dark-theme gaps, grouped into conversion waves; enforced by `npm test`. |
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
+| [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
 | [Project Officer briefing desk](ux/project-officer-briefing-desk.md) | PO landing page: brief-ready rules, inline posts and the services they reuse. |
 | [Command desk](ux/command-desk.md) | HoD/Comdt desk: what moved forward, what waits on the viewer, what is lagging and which registers have gone quiet. |

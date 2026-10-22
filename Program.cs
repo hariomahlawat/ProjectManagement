@@ -40,6 +40,8 @@ using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Features.Notifications;
+using ProjectManagement.Features.Chat;
+using ProjectManagement.Services.Chat;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
@@ -416,9 +418,19 @@ builder.Services.AddRateLimiter(options =>
                 .LogWarning("Document uploads throttled for {Uploader}.", DocumentUploadRateLimiting.UploaderLabel(context.HttpContext));
             context.HttpContext.Response.Redirect(DocumentUploadRateLimiting.BuildThrottledRedirect(context.HttpContext));
         }
+        else if (ChatApi.IsSendRequest(context.HttpContext))
+        {
+            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        }
 
         return ValueTask.CompletedTask;
     };
+
+    // Chat sends are throttled per signed-in user so one stuck client cannot flood a colleague.
+    options.AddPolicy(ChatApi.SendRateLimitPolicy, context =>
+        ChatApi.GetSendPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>().CurrentValue));
 
     // Document uploads are throttled per signed-in user; opening the upload page is not.
     options.AddPolicy(DocumentUploadRateLimiting.PolicyName, context =>
@@ -810,6 +822,10 @@ builder.Services.AddOptions<AuditRetentionOptions>()
     .ValidateOnStart();
 builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddScoped<UserNotificationService>();
+builder.Services.AddOptions<ChatOptions>()
+    .Bind(builder.Configuration.GetSection(ChatOptions.SectionName));
+builder.Services.AddSingleton<ChatPresenceTracker>();
+builder.Services.AddScoped<ChatService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
 builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();
@@ -1386,6 +1402,9 @@ app.UseAntiforgery();
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
 
+app.MapHub<ChatHub>("/hubs/chat")
+    .RequireAuthorization();
+
 app.MapControllers();
 
 app.MapPost("/api/usage/heartbeat", async (
@@ -1779,6 +1798,7 @@ eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<Applicati
 }).RequireAuthorization();
 
 app.MapNotificationApi();
+app.MapChatApi();
 
 var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
 

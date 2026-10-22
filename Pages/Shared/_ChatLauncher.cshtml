@@ -1,0 +1,14 @@
+@* Top-bar chat button. chat.js wires it to the buddy list in the body-level dock (#pmChat). *@
+<button type="button"
+        class="btn btn-link nav-link position-relative p-0 pm-chat-launcher"
+        data-chat-launcher
+        aria-controls="pmChat"
+        aria-expanded="false"
+        aria-label="Open chat"
+        title="Chat">
+    <i class="bi bi-chat-dots fs-5" aria-hidden="true"></i>
+    <span class="badge rounded-pill pm-chat-launcher__badge" data-chat-unread hidden>
+        <span class="visually-hidden">Unread chat messages:</span>
+        <span data-chat-unread-count>0</span>
+    </span>
+</button>
