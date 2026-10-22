@@ -342,10 +342,11 @@
     const contact = this.contacts.get(peerId);
     if (contact) {
       contact.lastMessageUtc = message.sentUtc;
-    } else {
-      // Someone this tab has not seen yet (new or reactivated account): fetch their details so
-      // the window can show their name and let the user reply. The refresh also brings the
-      // server's unread count, so nothing is counted here.
+    }
+    if (!contact || (incoming && !contact.isActive)) {
+      // Someone this tab has not seen yet, or still holds as inactive, is writing: the account
+      // was created or reactivated since. Fetch their details so the window shows their name
+      // and lets the user reply. The refresh replaces unread counts with the server's.
       this.refreshContacts();
     }
 
@@ -391,9 +392,10 @@
 
   ChatApp.prototype.onPresence = function (presence) {
     const contact = this.contacts.get(presence.userId);
-    if (!contact) {
+    if (!contact || (presence.isOnline && !contact.isActive)) {
+      // New or reactivated account coming online: its details here are missing or stale.
       if (presence.isOnline && presence.userId !== this.me) this.refreshContacts();
-      return;
+      if (!contact) return;
     }
     contact.isOnline = presence.isOnline;
     this.renderContacts();

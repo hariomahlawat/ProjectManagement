@@ -214,3 +214,37 @@ test('a message from someone not yet in the contact list refreshes it so they ca
     window.close();
   }
 });
+
+test('a reactivated contact coming online or writing is refreshed so the reply box returns', async () => {
+  let active = false;
+  let contactCalls = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      contactCalls += 1;
+      return [{ ...contact, isActive: active, isOnline: false }];
+    }
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    assert.equal(win.form.hidden, true);
+
+    active = true;
+    window.PMChat.onPresence({ userId: 'peer', isOnline: true });
+    await tick(); await tick(); await tick();
+    assert.equal(contactCalls, 2);
+    assert.equal(win.form.hidden, false);
+
+    // The same holds when the first sign is a message rather than a presence change.
+    window.PMChat.contacts.get('peer').isActive = false;
+    window.PMChat.onMessage({ id: 3, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-3', body: 'back', sentUtc: new Date().toISOString() });
+    await tick(); await tick(); await tick();
+    assert.equal(contactCalls, 3);
+    assert.equal(win.form.hidden, false);
+  } finally {
+    window.close();
+  }
+});
