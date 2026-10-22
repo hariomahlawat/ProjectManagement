@@ -10,6 +10,7 @@
  *   POST {api}/with/{peer}/read                 { upToMessageId }
  *   GET/POST {api}/status                       { message } (own status message)
  *   POST {api}/messages/{id}/unsend             own message, shortly after sending
+ *   GET  {api}/unsent?since=                    ids unsent while this page was not listening
  *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
  *             MessageUnsent / StatusChanged
  *   hub  out: Typing(peerUserId), SetAway(bool)  (ephemeral signals only; nothing is stored)
@@ -303,6 +304,7 @@
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
+    this.offlineSince = null; // when live events stopped arriving, to catch up on missed unsends
     this.myStatus = null;
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
@@ -486,10 +488,14 @@
     connection.on('Typing', (typing) => this.onTyping(typing));
     connection.on('MessageUnsent', (message) => this.onUnsent(message));
     connection.on('StatusChanged', (status) => this.onStatus(status));
-    connection.onreconnecting(() => this.startPolling());
+    connection.onreconnecting(() => {
+      this.markOffline();
+      this.startPolling();
+    });
     connection.onreconnected(() => this.resync());
     connection.onclose(() => {
       if (this.stopped) return;
+      this.markOffline();
       this.startPolling();
       global.setTimeout(() => this.startConnection(), 30000);
     });
@@ -522,13 +528,37 @@
     } catch (_) { /* ignore */ }
   };
 
+  ChatApp.prototype.markOffline = function () {
+    if (!this.offlineSince) this.offlineSince = new Date();
+  };
+
   /** While the live connection is down, keep badges and open windows roughly current. */
   ChatApp.prototype.startPolling = function () {
     if (this.pollTimer || this.stopped) return;
+    this.markOffline();
     this.pollTimer = global.setInterval(() => {
       this.refreshContacts();
       this.windows.forEach((w) => this.loadLatest(w));
+      this.syncUnsent();
     }, POLL_MS);
+  };
+
+  /**
+   * Unsends that happened while no live event could arrive: history catch-up only fetches newer
+   * messages, so an already-loaded message that was unsent meanwhile would keep its text.
+   */
+  ChatApp.prototype.syncUnsent = async function (done) {
+    if (!this.offlineSince) return;
+    const since = new Date(this.offlineSince.getTime() - 60000); // allow for clock skew
+    try {
+      const ids = await this.request('GET', `/unsent?since=${encodeURIComponent(since.toISOString())}`);
+      ids.forEach((id) => this.unsentIds.add(id));
+      if (ids.length) {
+        this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
+        if (this.page) this.page.refreshResults();
+      }
+      if (done) this.offlineSince = null; // live again: events cover the rest
+    } catch (_) { /* tried again on the next poll or reconnect */ }
   };
 
   ChatApp.prototype.resync = function () {
@@ -538,6 +568,7 @@
     }
     // A new connection starts as active on the server; repeat this tab's idle state.
     if (this.away) this.signal('SetAway', true);
+    this.syncUnsent(true);
     this.refreshContacts();
     this.windows.forEach((w) => this.loadLatest(w));
   };
@@ -695,6 +726,7 @@
     this.unsentIds.add(message.id); // also for a window opened later, or one still loading
     const win = this.windows.get(peerId);
     if (win) this.applyUnsent(win, message);
+    if (this.page) this.page.refreshResults();
     // An unread message that was unsent no longer counts; the server has the exact number.
     if (message.senderUserId !== this.me) this.refreshContacts();
   };
@@ -1737,6 +1769,7 @@
     const term = this.searchInput.value.trim();
     const seq = ++this.searchSeq;
     if (term.length < 2) {
+      this.lastHits = null;
       this.results.hidden = true;
       this.results.replaceChildren();
       this.list.hidden = false;
@@ -1751,14 +1784,25 @@
     try {
       const hits = await this.app.request('GET', `/search?q=${encodeURIComponent(term)}`);
       if (seq !== this.searchSeq) return; // a newer search has started
+      this.lastHits = hits;
+      this.lastTerm = term;
       this.renderResults(hits, term);
     } catch (_) {
       if (seq === this.searchSeq) this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'Search failed. Try again.'));
     }
   };
 
-  MessagesPage.prototype.renderResults = function (hits, term) {
+  /** Re-renders the visible results, e.g. after an unsend removed one of them. */
+  MessagesPage.prototype.refreshResults = function () {
+    if (this.results.hidden || !this.lastHits) return;
+    this.renderResults(this.lastHits, this.lastTerm);
+  };
+
+  MessagesPage.prototype.renderResults = function (allHits, term) {
     const now = new Date();
+    // An unsent message's text is gone; it must not linger here either (including in a
+    // response that was already on its way when the unsend arrived).
+    const hits = allHits.filter((hit) => !this.app.unsentIds.has(hit.messageId));
     if (!hits.length) {
       this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'No messages match.'));
       return;

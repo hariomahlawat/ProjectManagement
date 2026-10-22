@@ -84,6 +84,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   everyone) and `MessageUnsent` (to both people). A check constraint keeps an unsent message's
   text empty in the database. Unsending someone else's message, or an unknown id, answers 400
   (not 404, which browsers read as "chat switched off").
+  A page that lost its live connection asks `GET /api/chat/unsent?since=` (its own
+  conversations only) after reconnecting and while polling, so messages unsent meanwhile are
+  blanked too, including older ones already on screen and search results.
 - **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
   can only ever match the caller's conversations. The term is matched as plain text (`%` and
   `_` are not wildcards). It is a substring scan without a full-text index, which is fine at

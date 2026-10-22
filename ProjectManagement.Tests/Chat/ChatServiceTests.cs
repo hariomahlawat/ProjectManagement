@@ -404,6 +404,23 @@ public sealed class ChatServiceTests
         Assert.Equal(0, await scope.Db.ChatUserStatuses.CountAsync());
     }
 
+    [Fact]
+    public async Task UnsentSince_ListsOnlyTheCallersConversationsAfterTheGivenTime()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var early = await scope.Service.SendAsync("alice", Request("bob", "early"));
+        await scope.Service.UnsendAsync("alice", early.Message!.Id);
+        var cutoff = scope.Clock.UtcNow;
+        var late = await scope.Service.SendAsync("alice", Request("bob", "late"));
+        await scope.Service.UnsendAsync("alice", late.Message!.Id);
+        var elsewhere = await scope.Service.SendAsync("carol", Request("dave-before", "not bob's"));
+        await scope.Service.UnsendAsync("carol", elsewhere.Message!.Id);
+
+        var bob = await scope.Service.ListUnsentSinceAsync("bob", cutoff);
+
+        Assert.Equal(new[] { late.Message.Id }, bob);
+    }
+
     private static ChatSendRequest Request(string recipient, string body)
         => new(recipient, Guid.NewGuid(), body);
 

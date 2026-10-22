@@ -50,6 +50,8 @@ public sealed class ChatService
 
     public const int MaxSearchResults = 50;
 
+    public const int MaxUnsentSync = 500;
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ChatPresenceTracker _presence;
@@ -453,6 +455,28 @@ public sealed class ChatService
         return new ChatUnsendResult(
             ChatUnsendStatus.Unsent,
             new ChatMessageDto(message.Id, userId, recipientUserId, message.ClientMessageId, string.Empty, message.SentUtc, IsUnsent: true));
+    }
+
+    /// <summary>
+    /// Ids of messages in the caller's own conversations unsent at or after <paramref name="since"/>,
+    /// so a page that missed live unsend events (connection down) can blank them. Bounded: unsend is
+    /// only possible shortly after sending, and the caller passes when it lost its connection.
+    /// </summary>
+    public async Task<IReadOnlyList<long>> ListUnsentSinceAsync(
+        string userId,
+        DateTimeOffset since,
+        CancellationToken cancellationToken = default)
+    {
+        return await (
+                from mine in _db.ChatParticipants.AsNoTracking()
+                where mine.UserId == userId
+                join m in _db.ChatMessages.AsNoTracking()
+                    on mine.ConversationId equals m.ConversationId
+                where m.UnsentUtc != null && m.UnsentUtc >= since
+                orderby m.Id descending
+                select m.Id)
+            .Take(MaxUnsentSync)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<string?> GetStatusAsync(string userId, CancellationToken cancellationToken = default)

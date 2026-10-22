@@ -937,3 +937,60 @@ test('an unsend that arrives while history is loading is not undone by the respo
     window.close();
   }
 });
+
+test('unsends missed while offline are applied on reconnect, also to older loaded messages', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      asked.push(url);
+      return [1];
+    }
+    if (url.includes('/messages')) return pageOf([1, 2], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    app.resync();
+    await tick(); await tick(); await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+    assert.equal(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('an unsent message leaves the search results, also from a late response', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/search')) {
+      return [
+        { messageId: 15, peerUserId: 'peer', peerDisplayName: 'Peer Person', senderUserId: 'peer', body: 'secret minutes', sentUtc: '2026-10-01T09:00:00Z' },
+        { messageId: 16, peerUserId: 'peer', peerDisplayName: 'Peer Person', senderUserId: 'peer', body: 'other minutes', sentUtc: '2026-10-01T09:00:00Z' },
+      ];
+    }
+    return pageOf([], false);
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const page = app.page;
+    page.searchInput.value = 'minutes';
+    await page.runSearch();
+    assert.equal(page.results.querySelectorAll('.pm-chat-page__hit').length, 2);
+
+    app.onUnsent({ id: 15, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-15', body: '', sentUtc: new Date().toISOString(), isUnsent: true });
+    assert.equal(page.results.textContent.includes('secret minutes'), false);
+    assert.equal(page.results.querySelectorAll('.pm-chat-page__hit').length, 1);
+
+    await page.runSearch(); // the server copy still lists it (in flight before the unsend)
+    assert.equal(page.results.textContent.includes('secret minutes'), false);
+  } finally {
+    window.close();
+  }
+});

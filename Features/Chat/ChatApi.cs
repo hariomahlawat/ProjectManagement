@@ -45,6 +45,7 @@ public static class ChatApi
         group.MapGet("/status", GetStatusAsync);
         group.MapPost("/status", SetStatusAsync);
         group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync);
+        group.MapGet("/unsent", GetUnsentSinceAsync);
         group.MapPost("/messages", SendAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/with/{peerUserId}/read", MarkReadAsync);
 
@@ -144,6 +145,26 @@ public static class ChatApi
         // Everyone's buddy list shows it, including this user's other tabs.
         await hub.Clients.All.StatusChanged(status);
         return Results.Ok(status);
+    }
+
+    private static async Task<IResult> GetUnsentSinceAsync(
+        [FromQuery(Name = "since")] DateTimeOffset? since,
+        HttpContext httpContext,
+        ChatService chat,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (since is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: "since is required.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await chat.ListUnsentSinceAsync(userId, since.Value, cancellationToken));
     }
 
     private static async Task<IResult> UnsendAsync(
