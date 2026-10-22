@@ -204,6 +204,45 @@ public sealed class ChatServiceTests
             (await scope.Service.SendAsync("alice", Request("dave-before", "Still there?"))).Status);
     }
 
+    [Fact]
+    public async Task Contacts_KeepAConversationWhosePeerAccountWasPurged()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        await scope.Service.SendAsync("carol", Request("alice", "Handing over before I leave"));
+        scope.Db.Users.Remove(await scope.Db.Users.SingleAsync(u => u.Id == "carol"));
+        await scope.Db.SaveChangesAsync();
+
+        var former = (await scope.Service.ListContactsAsync("alice")).Single(c => c.UserId == "carol");
+        var history = await scope.Service.GetHistoryAsync("alice", "carol", null, 40);
+
+        Assert.Equal(ChatService.FormerUserName, former.DisplayName);
+        Assert.False(former.IsActive);
+        Assert.Equal(1, former.UnreadCount);
+        Assert.Single(history.Messages);
+        Assert.Equal(ChatSendStatus.RecipientUnavailable,
+            (await scope.Service.SendAsync("alice", Request("carol", "Still there?"))).Status);
+    }
+
+    [Fact]
+    public async Task MarkRead_FromAStaleContext_CannotMoveTheMarkerBack()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var first = await scope.Service.SendAsync("alice", Request("bob", "one"));
+        var second = await scope.Service.SendAsync("alice", Request("bob", "two"));
+
+        // A second request that started earlier and carries the lower marker finishes last.
+        await using var otherDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(scope.Connection).Options);
+        var other = new ChatService(otherDb, new StepClock(), scope.Presence);
+        await otherDb.ChatParticipants.LoadAsync();
+
+        await scope.Service.MarkReadAsync("bob", "alice", second.Message!.Id);
+        var result = await other.MarkReadAsync("bob", "alice", first.Message!.Id);
+
+        Assert.Equal(second.Message.Id, result);
+        Assert.Equal(0, (await scope.Service.ListContactsAsync("bob")).Single(c => c.UserId == "alice").UnreadCount);
+    }
+
     private static ChatSendRequest Request(string recipient, string body)
         => new(recipient, Guid.NewGuid(), body);
 
@@ -220,6 +259,8 @@ public sealed class ChatServiceTests
         }
 
         public ApplicationDbContext Db { get; }
+
+        public SqliteConnection Connection => _connection;
 
         public ChatPresenceTracker Presence { get; }
 

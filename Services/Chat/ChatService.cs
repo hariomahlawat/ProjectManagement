@@ -32,6 +32,8 @@ public sealed class ChatService
 {
     public const int MaxHistoryPage = 100;
 
+    public const string FormerUserName = "Former user";
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ChatPresenceTracker _presence;
@@ -79,6 +81,21 @@ public sealed class ChatService
 
         var online = _presence.OnlineUserIds();
 
+        // A peer whose account row has been purged keeps their conversation (no user foreign
+        // keys), so they stay listed as an inactive placeholder and the history stays reachable.
+        var found = users.Select(u => u.Id).ToHashSet(StringComparer.Ordinal);
+        var purged = byPeer.Values
+            .Where(c => !found.Contains(c.PeerUserId))
+            .Select(c => new ChatContactDto(
+                c.PeerUserId,
+                FormerUserName,
+                null,
+                "?",
+                IsActive: false,
+                IsOnline: false,
+                UnreadCount: c.Unread,
+                LastMessageUtc: c.LastMessageUtc));
+
         return users
             .Select(u =>
             {
@@ -94,6 +111,7 @@ public sealed class ChatService
                     UnreadCount: conversation?.Unread ?? 0,
                     LastMessageUtc: conversation?.LastMessageUtc);
             })
+            .Concat(purged)
             .OrderBy(c => c.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(c => c.UserId, StringComparer.Ordinal)
             .ToList();
@@ -257,27 +275,32 @@ public sealed class ChatService
         CancellationToken cancellationToken = default)
     {
         var key = ChatConversation.BuildDirectKey(userId, peerUserId);
-        var participant = await _db.ChatParticipants
+        var conversationId = await _db.ChatParticipants
+            .AsNoTracking()
             .Where(p => p.UserId == userId && p.Conversation!.DirectKey == key)
+            .Select(p => (long?)p.ConversationId)
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (participant is null)
+        if (conversationId is null)
         {
             return null;
         }
 
         var newest = await _db.ChatMessages
-            .Where(m => m.ConversationId == participant.ConversationId && m.Id <= upToMessageId)
+            .Where(m => m.ConversationId == conversationId && m.Id <= upToMessageId)
             .MaxAsync(m => (long?)m.Id, cancellationToken);
 
-        if (newest is null || newest <= (participant.LastReadMessageId ?? 0))
+        var mine = _db.ChatParticipants.Where(p => p.ConversationId == conversationId && p.UserId == userId);
+        if (newest is { } target)
         {
-            return participant.LastReadMessageId;
+            // One conditional UPDATE, so overlapping requests from several tabs can only ever
+            // move the marker forward: the later, lower marker matches no row.
+            await mine
+                .Where(p => p.LastReadMessageId == null || p.LastReadMessageId < target)
+                .ExecuteUpdateAsync(set => set.SetProperty(p => p.LastReadMessageId, target), cancellationToken);
         }
 
-        participant.LastReadMessageId = newest;
-        await _db.SaveChangesAsync(cancellationToken);
-        return newest;
+        return await mine.Select(p => p.LastReadMessageId).SingleAsync(cancellationToken);
     }
 
     internal static string NormalizeBody(string? body)
