@@ -4147,3 +4147,177 @@ button.project-intelligence-card--tot:focus-visible {
         --project-command-accent: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #16181b);
     }
 }
+
+/* ============================================================
+   Overview polish: calmer header, phase-aware strip, waiting bar.
+   Theme tokens only, so Light and Dark follow the site palette.
+   ============================================================ */
+
+/* The header drops its coloured left edge and corner glow; status lives in the strip
+   and the completion lockup, not in the frame. */
+.project-portfolio .project-command-header,
+.project-portfolio .project-command-header--completed,
+.project-portfolio .project-command-header--cancelled {
+    border: 1px solid var(--portfolio-border);
+    background: var(--pm-card);
+}
+
+.project-command-header__title {
+    font-size: clamp(1.35rem, 1.7vw, 1.75rem);
+}
+
+a.project-intelligence-card {
+    display: block;
+    text-decoration: none;
+}
+
+a.project-intelligence-card:hover,
+a.project-intelligence-card:focus-visible {
+    border-color: var(--pm-primary);
+    background: var(--portfolio-soft);
+}
+
+.project-intelligence-card__pill {
+    display: inline-block;
+    max-width: 100%;
+    margin: .2rem 0 .2rem;
+    padding: .1rem .5rem;
+    overflow: hidden;
+    border: 1px solid var(--pm-border);
+    border-radius: .55rem;
+    font-size: .74rem;
+    font-weight: 650;
+    line-height: 1.35;
+    white-space: normal;
+    color: var(--pm-text-secondary);
+    background: var(--pm-surface-subtle);
+}
+
+.project-intelligence-card__pill--danger {
+    color: var(--pm-danger-soft-text);
+    background: var(--pm-danger-soft-bg);
+    border-color: var(--pm-danger-soft-border);
+}
+
+.project-intelligence-card__pill--warn {
+    color: var(--pm-status-warning-text);
+    background: var(--pm-status-warning-bg);
+    border-color: var(--pm-warning-soft-border);
+}
+
+.project-intelligence-card__basis {
+    margin-left: .3rem;
+    color: var(--portfolio-muted);
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.project-intelligence-card strong.project-intelligence-card__preview {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: .88rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.project-intelligence-card .project-intelligence-card__stale {
+    color: var(--pm-status-warning-text);
+    font-weight: 650;
+}
+
+/* Tracked tiles the strip leaves out at this phase, inside the Project overview card. */
+.project-overview-tracked {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: .65rem;
+    margin: .35rem 0 1rem;
+}
+
+/* "Waiting on you": document requests for approvers, as a slim bar under the header. */
+.project-waiting {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    margin-bottom: .75rem;
+    padding: .75rem 1rem;
+    border: 1px solid var(--pm-warning-soft-border);
+    border-radius: .85rem;
+    background: var(--pm-status-warning-bg);
+}
+
+.project-waiting__title {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin: 0;
+    color: var(--pm-status-warning-text);
+    font-size: .78rem;
+    font-weight: 750;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.project-waiting__list {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.project-waiting__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+}
+
+.project-waiting__copy {
+    display: flex;
+    flex: 1 1 24rem;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.project-waiting__copy strong {
+    color: var(--pm-text-strong);
+}
+
+.project-waiting__copy span {
+    color: var(--pm-text-secondary);
+    font-size: .84rem;
+}
+
+.project-waiting__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.project-waiting .btn-outline-secondary {
+    background: var(--pm-card);
+}
+
+.project-waiting__approve,
+.project-waiting__approve:hover,
+.project-waiting__approve:focus-visible {
+    border: 1px solid var(--pm-success-soft-border);
+    color: var(--pm-success-soft-text);
+    background: var(--pm-success-soft-bg);
+}
+
+.project-waiting__approve:hover {
+    border-color: var(--pm-success);
+}
+
+.project-waiting__all {
+    align-self: flex-start;
+    color: var(--pm-primary-strong);
+    font-size: .84rem;
+    font-weight: 600;
+}

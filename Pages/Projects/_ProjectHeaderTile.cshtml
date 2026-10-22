@@ -1,0 +1,142 @@
+@using ProjectManagement.Services.Projects
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    // One tile of the header strip. The same tile can instead render inside the Project
+    // overview card (see ProjectHeaderStripVm.InOverviewCard); it is only ever rendered once,
+    // so the ids that overview.js and overview-multi-jdp.js look up stay unique.
+    var tile = (ProjectHeaderTile)ViewData["HeaderTile"]!;
+    var strip = Model.HeaderStrip;
+    var project = Model.Project;
+    var jdpProfile = Model.MultiJdpProfile;
+    var jdpSummary = jdpProfile.HasJdp
+        ? jdpProfile.CardSummary
+        : Model.CanManageJdp ? "Link an industry partner" : "No JDP recorded";
+    var healthPercent = Math.Clamp(Model.RecordHealth.HealthPercent, 0, 100);
+    // Tone follows the service's own health label; the thresholds are not repeated here.
+    var healthTone = Model.RecordHealth.HealthLabel switch
+    {
+        "Good" => "good",
+        "Attention" => "fair",
+        _ => "poor"
+    };
+    var stageTarget = Model.Portfolio.CurrentStage is { } current ? $"#timeline-stage-{current.Code}" : "#timeline";
+}
+@switch (tile)
+{
+    case ProjectHeaderTile.Stage:
+        <button class="project-intelligence-card project-intelligence-card--stage" type="button" data-scroll-target="@stageTarget">
+            <span class="project-intelligence-card__label"><i class="bi bi-signpost-split project-intelligence-card__glyph" aria-hidden="true"></i>Stage &amp; schedule</span>
+            <strong>@strip.Stage.Title</strong>
+            @if (!string.IsNullOrWhiteSpace(strip.Stage.Schedule))
+            {
+                <span class="project-intelligence-card__pill project-intelligence-card__pill--@(string.IsNullOrEmpty(strip.Stage.ScheduleTone) ? "neutral" : strip.Stage.ScheduleTone)">@strip.Stage.Schedule</span>
+            }
+            <span>@strip.Stage.Detail</span>
+        </button>
+        break;
+
+    case ProjectHeaderTile.Cost:
+        <a class="project-intelligence-card project-intelligence-card--cost" href="#project-procurement-at-a-glance">
+            <span class="project-intelligence-card__label"><i class="bi bi-currency-rupee project-intelligence-card__glyph" aria-hidden="true"></i>Latest cost</span>
+            <strong>
+                @strip.Cost.Value
+                @if (!string.IsNullOrWhiteSpace(strip.Cost.Basis))
+                {
+                    <small class="project-intelligence-card__basis">@strip.Cost.Basis</small>
+                }
+            </strong>
+            <span>@strip.Cost.Detail</span>
+        </a>
+        break;
+
+    case ProjectHeaderTile.LastUpdate:
+        <div class="project-intelligence-card project-intelligence-card--update" role="group" aria-label="Last update">
+            <span class="project-intelligence-card__label"><i class="bi bi-chat-left-text project-intelligence-card__glyph" aria-hidden="true"></i>Last update</span>
+            <strong class="project-intelligence-card__preview" title="@strip.LastUpdate.Preview">@strip.LastUpdate.Preview</strong>
+            <span class="@(strip.LastUpdate.IsStale ? "project-intelligence-card__stale" : null)">@strip.LastUpdate.Meta</span>
+        </div>
+        break;
+
+    case ProjectHeaderTile.Tot:
+        @await Component.InvokeAsync("ProjectTotCommandCard", new
+        {
+            projectId = project!.Id,
+            canManage = Model.CanManageTot
+        })
+        break;
+
+    case ProjectHeaderTile.Cancellation:
+        <div class="project-intelligence-card project-intelligence-card--cancellation"
+             role="group"
+             aria-label="Project cancellation reason">
+            <span class="project-intelligence-card__label"><i class="bi bi-x-octagon project-intelligence-card__glyph" aria-hidden="true"></i>Cancellation reason</span>
+            <strong title="@(Model.LifecycleSummary.CancellationReason ?? "Not recorded")">
+                @(Model.LifecycleSummary.CancellationReason ?? "Not recorded")
+            </strong>
+            <span>Project lifecycle concluded</span>
+        </div>
+        break;
+
+    case ProjectHeaderTile.Status:
+        <div class="project-intelligence-card" role="group" aria-label="Project lifecycle status">
+            <span class="project-intelligence-card__label"><i class="bi bi-flag project-intelligence-card__glyph" aria-hidden="true"></i>Project status</span>
+            <strong>@Model.LifecycleSummary.StatusLabel</strong>
+            <span>@(Model.LifecycleSummary.PrimaryDetail ?? Model.LifecycleSummary.SecondaryDetail ?? "Lifecycle concluded")</span>
+        </div>
+        break;
+
+    case ProjectHeaderTile.Jdp:
+        <button id="project-jdp-card"
+                class="project-intelligence-card project-intelligence-card--jdp"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasJdp"
+                aria-controls="offcanvasJdp"
+                aria-label="@(Model.CanManageJdp ? "View or manage project JDPs" : "View project JDPs")">
+            <span class="project-intelligence-card__label">
+                <i class="bi bi-buildings project-intelligence-card__glyph" aria-hidden="true"></i>JDP
+                @if (Model.CanManageJdp)
+                {
+                    <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
+                }
+            </span>
+            <strong data-jdp-card-title title="@jdpProfile.CardTitle">@jdpProfile.CardTitle</strong>
+            <span data-jdp-card-summary title="@jdpSummary">@jdpSummary</span>
+        </button>
+        break;
+
+    case ProjectHeaderTile.Proliferation:
+        <button id="project-proliferation-card"
+                class="project-intelligence-card project-intelligence-card--proliferation"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasProliferation"
+                aria-controls="offcanvasProliferation"
+                aria-label="@(Model.CanManageProliferation ? "Edit proliferation details" : "View proliferation details")">
+            <span class="project-intelligence-card__label">
+                <i class="bi bi-boxes project-intelligence-card__glyph" aria-hidden="true"></i>Proliferation
+                @if (Model.CanManageProliferation)
+                {
+                    <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
+                }
+            </span>
+            <strong data-proliferation-cost>@Model.ProliferationProfile.CostDisplay</strong>
+            <span class="project-intelligence-card__status project-intelligence-card__status--@Model.ProliferationProfile.AvailabilityTone"
+                  data-proliferation-status-wrap>
+                <span class="project-intelligence-card__status-dot" aria-hidden="true"></span>
+                <span data-proliferation-status>@Model.ProliferationProfile.AvailabilityDisplay</span>
+            </span>
+        </button>
+        break;
+
+    case ProjectHeaderTile.RecordHealth:
+        <button class="project-intelligence-card project-intelligence-card--health" type="button" data-bs-toggle="modal" data-bs-target="#recordCompletenessModal" aria-controls="recordCompletenessModal">
+            <span class="project-intelligence-card__label"><i class="bi bi-clipboard2-check project-intelligence-card__glyph" aria-hidden="true"></i>Overall record health</span>
+            <strong>@Model.RecordHealth.HealthPercent%</strong>
+            <span class="project-health-meter project-health-meter--@healthTone" aria-hidden="true"><span style="width: @(healthPercent)%"></span></span>
+            <span>@(Model.RecordHealth.GapDetails.Count == 0
+                ? "Project record complete"
+                : $"{Model.RecordHealth.GapDetails.Count} record gap{(Model.RecordHealth.GapDetails.Count == 1 ? string.Empty : "s")}")</span>
+        </button>
+        break;
+}

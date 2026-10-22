@@ -21,69 +21,7 @@
     };
     private static string StageStatusLabel(StageStatus status) => StageStatusLabel(status.ToString());
 }
-            @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
-            {
-                <div class="card pm-card">
-                    <div class="card-header pm-card-header">
-                        <div class="pm-card-heading">
-                            <span class="pm-card-icon" aria-hidden="true">
-                                <i class="bi bi-inbox"></i>
-                            </span>
-                            <div>
-                                <h3 class="pm-card-title h6 mb-0">Document requests</h3>
-                                <p class="pm-card-subtitle mb-0">Newest submissions awaiting your decision.</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body pm-card-body d-flex flex-column gap-3">
-                        @foreach (var request in Model.DocumentPendingRequests)
-                        {
-                            <div class="border rounded p-3">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div>
-                                        <div class="fw-semibold">@request.Title</div>
-                                        <div class="text-muted small">@request.StageDisplayName · @request.RequestTypeLabel</div>
-                                        <div class="text-muted small">@request.RequestedSummary</div>
-                                        <div class="text-muted small">@request.FileName (@request.FileSizeDisplay)</div>
-                                    </div>
-                                    <span class="badge text-bg-warning">Pending</span>
-                                </div>
-                                <div class="d-flex flex-wrap gap-2 mt-3">
-                                    <form method="post"
-                                          class="d-inline"
-                                          asp-page="/Projects/Documents/Approvals/Review"
-                                          asp-page-handler="Approve"
-                                          asp-route-id="@Model.Project!.Id"
-                                          asp-route-requestId="@request.RequestId">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
-                                        <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
-                                        <button type="submit" class="btn btn-sm btn-success">Approve</button>
-                                    </form>
-                                    <form method="post"
-                                          class="d-inline"
-                                          asp-page="/Projects/Documents/Approvals/Review"
-                                          asp-page-handler="Reject"
-                                          asp-route-id="@Model.Project!.Id"
-                                          asp-route-requestId="@request.RequestId">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
-                                        <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
-                                    </form>
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       asp-page="/Projects/Documents/Approvals/Review"
-                                       asp-route-id="@Model.Project!.Id"
-                                       asp-route-requestId="@request.RequestId">Review</a>
-                                </div>
-                            </div>
-                        }
-                        <a class="btn btn-sm btn-outline-secondary align-self-start"
-                           asp-page="/Projects/Documents/Approvals/Index"
-                           asp-route-id="@Model.Project!.Id">View all requests</a>
-                    </div>
-                </div>
-            }
+            @* Document requests render as the "Waiting on you" bar under the header (_ProjectWaitingOnYou). *@
             @if (Model.MetaChangeRequest is { } metaRequest)
             {
             if (isHoD || isAdmin)

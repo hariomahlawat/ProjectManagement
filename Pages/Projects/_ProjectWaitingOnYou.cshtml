@@ -1,0 +1,57 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    // Document requests awaiting this approver, as a slim bar under the header. The forms
+    // post to the same Review handlers the former Document requests card used.
+    var requests = Model.DocumentPendingRequests;
+}
+@if (Model.IsDocumentApprover && requests.Any())
+{
+    <section class="project-waiting" aria-labelledby="project-waiting-title">
+        <h2 id="project-waiting-title" class="project-waiting__title">
+            <i class="bi bi-inbox" aria-hidden="true"></i>
+            @requests.Count() waiting on you
+        </h2>
+        <ul class="project-waiting__list">
+            @foreach (var request in requests)
+            {
+                <li class="project-waiting__item">
+                    <div class="project-waiting__copy">
+                        <strong>@request.Title</strong>
+                        <span>@request.StageDisplayName · @request.RequestTypeLabel · @request.RequestedSummary · @request.FileName (@request.FileSizeDisplay)</span>
+                    </div>
+                    <div class="project-waiting__actions">
+                        <a class="btn btn-sm btn-outline-secondary"
+                           asp-page="/Projects/Documents/Approvals/Review"
+                           asp-route-id="@Model.Project!.Id"
+                           asp-route-requestId="@request.RequestId">Review</a>
+                        <form method="post"
+                              class="d-inline"
+                              asp-page="/Projects/Documents/Approvals/Review"
+                              asp-page-handler="Approve"
+                              asp-route-id="@Model.Project!.Id"
+                              asp-route-requestId="@request.RequestId">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
+                            <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
+                            <button type="submit" class="btn btn-sm project-waiting__approve">Approve</button>
+                        </form>
+                        <form method="post"
+                              class="d-inline"
+                              asp-page="/Projects/Documents/Approvals/Review"
+                              asp-page-handler="Reject"
+                              asp-route-id="@Model.Project!.Id"
+                              asp-route-requestId="@request.RequestId">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
+                            <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                        </form>
+                    </div>
+                </li>
+            }
+        </ul>
+        <a class="project-waiting__all"
+           asp-page="/Projects/Documents/Approvals/Index"
+           asp-route-id="@Model.Project!.Id">All document requests</a>
+    </section>
+}

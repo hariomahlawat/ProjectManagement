@@ -199,6 +199,18 @@
                 }
             </dl>
 
+            @if (Model.HeaderStrip.InOverviewCard.Count > 0)
+            {
+                @* Tracked tiles the header strip does not show at this phase (JDP before the
+                   supply order, proliferation while the project is active, and so on). *@
+                <div class="project-overview-tracked" aria-label="Also tracked">
+                    @foreach (var tile in Model.HeaderStrip.InOverviewCard)
+                    {
+                        @await Html.PartialAsync("_ProjectHeaderTile", Model, new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["HeaderTile"] = tile })
+                    }
+                </div>
+            }
+
             @if (missingDetails.Count > 0)
             {
                 <div class="project-profile-missing project-profile-missing--clear project-profile-missing--content" role="status">

@@ -156,6 +156,8 @@ namespace ProjectManagement.Pages.Projects
         public ProjectMediaSummaryViewModel MediaSummary { get; private set; } = ProjectMediaSummaryViewModel.Empty;
         public ProjectDocumentSummaryViewModel DocumentSummary { get; private set; } = ProjectDocumentSummaryViewModel.Empty;
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
+
+        public ProjectHeaderStripVm HeaderStrip { get; private set; } = ProjectHeaderStripVm.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
         public ProjectProliferationProfileVm ProliferationProfile { get; private set; } = ProjectProliferationProfileVm.Empty(0);
@@ -674,6 +676,13 @@ namespace ProjectManagement.Pages.Projects
 
             LifecycleSummary = BuildLifecycleSummary(project);
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
+            HeaderStrip = ProjectHeaderStripBuilder.Build(
+                project.LifecycleStatus,
+                Portfolio,
+                Procurement,
+                RemarkSummary,
+                DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst())),
+                _clock.UtcNow.UtcDateTime);
             TotSummary = await BuildTotSummaryAsync(project.Id, project.IsBuild, totSnapshot, totRequestSnapshot, ct);
             MediaSummary = BuildMediaSummary();
 
@@ -1676,29 +1685,11 @@ namespace ProjectManagement.Pages.Projects
                 LastRemarkType = lastRemark?.Type,
                 LastRemarkActorRole = lastRemark?.AuthorRole,
                 LastActivityUtc = lastRemark?.CreatedAtUtc,
-                LastRemarkPreview = BuildRemarkPreview(lastRemark?.Body),
+                LastRemarkPreview = ProjectHeaderStripBuilder.RemarkPreview(lastRemark?.Body),
                 LastRemarkAuthorDisplayName = authorDisplayName
             };
         }
 
-        private static string? BuildRemarkPreview(string? body)
-        {
-            if (string.IsNullOrWhiteSpace(body))
-            {
-                return null;
-            }
-
-            var trimmed = body.Trim();
-            trimmed = trimmed.Replace("\r", " ", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
-
-            const int limit = 140;
-            if (trimmed.Length <= limit)
-            {
-                return trimmed;
-            }
-
-            return string.Concat(trimmed.AsSpan(0, limit), "…");
-        }
 
         private sealed record TotSnapshot(
             ProjectTotStatus Status,
