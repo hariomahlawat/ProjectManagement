@@ -4321,3 +4321,27 @@ a.project-intelligence-card:focus-visible {
     font-size: .84rem;
     font-weight: 600;
 }
+
+/* Contrast: status text and small labels on this page use the darker text tokens, so they
+   reach 4.5:1 in Light; Dark resolves the same tokens to its own lighter shades. */
+.project-portfolio .pm-pill-success { color: var(--pm-success-soft-text); }
+.project-portfolio .pm-pill-primary { color: var(--pm-primary-strong); }
+.project-portfolio .pm-flag-danger { color: var(--pm-danger-soft-text); }
+.project-portfolio .pm-date-label { color: var(--pm-text-secondary); }
+.project-portfolio-breadcrumb .breadcrumb a { color: var(--pm-primary-strong); }
+.project-portfolio .project-content__tabs .nav-link.active { color: var(--pm-primary-strong); }
+
+/* Edit icons are a hint, not a signal: neutral until the tile is hovered or focused. */
+.project-intelligence-card__edit-icon { color: var(--pm-text-secondary); }
+
+.project-intelligence-card:hover .project-intelligence-card__edit-icon,
+.project-intelligence-card:focus-visible .project-intelligence-card__edit-icon {
+    color: var(--pm-primary-strong);
+}
+
+/* Reject on the amber waiting bar: the danger text token keeps 4.5:1 on the tint. */
+.project-waiting .btn-outline-danger {
+    border-color: var(--pm-danger-soft-border);
+    color: var(--pm-danger-soft-text);
+    background: var(--pm-card);
+}

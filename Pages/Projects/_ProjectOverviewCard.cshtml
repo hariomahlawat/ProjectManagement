@@ -90,6 +90,9 @@
     </div>
     <div class="card-body pm-card-body">
         <div class="project-profile-flow">
+            @* The header already shows the cover photo; this card keeps only the prompt to add one. *@
+            @if (coverPhoto is null)
+            {
             <figure class="project-cover-float mb-0">
                 <div class="project-photo-cover-frame project-photo-cover-frame--@(coverPhoto is null ? "empty" : "media") w-100"
                      data-project-cover-host>
@@ -142,6 +145,7 @@
                     <figcaption class="mt-2 text-muted small">@coverPhoto.Caption</figcaption>
                 }
             </figure>
+            }
 
             <dl class="project-facts mb-0">
                 <div class="project-facts__item">
@@ -182,14 +186,7 @@
                         <dd class="project-facts__value">@sponsoringDirectorateName</dd>
                     </div>
                 }
-                <div class="project-facts__item">
-                    <dt class="project-facts__label">Head of Department</dt>
-                    <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
-                </div>
-                <div class="project-facts__item">
-                    <dt class="project-facts__label">Project Officer</dt>
-                    <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
-                </div>
+                @* Head of Department and Project Officer are in the header's meta line. *@
                 @if (Model.CostSummary.RdCostLakhs.HasValue)
                 {
                     <div class="project-facts__item">
@@ -235,15 +232,6 @@
 </div>
 
 @functions {
-    private static string FormatUser(ApplicationUser? user)
-    {
-        if (user is null) return "—";
-        if (!string.IsNullOrWhiteSpace(user.FullName)) return user.FullName!;
-        if (!string.IsNullOrWhiteSpace(user.UserName)) return user.UserName!;
-        if (!string.IsNullOrWhiteSpace(user.Email)) return user.Email!;
-        return "—";
-    }
-
     private static string FormatCost(decimal? costLakhs) =>
-        costLakhs.HasValue ? $"{costLakhs.Value:0.##} lakh" : "—";
+        costLakhs.HasValue ? ProjectManagement.Utilities.IndianCurrencyFormatter.FormatCompact(costLakhs.Value * 100_000m) : "—";
 }

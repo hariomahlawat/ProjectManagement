@@ -147,14 +147,18 @@
              tabindex="0">
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
-                    <div class="project-content__guidance">
-                        Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.
-                        Maximum: @ProjectFieldLimits.ProjectBriefHardMaximumWords words.
-                    </div>
+                    @* Writing guidance and the length chip are for whoever writes the brief. *@
+                    @if (canEdit)
+                    {
+                        <div class="project-content__guidance">
+                            Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.
+                            Maximum: @ProjectFieldLimits.ProjectBriefHardMaximumWords words.
+                        </div>
+                    }
                     <div class="project-content__toolbar-actions">
-                        <span class="project-content__status @briefStatusClass">@briefStatusText</span>
                         @if (canEdit)
                         {
+                            <span class="project-content__status @briefStatusClass">@briefStatusText</span>
                             <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
                                 <i class="bi bi-pencil-square" aria-hidden="true"></i>
                                 Edit brief
@@ -230,13 +234,16 @@
              tabindex="0">
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
-                    <div class="project-content__guidance">
-                        Use @ProjectFieldLimits.CapabilityRecommendedMinimumCount–@ProjectFieldLimits.CapabilityMaximumCount distinct capability statements.
-                    </div>
+                    @if (canEdit)
+                    {
+                        <div class="project-content__guidance">
+                            Use @ProjectFieldLimits.CapabilityRecommendedMinimumCount–@ProjectFieldLimits.CapabilityMaximumCount distinct capability statements.
+                        </div>
+                    }
                     <div class="project-content__toolbar-actions">
-                        <span class="project-content__status @capabilityStatusClass">@capabilityStatusText</span>
                         @if (canEdit)
                         {
+                            <span class="project-content__status @capabilityStatusClass">@capabilityStatusText</span>
                             <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
                                 <i class="bi bi-pencil-square" aria-hidden="true"></i>
                                 Edit capabilities
@@ -363,9 +370,12 @@
              tabindex="0">
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
-                    <div class="project-content__guidance">
-                        Record 1–@ProjectFieldLimits.TechnicalSpecificationMaximumCount concise hardware requirement / technical specification bullets. Long bullets are supported; the Compendium adapts the page layout automatically.
-                    </div>
+                    @if (canEdit)
+                    {
+                        <div class="project-content__guidance">
+                            Record 1–@ProjectFieldLimits.TechnicalSpecificationMaximumCount concise hardware requirement / technical specification bullets. Long bullets are supported; the Compendium adapts the page layout automatically.
+                        </div>
+                    }
                     <div class="project-content__toolbar-actions">
                         <span class="project-content__status @(Model.TechnicalSpecificationItems.Count > 0 ? "is-ready" : "is-neutral")">
                             @(Model.TechnicalSpecificationItems.Count > 0 ? $"{Model.TechnicalSpecificationItems.Count} recorded" : "Not recorded")
