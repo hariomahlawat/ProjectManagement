@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -53,54 +54,29 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
             return new ProjectBriefingResolvedCosts(empty, empty);
         }
 
-        var l1Rows = await _db.ProjectCommercialFacts
-            .AsNoTracking()
-            .Where(row => ids.Contains(row.ProjectId) && row.L1Cost > 0m)
-            .Select(row => new CostFactRow(row.ProjectId, row.L1Cost, row.CreatedOnUtc, row.Id))
-            .ToListAsync(cancellationToken);
-
-        var aonRows = await _db.ProjectAonFacts
-            .AsNoTracking()
-            .Where(row => ids.Contains(row.ProjectId) && row.AonCost > 0m)
-            .Select(row => new CostFactRow(row.ProjectId, row.AonCost, row.CreatedOnUtc, row.Id))
-            .ToListAsync(cancellationToken);
-
-        // Resolve the authoritative IPA position once. The same snapshot is used both
-        // as the R&D-cost fallback and for the separate Total IPA Cost summary.
+        // Resolve the authoritative IPA position once for the separate Total IPA Cost summary.
         var ipaPositions = await _ipaResolver.ResolveManyAsync(ids, cancellationToken);
 
-        var l1 = Latest(l1Rows);
-        var aon = Latest(aonRows);
-        var ipa = ipaPositions
-            .Where(pair => pair.Value.AmountInRupees > 0m)
-            .ToDictionary(pair => pair.Key, pair => pair.Value.AmountInRupees);
+        // Cost (R&D) is the project's cost under the one shared rule (ProjectCostResolver).
+        var projectCosts = await new ProjectCostResolver(_db, _ipaResolver)
+            .ResolveCostInCrAsync(ids, cancellationToken);
 
         var costRd = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
         var ipaCost = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
 
         foreach (var projectId in ids)
         {
-            var authoritativeIpaAmount = ipa.GetValueOrDefault(projectId);
+            var authoritativeIpaAmount = ipaPositions.TryGetValue(projectId, out var position)
+                ? position.AmountInRupees
+                : 0m;
             ipaCost[projectId] = authoritativeIpaAmount > 0m
                 ? Build(authoritativeIpaAmount, ProjectBriefingCostBasis.IPA, "IPA")
                 : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
 
-            if (l1.TryGetValue(projectId, out var l1Amount))
-            {
-                costRd[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
-            }
-            else if (aon.TryGetValue(projectId, out var aonAmount))
-            {
-                costRd[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
-            }
-            else if (ipa.TryGetValue(projectId, out var ipaAmount))
-            {
-                costRd[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
-            }
-            else
-            {
-                costRd[projectId] = ProjectBriefingCostValue.Missing();
-            }
+            var resolved = projectCosts.GetValueOrDefault(projectId);
+            costRd[projectId] = resolved?.AmountInRupees is decimal amount && BasisFor(resolved.Source) is { } basis
+                ? Build(amount, basis, resolved.SourceLabel)
+                : ProjectBriefingCostValue.Missing();
         }
 
         return new ProjectBriefingResolvedCosts(costRd, ipaCost);
@@ -161,16 +137,15 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
             .Distinct()
             .ToArray() ?? Array.Empty<int>();
 
-    private static Dictionary<int, decimal> Latest(IEnumerable<CostFactRow> rows)
-        => rows
-            .GroupBy(row => row.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(row => row.CreatedAtUtc)
-                    .ThenByDescending(row => row.Id)
-                    .First()
-                    .Amount);
+    private static ProjectBriefingCostBasis? BasisFor(ProjectCostSource source) => source switch
+    {
+        ProjectCostSource.Pnc => ProjectBriefingCostBasis.PNC,
+        ProjectCostSource.L1 => ProjectBriefingCostBasis.L1,
+        ProjectCostSource.CostLakhs => ProjectBriefingCostBasis.Recorded,
+        ProjectCostSource.Aon => ProjectBriefingCostBasis.AoN,
+        ProjectCostSource.Ipa => ProjectBriefingCostBasis.IPA,
+        _ => null
+    };
 
     private static ProjectBriefingCostValue Build(
         decimal amountInRupees,
@@ -181,12 +156,6 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
             basis,
             ProjectBriefingCurrencyFormatter.FormatRupees(amountInRupees),
             basisDisplay);
-
-    private sealed record CostFactRow(
-        int ProjectId,
-        decimal Amount,
-        DateTime CreatedAtUtc,
-        int Id);
 }
 
 public static class ProjectBriefingCurrencyFormatter

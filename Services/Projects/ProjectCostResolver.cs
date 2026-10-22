@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Projects;
@@ -20,7 +21,23 @@ public enum ProjectCostSource
     Ipa = 5
 }
 
-public sealed record ProjectCostResolution(decimal? CostInCr, ProjectCostSource Source);
+public sealed record ProjectCostResolution(decimal? CostInCr, ProjectCostSource Source)
+{
+    public decimal? CostInLakhs => CostInCr * 100m;
+
+    public decimal? AmountInRupees => CostInCr * 10_000_000m;
+
+    /// <summary>Short name of the figure used, e.g. "PNC" or "Recorded"; empty when there is none.</summary>
+    public string SourceLabel => Source switch
+    {
+        ProjectCostSource.Pnc => "PNC",
+        ProjectCostSource.L1 => "L1",
+        ProjectCostSource.CostLakhs => "Recorded",
+        ProjectCostSource.Aon => "AoN",
+        ProjectCostSource.Ipa => "IPA",
+        _ => string.Empty
+    };
+}
 
 public interface IProjectCostResolver
 {
@@ -30,6 +47,12 @@ public interface IProjectCostResolver
 }
 
 // SECTION: Cost resolution implementation
+/// <summary>
+/// The one place that decides a project's cost, taking the first figure above zero:
+/// a completed project uses PNC, then L1, then the cost recorded on the project;
+/// any other project uses PNC, then L1, then AoN, then IPA.
+/// Every page, report and export that shows "the project's cost" reads it from here.
+/// </summary>
 public sealed class ProjectCostResolver : IProjectCostResolver
 {
     private const decimal LakhsToCroresDivisor = 100m;
@@ -64,10 +87,16 @@ public sealed class ProjectCostResolver : IProjectCostResolver
         var costLakhsRows = await _db.Projects
             .AsNoTracking()
             .Where(project => projectIds.Contains(project.Id))
-            .Select(project => new { project.Id, project.CostLakhs })
+            .Select(project => new { project.Id, project.CostLakhs, project.LifecycleStatus })
             .ToListAsync(ct);
 
+        // A completed project falls back to its recorded cost; any other project to AoN and IPA.
+        var completedProjects = costLakhsRows
+            .Where(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Select(row => row.Id)
+            .ToHashSet();
         var costLakhsByProject = costLakhsRows
+            .Where(row => completedProjects.Contains(row.Id))
             .ToDictionary(row => row.Id, row => row.CostLakhs);
 
         // SECTION: Fact cost lookups (INR)
@@ -98,17 +127,12 @@ public sealed class ProjectCostResolver : IProjectCostResolver
             pair => pair.Key,
             pair => (decimal?)pair.Value.AmountInRupees);
 
-        // SECTION: Cost selection policy (CostLakhs -> PNC -> L1 -> AON -> IPA)
+        // SECTION: Cost selection policy
+        // Completed: PNC -> L1 -> CostLakhs. Otherwise: PNC -> L1 -> AON -> IPA.
         var result = new Dictionary<int, ProjectCostResolution>(projectIds.Count);
 
         foreach (var projectId in projectIds)
         {
-            if (TryGetMeaningfulCost(costLakhsByProject, projectId, out var costLakhs))
-            {
-                result[projectId] = new ProjectCostResolution(costLakhs / LakhsToCroresDivisor, ProjectCostSource.CostLakhs);
-                continue;
-            }
-
             if (TryGetMeaningfulCost(pncByProject, projectId, out var pnc))
             {
                 result[projectId] = new ProjectCostResolution(pnc / RupeesToCroresDivisor, ProjectCostSource.Pnc);
@@ -118,6 +142,14 @@ public sealed class ProjectCostResolver : IProjectCostResolver
             if (TryGetMeaningfulCost(l1ByProject, projectId, out var l1))
             {
                 result[projectId] = new ProjectCostResolution(l1 / RupeesToCroresDivisor, ProjectCostSource.L1);
+                continue;
+            }
+
+            if (completedProjects.Contains(projectId))
+            {
+                result[projectId] = TryGetMeaningfulCost(costLakhsByProject, projectId, out var costLakhs)
+                    ? new ProjectCostResolution(costLakhs / LakhsToCroresDivisor, ProjectCostSource.CostLakhs)
+                    : new ProjectCostResolution(null, ProjectCostSource.None);
                 continue;
             }
 

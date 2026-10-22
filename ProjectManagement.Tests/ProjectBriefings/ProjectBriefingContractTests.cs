@@ -117,14 +117,16 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
-    public void CostResolver_UsesL1ThenAonThenIpaAndKeepsProliferationSeparate()
+    public void CostResolver_UsesTheSharedProjectCostRuleAndKeepsProliferationSeparate()
     {
+        // Cost (R&D) is the project's cost under the one shared rule; the order itself is
+        // pinned by ProjectCostResolverTests.
         var source = Read("ProjectBriefingCostResolver.cs");
-        var l1 = source.IndexOf("l1.TryGetValue", StringComparison.Ordinal);
-        var aon = source.IndexOf("aon.TryGetValue", StringComparison.Ordinal);
-        var ipa = source.IndexOf("ipa.TryGetValue", StringComparison.Ordinal);
 
-        Assert.True(l1 >= 0 && aon > l1 && ipa > aon, "Cost (R&D) resolution must remain L1 → AoN → IPA.");
+        Assert.Contains("new ProjectCostResolver(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProjectCommercialFacts", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingCostBasis.PNC", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingCostBasis.Recorded", source, StringComparison.Ordinal);
         Assert.Contains("ResolveCostsAsync", source, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingResolvedCosts", source, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingCostBasis.IPA", source, StringComparison.Ordinal);

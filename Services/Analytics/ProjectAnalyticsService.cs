@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -722,116 +721,20 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         };
     }
 
+    // The project's cost (in rupees) under the one shared rule, for the < 1 Cr / >= 1 Cr buckets.
     private async Task<Dictionary<int, decimal?>> LoadProjectCostLookupAsync(CancellationToken cancellationToken)
     {
-        var aonCosts = await LoadLatestMoneyFactsAsync(
-            _db.ProjectAonFacts.AsNoTracking(),
-            fact => (decimal?)fact.AonCost,
-            cancellationToken);
-        var benchmarkCosts = await LoadLatestMoneyFactsAsync(
-            _db.ProjectBenchmarkFacts.AsNoTracking(),
-            fact => (decimal?)fact.BenchmarkCost,
-            cancellationToken);
-        var pncCosts = await LoadLatestMoneyFactsAsync(
-            _db.ProjectPncFacts.AsNoTracking(),
-            fact => (decimal?)fact.PncCost,
-            cancellationToken);
-        var commercialCosts = await LoadLatestMoneyFactsAsync(
-            _db.ProjectCommercialFacts.AsNoTracking(),
-            fact => (decimal?)fact.L1Cost,
-            cancellationToken);
         var projectIds = await _db.Projects
             .AsNoTracking()
             .Select(project => project.Id)
             .ToArrayAsync(cancellationToken);
-        var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, cancellationToken);
-        var ipaCosts = ipaPositions.ToDictionary(
-            pair => pair.Key,
-            pair => (decimal?)pair.Value.AmountInRupees);
 
-        var lookup = new Dictionary<int, decimal?>();
-        foreach (var source in new[] { aonCosts, benchmarkCosts, pncCosts, commercialCosts, ipaCosts })
-        {
-            foreach (var pair in source)
-            {
-                if (pair.Value.HasValue)
-                {
-                    lookup.TryAdd(pair.Key, pair.Value);
-                }
-            }
-        }
+        var costs = await new ProjectCostResolver(_db, _ipaResolver)
+            .ResolveCostInCrAsync(projectIds, cancellationToken);
 
-        return lookup;
-    }
-
-    private static async Task<Dictionary<int, decimal?>> LoadLatestMoneyFactsAsync<TFact>(
-        IQueryable<TFact> query,
-        Expression<Func<TFact, decimal?>> selector,
-        CancellationToken cancellationToken)
-        where TFact : ProjectFactBase
-    {
-        var projection = CreateMoneyFactProjection(selector);
-
-        var facts = await query
-            .Select(projection)
-            .ToListAsync(cancellationToken);
-
-        return facts
-            .GroupBy(f => f.ProjectId)
-            .Select(g => new
-            {
-                ProjectId = g.Key,
-                Cost = g
-                    .OrderByDescending(f => f.CreatedOnUtc)
-                    .Select(f => f.Cost)
-                    .FirstOrDefault()
-            })
-            .ToDictionary(x => x.ProjectId, x => x.Cost);
-    }
-
-    // -------------------------------------------------------------------------
-    // SECTION: Money Fact Helpers
-    // -------------------------------------------------------------------------
-
-    private static Expression<Func<TFact, MoneyFactProjection>> CreateMoneyFactProjection<TFact>(
-        Expression<Func<TFact, decimal?>> selector)
-        where TFact : ProjectFactBase
-    {
-        var parameter = Expression.Parameter(typeof(TFact), "fact");
-        var costBody = new ExpressionParameterReplacer(selector.Parameters[0], parameter)
-            .Visit(selector.Body)!;
-
-        var constructor = typeof(MoneyFactProjection).GetConstructor(new[]
-        {
-            typeof(int),
-            typeof(DateTime),
-            typeof(decimal?)
-        })!;
-
-        var projectId = Expression.Property(parameter, nameof(ProjectFactBase.ProjectId));
-        var createdOn = Expression.Property(parameter, nameof(ProjectFactBase.CreatedOnUtc));
-        var newProjection = Expression.New(constructor, projectId, createdOn, costBody);
-
-        return Expression.Lambda<Func<TFact, MoneyFactProjection>>(newProjection, parameter);
-    }
-
-    private sealed record MoneyFactProjection(int ProjectId, DateTime CreatedOnUtc, decimal? Cost);
-
-    private sealed class ExpressionParameterReplacer : ExpressionVisitor
-    {
-        private readonly ParameterExpression _source;
-        private readonly ParameterExpression _target;
-
-        public ExpressionParameterReplacer(ParameterExpression source, ParameterExpression target)
-        {
-            _source = source;
-            _target = target;
-        }
-
-        protected override Expression VisitParameter(ParameterExpression node)
-        {
-            return ReferenceEquals(node, _source) ? _target : base.VisitParameter(node);
-        }
+        return costs
+            .Where(pair => pair.Value.AmountInRupees.HasValue)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.AmountInRupees);
     }
 
     private static string? TryResolveCostBucket(decimal? projectCost)
