@@ -359,7 +359,10 @@ public sealed class EditModel : PageModel
         ProjectName = project.Name;
         IsBuild = project.IsBuild;
         CompletedYear = project.CompletedYear;
-        RecordedDevelopmentCostLakhs = project.CostLakhs;
+        // Development cost follows the one shared rule (PNC -> L1 -> recorded cost).
+        RecordedDevelopmentCostLakhs = (await new ProjectCostResolver(_db)
+            .ResolveCostInCrAsync(new[] { project.Id }, cancellationToken))
+            .GetValueOrDefault(project.Id)?.CostInLakhs;
         Input.ProjectId = projectId;
 
         TotStatus = await _db.ProjectTots

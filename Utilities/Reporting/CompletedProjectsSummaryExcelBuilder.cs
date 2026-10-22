@@ -60,7 +60,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             "Technical category",
             "Build type",
             "Completed",
-            "Development / L1 cost (lakh)",
+            "Development cost (lakh) - PNC, else L1, else recorded",
             "Proliferation cost (lakh)",
             "Latest LPP (lakh)",
             "Latest LPP date",

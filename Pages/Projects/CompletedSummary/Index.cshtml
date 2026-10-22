@@ -424,7 +424,7 @@
                 <div class="cpw-overview">
                     <section class="cpw-intelligence-grid" aria-label="Portfolio intelligence">
                         <article class="cpw-intelligence-card cpw-investment-card">
-                            <div class="cpw-card-label">Recorded development cost</div>
+                            <div class="cpw-card-label">Development cost</div>
                             <div class="cpw-investment-value">@FormatMoney(overview.RecordedDevelopmentCostLakhs)</div>
                             <div class="cpw-card-note">Across @overview.RecordedDevelopmentCostCount projects with recorded cost</div>
                         </article>
@@ -691,7 +691,7 @@
                     <div class="cpw-drawer-section">
                         <h3>Financial information</h3>
                         <dl>
-                            <div><dt>Recorded development cost</dt><dd>@FormatMoney(item.RdCostLakhs)</dd></div>
+                            <div><dt>Development cost</dt><dd>@FormatMoney(item.RdCostLakhs)@(string.IsNullOrEmpty(item.RdCostBasis) ? null : $" ({item.RdCostBasis})")</dd></div>
                             <div><dt>Proliferation cost</dt><dd>@FormatMoney(item.ProliferationCostLakhs)</dd></div>
                             <div><dt>Latest LPP</dt><dd>@FormatLatestLpp(item.LatestLpp)</dd></div>
                         </dl>

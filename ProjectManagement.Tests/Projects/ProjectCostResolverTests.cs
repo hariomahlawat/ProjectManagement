@@ -127,6 +127,25 @@ public sealed class ProjectCostResolverTests
         Assert.Equal(ProjectBriefingCostBasis.IPA, costs.CostRd[1].Basis);
     }
 
+    [Fact]
+    public async Task CompletedSummary_ShowsTheDevelopmentCostUnderTheRule_WithItsBasis()
+    {
+        await using var db = CreateContext();
+        AddProject(db, 1, ProjectLifecycleStatus.Completed, costLakhs: 90m);
+        AddPnc(db, 1, 2_500_000m);
+        AddProject(db, 2, ProjectLifecycleStatus.Completed, costLakhs: 42.5m);
+        AddAon(db, 2, 4_000_000m);
+        await db.SaveChangesAsync();
+
+        var rows = await new CompletedProjectsSummaryService(db).GetAsync(
+            null, null, null, null, null, null, null, null, "name", "asc");
+
+        var withPnc = rows.Single(row => row.ProjectId == 1);
+        var recordedOnly = rows.Single(row => row.ProjectId == 2);
+        Assert.Equal((25m, "PNC"), (withPnc.RdCostLakhs, withPnc.RdCostBasis));
+        Assert.Equal((42.5m, "Recorded"), (recordedOnly.RdCostLakhs, recordedOnly.RdCostBasis));
+    }
+
     private sealed class CountingIpaResolver : IAuthoritativeIpaPositionResolver
     {
         private readonly IAuthoritativeIpaPositionResolver _inner;
