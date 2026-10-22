@@ -114,9 +114,10 @@ test('catch-up reports no overlap when the page cap runs out', async () => {
   assert.equal(result.messages.length, 6);
 });
 
-function bootApp(handler) {
+function bootApp(handler, extraBody = '') {
   const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="t"></head><body>
     <button data-chat-launcher></button>
+    ${extraBody}
     <div data-chat-root data-current-user-id="me" data-api-base="/api/chat" data-max-length="4000"></div>
   </body></html>`, { runScripts: 'outside-only', url: 'https://prism.local/', pretendToBeVisual: true });
   const { window } = dom;
@@ -244,6 +245,547 @@ test('a reactivated contact coming online or writing is refreshed so the reply b
     await tick(); await tick(); await tick();
     assert.equal(contactCalls, 3);
     assert.equal(win.form.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+// --- Phase 2: ticks, typing, away, alerts, Messages page -------------------------------------
+
+function fakeHub(app) {
+  const calls = [];
+  app.connection = { state: 'Connected', invoke: (method, arg) => { calls.push([method, arg]); return Promise.resolve(); }, stop: () => Promise.resolve() };
+  return calls;
+}
+
+test('highlightParts marks every case-insensitive match', () => {
+  const { PMChatInternals } = load();
+  const parts = Array.from(PMChatInternals.highlightParts('TEC minutes; tec again', 'tec'), (p) => `${p.match ? '[' : ''}${p.text}${p.match ? ']' : ''}`);
+  assert.deepEqual(parts, ['[TEC]', ' minutes; ', '[tec]', ' again']);
+  assert.equal(PMChatInternals.highlightParts('abc', '').length, 1);
+});
+
+test('conversation list keeps people with history, most recent first', () => {
+  const { PMChatInternals } = load();
+  const list = PMChatInternals.conversationList([
+    { userId: 'a', lastMessageUtc: '2026-10-20T10:00:00Z' },
+    { userId: 'b', lastMessageUtc: null },
+    { userId: 'c', lastMessageUtc: '2026-10-22T10:00:00Z' },
+  ]);
+  assert.deepEqual(Array.from(list, (c) => c.userId), ['c', 'a']);
+});
+
+test('away sorts between online and offline', () => {
+  const { PMChatInternals } = load();
+  const c = (displayName, extra) => ({ displayName, unreadCount: 0, isActive: true, isOnline: false, isAway: false, ...extra });
+  const sorted = PMChatInternals.sortContacts([c('Off'), c('Away', { isOnline: true, isAway: true }), c('On', { isOnline: true })]);
+  assert.deepEqual(Array.from(sorted, (x) => x.displayName), ['On', 'Away', 'Off']);
+});
+
+test('title flasher alternates and restores the page title', () => {
+  const { PMChatInternals } = load();
+  const doc = { title: 'Dashboard | PRISM ERP' };
+  let tickFn = null;
+  const flasher = new PMChatInternals.TitleFlasher(doc, (fn) => { tickFn = fn; return 1; }, () => { tickFn = null; });
+  flasher.start('Ravi says…');
+  assert.equal(doc.title, 'Ravi says…');
+  tickFn();
+  assert.equal(doc.title, 'Dashboard | PRISM ERP');
+  tickFn();
+  assert.equal(doc.title, 'Ravi says…');
+  flasher.start('Sita says…'); // a second sender keeps the original to restore
+  flasher.stop();
+  assert.equal(doc.title, 'Dashboard | PRISM ERP');
+  assert.equal(flasher.active(), false);
+});
+
+test('my messages get one tick when sent and two once the other person has read them', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) {
+      return {
+        messages: [
+          { id: 1, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-1', body: 'one', sentUtc: new Date().toISOString() },
+          { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'two', sentUtc: new Date().toISOString() },
+        ],
+        hasMore: false,
+        peerLastReadMessageId: 1,
+      };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const labels = () => Array.from(win.log.querySelectorAll('.pm-chat__tick'), (t) => t.getAttribute('aria-label'));
+    assert.deepEqual(labels(), ['Seen', 'Sent']);
+    window.PMChat.onPeerRead({ peerUserId: 'peer', upToMessageId: 2 });
+    assert.deepEqual(labels(), ['Seen', 'Seen']);
+  } finally {
+    window.close();
+  }
+});
+
+test('typing shows in the window header, is throttled when sent, and clears on the message', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const calls = fakeHub(window.PMChat);
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick();
+
+    window.PMChat.onTyping({ userId: 'peer' });
+    assert.equal(win.status.textContent, 'typing…');
+
+    window.PMChat.onMessage({ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: 'done', sentUtc: new Date().toISOString() });
+    assert.notEqual(win.status.textContent, 'typing…');
+
+    win.input.value = 'h';
+    win.input.dispatchEvent(new window.Event('input'));
+    win.input.value = 'hi';
+    win.input.dispatchEvent(new window.Event('input'));
+    assert.deepEqual(calls.filter(([m]) => m === 'Typing'), [['Typing', 'peer']]);
+  } finally {
+    window.close();
+  }
+});
+
+test('an idle tab reports away and activity brings it back', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [contact] : { status: 204, body: null }));
+  try {
+    await tick();
+    const app = window.PMChat;
+    const calls = fakeHub(app);
+    app.checkIdle(app.lastActivity + 4 * 60 * 1000);
+    assert.equal(app.away, false);
+    app.checkIdle(app.lastActivity + 5 * 60 * 1000);
+    assert.equal(app.away, true);
+    app.noteActivity();
+    assert.equal(app.away, false);
+    assert.deepEqual(calls, [['SetAway', true], ['SetAway', false]]);
+
+    app.onPresence({ userId: 'peer', isOnline: true, isAway: true });
+    assert.equal(app.contacts.get('peer').isAway, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('only one tab chimes for a given message', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [contact] : pageOf([], false)));
+  try {
+    await tick();
+    const app = window.PMChat;
+    let plays = 0;
+    app.chime.play = () => { plays += 1; };
+    app.alert({ id: 41, senderUserId: 'peer' }, contact);
+    app.alert({ id: 41, senderUserId: 'peer' }, contact); // the same push reaching a second tab
+    app.alert({ id: 42, senderUserId: 'peer' }, contact);
+    assert.equal(plays, 2);
+
+    app.setSound(false);
+    app.alert({ id: 43, senderUserId: 'peer' }, contact);
+    assert.equal(plays, 2);
+  } finally {
+    window.close();
+  }
+});
+
+test('the Messages page opens a search hit in the middle of a conversation', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/search')) {
+      return [{ messageId: 15, peerUserId: 'peer', peerDisplayName: 'Peer Person', senderUserId: 'peer', body: 'the TEC minutes', sentUtc: '2026-10-01T09:00:00Z' }];
+    }
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.includes('after=15')) return { ...pageOf([16, 17], false), hasNewer: false };
+    return pageOf([], false);
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const page = window.PMChat.page;
+    assert.equal(page.list.querySelectorAll('.pm-chat-page__item').length, 1);
+
+    page.searchInput.value = 'tec';
+    await page.runSearch();
+    const hit = page.results.querySelector('.pm-chat-page__hit');
+    assert.equal(hit.querySelector('mark').textContent, 'TEC');
+
+    hit.click();
+    await tick(); await tick();
+    const win = page.current;
+    assert.equal(win.embedded, true);
+    assert.equal(win.highlightId, 15);
+    assert.equal(win.newer.hidden, false);
+    assert.ok(win.log.querySelector('.is-highlight'));
+
+    // A live message must not be pasted below the gap while an old slice is shown.
+    window.PMChat.onMessage({ id: 99, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-99', body: 'new', sentUtc: new Date().toISOString() });
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15]);
+
+    win.newer.focus();
+    await window.PMChat.loadNewer(win);
+    // Caught up: the held live message joins after the fetched page.
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 17, 99]);
+    assert.equal(win.newer.hidden, true);
+    // The button hid itself; focus stays in the conversation so it still counts as read.
+    assert.equal(window.document.activeElement, win.input);
+  } finally {
+    window.close();
+  }
+});
+
+test('reading an older slice asks the server for unread instead of zeroing it', async () => {
+  let contactCalls = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      contactCalls += 1;
+      return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z', unreadCount: 3 }];
+    }
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const before = contactCalls;
+    app.onRead({ peerUserId: 'peer', upToMessageId: 15 });
+    await tick(); await tick();
+    assert.ok(contactCalls > before);
+    assert.equal(app.contacts.get('peer').unreadCount, 3);
+  } finally {
+    window.close();
+  }
+});
+
+test('choosing a person already open on the Messages page brings the conversation back on a phone', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    await tick(); await tick();
+    const app = window.PMChat;
+    const page = app.page;
+    page.layout.classList.remove('has-thread'); // "All conversations"
+    app.toggleBuddy(true); // "New chat"
+    app.openWindow('peer', { focus: true });
+    assert.equal(page.layout.classList.contains('has-thread'), true);
+    assert.equal(app.buddyOpen, false);
+    assert.equal(window.document.activeElement, page.current.input);
+  } finally {
+    window.close();
+  }
+});
+
+test('a live message arriving while the last newer page loads is kept', async () => {
+  let releaseNewer;
+  const newerGate = new Promise((resolve) => { releaseNewer = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.includes('after=15')) {
+      await newerGate; // the server read the page before message 17 was saved
+      return { ...pageOf([16], false), hasNewer: false };
+    }
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    const loading = app.loadNewer(win);
+    app.onMessage({ id: 17, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-17', body: 'live', sentUtc: new Date().toISOString() });
+    releaseNewer();
+    await loading;
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 17]);
+    assert.equal(win.heldLive.length, 0);
+  } finally {
+    window.close();
+  }
+});
+
+test('a live message arriving while a search hit loads is kept', async () => {
+  let releaseHit;
+  const hitGate = new Promise((resolve) => { releaseHit = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) {
+      await hitGate; // the server read the slice before message 16 was saved
+      return { ...pageOf([14, 15], true), hasNewer: false };
+    }
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.onMessage({ id: 16, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-16', body: 'live', sentUtc: new Date().toISOString() });
+    releaseHit();
+    await tick(); await tick(); await tick();
+    const win = app.page.current;
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16]);
+    assert.equal(win.hasNewer, false);
+    assert.equal(win.heldLive.length, 0);
+  } finally {
+    window.close();
+  }
+});
+
+test('a reply sent while a search hit is still loading stays, and the latest page loads', async () => {
+  let releaseHit;
+  const hitGate = new Promise((resolve) => { releaseHit = resolve; });
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) {
+      await hitGate;
+      return { ...pageOf([14, 15], true), hasNewer: true };
+    }
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      // Wrapped: a chat message has its own "body" field, which the fake fetch would unwrap.
+      return { status: 200, body: { id: 100, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: body.body, sentUtc: new Date().toISOString() } };
+    }
+    if (url.includes('/messages?limit=')) return pageOf([98, 99], true);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    win.input.value = 'reply';
+    app.send(win);
+    await tick(); await tick(); await tick();
+    releaseHit(); // the stale slice arrives after the reply was saved
+    await tick(); await tick(); await tick();
+    const ids = Array.from(win.messages, (m) => m.id);
+    assert.ok(ids.includes(100), `reply missing from ${ids}`);
+    assert.ok(ids.includes(99), `latest page missing from ${ids}`);
+    assert.equal(ids.includes(14), false);
+    assert.equal(win.hasNewer, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('switching conversations on the Messages page keeps drafts and unsent messages', async () => {
+  const other = { ...contact, userId: 'other', displayName: 'Other Person', initials: 'OP', lastMessageUtc: '2026-10-21T09:00:00Z' };
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }, other];
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const page = app.page;
+    const first = page.current;
+    first.input.value = 'half-typed';
+    first.messages.push({ id: 0, clientMessageId: 'c-x', senderUserId: 'me', recipientUserId: 'peer', body: 'failed one', failed: true });
+
+    page.open('peer', 0); // clicking the open conversation again
+    assert.equal(page.current, first);
+    assert.equal(first.input.value, 'half-typed');
+
+    page.open('other', 0);
+    await tick();
+    assert.notEqual(page.current, first);
+    assert.equal(first.node.isConnected, false);
+
+    page.open('peer', 0);
+    await tick();
+    assert.equal(page.current, first);
+    assert.equal(first.input.value, 'half-typed');
+    assert.ok(first.messages.some((m) => m.failed && m.body === 'failed one'));
+  } finally {
+    window.close();
+  }
+});
+
+test('a docked draft moves into the Messages page with its conversation', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const docked = app.openWindow('peer', { focus: false });
+    docked.input.value = 'started in the dock';
+    app.page.open('peer', 0);
+    assert.equal(app.windows.get('peer').embedded, true);
+    assert.equal(app.page.current.input.value, 'started in the dock');
+    assert.equal(docked.node.isConnected, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('an earlier page still loading for one search hit is dropped when another hit opens', async () => {
+  let releaseEarlier;
+  const earlierGate = new Promise((resolve) => { releaseEarlier = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=151')) return { ...pageOf([111, 150], true), hasNewer: true };
+    if (url.includes('before=111')) {
+      await earlierGate;
+      return pageOf([71, 110], true);
+    }
+    if (url.includes('before=16')) return { ...pageOf([1, 15], false), hasNewer: true };
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="150"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    const earlier = app.loadEarlier(win); // pending for the hit at 150
+    app.page.open('peer', 15);
+    await tick(); await tick();
+    releaseEarlier();
+    await earlier;
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [1, 15]);
+    assert.equal(win.loading, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('paging is blocked while a replacement search slice loads', async () => {
+  let releaseHit;
+  const hitGate = new Promise((resolve) => { releaseHit = resolve; });
+  const requested = [];
+  const window = bootApp(async (url) => {
+    requested.push(url);
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=151')) return { ...pageOf([111, 150], true), hasNewer: true };
+    if (url.includes('before=16')) {
+      await hitGate;
+      return { ...pageOf([1, 15], false), hasNewer: true };
+    }
+    if (url.includes('before=111')) return pageOf([71, 110], true);
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="150"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    app.page.open('peer', 15); // replacement slice in flight
+    assert.equal(win.earlier.hidden, true);
+    assert.equal(win.newer.hidden, true);
+    await app.loadEarlier(win); // clicked from the old slice meanwhile
+    releaseHit();
+    await tick(); await tick(); await tick();
+    assert.equal(requested.some((u) => u.includes('before=111')), false);
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [1, 15]);
+    assert.equal(win.loading, false);
+    assert.equal(win.newer.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('retrying a failed message from a search slice jumps to the latest first', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      return { status: 200, body: { id: 101, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: body.body, sentUtc: new Date().toISOString() } };
+    }
+    if (url.includes('/messages?limit=')) return pageOf([99, 100], true);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    const failed = { id: 0, clientMessageId: 'c-f', senderUserId: 'me', recipientUserId: 'peer', body: 'retry me', failed: true };
+    win.messages.push(failed);
+    app.page.open('peer', 15);
+    await tick(); await tick();
+    assert.equal(win.hasNewer, true);
+    await app.deliver(win, failed); // the Retry link
+    await tick(); await tick(); await tick();
+    const ids = Array.from(win.messages, (m) => m.id);
+    assert.equal(win.hasNewer, false);
+    assert.equal(ids.includes(14), false);
+    assert.deepEqual(ids.slice(-3), [99, 100, 101]);
+  } finally {
+    window.close();
+  }
+});
+
+test('a send that completes after an older search slice opened does not land below the gap', async () => {
+  let releaseSend;
+  const sendGate = new Promise((resolve) => { releaseSend = resolve; });
+  const requested = [];
+  const window = bootApp(async (url, init) => {
+    requested.push(url);
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      await sendGate;
+      const body = JSON.parse(init.body);
+      return { status: 200, body: { id: 101, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: body.body, sentUtc: new Date().toISOString() } };
+    }
+    if (url.includes('after=15')) return { ...pageOf([16, 100], false), hasNewer: false };
+    if (url.includes('/messages?limit=')) return pageOf([99, 100], true);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    win.input.value = 'sent before searching';
+    app.send(win);
+    app.page.open('peer', 15); // opened while the send is still in flight
+    await tick(); await tick();
+    releaseSend();
+    await tick(); await tick(); await tick();
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15]);
+    assert.equal(win.hasNewer, true);
+
+    await app.loadNewer(win);
+    assert.ok(requested.some((u) => u.includes('after=15')));
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 100, 101]);
+  } finally {
+    window.close();
+  }
+});
+
+test('a send in flight when its conversation moves to the Messages page reports there', async () => {
+  let releaseSend;
+  const sendGate = new Promise((resolve) => { releaseSend = resolve; });
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      await sendGate;
+      return { status: 500, body: { detail: 'Server error' } };
+    }
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const docked = app.openWindow('peer', { focus: false });
+    await tick();
+    docked.input.value = 'from the dock';
+    app.send(docked);
+    app.page.open('peer', 0); // moves the conversation, unsent message included
+    await tick();
+    releaseSend();
+    await tick(); await tick(); await tick();
+    const view = app.page.current;
+    const retry = view.log.querySelector('.pm-chat__retry');
+    assert.ok(retry, 'the visible view should offer Retry');
+    assert.equal(view.log.textContent.includes('Sending…'), false);
   } finally {
     window.close();
   }

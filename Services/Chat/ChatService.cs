@@ -34,6 +34,10 @@ public sealed class ChatService
 
     public const string FormerUserName = "Former user";
 
+    public const int MinSearchLength = 2;
+
+    public const int MaxSearchResults = 50;
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ChatPresenceTracker _presence;
@@ -79,7 +83,7 @@ public sealed class ChatService
             .Select(u => new { u.Id, u.FullName, u.UserName, u.Rank, u.AccountKind, u.IsDisabled, u.PendingDeletion })
             .ToListAsync(cancellationToken);
 
-        var online = _presence.OnlineUserIds();
+        var presence = _presence.Snapshot();
 
         // A peer whose account row has been purged keeps their conversation (no user foreign
         // keys), so they stay listed as an inactive placeholder and the history stays reachable.
@@ -101,15 +105,17 @@ public sealed class ChatService
             {
                 var display = ResolveDisplayName(u.FullName, u.UserName, u.Id);
                 byPeer.TryGetValue(u.Id, out var conversation);
+                var status = presence.GetValueOrDefault(u.Id, ChatPresence.Offline);
                 return new ChatContactDto(
                     u.Id,
                     display,
                     string.IsNullOrWhiteSpace(u.Rank) ? null : u.Rank.Trim(),
                     BuildInitials(display),
                     IsActive: IsReachable(u.AccountKind, u.IsDisabled, u.PendingDeletion),
-                    IsOnline: online.Contains(u.Id),
+                    IsOnline: status != ChatPresence.Offline,
                     UnreadCount: conversation?.Unread ?? 0,
-                    LastMessageUtc: conversation?.LastMessageUtc);
+                    LastMessageUtc: conversation?.LastMessageUtc,
+                    IsAway: status == ChatPresence.Away);
             })
             .Concat(purged)
             .OrderBy(c => c.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -118,15 +124,19 @@ public sealed class ChatService
     }
 
     /// <summary>
-    /// A page of the conversation with <paramref name="peerUserId"/>, oldest first. Pass the
-    /// smallest id already shown as <paramref name="beforeMessageId"/> to load earlier messages.
+    /// A page of the conversation with <paramref name="peerUserId"/>, oldest first.
+    /// With neither cursor: the latest messages. <paramref name="beforeMessageId"/>: the page
+    /// that ends just before that id (pass the smallest id shown to load earlier messages, or a
+    /// search hit's id + 1 to open the conversation at that message). <paramref name="afterMessageId"/>:
+    /// the page that starts just after that id, for loading newer messages below an older page.
     /// </summary>
     public async Task<ChatHistoryDto> GetHistoryAsync(
         string userId,
         string peerUserId,
         long? beforeMessageId,
         int limit,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? afterMessageId = null)
     {
         var size = Math.Clamp(limit, 1, MaxHistoryPage);
         var key = ChatConversation.BuildDirectKey(userId, peerUserId);
@@ -144,21 +154,44 @@ public sealed class ChatService
             return new ChatHistoryDto(peerUserId, Array.Empty<ChatMessageDto>(), false);
         }
 
-        var query = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == conversationId.Value);
-        if (beforeMessageId is > 0)
+        var all = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == conversationId.Value);
+        bool hasMore;
+        bool hasNewer;
+        List<ChatMessage> page;
+
+        if (afterMessageId is > 0)
         {
-            query = query.Where(m => m.Id < beforeMessageId.Value);
+            var newer = await all
+                .Where(m => m.Id > afterMessageId.Value)
+                .OrderBy(m => m.Id)
+                .Take(size + 1)
+                .ToListAsync(cancellationToken);
+            hasNewer = newer.Count > size;
+            page = newer.Take(size).ToList();
+            hasMore = true; // the caller already holds the message it paged after
+        }
+        else
+        {
+            var query = beforeMessageId is > 0 ? all.Where(m => m.Id < beforeMessageId.Value) : all;
+            var older = await query
+                .OrderByDescending(m => m.Id)
+                .Take(size + 1)
+                .ToListAsync(cancellationToken);
+            hasMore = older.Count > size;
+            page = older.Take(size).OrderBy(m => m.Id).ToList();
+            var lastId = page.Count > 0 ? page[page.Count - 1].Id : 0;
+            hasNewer = beforeMessageId is > 0
+                && page.Count > 0
+                && await all.AnyAsync(m => m.Id > lastId, cancellationToken);
         }
 
-        var page = await query
-            .OrderByDescending(m => m.Id)
-            .Take(size + 1)
-            .Select(m => new { m.Id, m.SenderUserId, m.ClientMessageId, m.Body, m.SentUtc })
-            .ToListAsync(cancellationToken);
+        var peerLastRead = await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == conversationId.Value && p.UserId == peerUserId)
+            .Select(p => p.LastReadMessageId)
+            .SingleOrDefaultAsync(cancellationToken);
 
         var messages = page
-            .Take(size)
-            .OrderBy(m => m.Id)
             .Select(m => new ChatMessageDto(
                 m.Id,
                 m.SenderUserId,
@@ -168,7 +201,63 @@ public sealed class ChatService
                 m.SentUtc))
             .ToList();
 
-        return new ChatHistoryDto(peerUserId, messages, page.Count > size);
+        return new ChatHistoryDto(peerUserId, messages, hasMore, hasNewer, peerLastRead);
+    }
+
+    /// <summary>
+    /// Messages containing <paramref name="query"/> (case-insensitive) across the caller's own
+    /// conversations only, newest first.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatSearchHitDto>> SearchAsync(
+        string userId,
+        string? query,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var term = query?.Trim();
+        if (string.IsNullOrEmpty(term) || term.Length < MinSearchLength)
+        {
+            return Array.Empty<ChatSearchHitDto>();
+        }
+
+        var needle = term.ToLowerInvariant();
+        var size = Math.Clamp(limit, 1, MaxSearchResults);
+
+        var hits = await (
+                from mine in _db.ChatParticipants.AsNoTracking()
+                where mine.UserId == userId
+                join peer in _db.ChatParticipants.AsNoTracking()
+                    on mine.ConversationId equals peer.ConversationId
+                where peer.UserId != userId
+                join m in _db.ChatMessages.AsNoTracking()
+                    on mine.ConversationId equals m.ConversationId
+                where m.Body.ToLower().Contains(needle)
+                orderby m.Id descending
+                select new { m.Id, PeerUserId = peer.UserId, m.SenderUserId, m.Body, m.SentUtc })
+            .Take(size)
+            .ToListAsync(cancellationToken);
+
+        if (hits.Count == 0)
+        {
+            return Array.Empty<ChatSearchHitDto>();
+        }
+
+        var peerIds = hits.Select(h => h.PeerUserId).Distinct().ToList();
+        var names = await _db.Users
+            .AsNoTracking()
+            .Where(u => peerIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName, u.UserName })
+            .ToDictionaryAsync(u => u.Id, u => ResolveDisplayName(u.FullName, u.UserName, u.Id), cancellationToken);
+
+        return hits
+            .Select(h => new ChatSearchHitDto(
+                h.Id,
+                h.PeerUserId,
+                names.GetValueOrDefault(h.PeerUserId, FormerUserName),
+                h.SenderUserId,
+                h.Body,
+                h.SentUtc))
+            .ToList();
     }
 
     public async Task<ChatSendResult> SendAsync(

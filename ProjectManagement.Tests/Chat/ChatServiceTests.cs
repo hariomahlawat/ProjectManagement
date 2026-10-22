@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -190,14 +191,19 @@ public sealed class ChatServiceTests
         var dave = await scope.Db.Users.SingleAsync(u => u.Id == "dave-before");
         dave.IsDisabled = true;
         await scope.Db.SaveChangesAsync();
-        scope.Presence.Connect("bob");
+        scope.Presence.Connect("bob", "bob-tab");
+        scope.Presence.Connect("carol", "carol-tab");
+        scope.Presence.SetAway("carol", "carol-tab", true);
 
         var contacts = await scope.Service.ListContactsAsync("alice");
 
         Assert.Equal(new[] { "bob", "carol", "dave-before" }, contacts.Select(c => c.UserId).OrderBy(id => id));
         Assert.False(contacts.Single(c => c.UserId == "dave-before").IsActive);
         Assert.True(contacts.Single(c => c.UserId == "bob").IsOnline);
-        Assert.False(contacts.Single(c => c.UserId == "carol").IsOnline);
+        Assert.False(contacts.Single(c => c.UserId == "bob").IsAway);
+        Assert.True(contacts.Single(c => c.UserId == "carol").IsOnline);
+        Assert.True(contacts.Single(c => c.UserId == "carol").IsAway);
+        Assert.False(contacts.Single(c => c.UserId == "dave-before").IsOnline);
         Assert.Equal("Maj", contacts.Single(c => c.UserId == "bob").Rank);
         Assert.Equal("BB", contacts.Single(c => c.UserId == "bob").Initials);
         Assert.Equal(ChatSendStatus.RecipientUnavailable,
@@ -241,6 +247,91 @@ public sealed class ChatServiceTests
 
         Assert.Equal(second.Message.Id, result);
         Assert.Equal(0, (await scope.Service.ListContactsAsync("bob")).Single(c => c.UserId == "alice").UnreadCount);
+    }
+
+    [Fact]
+    public async Task History_ReportsHowFarThePeerHasRead()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var first = await scope.Service.SendAsync("alice", Request("bob", "one"));
+        await scope.Service.SendAsync("alice", Request("bob", "two"));
+
+        Assert.Null((await scope.Service.GetHistoryAsync("alice", "bob", null, 40)).PeerLastReadMessageId);
+
+        await scope.Service.MarkReadAsync("bob", "alice", first.Message!.Id);
+        Assert.Equal(first.Message.Id, (await scope.Service.GetHistoryAsync("alice", "bob", null, 40)).PeerLastReadMessageId);
+    }
+
+    [Fact]
+    public async Task History_OpensAtAMessageAndPagesForwardToTheLatest()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var ids = new List<long>();
+        for (var i = 1; i <= 6; i++)
+        {
+            ids.Add((await scope.Service.SendAsync("alice", Request("bob", $"m{i}"))).Message!.Id);
+        }
+
+        // Open at m3 (as a search hit does): the page ends at m3 and says newer ones exist.
+        var atHit = await scope.Service.GetHistoryAsync("bob", "alice", ids[2] + 1, 2);
+        Assert.Equal(new[] { "m2", "m3" }, atHit.Messages.Select(m => m.Body));
+        Assert.True(atHit.HasMore);
+        Assert.True(atHit.HasNewer);
+
+        var newer = await scope.Service.GetHistoryAsync("bob", "alice", null, 2, afterMessageId: ids[2]);
+        Assert.Equal(new[] { "m4", "m5" }, newer.Messages.Select(m => m.Body));
+        Assert.True(newer.HasNewer);
+
+        var newest = await scope.Service.GetHistoryAsync("bob", "alice", null, 2, afterMessageId: ids[4]);
+        Assert.Equal(new[] { "m6" }, newest.Messages.Select(m => m.Body));
+        Assert.False(newest.HasNewer);
+
+        Assert.False((await scope.Service.GetHistoryAsync("bob", "alice", null, 40)).HasNewer);
+    }
+
+    [Fact]
+    public async Task Search_FindsTextOnlyInTheCallersOwnConversations()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        await scope.Service.SendAsync("alice", Request("bob", "The TEC minutes are signed"));
+        await scope.Service.SendAsync("bob", Request("alice", "Thanks, forwarding the tec minutes now"));
+        await scope.Service.SendAsync("bob", Request("carol", "TEC minutes for you too"));
+        await scope.Service.SendAsync("alice", Request("carol", "Unrelated lunch plan"));
+
+        var alice = await scope.Service.SearchAsync("alice", "  tec MINUTES ", 50);
+        var carol = await scope.Service.SearchAsync("carol", "tec", 50);
+
+        Assert.Equal(2, alice.Count);
+        Assert.All(alice, hit => Assert.Equal("bob", hit.PeerUserId));
+        Assert.Equal("Bob Bhatia", alice[0].PeerDisplayName);
+        Assert.True(alice[0].MessageId > alice[1].MessageId); // newest first
+        Assert.Single(carol);
+        Assert.Equal("bob", carol[0].PeerUserId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" a ")]
+    public async Task Search_IgnoresTooShortQueries(string? query)
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        await scope.Service.SendAsync("alice", Request("bob", "a message with a"));
+
+        Assert.Empty(await scope.Service.SearchAsync("alice", query, 50));
+    }
+
+    [Fact]
+    public async Task Search_TreatsWildcardCharactersAsText()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        await scope.Service.SendAsync("alice", Request("bob", "Progress is 50% done"));
+        await scope.Service.SendAsync("alice", Request("bob", "Progress is 500 units"));
+
+        var hits = await scope.Service.SearchAsync("alice", "50%", 50);
+
+        Assert.Single(hits);
+        Assert.Equal("Progress is 50% done", hits[0].Body);
     }
 
     private static ChatSendRequest Request(string recipient, string body)

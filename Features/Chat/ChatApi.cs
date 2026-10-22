@@ -41,6 +41,7 @@ public static class ChatApi
 
         group.MapGet("/contacts", GetContactsAsync);
         group.MapGet("/with/{peerUserId}/messages", GetHistoryAsync);
+        group.MapGet("/search", SearchAsync);
         group.MapPost("/messages", SendAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/with/{peerUserId}/read", MarkReadAsync);
 
@@ -81,6 +82,7 @@ public static class ChatApi
     private static async Task<IResult> GetHistoryAsync(
         string peerUserId,
         [FromQuery(Name = "before")] long? beforeMessageId,
+        [FromQuery(Name = "after")] long? afterMessageId,
         [FromQuery(Name = "limit")] int? limit,
         HttpContext httpContext,
         ChatService chat,
@@ -92,8 +94,29 @@ public static class ChatApi
         }
 
         SetNoStoreHeaders(httpContext.Response);
-        var history = await chat.GetHistoryAsync(userId, peerUserId, beforeMessageId, limit ?? 40, cancellationToken);
+        var history = await chat.GetHistoryAsync(userId, peerUserId, beforeMessageId, limit ?? 40, cancellationToken, afterMessageId);
         return Results.Ok(history);
+    }
+
+    private static async Task<IResult> SearchAsync(
+        [FromQuery(Name = "q")] string? query,
+        [FromQuery(Name = "limit")] int? limit,
+        HttpContext httpContext,
+        ChatService chat,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (query is { Length: > 200 })
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid search", detail: "Search text cannot exceed 200 characters.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await chat.SearchAsync(userId, query, limit ?? ChatService.MaxSearchResults, cancellationToken));
     }
 
     private static async Task<IResult> SendAsync(
@@ -165,6 +188,8 @@ public static class ChatApi
         if (marker is { } upTo)
         {
             await hub.Clients.User(userId).ConversationRead(new ChatReadDto(peerUserId, upTo));
+            // Read ticks: the other person learns how far this user has read.
+            await hub.Clients.User(peerUserId).PeerRead(new ChatReadDto(userId, upTo));
         }
 
         return Results.NoContent();
