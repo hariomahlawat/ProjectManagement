@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Projects;
@@ -84,6 +86,14 @@ public sealed class ProjectProcurementReadService
             .Select(f => new { f.ProjectId, f.SupplyOrderDate, f.CreatedOnUtc, f.Id })
             .ToListAsync(ct);
 
+        // A skipped PNC stage drops PNC from the procurement ladder (unless a PNC cost was recorded anyway).
+        var pncSkippedProjects = (await _db.ProjectStages
+            .AsNoTracking()
+            .Where(s => ids.Contains(s.ProjectId) && s.StageCode == StageCodes.PNC && s.Status == StageStatus.Skipped)
+            .Select(s => s.ProjectId)
+            .ToListAsync(ct))
+            .ToHashSet();
+
         var latestAon = aonRows
             .GroupBy(f => f.ProjectId)
             .ToDictionary(
@@ -148,7 +158,8 @@ public sealed class ProjectProcurementReadService
                     latestPnc.GetValueOrDefault(projectId),
                     latestSupplyOrder.GetValueOrDefault(projectId))
                 {
-                    IpaPosition = ipaPosition
+                    IpaPosition = ipaPosition,
+                    IsPncStageSkipped = pncSkippedProjects.Contains(projectId)
                 };
             });
     }
@@ -165,6 +176,12 @@ public sealed record ProcurementAtAGlanceVm(
     public AuthoritativeIpaPosition? IpaPosition { get; init; }
 
     public bool IsIpaManagedByArpp => IpaPosition?.IsManagedByArpp == true;
+
+    /// <summary>The project's PNC stage was skipped, so PNC is not a step it will reach.</summary>
+    public bool IsPncStageSkipped { get; init; }
+
+    /// <summary>PNC belongs on the ladder unless the stage was skipped and no PNC cost exists.</summary>
+    public bool ShowsPncStep => !IsPncStageSkipped || PncCost.HasValue;
 
     public static ProcurementAtAGlanceVm Empty { get; } =
         new(null, null, null, null, null, null);

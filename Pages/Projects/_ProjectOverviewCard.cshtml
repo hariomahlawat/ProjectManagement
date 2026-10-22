@@ -168,10 +168,7 @@
                         <dd class="project-facts__value">@projectTypeName</dd>
                     </div>
                 }
-                <div class="project-facts__item">
-                    <dt class="project-facts__label">Repeat build</dt>
-                    <dd class="project-facts__value">@((project?.IsBuild ?? false) ? "Yes" : "No")</dd>
-                </div>
+                @* Repeat build shows as a chip beside the title, and only when it is one. *@
                 @if (!string.IsNullOrWhiteSpace(sponsoringUnitName))
                 {
                     <div class="project-facts__item">
