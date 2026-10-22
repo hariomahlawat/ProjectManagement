@@ -58,25 +58,25 @@
     string StageNodeLabel(string code)
         => string.Equals(code, "PAYMENT", StringComparison.OrdinalIgnoreCase) ? "₹" : code;
 
-    // SECTION: Category accent helper
-    string GetCategoryAccentClass(int? categoryId)
+    // SECTION: Update age helper
+    // Updates older than this are marked so a stale status shows without opening the project.
+    const int staleUpdateDays = 30;
+    var nowUtc = DateTime.UtcNow;
+
+    (string Label, bool IsStale) UpdateAge(DateTime createdAtUtc)
     {
-        if (!categoryId.HasValue)
+        var days = Math.Max(0, (int)(nowUtc - DateTime.SpecifyKind(createdAtUtc, DateTimeKind.Utc)).TotalDays);
+        var months = Math.Max(1, (int)Math.Round(days / 30.4));
+        var years = Math.Max(1, (int)Math.Round(days / 365.25));
+        var label = days switch
         {
-            return "ongoing-card--other";
-        }
-
-        if (Model.ChipCoECategoryId.HasValue && categoryId == Model.ChipCoECategoryId)
-        {
-            return "ongoing-card--coe";
-        }
-
-        if (Model.ChipDcdCategoryId.HasValue && categoryId == Model.ChipDcdCategoryId)
-        {
-            return "ongoing-card--dcd";
-        }
-
-        return "ongoing-card--other";
+            0 => "today",
+            1 => "yesterday",
+            < 31 => $"{days} days ago",
+            < 365 => months == 1 ? "1 month ago" : $"{months} months ago",
+            _ => years == 1 ? "1 year ago" : $"{years} years ago"
+        };
+        return (label, days > staleUpdateDays);
     }
 
 }
@@ -109,7 +109,7 @@
                                 class="stage-pipeline__seg stage-pipeline__seg--apvl js-stage-bucket-chip @(Model.StageBucket == "approval" ? "is-active" : string.Empty)"
                                 data-stage-bucket="approval"
                                 style="--grow:@Model.BucketApvlCount"
-                                title="Apvl: FS, SOW, IPA"
+                                title="Approval: FS, IPA, SOW"
                                 aria-pressed="@(Model.StageBucket == "approval")">
                             <span class="stage-pipeline__label">Apvl</span>
                             <span class="stage-pipeline__count">@Model.BucketApvlCount</span>
@@ -137,7 +137,7 @@
                                 class="stage-pipeline__seg stage-pipeline__seg--proc js-stage-bucket-chip @(Model.StageBucket == "procurement" ? "is-active" : string.Empty)"
                                 data-stage-bucket="procurement"
                                 style="--grow:@Model.BucketProcCount"
-                                title="Tendering (GeM/Proc): BID, TEC, BM, COB, PNC, EAS, SO"
+                                title="Tender (GeM/procurement): BID, TEC, BM, COB, PNC, EAS, SO"
                                 aria-pressed="@(Model.StageBucket == "procurement")">
                             <span class="stage-pipeline__label">Tender</span>
                             <span class="stage-pipeline__count">@Model.BucketProcCount</span>
@@ -151,7 +151,7 @@
                                 class="stage-pipeline__seg stage-pipeline__seg--devp js-stage-bucket-chip @(Model.StageBucket == "development" ? "is-active" : string.Empty)"
                                 data-stage-bucket="development"
                                 style="--grow:@Model.BucketDevpCount"
-                                title="Devp: DEVP, ATP, PAYMENT, TOT"
+                                title="Development: DEVP, ATP, PAYMENT, TOT"
                                 aria-pressed="@(Model.StageBucket == "development")">
                             <span class="stage-pipeline__label">Devp</span>
                             <span class="stage-pipeline__count">@Model.BucketDevpCount</span>
@@ -306,14 +306,14 @@
             {
                 <!-- SECTION: Timeline stage flow selector -->
                 <div class="d-flex align-items-center gap-2">
-                    <label asp-for="StageFlow" class="form-label mb-0 small text-muted">
-                        Stage flow
+                    <label asp-for="StageFlow" class="form-label mb-0 small text-muted text-nowrap">
+                        Order
                     </label>
                     <select asp-for="StageFlow"
                             class="form-select form-select-sm"
                             data-stage-flow-select>
-                        <option value="reverse">Later → Early</option>
-                        <option value="forward">Early → Later</option>
+                        <option value="reverse">Later stages first</option>
+                        <option value="forward">Earlier stages first</option>
                     </select>
                 </div>
             }
@@ -346,7 +346,7 @@
                asp-route-Search="@Model.Search"
                asp-route-View="@Model.View"
                asp-route-StageFlow="@Model.StageFlow"
-               class="btn btn-sm btn-outline-secondary">
+               class="btn btn-sm btn-outline-primary">
                 Export
             </a>
         </div>
@@ -393,11 +393,11 @@ else
             }
 
             <div class="col-12">
-                <article class="ongoing-card @GetCategoryAccentClass(item.ProjectCategoryId) card border-0 shadow-sm h-100">
+                <article class="ongoing-card card border-0 shadow-sm h-100">
                     <div class="card-body p-0">
                         @{
                             // SECTION: Timeline helper values
-                            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+                            var today = DateOnly.FromDateTime(ProjectManagement.Infrastructure.IstClock.ToIst(DateTime.UtcNow));
                             var cur = item.Stages[currentIdx];
                             var presentStage = item.PresentStage;
 
@@ -463,7 +463,7 @@ else
                                             }
                                             else
                                             {
-                                                <span class="text-muted">date not available</span>
+                                                <span class="text-muted">date not recorded</span>
                                             }
                                         }
                                         else
@@ -472,10 +472,6 @@ else
                                             @if (cur.PlannedDue.HasValue)
                                             {
                                                 @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">PDC not set</span>
                                             }
                                         }
 
@@ -512,6 +508,16 @@ else
                                                 </span>
                                             }
                                         }
+
+                                        @if (item.IsCurrentStageProlonged)
+                                        {
+                                            <span class="ms-2 oc-pill oc-pill--warning">
+                                                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                                @(string.Equals(cur.Code, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
+                                                    ? "Development prolonged (6 months+)"
+                                                    : "Stage prolonged")
+                                            </span>
+                                        }
                                     </p>
                                 </div>
                             </div>
@@ -529,7 +535,7 @@ else
                                         }
                                         else
                                         {
-                                            <span class="text-muted">date NA</span>
+                                            <span class="text-muted">date not recorded</span>
                                         }
                                     }
                                     else
@@ -544,40 +550,30 @@ else
                         <!-- SECTION: Complete lifecycle timeline -->
                         <section class="briefing-timeline" aria-label="Project lifecycle timeline">
                             @{
-                                var currentStageIsProlonged = item.IsCurrentStageProlonged;
-                                var currentStageProlongedText = string.Equals(
-                                    cur.Code,
-                                    StageCodes.DEVP,
-                                    StringComparison.OrdinalIgnoreCase)
-                                    ? "Development stage prolonged (6 months+)"
-                                    : "Current stage prolonged";
                                 var priorStagesMissingCompletion = item.Stages
                                     .Take(Math.Max(currentIdx, 0))
                                     .Count(stage => stage.Status is not StageStatus.Completed and not StageStatus.Skipped);
                             }
-                            @if (currentStageIsProlonged || priorStagesMissingCompletion > 0)
+                            @if (priorStagesMissingCompletion > 0)
                             {
                                 <div class="briefing-timeline__alerts" aria-label="Timeline attention items">
-                                    @if (currentStageIsProlonged)
-                                    {
-                                        <span class="briefing-timeline__alert briefing-timeline__alert--warning">
-                                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                                            @currentStageProlongedText
-                                        </span>
-                                    }
-                                    @if (priorStagesMissingCompletion > 0)
-                                    {
-                                        <span class="briefing-timeline__alert briefing-timeline__alert--neutral">
-                                            <i class="bi bi-calendar-x" aria-hidden="true"></i>
-                                            @priorStagesMissingCompletion earlier @(priorStagesMissingCompletion == 1 ? "stage has" : "stages have") no completion date
-                                        </span>
-                                    }
+                                    <span class="briefing-timeline__alert briefing-timeline__alert--neutral">
+                                        <i class="bi bi-calendar-x" aria-hidden="true"></i>
+                                        @priorStagesMissingCompletion earlier @(priorStagesMissingCompletion == 1 ? "stage has" : "stages have") no completion date
+                                    </span>
                                 </div>
                             }
                             <div class="briefing-timeline__rail" role="list" data-auto-focus-current="true">
-                                @for (var i = 0; i < item.Stages.Count; i++)
+                                @{
+                                    // Skipped stages are left off the rail; the current stage always stays.
+                                    var railStages = item.Stages
+                                        .Select((stage, index) => (Stage: stage, Index: index))
+                                        .Where(entry => entry.Stage.Status != StageStatus.Skipped || entry.Index == currentIdx)
+                                        .ToList();
+                                }
+                                @for (var position = 0; position < railStages.Count; position++)
                                 {
-                                    var stage = item.Stages[i];
+                                    var (stage, i) = railStages[position];
                                     var isCurrent = i == currentIdx;
                                     var isCompleted = stage.Status == StageStatus.Completed;
                                     var isSkipped = stage.Status == StageStatus.Skipped;
@@ -630,13 +626,14 @@ else
                                         </div>
                                     </div>
 
-                                    @if (i < item.Stages.Count - 1)
+                                    @if (position < railStages.Count - 1)
                                     {
-                                        <div class="briefing-connector" aria-hidden="true">
-                                            <span class="briefing-connector__line"></span>
+                                        <div class="briefing-connector">
+                                            <span class="briefing-connector__line" aria-hidden="true"></span>
                                             @if (isCompleted && historicalDuration.HasValue)
                                             {
-                                                <span class="briefing-duration briefing-duration--normal">@historicalDuration.Value d</span>
+                                                <span class="briefing-duration briefing-duration--normal"
+                                                      title="@stage.Name took @historicalDuration.Value day@(historicalDuration.Value == 1 ? "" : "s")">@historicalDuration.Value d</span>
                                             }
                                         </div>
                                     }
@@ -696,6 +693,9 @@ else
                                                         <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
                                                         <span class="ongoing-remarks__meta-sep">·</span>
                                                         <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                        @{ var internalAge = UpdateAge(r.CreatedAtUtc); }
+                                                        <span class="ongoing-remarks__meta-sep">·</span>
+                                                        <span class="ongoing-remarks__age @(internalAge.IsStale ? "is-stale" : null)">@internalAge.Label</span>
                                                     </div>
                                                 </li>
                                             }
@@ -714,6 +714,9 @@ else
                                                             <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
                                                             <span class="ongoing-remarks__meta-sep">·</span>
                                                             <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                            @{ var olderAge = UpdateAge(r.CreatedAtUtc); }
+                                                            <span class="ongoing-remarks__meta-sep">·</span>
+                                                            <span class="ongoing-remarks__age @(olderAge.IsStale ? "is-stale" : null)">@olderAge.Label</span>
                                                         </div>
                                                     </li>
                                                 }
@@ -743,6 +746,9 @@ else
                                                 <span>@externalRemark.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
                                                 <span class="ongoing-remarks__meta-sep">·</span>
                                                 <span>Event: @externalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
+                                                @{ var externalAge = UpdateAge(externalRemark.CreatedAtUtc); }
+                                                <span class="ongoing-remarks__meta-sep">·</span>
+                                                <span class="ongoing-remarks__age @(externalAge.IsStale ? "is-stale" : null)">@externalAge.Label</span>
                                             </div>
                                         </article>
                                     }

@@ -102,7 +102,7 @@
       panel.dataset.expanded = nextExpanded ? '1' : '0';
       expandedList.hidden = !nextExpanded;
       toggleButton.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
-      toggleLabel.textContent = nextExpanded ? 'Collapse remarks' : 'Expand remarks';
+      toggleLabel.textContent = nextExpanded ? 'Hide earlier updates' : 'View earlier updates';
       if (toggleChevron) {
         toggleChevron.textContent = nextExpanded ? '▴' : '▾';
       }
@@ -111,13 +111,35 @@
 
 
 
+  // SECTION: Fall back to the placeholder when a cover photo cannot be loaded
+  document.querySelectorAll('.ongoing-card__thumb-img').forEach((img) => {
+    const showPlaceholder = () => {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'ongoing-card__thumb-placeholder';
+      placeholder.setAttribute('aria-hidden', 'true');
+      const icon = document.createElement('i');
+      icon.className = 'bi bi-image';
+      placeholder.appendChild(icon);
+      img.replaceWith(placeholder);
+    };
+
+    if (img.complete && img.naturalWidth === 0) {
+      showPlaceholder();
+      return;
+    }
+
+    img.addEventListener('error', showPlaceholder, { once: true });
+  });
+
   // SECTION: Bring the current stage into view on first render
   document.querySelectorAll('.briefing-timeline__rail[data-auto-focus-current="true"]').forEach((rail) => {
     const current = rail.querySelector('[data-current-stage="true"]');
     if (!current) return;
 
-    const desiredLeft = Math.max(0, current.offsetLeft - Math.round(rail.clientWidth * 0.32));
-    rail.scrollLeft = desiredLeft;
+    // Measure against the rail itself: offsetLeft is relative to the nearest positioned
+    // ancestor, which is the card, so cards scrolled to inconsistent positions.
+    const offset = current.getBoundingClientRect().left - rail.getBoundingClientRect().left + rail.scrollLeft;
+    rail.scrollLeft = Math.max(0, offset - Math.round(rail.clientWidth * 0.32));
   });
 
   // SECTION: Mouse drag scrolling for complete lifecycle rails
