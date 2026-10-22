@@ -1077,3 +1077,44 @@ test('unsend catch-up reads every page before counting itself done', async () =>
     window.close();
   }
 });
+
+test('unsend catch-up looks back over the whole drop-detection window', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) { asked.push(url); return { ids: [], hasMore: false }; }
+    return pageOf([], false);
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const noticed = new Date('2026-10-22T10:00:00Z');
+    app.offlineSince = noticed;
+    await app.syncUnsent(true);
+    const since = new Date(decodeURIComponent(asked[0].split('since=')[1]));
+    assert.ok(noticed.getTime() - since.getTime() >= 150000, 'covers the 90 s timeout plus skew');
+  } finally {
+    window.close();
+  }
+});
+
+test('a drop during catch-up keeps the watermark for the next catch-up', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) { await gate; return { ids: [], hasMore: false }; }
+    return pageOf([], false);
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const running = app.syncUnsent(true);
+    app.markOffline(); // dropped again while the request was in flight
+    release();
+    await running;
+    assert.notEqual(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});

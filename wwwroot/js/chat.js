@@ -34,6 +34,10 @@
   const IDLE_CHECK_MS = 30000;
   const SEARCH_DELAY_MS = 300;
   const UNSENT_RETRY_MS = 15000;
+  const SERVER_TIMEOUT_MS = 90000; // how long a silent drop can go unnoticed
+  // Catch-up looks back this far before the moment a drop was noticed: the whole detection
+  // window, plus a minute for clock differences between browser and server.
+  const UNSENT_LOOKBACK_MS = SERVER_TIMEOUT_MS + 60000;
 
   const timeFormat = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TIME_ZONE });
   const dayKeyFormat = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TIME_ZONE });
@@ -308,6 +312,7 @@
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();
+    this.offlineGeneration = 0; // bumped on every drop, so a catch-up can tell it was overtaken
     this.myStatus = null;
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
@@ -484,7 +489,7 @@
     }
 
     const connection = builder.build();
-    connection.serverTimeoutInMilliseconds = 90000;
+    connection.serverTimeoutInMilliseconds = SERVER_TIMEOUT_MS;
     connection.on('ReceiveMessage', (message) => this.onMessage(message));
     connection.on('ConversationRead', (read) => this.onRead(read));
     connection.on('PeerRead', (read) => this.onPeerRead(read));
@@ -533,6 +538,7 @@
   };
 
   ChatApp.prototype.markOffline = function () {
+    this.offlineGeneration += 1;
     if (!this.offlineSince) this.offlineSince = new Date();
   };
 
@@ -557,7 +563,8 @@
       global.clearTimeout(this.unsentRetry);
       this.unsentRetry = null;
     }
-    const since = new Date(this.offlineSince.getTime() - 60000); // allow for clock skew
+    const generation = this.offlineGeneration;
+    const since = new Date(this.offlineSince.getTime() - UNSENT_LOOKBACK_MS);
     const base = `/unsent?since=${encodeURIComponent(since.toISOString())}`;
     try {
       // Read every page: the watermark is only cleared once nothing was skipped.
@@ -574,7 +581,10 @@
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();
       }
-      if (done) this.offlineSince = null; // live again: events cover the rest
+      // Live again: events cover the rest, unless the connection dropped again while this ran
+      // (that outage still needs its own catch-up).
+      const stillLive = !this.connection || this.isConnected();
+      if (done && generation === this.offlineGeneration && stillLive) this.offlineSince = null;
     } catch (_) {
       // While polling, the next poll tries again. Once live again nothing else would, so keep
       // retrying until the catch-up succeeds (one timer at a time).
