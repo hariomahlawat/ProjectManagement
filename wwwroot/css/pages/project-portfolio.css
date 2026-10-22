@@ -129,6 +129,12 @@
     font-weight: 650;
 }
 
+.project-command-header__case--repeat {
+    border-color: var(--bs-primary-border-subtle);
+    color: var(--bs-primary-text-emphasis);
+    background: var(--bs-primary-bg-subtle);
+}
+
 .project-command-header__meta {
     display: flex;
     flex-wrap: wrap;
@@ -556,19 +562,6 @@ button.project-intelligence-card:hover {
     font-weight: 600;
     white-space: nowrap;
 }
-.project-lifecycle-panel .pm-item-compact-meta > span {
-    display: inline-flex;
-    align-items: center;
-    gap: .24rem;
-}
-.project-lifecycle-panel .pm-item-compact-meta__separator { opacity: .65; }
-/* The separator is generated, so it can never be left on a line of its own when the two
-   values stack (discovery C7.6). */
-.pm-item-compact-meta__duration::before {
-    content: "·";
-    margin-right: .38rem;
-    opacity: .65;
-}
 .project-lifecycle-panel .pm-item.is-expanded .pm-item-compact-meta { display: none; }
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-header {
     align-items: center;
@@ -806,16 +799,6 @@ button.project-intelligence-card:hover {
 }
 .project-lifecycle-panel .project-remark-launcher {
     margin-bottom: .75rem;
-}
-@media (max-width: 1399.98px) {
-    .project-lifecycle-panel .pm-item-compact-meta {
-        flex-direction: column;
-        align-items: flex-end;
-        gap: .08rem;
-        line-height: 1.2;
-    }
-    .project-lifecycle-panel .pm-item-compact-meta__separator { display: none; }
-    .project-lifecycle-panel .pm-item-compact-meta__duration::before { content: none; }
 }
 @media (max-width: 1199.98px) {
     .project-lifecycle-panel > .card-header {
@@ -3561,7 +3544,7 @@ button.project-intelligence-card--tot:focus-visible {
 .procurement-ladder {
     --ladder-line: color-mix(in srgb, var(--portfolio-muted) 22%, transparent);
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--ladder-steps, 6), minmax(0, 1fr));
     gap: 0;
     margin: .1rem 0 0;
     padding: 0;

@@ -116,28 +116,35 @@
     {
       @* The procurement markers read as a ladder in the order they are reached, so the card
          shows how far procurement has gone as well as the figures. *@
-      var steps = new (string Label, string Value, string? Title, bool Recorded)[]
+      @* A skipped PNC stage is not a step this project will reach, so it leaves the ladder
+         (ProcurementAtAGlanceVm.ShowsPncStep). *@
+      var steps = new List<(string Label, string Value, string? Title, bool Recorded)>
       {
-          ("IPA", Money(Model.IpaCost), FullInr(Model.IpaCost), Model.IpaCost.HasValue),
-          ("AoN", Money(Model.AonCost), FullInr(Model.AonCost), Model.AonCost.HasValue),
-          ("Benchmark", Money(Model.BenchmarkCost), FullInr(Model.BenchmarkCost), Model.BenchmarkCost.HasValue),
-          ("L1", Money(Model.L1Cost), FullInr(Model.L1Cost), Model.L1Cost.HasValue),
-          ("PNC", Money(Model.PncCost), FullInr(Model.PncCost), Model.PncCost.HasValue),
-          ("Supply order", DateDmy(Model.SupplyOrderDate), null, Model.SupplyOrderDate.HasValue),
+          ("IPA cost", Money(Model.IpaCost), FullInr(Model.IpaCost), Model.IpaCost.HasValue),
+          ("AoN cost", Money(Model.AonCost), FullInr(Model.AonCost), Model.AonCost.HasValue),
+          ("Benchmark cost", Money(Model.BenchmarkCost), FullInr(Model.BenchmarkCost), Model.BenchmarkCost.HasValue),
+          ("L1 cost", Money(Model.L1Cost), FullInr(Model.L1Cost), Model.L1Cost.HasValue),
       };
-      var latestRecorded = Array.FindLastIndex(steps, step => step.Recorded);
-      <ol class="procurement-metrics procurement-ladder" aria-label="Procurement milestones">
-        @for (var i = 0; i < steps.Length; i++)
+      if (Model.ShowsPncStep)
+      {
+          steps.Add(("PNC cost", Money(Model.PncCost), FullInr(Model.PncCost), Model.PncCost.HasValue));
+      }
+      steps.Add(("Supply order date", DateDmy(Model.SupplyOrderDate), null, Model.SupplyOrderDate.HasValue));
+      // The ring marks where procurement has reached, so it only shows while a step is still ahead.
+      var latestRecorded = steps.FindLastIndex(step => step.Recorded);
+      var reachedEnd = latestRecorded == steps.Count - 1;
+      <ol class="procurement-metrics procurement-ladder" aria-label="Procurement milestones" style="--ladder-steps: @steps.Count">
+        @for (var i = 0; i < steps.Count; i++)
         {
           var step = steps[i];
-          <li class="procurement-step@(step.Recorded ? " is-recorded" : string.Empty)@(i == latestRecorded ? " is-latest" : string.Empty)">
+          <li class="procurement-step@(step.Recorded ? " is-recorded" : string.Empty)@(i == latestRecorded && !reachedEnd ? " is-latest" : string.Empty)">
             <span class="procurement-step__marker" aria-hidden="true">
               @if (step.Recorded)
               {
                 <i class="bi bi-check-lg"></i>
               }
             </span>
-            <span class="procurement-label">@step.Label@(i < 5 ? " cost" : " date")</span>
+            <span class="procurement-label">@step.Label</span>
             <span class="procurement-value" title="@step.Title">@(step.Recorded ? step.Value : "Not yet")</span>
             @if (i == 0 && ipaPosition?.IsManagedByArpp == true && ipaCategory is not null)
             {

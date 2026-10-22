@@ -47,6 +47,28 @@ public sealed class ProjectOverviewPresentationContractTests
     }
 
     [Fact]
+    public void CompletedStage_ReadsAsOnePlainLine()
+    {
+        var timeline = ReadRepoFile("Pages", "Shared", "_ProjectTimeline.cshtml");
+
+        Assert.Contains("$\"Completed {D(s.CompletedOn)}\"", timeline, StringComparison.Ordinal);
+        Assert.Contains("$\" · {days} day", timeline, StringComparison.Ordinal);
+        Assert.DoesNotContain("Took ", timeline, StringComparison.Ordinal);
+        Assert.DoesNotContain("bi-stopwatch", timeline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RepeatBuild_IsATitleChip_ShownOnlyWhenItIsOne()
+    {
+        var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");
+        var overview = ReadRepoFile("Pages", "Projects", "_ProjectOverviewCard.cshtml");
+
+        Assert.Contains("@if (project?.IsBuild == true)", header, StringComparison.Ordinal);
+        Assert.Contains(">Repeat build</span>", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("<dt class=\"project-facts__label\">Repeat build</dt>", overview, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecordScores_UseDistinctAndAccurateLabels()
     {
         // The header strip's tiles live in _ProjectHeaderTile, shared with the overview card.

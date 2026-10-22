@@ -50,6 +50,10 @@
                 {
                     <span class="project-command-header__case">@project.CaseFileNumber</span>
                 }
+                @if (project?.IsBuild == true)
+                {
+                    <span class="project-command-header__case project-command-header__case--repeat">Repeat build</span>
+                }
                 @if (!isActive && !isCompleted && !isCancelled)
                 {
                     <span class="badge rounded-pill text-bg-secondary">@Model.LifecycleSummary.StatusLabel</span>

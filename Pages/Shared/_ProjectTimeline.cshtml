@@ -315,15 +315,12 @@
               }
               @if (s.Status == StageStatus.Completed)
               {
-                var completionText = s.CompletedOn.HasValue ? D(s.CompletedOn) : "Completion date required";
-                var durationText = s.ActualDurationDays.HasValue
-                    ? $"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}" 
-                    : "Duration unavailable";
-                @* Labelled, so a collapsed card's date is not read as a start or planned date (discovery C6.4). *@
-                <span class="pm-item-compact-meta">
-                  <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @(s.CompletedOn.HasValue ? $"Completed {completionText}" : completionText)</span>
-                  <span class="pm-item-compact-meta__duration"><i class="bi bi-stopwatch" aria-hidden="true"></i> @(s.ActualDurationDays.HasValue ? $"Took {durationText}" : durationText)</span>
-                </span>
+                @* One plain line: "Completed 08 Nov 2024 · 30 days". Labelled, so a collapsed card's
+                   date is not read as a start or planned date (discovery C6.4). *@
+                var compactMeta = s.CompletedOn.HasValue
+                    ? $"Completed {D(s.CompletedOn)}" + (s.ActualDurationDays is int days ? $" · {days} day{(days == 1 ? string.Empty : "s")}" : string.Empty)
+                    : "Completion date required";
+                <span class="pm-item-compact-meta">@compactMeta</span>
                 <button type="button"
                         class="pm-item-expand-toggle"
                         data-timeline-toggle
