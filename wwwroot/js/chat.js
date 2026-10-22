@@ -342,6 +342,11 @@
     const contact = this.contacts.get(peerId);
     if (contact) {
       contact.lastMessageUtc = message.sentUtc;
+    } else {
+      // Someone this tab has not seen yet (new or reactivated account): fetch their details so
+      // the window can show their name and let the user reply. The refresh also brings the
+      // server's unread count, so nothing is counted here.
+      this.refreshContacts();
     }
 
     let win = this.windows.get(peerId);
@@ -386,7 +391,10 @@
 
   ChatApp.prototype.onPresence = function (presence) {
     const contact = this.contacts.get(presence.userId);
-    if (!contact) return;
+    if (!contact) {
+      if (presence.isOnline && presence.userId !== this.me) this.refreshContacts();
+      return;
+    }
     contact.isOnline = presence.isOnline;
     this.renderContacts();
     const win = this.windows.get(presence.userId);
@@ -448,7 +456,23 @@
     this.enforceCapacity();
   };
 
-  ChatApp.prototype.refreshContacts = async function () {
+  /** Overlapping calls share one request, plus at most one follow-up for calls made meanwhile. */
+  ChatApp.prototype.refreshContacts = function () {
+    if (this.contactsRequest) {
+      this.contactsAgain = true;
+      return this.contactsRequest;
+    }
+    this.contactsRequest = this.loadContacts().finally(() => {
+      this.contactsRequest = null;
+      if (this.contactsAgain) {
+        this.contactsAgain = false;
+        this.refreshContacts();
+      }
+    });
+    return this.contactsRequest;
+  };
+
+  ChatApp.prototype.loadContacts = async function () {
     if (this.stopped) return;
     try {
       const contacts = await this.request('GET', '/contacts');

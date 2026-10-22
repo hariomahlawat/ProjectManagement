@@ -190,3 +190,27 @@ test('a failed mark-read is retried on the next focus', async () => {
     window.close();
   }
 });
+
+test('a message from someone not yet in the contact list refreshes it so they can be answered', async () => {
+  let contactCalls = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      contactCalls += 1;
+      return contactCalls === 1 ? [] : [{ ...contact, unreadCount: 1 }];
+    }
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    window.PMChat.onMessage({ id: 9, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-9', body: 'hello', sentUtc: new Date().toISOString() });
+    await tick(); await tick(); await tick();
+    const win = window.PMChat.windows.get('peer');
+    assert.equal(contactCalls, 2);
+    assert.equal(win.name.textContent, 'Peer Person');
+    assert.equal(win.form.hidden, false);
+    assert.equal(window.PMChat.contacts.get('peer').unreadCount, 1);
+  } finally {
+    window.close();
+  }
+});
