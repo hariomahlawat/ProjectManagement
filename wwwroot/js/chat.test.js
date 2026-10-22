@@ -114,9 +114,10 @@ test('catch-up reports no overlap when the page cap runs out', async () => {
   assert.equal(result.messages.length, 6);
 });
 
-function bootApp(handler) {
+function bootApp(handler, extraBody = '') {
   const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="t"></head><body>
     <button data-chat-launcher></button>
+    ${extraBody}
     <div data-chat-root data-current-user-id="me" data-api-base="/api/chat" data-max-length="4000"></div>
   </body></html>`, { runScripts: 'outside-only', url: 'https://prism.local/', pretendToBeVisual: true });
   const { window } = dom;
@@ -244,6 +245,195 @@ test('a reactivated contact coming online or writing is refreshed so the reply b
     await tick(); await tick(); await tick();
     assert.equal(contactCalls, 3);
     assert.equal(win.form.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+// --- Phase 2: ticks, typing, away, alerts, Messages page -------------------------------------
+
+function fakeHub(app) {
+  const calls = [];
+  app.connection = { state: 'Connected', invoke: (method, arg) => { calls.push([method, arg]); return Promise.resolve(); }, stop: () => Promise.resolve() };
+  return calls;
+}
+
+test('highlightParts marks every case-insensitive match', () => {
+  const { PMChatInternals } = load();
+  const parts = Array.from(PMChatInternals.highlightParts('TEC minutes; tec again', 'tec'), (p) => `${p.match ? '[' : ''}${p.text}${p.match ? ']' : ''}`);
+  assert.deepEqual(parts, ['[TEC]', ' minutes; ', '[tec]', ' again']);
+  assert.equal(PMChatInternals.highlightParts('abc', '').length, 1);
+});
+
+test('conversation list keeps people with history, most recent first', () => {
+  const { PMChatInternals } = load();
+  const list = PMChatInternals.conversationList([
+    { userId: 'a', lastMessageUtc: '2026-10-20T10:00:00Z' },
+    { userId: 'b', lastMessageUtc: null },
+    { userId: 'c', lastMessageUtc: '2026-10-22T10:00:00Z' },
+  ]);
+  assert.deepEqual(Array.from(list, (c) => c.userId), ['c', 'a']);
+});
+
+test('away sorts between online and offline', () => {
+  const { PMChatInternals } = load();
+  const c = (displayName, extra) => ({ displayName, unreadCount: 0, isActive: true, isOnline: false, isAway: false, ...extra });
+  const sorted = PMChatInternals.sortContacts([c('Off'), c('Away', { isOnline: true, isAway: true }), c('On', { isOnline: true })]);
+  assert.deepEqual(Array.from(sorted, (x) => x.displayName), ['On', 'Away', 'Off']);
+});
+
+test('title flasher alternates and restores the page title', () => {
+  const { PMChatInternals } = load();
+  const doc = { title: 'Dashboard | PRISM ERP' };
+  let tickFn = null;
+  const flasher = new PMChatInternals.TitleFlasher(doc, (fn) => { tickFn = fn; return 1; }, () => { tickFn = null; });
+  flasher.start('Ravi says…');
+  assert.equal(doc.title, 'Ravi says…');
+  tickFn();
+  assert.equal(doc.title, 'Dashboard | PRISM ERP');
+  tickFn();
+  assert.equal(doc.title, 'Ravi says…');
+  flasher.start('Sita says…'); // a second sender keeps the original to restore
+  flasher.stop();
+  assert.equal(doc.title, 'Dashboard | PRISM ERP');
+  assert.equal(flasher.active(), false);
+});
+
+test('my messages get one tick when sent and two once the other person has read them', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) {
+      return {
+        messages: [
+          { id: 1, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-1', body: 'one', sentUtc: new Date().toISOString() },
+          { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'two', sentUtc: new Date().toISOString() },
+        ],
+        hasMore: false,
+        peerLastReadMessageId: 1,
+      };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const labels = () => Array.from(win.log.querySelectorAll('.pm-chat__tick'), (t) => t.getAttribute('aria-label'));
+    assert.deepEqual(labels(), ['Seen', 'Sent']);
+    window.PMChat.onPeerRead({ peerUserId: 'peer', upToMessageId: 2 });
+    assert.deepEqual(labels(), ['Seen', 'Seen']);
+  } finally {
+    window.close();
+  }
+});
+
+test('typing shows in the window header, is throttled when sent, and clears on the message', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const calls = fakeHub(window.PMChat);
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick();
+
+    window.PMChat.onTyping({ userId: 'peer' });
+    assert.equal(win.status.textContent, 'typing…');
+
+    window.PMChat.onMessage({ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: 'done', sentUtc: new Date().toISOString() });
+    assert.notEqual(win.status.textContent, 'typing…');
+
+    win.input.value = 'h';
+    win.input.dispatchEvent(new window.Event('input'));
+    win.input.value = 'hi';
+    win.input.dispatchEvent(new window.Event('input'));
+    assert.deepEqual(calls.filter(([m]) => m === 'Typing'), [['Typing', 'peer']]);
+  } finally {
+    window.close();
+  }
+});
+
+test('an idle tab reports away and activity brings it back', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [contact] : { status: 204, body: null }));
+  try {
+    await tick();
+    const app = window.PMChat;
+    const calls = fakeHub(app);
+    app.checkIdle(app.lastActivity + 4 * 60 * 1000);
+    assert.equal(app.away, false);
+    app.checkIdle(app.lastActivity + 5 * 60 * 1000);
+    assert.equal(app.away, true);
+    app.noteActivity();
+    assert.equal(app.away, false);
+    assert.deepEqual(calls, [['SetAway', true], ['SetAway', false]]);
+
+    app.onPresence({ userId: 'peer', isOnline: true, isAway: true });
+    assert.equal(app.contacts.get('peer').isAway, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('only one tab chimes for a given message', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [contact] : pageOf([], false)));
+  try {
+    await tick();
+    const app = window.PMChat;
+    let plays = 0;
+    app.chime.play = () => { plays += 1; };
+    app.alert({ id: 41, senderUserId: 'peer' }, contact);
+    app.alert({ id: 41, senderUserId: 'peer' }, contact); // the same push reaching a second tab
+    app.alert({ id: 42, senderUserId: 'peer' }, contact);
+    assert.equal(plays, 2);
+
+    app.setSound(false);
+    app.alert({ id: 43, senderUserId: 'peer' }, contact);
+    assert.equal(plays, 2);
+  } finally {
+    window.close();
+  }
+});
+
+test('the Messages page opens a search hit in the middle of a conversation', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/search')) {
+      return [{ messageId: 15, peerUserId: 'peer', peerDisplayName: 'Peer Person', senderUserId: 'peer', body: 'the TEC minutes', sentUtc: '2026-10-01T09:00:00Z' }];
+    }
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.includes('after=15')) return { ...pageOf([16, 17], false), hasNewer: false };
+    return pageOf([], false);
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const page = window.PMChat.page;
+    assert.equal(page.list.querySelectorAll('.pm-chat-page__item').length, 1);
+
+    page.searchInput.value = 'tec';
+    await page.runSearch();
+    const hit = page.results.querySelector('.pm-chat-page__hit');
+    assert.equal(hit.querySelector('mark').textContent, 'TEC');
+
+    hit.click();
+    await tick(); await tick();
+    const win = page.current;
+    assert.equal(win.embedded, true);
+    assert.equal(win.highlightId, 15);
+    assert.equal(win.newer.hidden, false);
+    assert.ok(win.log.querySelector('.is-highlight'));
+
+    // A live message must not be pasted below the gap while an old slice is shown.
+    window.PMChat.onMessage({ id: 99, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-99', body: 'new', sentUtc: new Date().toISOString() });
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15]);
+
+    win.newer.focus();
+    await window.PMChat.loadNewer(win);
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 17]);
+    assert.equal(win.newer.hidden, true);
+    // The button hid itself; focus stays in the conversation so it still counts as read.
+    assert.equal(window.document.activeElement, win.input);
   } finally {
     window.close();
   }

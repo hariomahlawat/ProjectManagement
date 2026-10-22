@@ -10,14 +10,17 @@ using ProjectManagement.Services.Chat;
 namespace ProjectManagement.Hubs;
 
 /// <summary>
-/// Push-only channel for chat. Browsers never send messages through the hub: sending and
-/// marking read go through the antiforgery-protected /api/chat endpoints, which then push
-/// here. The hub itself only tracks who is online.
+/// Live channel for chat. Anything that writes data (sending, marking read) goes through the
+/// antiforgery-protected /api/chat endpoints, which then push here. Browsers may only invoke
+/// the two ephemeral signals below, which write nothing: typing and away. (The auth cookie is
+/// SameSite=Strict, so another site cannot open this connection as the user.)
 /// </summary>
 [Authorize]
 public sealed class ChatHub : Hub<IChatClient>
 {
     private const string PresenceItemKey = "chat.presence";
+    private const string TypingItemPrefix = "chat.typing.";
+    private static readonly TimeSpan TypingInterval = TimeSpan.FromSeconds(2);
 
     private readonly ChatPresenceTracker _presence;
     private readonly IOptionsMonitor<ChatOptions> _options;
@@ -38,11 +41,7 @@ public sealed class ChatHub : Hub<IChatClient>
         }
 
         Context.Items[PresenceItemKey] = true;
-        if (_presence.Connect(userId))
-        {
-            await Clients.Others.PresenceChanged(new ChatPresenceDto(userId, true));
-        }
-
+        await BroadcastIfChanged(userId, _presence.Connect(userId, Context.ConnectionId));
         await base.OnConnectedAsync();
     }
 
@@ -51,14 +50,64 @@ public sealed class ChatHub : Hub<IChatClient>
         var userId = Context.UserIdentifier;
         // Only connections that were counted in are counted out, so an aborted connection
         // cannot mark a user offline while their other tabs are still open.
-        if (!string.IsNullOrWhiteSpace(userId)
-            && Context.Items.ContainsKey(PresenceItemKey)
-            && _presence.Disconnect(userId))
+        if (!string.IsNullOrWhiteSpace(userId) && Context.Items.ContainsKey(PresenceItemKey))
         {
-            await Clients.Others.PresenceChanged(new ChatPresenceDto(userId, false));
+            await BroadcastIfChanged(userId, _presence.Disconnect(userId, Context.ConnectionId));
         }
 
         await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>This tab's idle state. The user shows as away only when every open tab is idle.</summary>
+    public async Task SetAway(bool away)
+    {
+        var userId = Context.UserIdentifier;
+        if (string.IsNullOrWhiteSpace(userId) || !Context.Items.ContainsKey(PresenceItemKey))
+        {
+            return;
+        }
+
+        await BroadcastIfChanged(userId, _presence.SetAway(userId, Context.ConnectionId, away));
+    }
+
+    /// <summary>
+    /// "I am typing to <paramref name="peerUserId"/>". Forwarded to that person's tabs only, at
+    /// most once per two seconds per connection and person; nothing is stored.
+    /// </summary>
+    public async Task Typing(string peerUserId)
+    {
+        var userId = Context.UserIdentifier;
+        if (string.IsNullOrWhiteSpace(userId)
+            || string.IsNullOrWhiteSpace(peerUserId)
+            || peerUserId.Length > 450
+            || string.Equals(peerUserId, userId, StringComparison.Ordinal)
+            || !Context.Items.ContainsKey(PresenceItemKey))
+        {
+            return;
+        }
+
+        var key = TypingItemPrefix + peerUserId;
+        var now = DateTimeOffset.UtcNow;
+        if (Context.Items.TryGetValue(key, out var last) && last is DateTimeOffset previous && now - previous < TypingInterval)
+        {
+            return;
+        }
+
+        Context.Items[key] = now;
+        await Clients.User(peerUserId).Typing(new ChatTypingDto(userId));
+    }
+
+    private Task BroadcastIfChanged(string userId, (ChatPresence Before, ChatPresence After) change)
+    {
+        if (change.Before == change.After)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Clients.Others.PresenceChanged(new ChatPresenceDto(
+            userId,
+            IsOnline: change.After != ChatPresence.Offline,
+            IsAway: change.After == ChatPresence.Away));
     }
 }
 
@@ -68,5 +117,9 @@ public interface IChatClient
 
     Task ConversationRead(ChatReadDto read);
 
+    Task PeerRead(ChatReadDto read);
+
     Task PresenceChanged(ChatPresenceDto presence);
+
+    Task Typing(ChatTypingDto typing);
 }

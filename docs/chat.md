@@ -3,15 +3,17 @@
 Person-to-person chat inside PRISM, in the style of the old Google Talk / Yahoo Messenger: a
 buddy list and small chat windows docked at the bottom-right of every page.
 
-Status: phase 1 (one-to-one text chat) is built. Owner decisions (2026-10-22): everyone may
-chat with everyone; messages are kept indefinitely; administrators cannot read chats.
+Status: phase 1 (one-to-one text chat, #2730) and phase 2 (typing, read ticks, alerts, away,
+Messages page with search) are built. Owner decisions (2026-10-22): everyone may chat with
+everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## What users see
 
 - A **chat button** in the top bar, beside the notification bell, with a red badge for unread
   messages. It opens the **buddy list**: every active user, with a presence dot (green =
-  online), rank, a search box and per-person unread counts. Unread conversations sort first,
-  then online people, then everyone else by name.
+  online, amber = away, grey = offline), rank, a search box and per-person unread counts.
+  Unread conversations sort first, then online, away and offline people, then by name. Its
+  header has a **sound on/off** toggle and a link to the Messages page.
 - **Docked windows**, one per conversation. They can be minimised, closed and reopened, and
   they stay open across page navigation (the set of open windows is remembered per browser
   and per user in `localStorage` key `prism.chat.dock.{userId}`; it holds user ids only, never
@@ -23,7 +25,24 @@ chat with everyone; messages are kept indefinitely; administrators cannot read c
 - **Enter** sends, **Shift+Enter** adds a line, **Esc** minimises. Messages are plain text, up
   to 4,000 characters. A failed send stays in the window with a Retry link.
 - A conversation with a **deactivated** account stays readable but cannot be replied to.
-- Online status is "has at least one PRISM tab open". There is no "away" yet.
+- **Typing indicator**: the other person's window header shows "typing…" while they type, for
+  about six seconds after the last keystroke, and clears when their message arrives.
+- **Read ticks** under your own messages: one tick once stored, two blue ticks once the other
+  person has read it. Read receipts cannot be turned off.
+- **Alerts** for a message you are not looking at: a short chime (made in the browser, no
+  audio file) and, when the PRISM tab is in the background, a flashing tab title ("Ravi
+  says…") until you return to the tab. With several PRISM tabs open only one chimes. Browsers
+  only allow sound after you have clicked or typed on the page, so the first message after
+  opening a fresh page may arrive silently. The sound setting is remembered per browser
+  (`prism.chat.sound.{userId}`).
+- **Online / away / offline**: online while any PRISM tab is open and in use; **away** after
+  five minutes without mouse or keyboard activity in every open tab; offline with no tab open.
+- **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
+  first, with a large conversation view, and **search across all your messages** (at least two
+  characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
+  that message, highlighted, with "Show earlier" and "Show newer" to read around it. Links
+  take the form `/Chat?with={userId}&at={messageId}`. Opening a conversation there closes its
+  docked window, so each conversation has one view.
 
 ## How it works
 
@@ -35,11 +54,24 @@ chat with everyone; messages are kept indefinitely; administrators cannot read c
 | HTTP API | `Features/Chat/ChatApi.cs`, under `/api/chat` |
 | Live updates | `Hubs/ChatHub.cs`, at `/hubs/chat` |
 | Browser | `Pages/Shared/_ChatLauncher.cshtml`, the `#pmChat` root in `_Layout.cshtml`, `wwwroot/js/chat.js`, `wwwroot/css/chat.css` |
+| Messages page | `Pages/Chat/Index.cshtml` (a shell; `chat.js` fills it) |
 
-- **Sending and marking read are antiforgery-protected POSTs**, like the notification API. The
-  hub is push-only: after the database save, the API pushes `ReceiveMessage` to both people's
-  connections, `ConversationRead` to the reader's other tabs, and the hub itself broadcasts
-  `PresenceChanged`. Browsers never send messages through the WebSocket.
+- **Everything that writes data is an antiforgery-protected POST** (send, mark read), like the
+  notification API. After the database save the API pushes `ReceiveMessage` to both people's
+  connections, `ConversationRead` to the reader's other tabs and `PeerRead` to the other
+  person (read ticks). The hub broadcasts `PresenceChanged` (with `isAway`).
+- **The browser may invoke only two hub methods, and neither stores anything**: `Typing(peerUserId)`,
+  forwarded as `Typing` to that person only and throttled to once per two seconds per tab and
+  person on the server, and `SetAway(bool)` for this tab's idle state. The auth cookie is
+  `SameSite=Strict`, so another site cannot open the connection as the user.
+- **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
+  can only ever match the caller's conversations. The term is matched as plain text (`%` and
+  `_` are not wildcards). It is a substring scan without a full-text index, which is fine at
+  LAN scale; add an index if chat volume grows large.
+- **History paging** (`GET /api/chat/with/{peer}/messages`): no cursor = latest page;
+  `before={id}` = page ending before that id (`hasMore`, plus `hasNewer` when it ends short of
+  the latest); `after={id}` = page starting after that id. Every page carries
+  `peerLastReadMessageId` for the ticks.
 - **Direct conversations are unique per pair.** `ChatConversations.DirectKey` is the two user
   ids in ordinal order joined by `|`, with a unique index; a race to create the first
   conversation resolves to the winner.
@@ -81,13 +113,14 @@ chat with everyone; messages are kept indefinitely; administrators cannot read c
 - The migration only adds the three tables and their indexes; rollback of the application is
   safe with the tables left in place. To turn the feature off without a rollback, set
   `Chat:Enabled` to `false`.
-- Online status lives in the web process. PRISM runs as one process on one server, so this is
-  exact; a multi-server deployment would need a SignalR backplane and a shared presence store.
-  During an app-pool recycle, presence rebuilds as browsers reconnect.
+- Online status lives in the web process, per open tab. PRISM runs as one process on one
+  server, so this is exact; a multi-server deployment would need a SignalR backplane and a
+  shared presence store. During an app-pool recycle, presence rebuilds as browsers reconnect,
+  and each tab repeats its away state on reconnect.
+- Phase 2 needs no migration. During a rolling restart an old page talking to the new server,
+  or the reverse, keeps working: new fields are optional, and a hub method one side does not know fails harmlessly.
 
-## Not yet built (phase 2 and later)
+## Not yet built
 
-Typing indicator, read ticks, sound and tab-title flash for new messages, a full Messages page
-with history search, an "away" status, a Yahoo-style status message, a "Chat" button next to
-people's names elsewhere in PRISM, unsend within a few minutes, group chats, file attachments
-and project-linked conversations.
+A Yahoo-style status message, a "Chat" button next to people's names elsewhere in PRISM, unsend
+within a few minutes, group chats, file attachments and project-linked conversations.

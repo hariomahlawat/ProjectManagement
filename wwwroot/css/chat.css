@@ -232,6 +232,10 @@
     background: var(--pm-surface-muted);
 }
 
+.pm-chat__presence.is-away {
+    background: var(--pm-warning);
+}
+
 /* ---------- Conversation window ---------- */
 .pm-chat__window {
     width: 300px;
@@ -420,6 +424,245 @@
 
 .pm-chat__send {
     color: var(--pm-primary);
+}
+
+/* ---------- Phase 2: ticks, typing, search highlight ---------- */
+.pm-chat__tick {
+    font-size: .8rem;
+    vertical-align: -.1em;
+}
+
+.pm-chat__tick.is-seen {
+    color: var(--pm-primary);
+}
+
+.pm-chat__window.is-typing .pm-chat__window-status {
+    color: var(--pm-primary);
+    font-style: italic;
+}
+
+.pm-chat__msg.is-highlight .pm-chat__bubble {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 1px;
+}
+
+/* ---------- Messages page (/Chat) ---------- */
+.pm-chat-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-block: 1rem;
+}
+
+.pm-chat-page__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.pm-chat-page__lede {
+    margin: .25rem 0 0;
+    color: var(--pm-text-muted);
+}
+
+.pm-chat-page__layout {
+    display: grid;
+    grid-template-columns: minmax(16rem, 22rem) 1fr;
+    height: min(72vh, 46rem);
+    min-height: 26rem;
+    overflow: hidden;
+    border: 1px solid var(--pm-border);
+    border-radius: .75rem;
+    background: var(--pm-card);
+}
+
+.pm-chat-page__side {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--pm-border);
+}
+
+.pm-chat-page__tools {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    padding: .75rem;
+    border-bottom: 1px solid var(--pm-border);
+}
+
+.pm-chat-page__new {
+    flex: none;
+    white-space: nowrap;
+}
+
+.pm-chat-page__results,
+.pm-chat-page__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.pm-chat-page__list {
+    margin: 0;
+    padding: .35rem;
+    list-style: none;
+}
+
+.pm-chat-page__results .pm-chat-page__list {
+    overflow: visible;
+}
+
+.pm-chat-page__item,
+.pm-chat-page__hit {
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+    width: 100%;
+    padding: .55rem .6rem;
+    border: 0;
+    border-radius: .5rem;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+}
+
+.pm-chat-page__hit {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .2rem;
+}
+
+.pm-chat-page__item:hover,
+.pm-chat-page__item:focus-visible,
+.pm-chat-page__hit:hover,
+.pm-chat-page__hit:focus-visible {
+    background: var(--pm-surface-subtle);
+}
+
+.pm-chat-page__item[aria-current="true"] {
+    background: var(--pm-primary-soft);
+}
+
+.pm-chat-page__item.is-inactive {
+    opacity: .6;
+}
+
+.pm-chat-page__item-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: .2rem;
+}
+
+.pm-chat-page__hit-head {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.pm-chat-page__stamp,
+.pm-chat-page__count {
+    color: var(--pm-text-muted);
+    font-size: .72rem;
+    white-space: nowrap;
+}
+
+.pm-chat-page__count {
+    margin: .6rem .9rem 0;
+}
+
+.pm-chat-page__snippet {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--pm-text-secondary);
+    font-size: .82rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.pm-chat-page__snippet mark {
+    padding: 0 .1em;
+    border-radius: .2rem;
+    background: var(--pm-warning-soft-bg);
+    color: inherit;
+}
+
+.pm-chat-page__you {
+    color: var(--pm-text-muted);
+}
+
+.pm-chat-page__empty {
+    margin: 0;
+    padding: 1.25rem;
+    color: var(--pm-text-muted);
+    text-align: center;
+}
+
+.pm-chat-page__pane {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.pm-chat-page__placeholder {
+    margin: auto;
+}
+
+.pm-chat-page__back {
+    display: none;
+    align-self: flex-start;
+    margin: .25rem .5rem 0;
+}
+
+.pm-chat__window.is-embedded {
+    flex: 1;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.pm-chat__window.is-embedded .pm-chat__window-head {
+    border-radius: 0;
+    padding-block: .6rem;
+}
+
+.pm-chat__window.is-embedded .pm-chat__msg {
+    max-width: min(70%, 40rem);
+}
+
+@media (max-width: 767.98px) {
+    .pm-chat-page__layout {
+        grid-template-columns: 1fr;
+        height: calc(100vh - 12rem);
+    }
+
+    .pm-chat-page__side {
+        border-right: 0;
+    }
+
+    .pm-chat-page__pane {
+        display: none;
+    }
+
+    .pm-chat-page__layout.has-thread .pm-chat-page__side {
+        display: none;
+    }
+
+    .pm-chat-page__layout.has-thread .pm-chat-page__pane {
+        display: flex;
+    }
+
+    .pm-chat-page__back {
+        display: inline-flex;
+        gap: .35rem;
+        align-items: center;
+    }
 }
 
 /* ---------- Phones: one full-width window, buddy list as a sheet ---------- */

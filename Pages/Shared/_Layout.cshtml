@@ -410,6 +410,7 @@
              data-current-user-id="@UserManager.GetUserId(User)"
              data-api-base="@Url.Content("~/api/chat")"
              data-hub-url="@Url.Content("~/hubs/chat")"
+             data-messages-url="@Url.Page("/Chat/Index")"
              data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"></div>
         <script src="~/js/chat.js" asp-append-version="true" defer></script>
     }

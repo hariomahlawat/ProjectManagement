@@ -1,0 +1,24 @@
+@page
+@model ProjectManagement.Pages.Chat.IndexModel
+@{
+    ViewData["Title"] = "Messages";
+    ViewData["PageShell"] = "wide";
+}
+
+@* Filled in by wwwroot/js/chat.js (PMChat.mountPage). Without JavaScript nothing here works,
+   so the note below is what such a browser sees. *@
+<section class="pm-chat-page"
+         data-chat-page
+         data-open-with="@Model.With"
+         data-open-at="@Model.At"
+         aria-label="Messages">
+    <header class="pm-chat-page__head">
+        <div>
+            <h1 class="pm-chat-page__title">Messages</h1>
+            <p class="pm-chat-page__lede">Your conversations with colleagues. Only you and the person you are talking to can read them.</p>
+        </div>
+    </header>
+    <noscript>
+        <p class="pm-chat-page__empty">Messages needs JavaScript. Turn it on and reload the page.</p>
+    </noscript>
+</section>
