@@ -1249,12 +1249,15 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 }
 
 .ongoing-head__search {
-    flex: 2 1 16rem;
+    flex: 2 1 13rem;
+    min-width: 0;
     min-height: 2.5rem;
 }
 
 .ongoing-head__select {
-    flex: 1 1 12rem;
+    /* min-width 0: a select otherwise refuses to shrink below its longest option. */
+    flex: 1 1 9.5rem;
+    min-width: 0;
     width: auto;
     min-height: 2.5rem;
 }

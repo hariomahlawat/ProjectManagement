@@ -75,12 +75,6 @@
         (Key: "procurement", Label: "Tender", Codes: "BID, TEC, BM, COB, PNC, EAS, SO", Count: Model.BucketProcCount),
         (Key: "development", Label: "Development", Codes: "DEVP, ATP, PAYMENT, TOT", Count: Model.BucketDevpCount)
     };
-    var categoryChips = new[]
-    {
-        (Id: Model.ChipCoECategoryId, Label: "CoE", Count: Model.ChipCoECount),
-        (Id: Model.ChipDcdCategoryId, Label: "DCD", Count: Model.ChipDcdCount),
-        (Id: Model.ChipOtherRdCategoryId, Label: "Other R&D", Count: Model.ChipOtherRdCount)
-    }.Where(chip => chip.Id.HasValue).ToList();
 }
 <form id="ongoingProjectsFilterForm"
       method="get"
@@ -151,12 +145,13 @@
         </div>
 
         <div class="ongoing-head__categories" role="group" aria-label="Category (select one or more)">
-            @foreach (var chip in categoryChips)
+            @foreach (var chip in Model.CategoryChips)
             {
-                var isOn = Model.SelectedCategoryIds.Contains(chip.Id!.Value);
+                var isOn = chip.IsSelected;
                 <button type="button"
                         class="ongoing-head__chip js-kpi-chip @(isOn ? "is-active" : null) @(chip.Count == 0 ? "is-empty" : null)"
                         data-category-id="@chip.Id"
+                        title="@chip.FullName"
                         aria-pressed="@(isOn ? "true" : "false")">
                     @if (isOn)
                     {
@@ -185,6 +180,13 @@
                 asp-items="Model.PresentStageOptions"
                 class="form-select form-select-sm ongoing-head__select"
                 aria-label="Exact stage"></select>
+        @if (Model.HasSubCategories)
+        {
+            <select asp-for="SubCategory"
+                    asp-items="Model.SubCategoryOptions"
+                    class="form-select form-select-sm ongoing-head__select"
+                    aria-label="Sub-category"></select>
+        }
 
         <span class="ongoing-head__divider" aria-hidden="true"></span>
 

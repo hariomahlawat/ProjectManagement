@@ -61,6 +61,7 @@
   });
 
   stageSelect?.addEventListener('change', submitFilters);
+  form.querySelector('[name="SubCategory"]')?.addEventListener('change', submitFilters);
   officerSelect?.addEventListener('change', submitFilters);
   stageFlowSelect?.addEventListener('change', submitFilters);
 
