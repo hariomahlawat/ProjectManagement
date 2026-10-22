@@ -1344,12 +1344,6 @@
     if (!text) return;
     if (text.length > this.maxLength) return;
 
-    if (win.hasNewer) {
-      // Sending from an old slice (or while one is still loading): jump to the latest first so
-      // the new message lands in place.
-      this.jumpToLatest(win);
-    }
-
     const message = {
       id: 0,
       clientMessageId: newClientId(),
@@ -1368,6 +1362,12 @@
   };
 
   ChatApp.prototype.deliver = async function (win, message) {
+    if (win.hasNewer) {
+      // Sending or retrying from an old slice (or while one is still loading): jump to the
+      // latest first, so the saved message lands in place instead of below a gap, where it
+      // would also become the cursor for "Show newer". Unsent messages, this one included, stay.
+      this.jumpToLatest(win);
+    }
     message.failed = false;
     message.error = null;
     this.renderMessages(win, { stickToBottom: true });

@@ -689,3 +689,34 @@ test('paging is blocked while a replacement search slice loads', async () => {
     window.close();
   }
 });
+
+test('retrying a failed message from a search slice jumps to the latest first', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      return { status: 200, body: { id: 101, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: body.body, sentUtc: new Date().toISOString() } };
+    }
+    if (url.includes('/messages?limit=')) return pageOf([99, 100], true);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    const failed = { id: 0, clientMessageId: 'c-f', senderUserId: 'me', recipientUserId: 'peer', body: 'retry me', failed: true };
+    win.messages.push(failed);
+    app.page.open('peer', 15);
+    await tick(); await tick();
+    assert.equal(win.hasNewer, true);
+    await app.deliver(win, failed); // the Retry link
+    await tick(); await tick(); await tick();
+    const ids = Array.from(win.messages, (m) => m.id);
+    assert.equal(win.hasNewer, false);
+    assert.equal(ids.includes(14), false);
+    assert.deepEqual(ids.slice(-3), [99, 100, 101]);
+  } finally {
+    window.close();
+  }
+});
