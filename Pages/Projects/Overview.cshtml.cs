@@ -1685,29 +1685,11 @@ namespace ProjectManagement.Pages.Projects
                 LastRemarkType = lastRemark?.Type,
                 LastRemarkActorRole = lastRemark?.AuthorRole,
                 LastActivityUtc = lastRemark?.CreatedAtUtc,
-                LastRemarkPreview = BuildRemarkPreview(lastRemark?.Body),
+                LastRemarkPreview = ProjectHeaderStripBuilder.RemarkPreview(lastRemark?.Body),
                 LastRemarkAuthorDisplayName = authorDisplayName
             };
         }
 
-        private static string? BuildRemarkPreview(string? body)
-        {
-            if (string.IsNullOrWhiteSpace(body))
-            {
-                return null;
-            }
-
-            var trimmed = body.Trim();
-            trimmed = trimmed.Replace("\r", " ", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
-
-            const int limit = 140;
-            if (trimmed.Length <= limit)
-            {
-                return trimmed;
-            }
-
-            return string.Concat(trimmed.AsSpan(0, limit), "…");
-        }
 
         private sealed record TotSnapshot(
             ProjectTotStatus Status,

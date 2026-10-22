@@ -80,6 +80,26 @@ public sealed class ProjectHeaderStripBuilderTests
         Assert.Equal(("PDC not set", "warn"), (stage.Schedule, stage.ScheduleTone));
     }
 
+    [Theory]
+    [InlineData(StageStatus.NotStarted)]
+    [InlineData(StageStatus.Blocked)]
+    public void StageTile_OnlyAnInProgressStageCanBeOverdue(StageStatus status)
+    {
+        var stage = ProjectHeaderStripBuilder.BuildStage(Portfolio("TEC", pdcInDays: -76, status), Today);
+
+        Assert.Equal(("PDC 07 Aug 2026", ""), (stage.Schedule, stage.ScheduleTone));
+    }
+
+    [Theory]
+    [InlineData(StageStatus.NotStarted)]
+    [InlineData(StageStatus.Blocked)]
+    public void StageTile_DoesNotAskForAPdcBeforeTheStageIsInProgress(StageStatus status)
+    {
+        var stage = ProjectHeaderStripBuilder.BuildStage(Portfolio("TEC", pdcInDays: null, status), Today);
+
+        Assert.Null(stage.Schedule);
+    }
+
     // SECTION: Latest cost
     [Fact]
     public void CostTile_ShowsTheLatestCost_WithTheEarlierOneBeneath()
@@ -126,6 +146,24 @@ public sealed class ProjectHeaderStripBuilderTests
     }
 
     [Fact]
+    public void RemarkPreview_StripsMarkupBeforeShortening()
+    {
+        // The mention's opening tag straddles the 140th character of the raw body.
+        var body = new string('a', 130) + " <span class=\"remark-mention\" data-user-id=\"x\">@Arpan</span> " + new string('b', 40);
+
+        var preview = ProjectHeaderStripBuilder.RemarkPreview(body);
+
+        Assert.Equal(new string('a', 130) + " @Arpan " + new string('b', 2) + "…", preview);
+        Assert.DoesNotContain("<", preview);
+    }
+
+    [Fact]
+    public void RemarkPreview_OfAnEmptyBody_IsNull()
+    {
+        Assert.Null(ProjectHeaderStripBuilder.RemarkPreview("  <p> </p> "));
+    }
+
+    [Fact]
     public void UpdateTile_WithoutRemarks_InvitesOne()
     {
         var update = ProjectHeaderStripBuilder.BuildLastUpdate(ProjectRemarkSummaryViewModel.Empty, NowUtc);
@@ -141,7 +179,7 @@ public sealed class ProjectHeaderStripBuilderTests
         ProjectLifecycleStatus lifecycle = ProjectLifecycleStatus.Active)
         => ProjectHeaderStripBuilder.Build(lifecycle, portfolio, procurement, ProjectRemarkSummaryViewModel.Empty, Today, NowUtc);
 
-    private static ProjectPortfolioPresentationVm Portfolio(string? currentCode, int? pdcInDays)
+    private static ProjectPortfolioPresentationVm Portfolio(string? currentCode, int? pdcInDays, StageStatus status = StageStatus.InProgress)
         => new()
         {
             CurrentStage = currentCode is null
@@ -150,7 +188,7 @@ public sealed class ProjectHeaderStripBuilderTests
                 {
                     Code = currentCode,
                     Name = currentCode == "TEC" ? "Technical Evaluation" : currentCode,
-                    Status = StageStatus.InProgress,
+                    Status = status,
                     PlannedEnd = pdcInDays.HasValue ? Today.AddDays(pdcInDays.Value) : null,
                     Today = Today
                 }

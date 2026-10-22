@@ -114,10 +114,18 @@ public static class ProjectHeaderStripBuilder
 
         if (!portfolio.IsWorkflowConcluded && current is not null)
         {
-            if (current.PlannedEnd is { } pdc)
+            var pdcText = current.PlannedEnd is { } pdc
+                ? $"PDC {pdc.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}"
+                : null;
+
+            // The timeline's own schedule facts decide: only an in-progress stage can be
+            // overdue, due or missing its PDC. A not-started or blocked stage shows its PDC plainly.
+            if (current.NeedsPlannedCompletion)
             {
-                var days = pdc.DayNumber - today.DayNumber;
-                var pdcText = $"PDC {pdc.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}";
+                (schedule, tone) = ("PDC not set", "warn");
+            }
+            else if (current.DaysRemaining is int days)
+            {
                 (schedule, tone) = days switch
                 {
                     // The status leads, so it survives when a narrow tile wraps.
@@ -129,7 +137,7 @@ public static class ProjectHeaderStripBuilder
             }
             else
             {
-                (schedule, tone) = ("PDC not set", "warn");
+                schedule = pdcText;
             }
         }
 
@@ -198,8 +206,23 @@ public static class ProjectHeaderStripBuilder
         };
     }
 
-    // Remark bodies can hold mention markup; the tile shows plain text.
-    private static string PlainText(string? html)
+    public const int RemarkPreviewLength = 140;
+
+    /// <summary>
+    /// A plain-text preview of a remark body. Markup is removed from the whole body before
+    /// it is shortened, so the cut never lands inside a mention tag.
+    /// </summary>
+    public static string? RemarkPreview(string? body)
+    {
+        var text = PlainText(body);
+        if (text.Length == 0) return null;
+        return text.Length <= RemarkPreviewLength
+            ? text
+            : string.Concat(text.AsSpan(0, RemarkPreviewLength).TrimEnd(), "…");
+    }
+
+    // Remark bodies can hold mention markup; previews show plain text.
+    public static string PlainText(string? html)
     {
         if (string.IsNullOrWhiteSpace(html)) return string.Empty;
         var text = WebUtility.HtmlDecode(Regex.Replace(html, "<[^>]*>", " "));
