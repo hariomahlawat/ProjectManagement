@@ -105,7 +105,10 @@
       if (m.id) byId.set(m.id, m); else pending.push(m);
     }
     for (const m of incoming) {
-      byId.set(m.id, m);
+      // An unsend is final: a stale copy (an older history page, a late send response) must
+      // never bring the text back.
+      const known = byId.get(m.id);
+      byId.set(m.id, known && known.isUnsent && !m.isUnsent ? known : m);
       const index = pending.findIndex((p) => p.clientMessageId === m.clientMessageId);
       if (index >= 0) pending.splice(index, 1);
     }
@@ -299,6 +302,7 @@
     this.messagesUrl = root.dataset.messagesUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
     this.myStatus = null;
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
@@ -688,6 +692,7 @@
   /** A message was unsent (by this user in another tab, or by the other person). */
   ChatApp.prototype.onUnsent = function (message) {
     const peerId = message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
+    this.unsentIds.add(message.id); // also for a window opened later, or one still loading
     const win = this.windows.get(peerId);
     if (win) this.applyUnsent(win, message);
     // An unread message that was unsent no longer counts; the server has the exact number.
@@ -695,10 +700,20 @@
   };
 
   ChatApp.prototype.applyUnsent = function (win, message) {
-    const mark = (list) => list.map((m) => (m.id === message.id ? { ...m, body: '', isUnsent: true } : m));
+    this.unsentIds.add(message.id);
+    this.renderMessages(win, { stickToBottom: false });
+  };
+
+  /**
+   * Turns any message this page knows was unsent into its placeholder. Runs before every render,
+   * so a history page or send response that was already in flight when the unsend arrived
+   * cannot show the withdrawn text.
+   */
+  ChatApp.prototype.applyTombstones = function (win) {
+    if (!this.unsentIds.size) return;
+    const mark = (list) => list.map((m) => (m.id && this.unsentIds.has(m.id) && !m.isUnsent ? { ...m, body: '', isUnsent: true } : m));
     win.messages = mark(win.messages);
     win.heldLive = mark(win.heldLive);
-    this.renderMessages(win, { stickToBottom: false });
   };
 
   ChatApp.prototype.onStatus = function (status) {
@@ -1390,6 +1405,7 @@
   };
 
   ChatApp.prototype.renderMessages = function (win, options) {
+    this.applyTombstones(win);
     const body = win.body;
     const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 48;
     const now = new Date();

@@ -908,3 +908,32 @@ test('names marked data-chat-user get one chat button, never for myself', async 
     window.close();
   }
 });
+
+test('an unsend that arrives while history is loading is not undone by the response', async () => {
+  let releaseHistory;
+  const historyGate = new Promise((resolve) => { releaseHistory = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) {
+      await historyGate; // read on the server before the unsend
+      return { messages: [{ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: 'withdrawn text', sentUtc: new Date().toISOString() }], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    app.onUnsent({ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: '', sentUtc: new Date().toISOString(), isUnsent: true });
+    releaseHistory();
+    await tick(); await tick(); await tick();
+    assert.equal(win.log.textContent.includes('withdrawn text'), false);
+    assert.equal(win.messages[0].isUnsent, true);
+
+    // A stale copy merged later cannot restore it either.
+    win.messages = window.PMChatInternals.mergeMessages(win.messages, [{ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: 'withdrawn text' }]);
+    assert.equal(win.messages[0].isUnsent, true);
+  } finally {
+    window.close();
+  }
+});
