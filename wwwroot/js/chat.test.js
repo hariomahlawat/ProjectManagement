@@ -758,3 +758,35 @@ test('a send that completes after an older search slice opened does not land bel
     window.close();
   }
 });
+
+test('a send in flight when its conversation moves to the Messages page reports there', async () => {
+  let releaseSend;
+  const sendGate = new Promise((resolve) => { releaseSend = resolve; });
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      await sendGate;
+      return { status: 500, body: { detail: 'Server error' } };
+    }
+    if (url.includes('/messages')) return pageOf([], false);
+    return { status: 204, body: null };
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const docked = app.openWindow('peer', { focus: false });
+    await tick();
+    docked.input.value = 'from the dock';
+    app.send(docked);
+    app.page.open('peer', 0); // moves the conversation, unsent message included
+    await tick();
+    releaseSend();
+    await tick(); await tick(); await tick();
+    const view = app.page.current;
+    const retry = view.log.querySelector('.pm-chat__retry');
+    assert.ok(retry, 'the visible view should offer Retry');
+    assert.equal(view.log.textContent.includes('Sending…'), false);
+  } finally {
+    window.close();
+  }
+});

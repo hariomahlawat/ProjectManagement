@@ -1370,14 +1370,24 @@
         clientMessageId: message.clientMessageId,
         body: message.body,
       });
-      // Checked now, not when sending: the person may have opened an older slice meanwhile.
-      this.acceptSaved(win, [saved]);
+      // Checked now, not when sending: the person may have opened an older slice meanwhile,
+      // or the conversation may have moved to another view (dock to Messages page).
+      this.acceptSaved(this.viewFor(win), [saved]);
       return;
     } catch (error) {
       message.failed = true;
       message.error = error.message;
     }
-    this.renderMessages(win, { stickToBottom: true });
+    this.renderMessages(this.viewFor(win), { stickToBottom: true });
+  };
+
+  /**
+   * The view now showing a conversation. A send outlives the window it started in when the
+   * conversation moves from the dock to the Messages page; the message object moves with it,
+   * so its result belongs to the new view.
+   */
+  ChatApp.prototype.viewFor = function (win) {
+    return this.windows.get(win.peerId) || win;
   };
 
   /**
