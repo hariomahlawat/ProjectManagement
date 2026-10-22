@@ -430,7 +430,8 @@ test('the Messages page opens a search hit in the middle of a conversation', asy
 
     win.newer.focus();
     await window.PMChat.loadNewer(win);
-    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 17]);
+    // Caught up: the held live message joins after the fetched page.
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 17, 99]);
     assert.equal(win.newer.hidden, true);
     // The button hid itself; focus stays in the conversation so it still counts as read.
     assert.equal(window.document.activeElement, win.input);
@@ -478,6 +479,33 @@ test('choosing a person already open on the Messages page brings the conversatio
     assert.equal(page.layout.classList.contains('has-thread'), true);
     assert.equal(app.buddyOpen, false);
     assert.equal(window.document.activeElement, page.current.input);
+  } finally {
+    window.close();
+  }
+});
+
+test('a live message arriving while the last newer page loads is kept', async () => {
+  let releaseNewer;
+  const newerGate = new Promise((resolve) => { releaseNewer = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.includes('after=15')) {
+      await newerGate; // the server read the page before message 17 was saved
+      return { ...pageOf([16], false), hasNewer: false };
+    }
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    const loading = app.loadNewer(win);
+    app.onMessage({ id: 17, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-17', body: 'live', sentUtc: new Date().toISOString() });
+    releaseNewer();
+    await loading;
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 17]);
+    assert.equal(win.heldLive.length, 0);
   } finally {
     window.close();
   }

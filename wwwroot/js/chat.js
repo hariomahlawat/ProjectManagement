@@ -585,6 +585,10 @@
       if (!win.hasNewer) {
         win.messages = mergeMessages(win.messages, [message]);
         this.renderMessages(win, { stickToBottom: true });
+      } else {
+        // Held until "Show newer" reaches the latest page, which may have been read on the
+        // server just before this message was saved.
+        win.heldLive.push(message);
       }
       if (fresh && !this.isAttended(win)) {
         win.attention = true;
@@ -959,7 +963,7 @@
       peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded,
       messages: [], hasMore: false, hasNewer: false, historyLoaded: false, syncing: false, syncAgain: false,
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
-      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0,
+      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [],
     };
 
     if (!embedded) {
@@ -1186,6 +1190,11 @@
       const history = await this.request('GET', this.historyPath(win, `&after=${newest}`));
       win.messages = mergeMessages(win.messages, history.messages);
       win.hasNewer = history.hasNewer;
+      if (!win.hasNewer && win.heldLive.length) {
+        // Caught up: add what arrived live while the slice was behind (duplicates merge away).
+        win.messages = mergeMessages(win.messages, win.heldLive);
+        win.heldLive = [];
+      }
       this.applyPeerRead(win, history);
       this.renderMessages(win, { stickToBottom: false });
       win.body.scrollTop = keep;
@@ -1285,6 +1294,7 @@
       // Sending from an old slice: jump to the latest first so the new message lands in place.
       win.hasNewer = false;
       win.highlightId = 0;
+      win.heldLive = []; // the latest page about to load includes them
       win.messages = [];
       win.historyLoaded = false;
       this.loadLatest(win);
