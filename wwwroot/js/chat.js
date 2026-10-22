@@ -631,7 +631,11 @@
       win.attention = false;
       this.renderWindowState(win);
     }
-    if (contact) {
+    if (contact && win && win.hasNewer) {
+      // An older slice (opened from search) doesn't hold the newer messages, so it can't count
+      // what is still unread; ask the server instead.
+      this.refreshContacts();
+    } else if (contact) {
       // Recount from what this tab knows; the next contacts refresh corrects any gap.
       contact.unreadCount = win
         ? win.messages.filter((m) => m.id && m.senderUserId !== this.me && m.id > win.lastReadId).length
@@ -840,8 +844,12 @@
     const opts = options || {};
     let win = this.windows.get(peerId);
     if (win && win.embedded) {
-      // The Messages page is already showing this conversation.
+      // The Messages page is already showing this conversation: bring it back into view (on a
+      // phone it may be hidden behind the conversation list) and get the contact sheet out of
+      // the way.
       if (opts.focus) {
+        if (this.page) this.page.reveal();
+        if (windowCapacity(global.innerWidth || 1280) === 1 && this.buddyOpen) this.toggleBuddy(false);
         win.input.focus();
         this.maybeMarkRead(win);
       }
@@ -1435,6 +1443,10 @@
       app.loadLatest(win);
     }
     win.input.focus();
+  };
+
+  MessagesPage.prototype.reveal = function () {
+    this.layout.classList.add('has-thread');
   };
 
   MessagesPage.prototype.updateAddress = function (peerId, at) {

@@ -438,3 +438,47 @@ test('the Messages page opens a search hit in the middle of a conversation', asy
     window.close();
   }
 });
+
+test('reading an older slice asks the server for unread instead of zeroing it', async () => {
+  let contactCalls = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      contactCalls += 1;
+      return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z', unreadCount: 3 }];
+    }
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const before = contactCalls;
+    app.onRead({ peerUserId: 'peer', upToMessageId: 15 });
+    await tick(); await tick();
+    assert.ok(contactCalls > before);
+    assert.equal(app.contacts.get('peer').unreadCount, 3);
+  } finally {
+    window.close();
+  }
+});
+
+test('choosing a person already open on the Messages page brings the conversation back on a phone', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    await tick(); await tick();
+    const app = window.PMChat;
+    const page = app.page;
+    page.layout.classList.remove('has-thread'); // "All conversations"
+    app.toggleBuddy(true); // "New chat"
+    app.openWindow('peer', { focus: true });
+    assert.equal(page.layout.classList.contains('has-thread'), true);
+    assert.equal(app.buddyOpen, false);
+    assert.equal(window.document.activeElement, page.current.input);
+  } finally {
+    window.close();
+  }
+});
