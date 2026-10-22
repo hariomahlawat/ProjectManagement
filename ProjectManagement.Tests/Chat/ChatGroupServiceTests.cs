@@ -79,7 +79,7 @@ public sealed class ChatGroupServiceTests
         Assert.Null(await scope.Groups.OtherMembersAsync("carol", id));
         Assert.Equal(ChatGroupStatus.NotFound, (await scope.Groups.AddMembersAsync("carol", id, new[] { "carol" })).Status);
         Assert.Empty(await scope.Groups.ListGroupsAsync("carol"));
-        Assert.Empty(await scope.Chat.SearchAsync("carol", "secret", 50));
+        Assert.Empty(await scope.Chat.SearchAsync("carol", "secret", 50, includeGroups: true));
     }
 
     [Fact]
@@ -237,10 +237,12 @@ public sealed class ChatGroupServiceTests
         Assert.Equal(0, bobAsContact.UnreadCount);
         Assert.Null(bobAsContact.LastMessageUtc);
 
-        var hit = Assert.Single(await scope.Chat.SearchAsync("bob", "minutes", 50));
+        var hit = Assert.Single(await scope.Chat.SearchAsync("bob", "minutes", 50, includeGroups: true));
         Assert.Equal(id, hit.GroupId);
         Assert.Equal("TEC team", hit.PeerDisplayName);
-        Assert.Empty(await scope.Chat.SearchAsync("bob", "TEC team", 50)); // the Created notice is not searched
+        Assert.Empty(await scope.Chat.SearchAsync("bob", "TEC team", 50, includeGroups: true)); // the Created notice is not searched
+        // Pages from before group chats do not ask for groups and get none.
+        Assert.Empty(await scope.Chat.SearchAsync("bob", "minutes", 50));
     }
 
     [Fact]

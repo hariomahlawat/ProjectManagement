@@ -246,11 +246,16 @@ public sealed class ChatService
     /// Messages containing <paramref name="query"/> (case-insensitive) across the caller's own
     /// conversations only (direct and group), newest first. Group notices are not searched.
     /// </summary>
+    /// <param name="includeGroups">
+    /// Group hits only for pages that know them: a page loaded before group chats opens every hit
+    /// by its peer user id, which a group hit does not have, and would end up switching chat off.
+    /// </param>
     public async Task<IReadOnlyList<ChatSearchHitDto>> SearchAsync(
         string userId,
         string? query,
         int limit,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeGroups = false)
     {
         var term = query?.Trim();
         if (string.IsNullOrEmpty(term) || term.Length < MinSearchLength)
@@ -267,6 +272,7 @@ public sealed class ChatService
                 join m in _db.ChatMessages.AsNoTracking()
                     on mine.ConversationId equals m.ConversationId
                 where m.UnsentUtc == null && m.EventKind == null && m.Body.ToLower().Contains(needle)
+                    && (includeGroups || mine.Conversation!.Kind == ChatConversation.DirectKind)
                 orderby m.Id descending
                 select new { m.Id, m.ConversationId, mine.Conversation!.Kind, mine.Conversation.Title, m.SenderUserId, m.Body, m.SentUtc })
             .Take(size)

@@ -5,7 +5,7 @@
  * Server contract (Features/Chat/ChatApi.cs, Hubs/ChatHub.cs):
  *   GET  {api}/contacts                         buddy list with presence and unread counts
  *   GET  {api}/with/{peer}/messages?before=&after=&limit=
- *   GET  {api}/search?q=                        message search across the user's conversations
+ *   GET  {api}/search?q=&groups=1               message search across the user's conversations
  *   POST {api}/messages                         { recipientUserId, clientMessageId, body }
  *   POST {api}/with/{peer}/read                 { upToMessageId }
  *   GET/POST {api}/status                       { message } (own status message)
@@ -2349,7 +2349,8 @@
     this.results.hidden = false;
     this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'Searching…'));
     try {
-      const hits = await this.app.request('GET', `/search?q=${encodeURIComponent(term)}`);
+      // groups=1: this page can open group hits (older pages get direct hits only).
+      const hits = await this.app.request('GET', `/search?q=${encodeURIComponent(term)}&groups=1`);
       if (seq !== this.searchSeq) return; // a newer search has started
       this.lastHits = hits;
       this.lastTerm = term;

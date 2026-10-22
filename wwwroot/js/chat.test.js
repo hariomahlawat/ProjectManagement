@@ -1371,6 +1371,7 @@ test('New group posts the name and the chosen people, then opens the group', asy
 test('the Messages page lists groups and opens a group search hit', async () => {
   const window = groupApp(async (url) => {
     if (url.includes('/search')) {
+      assert.ok(url.includes('groups=1'), 'the page asks for group hits');
       return [{ messageId: 11, peerUserId: '', peerDisplayName: 'TEC desk', senderUserId: 'peer', body: 'Minutes attached', sentUtc: '2026-10-22T08:00:00Z', groupId: 5 }];
     }
     if (url.includes('/groups/5/messages') && url.includes('before=12')) {

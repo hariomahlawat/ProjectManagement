@@ -233,6 +233,7 @@ public static class ChatApi
     private static async Task<IResult> SearchAsync(
         [FromQuery(Name = "q")] string? query,
         [FromQuery(Name = "limit")] int? limit,
+        [FromQuery(Name = "groups")] bool? includeGroups,
         HttpContext httpContext,
         ChatService chat,
         CancellationToken cancellationToken)
@@ -248,7 +249,7 @@ public static class ChatApi
         }
 
         SetNoStoreHeaders(httpContext.Response);
-        return Results.Ok(await chat.SearchAsync(userId, query, limit ?? ChatService.MaxSearchResults, cancellationToken));
+        return Results.Ok(await chat.SearchAsync(userId, query, limit ?? ChatService.MaxSearchResults, cancellationToken, includeGroups == true));
     }
 
     private static async Task<IResult> SendAsync(
