@@ -1401,3 +1401,32 @@ test('member counts read naturally', () => {
   assert.equal(PMChatInternals.peopleCount(1), '1 person');
   assert.equal(PMChatInternals.peopleCount(3), '3 people');
 });
+
+test('group messages arrive on their own hub events, never on ReceiveMessage', async () => {
+  const handlers = {};
+  const window = groupApp();
+  try {
+    await tick();
+    function Builder() {}
+    Builder.prototype.withUrl = function () { return this; };
+    Builder.prototype.withAutomaticReconnect = function () { return this; };
+    Builder.prototype.build = function () {
+      return {
+        on: (name, fn) => { handlers[name] = fn; },
+        onreconnecting() {}, onreconnected() {}, onclose() {},
+        start: () => new Promise(() => {}),
+        state: 'Disconnected',
+      };
+    };
+    window.signalR = { HubConnectionBuilder: Builder };
+    window.PMChat.hubUrl = '/hubs/chat';
+    window.PMChat.connect();
+    assert.ok(handlers.ReceiveGroupMessage, 'listens for ReceiveGroupMessage');
+    assert.ok(handlers.GroupMessageUnsent, 'listens for GroupMessageUnsent');
+    await tick();
+    handlers.ReceiveGroupMessage(groupMessage(40, 'peer', 'On the group channel'));
+    assert.ok(window.PMChat.windows.get('g:5').messages.some((m) => m.id === 40));
+  } finally {
+    window.close();
+  }
+});

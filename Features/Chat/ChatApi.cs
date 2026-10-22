@@ -212,7 +212,8 @@ public static class ChatApi
         {
             case ChatUnsendStatus.Unsent:
                 var message = result.Message!;
-                await hub.Clients.Users(result.NotifyUserIds ?? new[] { message.SenderUserId, message.RecipientUserId }).MessageUnsent(message);
+                var unsentTo = hub.Clients.Users(result.NotifyUserIds ?? new[] { message.SenderUserId, message.RecipientUserId });
+                await (message.GroupId is null ? unsentTo.MessageUnsent(message) : unsentTo.GroupMessageUnsent(message));
                 return Results.Ok(message);
             case ChatUnsendStatus.TooLate:
                 var minutes = (int)Math.Round(chat.UnsendWindow.TotalMinutes);
@@ -484,7 +485,7 @@ public static class ChatApi
         {
             case ChatSendStatus.Sent:
                 // Pushed after the save; browsers de-duplicate by message id.
-                await hub.Clients.Users(result.MemberUserIds).ReceiveMessage(result.Message!);
+                await hub.Clients.Users(result.MemberUserIds).ReceiveGroupMessage(result.Message!);
                 return Results.Ok(result.Message);
             case ChatSendStatus.RecipientUnavailable:
                 return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Message not sent", detail: result.Error);
@@ -534,7 +535,7 @@ public static class ChatApi
                     await hub.Clients.Users(change.NotifyUserIds).GroupChanged(change.Group!);
                     foreach (var notice in change.Events)
                     {
-                        await hub.Clients.Users(change.NotifyUserIds).ReceiveMessage(notice);
+                        await hub.Clients.Users(change.NotifyUserIds).ReceiveGroupMessage(notice);
                     }
                 }
 

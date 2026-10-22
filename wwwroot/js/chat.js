@@ -14,7 +14,8 @@
  *   GET/POST {api}/groups, GET {api}/groups/{id}, …/messages, …/read, …/members,
  *            …/members/{user}/remove, …/leave, …/rename      group chats (410 = not in the group)
  *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
- *             MessageUnsent / StatusChanged / GroupChanged / GroupRemoved / GroupRead / GroupTyping
+ *             MessageUnsent / StatusChanged / ReceiveGroupMessage / GroupMessageUnsent /
+ *             GroupChanged / GroupRemoved / GroupRead / GroupTyping
  *   hub  out: also TypingInGroup(groupId)
  *
  * Conversations are keyed by the other person's user id (direct) or "g:{groupId}" (group).
@@ -543,6 +544,9 @@
     connection.on('Typing', (typing) => this.onTyping(typing));
     connection.on('MessageUnsent', (message) => this.onUnsent(message));
     connection.on('StatusChanged', (status) => this.onStatus(status));
+    // Group messages come on their own events, so pages from before group chats never see them.
+    connection.on('ReceiveGroupMessage', (message) => this.onMessage(message));
+    connection.on('GroupMessageUnsent', (message) => this.onUnsent(message));
     connection.on('GroupChanged', (group) => this.onGroupChanged(group));
     connection.on('GroupRemoved', (groupId) => this.onGroupRemoved(groupId));
     connection.on('GroupRead', (read) => this.onGroupRead(read));

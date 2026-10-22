@@ -194,6 +194,7 @@ public sealed class ChatGroupService
         IReadOnlyList<string>? userIds,
         CancellationToken cancellationToken)
     {
+        await LockGroupAsync(groupId, cancellationToken);
         var group = await FindGroupForMemberAsync(userId, groupId, track: true, cancellationToken);
         if (group is null)
         {
@@ -249,6 +250,7 @@ public sealed class ChatGroupService
         string targetUserId,
         CancellationToken cancellationToken)
     {
+        await LockGroupAsync(groupId, cancellationToken);
         var group = await FindGroupForMemberAsync(userId, groupId, track: true, cancellationToken);
         if (group is null)
         {
@@ -280,6 +282,7 @@ public sealed class ChatGroupService
 
     private async Task<ChatGroupChange> LeaveCoreAsync(string userId, long groupId, CancellationToken cancellationToken)
     {
+        await LockGroupAsync(groupId, cancellationToken);
         var group = await FindGroupForMemberAsync(userId, groupId, track: true, cancellationToken);
         if (group is null)
         {
@@ -309,6 +312,7 @@ public sealed class ChatGroupService
 
     private async Task<ChatGroupChange> RenameCoreAsync(string userId, long groupId, string? title, CancellationToken cancellationToken)
     {
+        await LockGroupAsync(groupId, cancellationToken);
         var group = await FindGroupForMemberAsync(userId, groupId, track: true, cancellationToken);
         if (group is null)
         {
@@ -499,6 +503,22 @@ public sealed class ChatGroupService
         return collapsed.Length <= ChatConversation.MaxTitleLength
             ? collapsed
             : collapsed[..ChatConversation.MaxTitleLength].TrimEnd();
+    }
+
+    /// <summary>
+    /// Changes to one group run one at a time: each takes the group row's lock (inside its
+    /// transaction, before reading any state) and so sees the previous change committed. Without
+    /// this, a manager and the next-in-line leaving together could both commit and leave the group
+    /// managed by someone no longer in it. SQLite (tests) already serialises all writers.
+    /// </summary>
+    private async Task LockGroupAsync(long groupId, CancellationToken cancellationToken)
+    {
+        if (_db.Database.IsNpgsql())
+        {
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM \"ChatConversations\" WHERE \"Id\" = {groupId} FOR UPDATE",
+                cancellationToken);
+        }
     }
 
     private static IEnumerable<string> Distinct(IReadOnlyList<string>? ids)

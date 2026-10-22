@@ -156,6 +156,16 @@ public interface IChatClient
 
     Task StatusChanged(ChatStatusDto status);
 
+    /// <summary>
+    /// A group message or notice. Separate from <see cref="ReceiveMessage"/> on purpose: a page
+    /// loaded before group chats existed treats every ReceiveMessage as a direct message from its
+    /// sender, so during an overlapping deployment it must never receive group traffic there.
+    /// </summary>
+    Task ReceiveGroupMessage(ChatMessageDto message);
+
+    /// <summary>A group message was unsent (separate from MessageUnsent for the same reason).</summary>
+    Task GroupMessageUnsent(ChatMessageDto message);
+
     /// <summary>A group the user is in was created or changed (members, name, manager).</summary>
     Task GroupChanged(ChatGroupDto group);
 
