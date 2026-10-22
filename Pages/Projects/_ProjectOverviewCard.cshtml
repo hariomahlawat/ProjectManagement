@@ -179,31 +179,21 @@
                 @if (!string.IsNullOrWhiteSpace(sponsoringDirectorateName))
                 {
                     <div class="project-facts__item">
-                        <dt class="project-facts__label">Sponsoring line directorate</dt>
+                        <dt class="project-facts__label">Line directorate</dt>
                         <dd class="project-facts__value">@sponsoringDirectorateName</dd>
                     </div>
                 }
                 @* Head of Department and Project Officer are in the header's meta line. *@
-                @if (Model.CostSummary.RdCostLakhs.HasValue)
+                @* A project in progress shows its cost in the header; a completed one shows its
+                   proliferation cost there, so its development cost lives here. *@
+                @if (project?.LifecycleStatus == ProjectLifecycleStatus.Completed && Model.CostSummary.RdCostLakhs.HasValue)
                 {
                     <div class="project-facts__item">
-                        <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
+                        <dt class="project-facts__label">Development cost</dt>
                         <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
                     </div>
                 }
             </dl>
-
-            @if (Model.HeaderStrip.InOverviewCard.Count > 0)
-            {
-                @* Tracked tiles the header strip does not show at this phase (JDP before the
-                   supply order, proliferation while the project is active, and so on). *@
-                <div class="project-overview-tracked" aria-label="Also tracked">
-                    @foreach (var tile in Model.HeaderStrip.InOverviewCard)
-                    {
-                        @await Html.PartialAsync("_ProjectHeaderTile", Model, new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["HeaderTile"] = tile })
-                    }
-                </div>
-            }
 
             @if (missingDetails.Count > 0)
             {

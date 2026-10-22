@@ -5,7 +5,7 @@
 @using ProjectManagement.Areas.ProjectOfficeReports.Application
 @inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 @{
-    // The shared formatter, so the header's Latest cost tile and this card read the same.
+    // The shared formatter, so the header's Project cost tile and this card read the same.
     string Money(decimal? value) => value.HasValue ? IndianCurrencyFormatter.FormatCompact(value.Value) : "—";
     string FullInr(decimal? value) => value.HasValue ? value.Value.ToString("C2", CultureInfo.GetCultureInfo("en-IN")) : "—";
     string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
