@@ -17,6 +17,7 @@
   const TIME_ZONE = 'Asia/Kolkata';
   const HISTORY_PAGE = 40;
   const POLL_MS = 30000;
+  const CATCH_UP_PAGES = 25; // up to 1,000 missed messages are stitched in before older ones are dropped
   const WINDOW_WIDTH = 300;
   const BUDDY_WIDTH = 280;
   const DOCK_GAP = 12;
@@ -87,7 +88,28 @@
     return Array.from(byId.values()).sort((a, b) => a.id - b.id).concat(pending);
   }
 
-  global.PMChatInternals = { newClientId, dayLabel, sortContacts, filterContacts, windowCapacity, mergeMessages };
+  /**
+   * Fetches pages newest-first until they reach a message newer than knownMaxId has already
+   * covered, so a window that missed messages while offline gets all of them, not just the
+   * latest page. `fetchPage(beforeId)` returns `{ messages, hasMore }` with messages oldest first.
+   * `overlaps` is false when the page cap ran out first; the caller then drops its older copy.
+   */
+  async function fetchSince(fetchPage, knownMaxId, maxPages) {
+    let collected = [];
+    let before = null;
+    for (let page = 0; page < maxPages; page += 1) {
+      const history = await fetchPage(before);
+      collected = history.messages.concat(collected);
+      const oldest = history.messages[0];
+      if (!history.hasMore || !oldest || oldest.id <= knownMaxId) {
+        return { messages: collected, overlaps: true, hasMore: history.hasMore };
+      }
+      before = oldest.id;
+    }
+    return { messages: collected, overlaps: false, hasMore: true };
+  }
+
+  global.PMChatInternals = { newClientId, dayLabel, sortContacts, filterContacts, windowCapacity, mergeMessages, fetchSince };
 
   // ---------------------------------------------------------------------------
   // DOM helper
@@ -581,8 +603,8 @@
 
     const win = {
       peerId, node, face, name, status, body, log, earlier, notice, input, form, minimize,
-      messages: [], hasMore: false, loading: false, minimized: false,
-      attention: false, lastReadId: 0,
+      messages: [], hasMore: false, historyLoaded: false, syncing: false, syncAgain: false, loading: false, minimized: false,
+      attention: false, lastReadId: 0, readSending: 0,
     };
 
     toggle.addEventListener('click', () => {
@@ -661,9 +683,14 @@
       win.attention = false;
       this.renderWindowState(win);
     }
-    if (newest <= (win.lastReadId || 0)) return;
-    win.lastReadId = newest;
-    this.request('POST', `/with/${encodeURIComponent(win.peerId)}/read`, { upToMessageId: newest }).catch(() => {});
+    // lastReadId only advances once the server has stored it, so a failed save is retried on
+    // the next focus or refresh; readSending stops duplicate requests while one is in flight.
+    if (newest <= Math.max(win.lastReadId || 0, win.readSending || 0)) return;
+    win.readSending = newest;
+    this.request('POST', `/with/${encodeURIComponent(win.peerId)}/read`, { upToMessageId: newest })
+      .then(() => { win.lastReadId = Math.max(win.lastReadId || 0, newest); })
+      .catch(() => {})
+      .finally(() => { if (win.readSending === newest) win.readSending = 0; });
     const contact = this.contacts.get(win.peerId);
     if (contact) {
       contact.unreadCount = 0;
@@ -671,17 +698,49 @@
     }
   };
 
+  /**
+   * First call: the latest page, which also decides whether "Show earlier messages" is offered
+   * (messages pushed while it was in flight don't count as history). Later calls (reconnect,
+   * polling): every message since the newest one already shown, so nothing in between is skipped.
+   */
   ChatApp.prototype.loadLatest = async function (win) {
+    if (win.syncing) {
+      win.syncAgain = true;
+      return;
+    }
+    win.syncing = true;
+    const path = `/with/${encodeURIComponent(win.peerId)}/messages?limit=${HISTORY_PAGE}`;
     try {
-      const history = await this.request('GET', `/with/${encodeURIComponent(win.peerId)}/messages?limit=${HISTORY_PAGE}`);
-      const firstLoad = win.messages.length === 0;
-      win.messages = mergeMessages(win.messages, history.messages);
-      if (firstLoad) win.hasMore = history.hasMore;
+      if (!win.historyLoaded) {
+        const history = await this.request('GET', path);
+        win.messages = mergeMessages(win.messages, history.messages);
+        win.hasMore = history.hasMore;
+        win.historyLoaded = true;
+      } else {
+        const knownMax = win.messages.reduce((max, m) => (m.id > max ? m.id : max), 0);
+        const result = await fetchSince(
+          (before) => this.request('GET', before ? `${path}&before=${before}` : path),
+          knownMax,
+          CATCH_UP_PAGES);
+        if (!result.overlaps) {
+          // Too much was missed to stitch together: show the recent stretch and let
+          // "Show earlier messages" page back from there instead of leaving a silent gap.
+          win.messages = win.messages.filter((m) => !m.id);
+          win.hasMore = true;
+        }
+        win.messages = mergeMessages(win.messages, result.messages);
+      }
       this.renderMessages(win, { stickToBottom: true });
       this.maybeMarkRead(win);
     } catch (_) {
       if (!win.messages.length) {
         win.log.replaceChildren(el('li', 'pm-chat__system', 'Messages could not be loaded.'));
+      }
+    } finally {
+      win.syncing = false;
+      if (win.syncAgain) {
+        win.syncAgain = false;
+        this.loadLatest(win);
       }
     }
   };

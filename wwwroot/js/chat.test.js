@@ -76,3 +76,117 @@ test('does nothing on pages without the chat root', () => {
   const window = load('<p>Signed out</p>');
   assert.equal(window.PMChat, undefined);
 });
+
+// --- Catch-up and read-marker behaviour (Codex review on #2730) ------------------------------
+
+function pageOf(ids, hasMore) {
+  return { messages: ids.map((id) => ({ id, clientMessageId: `c-${id}`, senderUserId: 'peer' })), hasMore };
+}
+
+test('catch-up pages back until it reaches the newest message already shown', async () => {
+  const { PMChatInternals } = load();
+  const calls = [];
+  // Server holds 1..101; the window already shows message 1.
+  const fetchPage = async (before) => {
+    calls.push(before);
+    const top = before ? before - 1 : 101;
+    const ids = [];
+    for (let id = Math.max(1, top - 39); id <= top; id += 1) ids.push(id);
+    return pageOf(ids, ids[0] > 1);
+  };
+  const result = await PMChatInternals.fetchSince(fetchPage, 1, 25);
+  assert.equal(result.overlaps, true);
+  assert.deepEqual(calls, [null, 62, 22]);
+  const ids = Array.from(result.messages, (m) => m.id);
+  for (let id = 2; id <= 101; id += 1) assert.ok(ids.includes(id), `missing ${id}`);
+});
+
+test('catch-up reports no overlap when the page cap runs out', async () => {
+  const { PMChatInternals } = load();
+  let next = 1000;
+  const fetchPage = async () => {
+    const ids = [next - 1, next];
+    next -= 2;
+    return pageOf(ids, true);
+  };
+  const result = await PMChatInternals.fetchSince(fetchPage, 1, 3);
+  assert.equal(result.overlaps, false);
+  assert.equal(result.messages.length, 6);
+});
+
+function bootApp(handler) {
+  const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="t"></head><body>
+    <button data-chat-launcher></button>
+    <div data-chat-root data-current-user-id="me" data-api-base="/api/chat" data-max-length="4000"></div>
+  </body></html>`, { runScripts: 'outside-only', url: 'https://prism.local/', pretendToBeVisual: true });
+  const { window } = dom;
+  Object.defineProperty(window, 'crypto', { value: webcrypto, configurable: true });
+  window.fetch = async (url, init = {}) => {
+    const result = await handler(String(url), init);
+    const status = result && result.status ? result.status : 200;
+    const body = result && 'body' in result ? result.body : result;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    };
+  };
+  window.eval(script);
+  return window;
+}
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+const contact = { userId: 'peer', displayName: 'Peer Person', rank: null, initials: 'PP', isActive: true, isOnline: true, unreadCount: 0, lastMessageUtc: null };
+
+test('a window popped open by a pushed message still offers earlier history', async () => {
+  let releaseHistory;
+  const historyGate = new Promise((resolve) => { releaseHistory = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) {
+      await historyGate;
+      return pageOf(Array.from({ length: 40 }, (_, i) => i + 11), true);
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    window.PMChat.onMessage({ id: 60, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-60', body: 'hi', sentUtc: new Date().toISOString() });
+    releaseHistory();
+    await tick(); await tick();
+    const win = window.PMChat.windows.get('peer');
+    assert.equal(win.hasMore, true);
+    assert.equal(win.earlier.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a failed mark-read is retried on the next focus', async () => {
+  const reads = [];
+  let failNext = true;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) return pageOf([5], false);
+    if (url.endsWith('/read')) {
+      reads.push(JSON.parse(init.body).upToMessageId);
+      if (failNext) { failNext = false; return { status: 500, body: {} }; }
+      return { status: 204, body: null };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const win = window.PMChat.openWindow('peer', { focus: true });
+    await tick(); await tick(); await tick();
+    assert.deepEqual(reads, [5]);
+    assert.equal(win.lastReadId, 0);
+    win.input.blur();
+    win.input.focus();
+    await tick(); await tick();
+    assert.deepEqual(reads, [5, 5]);
+    assert.equal(win.lastReadId, 5);
+  } finally {
+    window.close();
+  }
+});
