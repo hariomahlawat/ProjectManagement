@@ -295,14 +295,7 @@ public sealed class ChatGroupService
 
         if (string.Equals(group.ManagerUserId, userId, StringComparison.Ordinal))
         {
-            // Management passes to the longest-standing member (ties broken by id, so it is stable).
-            group.ManagerUserId = await _db.ChatParticipants
-                .AsNoTracking()
-                .Where(p => p.ConversationId == group.Id)
-                .OrderBy(p => p.JoinedUtc)
-                .ThenBy(p => p.UserId)
-                .Select(p => p.UserId)
-                .FirstOrDefaultAsync(cancellationToken) ?? userId;
+            group.ManagerUserId = await NextManagerAsync(group.Id, cancellationToken);
         }
 
         var notice = await AddEventAsync(group, userId, ChatGroupEvent.Left, userId, cancellationToken);
@@ -535,6 +528,24 @@ public sealed class ChatGroupService
         return collapsed.Length <= ChatConversation.MaxTitleLength
             ? collapsed
             : collapsed[..ChatConversation.MaxTitleLength].TrimEnd();
+    }
+
+    /// <summary>
+    /// The longest-standing remaining member whose account is still active (ties broken by id, so
+    /// it is stable), or null when none is: a purged or deactivated account keeps its membership
+    /// row (no user foreign keys) but must not be handed a group nobody else could then manage.
+    /// </summary>
+    private async Task<string?> NextManagerAsync(long groupId, CancellationToken cancellationToken)
+    {
+        var remaining = await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == groupId)
+            .OrderBy(p => p.JoinedUtc)
+            .ThenBy(p => p.UserId)
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken);
+        var unreachable = (await UnreachableAsync(remaining, cancellationToken)).ToHashSet(StringComparer.Ordinal);
+        return remaining.FirstOrDefault(id => !unreachable.Contains(id));
     }
 
     /// <summary>

@@ -165,6 +165,36 @@ public sealed class ChatGroupServiceTests
     }
 
     [Fact]
+    public async Task ManagerLeaving_SkipsMembersWhoseAccountsAreGone()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        await scope.Groups.AddMembersAsync("bob", id, new[] { "carol" });
+        // Bob (the longest-standing after Alice) is purged; his membership row stays behind.
+        scope.Db.Users.Remove(await scope.Db.Users.SingleAsync(u => u.Id == "bob"));
+        await scope.Db.SaveChangesAsync();
+
+        var left = await scope.Groups.LeaveAsync("alice", id);
+
+        Assert.Equal("carol", left.Group!.ManagerUserId);
+        Assert.Equal(ChatGroupStatus.Ok, (await scope.Groups.RenameAsync("carol", id, "Carol's desk")).Status);
+    }
+
+    [Fact]
+    public async Task ManagerLeaving_WithNoActiveMemberLeft_LeavesTheGroupUnmanaged()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        scope.Db.Users.Remove(await scope.Db.Users.SingleAsync(u => u.Id == "bob"));
+        await scope.Db.SaveChangesAsync();
+
+        var left = await scope.Groups.LeaveAsync("alice", id);
+
+        Assert.Equal(ChatGroupStatus.Ok, left.Status);
+        Assert.Equal(string.Empty, left.Group!.ManagerUserId);
+    }
+
+    [Fact]
     public async Task AFailedChange_LeavesNothingBehind()
     {
         await using var scope = await GroupScope.CreateAsync();
