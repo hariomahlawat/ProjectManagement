@@ -83,6 +83,25 @@ public sealed class ProjectCostResolver : IProjectCostResolver
             return new Dictionary<int, ProjectCostResolution>();
         }
 
+        var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, ct);
+        return await ResolveCostInCrAsync(projectIds, ipaPositions, ct);
+    }
+
+    /// <summary>
+    /// Resolves costs against IPA positions the caller already holds, so an output that also
+    /// shows the IPA amount uses one IPA snapshot for both figures.
+    /// </summary>
+    public async Task<Dictionary<int, ProjectCostResolution>> ResolveCostInCrAsync(
+        IReadOnlyCollection<int> projectIds,
+        IReadOnlyDictionary<int, AuthoritativeIpaPosition> ipaPositions,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(ipaPositions);
+        if (projectIds is null || projectIds.Count == 0)
+        {
+            return new Dictionary<int, ProjectCostResolution>();
+        }
+
         // SECTION: Project CostLakhs lookup (Lakhs)
         var costLakhsRows = await _db.Projects
             .AsNoTracking()
@@ -117,8 +136,6 @@ public sealed class ProjectCostResolver : IProjectCostResolver
             .Where(fact => projectIds.Contains(fact.ProjectId))
             .Select(fact => new { fact.ProjectId, fact.AonCost, fact.CreatedOnUtc, fact.Id })
             .ToListAsync(ct);
-
-        var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, ct);
 
         var pncByProject = BuildLatestFactMap(pncFacts, fact => fact.ProjectId, fact => fact.CreatedOnUtc, fact => fact.Id, fact => fact.PncCost);
         var l1ByProject = BuildLatestFactMap(l1Facts, fact => fact.ProjectId, fact => fact.CreatedOnUtc, fact => fact.Id, fact => fact.L1Cost);

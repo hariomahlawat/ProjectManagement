@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.Projects;
 using Xunit;
@@ -108,6 +109,42 @@ public sealed class ProjectCostResolverTests
 
         Assert.Equal((ProjectBriefingCostBasis.PNC, 2_500_000m, "PNC"), (costRd[1].Basis, costRd[1].AmountInRupees!.Value, costRd[1].BasisDisplay));
         Assert.Equal((ProjectBriefingCostBasis.Recorded, 4_250_000m, "Recorded"), (costRd[2].Basis, costRd[2].AmountInRupees!.Value, costRd[2].BasisDisplay));
+    }
+
+    [Fact]
+    public async Task BriefingCosts_UseOneIpaSnapshotForCostRdAndTheIpaAmount()
+    {
+        await using var db = CreateContext();
+        AddProject(db, 1, ProjectLifecycleStatus.Active);
+        AddIpa(db, 1, 5_000_000m);
+        await db.SaveChangesAsync();
+        var ipaResolver = new CountingIpaResolver(new AuthoritativeIpaPositionResolver(db));
+
+        var costs = await new ProjectBriefingCostResolver(db, ipaResolver).ResolveCostsAsync(new[] { 1 });
+
+        Assert.Equal(1, ipaResolver.ManyCalls);
+        Assert.Equal(costs.Ipa[1].AmountInRupees, costs.CostRd[1].AmountInRupees);
+        Assert.Equal(ProjectBriefingCostBasis.IPA, costs.CostRd[1].Basis);
+    }
+
+    private sealed class CountingIpaResolver : IAuthoritativeIpaPositionResolver
+    {
+        private readonly IAuthoritativeIpaPositionResolver _inner;
+
+        public CountingIpaResolver(IAuthoritativeIpaPositionResolver inner) => _inner = inner;
+
+        public int ManyCalls { get; private set; }
+
+        public Task<AuthoritativeIpaPosition?> ResolveAsync(int projectId, CancellationToken cancellationToken = default)
+            => _inner.ResolveAsync(projectId, cancellationToken);
+
+        public Task<IReadOnlyDictionary<int, AuthoritativeIpaPosition>> ResolveManyAsync(
+            IReadOnlyCollection<int> projectIds,
+            CancellationToken cancellationToken = default)
+        {
+            ManyCalls++;
+            return _inner.ResolveManyAsync(projectIds, cancellationToken);
+        }
     }
 
     private static async Task<ProjectCostResolution> ResolveAsync(ApplicationDbContext db, int projectId)

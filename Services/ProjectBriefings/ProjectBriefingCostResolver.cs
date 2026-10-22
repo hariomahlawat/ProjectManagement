@@ -54,12 +54,13 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
             return new ProjectBriefingResolvedCosts(empty, empty);
         }
 
-        // Resolve the authoritative IPA position once for the separate Total IPA Cost summary.
+        // Resolve the authoritative IPA position once. The same snapshot feeds both the
+        // R&D-cost fallback and the separate Total IPA Cost summary.
         var ipaPositions = await _ipaResolver.ResolveManyAsync(ids, cancellationToken);
 
         // Cost (R&D) is the project's cost under the one shared rule (ProjectCostResolver).
         var projectCosts = await new ProjectCostResolver(_db, _ipaResolver)
-            .ResolveCostInCrAsync(ids, cancellationToken);
+            .ResolveCostInCrAsync(ids, ipaPositions, cancellationToken);
 
         var costRd = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
         var ipaCost = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
