@@ -14,11 +14,11 @@ public sealed class ProjectHeaderStripBuilderTests
 
     // SECTION: Which tiles show at each phase
     [Fact]
-    public void BeforeTheSupplyOrder_TracksScheduleCostUpdateAndHealth()
+    public void BeforeTheSupplyOrder_TracksScheduleCostAndHealth()
     {
         var strip = Build(Portfolio("TEC", pdcInDays: -76), Procurement(aon: 46_500_000m, ipa: 48_000_000m));
 
-        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.LastUpdate, ProjectHeaderTile.RecordHealth }, strip.Tiles);
+        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth }, strip.Tiles);
         Assert.Equal(new[] { ProjectHeaderTile.Jdp, ProjectHeaderTile.Proliferation }, strip.InOverviewCard);
     }
 
@@ -31,7 +31,7 @@ public sealed class ProjectHeaderStripBuilderTests
             Portfolio(currentStage, pdcInDays: 10),
             Procurement(l1: 2_599_000m, supplyOrder: supplyOrderDated ? new DateOnly(2026, 1, 29) : null));
 
-        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp, ProjectHeaderTile.LastUpdate }, strip.Tiles);
+        Assert.Equal(new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp }, strip.Tiles);
         Assert.Equal(new[] { ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth }, strip.InOverviewCard);
     }
 
@@ -42,6 +42,17 @@ public sealed class ProjectHeaderStripBuilderTests
 
         Assert.Equal(new[] { ProjectHeaderTile.Tot, ProjectHeaderTile.Cost, ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth }, strip.Tiles);
         Assert.Equal(new[] { ProjectHeaderTile.Jdp }, strip.InOverviewCard);
+    }
+
+    [Theory]
+    [InlineData(ProjectLifecycleStatus.Active, true)]
+    [InlineData(ProjectLifecycleStatus.Cancelled, true)]
+    [InlineData(ProjectLifecycleStatus.Completed, false)]
+    public void LatestUpdateBand_ShowsUntilTheProjectIsCompleted(ProjectLifecycleStatus lifecycle, bool shows)
+    {
+        var strip = Build(Portfolio("DEVP", pdcInDays: 5), Procurement(), lifecycle);
+
+        Assert.Equal(shows, strip.ShowsLastUpdate);
     }
 
     [Fact]
@@ -127,40 +138,38 @@ public sealed class ProjectHeaderStripBuilderTests
 
     // SECTION: Last update
     [Fact]
-    public void UpdateTile_ShowsPlainTextAuthorDateAndAge_AndMarksOldUpdates()
+    public void LatestUpdate_ShowsTheWholeRemarkAsPlainText_WithAuthorDateAndAge_AndMarksOldUpdates()
     {
+        var longTail = new string('b', 400);
         var remarks = new ProjectRemarkSummaryViewModel
         {
             InternalCount = 1,
             LastActivityUtc = new DateTime(2026, 6, 8, 5, 0, 0, DateTimeKind.Utc),
-            LastRemarkPreview = "Review done. <span class=\"remark-mention\" data-user-id=\"x\">@Arpan</span> to follow up &amp; close.",
+            LastRemarkText = "Review done. @Arpan to follow up & close. " + longTail,
             LastRemarkAuthorDisplayName = "Abhishek Khajuria"
         };
 
         var update = ProjectHeaderStripBuilder.BuildLastUpdate(remarks, NowUtc);
 
         Assert.True(update.HasRemark);
-        Assert.Equal("Review done. @Arpan to follow up & close.", update.Preview);
+        Assert.Equal("Review done. @Arpan to follow up & close. " + longTail, update.Text);
         Assert.Equal("Abhishek Khajuria · 08 Jun 2026 · 4 months ago", update.Meta);
         Assert.True(update.IsStale);
     }
 
     [Fact]
-    public void RemarkPreview_StripsMarkupBeforeShortening()
+    public void RemarkText_RemovesMarkup_AndKeepsTheAuthorsLineBreaks()
     {
-        // The mention's opening tag straddles the 140th character of the raw body.
-        var body = new string('a', 130) + " <span class=\"remark-mention\" data-user-id=\"x\">@Arpan</span> " + new string('b', 40);
+        var body = "Review done. <span class=\"remark-mention\" data-user-id=\"x\">@Arpan</span> to follow up &amp; close.\r\n\r\n\r\n"
+            + "Next:   vendor demo<br/>on Monday";
 
-        var preview = ProjectHeaderStripBuilder.RemarkPreview(body);
-
-        Assert.Equal(new string('a', 130) + " @Arpan " + new string('b', 2) + "…", preview);
-        Assert.DoesNotContain("<", preview);
+        Assert.Equal("Review done. @Arpan to follow up & close.\n\nNext: vendor demo\non Monday", ProjectHeaderStripBuilder.RemarkText(body));
     }
 
     [Fact]
-    public void RemarkPreview_OfAnEmptyBody_IsNull()
+    public void RemarkText_OfAnEmptyBody_IsEmpty()
     {
-        Assert.Null(ProjectHeaderStripBuilder.RemarkPreview("  <p> </p> "));
+        Assert.Equal(string.Empty, ProjectHeaderStripBuilder.RemarkText("  <p> </p> "));
     }
 
     [Fact]

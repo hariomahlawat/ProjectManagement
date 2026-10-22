@@ -253,7 +253,8 @@
 
 .project-intelligence-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* Three or four tiles by phase; either way they share the full width. */
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
     gap: .65rem;
     margin-top: 0;
     padding: .85rem 1rem 1rem;
@@ -622,6 +623,8 @@ button.project-intelligence-card:hover {
     .project-command-header__actions { width: 100%; justify-content: flex-start; }
     .project-lifecycle-lockup { order: -1; align-self: stretch; min-width: 0; }
     .project-intelligence-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* A three-tile strip: the odd tile out takes the whole row instead of leaving a hole. */
+    .project-intelligence-strip > :last-child:nth-child(odd) { grid-column: 1 / -1; }
     .project-lifecycle-summary__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -4195,20 +4198,98 @@ a.project-intelligence-card:focus-visible {
     font-weight: 600;
 }
 
-.project-intelligence-card strong.project-intelligence-card__preview {
-    display: -webkit-box;
-    overflow: hidden;
-    font-size: .88rem;
-    font-weight: 600;
-    line-height: 1.3;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+.project-latest-update {
+    padding: .8rem 1rem .9rem;
+    border-top: 1px solid var(--portfolio-border);
 }
 
-.project-intelligence-card .project-intelligence-card__stale {
+.project-latest-update__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .2rem .75rem;
+    margin-bottom: .3rem;
+}
+
+.project-latest-update__label {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin: 0;
+    color: var(--portfolio-muted);
+    font-size: .69rem;
+    font-weight: 750;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.project-latest-update__meta {
+    color: var(--portfolio-muted);
+    font-size: .78rem;
+}
+
+.project-latest-update__meta--stale {
     color: var(--pm-status-warning-text);
     font-weight: 650;
+}
+
+.project-latest-update__all {
+    margin-left: auto;
+    color: var(--bs-link-color);
+    font-size: .78rem;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.project-latest-update__all:hover,
+.project-latest-update__all:focus-visible {
+    color: var(--bs-link-hover-color);
+    text-decoration: underline;
+}
+
+/* Three lines at rest; "Show more" lifts the clamp. Line breaks are the author's own. */
+.project-latest-update__text {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: var(--pm-text-strong);
+    font-size: .92rem;
+    line-height: 1.5;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.project-latest-update.is-expanded .project-latest-update__text {
+    display: block;
+    -webkit-line-clamp: unset;
+}
+
+.project-latest-update--empty .project-latest-update__text {
+    color: var(--portfolio-muted);
+    font-size: .86rem;
+}
+
+.project-latest-update__more {
+    margin-top: .2rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bs-link-color);
+    font-size: .8rem;
+    font-weight: 650;
+}
+
+.project-latest-update__more:hover,
+.project-latest-update__more:focus-visible {
+    color: var(--bs-link-hover-color);
+    text-decoration: underline;
+}
+
+@media (max-width: 575.98px) {
+    .project-latest-update { padding: .7rem .82rem .8rem; }
+    .project-latest-update__all { margin-left: 0; }
 }
 
 /* Tracked tiles the strip leaves out at this phase, inside the Project overview card. */

@@ -16,7 +16,6 @@ public enum ProjectHeaderTile
 {
     Stage,
     Cost,
-    LastUpdate,
     RecordHealth,
     Jdp,
     Proliferation,
@@ -29,25 +28,29 @@ public sealed record ProjectHeaderStageTile(string Title, string? Schedule, stri
 
 public sealed record ProjectHeaderCostTile(string Value, string? Basis, string Detail);
 
-public sealed record ProjectHeaderUpdateTile(bool HasRemark, string Preview, string Meta, bool IsStale);
+/// <summary>The latest remark, shown in full in a band under the strip.</summary>
+public sealed record ProjectHeaderUpdate(bool HasRemark, string Text, string Meta, bool IsStale);
 
 /// <summary>
-/// The header strip for one project: which four tiles show, in order, and which tracked
-/// tiles move down into the Project overview card instead. Each tile is rendered once.
+/// The header strip for one project: which tiles show, in order, and which tracked tiles
+/// move down into the Project overview card instead. Each tile is rendered once. The latest
+/// update is not a tile: a remark is prose, so it gets a full-width band under the strip.
 /// </summary>
 public sealed record ProjectHeaderStripVm(
     IReadOnlyList<ProjectHeaderTile> Tiles,
     IReadOnlyList<ProjectHeaderTile> InOverviewCard,
     ProjectHeaderStageTile Stage,
     ProjectHeaderCostTile Cost,
-    ProjectHeaderUpdateTile LastUpdate)
+    bool ShowsLastUpdate,
+    ProjectHeaderUpdate LastUpdate)
 {
     public static ProjectHeaderStripVm Empty { get; } = new(
         Array.Empty<ProjectHeaderTile>(),
         Array.Empty<ProjectHeaderTile>(),
         new ProjectHeaderStageTile("Not started", null, string.Empty, string.Empty),
         new ProjectHeaderCostTile("Not recorded", null, "No cost recorded yet"),
-        new ProjectHeaderUpdateTile(false, "No remarks yet", string.Empty, false));
+        false,
+        new ProjectHeaderUpdate(false, "No remarks yet", string.Empty, false));
 
     public bool Shows(ProjectHeaderTile tile) => Tiles.Contains(tile);
 
@@ -56,9 +59,9 @@ public sealed record ProjectHeaderStripVm(
 
 /// <summary>
 /// Rules for the Project Overview header strip. The tiles follow the project's phase:
-/// before the supply order the strip tracks schedule, cost, the last update and record
-/// health; from the supply order the JDP partner takes record health's place; a completed
-/// project leads with its Transfer of Technology.
+/// before the supply order the strip tracks schedule, cost and record health; from the
+/// supply order the JDP partner takes record health's place; a completed project leads with
+/// its Transfer of Technology. Every phase but completion also shows the latest update.
 /// </summary>
 public static class ProjectHeaderStripBuilder
 {
@@ -85,11 +88,11 @@ public static class ProjectHeaderStripBuilder
         var tiles = lifecycle switch
         {
             ProjectLifecycleStatus.Active => IsSupplyOrderPlaced(portfolio, procurement)
-                ? new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp, ProjectHeaderTile.LastUpdate }
-                : new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.LastUpdate, ProjectHeaderTile.RecordHealth },
+                ? new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.Jdp }
+                : new[] { ProjectHeaderTile.Stage, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth },
             ProjectLifecycleStatus.Completed => new[] { ProjectHeaderTile.Tot, ProjectHeaderTile.Cost, ProjectHeaderTile.Proliferation, ProjectHeaderTile.RecordHealth },
-            ProjectLifecycleStatus.Cancelled => new[] { ProjectHeaderTile.Cancellation, ProjectHeaderTile.Cost, ProjectHeaderTile.LastUpdate, ProjectHeaderTile.RecordHealth },
-            _ => new[] { ProjectHeaderTile.Status, ProjectHeaderTile.Cost, ProjectHeaderTile.LastUpdate, ProjectHeaderTile.RecordHealth }
+            ProjectLifecycleStatus.Cancelled => new[] { ProjectHeaderTile.Cancellation, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth },
+            _ => new[] { ProjectHeaderTile.Status, ProjectHeaderTile.Cost, ProjectHeaderTile.RecordHealth }
         };
 
         return new ProjectHeaderStripVm(
@@ -97,6 +100,7 @@ public static class ProjectHeaderStripBuilder
             Tracked.Where(tile => !tiles.Contains(tile)).ToArray(),
             BuildStage(portfolio, today),
             BuildCost(procurement),
+            lifecycle != ProjectLifecycleStatus.Completed,
             BuildLastUpdate(remarks, nowUtc));
     }
 
@@ -175,21 +179,21 @@ public static class ProjectHeaderStripBuilder
     }
 
     // SECTION: Last update
-    public static ProjectHeaderUpdateTile BuildLastUpdate(ProjectRemarkSummaryViewModel remarks, DateTime nowUtc)
+    public static ProjectHeaderUpdate BuildLastUpdate(ProjectRemarkSummaryViewModel remarks, DateTime nowUtc)
     {
         if (!remarks.HasRemarks || remarks.LastActivityUtc is not { } at)
         {
-            return new ProjectHeaderUpdateTile(false, "No remarks yet", "Add one when something moves", false);
+            return new ProjectHeaderUpdate(false, "No remarks yet", "Add one when something moves", false);
         }
 
         var utc = DateTime.SpecifyKind(at, DateTimeKind.Utc);
         var days = Math.Max(0, (int)(nowUtc - utc).TotalDays);
         var date = TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZoneHelper.GetIst()).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         var author = string.IsNullOrWhiteSpace(remarks.LastRemarkAuthorDisplayName) ? "Unknown" : remarks.LastRemarkAuthorDisplayName.Trim();
-        var preview = PlainText(remarks.LastRemarkPreview);
-        if (preview.Length == 0) preview = "Remark recorded";
+        var text = RemarkText(remarks.LastRemarkText);
+        if (text.Length == 0) text = "Remark recorded";
 
-        return new ProjectHeaderUpdateTile(true, preview, $"{author} · {date} · {AgeLabel(days)}", days > StaleUpdateDays);
+        return new ProjectHeaderUpdate(true, text, $"{author} · {date} · {AgeLabel(days)}", days > StaleUpdateDays);
     }
 
     public static string AgeLabel(int days)
@@ -206,27 +210,19 @@ public static class ProjectHeaderStripBuilder
         };
     }
 
-    public const int RemarkPreviewLength = 140;
-
     /// <summary>
-    /// A plain-text preview of a remark body. Markup is removed from the whole body before
-    /// it is shortened, so the cut never lands inside a mention tag.
+    /// The whole remark as plain text. Markup such as mention tags is removed, and line and
+    /// paragraph breaks are kept so a long remark still reads as the author wrote it.
     /// </summary>
-    public static string? RemarkPreview(string? body)
+    public static string RemarkText(string? body)
     {
-        var text = PlainText(body);
-        if (text.Length == 0) return null;
-        return text.Length <= RemarkPreviewLength
-            ? text
-            : string.Concat(text.AsSpan(0, RemarkPreviewLength).TrimEnd(), "…");
-    }
-
-    // Remark bodies can hold mention markup; previews show plain text.
-    public static string PlainText(string? html)
-    {
-        if (string.IsNullOrWhiteSpace(html)) return string.Empty;
-        var text = WebUtility.HtmlDecode(Regex.Replace(html, "<[^>]*>", " "));
-        return Regex.Replace(text, @"\s+", " ").Trim();
+        if (string.IsNullOrWhiteSpace(body)) return string.Empty;
+        var text = Regex.Replace(body, @"<br\s*/?>|</(p|div|li)>", "\n", RegexOptions.IgnoreCase);
+        text = WebUtility.HtmlDecode(Regex.Replace(text, "<[^>]*>", " "));
+        var lines = text.Replace("\r\n", "\n").Split('\n')
+            .Select(line => Regex.Replace(line, @"\s+", " ").Trim());
+        // At most one blank line between paragraphs.
+        return Regex.Replace(string.Join("\n", lines), @"\n{3,}", "\n\n").Trim();
     }
 
     private static string Days(int count) => count == 1 ? "day" : "days";

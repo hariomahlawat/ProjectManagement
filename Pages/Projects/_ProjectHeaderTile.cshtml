@@ -49,14 +49,6 @@
         </a>
         break;
 
-    case ProjectHeaderTile.LastUpdate:
-        <div class="project-intelligence-card project-intelligence-card--update" role="group" aria-label="Last update">
-            <span class="project-intelligence-card__label"><i class="bi bi-chat-left-text project-intelligence-card__glyph" aria-hidden="true"></i>Last update</span>
-            <strong class="project-intelligence-card__preview" title="@strip.LastUpdate.Preview">@strip.LastUpdate.Preview</strong>
-            <span class="@(strip.LastUpdate.IsStale ? "project-intelligence-card__stale" : null)">@strip.LastUpdate.Meta</span>
-        </div>
-        break;
-
     case ProjectHeaderTile.Tot:
         @await Component.InvokeAsync("ProjectTotCommandCard", new
         {

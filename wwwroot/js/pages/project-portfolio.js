@@ -178,6 +178,43 @@
         button.addEventListener('click', activateRemarksPanel);
     });
 
+    // "All remarks" in the latest-update band shows the Remarks panel without opening the composer.
+    root.querySelectorAll('[data-project-open-remarks]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            document.querySelector('[data-panel-target="remarks"]')?.click();
+            window.setTimeout(() => scrollToTarget('#remarks'), 80);
+        });
+    });
+
+    // The latest update is clamped to three lines; "Show more" appears only when it is cut.
+    function initializeLatestUpdate() {
+        const band = root.querySelector('[data-latest-update]');
+        const text = band?.querySelector('[data-latest-update-text]');
+        const toggle = band?.querySelector('[data-latest-update-toggle]');
+        if (!band || !text || !toggle) return;
+
+        const sync = () => {
+            if (band.classList.contains('is-expanded')) return;
+            toggle.hidden = text.scrollHeight <= text.clientHeight + 1;
+        };
+
+        toggle.addEventListener('click', () => {
+            const expanded = !band.classList.contains('is-expanded');
+            band.classList.toggle('is-expanded', expanded);
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            toggle.textContent = expanded ? 'Show less' : 'Show more';
+            sync();
+        });
+
+        sync();
+        if ('ResizeObserver' in window) {
+            new ResizeObserver(sync).observe(text);
+        } else {
+            window.addEventListener('resize', sync);
+        }
+    }
+
     function initializeRemarkComposer() {
         const composer = root.querySelector('.remarks-composer');
         const launcher = root.querySelector('[data-project-remark-launcher]');
@@ -226,6 +263,7 @@
     revealStageFromLocation(false);
     initializeRemarkComposer();
     initializeAutoDismissAlerts();
+    initializeLatestUpdate();
 
     document.addEventListener('pm:remarks-rendered', () => {
         initializeRemarkComposer();
