@@ -33,6 +33,7 @@
   const IDLE_MS = 5 * 60 * 1000; // no input for this long in this tab = away
   const IDLE_CHECK_MS = 30000;
   const SEARCH_DELAY_MS = 300;
+  const UNSENT_RETRY_MS = 15000;
 
   const timeFormat = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TIME_ZONE });
   const dayKeyFormat = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TIME_ZONE });
@@ -450,6 +451,7 @@
     this.stopped = true;
     if (this.pollTimer) global.clearInterval(this.pollTimer);
     if (this.idleTimer) global.clearInterval(this.idleTimer);
+    if (this.unsentRetry) global.clearTimeout(this.unsentRetry);
     if (this.connection) this.connection.stop().catch(() => {});
     this.title.stop();
     document.querySelectorAll('.pm-chat-person').forEach((button) => button.remove());
@@ -548,7 +550,11 @@
    * messages, so an already-loaded message that was unsent meanwhile would keep its text.
    */
   ChatApp.prototype.syncUnsent = async function (done) {
-    if (!this.offlineSince) return;
+    if (!this.offlineSince || this.stopped) return;
+    if (this.unsentRetry) {
+      global.clearTimeout(this.unsentRetry);
+      this.unsentRetry = null;
+    }
     const since = new Date(this.offlineSince.getTime() - 60000); // allow for clock skew
     try {
       const ids = await this.request('GET', `/unsent?since=${encodeURIComponent(since.toISOString())}`);
@@ -558,7 +564,13 @@
         if (this.page) this.page.refreshResults();
       }
       if (done) this.offlineSince = null; // live again: events cover the rest
-    } catch (_) { /* tried again on the next poll or reconnect */ }
+    } catch (_) {
+      // While polling, the next poll tries again. Once live again nothing else would, so keep
+      // retrying until the catch-up succeeds (one timer at a time).
+      if (done && !this.stopped) {
+        this.unsentRetry = global.setTimeout(() => this.syncUnsent(true), UNSENT_RETRY_MS);
+      }
+    }
   };
 
   ChatApp.prototype.resync = function () {

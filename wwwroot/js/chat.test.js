@@ -994,3 +994,33 @@ test('an unsent message leaves the search results, also from a late response', a
     window.close();
   }
 });
+
+test('a failed unsend catch-up after reconnecting is retried until it succeeds', async () => {
+  let failures = 1;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      if (failures > 0) { failures -= 1; return { status: 500, body: {} }; }
+      return [1];
+    }
+    if (url.includes('/messages')) return pageOf([1, 2], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true); // fails
+    assert.ok(app.unsentRetry, 'a retry is scheduled');
+    assert.notEqual(app.offlineSince, null);
+    window.clearTimeout(app.unsentRetry);
+    await app.syncUnsent(true); // the retry
+    assert.equal(app.unsentRetry, null);
+    assert.equal(app.offlineSince, null);
+    assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+  } finally {
+    window.close();
+  }
+});
