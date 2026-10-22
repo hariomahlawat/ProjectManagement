@@ -582,14 +582,7 @@
       if (incoming) win.typingUntil = 0; // the message they were typing has arrived
       // A conversation opened at an old message (from search) shows a slice of history; the
       // newest message is reached with "Show newer messages", so don't paste it below a gap.
-      if (!win.hasNewer) {
-        win.messages = mergeMessages(win.messages, [message]);
-        this.renderMessages(win, { stickToBottom: true });
-      } else {
-        // Held until "Show newer" reaches the latest page, which may have been read on the
-        // server just before this message was saved.
-        win.heldLive.push(message);
-      }
+      this.acceptSaved(win, [message]);
       if (fresh && !this.isAttended(win)) {
         win.attention = true;
       }
@@ -1377,11 +1370,32 @@
         clientMessageId: message.clientMessageId,
         body: message.body,
       });
-      win.messages = mergeMessages(win.messages, [saved]);
+      // Checked now, not when sending: the person may have opened an older slice meanwhile.
+      this.acceptSaved(win, [saved]);
+      return;
     } catch (error) {
       message.failed = true;
       message.error = error.message;
     }
+    this.renderMessages(win, { stickToBottom: true });
+  };
+
+  /**
+   * The one way a newly saved message (pushed, or the response to a send) enters a view.
+   * Normally it is merged in place. While the view shows an older slice (hasNewer), it would
+   * sit below a gap and become the cursor for "Show newer", silently skipping the messages in
+   * between; so it is held until "Show newer" reaches the latest page, and its unsent copy
+   * leaves the slice.
+   */
+  ChatApp.prototype.acceptSaved = function (win, messages) {
+    if (win.hasNewer) {
+      const ids = new Set(messages.map((m) => m.clientMessageId));
+      win.messages = win.messages.filter((m) => m.id || !ids.has(m.clientMessageId));
+      win.heldLive.push(...messages);
+      this.renderMessages(win, { stickToBottom: false });
+      return;
+    }
+    win.messages = mergeMessages(win.messages, messages);
     this.renderMessages(win, { stickToBottom: true });
   };
 

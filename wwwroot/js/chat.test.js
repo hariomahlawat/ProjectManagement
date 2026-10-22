@@ -720,3 +720,41 @@ test('retrying a failed message from a search slice jumps to the latest first', 
     window.close();
   }
 });
+
+test('a send that completes after an older search slice opened does not land below the gap', async () => {
+  let releaseSend;
+  const sendGate = new Promise((resolve) => { releaseSend = resolve; });
+  const requested = [];
+  const window = bootApp(async (url, init) => {
+    requested.push(url);
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) return { ...pageOf([14, 15], true), hasNewer: true };
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      await sendGate;
+      const body = JSON.parse(init.body);
+      return { status: 200, body: { id: 101, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: body.body, sentUtc: new Date().toISOString() } };
+    }
+    if (url.includes('after=15')) return { ...pageOf([16, 100], false), hasNewer: false };
+    if (url.includes('/messages?limit=')) return pageOf([99, 100], true);
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-with="peer"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    win.input.value = 'sent before searching';
+    app.send(win);
+    app.page.open('peer', 15); // opened while the send is still in flight
+    await tick(); await tick();
+    releaseSend();
+    await tick(); await tick(); await tick();
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15]);
+    assert.equal(win.hasNewer, true);
+
+    await app.loadNewer(win);
+    assert.ok(requested.some((u) => u.includes('after=15')));
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16, 100, 101]);
+  } finally {
+    window.close();
+  }
+});
